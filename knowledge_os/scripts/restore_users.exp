@@ -1,0 +1,87 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Восстанавливаем обоих пользователей
+send "echo '=== ВОССТАНОВЛЕНИЕ ПОЛЬЗОВАТЕЛЕЙ ==='\r"
+expect "# "
+send "cd /root/atra && python3 << 'PYEOF'
+import sys
+sys.path.insert(0, '/root/atra')
+
+from src.database.db import Database
+
+db = Database()
+
+# Пользователь 1: 556251171
+user1_id = '556251171'
+user1_data = {
+    'deposit': 10000.0,
+    'trade_mode': 'spot',
+    'filter_mode': 'soft',
+    'risk_pct': 2.0,
+    'leverage': 1,
+    'setup_completed': True
+}
+
+# Пользователь 2: 958930260
+user2_id = '958930260'
+user2_data = {
+    'deposit': 200.0,
+    'trade_mode': 'futures',
+    'filter_mode': 'soft',
+    'risk_pct': 2.0,
+    'leverage': 1,
+    'setup_completed': True
+}
+
+# Сохраняем
+print(f'Сохранение пользователя {user1_id}...')
+result1 = db.save_user_data(user1_id, user1_data)
+print(f'  Результат: {result1}')
+
+print(f'Сохранение пользователя {user2_id}...')
+result2 = db.save_user_data(user2_id, user2_data)
+print(f'  Результат: {result2}')
+
+# Проверяем
+user_ids = db.get_all_users()
+print(f'\\nВсего пользователей в БД: {len(user_ids)}')
+for uid in user_ids:
+    data = db.get_user_data(uid)
+    if data:
+        print(f'  {uid}: deposit={data.get(\"deposit\")}, mode={data.get(\"trade_mode\")}')
+    else:
+        print(f'  {uid}: данные не загружены')
+
+PYEOF
+\r"
+expect "# "
+
+# Проверяем через SQLite
+send "echo '' && echo '=== ПРОВЕРКА ЧЕРЕЗ SQLITE ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, substr(data, 1, 50) as preview FROM users_data;\"\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

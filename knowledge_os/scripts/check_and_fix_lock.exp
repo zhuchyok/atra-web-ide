@@ -1,0 +1,73 @@
+#!/usr/bin/expect -f
+# Проверка и исправление lock файлов
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка lock файлов
+send "echo '=== LOCK ФАЙЛЫ ==='\r"
+expect "# "
+send "find . -name '*lock*' -o -name '*polling*' 2>/dev/null | head -10\r"
+expect "# "
+
+# Удаление старых lock файлов
+send "echo '=== УДАЛЕНИЕ СТАРЫХ LOCK ==='\r"
+expect "# "
+send "rm -f /tmp/telegram_polling_lock_* 2>/dev/null && echo 'Lock файлы удалены' || echo 'Lock файлов не найдено'\r"
+expect "# "
+
+# Перезапуск бота
+send "echo '=== ПЕРЕЗАПУСК БОТА ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+send "tail -20 server.log 2>/dev/null | grep -E '(Lock|lock|polling|Polling|ERROR|Exception)' | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

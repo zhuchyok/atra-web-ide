@@ -1,0 +1,4 @@
+# Автоматическое создание задач на основе высоколиквидных знаний
+# Запускается ежедневно в 4:00 UTC
+0 4 * * * cd /root/knowledge_os && python3 -c "from app.liquidity_task_generator import process_liquidity_tasks; import asyncio; asyncio.run(process_liquidity_tasks())" >> logs/liquidity_tasks.log 2>&1
+

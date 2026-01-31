@@ -1,0 +1,41 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ПРОЦЕССОВ БОТА ==='\r"
+expect "# "
+send "ps aux | grep -E 'python3.*main.py|python3.*signal_live.py' | grep -v grep\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ СТРОКИ ЛОГА ==='\r"
+expect "# "
+send "tail -20 bot_startup.log 2>/dev/null\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ВРЕМЕНИ ПОСЛЕДНЕЙ АКТИВНОСТИ ==='\r"
+expect "# "
+send "stat bot_startup.log 2>/dev/null | grep Modify\r"
+expect "# "
+
+send "exit\r"
+expect eof

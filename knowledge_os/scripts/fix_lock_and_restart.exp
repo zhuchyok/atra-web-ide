@@ -1,0 +1,36 @@
+#!/usr/bin/expect -f
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+expect {
+    "password:" { send "$password\r" }
+    "Password:" { send "$password\r" }
+    timeout { exit 1 }
+}
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+send "rm -f /tmp/atra_tg_poll_*.lock atra.lock\r"
+expect "# "
+send "pkill -9 -f main.py\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+send "git pull origin main\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 15\r"
+expect "# "
+send "tail -50 server.log | grep -E '(Lock получен|Bot authorized|Polling запущен|ERROR|COMMAND)' | tail -15\r"
+expect "# "
+send "exit\r"
+expect eof
+

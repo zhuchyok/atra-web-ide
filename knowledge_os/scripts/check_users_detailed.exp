@@ -1,0 +1,99 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# 1. Проверка таблицы users_data напрямую через SQLite
+send "echo '=== ПРОВЕРКА ТАБЛИЦЫ users_data НАПРЯМУЮ ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) as count FROM users_data;\" 2>/dev/null\r"
+expect "# "
+
+send "sqlite3 trading.db \"SELECT user_id FROM users_data LIMIT 10;\" 2>/dev/null\r"
+expect "# "
+
+# 2. Проверка через Python с детальным логированием
+send "echo '' && echo '=== ПРОВЕРКА ЧЕРЕЗ PYTHON (ДЕТАЛЬНО) ==='\r"
+expect "# "
+send "cd /root/atra && python3 << 'PYEOF'
+import sys
+sys.path.insert(0, '/root/atra')
+
+import sqlite3
+from src.database.db import Database
+
+# Прямая проверка через SQLite
+print('=== ПРЯМАЯ ПРОВЕРКА ЧЕРЕЗ SQLITE ===')
+conn = sqlite3.connect('trading.db')
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM users_data')
+count = cur.fetchone()[0]
+print(f'Количество записей в users_data: {count}')
+
+if count > 0:
+    cur.execute('SELECT user_id, substr(data, 1, 100) as data_preview FROM users_data LIMIT 5')
+    rows = cur.fetchall()
+    print('\\nЗаписи в таблице:')
+    for row in rows:
+        print(f'  user_id: {row[0]}, data preview: {row[1][:50]}...')
+else:
+    print('Таблица users_data ПУСТА!')
+
+conn.close()
+
+# Проверка через Database класс
+print('\\n=== ПРОВЕРКА ЧЕРЕЗ Database КЛАСС ===')
+try:
+    db = Database()
+    user_ids = db.get_all_users()
+    print(f'get_all_users() вернул: {len(user_ids)} пользователей')
+    print(f'ID пользователей: {user_ids}')
+    
+    # Проверяем каждого пользователя
+    if user_ids:
+        for uid in user_ids:
+            print(f'\\nПользователь {uid}:')
+            data = db.get_user_data(uid)
+            if data:
+                print(f'  Данные загружены: {type(data)}')
+                print(f'  Ключи: {list(data.keys())[:10]}')
+                print(f'  trade_mode: {data.get(\"trade_mode\", \"N/A\")}')
+            else:
+                print(f'  Данные НЕ загружены (None или пусто)')
+    else:
+        print('Список пользователей ПУСТ!')
+except Exception as e:
+    print(f'ОШИБКА: {e}')
+    import traceback
+    traceback.print_exc()
+
+PYEOF
+\r"
+expect "# "
+
+# 3. Проверка логов загрузки
+send "echo '' && echo '=== ЛОГИ ЗАГРУЗКИ ПОЛЬЗОВАТЕЛЕЙ (последние 30) ==='\r"
+expect "# "
+send "tail -100 logs/signal_live.log 2>/dev/null | grep -E 'Загружено.*пользовател|get_all_users|users_data' | tail -30\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

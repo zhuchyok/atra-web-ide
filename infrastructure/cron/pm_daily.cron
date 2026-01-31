@@ -1,0 +1,9 @@
+# Ежечасно запуск PM координатора (анализ и применение исправлений)
+0 * * * * cd /root/atra && /root/atra/.venv/bin/python3 scripts/pm_coordinator.py >> logs/pm_coordinator.log 2>&1
+
+# Ежедневный полный отчёт в 00:00 UTC (03:00 MSK)
+0 0 * * * cd /root/atra && /root/atra/.venv/bin/python3 scripts/pm_daily_check.py >> logs/pm_daily_check.log 2>&1
+
+# Еженедельный отчёт в понедельник в 00:00 UTC
+0 0 * * 1 cd /root/atra && /root/atra/.venv/bin/python3 scripts/pm_weekly_report.py >> logs/pm_weekly.log 2>&1
+

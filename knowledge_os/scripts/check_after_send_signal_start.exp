@@ -1,0 +1,35 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ЧТО ПРОИСХОДИТ ПОСЛЕ SEND_SIGNAL START ==='\r"
+expect "# "
+
+send "echo '1. Последний SEND_SIGNAL START и что после него (50 строк):'\r"
+expect "# "
+send "grep -A 50 'SEND_SIGNAL START.*2925.69000000.*958930260' bot_startup.log 2>/dev/null | head -60\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

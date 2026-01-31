@@ -1,0 +1,4 @@
+# Автоматическое стресс-тестирование знаний (Adversarial Testing) и автоисправление
+# Запускается каждые 6 часов
+0 */6 * * * cd /root/knowledge_os && python3 app/enhanced_immunity.py >> logs/adversarial_testing.log 2>&1
+

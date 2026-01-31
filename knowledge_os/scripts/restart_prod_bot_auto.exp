@@ -1,0 +1,82 @@
+#!/usr/bin/expect -f
+# Автоматический перезапуск бота на прод-сервере
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+# Подключаемся к серверу
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {
+        puts "✅ Подключено к серверу"
+    }
+    "$ " {
+        puts "✅ Подключено к серверу"
+    }
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+# Выполняем команды
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== Остановка процессов ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+send "echo '=== Очистка блокировок ==='\r"
+expect "# "
+send "rm -f *.lock telegram_*.lock .telegram_* 2>/dev/null || true\r"
+expect "# "
+
+send "echo '=== Запуск бота ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+
+send "echo '=== Проверка процессов ==='\r"
+expect "# "
+send "ps aux | grep main.py | grep -v grep\r"
+expect "# "
+
+send "echo '=== Последние логи ==='\r"
+expect "# "
+send "tail -20 server.log 2>/dev/null || tail -20 system_improved.log\r"
+expect "# "
+
+send "exit\r"
+expect eof
+
+puts "\n✅ Готово! Бот перезапущен."
+

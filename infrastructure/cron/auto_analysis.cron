@@ -1,0 +1,4 @@
+# Автоматический анализ сделок и обновление уроков
+# Запускается ежедневно в 03:00 MSK
+0 3 * * * cd /root/atra && /root/atra/.venv/bin/python scripts/run_auto_analysis.py --db trading.db --lookback-days 30 --apply-guidance >> logs/auto_analysis.log 2>&1
+

@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Victoria Agent
+  - job_name: 'victoria-agent'
+    static_configs:
+      - targets: ['atra-victoria-agent:8010']
+    metrics_path: '/health'
+    scrape_interval: 30s
+
+  # Veronica Agent
+  - job_name: 'veronica-agent'
+    static_configs:
+      - targets: ['atra-veronica-agent:8011']
+    metrics_path: '/health'
+    scrape_interval: 30s
+
+  # Knowledge OS API
+  - job_name: 'knowledge-os-api'
+    static_configs:
+      - targets: ['knowledge_os_api:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Prometheus сам себя
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  
+  # Victoria Enhanced Metrics
+  - job_name: 'victoria-enhanced'
+    static_configs:
+      - targets: ['victoria-agent:9091']
+        labels:
+          service: 'victoria-enhanced'
+  
+  # Veronica Enhanced Metrics
+  - job_name: 'veronica-enhanced'
+    static_configs:
+      - targets: ['veronica-agent:9091']
+        labels:
+          service: 'veronica-enhanced'
+

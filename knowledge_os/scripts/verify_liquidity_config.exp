@@ -1,0 +1,44 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА CONFIG.PY ==='\r"
+expect "# "
+send "grep -A 1 'min_volume_24h' config.py\r"
+expect "# "
+send "grep -A 1 'min_depth_usd' config.py\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА РАБОТЫ БОТА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ СТРОКИ ЛОГА ==='\r"
+expect "# "
+send "tail -30 bot_startup.log\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

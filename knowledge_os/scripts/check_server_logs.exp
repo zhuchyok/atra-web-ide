@@ -1,0 +1,78 @@
+#!/usr/bin/expect -f
+# Скрипт для проверки логов на сервере
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+}
+
+expect "# "
+
+# Переходим в директорию проекта
+send "cd /root/atra\r"
+expect "# "
+
+# Проверяем основной лог
+send "echo '=== SYSTEM_IMPROVED.LOG (последние 100 строк) ==='\r"
+expect "# "
+send "tail -100 system_improved.log 2>/dev/null | grep -E 'Цикл|SIGNAL|SEND|ERROR|Exception' | tail -30\r"
+expect "# "
+
+# Проверяем логи в директории logs
+send "echo '=== LOGS/SYSTEM.LOG (последние 100 строк) ==='\r"
+expect "# "
+send "tail -100 logs/system.log 2>/dev/null | grep -E 'Цикл|SIGNAL|SEND|ERROR|Exception' | tail -30\r"
+expect "# "
+
+# Проверяем логи сигналов
+send "echo '=== LOGS/SIGNALS.LOG (последние 50 строк) ==='\r"
+expect "# "
+send "tail -50 logs/signals.log 2>/dev/null\r"
+expect "# "
+
+# Проверяем ошибки
+send "echo '=== LOGS/ERRORS.LOG (последние 50 строк) ==='\r"
+expect "# "
+send "tail -50 logs/errors.log 2>/dev/null | tail -30\r"
+expect "# "
+
+# Статистика по сигналам
+send "echo '=== СТАТИСТИКА СИГНАЛОВ ==='\r"
+expect "# "
+send "grep -c 'SIGNAL GENERATED' system_improved.log logs/system.log 2>/dev/null | awk '{sum+=\$1} END {print \"Сигналов сгенерировано: \" sum}'\r"
+expect "# "
+
+send "grep -c 'SEND SUCCESS' system_improved.log logs/system.log 2>/dev/null | awk '{sum+=\$1} END {print \"Сигналов отправлено: \" sum}'\r"
+expect "# "
+
+send "grep -c 'NO SIGNAL' system_improved.log logs/system.log 2>/dev/null | awk '{sum+=\$1} END {print \"Нет сигналов: \" sum}'\r"
+expect "# "
+
+# Проверяем последний цикл
+send "echo '=== ПОСЛЕДНИЙ ЦИКЛ ==='\r"
+expect "# "
+send "grep 'Цикл #' system_improved.log logs/system.log 2>/dev/null | tail -1\r"
+expect "# "
+
+# Проверяем процесс
+send "echo '=== ПРОЦЕСС ==='\r"
+expect "# "
+send "ps aux | grep -E 'main.py|signal_live' | grep -v grep\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

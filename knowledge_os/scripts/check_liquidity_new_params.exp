@@ -1,0 +1,50 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА НОВЫХ ПАРАМЕТРОВ ЛИКВИДНОСТИ ==='\r"
+expect "# "
+
+send "echo 'Проверяем config.py на сервере:'\r"
+expect "# "
+send "grep -A 2 'min_volume_24h\|min_depth_usd' config.py | head -6\r"
+expect "# "
+
+send "echo 'Проверяем логи ликвидности (последние 20 записей):'\r"
+expect "# "
+send "grep 'Недостаточная ликвидность\|Ликвидность достаточна' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo 'Проверяем, какие монеты проходят фильтр:'\r"
+expect "# "
+send "grep 'Ликвидность достаточна' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo 'Статистика блокировок по ликвидности:'\r"
+expect "# "
+send "grep 'Недостаточная ликвидность' bot_startup.log 2>/dev/null | tail -10 | awk -F': ' '{print \$2}' | awk '{print \$1}' | sort | uniq -c | sort -rn\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

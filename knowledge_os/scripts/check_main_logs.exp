@@ -1,0 +1,47 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== АДАПТИВНЫЕ ПОРОГИ В bot_startup.log ==='\r"
+expect "# "
+send "grep -E 'ADAPTIVE|🎯|Quality.*=' bot_startup.log 2>/dev/null | tail -30\r"
+expect "# "
+
+send "echo '=== БЛОКИРОВКИ QUALITY ==='\r"
+expect "# "
+send "grep -E 'FILTER BLOCK.*Quality|Quality.*фильтр|Quality Score' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '=== ПРОХОЖДЕНИЕ QUALITY ==='\r"
+expect "# "
+send "grep -E 'QUALITY PASS|Quality.*>=' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ СТРОКИ С QUALITY ==='\r"
+expect "# "
+send "grep -i quality bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

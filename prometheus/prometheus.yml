@@ -1,0 +1,16 @@
+# Prometheus config for ATRA Web IDE (День 5)
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "chat-backend"
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: "chat-backend"
+          env: "development"
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

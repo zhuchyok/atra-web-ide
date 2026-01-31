@@ -1,0 +1,67 @@
+#!/usr/bin/expect -f
+# Скрипт для проверки логов и перезапуска бота
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+}
+
+expect "# "
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка логов ошибок
+send "echo '=== ПРОВЕРКА ЛОГОВ ОШИБОК ==='\r"
+expect "# "
+send "tail -100 bot_startup.log 2>/dev/null | tail -30\r"
+expect "# "
+
+# Проверка, какой файл нужно запускать
+send "echo '=== ПРОВЕРКА ФАЙЛОВ ==='\r"
+expect "# "
+send "ls -la signal_live.py main.py 2>/dev/null\r"
+expect "# "
+
+# Попытка запустить signal_live.py (основной файл)
+send "echo '=== ЗАПУСК SIGNAL_LIVE.PY ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "rm -f atra.lock polling.lock\r"
+expect "# "
+send "nohup python3 signal_live.py > signal_live.log 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+
+# Проверка запуска
+send "echo '=== ПРОВЕРКА ЗАПУСКА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 signal_live.py' | grep -v grep\r"
+expect "# "
+
+# Проверка последних строк лога
+send "echo '=== ПОСЛЕДНИЕ СТРОКИ ЛОГА ==='\r"
+expect "# "
+send "tail -20 signal_live.log 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

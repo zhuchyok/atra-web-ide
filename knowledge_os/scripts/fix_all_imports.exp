@@ -1,0 +1,92 @@
+#!/usr/bin/expect -f
+# Исправление всех неправильных импортов на сервере
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Исправляем импорты
+send "echo '=== Исправление импортов ==='\r"
+expect "# "
+
+# 1. Исправляем в price_monitor.py
+send "sed -i 's/from telegram_handlers import/from src.telegram.handlers import/g' src/monitoring/price_monitor.py\r"
+expect "# "
+
+# 2. Проверяем другие файлы с неправильными импортами
+send "grep -r 'from telegram_handlers' src/ 2>/dev/null | head -5\r"
+expect "# "
+
+send "grep -r 'from db import' archive/ 2>/dev/null | head -5\r"
+expect "# "
+
+# Теперь перезапускаем бота
+send "echo '=== Перезапуск бота ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+send "rm -f *.lock telegram_*.lock .telegram_* 2>/dev/null || true\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+
+send "echo '=== Проверка процессов ==='\r"
+expect "# "
+send "ps aux | grep main.py | grep -v grep\r"
+expect "# "
+
+send "echo '=== Последние логи (первые 50 строк) ==='\r"
+expect "# "
+send "tail -50 server.log 2>/dev/null | head -50\r"
+expect "# "
+
+# Если есть ошибки, показываем их
+send "echo '=== Ошибки в логах ==='\r"
+expect "# "
+send "grep -E 'ERROR|Exception|ModuleNotFoundError|ImportError' server.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+
+puts "\n✅ Готово! Импорты исправлены и бот перезапущен."
+

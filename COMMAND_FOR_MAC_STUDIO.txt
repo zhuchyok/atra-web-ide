@@ -1,0 +1,51 @@
+============================================================
+КОМАНДА ДЛЯ ЗАПУСКА НА MAC STUDIO M4 MAX
+============================================================
+
+Скопируйте и выполните эту команду на Mac Studio:
+
+# Вариант 1: Быстрый скрипт (atra-web-ide или atra)
+cd /path/to/atra-web-ide && ./scripts/scan_mac_studio_models.sh > mac_studio_models_scan.txt
+# или: cd /path/to/atra && ./scripts/scan_mac_studio_models.sh > mac_studio_models_scan.txt
+
+# Или просто запустите в терминале:
+bash << 'EOF'
+echo "🔍 СКАНИРОВАНИЕ MAC STUDIO..."
+
+# Ollama модели
+echo ""
+echo "=== OLLAMA МОДЕЛИ ==="
+ollama list
+
+echo ""
+echo "=== OLLAMA API ==="
+curl -s http://localhost:11434/api/tags | python3 -m json.tool 2>/dev/null || echo "API недоступен"
+
+echo ""
+echo "=== HUGGINGFACE КЕШ ==="
+du -sh ~/.cache/huggingface/hub/models--* 2>/dev/null | sort -h | tail -20
+
+echo ""
+echo "=== MLX МОДЕЛИ ==="
+ls -lh ~/.mlx_models 2>/dev/null || echo "~/.mlx_models не существует"
+
+echo ""
+echo "=== БОЛЬШИЕ ФАЙЛЫ (>5GB) ==="
+find ~/.ollama ~/.cache -type f -size +5G 2>/dev/null | head -10
+
+echo ""
+echo "✅ Готово! Отправьте результат"
+EOF
+
+============================================================
+Или выполните эти команды по очереди:
+============================================================
+
+1. ollama list
+2. curl -s http://localhost:11434/api/tags | python3 -m json.tool
+3. du -sh ~/.cache/huggingface/hub/models--* 2>/dev/null | sort -h
+4. ls -lh ~/.mlx_models 2>/dev/null
+5. du -sh ~/.ollama/models/blobs
+
+Отправьте результаты всех команд.
+

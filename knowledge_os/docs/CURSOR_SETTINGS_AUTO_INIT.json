@@ -1,0 +1,27 @@
+{
+  "// Cursor Settings для автоматической инициализации правил": "Добавьте эти настройки в Cursor settings.json",
+  "// Путь к settings.json": "~/.cursor/settings.json или через Cursor Settings UI",
+  
+  "cursor.general.autoInitRules": true,
+  "cursor.rules.autoInitScript": "~/Documents/GITHUB/atra/atra/scripts/init-cursor-rules.sh",
+  "cursor.rules.universalRulesPath": "~/.cursor/universal-rules.md",
+  
+  "// Альтернативный вариант через tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Init Cursor Rules",
+        "type": "shell",
+        "command": "${workspaceFolder}/scripts/init-cursor-rules.sh",
+        "runOptions": {
+          "runOn": "folderOpen"
+        },
+        "presentation": {
+          "reveal": "silent",
+          "panel": "dedicated"
+        }
+      }
+    ]
+  }
+}
+

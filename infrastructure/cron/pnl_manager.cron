@@ -1,0 +1,4 @@
+# Автоматический расчет Knowledge P&L и ROI
+# Запускается ежедневно в 1:00
+0 1 * * * cd /root/knowledge_os && python3 app/pnl_manager.py >> logs/pnl_manager.log 2>&1
+

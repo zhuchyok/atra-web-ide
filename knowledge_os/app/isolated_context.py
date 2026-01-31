@@ -1,0 +1,185 @@
+"""
+Isolated Context Heaps - Изолированные контексты для агентов
+На основе практики Anthropic: изолированные контексты для sub-agents
+"""
+
+import logging
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+
+class ContextType(Enum):
+    """Тип контекста"""
+    AGENT = "agent"  # Контекст агента
+    PROJECT = "project"  # Контекст проекта
+    SESSION = "session"  # Контекст сессии
+    TASK = "task"  # Контекст задачи
+
+
+@dataclass
+class IsolatedContext:
+    """
+    Изолированный контекст для агента/проекта
+    
+    Предотвращает смешивание контекстов между агентами
+    """
+    agent_name: str
+    project_context: str
+    context_type: ContextType = ContextType.AGENT
+    
+    # Изолированная память
+    memory: List[Dict[str, str]] = field(default_factory=list)
+    
+    # Доступные инструменты
+    tools: List[str] = field(default_factory=list)
+    
+    # Метаданные
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Временные метки
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_accessed: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    
+    def add_memory(self, role: str, content: str):
+        """Добавить запись в память"""
+        self.memory.append({
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        self.last_accessed = datetime.now(timezone.utc)
+    
+    def get_memory(self, limit: Optional[int] = None) -> List[Dict[str, str]]:
+        """Получить память (с лимитом)"""
+        self.last_accessed = datetime.now(timezone.utc)
+        if limit:
+            return self.memory[-limit:]
+        return self.memory
+    
+    def clear_memory(self):
+        """Очистить память"""
+        self.memory = []
+        self.last_accessed = datetime.now(timezone.utc)
+    
+    def update_metadata(self, key: str, value: Any):
+        """Обновить метаданные"""
+        self.metadata[key] = value
+        self.last_accessed = datetime.now(timezone.utc)
+
+
+class ContextManager:
+    """
+    Менеджер изолированных контекстов
+    
+    Управляет контекстами для всех агентов и проектов
+    """
+    
+    def __init__(self):
+        self.contexts: Dict[str, IsolatedContext] = {}  # key -> IsolatedContext
+    
+    def _get_key(self, agent_name: str, project_context: str) -> str:
+        """Получить ключ для контекста"""
+        return f"{agent_name}:{project_context}"
+    
+    def get_context(
+        self,
+        agent_name: str,
+        project_context: str,
+        context_type: ContextType = ContextType.AGENT
+    ) -> IsolatedContext:
+        """
+        Получить или создать изолированный контекст
+        
+        Args:
+            agent_name: Имя агента
+            project_context: Контекст проекта
+            context_type: Тип контекста
+        
+        Returns:
+            IsolatedContext
+        """
+        key = self._get_key(agent_name, project_context)
+        
+        if key not in self.contexts:
+            self.contexts[key] = IsolatedContext(
+                agent_name=agent_name,
+                project_context=project_context,
+                context_type=context_type
+            )
+            logger.debug(f"✅ Создан изолированный контекст: {key}")
+        
+        return self.contexts[key]
+    
+    def clear_context(self, agent_name: str, project_context: str):
+        """Очистить контекст"""
+        key = self._get_key(agent_name, project_context)
+        if key in self.contexts:
+            del self.contexts[key]
+            logger.debug(f"🗑️ Удален контекст: {key}")
+    
+    def clear_all_contexts(self, agent_name: Optional[str] = None, project_context: Optional[str] = None):
+        """Очистить все контексты (с фильтрами)"""
+        if agent_name and project_context:
+            self.clear_context(agent_name, project_context)
+        elif agent_name:
+            # Очистить все контексты агента
+            keys_to_delete = [k for k in self.contexts.keys() if k.startswith(f"{agent_name}:")]
+            for key in keys_to_delete:
+                del self.contexts[key]
+            logger.debug(f"🗑️ Удалены все контексты агента: {agent_name}")
+        elif project_context:
+            # Очистить все контексты проекта
+            keys_to_delete = [k for k in self.contexts.keys() if k.endswith(f":{project_context}")]
+            for key in keys_to_delete:
+                del self.contexts[key]
+            logger.debug(f"🗑️ Удалены все контексты проекта: {project_context}")
+        else:
+            # Очистить все
+            self.contexts = {}
+            logger.debug("🗑️ Удалены все контексты")
+    
+    def get_all_contexts(
+        self,
+        agent_name: Optional[str] = None,
+        project_context: Optional[str] = None
+    ) -> List[IsolatedContext]:
+        """Получить все контексты (с фильтрами)"""
+        contexts = list(self.contexts.values())
+        
+        if agent_name:
+            contexts = [c for c in contexts if c.agent_name == agent_name]
+        
+        if project_context:
+            contexts = [c for c in contexts if c.project_context == project_context]
+        
+        return contexts
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Получить статистику контекстов"""
+        return {
+            "total_contexts": len(self.contexts),
+            "by_agent": {
+                agent: len([c for c in self.contexts.values() if c.agent_name == agent])
+                for agent in set(c.agent_name for c in self.contexts.values())
+            },
+            "by_project": {
+                project: len([c for c in self.contexts.values() if c.project_context == project])
+                for project in set(c.project_context for c in self.contexts.values())
+            }
+        }
+
+
+# Глобальный менеджер контекстов
+_context_manager: Optional[ContextManager] = None
+
+
+def get_context_manager() -> ContextManager:
+    """Получить глобальный менеджер контекстов"""
+    global _context_manager
+    if _context_manager is None:
+        _context_manager = ContextManager()
+    return _context_manager

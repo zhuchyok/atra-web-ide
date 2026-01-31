@@ -1,0 +1,8 @@
+# Фаза 4: ежедневный пайплайн качества RAG (валидация, feedback, отчёт)
+# Расписание: каждый день в 03:00
+#
+# Установка (автоматически, с путём из репозитория):
+#   ./scripts/install_quality_cron.sh
+#
+# Пример строки для crontab (путь подставит install_quality_cron.sh):
+# 0 3 * * * (cd /path/to/atra-web-ide && mkdir -p logs && ./scripts/run_quality_pipeline.sh >> logs/quality_pipeline.log 2>&1)

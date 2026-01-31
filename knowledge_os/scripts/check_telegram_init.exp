@@ -1,0 +1,42 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПОИСК ЛОГОВ О TELEGRAM БОТЕ ==='\r"
+expect "# "
+send "grep -iE 'telegram.*bot|bot.*start|run_telegram_bot|polling|updater' bot_startup.log 2>/dev/null | tail -30\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА НАЧАЛА РАБОТЫ ==='\r"
+expect "# "
+send "head -100 bot_startup.log 2>/dev/null | grep -iE 'telegram|bot|start|init' | head -20\r"
+expect "# "
+
+send "echo '=== ПОИСК ОШИБОК ПРИ ЗАПУСКЕ ==='\r"
+expect "# "
+send "grep -iE 'error.*telegram|telegram.*error|failed.*bot|bot.*failed' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

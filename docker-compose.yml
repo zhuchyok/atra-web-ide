@@ -1,0 +1,173 @@
+# ATRA Web IDE - Docker Compose
+# Браузерная оболочка для Singularity 9.0
+#
+# Запуск: docker-compose up -d
+# Открыть: http://localhost:3000
+
+services:
+  # ============================================
+  # Frontend - Svelte + Tailwind
+  # ============================================
+  frontend:
+    build: ./frontend
+    container_name: atra-web-ide-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - atra-network
+
+  # ============================================
+  # Backend - FastAPI
+  # ============================================
+  backend:
+    build: ./backend
+    container_name: atra-web-ide-backend
+    restart: unless-stopped
+    tty: true  # нужен для PTY терминала в Web IDE
+    ports:
+      - "8080:8000"
+    environment:
+      - VICTORIA_URL=http://victoria-agent:8000  # Используем общий контейнер Victoria из knowledge_os
+      - PROJECT_NAME=atra-web-ide  # Контекст проекта для агентов
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - MLX_API_URL=http://host.docker.internal:11435  # MLX API Server на хосте (из контейнера — через host.docker.internal)
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - REDIS_URL=redis://knowledge_redis:6379  # Используем Redis из knowledge_os
+      - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 9.0)
+      - WORKSPACE_ROOT=/workspace
+      # RAG-light оптимизации (Фаза 3, день 3–4)
+      - EMBEDDING_BATCH_ENABLED=true
+      - EMBEDDING_BATCH_SIZE=10
+      - EMBEDDING_BATCH_TIMEOUT_MS=50
+      - RAG_LIGHT_PREFETCH_ENABLED=true
+      - RAG_LIGHT_PREFETCH_FILE=/app/data/frequent_queries.json
+      - RAG_LIGHT_PREFETCH_MAX_QUERIES=50
+    volumes:
+      - workspace_data:/workspace
+      - ./data:/app/data:ro  # Частые запросы для RAG prefetch (Фаза 3)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+    networks:
+      - atra-network
+
+  # ============================================
+  # Prometheus - метрики (День 5)
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: atra-web-ide-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.console.libraries=/etc/prometheus/console_libraries
+      - --web.console.templates=/etc/prometheus/consoles
+      - --storage.tsdb.retention.time=200h
+      - --web.enable-lifecycle
+    ports:
+      - "9091:9090"   # 9091 на хосте (9090 занят другим Prometheus)
+    networks:
+      atra-network:
+        aliases:
+          - atra-prometheus   # для Grafana (knowledge_os и др.), ожидающей этот hostname
+    restart: unless-stopped
+
+  # ============================================
+  # Grafana - дашборды (День 5). Порт 3002 (3000=frontend, 3001=Knowledge OS Grafana)
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: atra-web-ide-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_HTTP_PORT=3000
+    ports:
+      - "3002:3000"
+    networks:
+      - atra-network
+    restart: unless-stopped
+
+  # ============================================
+  # Victoria и Veronica - ОБЩИЕ ДЛЯ ВСЕХ ПРОЕКТОВ
+  # Запускаются через knowledge_os/docker-compose.yml
+  # Порт Victoria: 8010 (общий)
+  # Порт Veronica: 8011 (общий)
+  # ============================================
+  # Victoria и Veronica удалены отсюда - они в knowledge_os/docker-compose.yml
+  # Это правильная архитектура: один экземпляр агентов для всех проектов!
+
+  # ============================================
+  # PostgreSQL + pgvector - Knowledge OS
+  # Используем существующую БД из knowledge_os/docker-compose.yml
+  # ============================================
+  # db:
+  #   image: pgvector/pgvector:pg16
+  #   container_name: atra-knowledge-os-db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: admin
+  #     POSTGRES_PASSWORD: secret
+  #     POSTGRES_DB: knowledge_os
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U admin -d knowledge_os"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - atra-network
+
+  # ============================================
+  # Redis - Кэш и очереди
+  # Используем существующий Redis из knowledge_os (knowledge_redis)
+  # ============================================
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: atra-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6380:6379"  # Изменено с 6379 на 6380 для работы одновременно с atra
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - atra-network
+  # Используем knowledge_redis из knowledge_os/docker-compose.yml
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    name: atra-postgres-data
+  redis_data:
+    name: atra-redis-data
+  workspace_data:
+    name: atra-workspace-data
+  prometheus_data:
+    name: atra-prometheus-data
+  grafana_data:
+    name: atra-grafana-data
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  atra-network:
+    name: atra-network
+    external: true

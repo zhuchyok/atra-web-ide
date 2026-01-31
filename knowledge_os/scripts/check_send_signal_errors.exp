@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ОШИБОК В send_signal ==='\r"
+expect "# "
+
+send "echo '1. SEND_SIGNAL START (должен быть, если функция вызывается):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL START' bot_startup.log 2>/dev/null | tail -5\r"
+expect "# "
+
+send "echo '2. Ошибки в send_signal (ERROR, Exception, Traceback):'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL ERROR|Exception.*send_signal|Traceback.*send_signal' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '3. Ошибки импорта (ImportError, ModuleNotFoundError):'\r"
+expect "# "
+send "grep -E 'ImportError|ModuleNotFoundError' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '4. Ошибки notify_user_enhanced:'\r"
+expect "# "
+send "grep -i 'notify_user_enhanced' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '5. Последние ошибки (ERROR, WARNING):'\r"
+expect "# "
+send "grep -E 'ERROR|WARNING' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

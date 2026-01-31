@@ -1,0 +1,18 @@
+fastapi
+uvicorn
+uvloop
+asyncpg
+pydantic
+pydantic-settings
+python-dotenv
+mcp
+openai
+duckduckgo-search
+httpx
+psutil
+
+redis
+# Vision: moondream — клиент (import moondream as md); moondream-station — сервер (порт 2020)
+moondream>=0.1.0
+moondream-station>=0.1.0
+Pillow>=10.0.0

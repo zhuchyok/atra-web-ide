@@ -1,0 +1,58 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== СТАТУС СИГНАЛОВ ==='\r"
+expect "# "
+
+send "echo '1. Последние сигналы (SEND_SIGNAL SUCCESS):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL SUCCESS' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '2. Сгенерированные сигналы (SIGNAL GENERATED):'\r"
+expect "# "
+send "grep 'SIGNAL GENERATED' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '3. Ошибки отправки (SEND_SIGNAL ERROR/BLOCK):'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL ERROR|SEND_SIGNAL BLOCK' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '4. Статистика за последний час:'\r"
+expect "# "
+send "echo 'LONG:' && grep -c 'LONG CLASSIC.*SIGNAL GENERATED' bot_startup.log 2>/dev/null || echo '0'\r"
+expect "# "
+send "echo 'SHORT:' && grep -c 'SHORT CLASSIC.*SIGNAL GENERATED' bot_startup.log 2>/dev/null || echo '0'\r"
+expect "# "
+send "echo 'Отправлено:' && grep -c 'SEND_SIGNAL SUCCESS' bot_startup.log 2>/dev/null || echo '0'\r"
+expect "# "
+
+send "echo '5. Последние 30 строк лога:'\r"
+expect "# "
+send "tail -30 bot_startup.log\r"
+expect "# "
+
+send "exit\r"
+expect eof

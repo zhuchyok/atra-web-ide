@@ -1,0 +1,64 @@
+#!/usr/bin/expect -f
+
+# Простой скрипт для проверки генерации сигналов
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка процесса
+send "echo '=== ПРОЦЕСС ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# Проверка логов system.log
+send "echo '' && echo '=== ПОСЛЕДНИЕ 100 СТРОК SYSTEM.LOG ==='\r"
+expect "# "
+send "tail -100 logs/system.log 2>/dev/null | grep -E 'Цикл|SIGNAL|FILTER BLOCK|SEND' | tail -30 || echo 'Нет данных'\r"
+expect "# "
+
+# Проверка блокировок
+send "echo '' && echo '=== БЛОКИРОВКИ ФИЛЬТРОВ ==='\r"
+expect "# "
+send "tail -500 logs/system.log 2>/dev/null | grep 'FILTER BLOCK' | tail -20 || echo 'Блокировок нет'\r"
+expect "# "
+
+# Проверка сгенерированных сигналов
+send "echo '' && echo '=== СГЕНЕРИРОВАННЫЕ СИГНАЛЫ ==='\r"
+expect "# "
+send "tail -500 logs/system.log 2>/dev/null | grep -E 'SIGNAL GENERATED|SEND SUCCESS' | tail -10 || echo 'Сигналов нет'\r"
+expect "# "
+
+# Проверка БД простым способом
+send "echo '' && echo '=== ПОСЛЕДНИЕ СИГНАЛЫ В БД ==='\r"
+expect "# "
+send "cd /root/atra && sqlite3 trading.db \"SELECT signal_time, symbol, direction FROM accepted_signals ORDER BY signal_time DESC LIMIT 5;\" 2>/dev/null || echo 'Ошибка БД'\r"
+expect "# "
+
+# Ошибки
+send "echo '' && echo '=== ОШИБКИ ==='\r"
+expect "# "
+send "tail -50 logs/errors.log 2>/dev/null | tail -10 || echo 'Ошибок нет'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

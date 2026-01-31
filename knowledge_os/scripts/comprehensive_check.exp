@@ -1,0 +1,77 @@
+#!/usr/bin/expect -f
+# Комплексная проверка системы после обновления
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+}
+
+expect "# "
+
+send "cd /root/atra\r"
+expect "# "
+
+# 1. ПРОВЕРКА ПРОЦЕССА
+send "echo '=== 1. СТАТУС ПРОЦЕССА БОТА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# 2. ПРОВЕРКА ОШИБОК ИМПОРТА
+send "echo '=== 2. ПРОВЕРКА ОШИБОК ИМПОРТА ==='\r"
+expect "# "
+send "tail -200 system_improved.log 2>/dev/null | grep -E 'ImportError|ModuleNotFoundError|is not defined|cannot import' | tail -20\r"
+expect "# "
+
+# 3. ПРОВЕРКА ОБЩИХ ОШИБОК
+send "echo '=== 3. ПРОВЕРКА ОБЩИХ ОШИБОК ==='\r"
+expect "# "
+send "tail -200 system_improved.log 2>/dev/null | grep -E 'ERROR|Exception|Traceback' | tail -20\r"
+expect "# "
+
+# 4. ПРОВЕРКА ЦИКЛОВ
+send "echo '=== 4. ПРОВЕРКА ЦИКЛОВ ==='\r"
+expect "# "
+send "grep 'Завершение цикла обработки' system_improved.log 2>/dev/null | tail -5\r"
+expect "# "
+
+# 5. ПРОВЕРКА СИГНАЛОВ
+send "echo '=== 5. ПРОВЕРКА СИГНАЛОВ ==='\r"
+expect "# "
+send "tail -200 system_improved.log 2>/dev/null | grep -iE 'SIGNAL|сигнал|✅.*LONG|✅.*SHORT|отправлен|SEND' | tail -20\r"
+expect "# "
+
+# 6. ПРОВЕРКА ПОЛУЧЕНИЯ ДАННЫХ
+send "echo '=== 6. ПРОВЕРКА ПОЛУЧЕНИЯ ДАННЫХ ==='\r"
+expect "# "
+send "tail -200 system_improved.log 2>/dev/null | grep -E 'Ошибка получения|get_ohlc_with_fallback|get_filtered_top_usdt_pairs_fast|Загружено.*символов' | tail -15\r"
+expect "# "
+
+# 7. ПРОВЕРКА СТАРТОВОГО ЛОГА
+send "echo '=== 7. СТАРТОВЫЙ ЛОГ (последние 50 строк) ==='\r"
+expect "# "
+send "tail -50 bot_startup.log 2>/dev/null\r"
+expect "# "
+
+# 8. ПРОВЕРКА ВЕРСИИ КОДА
+send "echo '=== 8. ВЕРСИЯ КОДА ==='\r"
+expect "# "
+send "git log --oneline -5\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

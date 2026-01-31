@@ -1,0 +1,52 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ОШИБКИ TELEGRAM ==='\r"
+expect "# "
+send "grep -iE 'telegram|bot.*error|token|unauthorized|forbidden' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ИНИЦИАЛИЗАЦИЯ TELEGRAM ==='\r"
+expect "# "
+send "grep -iE 'telegram.*init|bot.*start|telegram.*ready' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ ОШИБКИ ==='\r"
+expect "# "
+send "grep -iE 'error|exception|traceback|failed' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ==='\r"
+expect "# "
+send "ps e -p 517901 2>/dev/null | grep -E 'TELEGRAM|TOKEN' | head -5\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ 50 СТРОК ЛОГА ==='\r"
+expect "# "
+send "tail -50 bot_startup.log 2>/dev/null | tail -30\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

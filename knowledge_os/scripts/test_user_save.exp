@@ -1,0 +1,71 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверяем текущее состояние
+send "echo '=== ТЕКУЩЕЕ СОСТОЯНИЕ users_data ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM users_data;\"\r"
+expect "# "
+
+# Тестируем сохранение напрямую через Python
+send "echo '' && echo '=== ТЕСТ СОХРАНЕНИЯ ==='\r"
+expect "# "
+send "cd /root/atra && python3 -c \"\r"
+expect "# "
+send "import sys\r"
+expect "# "
+send "sys.path.insert(0, '/root/atra')\r"
+expect "# "
+send "from src.database.db import Database\r"
+expect "# "
+send "db = Database()\r"
+expect "# "
+send "test_user = '556251171'\r"
+expect "# "
+send "test_data = {'deposit': 10000, 'trade_mode': 'spot', 'filter_mode': 'soft'}\r"
+expect "# "
+send "result = db.save_user_data(test_user, test_data)\r"
+expect "# "
+send "print(f'Save result: {result}')\r"
+expect "# "
+send "count = len(db.get_all_users())\r"
+expect "# "
+send "print(f'Users after save: {count}')\r"
+expect "# "
+send "data = db.get_user_data(test_user)\r"
+expect "# "
+send "print(f'Retrieved data: {data}')\r"
+expect "# "
+send "\"\r"
+expect "# "
+
+# Проверяем снова
+send "echo '' && echo '=== ПРОВЕРКА ПОСЛЕ СОХРАНЕНИЯ ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM users_data;\"\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id FROM users_data;\"\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

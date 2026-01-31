@@ -1,0 +1,60 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ОТПРАВКИ В TELEGRAM ==='\r"
+expect "# "
+
+send "echo '1. Проверка notify_user и notify_user_enhanced:'\r"
+expect "# "
+send "grep -E 'notify_user|notify_user_enhanced|📤.*отправлен|сигнал.*отправлен.*пользователю' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '2. Проверка реальных отправок (message_id):'\r"
+expect "# "
+send "grep -E 'message_id|Message.*sent|Telegram.*message' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '3. Проверка user_id получателей:'\r"
+expect "# "
+send "grep -E 'отправлен.*пользователю|user.*556251171|user.*958930260' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '4. Проверка ошибок Telegram API:'\r"
+expect "# "
+send "grep -i 'telegram.*error\|api.*error\|bad.*request\|unauthorized\|forbidden\|chat.*not.*found' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '5. Проверка enhanced_delivery:'\r"
+expect "# "
+send "grep -E 'enhanced.*delivery|notify_user_enhanced|delivery.*success|delivery.*error' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '6. Проверка последних реальных отправок (PRODUCTION):'\r"
+expect "# "
+send "grep -E 'PRODUCTION.*отправлен|✅.*PRODUCTION' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

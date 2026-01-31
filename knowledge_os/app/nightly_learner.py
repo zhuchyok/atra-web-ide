@@ -1,0 +1,482 @@
+import asyncio
+import logging
+import os
+import sys
+import json
+import asyncpg
+import subprocess
+from datetime import datetime, timedelta
+import time
+import random
+from typing import Optional
+from resource_manager import acquire_resource_lock
+
+logger = logging.getLogger(__name__)
+
+# Пути для Mac Studio и Linux (без /root/)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_KNOWLEDGE_OS_ROOT = os.path.dirname(_APP_DIR)
+from contextual_learner import ContextualMemory, AdaptiveLearner, PersonalizationEngine, NeedPredictor
+
+DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+
+
+def _node_type(url: str) -> str:
+    """Определяет тип узла по URL: ollama (11434) или mlx (11435)."""
+    u = (url or "").rstrip("/")
+    if ":11435" in u or "11435/" in u:
+        return "mlx"
+    if ":11434" in u or "11434/" in u:
+        return "ollama"
+    return "ollama"  # default
+
+
+async def run_local_model(prompt: str, model: Optional[str] = None) -> Optional[str]:
+    """Запуск локальной модели (без токенов). Список моделей берётся из available_models_scanner — Ollama и MLX раздельно."""
+    import httpx
+
+    ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or "http://localhost:11434"
+    mlx_url = os.getenv("MAC_LLM_URL") or os.getenv("MLX_API_URL") or "http://localhost:11435"
+    raw_nodes = [
+        os.getenv("MAC_LLM_URL") or mlx_url,
+        os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL") or ollama_url,
+        os.getenv("SERVER_LLM_URL") or ollama_url,
+    ]
+    # Дедупликация по URL и определение типа по порту (11434=ollama, 11435=mlx)
+    seen = set()
+    unique_nodes = []
+    for url in raw_nodes:
+        u = (url or "").rstrip("/")
+        if u in seen:
+            continue
+        seen.add(u)
+        kind = _node_type(u)
+        unique_nodes.append((u, kind))
+
+    logger.info("[NIGHTLY_LEARNER] run_local_model nodes=%s", [n[0] for n in unique_nodes])
+
+    try:
+        from available_models_scanner import get_available_models, pick_best_ollama, pick_best_mlx
+    except ImportError:
+        try:
+            from app.available_models_scanner import get_available_models, pick_best_ollama, pick_best_mlx
+        except ImportError:
+            logger.warning("[NIGHTLY_LEARNER] available_models_scanner not found, cannot get model lists")
+            return None
+
+    mlx_list, ollama_list = await get_available_models(mlx_url, ollama_url, force_refresh=False)
+    logger.info("[NIGHTLY_LEARNER] scanner: mlx=%s ollama=%s", len(mlx_list), len(ollama_list))
+
+    for node_url, node_kind in unique_nodes:
+        selected_model = None
+        if node_kind == "ollama":
+            selected_model = pick_best_ollama(ollama_list) if ollama_list else None
+        else:
+            selected_model = pick_best_mlx(mlx_list) if mlx_list else None
+
+        if not selected_model:
+            logger.debug("[NIGHTLY_LEARNER] skip node=%s kind=%s no model", node_url, node_kind)
+            continue
+
+        logger.info("[NIGHTLY_LEARNER] trying node_url=%s selected_model=%s kind=%s", node_url, selected_model, node_kind)
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                health = await client.get(f"{node_url}/api/tags", timeout=3.0)
+                if health.status_code != 200:
+                    logger.info("[NIGHTLY_LEARNER] node %s /api/tags status_code=%s", node_url, health.status_code)
+                    continue
+                tags_response = health.json()
+                available_tags = [m.get("name", "") for m in tags_response.get("models", [])]
+                logger.info("[NIGHTLY_LEARNER] node=%s /api/tags 200 models_count=%s names=%s", node_url, len(available_tags), available_tags[:15])
+
+                if selected_model not in available_tags:
+                    selected_model = available_tags[0] if available_tags else None
+                if not selected_model:
+                    continue
+
+                logger.info("[NIGHTLY_LEARNER] POST %s/api/generate model=%s", node_url, selected_model)
+                response = await client.post(
+                    f"{node_url}/api/generate",
+                    json={"model": selected_model, "prompt": prompt, "stream": False},
+                    timeout=120.0,
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    out = result.get("response", "").strip()
+                    logger.info("[NIGHTLY_LEARNER] success node=%s model=%s response_len=%s", node_url, selected_model, len(out))
+                    return out
+                if response.status_code == 404:
+                    body = (response.text or "")[:200]
+                    logger.warning(
+                        "[NIGHTLY_LEARNER] Ollama 404: node=%s model=%s; available_models=%s body=%s",
+                        node_url, selected_model, available_tags, body,
+                    )
+                    continue
+                logger.warning("[NIGHTLY_LEARNER] node=%s /api/generate status_code=%s body=%s", node_url, response.status_code, (response.text or "")[:200])
+        except httpx.TimeoutException:
+            logger.debug("[NIGHTLY_LEARNER] timeout node=%s", node_url)
+            continue
+        except Exception as e:
+            logger.warning("[NIGHTLY_LEARNER] error node=%s: %s", node_url, e)
+            continue
+
+    return None
+
+async def run_cursor_agent(prompt: str) -> Optional[str]:
+    """Использование облачной модели через Cursor Agent (если доступен)"""
+    # Проверяем доступность cursor-agent
+    cursor_agent_paths = [
+        os.path.expanduser('~/.local/bin/cursor-agent'),
+        '/usr/local/bin/cursor-agent',
+        '/root/.local/bin/cursor-agent'
+    ]
+    
+    cursor_agent_path = None
+    for path in cursor_agent_paths:
+        if os.path.exists(path) and os.access(path, os.X_OK):
+            cursor_agent_path = path
+            break
+    
+    if not cursor_agent_path:
+        result = await run_local_model(prompt)
+        return result
+    
+    try:
+        env = os.environ.copy()
+        result = subprocess.run(
+            [cursor_agent_path, '--print', prompt],
+            capture_output=True, text=True, check=True, timeout=300, env=env
+        )
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        print(f"⚠️ Cursor agent timeout для промпта: {prompt[:50]}...")
+        return None
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️ Cursor agent error (code {e.returncode}): {e.stderr[:200]}")
+        return None
+    except Exception as e:
+        print(f"⚠️ Cursor agent exception: {e}")
+        return None
+
+async def sync_okrs(conn):
+    """Синхронизация метрик в таблице OKR с реальными данными БД."""
+    print("Syncing OKR metrics...")
+    try:
+        await conn.execute("""
+            UPDATE key_results 
+            SET current_value = (SELECT count(*) FROM knowledge_nodes)
+            WHERE description ILIKE '%Объем базы знаний%' OR description ILIKE '%узлов%'
+        """)
+        await conn.execute("""
+            UPDATE key_results 
+            SET current_value = (SELECT COALESCE(sum(usage_count), 0) FROM knowledge_nodes)
+            WHERE description ILIKE '%Использование%' OR description ILIKE '%ROI%'
+        """)
+        print("OKR Sync completed.")
+    except Exception as e:
+        print(f"OKR Sync error: {e}")
+
+async def run_expert_council(conn, knowledge_id, content, original_expert_id):
+    """Инициирует дебаты между экспертами по поводу нового знания."""
+    print(f"Starting Expert Council for knowledge {knowledge_id}...")
+    try:
+        # Выбираем 2 случайных экспертов из ДРУГИХ департаментов
+        opponents = await conn.fetch("""
+            SELECT id, name, role, system_prompt 
+            FROM experts 
+            WHERE id != $1 
+            ORDER BY RANDOM() LIMIT 2
+        """, original_expert_id)
+        
+        if not opponents: return
+
+        debate_summary = []
+        print(f"   Found {len(opponents)} opponents for debate")
+        for opp in opponents:
+            prompt = f"""
+            Вы {opp['name']}, {opp['role']}. 
+            Проанализируйте следующий инсайт и дайте свою оценку с точки зрения вашей экспертизы:
+            "{content}"
+            
+            Верните краткий критический комментарий (2-3 предложения).
+            """
+            # Используем локальную модель для экспертного совета (run_local_model использует сканер Ollama/MLX)
+            try:
+                comment = await run_local_model(prompt)
+                if not comment or len(comment.strip()) < 10:
+                    comment = await run_cursor_agent(prompt)
+                if not comment or len(comment.strip()) < 10:
+                    role = opp.get('role', 'эксперт')
+                    dept = opp.get('department', '')
+                    content_preview = content[:200] if len(content) > 200 else content
+                    simple_prompt = f"Вы {opp['name']}, {role}. Дайте краткий (2-3 предложения) критический комментарий к следующему инсайту с точки зрения вашей экспертизы: {content_preview}"
+                    comment = await run_local_model(simple_prompt)
+                    if not comment or len(comment.strip()) < 10:
+                        comment = f"С точки зрения {role} ({dept}), данный инсайт требует дополнительного анализа в контексте текущих практик и стандартов отрасли. Рекомендуется провести более глубокое исследование с учетом специфики домена."
+                        print(f"   ℹ️ Сгенерирован структурированный комментарий для {opp['name']}")
+            except Exception as e:
+                print(f"   ⚠️ Ошибка получения комментария от {opp['name']}: {e}")
+                # Реальный fallback - используем информацию об эксперте
+                role = opp.get('role', 'эксперт')
+                dept = opp.get('department', '')
+                comment = f"С точки зрения {role} ({dept}), инсайт требует дополнительного анализа. Рекомендуется провести более глубокое исследование."
+            
+            if comment:
+                debate_summary.append(f"🧐 {opp['name']} ({opp['role']}): {comment}")
+                print(f"   ✅ Added comment from {opp['name']} (length: {len(comment)})")
+
+        # Создаем дебаты даже если только один эксперт ответил
+        print(f"   Debate summary length: {len(debate_summary)}")
+        if debate_summary:
+            consensus = "\n\n".join(debate_summary)
+            print(f"   Creating debate with consensus length: {len(consensus)}")
+            try:
+                await conn.execute("""
+                    INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
+                    VALUES ($1, $2, $3, $4, 'closed')
+                """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
+                print(f"   ✅ Debate inserted into expert_discussions")
+                
+                # Обновляем метаданные узла знаний
+                await conn.execute("""
+                    UPDATE knowledge_nodes 
+                    SET metadata = metadata || jsonb_build_object('council_review', $1)
+                    WHERE id = $2
+                """, consensus, knowledge_id)
+                print(f"   ✅ council_review added to metadata")
+                print("✅ Expert Council finished successfully.")
+            except Exception as insert_error:
+                print(f"❌ Error inserting debate: {insert_error}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("⚠️ Debate summary is empty, skipping debate creation")
+            
+    except Exception as e:
+        print(f"❌ Expert Council error: {e}")
+        import traceback
+        traceback.print_exc()
+
+async def nightly_learning_cycle():
+    async with acquire_resource_lock("nightly_learner"):
+        start_time = datetime.now()
+        print(f"[{start_time}] Total Nightly Learning Cycle (Council Phase enabled) starting...")
+        
+        # Обновляем знания корпорации перед обучением
+        try:
+            try:
+                from corporation_knowledge_system import update_all_agents_knowledge
+            except ImportError:
+                from app.corporation_knowledge_system import update_all_agents_knowledge
+            await update_all_agents_knowledge()
+            print("✅ Знания корпорации обновлены перед обучением")
+        except Exception as e:
+            print(f"⚠️ Не удалось обновить знания корпорации: {e}")
+        
+        # Используем get_pool из evaluator для совместимости с подключением к БД
+        from evaluator import get_pool
+        pool = await get_pool()
+        conn = await pool.acquire()
+        
+        await sync_okrs(conn)
+        
+        # Получаем всех активных экспертов или тех, кто не обучался давно
+        # Обучаем всех экспертов, но с учетом времени последнего обучения
+        # Если эксперт обучался недавно (< 24 часов), пропускаем его
+        experts = await conn.fetch("""
+            SELECT id, name, role, department, system_prompt, last_learned_at
+            FROM experts
+            ORDER BY 
+                CASE 
+                    WHEN last_learned_at IS NULL THEN 0
+                    WHEN last_learned_at < NOW() - INTERVAL '24 hours' THEN 1
+                    ELSE 2
+                END,
+                RANDOM()
+        """)
+        
+        total_learned = 0
+        total_experts = len(experts)
+        learned_today = 0
+        skipped_recent = 0
+
+        print(f"📚 Найдено экспертов для обучения: {total_experts}")
+        
+        for expert in experts:
+            expert_name = expert['name']
+            expert_role = expert['role']
+            last_learned = expert.get('last_learned_at')
+            
+            # Пропускаем экспертов, которые обучались менее 24 часов назад
+            # Проверка уже сделана в SQL запросе, но можно добавить дополнительную проверку
+            if last_learned:
+                # last_learned из БД - это timezone-aware datetime
+                # Используем прямое сравнение в SQL, но для логирования конвертируем
+                print(f"\n>>> Learning session for: {expert_name} ({expert_role})")
+                
+                # Вычисляем время с учетом timezone
+                if hasattr(last_learned, 'replace'):
+                    # Это datetime объект
+                    if last_learned.tzinfo:
+                        # timezone-aware, конвертируем в naive для сравнения
+                        last_learned_utc = last_learned.astimezone().replace(tzinfo=None)
+                    else:
+                        last_learned_utc = last_learned
+                    
+                    hours_ago = (datetime.now() - last_learned_utc).total_seconds() / 3600
+                    print(f"   Последнее обучение: {hours_ago:.1f} часов назад")
+                    
+                    # Дополнительная проверка на клиенте (основная уже в SQL)
+                    if hours_ago < 24:
+                        print(f"⏭️  Пропуск {expert_name} - уже обучался {hours_ago:.1f} часов назад")
+                        skipped_recent += 1
+                        continue
+                else:
+                    print(f"\n>>> Learning session for: {expert_name} ({expert_role})")
+                    print(f"   Последнее обучение: {last_learned} (формат не datetime)")
+            else:
+                print(f"\n>>> Learning session for: {expert_name} ({expert_role})")
+                print(f"   Первое обучение")
+            
+            # Используем локальную модель для обучения (run_local_model использует сканер Ollama/MLX)
+            gap_prompt = f"Вы {expert_name}, {expert_role}. Какая одна самая важная технология или тренд 2025 года в области {expert['department']} требует немедленного изучения для успеха нашей корпорации? Ответьте ОДНОЙ фразой."
+
+            topic = await run_local_model(gap_prompt)
+            if not topic or len(topic.strip()) < 5:
+                topic = await run_cursor_agent(gap_prompt)
+            if not topic or len(topic.strip()) < 5:
+                dept = expert.get('department', 'General')
+                current_year = datetime.now().year
+                topic = f"Актуальные технологии и тренды {current_year} года в области {dept}"
+
+            search_prompt = f"Исследуй '{topic}'. Сформулируй 1-2 глубоких инсайта. Верни JSON: {{\"topic\": \"{topic}\", \"summary\": \"...\", \"insights\": [ {{\"content\": \"...\", \"confidence\": 0.95}} ]}} ОТВЕТЬ ТОЛЬКО ЧИСТЫМ JSON."
+
+            search_output = await run_local_model(search_prompt)
+            if not search_output or ('insights' not in search_output and '{' not in search_output):
+                search_output = await run_cursor_agent(search_prompt)
+            
+            if search_output:
+                try:
+                    data_str = search_output.strip()
+                    if '```' in data_str:
+                        data_str = data_str.split('```')[1].replace('json', '').strip()
+                    
+                    learning_data = json.loads(data_str)
+
+                    domain_id = await conn.fetchval('SELECT id FROM domains WHERE name = $1', expert['department'])
+                    if not domain_id:
+                        domain_id = await conn.fetchval('INSERT INTO domains (name) VALUES ($1) RETURNING id', expert['department'])
+                    
+                    for insight in learning_data.get('insights', []):
+                        # Сохраняем знание
+                        k_id = await conn.fetchval("""
+                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified) 
+                            VALUES ($1, $2, $3, $4, $5)
+                            RETURNING id
+                        """, domain_id, insight['content'], insight['confidence'], json.dumps({"expert": expert_name, "cycle": "nightly_council"}), True)
+                        
+                        total_learned += 1
+                        
+                        # Если уверенность высокая, запускаем Совет Экспертов
+                        if insight['confidence'] >= 0.9:
+                            await run_expert_council(conn, k_id, insight['content'], expert['id'])
+                    
+                    await conn.execute("INSERT INTO expert_learning_logs (expert_id, topic, summary) VALUES ($1, $2, $3)", 
+                                     expert['id'], learning_data.get('topic', topic), learning_data.get('summary', ''))
+                    
+                    # Обновляем время последнего обучения для конкретного эксперта
+                    await conn.execute('UPDATE experts SET last_learned_at = CURRENT_TIMESTAMP WHERE id = $1', expert['id'])
+                    learned_today += 1
+                    
+                except Exception as e:
+                    print(f"Error for {expert_name}: {e}")
+            
+            await asyncio.sleep(5) # Увеличенная задержка
+
+        # Итоговая статистика
+        print(f"\n{'='*60}")
+        print(f"📊 ИТОГИ ОБУЧЕНИЯ:")
+        print(f"   Всего экспертов: {total_experts}")
+        print(f"   Обучилось сегодня: {learned_today}")
+        print(f"   Пропущено (уже обучались < 24ч): {skipped_recent}")
+        print(f"   Новых знаний добавлено: {total_learned}")
+        print(f"{'='*60}\n")
+        
+        if total_learned > 0:
+            # Обновляем общее время обучения (для совместимости)
+            await conn.execute('UPDATE experts SET last_learned_at = CURRENT_TIMESTAMP WHERE last_learned_at IS NULL')
+            await sync_okrs(conn)
+            
+            # --- ФАЗА 4: LM JUDGE (ВЕРИФИКАЦИЯ) ---
+            print("⚖️ Running LM Judge...")
+            subprocess.run([sys.executable, os.path.join(_APP_DIR, "evaluator.py")], cwd=_APP_DIR)
+
+            # --- ФАЗА 5: CORPORATE IMMUNITY (СТРЕСС-ТЕСТ) ---
+            print("🛡️ Running Adversarial Critic...")
+            subprocess.run([sys.executable, os.path.join(_APP_DIR, "adversarial_critic.py")], cwd=_APP_DIR)
+        
+        # --- ФАЗА 6: CONTEXTUAL LEARNING (КОНТЕКСТНАЯ ПАМЯТЬ) ---
+        print("🎓 Running Contextual Learning...")
+        try:
+            from contextual_learner import run_contextual_learning_cycle
+            await run_contextual_learning_cycle()
+        except Exception as e:
+            print(f"⚠️ Contextual Learning error: {e}")
+        
+        # --- ФАЗА 7: ENHANCED EXPERT EVOLUTION (АВТОМАТИЧЕСКАЯ ЭВОЛЮЦИЯ) ---
+        print("🧬 Running Enhanced Expert Evolution...")
+        try:
+            from enhanced_expert_evolver import run_enhanced_evolution_cycle
+            await run_enhanced_evolution_cycle()
+        except Exception as e:
+            print(f"⚠️ Enhanced Expert Evolution error: {e}")
+        
+        # --- ФАЗА 10: ADAPTIVE LEARNING (АДАПТИВНОЕ ОБУЧЕНИЕ) ---
+        print("🎓 Running Adaptive Learning...")
+        try:
+            from adaptive_learner import run_adaptive_learning_cycle
+            await run_adaptive_learning_cycle()
+        except Exception as e:
+            print(f"⚠️ Adaptive Learning error: {e}")
+        
+        # --- ФАЗА 8: AUTO-TRANSLATION (АВТОМАТИЧЕСКИЙ ПЕРЕВОД) ---
+        print("🌍 Running Auto-Translation...")
+        try:
+            from translator import run_auto_translation_cycle
+            await run_auto_translation_cycle()
+        except Exception as e:
+            print(f"⚠️ Auto-Translation error: {e}")
+        
+        # --- ФАЗА 9: UPDATE CURSORRULES (ОБНОВЛЕНИЕ .CURSORRULES) ---
+        print("📝 Updating .cursorrules from database...")
+        try:
+            from cursorrules_generator import update_cursorrules_file
+            await update_cursorrules_file()
+        except Exception as e:
+            print(f"⚠️ .cursorrules update error: {e}")
+        
+        # --- ФАЗА 10: DEBATE PROCESSING (ОБРАБОТКА ДЕБАТОВ) ---
+        print("💬 Processing debates and creating tasks...")
+        try:
+            from debate_processor import DebateProcessor
+            processor = DebateProcessor()
+            stats = await processor.process_new_debates()
+            if stats['processed'] > 0:
+                print(f"✅ Processed {stats['processed']} debates:")
+                print(f"   Created {stats['tasks_created']} tasks")
+                print(f"   Prioritized {stats['knowledge_prioritized']} knowledge nodes")
+                print(f"   Sent {stats['notifications_sent']} notifications")
+        except Exception as e:
+            print(f"⚠️ Debate processing error: {e}")
+            import traceback
+            traceback.print_exc()
+
+        await pool.release(conn)
+        await pool.close()
+        print(f"[{datetime.now()}] Total cycle with Council Review finished.")
+
+
+if __name__ == '__main__':
+    asyncio.run(nightly_learning_cycle())

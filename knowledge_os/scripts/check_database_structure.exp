@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА СТРУКТУРЫ БД ==='\r"
+expect "# "
+
+send "echo '1. Проверка существования таблиц:'\r"
+expect "# "
+send "sqlite3 trading.db \".tables\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Структура таблицы user_exchange_keys:'\r"
+expect "# "
+send "sqlite3 trading.db \".schema user_exchange_keys\" 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Количество записей в user_exchange_keys:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) as total, COUNT(CASE WHEN is_active = 1 THEN 1 END) as active FROM user_exchange_keys;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '4. Все записи в user_exchange_keys (без ключей):'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, is_active, created_at FROM user_exchange_keys LIMIT 10;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '5. Проверка других мест хранения ключей (env файлы):'\r"
+expect "# "
+send "ls -la .env* 2>/dev/null | head -5\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,79 @@
+{
+  "overwrite": true,
+  "dashboard": {
+    "title": "Orchestration A/B Test",
+    "uid": "orchestration-ab",
+    "tags": ["orchestration", "ab-test", "v2", "singularity"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Success Rate Comparison",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "orchestration_v2_success_rate * 100", "legendFormat": "V2"},
+          {"expr": "orchestration_existing_success_rate * 100", "legendFormat": "Existing"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Average Duration (seconds)",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "orchestration_v2_avg_duration_seconds", "legendFormat": "V2"},
+          {"expr": "orchestration_existing_avg_duration_seconds", "legendFormat": "Existing"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Task Distribution (V2 vs Existing)",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "orchestration_v2_tasks_total", "legendFormat": "V2 Tasks"},
+          {"expr": "orchestration_existing_tasks_total", "legendFormat": "Existing Tasks"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "V2 Traffic %",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "orchestration_v2_tasks_total / (orchestration_v2_tasks_total + orchestration_existing_tasks_total + 1e-9) * 100",
+            "legendFormat": "V2 %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Success Rate Difference (V2 - Existing)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "(orchestration_v2_success_rate - orchestration_existing_success_rate) * 100",
+            "legendFormat": "Δ Success %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Duration Difference (Existing - V2, positive = V2 faster)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "orchestration_existing_avg_duration_seconds - orchestration_v2_avg_duration_seconds",
+            "legendFormat": "Δ Duration (s)"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "schemaVersion": 16,
+    "version": 1
+  }
+}

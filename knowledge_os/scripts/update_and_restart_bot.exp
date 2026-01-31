@@ -1,0 +1,105 @@
+#!/usr/bin/expect -f
+# Обновление кода на сервере и перезапуск бота
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Останавливаем бота
+send "echo '=== Остановка бота ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+# Обновляем код
+send "echo '=== Обновление кода ==='\r"
+expect "# "
+send "git stash 2>/dev/null || true\r"
+expect "# "
+send "git pull origin main 2>&1\r"
+expect {
+    "# " {}
+    "Password:" {
+        send "\r"
+        expect "# "
+    }
+    timeout {
+        puts "Timeout при git pull"
+    }
+}
+
+# Очищаем блокировки
+send "echo '=== Очистка блокировок ==='\r"
+expect "# "
+send "rm -f *.lock telegram_*.lock .telegram_* 2>/dev/null || true\r"
+expect "# "
+
+# Запускаем бота
+send "echo '=== Запуск бота ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+
+# Проверяем
+send "echo '=== Проверка процессов ==='\r"
+expect "# "
+send "ps aux | grep main.py | grep -v grep\r"
+expect "# "
+
+send "echo '=== Последние логи ==='\r"
+expect "# "
+send "tail -40 server.log 2>/dev/null\r"
+expect "# "
+
+# Если есть ошибки
+send "echo '=== Проверка ошибок ==='\r"
+expect "# "
+send "grep -E 'ERROR|Exception|ModuleNotFoundError|ImportError|Traceback' server.log 2>/dev/null | tail -5 || echo 'Ошибок не найдено'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+
+puts "\n✅ Готово! Код обновлен и бот перезапущен."
+

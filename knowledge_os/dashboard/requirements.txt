@@ -1,0 +1,9 @@
+streamlit
+pandas
+plotly
+asyncpg
+psycopg2-binary
+streamlit-aggrid
+networkx
+python-dotenv
+httpx

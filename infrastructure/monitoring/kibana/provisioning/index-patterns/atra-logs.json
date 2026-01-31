@@ -1,0 +1,6 @@
+{
+  "attributes": {
+    "title": "atra-logs-*",
+    "timeFieldName": "@timestamp"
+  }
+}

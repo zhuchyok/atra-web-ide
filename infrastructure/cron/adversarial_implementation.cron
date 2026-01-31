@@ -1,0 +1,4 @@
+# Автоматическое создание задач для внедрения выдержавших adversarial testing знаний
+# Запускается ежедневно в 2:00
+0 2 * * * cd /root/knowledge_os && python3 app/adversarial_implementation_generator.py >> logs/adversarial_implementation.log 2>&1
+

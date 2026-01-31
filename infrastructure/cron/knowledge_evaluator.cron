@@ -1,0 +1,4 @@
+# Автоматическая обработка необработанных узлов знаний через LM Judge
+# Запускается каждые 2 часа
+0 */2 * * * cd /root/knowledge_os && /root/knowledge_os/venv/bin/python app/evaluator.py 50 >> logs/evaluator.log 2>&1
+

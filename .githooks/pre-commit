@@ -1,0 +1,17 @@
+#!/bin/sh
+# При коммите изменённого employees.json автоматически запускается sync_employees.py
+# и в коммит добавляются обновлённые _known_names_generated.py, seed_experts.json, employees.md
+
+ROOT="$(git rev-parse --show-toplevel)" || exit 1
+cd "$ROOT" || exit 1
+
+if git diff --cached --name-only | grep -q 'configs/experts/employees.json'; then
+  echo "[pre-commit] configs/experts/employees.json изменён — запуск sync_employees.py..."
+  if ! python3 scripts/sync_employees.py; then
+    echo "[pre-commit] Ошибка sync_employees.py. Коммит отменён."
+    exit 1
+  fi
+  git add configs/experts/_known_names_generated.py knowledge_os/db/seed_experts.json configs/experts/employees.md
+  echo "[pre-commit] Добавлены в коммит: _known_names_generated.py, seed_experts.json, employees.md"
+fi
+exit 0

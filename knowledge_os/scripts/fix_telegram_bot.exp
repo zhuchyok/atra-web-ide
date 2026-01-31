@@ -1,0 +1,70 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА LOCK ФАЙЛОВ ==='\r"
+expect "# "
+send "ls -la *.lock polling.lock 2>/dev/null\r"
+expect "# "
+
+send "echo '=== УДАЛЕНИЕ LOCK ФАЙЛОВ ==='\r"
+expect "# "
+send "rm -f *.lock polling.lock telegram.lock 2>/dev/null\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ПРОЦЕССОВ ==='\r"
+expect "# "
+send "ps aux | grep -E 'python3.*main.py|python3.*signal_live.py' | grep -v grep\r"
+expect "# "
+
+send "echo '=== ПЕРЕЗАПУСК БОТА ==='\r"
+expect "# "
+send "pkill -f 'python3 main.py'\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "rm -f atra.lock polling.lock telegram.lock\r"
+expect "# "
+send "nohup python3 main.py > bot_startup.log 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ЗАПУСКА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА TELEGRAM В ЛОГАХ ==='\r"
+expect "# "
+send "tail -30 bot_startup.log 2>/dev/null | grep -iE 'telegram|bot|polling|lock' | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

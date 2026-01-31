@@ -1,0 +1,193 @@
+#!/usr/bin/expect -f
+
+# Скрипт для обновления кода, перезапуска и проверки генерации сигналов
+# Использование: ./scripts/update_restart_check_signals_new.exp
+
+set timeout 300
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+# Цвета для вывода
+set green "\033\[32m"
+set red "\033\[31m"
+set yellow "\033\[33m"
+set reset "\033\[0m"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+    timeout {
+        puts "${red}Timeout при подключении${reset}"
+        exit 1
+    }
+}
+
+expect "# "
+puts "\n${green}✅ Подключено к серверу${reset}\n"
+
+# Переходим в директорию проекта
+send "cd /root/atra\r"
+expect "# "
+
+# 1. Сохранение локальных изменений (stash)
+puts "\n${yellow}💾 Сохранение локальных изменений (stash)...${reset}\n"
+send "git stash\r"
+expect {
+    "Saved working directory" {
+        puts "${green}✅ Локальные изменения сохранены${reset}\n"
+    }
+    "No local changes" {
+        puts "${green}✅ Нет локальных изменений${reset}\n"
+    }
+    "# " {
+        puts "${green}✅ Stash выполнен${reset}\n"
+    }
+    timeout {
+        puts "${yellow}⚠️ Timeout при stash${reset}\n"
+    }
+}
+
+# 2. Обновление кода из git
+puts "\n${yellow}📥 Обновление кода из git...${reset}\n"
+send "git pull origin main\r"
+expect {
+    "Already up to date" {
+        puts "${green}✅ Код уже обновлен${reset}\n"
+    }
+    "Updating" {
+        puts "${green}✅ Код обновляется...${reset}\n"
+        expect "# "
+        puts "${green}✅ Код обновлен${reset}\n"
+    }
+    "# " {
+        puts "${green}✅ Код обновлен${reset}\n"
+    }
+    timeout {
+        puts "${yellow}⚠️ Timeout при git pull${reset}\n"
+    }
+}
+
+# 4. Остановка старого процесса
+puts "${yellow}🛑 Остановка старого процесса...${reset}\n"
+send "pkill -f 'python3 main.py' || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+# Удаление lock файлов
+send "rm -f /root/atra/bot.pid /root/atra/*.lock || true\r"
+expect "# "
+
+# 3. Проверка переменных окружения
+puts "${yellow}🔧 Проверка переменных окружения...${reset}\n"
+send "cd /root/atra && export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+
+# 5. Запуск бота в фоновом режиме
+puts "${yellow}🚀 Запуск бота...${reset}\n"
+send "cd /root/atra && nohup python3 main.py > /dev/null 2>&1 &\r"
+expect "# "
+
+send "sleep 5\r"
+expect "# "
+
+# 6. Проверка что процесс запущен
+puts "${yellow}🔍 Проверка процесса...${reset}\n"
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# 7. Ожидание 30 секунд для первого цикла
+puts "${yellow}⏳ Ожидание 30 секунд для первого цикла генерации сигналов...${reset}\n"
+send "sleep 30\r"
+expect "# "
+
+# 8. Проверка логов на наличие сигналов
+puts "\n${yellow}📊 Проверка логов генерации сигналов...${reset}\n"
+
+# Проверка последних логов system.log
+send "echo '=== ПОСЛЕДНИЕ 50 СТРОК SYSTEM.LOG ===' && tail -50 logs/system.log 2>/dev/null | grep -E 'Цикл|SIGNAL|NO SIGNAL|FILTER BLOCK|SEND SUCCESS|SEND FAILED' | tail -20 || echo 'Лог файл не найден'\r"
+expect "# "
+
+# Проверка логов signals.log
+send "echo '' && echo '=== ПОСЛЕДНИЕ 30 СТРОК SIGNALS.LOG ===' && tail -30 logs/signals.log 2>/dev/null | tail -15 || echo 'Лог файл не найден'\r"
+expect "# "
+
+# Проверка блокировок фильтров
+send "echo '' && echo '=== БЛОКИРОВКИ ФИЛЬТРОВ (последние 10) ===' && tail -200 logs/system.log 2>/dev/null | grep 'FILTER BLOCK' | tail -10 || echo 'Блокировок не найдено'\r"
+expect "# "
+
+# Проверка успешной генерации сигналов
+send "echo '' && echo '=== СГЕНЕРИРОВАННЫЕ СИГНАЛЫ (последние 5) ===' && tail -200 logs/system.log 2>/dev/null | grep -E 'SIGNAL GENERATED|SEND SUCCESS' | tail -5 || echo 'Сгенерированных сигналов не найдено'\r"
+expect "# "
+
+# Проверка ошибок
+send "echo '' && echo '=== ОШИБКИ (последние 5) ===' && tail -100 logs/errors.log 2>/dev/null | tail -5 || echo 'Ошибок не найдено'\r"
+expect "# "
+
+# 9. Проверка БД на наличие новых сигналов
+puts "\n${yellow}💾 Проверка БД на новые сигналы...${reset}\n"
+send "cd /root/atra && python3 -c \"
+import sqlite3
+from datetime import datetime, timedelta
+
+conn = sqlite3.connect('trading.db')
+cursor = conn.cursor()
+
+# Последние 5 сигналов
+cursor.execute('SELECT symbol, direction, entry_price, signal_time FROM accepted_signals ORDER BY signal_time DESC LIMIT 5')
+recent = cursor.fetchall()
+
+print('=== ПОСЛЕДНИЕ 5 СИГНАЛОВ В БД ===')
+if recent:
+    for sig in recent:
+        print(f'{sig[3]} | {sig[0]} | {sig[1]} | {sig[2]}')
+else:
+    print('Нет сигналов в БД')
+
+# Сигналы за последний час
+cursor.execute('SELECT COUNT(*) FROM accepted_signals WHERE datetime(signal_time) > datetime(\\\"now\\\", \\\"-1 hour\\\")')
+last_hour = cursor.fetchone()[0]
+
+print(f'\\n=== СИГНАЛЫ ЗА ПОСЛЕДНИЙ ЧАС ===')
+print(f'Всего: {last_hour}')
+
+# Последний сигнал
+cursor.execute('SELECT MAX(signal_time) FROM accepted_signals')
+last_time = cursor.fetchone()[0]
+print(f'\\nПоследний сигнал: {last_time}')
+
+conn.close()
+\"\r"
+expect "# "
+
+# 10. Статус процесса
+puts "\n${yellow}📊 Статус системы...${reset}\n"
+send "ps aux | grep 'python3 main.py' | grep -v grep | wc -l\r"
+expect "# "
+
+send "echo 'Процессов main.py запущено:' && cat\r"
+expect "# "
+
+# Финальная сводка
+puts "\n${green}✅ Проверка завершена!${reset}\n"
+puts "${yellow}📋 Следующие шаги:${reset}"
+puts "1. Проверьте логи выше на наличие 'SIGNAL GENERATED' или 'FILTER BLOCK'"
+puts "2. Если есть блокировки - проверьте причины в логах"
+puts "3. Если сигналов нет - проверьте рыночные условия"
+
+send "exit\r"
+expect eof
+
+puts "\n${green}✅ Готово!${reset}\n"
+

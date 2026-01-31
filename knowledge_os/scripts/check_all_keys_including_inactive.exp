@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ВСЕХ КЛЮЧЕЙ (ВКЛЮЧАЯ НЕАКТИВНЫЕ) ==='\r"
+expect "# "
+
+send "echo '1. Все записи (включая неактивные и зашифрованные):'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, CASE WHEN api_key IS NOT NULL AND api_key != '' THEN 'ЕСТЬ' ELSE 'НЕТ' END as has_key, is_active, created_at, updated_at FROM user_exchange_keys ORDER BY updated_at DESC;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Проверка backup БД (если есть):'\r"
+expect "# "
+send "find . -name '*.db*' -o -name '*backup*.db' 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '3. Поиск зашифрованных ключей в git истории (старые версии БД):'\r"
+expect "# "
+send "git log --all --oneline -- '*.db' '*.sql' 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '4. Проверка логов на сохранение ключей:'\r"
+expect "# "
+send "grep -i 'ключ.*сохранен\|key.*saved\|save.*exchange.*key' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '5. Проверка функции расшифровки:'\r"
+expect "# "
+send "grep -A 5 'def decrypt\|decrypt.*api_key' src/utils/encryption.py 2>/dev/null | head -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

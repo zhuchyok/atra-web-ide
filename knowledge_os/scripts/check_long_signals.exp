@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА LONG СИГНАЛОВ ==='\r"
+expect "# "
+
+send "echo '1. LONG сигналы (последние 30):'\r"
+expect "# "
+send "grep -i 'LONG.*CLASSIC\|LONG.*сигнал' bot_startup.log 2>/dev/null | tail -30\r"
+expect "# "
+
+send "echo '2. LONG блокировки:'\r"
+expect "# "
+send "grep -i 'LONG.*BLOCK\|🚫.*LONG' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '3. LONG прохождения:'\r"
+expect "# "
+send "grep -i 'LONG.*PASS\|✅.*LONG' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '4. Условия для LONG (RSI, EMA, BB):'\r"
+expect "# "
+send "grep -E 'RSI.*[0-9]|EMA.*[0-9]|BB.*[0-9]' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '5. Статистика: LONG vs SHORT:'\r"
+expect "# "
+send "echo 'LONG:' && grep -c 'LONG CLASSIC' bot_startup.log 2>/dev/null && echo 'SHORT:' && grep -c 'SHORT CLASSIC' bot_startup.log 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

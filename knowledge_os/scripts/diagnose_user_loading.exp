@@ -1,0 +1,69 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка таблицы users
+send "echo '=== ПРОВЕРКА ТАБЛИЦЫ USERS ==='\r"
+expect "# "
+send "sqlite3 trading.db \".tables\" 2>/dev/null | grep -i user || echo 'Нет таблиц с user'\r"
+expect "# "
+
+# Проверка структуры БД
+send "echo '' && echo '=== СТРУКТУРА БД ==='\r"
+expect "# "
+send "sqlite3 trading.db \".schema\" 2>/dev/null | grep -i user | head -20\r"
+expect "# "
+
+# Проверка данных пользователей через Python
+send "echo '' && echo '=== ПРОВЕРКА ЧЕРЕЗ PYTHON ==='\r"
+expect "# "
+send "cd /root/atra && python3 << 'PYEOF'
+import sys
+sys.path.insert(0, '/root/atra')
+
+from src.database.db import Database
+
+db = Database()
+
+# Получаем всех пользователей
+user_ids = db.get_all_users()
+print(f'Пользователей в БД: {len(user_ids)}')
+print(f'ID: {user_ids}')
+
+# Проверяем данные каждого
+for uid in user_ids:
+    print(f'\\n=== Пользователь {uid} ===')
+    data = db.get_user_data(uid)
+    print(f'Тип данных: {type(data)}')
+    if data:
+        print(f'Ключи: {list(data.keys()) if isinstance(data, dict) else \"Не dict\"}')
+        print(f'Торговый режим: {data.get(\"trade_mode\") if isinstance(data, dict) else \"N/A\"}')
+        print(f'Депозит: {data.get(\"deposit\") if isinstance(data, dict) else \"N/A\"}')
+    else:
+        print('Данные пустые или None')
+
+PYEOF
+\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

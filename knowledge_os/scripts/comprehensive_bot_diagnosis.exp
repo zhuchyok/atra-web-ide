@@ -1,0 +1,121 @@
+#!/usr/bin/expect -f
+# Комплексная диагностика бота всеми экспертами
+
+set timeout 120
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# === ВИКТОР (Team Lead) - Общая диагностика ===
+send "echo '=== 1. ВИКТОР: ОБЩАЯ ДИАГНОСТИКА ==='\r"
+expect "# "
+send "ps aux | grep -E 'python3|main.py|telegram' | grep -v grep\r"
+expect "# "
+send "ls -la /tmp/telegram_polling_lock_* 2>/dev/null || echo 'Lock файлов нет'\r"
+expect "# "
+
+# === ИГОРЬ (Backend) - Проверка кода и обработчиков ===
+send "echo '=== 2. ИГОРЬ: ПРОВЕРКА ОБРАБОТЧИКОВ ==='\r"
+expect "# "
+send "python3 -c \"from src.telegram.bot_core import bot_state; print('Application:', bot_state.application); print('Running:', bot_state.application.running if bot_state.application else 'None')\" 2>&1 | head -10\r"
+expect "# "
+send "grep -E 'add_handler|CommandHandler|start|help' src/telegram/bot_core.py | head -20\r"
+expect "# "
+
+# === СЕРГЕЙ (DevOps) - Проверка процессов и логов ===
+send "echo '=== 3. СЕРГЕЙ: ПРОЦЕССЫ И ЛОГИ ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep | awk '{print \$2, \$11, \$12, \$13}'\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E 'ERROR|Exception|Traceback|Failed|error_handler' | tail -30\r"
+expect "# "
+send "tail -50 server.log 2>/dev/null | grep -E 'Telegram|polling|Polling|getUpdates|Application started|Bot authorized' | tail -20\r"
+expect "# "
+
+# === АННА (QA) - Проверка обработки команд ===
+send "echo '=== 4. АННА: ОБРАБОТКА КОМАНД ==='\r"
+expect "# "
+send "grep -E 'start|help|command|Command|update_id|message|Message|handle_message' server.log 2>/dev/null | tail -30\r"
+expect "# "
+send "grep -A 10 'error_handler\\|Exception in handler\\|Failed to process' server.log 2>/dev/null | tail -40\r"
+expect "# "
+
+# === МАКСИМ (Data Analyst) - Анализ логов ===
+send "echo '=== 5. МАКСИМ: АНАЛИЗ ЛОГОВ ==='\r"
+expect "# "
+send "tail -200 server.log 2>/dev/null | grep -E 'INFO|WARNING|ERROR' | awk '{print \$1, \$2, \$5}' | tail -50\r"
+expect "# "
+send "grep -E 'ImportError|ModuleNotFoundError|cannot import' server.log 2>/dev/null | tail -20\r"
+expect "# "
+
+# === ЕЛЕНА (Monitor) - Проверка polling и обновлений ===
+send "echo '=== 6. ЕЛЕНА: POLLING И ОБНОВЛЕНИЯ ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getWebhookInfo' | python3 -m json.tool 2>/dev/null | head -20\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-5&limit=5' | python3 -m json.tool 2>/dev/null | head -50\r"
+expect "# "
+send "grep -E 'getUpdates|update_queue|Fetching updates|Polling запущен' server.log 2>/dev/null | tail -15\r"
+expect "# "
+
+# === ДМИТРИЙ (ML) - Проверка зависимостей ===
+send "echo '=== 7. ДМИТРИЙ: ЗАВИСИМОСТИ ==='\r"
+expect "# "
+send "python3 -c \"import telegram; print('telegram:', telegram.__version__)\" 2>&1\r"
+expect "# "
+send "python3 -c \"from telegram.ext import Application; print('Application OK')\" 2>&1\r"
+expect "# "
+send "python3 -c \"from src.telegram.bot_core import bot_state; print('bot_state OK')\" 2>&1\r"
+expect "# "
+
+# === ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА ===
+send "echo '=== 8. ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА ==='\r"
+expect "# "
+send "python3 -c \"import asyncio; print('asyncio OK'); loop = asyncio.get_event_loop(); print('Event loop:', loop.is_running() if hasattr(loop, 'is_running') else 'N/A')\" 2>&1\r"
+expect "# "
+send "grep -E 'TOKEN|TELEGRAM_TOKEN|8156844481' server.log 2>/dev/null | tail -10\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E 'Lock|lock|polling|Polling' | tail -20\r"
+expect "# "
+
+# === ПРОВЕРКА ОБРАБОТКИ ОБНОВЛЕНИЙ В РЕАЛЬНОМ ВРЕМЕНИ ===
+send "echo '=== 9. ПРОВЕРКА ОБРАБОТКИ ОБНОВЛЕНИЙ ==='\r"
+expect "# "
+send "tail -f server.log 2>/dev/null & TAIL_PID=\$!; sleep 5; kill \$TAIL_PID 2>/dev/null; echo '--- Последние обновления ---'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

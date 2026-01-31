@@ -1,0 +1,88 @@
+{
+  "dashboard": {
+    "title": "ATRA Knowledge OS Dashboard",
+    "uid": "atra-knowledge-os",
+    "tags": ["singularity", "ai", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Latency (p50, p95, p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "singularity_latency_seconds{quantile=\"0.5\"}",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "singularity_latency_seconds{quantile=\"0.95\"}",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "singularity_latency_seconds{quantile=\"0.99\"}",
+            "legendFormat": "p99"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "singularity_cache_hit_rate",
+            "legendFormat": "Cache Hit Rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Token Usage and Savings",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "singularity_tokens_saved_total",
+            "legendFormat": "Tokens Saved"
+          },
+          {
+            "expr": "singularity_requests_total",
+            "legendFormat": "Total Requests"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "singularity_error_rate",
+            "legendFormat": "Error Rate"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Requests Per Minute",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "singularity_requests_per_minute",
+            "legendFormat": "Requests/min"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "id": null
+  },
+  "overwrite": true
+}
+

@@ -1,0 +1,4 @@
+# Cron job: Update user style profiles (Singularity 9.0 - Tacit Knowledge)
+# Расписание: Ежедневно в 02:00
+0 2 * * * cd /root/knowledge_os && python3 -c "from app.tacit_knowledge_miner import update_style_profiles; import asyncio; asyncio.run(update_style_profiles())" >> logs/tacit_knowledge.log 2>&1
+

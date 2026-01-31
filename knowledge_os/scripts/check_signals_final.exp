@@ -1,0 +1,61 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка пользователей
+send "echo '=== ПРОВЕРКА ПОЛЬЗОВАТЕЛЕЙ ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM users_data;\"\r"
+expect "# "
+
+# Ждем 30 секунд для следующего цикла
+send "echo '' && echo '=== ОЖИДАНИЕ 30 СЕКУНД ДЛЯ СЛЕДУЮЩЕГО ЦИКЛА ==='\r"
+expect "# "
+send "sleep 30\r"
+expect "# "
+
+# Проверка последних логов
+send "echo '' && echo '=== ПОСЛЕДНИЕ ЛОГИ ЗАГРУЗКИ ПОЛЬЗОВАТЕЛЕЙ ==='\r"
+expect "# "
+send "tail -50 logs/signal_live.log 2>/dev/null | grep -E 'Загружено.*пользовател|Нет данных пользователей' | tail -10\r"
+expect "# "
+
+# Проверка циклов
+send "echo '' && echo '=== ПОСЛЕДНИЕ ЦИКЛЫ ==='\r"
+expect "# "
+send "tail -100 logs/signal_live.log 2>/dev/null | grep -E 'Цикл|SIGNAL GENERATED|FILTER BLOCK' | tail -15\r"
+expect "# "
+
+# Проверка сгенерированных сигналов
+send "echo '' && echo '=== СГЕНЕРИРОВАННЫЕ СИГНАЛЫ ==='\r"
+expect "# "
+send "tail -200 logs/signal_live.log 2>/dev/null | grep -E 'SIGNAL GENERATED|SEND SUCCESS' | tail -5\r"
+expect "# "
+
+# Проверка БД на новые сигналы
+send "echo '' && echo '=== СИГНАЛЫ В БД (последний час) ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM accepted_signals WHERE datetime(signal_time) > datetime('now', '-1 hour');\"\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

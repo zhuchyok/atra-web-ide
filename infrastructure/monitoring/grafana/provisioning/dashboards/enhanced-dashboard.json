@@ -1,0 +1,184 @@
+{
+  "dashboard": {
+    "title": "Victoria Enhanced - Super Corporation Metrics",
+    "tags": ["atra", "enhanced", "victoria"],
+    "timezone": "browser",
+    "schemaVersion": 27,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Tasks Processed (Total)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(victoria_enhanced_tasks_total)",
+            "legendFormat": "Total Tasks"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Tasks by Category",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "sum by (category) (victoria_enhanced_tasks_total)",
+            "legendFormat": "{{category}}"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Tasks by Method",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum by (method) (victoria_enhanced_tasks_total)",
+            "legendFormat": "{{method}}"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Task Duration by Category",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(victoria_enhanced_task_duration_seconds_bucket[5m])) by (le, category))",
+            "legendFormat": "P95 - {{category}}"
+          },
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(victoria_enhanced_task_duration_seconds_bucket[5m])) by (le, category))",
+            "legendFormat": "P50 - {{category}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Method Selection Distribution",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(victoria_enhanced_method_selections_total[5m])) by (method)",
+            "legendFormat": "{{method}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Success Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(rate(victoria_enhanced_tasks_total{status=\"success\"}[5m])) / sum(rate(victoria_enhanced_tasks_total[5m])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Active Tasks",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+        "targets": [
+          {
+            "expr": "victoria_enhanced_active_tasks",
+            "legendFormat": "Active"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {"mode": "palette-classic"}
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Component Availability",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "victoria_enhanced_component_available",
+            "format": "table",
+            "legendFormat": "{{component}}"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {},
+              "renameByName": {
+                "Value": "Available",
+                "component": "Component"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Method Execution Duration",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(rate(victoria_enhanced_method_duration_seconds_bucket[5m])) by (le, method)",
+            "format": "heatmap",
+            "legendFormat": "{{method}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      }
+    ]
+  }
+}

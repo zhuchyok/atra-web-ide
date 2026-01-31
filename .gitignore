@@ -1,0 +1,51 @@
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+.npm
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+.cursor_chats_backup/
+
+# Logs & backups
+logs/
+*.log
+backups/
+victoria_bot.log
+
+# Generated
+latency_benchmark.json
+latency_dashboard.html
+auto_optimizer_dashboard.html
+quality_dashboard.html
+quality_report.html
+backend/auto_optimizer_report.json
+backend/validation_report.json
+coherence_issues_analysis.json
+problematic_queries_analysis.json
+
+# SQLite
+*.db
+feedback.db

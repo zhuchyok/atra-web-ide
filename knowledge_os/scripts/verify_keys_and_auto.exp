@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА КЛЮЧЕЙ И АВТОИСПОЛНЕНИЯ ==='\r"
+expect "# "
+
+send "echo '1. Проверка сохраненных ключей в БД:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, CASE WHEN api_key IS NOT NULL AND api_key != '' THEN 'ЕСТЬ (' || LENGTH(api_key) || ' символов)' ELSE 'НЕТ' END as has_key, is_active, created_at, updated_at FROM user_exchange_keys ORDER BY updated_at DESC;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Проверка режимов пользователей:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, trade_mode, updated_at FROM user_settings ORDER BY user_id;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Сводка: пользователи с ключами и режимами:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT DISTINCT k.user_id, k.exchange_name, k.is_active, COALESCE(s.trade_mode, 'manual') as mode, CASE WHEN k.is_active = 1 AND s.trade_mode = 'auto' THEN '✅ ГОТОВ К АВТОИСПОЛНЕНИЮ' WHEN k.is_active = 1 THEN '⚠️ Есть ключи, но режим manual' WHEN s.trade_mode = 'auto' THEN '⚠️ Режим auto, но нет ключей' ELSE '❌ Нет ключей и режим manual' END as status FROM user_exchange_keys k LEFT JOIN user_settings s ON k.user_id = s.user_id WHERE k.api_key IS NOT NULL AND k.api_key != '' ORDER BY k.user_id;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '4. Проверка логов на сохранение ключей:'\r"
+expect "# "
+send "grep -i 'ключ.*сохранен\|key.*saved\|save.*exchange.*key\|connect_bitget' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '5. Проверка последних логов автоисполнения:'\r"
+expect "# "
+send "grep -E 'AUTO CHECK|AUTO_BLOCK|AUTO.*открыт|AUTO.*пропущено' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

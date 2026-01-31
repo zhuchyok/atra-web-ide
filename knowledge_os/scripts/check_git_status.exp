@@ -1,0 +1,49 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка текущего коммита
+send "echo '=== ТЕКУЩИЙ КОММИТ ==='\r"
+expect "# "
+send "git log -1 --oneline\r"
+expect "# "
+
+# Проверка статуса
+send "echo '' && echo '=== СТАТУС GIT ==='\r"
+expect "# "
+send "git status --short\r"
+expect "# "
+
+# Проверка последних обновлений
+send "echo '' && echo '=== ПОСЛЕДНИЕ 5 КОММИТОВ ==='\r"
+expect "# "
+send "git log -5 --oneline\r"
+expect "# "
+
+# Проверка наличия обновленных файлов
+send "echo '' && echo '=== ПРОВЕРКА КЛЮЧЕВЫХ ФАЙЛОВ ==='\r"
+expect "# "
+send "ls -lh signal_live.py SIGNALS_*.md 2>/dev/null | head -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

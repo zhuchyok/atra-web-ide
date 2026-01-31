@@ -1,0 +1,47 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА АДАПТИВНЫХ ПОРОГОВ ==='\r"
+expect "# "
+send "tail -100 bot_startup.log | grep -E 'ADAPTIVE|Quality|🎯' | tail -20\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА СИГНАЛОВ ==='\r"
+expect "# "
+send "tail -100 bot_startup.log | grep -E 'SIGNAL|✅.*LONG|✅.*SHORT' | tail -10\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА БЛОКИРОВОК ==='\r"
+expect "# "
+send "tail -100 bot_startup.log | grep -E 'FILTER BLOCK|🚫' | tail -10\r"
+expect "# "
+
+send "echo '=== СТАТУС БОТА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

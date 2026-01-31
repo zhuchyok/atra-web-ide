@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ATRA Web IDE Styles */
+:root {
+  --atra-primary: #667eea;
+  --atra-secondary: #764ba2;
+  --atra-dark: #1a1a2e;
+  --atra-darker: #16213e;
+  --atra-accent: #0f3460;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--atra-dark);
+  color: white;
+  overflow: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--atra-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--atra-accent);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--atra-primary);
+}
+
+/* CodeMirror theme overrides */
+.cm-editor {
+  height: 100%;
+  background: var(--atra-darker) !important;
+}
+
+.cm-gutters {
+  background: var(--atra-dark) !important;
+  border-right: 1px solid var(--atra-accent) !important;
+}
+
+/* Chat messages */
+.chat-message {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* File tree hover */
+.file-item:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+/* Resizable panels */
+.resize-handle {
+  background: var(--atra-accent);
+  transition: background 0.2s;
+}
+
+.resize-handle:hover {
+  background: var(--atra-primary);
+}

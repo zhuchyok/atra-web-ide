@@ -1,0 +1,75 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ДИАГНОСТИКА: ПОЧЕМУ НЕТ СИГНАЛОВ В TELEGRAM ==='\r"
+expect "# "
+
+send "echo '1. Последние успешные отправки в Telegram:'\r"
+expect "# "
+send "grep -E 'PRODUCTION.*отправлен|✅.*отправлен|сигнал.*успешно.*отправлен|notify.*success' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '2. Проверка генерации сигналов (SIGNAL GENERATED):'\r"
+expect "# "
+send "grep -E 'SIGNAL GENERATED|сигнал.*сгенерирован' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '3. Все блокировки сигналов (BLOCK):'\r"
+expect "# "
+send "grep -E 'BLOCK|блокирован|отклонен' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '4. Проверка фильтров (Quality, Confidence, Liquidity, MTF):'\r"
+expect "# "
+send "grep -E 'Quality.*<|Confidence.*<|Liquidity.*BLOCK|MTF.*BLOCK|фильтр.*не.*пройден' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '5. Ошибки при отправке в Telegram:'\r"
+expect "# "
+send "grep -i 'error.*telegram\|ошибка.*отправк\|failed.*send\|notify.*error\|telegram.*exception' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '6. Проверка SEND_SIGNAL START (попытки отправки):'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL START' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '7. Проверка SEND_SIGNAL SUCCESS (успешные отправки):'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL SUCCESS|SEND_SIGNAL.*успешно' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '8. Проверка истории сигналов в БД:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) as total, MAX(created_at) as last_signal FROM signals WHERE created_at > datetime('now', '-24 hours');\" 2>/dev/null\r"
+expect "# "
+
+send "echo '9. Последние сигналы в БД:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT symbol, signal_type, created_at FROM signals ORDER BY created_at DESC LIMIT 5;\" 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

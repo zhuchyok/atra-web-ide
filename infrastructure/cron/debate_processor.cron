@@ -1,0 +1,4 @@
+# Автоматическая обработка дебатов и создание задач для внедрения
+# Запускается каждые 2 часа
+0 */2 * * * cd /root/knowledge_os && python3 -c "from app.debate_processor import process_all_debates; import asyncio; asyncio.run(process_all_debates())" >> logs/debate_processor.log 2>&1
+

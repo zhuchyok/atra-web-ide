@@ -1,0 +1,65 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПОИСК КЛЮЧЕЙ В ENV ФАЙЛАХ ==='\r"
+expect "# "
+
+send "echo '1. Список всех env файлов:'\r"
+expect "# "
+send "find . -maxdepth 2 -name '*.env*' -o -name '.env*' -o -name 'env' 2>/dev/null | head -10\r"
+expect "# "
+
+send "echo '2. Содержимое файла env (если есть):'\r"
+expect "# "
+send "cat env 2>/dev/null | grep -i 'bitget\|api.*key\|secret' | head -10\r"
+expect "# "
+
+send "echo '3. Содержимое .env (если есть):'\r"
+expect "# "
+send "cat .env 2>/dev/null | grep -i 'bitget\|api.*key\|secret' | head -10\r"
+expect "# "
+
+send "echo '4. Поиск ключей во всех env файлах:'\r"
+expect "# "
+send "grep -r -i 'bitget.*key\|api.*key.*bitget\|secret.*bitget' .env* env 2>/dev/null | grep -v 'TELEGRAM\|CRYPTOPANIC' | head -10\r"
+expect "# "
+
+send "echo '5. Поиск любых ключей в env файлах:'\r"
+expect "# "
+send "grep -r -E 'api_key|API_KEY|secret.*key|SECRET' .env* env 2>/dev/null | grep -v 'TELEGRAM\|CRYPTOPANIC\|ENCRYPTION' | head -15\r"
+expect "# "
+
+send "echo '6. Проверка файла config.py на ключи:'\r"
+expect "# "
+send "grep -i 'bitget.*key\|api.*key.*bitget' config.py 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '7. Поиск в директории с ключами или конфигами:'\r"
+expect "# "
+send "find . -type f -name '*key*' -o -name '*config*' -o -name '*secret*' 2>/dev/null | grep -v '.pyc\|__pycache__' | head -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

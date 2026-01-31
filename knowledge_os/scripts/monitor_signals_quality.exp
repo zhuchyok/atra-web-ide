@@ -1,0 +1,65 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== МОНИТОРИНГ СИГНАЛОВ И КАЧЕСТВА ==='\r"
+expect "# "
+
+send "echo '1. Количество сигналов за последний час:'\r"
+expect "# "
+send "grep -E 'SIGNAL|сигнал.*LONG|сигнал.*SHORT' bot_startup.log 2>/dev/null | grep -v 'BLOCK' | tail -20 | wc -l\r"
+expect "# "
+
+send "echo '2. Статистика Quality Score:'\r"
+expect "# "
+send "grep -E 'Quality.*[0-9]\\.[0-9]' bot_startup.log 2>/dev/null | tail -20 | grep -oE 'Quality [0-9]\\.[0-9]+' | sort | uniq -c | sort -rn\r"
+expect "# "
+
+send "echo '3. Блокировки по фильтрам (последние 20):'\r"
+expect "# "
+send "grep -E 'BLOCK|🚫' bot_startup.log 2>/dev/null | tail -20 | grep -oE '(BLOCK|🚫).*' | sort | uniq -c | sort -rn\r"
+expect "# "
+
+send "echo '4. Прохождения фильтров (последние 20):'\r"
+expect "# "
+send "grep -E 'PASS|✅.*PASS' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '5. Ликвидность - прохождения и блокировки:'\r"
+expect "# "
+send "grep 'Ликвидность достаточна\|Недостаточная ликвидность' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '6. MTF блокировки:'\r"
+expect "# "
+send "grep 'MTF.*BLOCK' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '7. Последние 30 строк лога:'\r"
+expect "# "
+send "tail -30 bot_startup.log\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

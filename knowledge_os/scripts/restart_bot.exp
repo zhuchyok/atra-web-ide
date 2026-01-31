@@ -1,0 +1,51 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Остановка бота
+send "echo '=== ОСТАНОВКА БОТА ==='\r"
+expect "# "
+send "pkill -f 'python3 main.py'\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+# Запуск бота
+send "echo '=== ЗАПУСК БОТА ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > /dev/null 2>&1 &\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+
+# Проверка процесса
+send "echo '=== ПРОВЕРКА ПРОЦЕССА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

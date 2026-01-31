@@ -1,0 +1,5 @@
+# Автоматическая синхронизация закрытых сделок в паттерны
+# Запускается каждый час для обновления паттернов результатами закрытых сделок
+
+0 * * * * cd /path/to/atra && /usr/bin/python3 scripts/sync_trades_to_patterns.py --hours 1 >> logs/sync_patterns.log 2>&1
+

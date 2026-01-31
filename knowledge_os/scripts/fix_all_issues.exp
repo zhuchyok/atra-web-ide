@@ -1,0 +1,103 @@
+#!/usr/bin/expect -f
+# Комплексное исправление всех проблем
+
+set timeout 120
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# === 1. ОСТАНОВКА ВСЕХ ПРОЦЕССОВ ===
+send "echo '=== 1. ОСТАНОВКА ПРОЦЕССОВ ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+
+# === 2. УДАЛЕНИЕ ВСЕХ LOCK ФАЙЛОВ ===
+send "echo '=== 2. УДАЛЕНИЕ LOCK ФАЙЛОВ ==='\r"
+expect "# "
+send "rm -f /tmp/telegram_polling_lock_* 2>/dev/null && echo 'Lock файлы удалены' || echo 'Lock файлов не найдено'\r"
+expect "# "
+send "rm -f atra.lock 2>/dev/null && echo 'atra.lock удалён' || echo 'atra.lock не найден'\r"
+expect "# "
+
+# === 3. ОБНОВЛЕНИЕ КОДА ===
+send "echo '=== 3. ОБНОВЛЕНИЕ КОДА ==='\r"
+expect "# "
+send "git pull origin main 2>&1 | tail -10\r"
+expect "# "
+
+# === 4. ПРОВЕРКА ИЗМЕНЕНИЙ ===
+send "echo '=== 4. ПРОВЕРКА ИЗМЕНЕНИЙ ==='\r"
+expect "# "
+send "grep -n 'metrics_task_local = None' main.py | head -1\r"
+expect "# "
+
+# === 5. ЗАПУСК БОТА ===
+send "echo '=== 5. ЗАПУСК БОТА ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 10\r"
+expect "# "
+
+# === 6. ПРОВЕРКА ЗАПУСКА ===
+send "echo '=== 6. ПРОВЕРКА ЗАПУСКА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+send "tail -50 server.log 2>/dev/null | grep -E '(Lock|lock|polling|Polling|Bot authorized|Application started|ERROR|Exception|NameError)' | tail -20\r"
+expect "# "
+
+# === 7. ПРОВЕРКА LOCK ===
+send "echo '=== 7. ПРОВЕРКА LOCK ==='\r"
+expect "# "
+send "ls -la /tmp/telegram_polling_lock_* 2>/dev/null || echo 'Lock файлов нет'\r"
+expect "# "
+
+# === 8. ПРОВЕРКА POLLING ===
+send "echo '=== 8. ПРОВЕРКА POLLING ==='\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E 'Polling запущен|getUpdates|Application started' | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

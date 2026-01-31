@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.atra.frontend-tunnel-185</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/ssh</string>
+        <string>-N</string>
+        <string>-o</string>
+        <string>ServerAliveInterval=60</string>
+        <string>-o</string>
+        <string>ServerAliveCountMax=3</string>
+        <string>-o</string>
+        <string>StrictHostKeyChecking=no</string>
+        <string>-o</string>
+        <string>ExitOnForwardFailure=yes</string>
+        <string>-R</string>
+        <string>0.0.0.0:3002:localhost:3002</string>
+        <string>root@185.177.216.15</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/atra-tunnel-185.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/atra-tunnel-185.err.log</string>
+</dict>
+</plist>

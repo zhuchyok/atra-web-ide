@@ -1,0 +1,18 @@
+[Unit]
+Description=ATRA PM Auto Fix Engine - Автоматическое применение исправлений
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/atra
+Environment="PYTHONPATH=/root/atra"
+ExecStart=/root/atra/.venv/bin/python3 /root/atra/scripts/pm_auto_fix.py
+Restart=always
+RestartSec=60
+StandardOutput=append:/root/atra/logs/pm_auto_fix.log
+StandardError=append:/root/atra/logs/pm_auto_fix.log
+
+[Install]
+WantedBy=multi-user.target
+

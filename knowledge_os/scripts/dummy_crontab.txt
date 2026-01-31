@@ -1,0 +1,2 @@
+15 4 * * * cd /Users/zhuchyok/Documents/GITHUB/atra/atra && /usr/bin/python3 scripts/run_risk_monitor.py >> logs/risk_monitor.log 2>&1
+30 4 * * * cd /Users/zhuchyok/Documents/GITHUB/atra/atra && bash scripts/run_risk_status_report.sh >> logs/risk_status_cron.log 2>&1

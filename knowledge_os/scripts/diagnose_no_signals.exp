@@ -1,0 +1,62 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== СТАТИСТИКА БЛОКИРОВОК ПО ФИЛЬТРАМ ==='\r"
+expect "# "
+send "grep -E 'BLOCK|🚫|Недостаточная' bot_startup.log 2>/dev/null | tail -50 | grep -oE '(BLOCK|🚫|Недостаточная).*' | sort | uniq -c | sort -rn | head -20\r"
+expect "# "
+
+send "echo '=== ПРИМЕРЫ БЛОКИРОВОК ЛИКВИДНОСТИ ==='\r"
+expect "# "
+send "grep 'Недостаточная ликвидность' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ПРИМЕРЫ БЛОКИРОВОК QUALITY SCORE ==='\r"
+expect "# "
+send "grep -E 'QUALITY.*BLOCK|quality.*block' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ПРИМЕРЫ БЛОКИРОВОК MTF ==='\r"
+expect "# "
+send "grep -E 'MTF.*BLOCK|mtf.*block' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ПРИМЕРЫ ПРОХОЖДЕНИЯ ФИЛЬТРОВ ==='\r"
+expect "# "
+send "grep -E 'PASS|✅.*PASS' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ОБЩАЯ СТАТИСТИКА СИГНАЛОВ ==='\r"
+expect "# "
+send "grep -E 'SIGNAL|сигнал|LONG|SHORT' bot_startup.log 2>/dev/null | grep -v 'BLOCK' | tail -20\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ 50 СТРОК ЛОГА ==='\r"
+expect "# "
+send "tail -50 bot_startup.log\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

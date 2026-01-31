@@ -1,0 +1,45 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ПОЛЬЗОВАТЕЛЕЙ С КЛЮЧАМИ БИРЖИ ==='\r"
+expect "# "
+
+send "echo '1. Все пользователи с активными ключами:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, is_active, updated_at FROM user_exchange_keys WHERE is_active = 1 ORDER BY user_id, exchange_name;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Текущие режимы пользователей:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, trade_mode, updated_at FROM user_settings ORDER BY user_id;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Сводка: пользователи с ключами и их режимы:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT DISTINCT k.user_id, k.exchange_name, COALESCE(s.trade_mode, 'manual') as mode, CASE WHEN s.trade_mode = 'auto' THEN '✅ AUTO' ELSE '❌ MANUAL' END as status FROM user_exchange_keys k LEFT JOIN user_settings s ON k.user_id = s.user_id WHERE k.is_active = 1 ORDER BY k.user_id;\" 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

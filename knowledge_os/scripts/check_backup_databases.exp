@@ -1,0 +1,50 @@
+#!/usr/bin/expect -f
+
+set timeout 120
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА BACKUP БД НА КЛЮЧИ ==='\r"
+expect "# "
+
+send "echo '1. Проверка самого свежего backup:'\r"
+expect "# "
+send "sqlite3 backups/trading.db_20251125_040513 \"SELECT user_id, exchange_name, CASE WHEN api_key IS NOT NULL AND api_key != '' THEN 'ЕСТЬ (' || LENGTH(api_key) || ' символов)' ELSE 'НЕТ' END as has_key, is_active, created_at FROM user_exchange_keys ORDER BY updated_at DESC LIMIT 10;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Проверка backup от 23 ноября:'\r"
+expect "# "
+send "sqlite3 backups/trading.db_20251123_151109 \"SELECT user_id, exchange_name, CASE WHEN api_key IS NOT NULL AND api_key != '' THEN 'ЕСТЬ (' || LENGTH(api_key) || ' символов)' ELSE 'НЕТ' END as has_key, is_active FROM user_exchange_keys LIMIT 10;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Проверка всех backup файлов на наличие ключей:'\r"
+expect "# "
+send "for db in backups/*.db*; do echo \"=== \$db ===\"; sqlite3 \"\$db\" \"SELECT COUNT(*) as total, COUNT(CASE WHEN api_key IS NOT NULL AND api_key != '' THEN 1 END) as with_keys FROM user_exchange_keys;\" 2>/dev/null; done\r"
+expect "# "
+
+send "echo '4. Если найдены ключи - попытка восстановления:'\r"
+expect "# "
+send "sqlite3 backups/trading.db_20251125_040513 \"SELECT user_id, exchange_name, is_active FROM user_exchange_keys WHERE api_key IS NOT NULL AND api_key != '' LIMIT 5;\" 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

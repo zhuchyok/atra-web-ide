@@ -1,0 +1,101 @@
+# ATRA Web IDE - Cursor Rules
+
+## Проект
+ATRA Web IDE - браузерная оболочка для ИИ-корпорации Singularity 9.0
+
+**Вся архитектура проекта (структура, порты, запуск, API, метрики, Cursor, команда):** **`docs/PROJECT_ARCHITECTURE_AND_GUIDE.md`**.
+
+## Структура проекта
+- `backend/` - FastAPI backend (порт 8080)
+- `frontend/` - Svelte frontend (порт 3000)
+- `knowledge_os/` - Knowledge OS (общий с atra)
+- `src/` - Исходный код агентов (Victoria, Veronica)
+
+## Компоненты
+- **Victoria** — один сервис `victoria-agent` на порту **8010** (Team Lead, ОБЩИЙ для всех проектов; запускается через knowledge_os/docker-compose.yml). Три уровня возможностей в одном процессе:
+  - **Victoria Agent** — базовый: чат с LLM, ответы на запросы (всегда активен).
+  - **Victoria Enhanced** — ReAct, Extended Thinking, Swarm, Consensus, оркестрация (USE_VICTORIA_ENHANCED=true).
+  - **Victoria Initiative** — проактивность: Event Bus, File Watcher, Service Monitor, Skill Registry (ENABLE_EVENT_MONITORING=true).
+  Для полноценной работы Виктории **все три уровня должны быть запущены** (в docker-compose оба флага уже true). Скрипты `check_and_start_containers.sh` и `system_auto_recovery.sh` проверяют три уровня и при выключенных Enhanced/Initiative автоматически перезапускают victoria-agent.
+- **Veronica Agent** — Local Developer (порт 8011) — ОБЩИЙ для всех проектов (запускается через knowledge_os/docker-compose.yml)
+- **PostgreSQL + pgvector** — База данных (порт 5432) — общая с atra через knowledge_postgres
+- **Redis** — Кэш и очереди: Web IDE использует **knowledge_redis** из Knowledge OS (REDIS_URL в backend), не отдельный контейнер
+- **Backend (8080):** ограничение нагрузки на Victoria — семафор **MAX_CONCURRENT_VICTORIA=50** (config.py); при перегрузке ответ **503** с Retry-After. Метрики: `/metrics`, `/metrics/summary`; Grafana Web IDE: порт **3002**. Стресс-тест: `./scripts/load_test/setup_venv.sh`, затем `RUN_TIME=1m USERS=30 SPAWN_RATE=5 ./scripts/run_load_test.sh` (отчёт: scripts/load_test/out/load_test_report.html)
+
+## Запуск
+
+### Docker (рекомендуется):
+```bash
+# Knowledge OS
+docker-compose -f knowledge_os/docker-compose.yml up -d
+
+# Web IDE
+docker-compose up -d
+```
+
+### Локально:
+```bash
+# Backend
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+## API Endpoints
+- `GET /health` — Health check
+- `POST /api/chat/stream` — Чат (SSE), идёт в Victoria; при перегрузке 503
+- `POST /api/chat/plan` — План по цели (Victoria)
+- `GET /metrics`, `GET /metrics/summary` — Prometheus-метрики
+- `GET /api/files` — Список файлов
+- `GET /api/experts` — Список экспертов
+- `GET /api/preview` — Превью файлов
+
+## Важно
+- ✅ **Victoria и Veronica - ОБЩИЕ для всех проектов!**
+  - Victoria: порт 8010 (общий, запускается через knowledge_os/docker-compose.yml)
+  - Veronica: порт 8011 (общий, запускается через knowledge_os/docker-compose.yml)
+  - Агенты понимают контекст проекта через параметр `project_context` в запросах
+  - Основной проект корпорации: `atra-web-ide` (MAIN_PROJECT)
+- **Правильный порядок запуска:**
+  1. Запустите Docker Desktop (если Victoria в Docker).
+  2. Сначала: `bash scripts/start_victoria_docker.sh` или `docker-compose -f knowledge_os/docker-compose.yml up -d` (агенты; сеть atra-network создаётся автоматически).
+  3. Затем: `docker-compose up -d` (конкретный проект).
+- **Если Docker не запущен:** Victoria можно запустить локально: `bash START_VICTORIA_LOCAL.sh` (порт 8010).
+- **Другие проекты (atra, новые):**
+  - Подключаются к общим агентам через `http://victoria-agent:8000` или `http://localhost:8010`
+  - Передают свой `project_context` в запросах (например, `"project_context": "atra"`)
+
+## Cursor: роли и команда
+- **Роли (правила):** `.cursor/rules/` — файлы 01–21 (Quant, Trader, DevOps, QA, Backend, ML, SRE, Security, Technical Writer и др.). Индекс: **`.cursor/README.md`**.
+- **Команда экспертов:** **`configs/experts/team.md`** — соответствие экспертов (Виктория, Игорь, Анна, Елена и др.) файлам в `.cursor/rules/`. Использование в промптах: `@qa_engineer`, `@backend_developer`, `@sre_monitor` и т.д. (см. .cursor/README.md).
+- **Полный список сотрудников:** **`configs/experts/employees.json`** — единый источник (имя, роль, отдел). **При добавлении нового сотрудника:** добавьте запись в `employees.json` и сделайте коммит — при включённых git-хуках (**один раз:** `./scripts/install_git_hooks.sh`) sync запустится сам и в коммит попадут обновлённые seed, KNOWN_EXPERT_NAMES, employees.md.
+- **Контекст Victoria/Veronica:** **`VICTORIA.md`**, **`VERONICA.md`** — роли, порты, команда, лимиты нагрузки, стресс-тест.
+
+## Правки из других чатов
+- Сводка внедрённых изменений (Victoria три уровня, Correlation ID, кэш, уточняющие вопросы, таймауты, кто выполняет задачу): **`docs/CHANGES_FROM_OTHER_CHATS.md`**. Изучать при смене контекста/чата.
+
+## Конфигурация
+- `.env` - Переменные окружения
+- `docker-compose.yml` - Docker конфигурация
+- `knowledge_os/docker-compose.yml` - Knowledge OS конфигурация
+
+### Оркестрация V2 (Canary A/B)
+- **ORCHESTRATION_V2_ENABLED** — включить A/B (часть трафика в EnhancedOrchestratorV2). По умолчанию в .env и docker-compose: `true`.
+- **ORCHESTRATION_V2_PERCENTAGE** — процент трафика в V2 (0–100). По умолчанию: `10`.
+- Миграция `tasks.orchestrator_version` применяется при старте Knowledge OS API. Метрики: `GET /metrics`, дашборд Grafana «Orchestration A/B Test». Подробно: `docs/ORCHESTRATION_CANARY.md`.
+
+### Victoria: выбор модели
+- Victoria при первом запросе сканирует **Ollama и MLX** и выбирает **лучшую доступную** модель (приоритет: 104b → 70b → 32b → …). Список актуален; если модели поменяли — при следующем сканировании подставится новый лучший вариант.
+- **VICTORIA_MODEL** — явно задать модель (должна быть в списке доступных). Иначе используется лучшая из сканирования.
+- **VICTORIA_PLANNER_MODEL** — модель для understand_goal и plan (по умолчанию та же, что и executor).
+
+## Один раз: Knowledge OS (локально)
+- Зависимости и watchdog: `bash knowledge_os/scripts/setup_knowledge_os.sh` (создаёт knowledge_os/.venv, pip install -r requirements.txt)
+- Миграция колонок experts (organizational_unit_id, is_manager, manages_unit_id): при доступной БД — скрипт выше применит её, иначе `cd knowledge_os && .venv/bin/python scripts/apply_organizational_columns_migration.py` или один запуск Enhanced Orchestrator (Phase 0.5)

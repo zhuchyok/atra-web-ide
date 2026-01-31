@@ -1,0 +1,60 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА СИГНАЛОВ ==='\r"
+expect "# "
+
+send "echo '1. Последние 30 строк логов (общая картина):'\r"
+expect "# "
+send "tail -30 bot_startup.log 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Проверка генерации сигналов (SEND_SIGNAL):'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL|сигнал.*отправлен|signal.*sent' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '3. Проверка блокировок сигналов:'\r"
+expect "# "
+send "grep -E 'BLOCK|блокирован|отклонен' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '4. Проверка фильтров (Quality, Liquidity, MTF):'\r"
+expect "# "
+send "grep -E 'Quality|Liquidity|MTF|фильтр' bot_startup.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "echo '5. Проверка циклов обработки:'\r"
+expect "# "
+send "grep -E 'Цикл.*завершен|обработано.*символов|отправлено.*сигналов' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '6. Проверка ошибок:'\r"
+expect "# "
+send "grep -i 'error\|exception\|traceback\|ошибка' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

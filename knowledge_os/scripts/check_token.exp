@@ -1,0 +1,63 @@
+#!/usr/bin/expect -f
+# Проверка токена на сервере
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка переменных окружения
+send "echo '=== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ==='\r"
+expect "# "
+send "echo \"ATRA_ENV: \$ATRA_ENV\"\r"
+expect "# "
+send "grep -E 'ATRA_ENV|TELEGRAM_TOKEN' env.prod 2>/dev/null | head -5\r"
+expect "# "
+
+# Проверка какого токена используется
+send "echo '=== ТОКЕН В ПРОЦЕССЕ ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep | awk '{print \$2}' | xargs -I {} cat /proc/{}/environ 2>/dev/null | tr '\\0' '\\n' | grep -E 'ATRA_ENV|TELEGRAM_TOKEN' | head -5\r"
+expect "# "
+
+# Проверка логов
+send "echo '=== ТОКЕН В ЛОГАХ ==='\r"
+expect "# "
+send "grep -E 'Bot authorized|Set Bot API URL|8141444679|8156844481' system_improved.log 2>/dev/null | tail -5\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,122 @@
+#!/usr/bin/expect -f
+# Скрипт для обновления кода, перезапуска бота и проверки сигналов
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+}
+
+expect "# "
+
+# Переходим в директорию проекта
+send "cd /root/atra\r"
+expect "# "
+
+# 1. ОБНОВЛЕНИЕ КОДА
+send "echo '=== ОБНОВЛЕНИЕ КОДА (git pull) ==='\r"
+expect "# "
+send "git pull\r"
+expect {
+    "# " {
+        # Успешно
+    }
+    timeout {
+        send "\r"
+        expect "# "
+    }
+}
+
+# 2. ОСТАНОВКА БОТА
+send "echo '=== ОСТАНОВКА БОТА ==='\r"
+expect "# "
+send "pkill -f 'python3 main.py'\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+# 3. ПРОВЕРКА, ЧТО БОТ ОСТАНОВЛЕН
+send "echo '=== ПРОВЕРКА ПРОЦЕССОВ ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# 4. УДАЛЕНИЕ LOCK ФАЙЛОВ
+send "echo '=== УДАЛЕНИЕ LOCK ФАЙЛОВ ==='\r"
+expect "# "
+send "rm -f atra.lock polling.lock\r"
+expect "# "
+
+# 5. ЭКСПОРТ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+send "echo '=== ЭКСПОРТ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+
+# 6. ЗАПУСК БОТА
+send "echo '=== ЗАПУСК БОТА ==='\r"
+expect "# "
+send "nohup python3 main.py > bot_startup.log 2>&1 &\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+
+# 7. ПРОВЕРКА, ЧТО БОТ ЗАПУЩЕН
+send "echo '=== ПРОВЕРКА ЗАПУСКА БОТА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# 8. ПРОВЕРКА ЛОГОВ НА СИГНАЛЫ (последние 50 строк)
+send "echo '=== ПРОВЕРКА ЛОГОВ НА СИГНАЛЫ ==='\r"
+expect "# "
+send "tail -50 system_improved.log 2>/dev/null | grep -E 'SIGNAL|сигнал|signal|SEND|отправлен|✅.*LONG|✅.*SHORT' | tail -20\r"
+expect "# "
+
+# 9. ПРОВЕРКА ЛОГА СИГНАЛОВ
+send "echo '=== ЛОГ СИГНАЛОВ (logs/signals.log) ==='\r"
+expect "# "
+send "tail -30 logs/signals.log 2>/dev/null | tail -20\r"
+expect "# "
+
+# 10. ПРОВЕРКА ПОСЛЕДНИХ ЦИКЛОВ
+send "echo '=== ПОСЛЕДНИЕ ЦИКЛЫ ==='\r"
+expect "# "
+send "grep 'Завершение цикла обработки' system_improved.log 2>/dev/null | tail -5\r"
+expect "# "
+
+# 11. ПРОВЕРКА ОШИБОК
+send "echo '=== ПОСЛЕДНИЕ ОШИБКИ ==='\r"
+expect "# "
+send "tail -30 system_improved.log 2>/dev/null | grep -E 'ERROR|Exception|Traceback|get_ohlc_with_fallback|get_filtered_top_usdt_pairs_fast' | tail -10\r"
+expect "# "
+
+# 12. ПРОВЕРКА СТАТИСТИКИ СИГНАЛОВ
+send "echo '=== СТАТИСТИКА СИГНАЛОВ (signals_log.csv) ==='\r"
+expect "# "
+send "tail -10 signals_log.csv 2>/dev/null\r"
+expect "# "
+
+# 13. ПРОВЕРКА СТАРТОВОГО ЛОГА
+send "echo '=== СТАРТОВЫЙ ЛОГ БОТА ==='\r"
+expect "# "
+send "tail -30 bot_startup.log 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,44 @@
+[Unit]
+Description=ATRA Trading System
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/atra
+ExecStart=/usr/bin/python3 /root/atra/main.py
+Restart=always
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=90
+KillMode=mixed
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=atra
+
+# Ограничения ресурсов
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryLimit=4G
+CPUQuota=400%
+
+# Переменные окружения
+Environment=PYTHONPATH=/root/atra
+Environment=ATRA_ENV=prod
+Environment=PYTHONUNBUFFERED=1
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/root/atra
+
+[Install]
+WantedBy=multi-user.target

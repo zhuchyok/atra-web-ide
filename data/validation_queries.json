@@ -1,0 +1,97 @@
+{
+  "_comment": "Validation set для оценки качества RAG (Фаза 4). reference = эталонный ответ для relevance/BLEU/ROUGE.",
+  "version": "1.0",
+  "updated": "2026-01-31",
+  "queries": [
+    {
+      "id": "v1",
+      "query": "сколько стоит подписка",
+      "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",
+      "context_expected": ["тариф", "подписка", "цена"]
+    },
+    {
+      "id": "v2",
+      "query": "как создать аккаунт",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": ["регистрация", "аккаунт", "создать"]
+    },
+    {
+      "id": "v3",
+      "query": "время работы поддержки",
+      "reference": "Служба поддержки работает с 9:00 до 21:00 по московскому времени, 7 дней в неделю.",
+      "context_expected": ["поддержка", "время", "часы"]
+    },
+    {
+      "id": "v4",
+      "query": "документация API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": ["API", "документация", "эндпоинт"]
+    },
+    {
+      "id": "v5",
+      "query": "как сбросить пароль",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": ["пароль", "сброс", "восстановление"]
+    },
+    {
+      "id": "v6",
+      "query": "тарифы и цены",
+      "reference": "Базовый тариф: 999 руб/мес, Профессиональный: 1999 руб/мес, Корпоративный: по запросу.",
+      "context_expected": ["тариф", "цена", "план"]
+    },
+    {
+      "id": "v7",
+      "query": "контакты поддержки",
+      "reference": "Email: support@atra.ai, Telegram: @atra_support, чат на сайте доступен 24/7.",
+      "context_expected": ["поддержка", "контакт", "email", "чат"]
+    },
+    {
+      "id": "v8",
+      "query": "как отменить подписку",
+      "reference": "Для отмены подписки перейдите в настройки аккаунта → Подписка → Отменить подписку.",
+      "context_expected": ["отмена", "подписка", "отписаться"]
+    },
+    {
+      "id": "v9",
+      "query": "справка по использованию",
+      "reference": "Справка доступна в разделе /help. Основные режимы: Ask (вопрос-ответ), Agent (выполнение задач).",
+      "context_expected": ["справка", "руководство", "использование"]
+    },
+    {
+      "id": "v10",
+      "query": "часто задаваемые вопросы",
+      "reference": "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность.",
+      "context_expected": ["FAQ", "вопросы", "ответы"]
+    },
+    {
+      "id": "v11",
+      "query": "как настроить Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": ["Victoria", "настройка", "конфигурация"]
+    },
+    {
+      "id": "v12",
+      "query": "что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": ["RAG", "поиск", "генерация", "контекст"]
+    },
+    {
+      "id": "v13",
+      "query": "порты сервисов",
+      "reference": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis: 6380.",
+      "context_expected": ["порт", "8080", "3000", "8010"]
+    },
+    {
+      "id": "v14",
+      "query": "как запустить проект локально",
+      "reference": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
+      "context_expected": ["запуск", "локально", "uvicorn", "npm"]
+    },
+    {
+      "id": "v15",
+      "query": "метрики Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": ["Prometheus", "метрики", "/metrics"]
+    }
+  ]
+}

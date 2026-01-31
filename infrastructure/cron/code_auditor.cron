@@ -1,0 +1,4 @@
+# Cron job: Code Auditor (Cognitive Mirror) - автоматический аудит кода
+# Расписание: Ежедневно в 04:00
+0 4 * * * cd /root/knowledge_os && python3 app/code_auditor.py >> logs/code_auditor.log 2>&1
+

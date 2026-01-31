@@ -1,0 +1,101 @@
+#!/usr/bin/expect -f
+# Исправление webhook и polling
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверяем webhook
+send "echo '=== ПРОВЕРКА WEBHOOK ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getWebhookInfo' | python3 -m json.tool\r"
+expect "# "
+
+# Удаляем webhook
+send "echo '=== УДАЛЕНИЕ WEBHOOK ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/deleteWebhook?drop_pending_updates=true' | python3 -m json.tool\r"
+expect "# "
+
+# Очищаем очередь обновлений
+send "echo '=== ОЧИСТКА ОЧЕРЕДИ ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1' | python3 -c \"import sys, json; data=json.load(sys.stdin); print('Updates:', len(data.get('result', []))); last_id = data['result'][-1]['update_id'] if data.get('result') else 0; print('Last update_id:', last_id); print('Clearing with offset:', last_id + 1) if last_id > 0 else print('No updates to clear')\" 2>/dev/null\r"
+expect "# "
+
+# Останавливаем бота
+send "echo '=== ОСТАНОВКА БОТА ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 2\r"
+expect "# "
+
+# Очищаем блокировки
+send "rm -f *.lock telegram_*.lock .telegram_* 2>/dev/null || true\r"
+expect "# "
+
+# Запускаем бота
+send "echo '=== ЗАПУСК БОТА ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 10\r"
+expect "# "
+
+# Проверяем
+send "echo '=== ПРОВЕРКА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+send "grep -E 'Bot authorized|Polling запущен|getUpdates' server.log 2>/dev/null | tail -5\r"
+expect "# "
+
+# Проверяем обновления
+send "echo '=== ПРОВЕРКА ОБНОВЛЕНИЙ ==='\r"
+expect "# "
+send "sleep 5\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1&limit=1' | python3 -m json.tool 2>/dev/null | head -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

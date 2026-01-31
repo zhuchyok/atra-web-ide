@@ -1,0 +1,93 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка всех таблиц с user
+send "echo '=== ВСЕ ТАБЛИЦЫ С USER ==='\r"
+expect "# "
+send "sqlite3 trading.db \".tables\" | grep -i user\r"
+expect "# "
+
+# Проверка user_settings
+send "echo '' && echo '=== ТАБЛИЦА user_settings ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM user_settings;\"\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id FROM user_settings LIMIT 10;\"\r"
+expect "# "
+
+# Проверка user_exchange_keys
+send "echo '' && echo '=== ТАБЛИЦА user_exchange_keys ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM user_exchange_keys;\"\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT DISTINCT user_id FROM user_exchange_keys LIMIT 10;\"\r"
+expect "# "
+
+# Проверка структуры users_data
+send "echo '' && echo '=== СТРУКТУРА users_data ==='\r"
+expect "# "
+send "sqlite3 trading.db \".schema users_data\"\r"
+expect "# "
+
+# Создадим простой Python скрипт для проверки
+send "echo '' && echo '=== ПРОВЕРКА ЧЕРЕЗ PYTHON ==='\r"
+expect "# "
+send "cd /root/atra && python3 -c \"
+import sqlite3
+conn = sqlite3.connect('trading.db')
+
+# Проверяем users_data
+cur = conn.cursor()
+cur.execute('SELECT COUNT(*) FROM users_data')
+count = cur.fetchone()[0]
+print(f'users_data: {count} записей')
+
+if count > 0:
+    cur.execute('SELECT user_id FROM users_data')
+    uids = [r[0] for r in cur.fetchall()]
+    print(f'User IDs: {uids}')
+
+# Проверяем user_settings
+cur.execute('SELECT COUNT(*) FROM user_settings')
+count = cur.fetchone()[0]
+print(f'\\nuser_settings: {count} записей')
+if count > 0:
+    cur.execute('SELECT DISTINCT user_id FROM user_settings')
+    uids = [r[0] for r in cur.fetchall()]
+    print(f'User IDs: {uids}')
+
+# Проверяем accepted_signals (там тоже есть user_id)
+cur.execute('SELECT COUNT(DISTINCT user_id) FROM accepted_signals WHERE user_id IS NOT NULL')
+count = cur.fetchone()[0]
+print(f'\\naccepted_signals (уникальных user_id): {count}')
+if count > 0:
+    cur.execute('SELECT DISTINCT user_id FROM accepted_signals WHERE user_id IS NOT NULL LIMIT 10')
+    uids = [r[0] for r in cur.fetchall()]
+    print(f'User IDs: {uids}')
+
+conn.close()
+\"\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

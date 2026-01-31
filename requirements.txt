@@ -1,0 +1,13 @@
+# Agents (Victoria, Veronica, MCP)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.28.0
+pydantic>=2.0
+fastmcp>=0.1.0
+aiohttp>=3.9.0
+asyncpg>=0.29.0
+python-dotenv>=1.0.0
+watchdog>=4.0.0
+
+# PDF (Victoria Telegram Bot)
+pypdf>=4.0.0

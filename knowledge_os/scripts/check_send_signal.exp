@@ -1,0 +1,65 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ОТПРАВКИ СИГНАЛОВ ==='\r"
+expect "# "
+
+send "echo '1. SEND_SIGNAL START (вызовы функции):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL START' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '2. SEND_SIGNAL SUCCESS (успешные отправки):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL SUCCESS' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '3. SEND_SIGNAL BLOCK (блокировки):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL BLOCK' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '4. SEND_SIGNAL ERROR (ошибки):'\r"
+expect "# "
+send "grep 'SEND_SIGNAL ERROR' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '5. SEND START (из process_symbol_signals):'\r"
+expect "# "
+send "grep 'SEND START' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '6. SEND SUCCESS/FAILED:'\r"
+expect "# "
+send "grep -E 'SEND SUCCESS|SEND FAILED' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '7. SIGNAL GENERATED (сгенерированные сигналы):'\r"
+expect "# "
+send "grep 'SIGNAL GENERATED' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

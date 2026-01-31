@@ -1,0 +1,50 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ОТПРАВКИ СИГНАЛОВ ==='\r"
+expect "# "
+
+send "echo '1. Последние попытки отправки сигналов:'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL|notify_user|сигнал.*отправлен|signal_sent' bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '2. Ошибки при отправке в Telegram:'\r"
+expect "# "
+send "grep -i 'error.*telegram\|ошибка.*отправк\|failed.*send\|notify.*error' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '3. Проверка успешных отправок:'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL SUCCESS|✅.*отправлен|сигнал.*успешно' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '4. Проверка блокировок отправки:'\r"
+expect "# "
+send "grep -E 'SEND_SIGNAL BLOCK|🚫.*BLOCK.*сигнал' bot_startup.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

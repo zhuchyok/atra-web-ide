@@ -1,0 +1,65 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПОИСК КЛЮЧЕЙ БИРЖИ ==='\r"
+expect "# "
+
+send "echo '1. Проверка всех таблиц с ключами:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%key%' OR name LIKE '%exchange%' OR name LIKE '%api%');\" 2>/dev/null\r"
+expect "# "
+
+send "echo '2. Проверка user_exchange_keys (все записи, включая неактивные):'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, is_active, LENGTH(api_key) as key_len, created_at FROM user_exchange_keys;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Проверка других таблиц на наличие ключей:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT sql FROM sqlite_master WHERE type='table' AND sql LIKE '%api_key%' OR sql LIKE '%secret%';\" 2>/dev/null\r"
+expect "# "
+
+send "echo '4. Поиск ключей в файлах конфигурации:'\r"
+expect "# "
+send "grep -r 'api_key\|API_KEY\|secret.*key' .env* config.py 2>/dev/null | grep -v 'TELEGRAM\|CRYPTOPANIC' | head -5\r"
+expect "# "
+
+send "echo '5. Проверка логов на упоминание ключей:'\r"
+expect "# "
+send "grep -i 'ключ\|key.*биржа\|exchange.*key' bot_startup.log 2>/dev/null | tail -5\r"
+expect "# "
+
+send "echo '6. Проверка таблицы users_data на наличие ключей:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT sql FROM sqlite_master WHERE type='table' AND name='users_data';\" 2>/dev/null\r"
+expect "# "
+
+send "echo '7. Проверка содержимого users_data:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, LENGTH(data) as data_len FROM users_data LIMIT 5;\" 2>/dev/null\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,47 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ 50 СТРОК ЛОГА ==='\r"
+expect "# "
+send "tail -50 bot_startup.log\r"
+expect "# "
+
+send "echo '=== ПОИСК ЛОГОВ СИСТЕМЫ ==='\r"
+expect "# "
+send "find . -name '*.log' -type f -mmin -30 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '=== ПОСЛЕДНИЕ СТРОКИ С ЛЮБЫМИ ЛОГАМИ ==='\r"
+expect "# "
+send "tail -30 bot_startup.log 2>/dev/null | tail -20\r"
+expect "# "
+
+send "echo '=== ПРОВЕРКА ПРОЦЕССА ==='\r"
+expect "# "
+send "ps aux | grep python3 | grep -v grep\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

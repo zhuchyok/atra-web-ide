@@ -1,0 +1,81 @@
+#!/usr/bin/expect -f
+# Проверка обработки команд
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# 1. Проверка pending updates
+send "echo '=== 1. PENDING UPDATES ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1&limit=1' | python3 -m json.tool 2>/dev/null | head -30\r"
+expect "# "
+
+# 2. Очистка pending updates
+send "echo '=== 2. ОЧИСТКА PENDING UPDATES ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1' | python3 -c \"import sys, json; data=json.load(sys.stdin); last_id = data['result'][-1]['update_id'] if data.get('result') else 0; print('Last update_id:', last_id); print('Clearing with offset:', last_id + 1) if last_id > 0 else print('No updates')\" 2>/dev/null\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1&limit=1' | python3 -c \"import sys, json; data=json.load(sys.stdin); last_id = data['result'][-1]['update_id'] if data.get('result') else 0; curl_cmd = f'curl -s https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset={last_id + 1}' if last_id > 0 else ''; print(curl_cmd)\" 2>/dev/null\r"
+expect "# "
+
+# 3. Проверка логов обработки команд в реальном времени
+send "echo '=== 3. ЛОГИ ОБРАБОТКИ (последние 100) ==='\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E 'start|help|command|Command|update_id|message|Message|handle_message|button|ERROR|Exception' | tail -40\r"
+expect "# "
+
+# 4. Проверка ошибок в обработчиках
+send "echo '=== 4. ОШИБКИ В ОБРАБОТЧИКАХ ==='\r"
+expect "# "
+send "grep -A 15 'error_handler\\|Exception in handler\\|Failed to process\\|Traceback.*start\\|Traceback.*help' server.log 2>/dev/null | tail -50\r"
+expect "# "
+
+# 5. Проверка регистрации обработчиков
+send "echo '=== 5. ПРОВЕРКА РЕГИСТРАЦИИ ОБРАБОТЧИКОВ ==='\r"
+expect "# "
+send "python3 -c \"from src.telegram.bot_core import bot_state; print('Application:', bot_state.application); print('Running:', bot_state.application.running if bot_state.application else 'None')\" 2>&1 | head -10\r"
+expect "# "
+
+# 6. Проверка получения обновлений
+send "echo '=== 6. ПОЛУЧЕНИЕ ОБНОВЛЕНИЙ ==='\r"
+expect "# "
+send "grep -E 'getUpdates|update_queue|Fetching updates' server.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

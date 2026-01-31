@@ -1,0 +1,103 @@
+#!/usr/bin/expect -f
+# Финальное обновление и перезапуск бота
+
+set timeout 120
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Остановка процессов
+send "echo '=== ОСТАНОВКА ==='\r"
+expect "# "
+send "pkill -9 -f main.py 2>/dev/null || true\r"
+expect "# "
+send "sleep 3\r"
+expect "# "
+
+# Удаление lock файлов
+send "echo '=== УДАЛЕНИЕ LOCK ==='\r"
+expect "# "
+send "rm -f /tmp/atra_tg_poll_*.lock 2>/dev/null && echo 'Lock удалены' || echo 'Lock не найдены'\r"
+expect "# "
+send "rm -f atra.lock 2>/dev/null && echo 'atra.lock удалён' || echo 'atra.lock не найден'\r"
+expect "# "
+
+# Обновление кода
+send "echo '=== ОБНОВЛЕНИЕ КОДА ==='\r"
+expect "# "
+send "git fetch origin main\r"
+expect "# "
+send "git reset --hard origin/main\r"
+expect "# "
+send "git pull origin main 2>&1 | tail -5\r"
+expect "# "
+
+# Проверка изменений
+send "echo '=== ПРОВЕРКА ИЗМЕНЕНИЙ ==='\r"
+expect "# "
+send "grep -n 'metrics_task_local = None' main.py | head -1\r"
+expect "# "
+send "grep -n 'while not bot_state.stop_event.is_set():' src/telegram/bot_core.py | head -1\r"
+expect "# "
+
+# Запуск бота
+send "echo '=== ЗАПУСК БОТА ==='\r"
+expect "# "
+send "export ATRA_ENV=prod\r"
+expect "# "
+send "export TELEGRAM_TOKEN=PROD_TOKEN_REDACTED\r"
+expect "# "
+send "nohup python3 main.py > server.log 2>&1 &\r"
+expect "# "
+send "sleep 15\r"
+expect "# "
+
+# Проверка статуса
+send "echo '=== СТАТУС ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+send "tail -50 server.log 2>/dev/null | grep -E '(Lock получен|Bot authorized|Polling запущен|Application started|ERROR|Exception)' | tail -15\r"
+expect "# "
+
+# Проверка обработки команд
+send "echo '=== ПРОВЕРКА ОБРАБОТКИ ==='\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E '(getUpdates|start|help|command)' | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

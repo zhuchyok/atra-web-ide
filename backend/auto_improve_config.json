@@ -1,0 +1,7 @@
+{
+  "min_feedback_for_improvement": 3,
+  "improvement_cooldown_hours": 24,
+  "auto_adjust_thresholds": true,
+  "threshold_adjustment_step": 0.05,
+  "max_threshold_adjustment": 0.2
+}

@@ -1,0 +1,71 @@
+#!/usr/bin/expect -f
+# Скрипт для проверки сигналов в логах
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+}
+
+expect "# "
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка статуса процесса
+send "echo '=== СТАТУС ПРОЦЕССА БОТА ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# Проверка последних сигналов в system_improved.log
+send "echo '=== ПОСЛЕДНИЕ СИГНАЛЫ (system_improved.log) ==='\r"
+expect "# "
+send "tail -200 system_improved.log 2>/dev/null | grep -iE 'SIGNAL|сигнал|✅.*LONG|✅.*SHORT|отправлен|SEND' | tail -20\r"
+expect "# "
+
+# Проверка лога сигналов
+send "echo '=== ЛОГ СИГНАЛОВ (logs/signals.log) ==='\r"
+expect "# "
+send "tail -50 logs/signals.log 2>/dev/null\r"
+expect "# "
+
+# Проверка последних циклов
+send "echo '=== ПОСЛЕДНИЕ ЦИКЛЫ ==='\r"
+expect "# "
+send "grep 'Завершение цикла обработки' system_improved.log 2>/dev/null | tail -3\r"
+expect "# "
+
+# Проверка ошибок получения данных
+send "echo '=== ОШИБКИ ПОЛУЧЕНИЯ ДАННЫХ ==='\r"
+expect "# "
+send "tail -100 system_improved.log 2>/dev/null | grep -E 'get_ohlc_with_fallback|get_filtered_top_usdt_pairs_fast|Ошибка получения' | tail -10\r"
+expect "# "
+
+# Проверка статистики сигналов
+send "echo '=== СТАТИСТИКА СИГНАЛОВ (signals_log.csv) ==='\r"
+expect "# "
+send "tail -15 signals_log.csv 2>/dev/null\r"
+expect "# "
+
+# Проверка последних ошибок
+send "echo '=== ПОСЛЕДНИЕ ОШИБКИ ==='\r"
+expect "# "
+send "tail -50 system_improved.log 2>/dev/null | grep -E 'ERROR|Exception|Traceback' | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

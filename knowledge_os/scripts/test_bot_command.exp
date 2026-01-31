@@ -1,0 +1,61 @@
+#!/usr/bin/expect -f
+# Тест отправки команды боту через API
+
+set timeout 30
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверяем последние обновления
+send "echo '=== ПОСЛЕДНИЕ ОБНОВЛЕНИЯ ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-5&limit=5' | python3 -m json.tool 2>/dev/null | head -40\r"
+expect "# "
+
+# Проверяем логи обработки команд
+send "echo '=== ЛОГИ ОБРАБОТКИ КОМАНД ==='\r"
+expect "# "
+send "tail -100 system_improved.log 2>/dev/null | grep -E 'start|help|command|Command|update_id|message' | tail -20\r"
+expect "# "
+
+# Проверяем ошибки в обработчиках
+send "echo '=== ОШИБКИ В ОБРАБОТЧИКАХ ==='\r"
+expect "# "
+send "grep -A 5 -B 5 'error_handler\\|Exception in handler\\|Failed to process' system_improved.log 2>/dev/null | tail -30\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

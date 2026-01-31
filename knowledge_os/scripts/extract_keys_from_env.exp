@@ -1,0 +1,57 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ИЗВЛЕЧЕНИЕ КЛЮЧЕЙ ИЗ ENV ФАЙЛОВ ==='\r"
+expect "# "
+
+send "echo '1. Проверка файла .env (если есть):'\r"
+expect "# "
+send "test -f .env && echo '✅ Файл .env найден' || echo '❌ Файл .env не найден'\r"
+expect "# "
+send "test -f .env && cat .env | grep -i 'BITGET' | head -5 || echo ''\r"
+expect "# "
+
+send "echo '2. Полное содержимое .env (только Bitget ключи):'\r"
+expect "# "
+send "test -f .env && cat .env | grep -E 'BITGET_API_KEY|BITGET_SECRET_KEY|BITGET_PASSPHRASE' | grep -v '^#' | head -5 || echo 'Файл не найден'\r"
+expect "# "
+
+send "echo '3. Проверка файла env на Bitget ключи:'\r"
+expect "# "
+send "cat env | grep -E 'BITGET_API_KEY|BITGET_SECRET_KEY|BITGET_PASSPHRASE' | grep -v '^#' | head -5\r"
+expect "# "
+
+send "echo '4. Поиск ключей в других местах (backup, old и т.д.):'\r"
+expect "# "
+send "find . -maxdepth 2 -name '*.env*' -o -name '*backup*env*' -o -name '*old*env*' 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '5. Проверка переменных окружения процесса бота:'\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep | awk '{print \$2}' | head -1 | xargs -I {} cat /proc/{}/environ 2>/dev/null | tr '\\0' '\\n' | grep -i 'BITGET' | head -5 || echo 'Не удалось получить переменные окружения'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,4 @@
+# Cron job: Validate Singularity 9.0 Metrics (автоматическая валидация целевых метрик)
+# Расписание: Ежедневно в 03:00
+0 3 * * * cd /root/knowledge_os && python3 scripts/validate_singularity_9_metrics.py >> logs/validate_singularity_9_metrics.log 2>&1
+

@@ -1,0 +1,85 @@
+{
+  "dashboard": {
+    "title": "Orchestration System Monitor",
+    "uid": "orchestration-monitor",
+    "tags": ["orchestration", "singularity", "tasks"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Tasks Processing Rate",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "rate(orchestration_tasks_total[5m])",
+            "legendFormat": "Tasks/sec"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Phase Durations",
+        "type": "timeseries",
+        "targets": [
+          {"expr": "orchestration_phase_duration_seconds{phase=\"receive\"}", "legendFormat": "Receive"},
+          {"expr": "orchestration_phase_duration_seconds{phase=\"analyze\"}", "legendFormat": "Analyze"},
+          {"expr": "orchestration_phase_duration_seconds{phase=\"decompose\"}", "legendFormat": "Decompose"},
+          {"expr": "orchestration_phase_duration_seconds{phase=\"strategy\"}", "legendFormat": "Strategy"},
+          {"expr": "orchestration_phase_duration_seconds{phase=\"experts\"}", "legendFormat": "Experts"}
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Success Rate",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "orchestration_success_rate * 100",
+            "legendFormat": "Success %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Avg Duration (seconds)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "orchestration_avg_duration_seconds",
+            "legendFormat": "Avg duration"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Subtasks per Task (avg)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "orchestration_subtasks_per_task_avg",
+            "legendFormat": "Subtasks/task"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Experts per Task (avg)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "orchestration_experts_per_task_avg",
+            "legendFormat": "Experts/task"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+      }
+    ],
+    "schemaVersion": 16,
+    "version": 1
+  }
+}

@@ -1,0 +1,5 @@
+# Dev dependencies (tests, load testing)
+-r requirements.txt
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+locust>=2.20.0

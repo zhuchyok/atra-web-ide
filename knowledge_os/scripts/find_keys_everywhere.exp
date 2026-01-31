@@ -1,0 +1,60 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== ПОИСК КЛЮЧЕЙ ВО ВСЕХ МЕСТАХ ==='\r"
+expect "# "
+
+send "echo '1. Поиск в логах на упоминание ключей:'\r"
+expect "# "
+send "grep -i 'bitget.*key\|api.*key.*bitget\|ключ.*bitget' bot_startup.log signal_live.log 2>/dev/null | tail -10\r"
+expect "# "
+
+send "echo '2. Поиск в истории git (последние коммиты с env):'\r"
+expect "# "
+send "git log --all --oneline --grep='env\|key\|bitget' -10 2>/dev/null\r"
+expect "# "
+
+send "echo '3. Проверка старых версий env файла в git:'\r"
+expect "# "
+send "git log --all --oneline -- env .env 2>/dev/null | head -5\r"
+expect "# "
+
+send "echo '4. Поиск в backup файлах:'\r"
+expect "# "
+send "find . -name '*backup*' -o -name '*old*' -o -name '*bak*' 2>/dev/null | grep -i env | head -5\r"
+expect "# "
+
+send "echo '5. Проверка зашифрованных ключей в БД (если есть):'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, LENGTH(api_key) as key_len, is_active FROM user_exchange_keys WHERE api_key IS NOT NULL AND api_key != '';\" 2>/dev/null\r"
+expect "# "
+
+send "echo '6. Проверка переменных окружения системы:'\r"
+expect "# "
+send "env | grep -i 'BITGET\|API.*KEY' | head -5\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

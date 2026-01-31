@@ -1,0 +1,103 @@
+#!/usr/bin/expect -f
+# Глубокая диагностика бота
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# 1. Проверка процесса
+send "echo '=== 1. ПРОЦЕСС ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# 2. Проверка последних обновлений через API
+send "echo '=== 2. ПОСЛЕДНИЕ ОБНОВЛЕНИЯ (API) ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-5&limit=5' | python3 -m json.tool 2>/dev/null | head -50\r"
+expect "# "
+
+# 3. Проверка логов на команды
+send "echo '=== 3. ЛОГИ КОМАНД (последние 50) ==='\r"
+expect "# "
+send "tail -100 server.log 2>/dev/null | grep -E 'command|Command|start|help|update|Update|message|Message|ERROR|Exception|Traceback' | tail -30\r"
+expect "# "
+
+# 4. Проверка ошибок в обработчиках
+send "echo '=== 4. ОШИБКИ В ОБРАБОТЧИКАХ ==='\r"
+expect "# "
+send "grep -A 10 -B 5 'error_handler\\|Exception in handler\\|Failed to process\\|Traceback' server.log 2>/dev/null | tail -40\r"
+expect "# "
+
+# 5. Проверка импортов при запуске
+send "echo '=== 5. ОШИБКИ ИМПОРТОВ ==='\r"
+expect "# "
+send "grep -E 'ImportError\\|ModuleNotFoundError\\|cannot import' server.log 2>/dev/null | tail -20\r"
+expect "# "
+
+# 6. Проверка polling статуса
+send "echo '=== 6. POLLING СТАТУС ==='\r"
+expect "# "
+send "grep -E 'Polling\\|getUpdates\\|update_queue\\|Application started' server.log 2>/dev/null | tail -10\r"
+expect "# "
+
+# 7. Проверка webhook
+send "echo '=== 7. WEBHOOK ==='\r"
+expect "# "
+send "curl -s 'https://api.telegram.org/botPROD_TOKEN_REDACTED/getWebhookInfo' | python3 -m json.tool 2>/dev/null | head -15\r"
+expect "# "
+
+# 8. Проверка последних HTTP запросов
+send "echo '=== 8. HTTP ЗАПРОСЫ ==='\r"
+expect "# "
+send "grep -E 'HTTP Request.*POST.*getUpdates\\|sendMessage\\|answerCallbackQuery' server.log 2>/dev/null | tail -15\r"
+expect "# "
+
+# 9. Проверка обработки сообщений
+send "echo '=== 9. ОБРАБОТКА СООБЩЕНИЙ ==='\r"
+expect "# "
+send "grep -E 'handle_message\\|button\\|start\\|help_cmd' server.log 2>/dev/null | tail -20\r"
+expect "# "
+
+# 10. Проверка контекста и user_data
+send "echo '=== 10. КОНТЕКСТ И USER_DATA ==='\r"
+expect "# "
+send "grep -E 'user_data\\|context\\|user_id' server.log 2>/dev/null | tail -15\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

@@ -1,0 +1,11 @@
+server.name: kibana
+server.host: "0.0.0.0"
+elasticsearch.hosts: ["http://atra-elasticsearch:9200"]
+monitoring.ui.container.elasticsearch.enabled: true
+
+# Отключаем security для упрощения (в production включить!)
+xpack.security.enabled: false
+xpack.encryptedSavedObjects.encryptionKey: "minimal32charencryptionkeyhere!!"
+
+# Настройки для автоматического создания index patterns
+# kibana.defaultAppId устарело в Kibana 8.x, используем настройки через UI

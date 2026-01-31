@@ -1,0 +1,79 @@
+#!/usr/bin/expect -f
+
+set timeout 120
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка процесса
+send "echo '=== ПРОЦЕСС ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# Проверка существования лог файлов
+send "echo '' && echo '=== ФАЙЛЫ ЛОГОВ ==='\r"
+expect "# "
+send "ls -lh logs/*.log 2>/dev/null | tail -10 || echo 'Нет лог файлов'\r"
+expect "# "
+
+# Проверка последних строк system.log (без фильтрации)
+send "echo '' && echo '=== ПОСЛЕДНИЕ 50 СТРОК SYSTEM.LOG (БЕЗ ФИЛЬТРА) ==='\r"
+expect "# "
+send "tail -50 logs/system.log 2>/dev/null || echo 'Файл не существует или пуст'\r"
+expect "# "
+
+# Проверка последних строк signals.log
+send "echo '' && echo '=== ПОСЛЕДНИЕ 30 СТРОК SIGNALS.LOG ==='\r"
+expect "# "
+send "tail -30 logs/signals.log 2>/dev/null || echo 'Файл не существует или пуст'\r"
+expect "# "
+
+# Поиск логов в других местах
+send "echo '' && echo '=== ПОИСК ЛОГОВ В ДРУГИХ ФАЙЛАХ ==='\r"
+expect "# "
+send "find /root/atra -name '*.log' -type f -mmin -10 2>/dev/null | head -10\r"
+expect "# "
+
+# Проверка последних строк основного лога (если есть)
+send "echo '' && echo '=== ПОСЛЕДНИЕ 50 СТРОК ОСНОВНОГО ЛОГА ==='\r"
+expect "# "
+send "tail -50 system_improved.log 2>/dev/null | tail -30 || tail -50 bot_startup.log 2>/dev/null | tail -30 || echo 'Нет основного лога'\r"
+expect "# "
+
+# Проверка БД
+send "echo '' && echo '=== ПОСЛЕДНИЕ СИГНАЛЫ В БД ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT signal_time, symbol, direction FROM accepted_signals ORDER BY signal_time DESC LIMIT 5;\" 2>/dev/null | head -5 || echo 'Ошибка доступа к БД'\r"
+expect "# "
+
+# Проверка количества сигналов за последний час
+send "echo '' && echo '=== СИГНАЛЫ ЗА ПОСЛЕДНИЙ ЧАС ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM accepted_signals WHERE datetime(signal_time) > datetime('now', '-1 hour');\" 2>/dev/null || echo '0'\r"
+expect "# "
+
+# Проверка ошибок
+send "echo '' && echo '=== ОШИБКИ (последние 10) ==='\r"
+expect "# "
+send "tail -50 logs/errors.log 2>/dev/null | tail -10 || echo 'Ошибок нет или файл не существует'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

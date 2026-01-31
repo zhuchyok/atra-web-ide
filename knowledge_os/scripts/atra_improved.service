@@ -1,0 +1,30 @@
+[Unit]
+Description=ATRA Trading System with Process Management
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/Users/zhuchyok/Documents/GITHUB/atra
+ExecStartPre=/usr/bin/python3 /Users/zhuchyok/Documents/GITHUB/atra/check_processes.py
+ExecStart=/usr/bin/python3 /Users/zhuchyok/Documents/GITHUB/atra/safe_start.py
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+# Ограничения ресурсов
+MemoryLimit=2G
+CPUQuota=200%
+
+# Переменные окружения
+Environment=PYTHONPATH=/Users/zhuchyok/Library/Python/3.9/lib/python/site-packages
+Environment=ATRA_ENV=prod
+
+# Предотвращение множественных запусков
+ExecStartPre=/bin/sleep 5
+ExecStartPre=/usr/bin/python3 -c "import os; os.system('python3 /Users/zhuchyok/Documents/GITHUB/atra/check_processes.py')"
+
+[Install]
+WantedBy=multi-user.target

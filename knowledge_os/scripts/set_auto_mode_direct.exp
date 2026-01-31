@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" {
+        send "${password}\r"
+    }
+    "yes/no" {
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+send "echo '=== УСТАНОВКА РЕЖИМА AUTO ДЛЯ ПОЛЬЗОВАТЕЛЕЙ ==='\r"
+expect "# "
+
+send "echo '1. Установка режима auto для пользователя 556251171:'\r"
+expect "# "
+send "sqlite3 trading.db \"INSERT OR REPLACE INTO user_settings (user_id, trade_mode, updated_at) VALUES (556251171, 'auto', CURRENT_TIMESTAMP);\" 2>/dev/null && echo '✅ Установлено'\r"
+expect "# "
+
+send "echo '2. Установка режима auto для пользователя 958930260:'\r"
+expect "# "
+send "sqlite3 trading.db \"INSERT OR REPLACE INTO user_settings (user_id, trade_mode, updated_at) VALUES (958930260, 'auto', CURRENT_TIMESTAMP);\" 2>/dev/null && echo '✅ Установлено'\r"
+expect "# "
+
+send "echo '3. Проверка установленных режимов:'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, trade_mode, updated_at FROM user_settings ORDER BY user_id;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '4. Проверка наличия ключей (даже неактивных):'\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT user_id, exchange_name, is_active FROM user_exchange_keys;\" 2>/dev/null\r"
+expect "# "
+
+send "echo '✅ Режим auto установлен для обоих пользователей'\r"
+expect "# "
+send "echo '⚠️ ВАЖНО: Автоисполнение будет работать только после добавления ключей биржи через /connect_bitget'\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

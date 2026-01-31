@@ -1,0 +1,91 @@
+#!/usr/bin/expect -f
+# Детальная диагностика бота
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh -o StrictHostKeyChecking=no $user@$server
+
+expect {
+    "password:" {
+        send "$password\r"
+    }
+    "Password:" {
+        send "$password\r"
+    }
+    "(yes/no)?" {
+        send "yes\r"
+        expect "password:"
+        send "$password\r"
+    }
+    timeout {
+        puts "Timeout при подключении"
+        exit 1
+    }
+}
+
+expect {
+    "# " {}
+    "$ " {}
+    timeout {
+        puts "Timeout после подключения"
+        exit 1
+    }
+}
+
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка процесса
+send "echo '=== ПРОЦЕСС ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep\r"
+expect "# "
+
+# Проверка токена в процессе
+send "echo '=== ТОКЕН В ПРОЦЕССЕ ==='\r"
+expect "# "
+send "ps aux | grep 'python3 main.py' | grep -v grep | awk '{print \$2}' | head -1 | xargs -I {} cat /proc/{}/environ 2>/dev/null | tr '\\0' '\\n' | grep TELEGRAM_TOKEN\r"
+expect "# "
+
+# Проверка последних логов с командами
+send "echo '=== ЛОГИ КОМАНД (последние 30) ==='\r"
+expect "# "
+send "tail -50 system_improved.log 2>/dev/null | grep -E 'command|Command|update|Update|start|help|ERROR|Exception' | tail -20\r"
+expect "# "
+
+# Проверка ошибок обработки
+send "echo '=== ОШИБКИ ОБРАБОТКИ ==='\r"
+expect "# "
+send "grep -E 'error_handler|Exception|Traceback|Failed to|не удалось' system_improved.log 2>/dev/null | tail -10\r"
+expect "# "
+
+# Проверка polling
+send "echo '=== POLLING СТАТУС ==='\r"
+expect "# "
+send "grep -E 'Polling|getUpdates|Bot authorized' system_improved.log 2>/dev/null | tail -5\r"
+expect "# "
+
+# Проверка обработчиков команд
+send "echo '=== ПРОВЕРКА ОБРАБОТЧИКОВ ==='\r"
+expect "# "
+send "python3 -c \"from config import TOKEN, ATRA_ENV; print(f'TOKEN: {TOKEN[:20]}...'); print(f'ATRA_ENV: {ATRA_ENV}')\" 2>&1\r"
+expect "# "
+
+# Проверка webhook
+send "echo '=== ПРОВЕРКА WEBHOOK ==='\r"
+expect "# "
+send "curl -s \"https://api.telegram.org/botPROD_TOKEN_REDACTED/getWebhookInfo\" | python3 -m json.tool 2>/dev/null | head -10\r"
+expect "# "
+
+# Проверка последних обновлений
+send "echo '=== ПОСЛЕДНИЕ ОБНОВЛЕНИЯ ==='\r"
+expect "# "
+send "curl -s \"https://api.telegram.org/botPROD_TOKEN_REDACTED/getUpdates?offset=-1&limit=1\" | python3 -m json.tool 2>/dev/null | head -20\r"
+expect "# "
+
+send "exit\r"
+expect eof
+

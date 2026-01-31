@@ -1,0 +1,267 @@
+# Knowledge OS + Victoria + Veronica на Mac Studio
+# Запуск: docker-compose -f knowledge_os/docker-compose.yml up -d
+# Контекст: корень репо (atra или atra-web-ide)
+# Сеть atra-network: скрипт start_victoria_docker.sh создаёт её при первом запуске (docker network create atra-network)
+
+networks:
+  atra-network:
+    external: true
+
+services:
+  # PostgreSQL: используйте существующий контейнер knowledge_postgres (atra или другой проект)
+  # или запустите свой: docker run -d --name knowledge_postgres --network atra-network -p 5432:5432 -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=knowledge_os pgvector/pgvector:pg16
+
+  victoria-agent:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: victoria-agent
+    restart: always
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app
+      VICTORIA_PORT: "8000"  # внутри контейнера 8000, снаружи 8010
+      ATRA_ENV: prod
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      # 🔄 АВТОВЫБОР МОДЕЛЕЙ: При запуске сканируются Ollama (11434) и MLX (11435)
+      # Выбираются самые мощные из каждого списка РАЗДЕЛЬНО:
+      # - Ollama: для executor/planner (qwq:32b > qwen2.5-coder:32b > phi3.5:3.8b)
+      # - MLX: для LocalAIRouter (command-r-plus:104b > deepseek-r1:70b > llama3.3:70b)
+      # 
+      # Для ЯВНОГО указания модели (должна существовать в Ollama!):
+      # VICTORIA_MODEL: qwen2.5-coder:32b
+      # VICTORIA_PLANNER_MODEL: phi3.5:3.8b
+      #
+      # Пустые значения = автовыбор лучшей доступной модели из Ollama
+      VICTORIA_MODEL: ${VICTORIA_MODEL:-}
+      VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-}
+      # 🐛 Debug mode: set to "true" to enable verbose logging
+      VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
+      VICTORIA_USE_LOCAL_ROUTER: "true"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_ELK: "true"
+      ELASTICSEARCH_URL: http://atra-elasticsearch:9200
+      USE_KNOWLEDGE_OS: "true"
+      VICTORIA_USE_CACHE: "true"
+      # 🚀 Victoria Enhanced - включает все компоненты супер-корпорации
+      USE_VICTORIA_ENHANCED: "true"
+      # 🎯 Victoria Initiative - Event-Driven Architecture и мониторинг (без кавычек в значении)
+      ENABLE_EVENT_MONITORING: ${ENABLE_EVENT_MONITORING:-true}
+      FILE_WATCHER_ENABLED: ${FILE_WATCHER_ENABLED:-true}
+      SERVICE_MONITOR_ENABLED: ${SERVICE_MONITOR_ENABLED:-true}
+      DEADLINE_TRACKER_ENABLED: ${DEADLINE_TRACKER_ENABLED:-true}
+      SKILLS_WATCHER_ENABLED: ${SKILLS_WATCHER_ENABLED:-true}
+      # 📊 OpenTelemetry для трассировки
+      ENABLE_OTEL: ${ENABLE_OTEL:-"false"}
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-""}
+      OTLP_INSECURE: ${OTLP_INSECURE:-"true"}
+      # 👤 Human-in-the-Loop
+      USE_HITL: ${USE_HITL:-"false"}
+      HITL_CONFIDENCE_THRESHOLD: ${HITL_CONFIDENCE_THRESHOLD:-"0.7"}
+      # 🏢 Основной проект корпорации
+      MAIN_PROJECT: "atra-web-ide"  # Основной проект корпорации и агентов
+      # Лимит шагов агента (сложные задачи — анализ, исправления; без этой переменной в контейнере мог остаться 80)
+      VICTORIA_MAX_STEPS: ${VICTORIA_MAX_STEPS:-500}
+      # Veronica: из контейнера — по имени сервиса (порт 8000 внутри сети)
+      VERONICA_URL: ${VERONICA_URL:-http://veronica-agent:8000}
+      # Canary: оркестрация V2 (A/B по проценту трафика)
+      ORCHESTRATION_V2_ENABLED: ${ORCHESTRATION_V2_ENABLED:-true}
+      ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-10}
+    ports:
+      - "8010:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      # Подключаем knowledge_os для Victoria Enhanced
+      - ../knowledge_os:/app/knowledge_os
+    command: python -m src.agents.bridge.victoria_server
+
+  veronica-agent:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: veronica-agent
+    restart: always
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app
+      ATRA_ENV: prod
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      USE_ELK: "true"
+      ELASTICSEARCH_URL: http://atra-elasticsearch:9200
+      # 🚀 Veronica Enhanced - включает все компоненты супер-корпорации
+      USE_VERONICA_ENHANCED: "true"
+      # 📊 OpenTelemetry для трассировки
+      ENABLE_OTEL: ${ENABLE_OTEL:-"false"}
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-""}
+      OTLP_INSECURE: ${OTLP_INSECURE:-"true"}
+      # 👤 Human-in-the-Loop
+      USE_HITL: ${USE_HITL:-"false"}
+      HITL_CONFIDENCE_THRESHOLD: ${HITL_CONFIDENCE_THRESHOLD:-"0.7"}
+      # 🏢 Основной проект корпорации
+      MAIN_PROJECT: "atra-web-ide"  # Основной проект корпорации и агентов
+      # 🔄 АВТОВЫБОР МОДЕЛЕЙ для Veronica (как для Victoria)
+      # Пустые значения = автоматический выбор лучшей доступной модели из Ollama
+      # Для явного указания: VERONICA_MODEL=qwen2.5-coder:32b
+      VERONICA_MODEL: ${VERONICA_MODEL:-}
+      VERONICA_PLANNER_MODEL: ${VERONICA_PLANNER_MODEL:-}
+    ports:
+      - "8011:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      # Подключаем knowledge_os для Veronica Enhanced
+      - ../knowledge_os:/app/knowledge_os
+    command: python -m src.agents.bridge.server
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: atra-prometheus
+    ports:
+      - "9092:9090"   # 9092 на хосте (9090/9091 могут быть заняты другими Prometheus)
+    volumes:
+      - ../infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - atra-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: atra-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=atra2025
+      - GF_INSTALL_PLUGINS=
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../infrastructure/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Один каталог со всеми дашбордами (dashboard.yml, atra-dashboard.json, enhanced-dashboard.json)
+      - ../infrastructure/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - atra-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: atra-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - atra-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: atra-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://atra-elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=
+      - xpack.security.enabled=false
+      - xpack.encryptedSavedObjects.encryptionKey=minimal32charencryptionkeyhere!!
+    volumes:
+      - ../infrastructure/monitoring/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    networks:
+      - atra-network
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Воркер: обрабатывает PENDING задачи (симуляции, разведка, обычные задачи)
+  knowledge_os_worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_os_worker
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    command: ["python", "smart_worker_autonomous.py"]
+
+  # Оркестратор: всё время слушает задачи (вариант A — один процесс с --continuous)
+  knowledge_os_orchestrator:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_os_orchestrator
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      REDIS_URL: redis://knowledge_redis:6379
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    command: ["python", "enhanced_orchestrator.py", "--continuous", "--interval", "60", "--quick-poll", "30"]
+
+  # Streamlit дашборд корпорации (зависимости в образе, код монтируется)
+  corporation-dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile.deps
+    container_name: corporation-dashboard
+    restart: unless-stopped
+    networks:
+      - atra-network
+    ports:
+      - "8501:8501"
+    environment:
+      # Если дашборд в Docker, а PostgreSQL на хосте: postgresql://admin:secret@host.docker.internal:5432/knowledge_os
+      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os}
+      # Чтобы singularity_9_ab_tester и evaluator загружались в контейнере
+      PYTHONPATH: /app/project/knowledge_os/app
+    volumes:
+      - ..:/app/project:ro
+    working_dir: /app/project/knowledge_os/dashboard
+    command: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:

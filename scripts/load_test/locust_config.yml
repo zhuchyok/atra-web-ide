@@ -1,0 +1,15 @@
+# Конфигурация Locust для ATRA Web IDE (День 6–7)
+# Использование: locust -f locustfile.py --host=http://localhost:8080
+
+locust:
+  host: http://localhost:8080
+  users:
+    - type: ChatUser
+      count: 100
+      spawn_rate: 10
+    - type: StressTestUser
+      count: 20
+      spawn_rate: 5
+  run_time: 300s
+  web_host: 0.0.0.0
+  web_port: 8089

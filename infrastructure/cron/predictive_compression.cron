@@ -1,0 +1,4 @@
+# Cron job: Predictive Context Compression (Singularity 9.0)
+# Расписание: Каждые 30 минут
+*/30 * * * * cd /root/knowledge_os && python3 -c "from app.context_analyzer import run_predictive_compression; import asyncio; asyncio.run(run_predictive_compression())" >> logs/predictive_compression.log 2>&1
+

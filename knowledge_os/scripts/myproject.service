@@ -1,0 +1,27 @@
+[Unit]
+Description=Trading bot ATRA
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/atra
+ExecStart=/root/atra/.venv/bin/python /root/atra/main.py
+Restart=always
+RestartSec=10
+KillMode=control-group
+TimeoutStopSec=30
+Environment=PYTHONPATH=/root/atra
+Environment=ATRA_ENV=prod
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=atra-bot
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

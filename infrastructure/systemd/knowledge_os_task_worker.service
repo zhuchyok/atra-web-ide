@@ -1,0 +1,24 @@
+[Unit]
+Description=Knowledge OS Task Worker - Autonomous Task Processing
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/knowledge_os/app
+Environment="DATABASE_URL=postgresql://zhuchyok@localhost:5432/knowledge_os"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/usr/bin/python3 /root/knowledge_os/app/smart_worker_autonomous.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/tmp/task_worker.log
+StandardError=append:/tmp/task_worker.log
+
+# Ограничения ресурсов
+MemoryLimit=2G
+CPUQuota=200%
+
+[Install]
+WantedBy=multi-user.target
+

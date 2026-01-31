@@ -1,0 +1,7 @@
+# Nightly Agent Gym regression check
+# Установить через: crontab infrastructure/cron/nightly_agent_gym.cron
+# Требуется рабочая среда /root/atra с настроенным .venv (или python3 по умолчанию).
+
+30 1 * * * cd /root/atra && /bin/bash scripts/run_nightly_agent_gym.sh
+
+

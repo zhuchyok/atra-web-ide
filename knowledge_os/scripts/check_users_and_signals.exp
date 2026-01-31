@@ -1,0 +1,52 @@
+#!/usr/bin/expect -f
+
+set timeout 60
+set server "185.177.216.15"
+set user "root"
+set password "u44Ww9NmtQj,XG"
+
+spawn ssh ${user}@${server}
+
+expect {
+    "password:" { send "${password}\r" }
+    "yes/no" { 
+        send "yes\r"
+        expect "password:"
+        send "${password}\r"
+    }
+}
+
+expect "# "
+send "cd /root/atra\r"
+expect "# "
+
+# Проверка пользователей в БД
+send "echo '=== ПОЛЬЗОВАТЕЛИ В БД ==='\r"
+expect "# "
+send "sqlite3 trading.db \"SELECT COUNT(*) FROM users;\" 2>/dev/null || echo 'Таблица users не найдена'\r"
+expect "# "
+
+send "sqlite3 trading.db \"SELECT user_id FROM users LIMIT 10;\" 2>/dev/null || echo 'Ошибка'\r"
+expect "# "
+
+# Проверка логов загрузки пользователей
+send "echo '' && echo '=== ЛОГИ ЗАГРУЗКИ ПОЛЬЗОВАТЕЛЕЙ ==='\r"
+expect "# "
+send "tail -100 logs/signal_live.log 2>/dev/null | grep -E 'пользовател|user|Загружено|Нет данных пользователей' | tail -20\r"
+expect "# "
+
+# Проверка последних циклов
+send "echo '' && echo '=== ПОСЛЕДНИЕ ЦИКЛЫ ==='\r"
+expect "# "
+send "tail -200 logs/signal_live.log 2>/dev/null | grep -E 'Цикл|Загружено.*пользовател' | tail -20\r"
+expect "# "
+
+# Проверка ошибок загрузки пользователей
+send "echo '' && echo '=== ОШИБКИ ЗАГРУЗКИ ==='\r"
+expect "# "
+send "tail -200 logs/signal_live.log 2>/dev/null | grep -E 'ERROR|Exception|Traceback' | grep -i user | tail -10\r"
+expect "# "
+
+send "exit\r"
+expect eof
+
