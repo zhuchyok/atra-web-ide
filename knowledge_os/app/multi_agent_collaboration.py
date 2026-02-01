@@ -131,15 +131,15 @@ class MultiAgentCollaboration:
         if preferred_agent:
             assigned_to = preferred_agent
         elif task_type in [TaskType.PLANNING, TaskType.COORDINATION]:
-            assigned_to = "Victoria"
+            assigned_to = "Виктория"
         elif task_type in [TaskType.EXECUTION, TaskType.FILE_OPERATION, TaskType.RESEARCH]:
-            assigned_to = "Veronica"
+            assigned_to = "Вероника"
         elif task_type == TaskType.COMPLEX:
             # Сложные задачи требуют координации
-            assigned_to = "Victoria"  # Victoria координирует
+            assigned_to = "Виктория"  # Victoria координирует
         else:
             # По умолчанию - Victoria
-            assigned_to = "Victoria"
+            assigned_to = "Виктория"
         
         task = Task(
             task_id=task_id,
@@ -163,9 +163,9 @@ class MultiAgentCollaboration:
         
         try:
             # Определяем URL агента
-            if task.assigned_to == "Victoria":
+            if task.assigned_to == "Виктория":
                 agent_url = self.victoria_url
-            elif task.assigned_to == "Veronica":
+            elif task.assigned_to == "Вероника":
                 agent_url = self.veronica_url
             else:
                 raise ValueError(f"Неизвестный агент: {task.assigned_to}")
@@ -278,11 +278,11 @@ class MultiAgentCollaboration:
             coordination_steps.append("Victoria планирует задачу")
             planning_task = await self.delegate_task(
                 f"Спланируй выполнение задачи: {goal}",
-                preferred_agent="Victoria",
+                preferred_agent="Виктория",
                 priority=10
             )
             planning_result = await self.execute_task(planning_task)
-            participants.append("Victoria")
+            participants.append("Виктория")
             
             if not planning_result.success:
                 raise Exception(f"Ошибка планирования: {planning_result.metadata.get('error')}")
@@ -295,11 +295,11 @@ class MultiAgentCollaboration:
             coordination_steps.append("Veronica выполняет план")
             execution_task = await self.delegate_task(
                 f"Выполни план: {plan}\n\nИсходная задача: {goal}",
-                preferred_agent="Veronica",
+                preferred_agent="Вероника",
                 priority=10
             )
             execution_result = await self.execute_task(execution_task)
-            participants.append("Veronica")
+            participants.append("Вероника")
             
             if not execution_result.success:
                 raise Exception(f"Ошибка выполнения: {execution_result.metadata.get('error')}")
@@ -308,7 +308,7 @@ class MultiAgentCollaboration:
             coordination_steps.append("Victoria проверяет результат")
             verification_task = await self.delegate_task(
                 f"Проверь выполнение задачи: {goal}\n\nРезультат: {execution_result.result}",
-                preferred_agent="Victoria",
+                preferred_agent="Виктория",
                 priority=8
             )
             verification_result = await self.execute_task(verification_task)
@@ -318,7 +318,7 @@ class MultiAgentCollaboration:
             return CollaborationResult(
                 success=True,
                 result=execution_result.result,
-                participants=list(set(participants + ["Victoria"])),
+                participants=list(set(participants + ["Виктория"])),
                 coordination_steps=coordination_steps + ["Задача завершена"],
                 total_duration=duration,
                 metadata={
@@ -368,7 +368,7 @@ class MultiAgentCollaboration:
 
 Предложи решение, учитывающее все мнения."""
         
-        resolution_task = await self.delegate_task(resolution_goal, preferred_agent="Victoria", priority=9)
+        resolution_task = await self.delegate_task(resolution_goal, preferred_agent="Виктория", priority=9)
         resolution_result = await self.execute_task(resolution_task)
         
         if resolution_result.success:

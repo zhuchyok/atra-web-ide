@@ -13,6 +13,15 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Резолвер имён — централизованно в expert_aliases
+try:
+    from app.expert_aliases import resolve_expert_name_for_db, AGENT_NAME_TO_DB
+except ImportError:
+    AGENT_NAME_TO_DB = {"Veronica": "Вероника", "Victoria": "Виктория"}
+
+    def resolve_expert_name_for_db(name: str) -> str:
+        return AGENT_NAME_TO_DB.get(name, name) if name else name
+
 # Database connection
 try:
     import asyncpg
@@ -101,7 +110,7 @@ class TaskDistributionSystem:
                     TaskAssignment(
                         task_id=f"task_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}",
                         subtask=desc,
-                        employee_name="Veronica",
+                        employee_name="Вероника",
                         department=dept,
                         correlation_id=f"plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                     )
@@ -111,6 +120,8 @@ class TaskDistributionSystem:
                 employee = st.get("expert_role", st.get("employee", "Expert"))
                 if isinstance(employee, list):
                     employee = employee[0] if employee else "Expert"
+                # Сразу приводим к каноническому имени в БД (кириллица), чтобы нигде не оставалась латиница
+                employee = resolve_expert_name_for_db(str(employee)) if employee else "Expert"
                 rec_model = st.get("recommended_model")
                 rec_models = st.get("recommended_models", [])
                 rec_value = rec_model or (rec_models[0] if rec_models else None)
@@ -153,10 +164,13 @@ class TaskDistributionSystem:
             
             assignments = []
             for task_data in tasks:
+                emp = task_data.get('employee', '')
+                # Сразу приводим к каноническому имени в БД (кириллица)
+                employee_name = resolve_expert_name_for_db(emp) if emp else emp
                 assignment = TaskAssignment(
                     task_id=f"task_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}",
                     subtask=task_data.get('subtask', ''),
-                    employee_name=task_data.get('employee', ''),
+                    employee_name=employee_name,
                     department=task_data.get('department', 'General'),
                     correlation_id=task_data.get('correlation_id')
                 )
@@ -215,19 +229,18 @@ class TaskDistributionSystem:
                 tasks = json.loads(json_match.group())
                 return tasks
             
-            # Если JSON не найден, создаем задачу из всего промпта
+            # Если JSON не найден, создаем задачу из всего промпта (уже кириллица)
             return [{
                 "subtask": prompt,
-                "employee": "Veronica",
-                "department": organizational_structure.get('departments', [{}])[0].get('name', 'General'),
+                "employee": "Вероника",
+                "department": (organizational_structure.get('departments') or [{}])[0].get('name', 'General'),
                 "correlation_id": f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             }]
         except Exception as e:
             logger.error(f"❌ Ошибка парсинга промпта: {e}", exc_info=True)
-            # Реальный fallback - создаем одну задачу
             return [{
                 "subtask": prompt,
-                "employee": "Veronica",
+                "employee": "Вероника",
                 "department": "General",
                 "correlation_id": f"fallback_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             }]
@@ -244,13 +257,14 @@ class TaskDistributionSystem:
                 return assignment
             
             # Выполняем задачу через эксперта (промпт и рекомендуемая модель от Victoria)
+            # Используем expert['name'] (Вероника) — каноническое имя из БД, не employee_name (Veronica)
             from app.ai_core import run_smart_agent_async
             category = getattr(assignment, 'recommended_model', None) or "general"
             if getattr(assignment, 'recommended_model', None):
-                logger.info(f"📋 [TASK] Выполняю подзадачу: эксперт={assignment.employee_name}, рекомендуемая модель/категория={category}")
+                logger.info(f"📋 [TASK] Выполняю подзадачу: эксперт={expert['name']}, рекомендуемая модель/категория={category}")
             result = await run_smart_agent_async(
                 prompt=assignment.subtask,
-                expert_name=assignment.employee_name,
+                expert_name=expert['name'],
                 category=category
             )
             
@@ -412,21 +426,36 @@ class TaskDistributionSystem:
             return None
     
     async def _get_expert_by_name(self, name: str) -> Optional[Dict]:
-        """Получить эксперта по имени из БД"""
+        """Получить эксперта по имени из БД. Поддерживает латиницу (Veronica) → кириллица (Вероника)."""
         if not ASYNCPG_AVAILABLE:
             return None
-        
+        resolved_name = resolve_expert_name_for_db(name)
+        names_to_try = [resolved_name]
+        if resolved_name != name and name:
+            names_to_try.append(name)
         try:
-            conn = await asyncpg.connect(self.db_url, timeout=3.0)
+            conn = await asyncpg.connect(self.db_url, timeout=5.0)
             try:
-                expert = await conn.fetchrow("""
-                    SELECT id, name, role, department, system_prompt
-                    FROM experts
-                    WHERE name = $1
-                    LIMIT 1
-                """, name)
-                if expert:
-                    return dict(expert)
+                for candidate in names_to_try:
+                    expert = await conn.fetchrow("""
+                        SELECT id, name, role, department, system_prompt
+                        FROM experts
+                        WHERE name = $1
+                        LIMIT 1
+                    """, candidate)
+                    if expert:
+                        return dict(expert)
+                # Fallback: Veronica/Вероника — искать по роли "Local Developer"
+                if name and "veronica" in (name or "").lower():
+                    expert = await conn.fetchrow("""
+                        SELECT id, name, role, department, system_prompt
+                        FROM experts
+                        WHERE role ILIKE '%Local Developer%'
+                        LIMIT 1
+                    """)
+                    if expert:
+                        logger.info(f"✅ Эксперт найден по роли (Veronica→Local Developer): {expert['name']}")
+                        return dict(expert)
             finally:
                 await conn.close()
         except Exception as e:

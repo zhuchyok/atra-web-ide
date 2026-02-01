@@ -39,7 +39,15 @@ if [ -z "$DUMP_FILE" ]; then
     done
     echo ""
     echo "Или скачайте с сервера 46:"
-    echo "  scp root@46.149.66.170:/root/atra/knowledge_os_dump.sql ~/migration/server2/"
+    echo "  bash scripts/download_from_server46.sh"
+    exit 1
+fi
+
+# Проверяем размер (пустой дамп = 0B, нормальный ~100MB+)
+DUMP_SIZE=$(stat -f%z "$DUMP_FILE" 2>/dev/null || stat -c%s "$DUMP_FILE" 2>/dev/null || echo 0)
+if [ "$DUMP_SIZE" -lt 1000 ]; then
+    echo "❌ Дамп пустой (${DUMP_SIZE}B): $DUMP_FILE"
+    echo "   Скачайте заново: bash scripts/download_from_server46.sh"
     exit 1
 fi
 

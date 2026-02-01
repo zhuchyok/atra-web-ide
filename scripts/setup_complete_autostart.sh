@@ -163,8 +163,17 @@ else
 fi
 echo ""
 
-# 8. Настройка автономных систем
-echo "[8/8] Настройка автономных систем..."
+# 8. Настройка системы самовосстановления
+echo "[8/9] Настройка системы самовосстановления..."
+if [ -f "scripts/setup_system_auto_recovery.sh" ]; then
+    bash scripts/setup_system_auto_recovery.sh
+else
+    echo "   ⚠️  setup_system_auto_recovery.sh не найден"
+fi
+echo ""
+
+# 9. Настройка автономных систем
+echo "[9/9] Настройка автономных систем..."
 if [ -f "scripts/start_autonomous_systems.sh" ]; then
     echo "   📝 Запускаю настройку автономных систем..."
     bash scripts/start_autonomous_systems.sh || echo "   ⚠️  Не удалось настроить автономные системы"
@@ -236,7 +245,7 @@ echo "   7. Model Tracker запустится автоматически (НО�
 echo "   8. Автономные системы запустятся автоматически (если настроены)"
 echo ""
 echo "📝 Проверка после перезагрузки:"
-echo "   bash scripts/check_and_start_corporation.sh"
+echo "   bash scripts/verify_mac_studio_self_recovery.sh"
 echo "   launchctl list | grep atra"
 echo "   tail -f ~/Library/Logs/atra-self-check.log"
 echo "   tail -f ~/Library/Logs/ssh-tunnel-headscale.log"

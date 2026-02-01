@@ -1,10 +1,12 @@
 """
-Terminal Router - PTY для терминала в Web IDE
+Terminal Router - PTY для терминала в Web IDE.
+Команда v "задача" — запрос к Victoria Agent.
 """
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from pydantic import BaseModel
 from typing import Optional
 import logging
+import os
 import subprocess
 import os
 import sys
@@ -192,3 +194,38 @@ async def terminal_pty(websocket: WebSocket):
         logger.error(f"Terminal session error: {e}", exc_info=True)
         session.close()
         await websocket.close(code=1011, reason="Internal error")
+
+
+# --- Victoria Ask (команда v "задача" из терминала) ---
+class TerminalAskRequest(BaseModel):
+    """Запрос к Victoria из терминала"""
+    command: str = ""  # "v задача" или просто "задача"
+
+
+@router.post("/ask")
+async def terminal_ask(req: TerminalAskRequest):
+    """
+    Выполнить задачу через Victoria Agent.
+    Вызывается при вводе в терминале: v "создай файл test.py" или v список файлов
+    """
+    goal = (req.command or "").strip()
+    if goal.lower().startswith("v "):
+        goal = goal[2:].strip().strip("'\"").strip()
+    if not goal:
+        return {"response": "Укажите задачу: v \"ваша задача\"", "error": "empty_goal"}
+
+    try:
+        from app.services.victoria import get_victoria_client
+        victoria = await get_victoria_client()
+        project_context = os.getenv("PROJECT_NAME", "atra-web-ide")
+        result = await victoria.run(
+            prompt=goal,
+            project_context=project_context,
+        )
+        output = result.get("response") or result.get("result") or result.get("error") or "Нет ответа"
+        if isinstance(output, dict):
+            output = str(output)
+        return {"response": output, "status": result.get("status", "success")}
+    except Exception as e:
+        logger.exception("Terminal ask Victoria: %s", e)
+        return {"response": f"Ошибка: {e}", "error": str(e), "status": "error"}

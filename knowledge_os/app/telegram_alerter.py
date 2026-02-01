@@ -31,8 +31,8 @@ class TelegramAlerter:
         token: Optional[str] = None,
         chat_id: Optional[str] = None
     ):
-        self.token = token or os.getenv('TG_TOKEN', '8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU')
-        self.chat_id = chat_id or os.getenv('CHAT_ID', '556251171')
+        self.token = token or os.getenv('TG_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN', '')
+        self.chat_id = chat_id or os.getenv('CHAT_ID') or os.getenv('TELEGRAM_CHAT_ID', '')
         self.base_url = f"https://api.telegram.org/bot{self.token}"
         self._alert_queue: List[Dict] = []
         self._rate_limit_delay = 1.0  # Задержка между отправками (Telegram limit: 30 msg/sec)
@@ -82,6 +82,9 @@ class TelegramAlerter:
         Returns:
             True если успешно отправлено, False иначе
         """
+        if not self.token or not self.chat_id:
+            logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск Telegram алерта")
+            return False
         formatted_message = self._format_alert(message, priority, source)
         
         # Rate limiting

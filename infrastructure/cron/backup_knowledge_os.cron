@@ -1,0 +1,10 @@
+# Ежедневный бэкап БД Knowledge OS (local + Google Drive)
+# Рекомендации экспертов 2026-02-01, мировые практики 3-2-1
+#
+# Вариант 1 — полный (local + GDrive): backup_knowledge_os_full.sh
+# Вариант 2 — только локально: backup_knowledge_os.sh
+#
+# Установка: crontab -e и добавить (замените путь):
+# 0 2 * * * cd /Users/bikos/Documents/atra-web-ide && ./scripts/backup_knowledge_os_full.sh >> /tmp/backup_knowledge_os.log 2>&1
+#
+# Mac Studio — альтернатива: scripts/setup_backup_launchd.sh (LaunchAgent в 02:00)

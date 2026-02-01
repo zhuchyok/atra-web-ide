@@ -27,6 +27,7 @@ services:
     container_name: atra-web-ide-backend
     restart: unless-stopped
     tty: true  # нужен для PTY терминала в Web IDE
+    env_file: .env  # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — те же что у Victoria, для алертов
     ports:
       - "8080:8000"
     environment:

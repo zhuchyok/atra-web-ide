@@ -4,6 +4,16 @@
 
 ---
 
+## ⚠️ Важно: Volume БД (рекомендации экспертов 2026-02-01)
+
+Knowledge OS использует **общий volume** `atra_knowledge_postgres_data` (85+ экспертов, 26k+ узлов знаний).
+
+- **НЕ выполняйте** `docker-compose down -v` — это удалит данные!
+- Для остановки: `./scripts/safe_docker_down.sh` или `docker-compose down` (без -v)
+- Проверка БД: `./scripts/backup_knowledge_os.sh` для бэкапа
+
+---
+
 ## 🔧 Решение
 
 ### Вариант 1: Перезапуск Docker Desktop
@@ -51,7 +61,10 @@ docker ps
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 
-# Запустить Victoria Agent
+# Полный запуск (проверка volume, БД, агенты)
+./scripts/start_full_corporation.sh
+
+# Или только Victoria Agent
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 
 # Проверить логи

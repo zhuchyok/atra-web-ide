@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AdaptiveAgent:
     """Адаптивный агент с reinforcement learning"""
     
-    def __init__(self, agent_name: str = "Victoria"):
+    def __init__(self, agent_name: str = "Виктория"):
         self.agent_name = agent_name
         self.rl = get_rl(agent_name)
         self.hitl = get_hitl()
@@ -176,7 +176,7 @@ class AdaptiveAgent:
 # Глобальные экземпляры
 _adaptive_agents: Dict[str, AdaptiveAgent] = {}
 
-def get_adaptive_agent(agent_name: str = "Victoria") -> AdaptiveAgent:
+def get_adaptive_agent(agent_name: str = "Виктория") -> AdaptiveAgent:
     """Получить адаптивный агент"""
     if agent_name not in _adaptive_agents:
         _adaptive_agents[agent_name] = AdaptiveAgent(agent_name=agent_name)

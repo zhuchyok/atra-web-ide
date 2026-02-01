@@ -42,7 +42,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / 'app'))
 
-# Попытка импорта asyncpg
+# Зависимости (asyncpg) устанавливаются на этапе setup, не в рантайме (12-Factor).
+ASYNCPG_SETUP_HINT = "Установите зависимости: bash knowledge_os/scripts/setup_knowledge_os.sh"
 try:
     import asyncpg
     ASYNCPG_AVAILABLE = True
@@ -217,28 +218,40 @@ class ExpertChecker:
             return []
     
     async def get_db_experts(self) -> Set[str]:
-        """Получает актуальный список экспертов из БД."""
+        """Получает актуальный список экспертов из БД (включая автономно нанятых)."""
         if not ASYNCPG_AVAILABLE:
-            print("❌ asyncpg не установлен. Установите: pip install asyncpg")
+            print("❌ asyncpg не установлен.", ASYNCPG_SETUP_HINT)
             return set()
         
         try:
             conn = await asyncpg.connect(self.db_url)
-            rows = await conn.fetch("SELECT name, role, department FROM experts ORDER BY name")
+            rows = await conn.fetch(
+                "SELECT name, role, department, metadata FROM experts ORDER BY name"
+            )
             await conn.close()
             
             self.db_experts = {row['name'] for row in rows}
-            self.db_experts_info = [dict(row) for row in rows]
-            
+            self.db_experts_info = [
+                {k: v for k, v in dict(row).items() if k != 'metadata'}
+                for row in rows
+            ]
+            # Автономно нанятые — валидны, даже если не в KNOWN/хардкодах
+            self.autonomous_names = {
+                row['name'] for row in rows
+                if (row.get('metadata') or {}).get('is_autonomous') in (True, 'true')
+            }
             if self.verbose:
-                print(f"\n📊 Эксперты в БД ({len(self.db_experts)}):")
+                print(f"\n📊 Эксперты в БД ({len(self.db_experts)}), автономных: {len(self.autonomous_names)}")
                 for row in rows:
                     dept = row['department'] or 'N/A'
-                    print(f"   - {row['name']} ({row['role']}, {dept})")
+                    aut = " [автономный]" if row['name'] in self.autonomous_names else ""
+                    print(f"   - {row['name']} ({row['role']}, {dept}){aut}")
             
             return self.db_experts
         except Exception as e:
             print(f"❌ Ошибка подключения к БД: {e}")
+            self.db_experts = set()
+            self.autonomous_names = set()
             return set()
     
     async def validate_fallback_experts(self) -> Optional[ValidationResult]:
@@ -332,6 +345,7 @@ class ExpertChecker:
     def analyze_discrepancies(self) -> Tuple[Set[str], Set[str]]:
         """
         Анализирует расхождения между хардкодными списками и БД.
+        Автономно нанятые (metadata->>'is_autonomous'='true') — валидны, не флаговать.
         
         Returns:
             (missing_in_db, missing_in_code): Имена, отсутствующие в БД и в коде
@@ -340,8 +354,11 @@ class ExpertChecker:
         for finding in self.hardcoded_findings:
             hardcoded_names.update(finding['names'])
         
+        autonomous = getattr(self, 'autonomous_names', set())
         missing_in_db = hardcoded_names - self.db_experts
-        missing_in_code = self.db_experts - hardcoded_names - {'Виктория'}  # Виктория - исключение
+        missing_in_code = (
+            self.db_experts - hardcoded_names - {'Виктория'} - autonomous
+        )  # Виктория и автономные — исключения
         
         return missing_in_db, missing_in_code
     

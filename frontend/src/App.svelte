@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import Chat from './components/Chat.svelte'
   import PlanPanel from './components/PlanPanel.svelte'
+  import SystemMetrics from './components/SystemMetrics.svelte'
   import Editor from './components/Editor.svelte'
   import FileTree from './components/FileTree.svelte'
   import Preview from './components/Preview.svelte'
@@ -158,6 +159,14 @@
           <span class="text-gray-300">📋</span>
           <span class="font-medium">План</span>
         </div>
+        <div
+          class="px-3 py-1 rounded-t text-sm flex items-center gap-2 transition-colors cursor-pointer shrink-0 {activeCenterTab === 'monitoring' ? 'bg-atra-dark border-b-2 border-atra-primary' : 'bg-atra-darker hover:bg-atra-accent/30'}"
+          on:click={() => activeCenterTab = 'monitoring'}
+          title="Мониторинг системы (CPU, память, диск)"
+        >
+          <span class="text-gray-300">📊</span>
+          <span class="font-medium">Мониторинг</span>
+        </div>
         {#each $openFiles as file}
           <div
             class="px-3 py-1 rounded-t text-sm flex items-center gap-2 transition-colors cursor-pointer shrink-0 {activeCenterTab === file.path ? 'bg-atra-dark' : 'bg-atra-darker hover:bg-atra-accent/30'}"
@@ -231,6 +240,8 @@
           </div>
         {:else if activeCenterTab === 'plan'}
           <PlanPanel />
+        {:else if activeCenterTab === 'monitoring'}
+          <SystemMetrics />
         {:else}
           <div class="flex-1 min-h-0">
             <Editor />

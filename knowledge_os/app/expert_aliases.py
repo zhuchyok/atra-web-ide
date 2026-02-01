@@ -49,6 +49,7 @@ DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
 FALLBACK_ALIASES: Dict[str, str] = {
     'виктория': 'Виктория',
     'вика': 'Виктория',
+    'veronica': 'Вероника',
     'владимир': 'Владимир',
     'вова': 'Владимир',
     'дмитрий': 'Дмитрий',
@@ -58,6 +59,25 @@ FALLBACK_ALIASES: Dict[str, str] = {
     'максим': 'Максим',
     'макс': 'Максим',
 }
+
+# Латинские имена агентов → кириллица в БД. Используется везде: task_distribution,
+# expert_services, ai_core, smart_worker, backend. Victoria/Veronica в коде — Latin, в experts — Cyrillic.
+AGENT_NAME_TO_DB: Dict[str, str] = {
+    "Veronica": "Вероника", "veronica": "Вероника", "VERONICA": "Вероника",
+    "Victoria": "Виктория", "victoria": "Виктория", "VICTORIA": "Виктория",
+}
+
+
+def resolve_expert_name_for_db(name: str) -> str:
+    """
+    Разрешает латинское имя агента в каноническое имя в БД (кириллица).
+    Veronica → Вероника, Victoria → Виктория. Для остальных возвращает как есть.
+    """
+    if not name:
+        return name
+    n = (name or "").strip()
+    return AGENT_NAME_TO_DB.get(n, name)
+
 
 # Стандартные сокращения имён
 STANDARD_DIMINUTIVES: Dict[str, List[str]] = {
@@ -72,6 +92,7 @@ STANDARD_DIMINUTIVES: Dict[str, List[str]] = {
     'Алексей': ['лёша', 'алёша', 'лёха'],
     'Павел': ['паша', 'пашка'],
     'Игорь': ['игорёк', 'гоша'],
+    'Вероника': ['veronica'],
     'Роман': ['рома', 'ромка'],
     'Ольга': ['оля', 'олечка'],
     'Татьяна': ['таня', 'танюша'],

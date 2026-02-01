@@ -220,9 +220,10 @@ def get_prompt_template(role: str) -> str:
     """
     Получает шаблон промпта для роли.
     Для Виктории/Team Lead добавляет блок «услуги сотрудников» для точного делегирования и планирования.
+    Fallback: если роли нет в PROMPT_TEMPLATES — загрузка system_prompt из БД (автономные эксперты).
     
     Args:
-        role: Имя роли или роль эксперта (Павел/Мария/Максим/...)
+        role: Имя роли или имя эксперта (Павел/Мария/Максим/...)
     
     Returns:
         str: Шаблон промпта
@@ -236,6 +237,14 @@ def get_prompt_template(role: str) -> str:
             except Exception:
                 pass
         return template
+    # Fallback: system_prompt из БД для неизвестных экспертов (автономный найм)
+    try:
+        from expert_services import get_expert_system_prompt
+        db_prompt = get_expert_system_prompt(role)
+        if db_prompt and len(db_prompt.strip()) > 50:
+            return db_prompt
+    except ImportError:
+        pass
     # Fallback на Team Lead шаблон с блоком экспертов
     out = TEAM_LEAD_PROMPT
     if get_expert_services_for_prompt:

@@ -1,0 +1,31 @@
+{
+  "description": "Промпты для полного цикла теста чата Victoria: от принятия сообщения до ответа. Режимы: async (202 + poll), sync (POST без async_mode).",
+  "prompts": {
+    "simple": {
+      "goal": "Привет. Ответь одним предложением: как тебя зовут и чем ты занимаешься?",
+      "expected_min_length": 20,
+      "hint": "Быстрый ответ без оркестратора и тяжёлых моделей."
+    },
+    "medium": {
+      "goal": "Покажи список файлов в папке frontend (только названия, без кода).",
+      "expected_min_length": 10,
+      "hint": "Может задействовать инструменты или Veronica."
+    },
+    "complex": {
+      "goal": "Кратко: какой статус проекта корпорации и что сейчас в приоритете? Ответ в 2–3 предложениях.",
+      "expected_min_length": 30,
+      "hint": "Анализ БЗ, оркестратор; может занять 3–10 мин — используйте --poll-max-wait 600.",
+      "suggested_poll_max_wait_sec": 600
+    }
+  },
+  "modes": {
+    "async": {
+      "description": "POST /run?async_mode=true → 202 + task_id → GET /run/status/{task_id} до completed",
+      "client": "victoria_chat.send_message(..., async_run=True)"
+    },
+    "sync": {
+      "description": "POST /run без async_mode → ждём 200 с output в теле",
+      "client": "requests.post(url/run, json=payload) без params async_mode"
+    }
+  }
+}

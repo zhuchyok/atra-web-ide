@@ -490,6 +490,8 @@ class ExtendedThinkingEngine:
         import httpx
         from typing import List
         
+        logger.info("[VICTORIA_CYCLE] extended_thinking _generate_response prompt_preview=%s category=%s",
+                    (prompt or "")[:60], category)
         # КРИТИЧНО: Интеллектуальный выбор модели на основе задачи
         selected_model = self.model_name  # Fallback на базовую модель
         
@@ -503,7 +505,7 @@ class ExtendedThinkingEngine:
                 is_reasoning = category and category.lower() in ["reasoning", "логика", "анализ", "planning"]
                 prioritize_quality = is_reasoning or "подумай" in prompt.lower() or "логика" in prompt.lower()
                 
-                optimal_model, task_category, confidence = self.model_router.select_optimal_model(
+                optimal_model, task_category, confidence = await self.model_router.select_optimal_model(
                     prompt=prompt,
                     category=category,
                     available_models=available_models,

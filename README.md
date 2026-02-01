@@ -64,7 +64,9 @@ cp .env.example .env   # при наличии; отредактируйте .en
 bash knowledge_os/scripts/setup_knowledge_os.sh
 ```
 
-Скрипт создаёт `knowledge_os/.venv`, ставит зависимости (в т.ч. **watchdog** для hot-reload skills) и при заданном `DATABASE_URL` применяет миграцию организационных колонок. Если БД недоступна — миграцию можно применить позже: `cd knowledge_os && .venv/bin/python scripts/apply_organizational_columns_migration.py` или один раз запустить Enhanced Orchestrator (Phase 0.5 применит все миграции).
+Скрипт создаёт `knowledge_os/.venv` и ставит зависимости из `knowledge_os/requirements.txt`: **asyncpg** (БД), **moondream** (vision), **watchdog** (hot-reload skills) и др. Зависимости устанавливаются один раз при setup, не в рантайме (12-Factor). Если БД недоступна — миграцию можно применить позже: `cd knowledge_os && .venv/bin/python scripts/apply_organizational_columns_migration.py` или один раз запустить Enhanced Orchestrator (Phase 0.5 применит все миграции).
+
+**Работа с картинками (Pillow):** Vision через Moondream Station API работает без Pillow. Кто запускает локальную обработку изображений — один раз выполнить: `bash knowledge_os/scripts/install_pillow.sh`. На macOS при ошибке сборки Pillow нужен libjpeg: при необходимости сначала исправить права — `sudo chown -R $(whoami) /opt/homebrew`, затем `brew install jpeg`.
 
 ### Запуск (Docker)
 

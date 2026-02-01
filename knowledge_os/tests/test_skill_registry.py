@@ -7,7 +7,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from app.skill_registry import SkillRegistry, Skill, SkillSource, SkillMetadata
+from knowledge_os.app.skill_registry import SkillRegistry, Skill, SkillSource, SkillMetadata
 
 
 def test_skill_registry_initialization():

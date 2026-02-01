@@ -354,36 +354,68 @@ def _set_query_timeout(conn, seconds=15):
     except Exception:
         pass
 
-@st.cache_data(ttl=60)  # Кэш на 60 секунд для оптимизации
+@st.cache_data(ttl=60, max_entries=100)  # Ограничение кэша — снижает потребление памяти
 def fetch_data(query, params=None, cache_key=None):
-    """Оптимизированная функция получения данных с кэшированием"""
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            return cur.fetchall()
-    except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        st.error(f"Ошибка БД: {e}")
-        return []
-    except Exception as e:
-        st.error(f"Неожиданная ошибка БД: {e}")
-        return []
+    """Оптимизированная функция получения данных с кэшированием и повтором при deadlock."""
+    import time
+    conn = None
+    for attempt in range(3):
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(query, params or ())
+                return cur.fetchall()
+        except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            if conn and not getattr(conn, "closed", True):
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            if "deadlock detected" in str(e).lower() and attempt < 2:
+                time.sleep(0.15 * (attempt + 1))
+                continue
+            st.error(f"Ошибка БД: {e}")
+            return []
+        except Exception as e:
+            if conn and not getattr(conn, "closed", True):
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            st.error(f"Неожиданная ошибка БД: {e}")
+            return []
 
 
-@st.cache_data(ttl=15)  # Короткий кэш для вкладки «Задачи» — новые задачи видны в течение 15 сек
+@st.cache_data(ttl=15, max_entries=50)  # Ограничение кэша задач
 def fetch_data_tasks(query, params=None):
-    """Данные для вкладки Задачи (обновляются чаще)."""
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cur:
-            cur.execute(query, params)
-            return cur.fetchall()
-    except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        st.error(f"Ошибка БД: {e}")
-        return []
-    except Exception as e:
-        st.error(f"Неожиданная ошибка БД: {e}")
-        return []
+    """Данные для вкладки Задачи (обновляются чаще). С повтором при deadlock."""
+    import time
+    conn = None
+    for attempt in range(3):
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute(query, params or ())
+                return cur.fetchall()
+        except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+            if conn and not getattr(conn, "closed", True):
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            if "deadlock detected" in str(e).lower() and attempt < 2:
+                time.sleep(0.15 * (attempt + 1))
+                continue
+            st.error(f"Ошибка БД: {e}")
+            return []
+        except Exception as e:
+            if conn and not getattr(conn, "closed", True):
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            st.error(f"Неожиданная ошибка БД: {e}")
+            return []
 
 def run_query(query, params=None):
     """Выполняет SQL запрос на изменение данных. Без плейсхолдеров вызывайте run_query(query) без params."""
@@ -402,6 +434,55 @@ def run_query(query, params=None):
     except Exception as e:
         st.error(f"Неожиданная ошибка выполнения запроса: {e}")
         return False
+
+
+@st.cache_data(ttl=60, max_entries=5)
+def _fetch_intellectual_capital():
+    """Интеллектуальный Капитал: полный запрос или fallback при отсутствии usage_count/is_verified. Кэш — единый источник для header и секции."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    COUNT(*) as total_nodes,
+                    COALESCE(SUM(usage_count), 0) as total_usage,
+                    AVG(confidence_score) as avg_confidence,
+                    COUNT(*) FILTER (WHERE is_verified = true) as verified_nodes
+                FROM knowledge_nodes
+            """)
+            return cur.fetchall()
+    except (psycopg2.Error, psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+        if conn and not getattr(conn, "closed", True):
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        err = str(e).lower()
+        if "usage_count" in err or "is_verified" in err:
+            try:
+                if conn and not getattr(conn, "closed", True):
+                    conn.rollback()
+                with conn.cursor() as cur2:
+                    cur2.execute("""
+                        SELECT COUNT(*) as total_nodes, 0::bigint as total_usage,
+                               AVG(confidence_score) as avg_confidence, 0::bigint as verified_nodes
+                        FROM knowledge_nodes
+                    """)
+                    return cur2.fetchall()
+            except Exception:
+                pass
+            st.warning("Выполните миграцию: `python3 scripts/fix_dashboard_schema.py`")
+        st.error(f"Ошибка БД: {e}")
+        return []
+    except Exception as e:
+        if conn and not getattr(conn, "closed", True):
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        st.error(f"Ошибка БД: {e}")
+        return []
 
 
 def _normalize_metadata(metadata):
@@ -556,8 +637,9 @@ def main():
             st.metric("Задач", f"{total_tasks:,}")
     with col_header3:
         with st.spinner(""):
-            nodes_data = fetch_data("SELECT COUNT(*) as count FROM knowledge_nodes")
-            total_nodes = nodes_data[0]['count'] if nodes_data and nodes_data[0] else 0
+            # Единый источник с Интеллектуальным Капиталом — одинаковое число везде
+            nodes_stats = _fetch_intellectual_capital()
+            total_nodes = nodes_stats[0]['total_nodes'] if nodes_stats and nodes_stats[0] else 0
             st.metric("Узлов знаний", f"{total_nodes:,}")
     with col_header4:
         with st.spinner(""):
@@ -606,7 +688,7 @@ def main():
         # Проверка доступности сервисов (с кэшированием для оптимизации)
         st.markdown("### 🔌 Статус сервисов")
         
-        @st.cache_data(ttl=30)  # Кэш на 30 секунд для проверки сервисов
+        @st.cache_data(ttl=30, max_entries=5)  # Кэш проверки сервисов
         def check_services():
             """Проверка статуса сервисов с кэшированием"""
             services = {"PostgreSQL": "✅", "Victoria Agent": "✅"}
@@ -731,14 +813,8 @@ def main():
         
         # Интеллектуальный Капитал - оптимизировано (один запрос вместо нескольких)
         st.header("📊 Интеллектуальный Капитал")
-        stats_data = fetch_data("""
-            SELECT 
-                COUNT(*) as total_nodes,
-                SUM(usage_count) as total_usage,
-                AVG(confidence_score) as avg_confidence,
-                COUNT(*) FILTER (WHERE is_verified = true) as verified_nodes
-            FROM knowledge_nodes
-        """)
+        # Запрос с поддержкой старых схем (если usage_count/is_verified нет — run: python3 scripts/fix_dashboard_schema.py)
+        stats_data = _fetch_intellectual_capital()
         if stats_data and stats_data[0]:
             stats = stats_data[0]
             st.metric("Узлов знаний", f"{stats['total_nodes']:,}")
@@ -786,7 +862,7 @@ def main():
             with st.spinner("🔍 Поиск в базе знаний..."):
                 embedding = get_embedding(search_q)
                 results = fetch_data("""
-                    SELECT k.content, d.name as domain, (1 - (k.embedding <=> %s::vector)) as similarity
+                    SELECT LEFT(k.content, 300) as content, d.name as domain, (1 - (k.embedding <=> %s::vector)) as similarity
                     FROM knowledge_nodes k JOIN domains d ON k.domain_id = d.id
                     WHERE k.embedding IS NOT NULL
                     ORDER BY similarity DESC LIMIT 5
@@ -1175,6 +1251,11 @@ def main():
     # 🕵️ РЕКРУТИНГ (Singularity 3.0)
     with tabs[3]:
         st.subheader("🕵️ Автономный Рекрутинг Экспертов")
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Обновить", key="refresh_autonomous_recruiting"):
+                st.cache_data.clear()
+                st.rerun()
         hired_experts = fetch_data("""
             SELECT name, role, department, metadata->>'hired_at' as hired_at 
             FROM experts 
@@ -1198,7 +1279,7 @@ def main():
     with tabs[4]:
         st.subheader("🛡️ Иммунитет: Результаты Стресс-Тестов")
         attacks = fetch_data("""
-            SELECT content, expert_consensus->>'adversarial_attack' as attack, 
+            SELECT LEFT(content, 300) as content, expert_consensus->>'adversarial_attack' as attack, 
                    metadata->>'survived' as survived, confidence_score
             FROM knowledge_nodes 
             WHERE metadata->>'adversarial_tested' = 'true'
@@ -1220,10 +1301,12 @@ def main():
     # 🎭 АУДИТ КОДА (Singularity 3.0)
     with tabs[5]:
         st.subheader("🎭 Когнитивное Зеркало: Аудит Системы")
-        audit_tasks = fetch_data("""
+        show_completed = st.checkbox("Показать завершённые", value=False, key="audit_show_completed")
+        status_filter = "" if show_completed else "AND status NOT IN ('completed', 'cancelled')"
+        audit_tasks = fetch_data(f"""
             SELECT title, description, metadata->>'severity' as severity, status
             FROM tasks 
-            WHERE metadata->>'source' = 'code_auditor'
+            WHERE metadata->>'source' = 'code_auditor' {status_filter}
             ORDER BY created_at DESC LIMIT 10
         """)
         for task in audit_tasks:
@@ -1411,7 +1494,7 @@ def main():
         
         # Показываем последние отчеты (приоритет Enhanced) - включаем ID для удаления
         scout_reports = fetch_data("""
-            SELECT id, content, created_at, metadata 
+            SELECT id, LEFT(content, 500) as content, created_at, metadata 
             FROM knowledge_nodes 
             WHERE metadata->>'source' IN ('scout_research', 'enhanced_scout_research', 'enhanced_scout_report')
             ORDER BY 
@@ -1619,7 +1702,7 @@ def main():
         # Топ ликвидных узлов
         roi_data = fetch_data("""
             SELECT 
-                k.content, d.name as domain, k.usage_count, k.confidence_score,
+                LEFT(k.content, 300) as content, d.name as domain, k.usage_count, k.confidence_score,
                 (k.usage_count * k.confidence_score) as liquidity_score,
                 k.created_at
             FROM knowledge_nodes k 
@@ -1751,7 +1834,7 @@ def main():
         st.markdown("### 🏢 Структура по департаментам")
         dept_search = st.text_input("🔍 Поиск департамента", placeholder="Введите название...", key="dept_search")
         
-        experts = fetch_data("SELECT name, role, department, system_prompt, performance_score FROM experts ORDER BY department, name")
+        experts = fetch_data("SELECT name, role, department, LEFT(system_prompt, 800) as system_prompt, performance_score FROM experts ORDER BY department, name")
         if experts:
             df_experts = pd.DataFrame(experts)
             if dept_search:
@@ -1901,9 +1984,23 @@ def main():
         st.markdown("---")
         
         # Фильтры и управление (улучшенные)
+        # Очередь на ручную проверку (4.2 плана Resilient Task Execution)
+        try:
+            deferred_count_data = fetch_data_tasks(
+                "SELECT COUNT(*) as cnt FROM tasks WHERE status = 'completed' AND metadata->>'deferred_to_human' = 'true'"
+            )
+            deferred_count = int(deferred_count_data[0]["cnt"]) if deferred_count_data and deferred_count_data[0] else 0
+        except (IndexError, KeyError, TypeError):
+            deferred_count = 0
+        if deferred_count > 0:
+            st.warning(f"⏳ **Очередь на ручную проверку:** {deferred_count} задач (AI недоступен, требуют внимания)")
         col_filter1, col_filter2, col_action = st.columns([2, 2, 1])
         with col_filter1:
-            status_filter = st.selectbox("Фильтр по статусу", ["Все", "pending", "in_progress", "completed", "cancelled", "failed"], key="task_status_filter")
+            status_filter = st.selectbox(
+                "Фильтр по статусу",
+                ["Все", "pending", "in_progress", "completed", "cancelled", "failed", "Ручная проверка (deferred)"],
+                key="task_status_filter"
+            )
         with col_filter2:
             experts_list = fetch_data_tasks("SELECT DISTINCT name FROM experts ORDER BY name")
             expert_names = [e['name'] for e in experts_list] if experts_list else []
@@ -1933,7 +2030,10 @@ def main():
         # Запрос задач с фильтрами (улучшенный, с защитой от SQL injection)
         status_condition = ""
         status_param = None
-        if status_filter != "Все":
+        deferred_condition = ""
+        if status_filter == "Ручная проверка (deferred)":
+            deferred_condition = "AND t.status = 'completed' AND t.metadata->>'deferred_to_human' = 'true'"
+        elif status_filter != "Все":
             status_condition = "AND t.status = %s"
             status_param = status_filter
         
@@ -1955,9 +2055,10 @@ def main():
         
         # Безопасный запрос с LEFT JOIN на случай отсутствия assignee
         # Используем параметризованные запросы для безопасности
-        query_parts = ["SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE 1=1"]
+        query_parts = ["SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department, t.metadata FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE 1=1"]
         query_params = []
-        
+        if deferred_condition:
+            query_parts.append(deferred_condition)
         if status_condition and status_param:
             query_parts.append(status_condition)
             query_params.append(status_param)
@@ -2034,6 +2135,9 @@ def main():
                             is_old = True
                 
                 old_badge = " ⚠️ СТАРАЯ" if is_old else ""
+                meta = task.get('metadata') or {}
+                is_deferred = meta.get('deferred_to_human') is True if isinstance(meta, dict) else False
+                deferred_badge = " 📋 РУЧНАЯ ПРОВЕРКА" if is_deferred else ""
                 department = task.get('department', 'N/A')
                 
                 st.markdown(f"""
@@ -2045,7 +2149,7 @@ def main():
                                     👤 {task['assignee']} | 📁 {department} | 📅 {created_date}
                                 </div>
                             </div>
-                            <span style="color: {status_color}; font-weight: 800; font-size: 12px; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{task['status'].upper()}{old_badge}</span>
+                            <span style="color: {status_color}; font-weight: 800; font-size: 12px; padding: 4px 12px; background: rgba(88, 166, 255, 0.1); border-radius: 12px;">{task['status'].upper()}{old_badge}{deferred_badge}</span>
                         </div>
                         <div style="font-size: 14px; color: #c9d1d9; margin-top: 10px; line-height: 1.6;">{(task.get('description') or '')[:300]}{'...' if len(task.get('description') or '') > 300 else ''}</div>
                         <div style="font-size: 11px; color: #6e7681; margin-top: 8px;">Обновлено: {updated_date}</div>
@@ -2177,7 +2281,7 @@ def main():
     # 🕸️ КАРТА РАЗУМА
     with tabs[14]:
         st.subheader("🕸️ Карта Разума")
-        db_nodes = fetch_data("SELECT k.id, k.content, d.name as domain FROM knowledge_nodes k JOIN domains d ON k.domain_id = d.id LIMIT 100")
+        db_nodes = fetch_data("SELECT k.id, LEFT(k.content, 150) as content, d.name as domain FROM knowledge_nodes k JOIN domains d ON k.domain_id = d.id LIMIT 100")
         if db_nodes and len(db_nodes) > 0:
             G = nx.Graph()
             for n in db_nodes:
@@ -2344,7 +2448,7 @@ def main():
             params = [selected_domain, page_size, offset]
         
         query = f"""
-            SELECT k.id, k.content, d.name as domain, k.created_at
+            SELECT k.id, LEFT(k.content, 1500) as content, d.name as domain, k.created_at
             FROM knowledge_nodes k 
             JOIN domains d ON k.domain_id = d.id 
             WHERE k.is_verified = FALSE{domain_filter}
@@ -2663,6 +2767,62 @@ def main():
                             - Накопить данные для расчета метрик
                             - Проверить наличие записей в соответствующих таблицах БД
                             """)
+
+                # Singularity 10.0 метрики
+                st.divider()
+                st.subheader("🚀 Singularity 10.0 — Автономия и применение знаний")
+                s10_metrics = []
+                try:
+                    s10_metrics = fetch_data("""
+                        WITH kn_7d AS (
+                            SELECT COUNT(*) as cnt FROM knowledge_nodes
+                            WHERE created_at > NOW() - INTERVAL '7 days'
+                              AND (metadata->>'source' != 'corporation_knowledge_system' OR metadata->>'source' IS NULL)
+                        ),
+                        tasks_stats AS (
+                            SELECT
+                                COUNT(*) FILTER (WHERE status = 'completed') as completed,
+                                COUNT(*) as total
+                            FROM tasks
+                            WHERE created_at > NOW() - INTERVAL '30 days'
+                        ),
+                        kt_stats AS (
+                            SELECT COUNT(*) as cnt FROM knowledge_nodes
+                            WHERE metadata->>'source' IN ('knowledge_bridge', 'knowledge_applicator')
+                              AND created_at > NOW() - INTERVAL '7 days'
+                        )
+                        SELECT
+                            (SELECT cnt FROM kn_7d) as improvements_per_cycle,
+                            (SELECT completed::float / NULLIF(total, 0) FROM tasks_stats) as success_rate,
+                            (SELECT cnt FROM kt_stats) as knowledge_transfer
+                    """)
+                    prompt_evos = 0
+                    try:
+                        pe = fetch_data("SELECT COUNT(*) as c FROM prompt_change_log WHERE applied_at > NOW() - INTERVAL '7 days'")
+                        if pe and len(pe) > 0:
+                            prompt_evos = pe[0].get('c') or 0
+                    except Exception:
+                        pass
+                    if s10_metrics and len(s10_metrics) > 0:
+                        s10_metrics[0]['prompt_evolutions'] = prompt_evos
+                    if s10_metrics and len(s10_metrics) > 0:
+                        m = s10_metrics[0]
+                        c1, c2, c3, c4 = st.columns(4)
+                        with c1:
+                            st.metric("Improvements per cycle (7d)", m.get('improvements_per_cycle') or 0, help="knowledge_nodes за 7 дней")
+                        with c2:
+                            sr = (m.get('success_rate') or 0) * 100
+                            st.metric("Success rate (tasks)", f"{sr:.1f}%", help="% completed за 30 дней")
+                        with c3:
+                            st.metric("Prompt evolutions (7d)", m.get('prompt_evolutions') or 0, help="prompt_change_log за 7 дней")
+                        with c4:
+                            st.metric("Knowledge transfer (7d)", m.get('knowledge_transfer') or 0, help="knowledge_bridge/applicator за 7 дней")
+                except Exception as e:
+                    st.caption(f"Singularity 10.0 метрики: {e}")
+                    try:
+                        st.caption("Убедитесь, что миграция add_prompt_change_log.sql применена.")
+                    except Exception:
+                        pass
                 
             except Exception as e:
                 st.error(f"Ошибка загрузки метрик Singularity 9.0: {e}")
@@ -2696,7 +2856,9 @@ def main():
 
             experts_for_task = []
             try:
-                experts_for_task = fetch_data_tasks("SELECT id, name, role, department FROM experts WHERE is_active = true ORDER BY name")
+                experts_for_task = fetch_data_tasks(
+                    "SELECT id, name, role, department FROM experts WHERE (is_active = true OR is_active IS NULL) ORDER BY name"
+                )
             except Exception:
                 try:
                     experts_for_task = fetch_data_tasks("SELECT id, name, role, department FROM experts ORDER BY name")

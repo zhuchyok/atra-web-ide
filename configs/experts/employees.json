@@ -1,64 +1,431 @@
 {
-  "_comment": "Единый источник списка сотрудников. Добавьте нового сотрудника и закоммитьте — при включённых хуках (один раз: ./scripts/install_git_hooks.sh) sync запустится автоматически.",
-  "updated": "2026-01-27",
+  "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
+  "updated": "2026-02-01",
   "employees": [
-    {"name": "Виктория", "role": "Team Lead", "department": "Leadership"},
-    {"name": "Дмитрий", "role": "ML Engineer", "department": "ML/AI"},
-    {"name": "Игорь", "role": "Backend Developer", "department": "Backend"},
-    {"name": "Сергей", "role": "DevOps Engineer", "department": "DevOps/Infra"},
-    {"name": "Анна", "role": "QA Engineer", "department": "QA"},
-    {"name": "Максим", "role": "Data Analyst", "department": "Strategy/Data"},
-    {"name": "Елена", "role": "Monitor", "department": "Monitoring"},
-    {"name": "Алексей", "role": "Security Engineer", "department": "Security"},
-    {"name": "Павел", "role": "Trading Strategy Developer", "department": "Trading"},
-    {"name": "Мария", "role": "Risk Manager", "department": "Risk Management"},
-    {"name": "Роман", "role": "Database Engineer", "department": "Database"},
-    {"name": "Ольга", "role": "Performance Engineer", "department": "Performance"},
-    {"name": "Татьяна", "role": "Technical Writer", "department": "Documentation"},
-    {"name": "Даниил", "role": "Principal Backend Architect", "department": "Backend"},
-    {"name": "Никита", "role": "Full-stack Developer", "department": "Backend"},
-    {"name": "Андрей", "role": "Frontend Developer", "department": "Frontend"},
-    {"name": "София", "role": "UI/UX Designer", "department": "Frontend"},
-    {"name": "Артем", "role": "Code Reviewer", "department": "QA"},
-    {"name": "Дарья", "role": "SEO & AI Visibility Specialist", "department": "Marketing"},
-    {"name": "Марина", "role": "Content Manager", "department": "Marketing"},
-    {"name": "Екатерина", "role": "Financial Analyst", "department": "Trading"},
-    {"name": "Анастасия", "role": "Product Manager", "department": "Product"},
-    {"name": "Юлия", "role": "Legal Counsel", "department": "Legal"},
-    {"name": "Владимир", "role": "Data Engineer", "department": "Database"},
-    {"name": "Глеб", "role": "SRE Engineer", "department": "DevOps/Infra"},
-    {"name": "Яна", "role": "UX Researcher", "department": "Frontend"},
-    {"name": "Кирилл", "role": "Backend Developer", "department": "Backend"},
-    {"name": "Михаил", "role": "ML Researcher", "department": "ML/AI"},
-    {"name": "Александр", "role": "System Architect", "department": "Architecture"},
-    {"name": "Наталья", "role": "QA Lead", "department": "QA"},
-    {"name": "Светлана", "role": "Technical Writer", "department": "Documentation"},
-    {"name": "Олег", "role": "DevOps Engineer", "department": "DevOps/Infra"},
-    {"name": "Вадим", "role": "Security Analyst", "department": "Security"},
-    {"name": "Полина", "role": "Frontend Developer", "department": "Frontend"},
-    {"name": "Ксения", "role": "Data Analyst", "department": "Strategy/Data"},
-    {"name": "Виталий", "role": "Performance Engineer", "department": "Performance"},
-    {"name": "Станислав", "role": "Database Engineer", "department": "Database"},
-    {"name": "Денис", "role": "Backend Developer", "department": "Backend"},
-    {"name": "Евгений", "role": "ML Engineer", "department": "ML/AI"},
-    {"name": "Илья", "role": "Full-stack Developer", "department": "Backend"},
-    {"name": "Леонид", "role": "Risk Analyst", "department": "Risk Management"},
-    {"name": "Тимофей", "role": "Trading Analyst", "department": "Trading"},
-    {"name": "Валерия", "role": "Product Analyst", "department": "Product"},
-    {"name": "Ульяна", "role": "Content Writer", "department": "Marketing"},
-    {"name": "Алла", "role": "HR Specialist", "department": "HR"},
-    {"name": "Борис", "role": "Infrastructure Engineer", "department": "DevOps/Infra"},
-    {"name": "Галина", "role": "Compliance Officer", "department": "Legal"},
-    {"name": "Зоя", "role": "Support Engineer", "department": "Support"},
-    {"name": "Лариса", "role": "QA Engineer", "department": "QA"},
-    {"name": "Инна", "role": "Data Scientist", "department": "Strategy/Data"},
-    {"name": "Марк", "role": "Backend Developer", "department": "Backend"},
-    {"name": "Филипп", "role": "Frontend Developer", "department": "Frontend"},
-    {"name": "Георгий", "role": "Monitor", "department": "Monitoring"},
-    {"name": "Василий", "role": "Security Engineer", "department": "Security"},
-    {"name": "Константин", "role": "Technical Lead", "department": "Architecture"},
-    {"name": "Ирина", "role": "Documentation Writer", "department": "Documentation"},
-    {"name": "Людмила", "role": "Analyst", "department": "Strategy/Data"},
-    {"name": "Вероника", "role": "Local Developer (Agent)", "department": "Development"}
+    {
+      "name": "Виктория",
+      "role": "Team Lead",
+      "department": "Leadership"
+    },
+    {
+      "name": "Дмитрий",
+      "role": "ML Engineer",
+      "department": "ML/AI"
+    },
+    {
+      "name": "Игорь",
+      "role": "Backend Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Сергей",
+      "role": "DevOps Engineer",
+      "department": "DevOps/Infra"
+    },
+    {
+      "name": "Анна",
+      "role": "QA Engineer",
+      "department": "QA"
+    },
+    {
+      "name": "Максим",
+      "role": "Data Analyst",
+      "department": "Strategy/Data"
+    },
+    {
+      "name": "Елена",
+      "role": "Monitor",
+      "department": "Monitoring"
+    },
+    {
+      "name": "Алексей",
+      "role": "Security Engineer",
+      "department": "Security"
+    },
+    {
+      "name": "Павел",
+      "role": "Trading Strategy Developer",
+      "department": "Trading"
+    },
+    {
+      "name": "Мария",
+      "role": "Risk Manager",
+      "department": "Risk Management"
+    },
+    {
+      "name": "Роман",
+      "role": "Database Engineer",
+      "department": "Database"
+    },
+    {
+      "name": "Ольга",
+      "role": "Performance Engineer",
+      "department": "Performance"
+    },
+    {
+      "name": "Татьяна",
+      "role": "Technical Writer",
+      "department": "Documentation"
+    },
+    {
+      "name": "Даниил",
+      "role": "Principal Backend Architect",
+      "department": "Backend"
+    },
+    {
+      "name": "Никита",
+      "role": "Full-stack Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Андрей",
+      "role": "Frontend Developer",
+      "department": "Frontend"
+    },
+    {
+      "name": "София",
+      "role": "UI/UX Designer",
+      "department": "Frontend"
+    },
+    {
+      "name": "Артем",
+      "role": "Code Reviewer",
+      "department": "QA"
+    },
+    {
+      "name": "Дарья",
+      "role": "SEO & AI Visibility Specialist",
+      "department": "Marketing"
+    },
+    {
+      "name": "Марина",
+      "role": "Content Manager",
+      "department": "Marketing"
+    },
+    {
+      "name": "Екатерина",
+      "role": "Financial Analyst",
+      "department": "Trading"
+    },
+    {
+      "name": "Анастасия",
+      "role": "Product Manager",
+      "department": "Product"
+    },
+    {
+      "name": "Юлия",
+      "role": "Legal Counsel",
+      "department": "Legal"
+    },
+    {
+      "name": "Владимир",
+      "role": "Data Engineer",
+      "department": "Database"
+    },
+    {
+      "name": "Глеб",
+      "role": "SRE Engineer",
+      "department": "DevOps/Infra"
+    },
+    {
+      "name": "Яна",
+      "role": "UX Researcher",
+      "department": "Frontend"
+    },
+    {
+      "name": "Кирилл",
+      "role": "Backend Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Михаил",
+      "role": "ML Researcher",
+      "department": "ML/AI"
+    },
+    {
+      "name": "Александр",
+      "role": "System Architect",
+      "department": "Architecture"
+    },
+    {
+      "name": "Наталья",
+      "role": "QA Lead",
+      "department": "QA"
+    },
+    {
+      "name": "Светлана",
+      "role": "Technical Writer",
+      "department": "Documentation"
+    },
+    {
+      "name": "Олег",
+      "role": "DevOps Engineer",
+      "department": "DevOps/Infra"
+    },
+    {
+      "name": "Вадим",
+      "role": "Security Analyst",
+      "department": "Security"
+    },
+    {
+      "name": "Полина",
+      "role": "Frontend Developer",
+      "department": "Frontend"
+    },
+    {
+      "name": "Ксения",
+      "role": "Data Analyst",
+      "department": "Strategy/Data"
+    },
+    {
+      "name": "Виталий",
+      "role": "Performance Engineer",
+      "department": "Performance"
+    },
+    {
+      "name": "Станислав",
+      "role": "Database Engineer",
+      "department": "Database"
+    },
+    {
+      "name": "Денис",
+      "role": "Backend Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Евгений",
+      "role": "ML Engineer",
+      "department": "ML/AI"
+    },
+    {
+      "name": "Илья",
+      "role": "Full-stack Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Леонид",
+      "role": "Risk Analyst",
+      "department": "Risk Management"
+    },
+    {
+      "name": "Тимофей",
+      "role": "Trading Analyst",
+      "department": "Trading"
+    },
+    {
+      "name": "Валерия",
+      "role": "Product Analyst",
+      "department": "Product"
+    },
+    {
+      "name": "Ульяна",
+      "role": "Content Writer",
+      "department": "Marketing"
+    },
+    {
+      "name": "Алла",
+      "role": "HR Specialist",
+      "department": "HR"
+    },
+    {
+      "name": "Борис",
+      "role": "Infrastructure Engineer",
+      "department": "DevOps/Infra"
+    },
+    {
+      "name": "Галина",
+      "role": "Compliance Officer",
+      "department": "Legal"
+    },
+    {
+      "name": "Зоя",
+      "role": "Support Engineer",
+      "department": "Support"
+    },
+    {
+      "name": "Лариса",
+      "role": "QA Engineer",
+      "department": "QA"
+    },
+    {
+      "name": "Инна",
+      "role": "Data Scientist",
+      "department": "Strategy/Data"
+    },
+    {
+      "name": "Марк",
+      "role": "Backend Developer",
+      "department": "Backend"
+    },
+    {
+      "name": "Филипп",
+      "role": "Frontend Developer",
+      "department": "Frontend"
+    },
+    {
+      "name": "Георгий",
+      "role": "Monitor",
+      "department": "Monitoring"
+    },
+    {
+      "name": "Василий",
+      "role": "Security Engineer",
+      "department": "Security"
+    },
+    {
+      "name": "Константин",
+      "role": "Technical Lead",
+      "department": "Architecture"
+    },
+    {
+      "name": "Ирина",
+      "role": "Documentation Writer",
+      "department": "Documentation"
+    },
+    {
+      "name": "Людмила",
+      "role": "Analyst",
+      "department": "Strategy/Data"
+    },
+    {
+      "name": "Вероника",
+      "role": "Local Developer (Agent)",
+      "department": "Development"
+    },
+    {
+      "name": "Alex",
+      "role": "Principal AI Coordination Architect",
+      "department": "AI Coordination"
+    },
+    {
+      "name": "Адриан",
+      "role": "Principal System Design Architect",
+      "department": "System Design"
+    },
+    {
+      "name": "Алекс",
+      "role": "Principal Multi-Agent Systems Architect",
+      "department": "Multi-Agent Systems"
+    },
+    {
+      "name": "Алекс Ковальски",
+      "role": "Principal Software Architect & Engineering Lead",
+      "department": "Coding"
+    },
+    {
+      "name": "Алекс Нейман",
+      "role": "Principal Machine Learning Architect",
+      "department": "Machine Learning"
+    },
+    {
+      "name": "Александр Нейман",
+      "role": "Principal AI Systems Architect & Technical Fellow",
+      "department": "AI Systems"
+    },
+    {
+      "name": "Александра",
+      "role": "Principal Error Handling & User Interface Architect",
+      "department": "Error Handling / User Interface"
+    },
+    {
+      "name": "Альберт",
+      "role": "Директор по продажам (Sales Director)",
+      "department": "Management"
+    },
+    {
+      "name": "Артемий",
+      "role": "UI/UX Designer",
+      "department": "Web & Product"
+    },
+    {
+      "name": "Артур",
+      "role": "Principal Agent Architecture & Workflow Systems Architect",
+      "department": "Agent Architecture / Workflow Management"
+    },
+    {
+      "name": "Артём",
+      "role": "Senior UX/UI Designer & Web Strategy Lead",
+      "department": "Web & Product"
+    },
+    {
+      "name": "Виктор",
+      "role": "Chief Trading Strategist",
+      "department": "Trading"
+    },
+    {
+      "name": "Виктор_M&A",
+      "role": "M&A Analyst / Инвестиционный стратег",
+      "department": "Finance & Accounting"
+    },
+    {
+      "name": "Владимир_CEO",
+      "role": "CEO / Executive Director",
+      "department": "Management"
+    },
+    {
+      "name": "Григорий",
+      "role": "Главный Экономист / Макроаналитик",
+      "department": "Finance & Accounting"
+    },
+    {
+      "name": "Диана",
+      "role": "Performance Coach / Психолог",
+      "department": "Management"
+    },
+    {
+      "name": "Дмитрий_Ad",
+      "role": "Classifieds Specialist (Avito, Профи)",
+      "department": "Marketing & Growth"
+    },
+    {
+      "name": "Евгения",
+      "role": "PR-директор / Бренд-менеджер",
+      "department": "Consulting"
+    },
+    {
+      "name": "Кристина",
+      "role": "Senior Copywriter",
+      "department": "Marketing"
+    },
+    {
+      "name": "Лиза",
+      "role": "SMM & Content Lead",
+      "department": "Marketing"
+    },
+    {
+      "name": "Макс",
+      "role": "Lead DevOps Architect & Senior System Administrator",
+      "department": "System Administration / DevOps"
+    },
+    {
+      "name": "Маркус",
+      "role": "Chief People & Team Excellence Officer",
+      "department": "Team Management"
+    },
+    {
+      "name": "Натан",
+      "role": "Director of Competitive Intelligence",
+      "department": "Competitive Intelligence"
+    },
+    {
+      "name": "Николай",
+      "role": "GR-директор (Government Relations)",
+      "department": "Security & Legal"
+    },
+    {
+      "name": "Оксана",
+      "role": "Digital Strategist / Media Planner",
+      "department": "Marketing & Growth"
+    },
+    {
+      "name": "Оливер",
+      "role": "Chief Knowledge Officer & Knowledge Architecture Strategist",
+      "department": "Knowledge Management"
+    },
+    {
+      "name": "Степан",
+      "role": "Senior Data Scientist",
+      "department": "Tech & AI"
+    }
   ]
 }

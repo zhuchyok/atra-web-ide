@@ -366,14 +366,14 @@ async def main():
     
     # Записываем действия
     await system.record_action(
-        agent_name="Victoria",
+        agent_name="Виктория",
         action="analyzed_performance",
         result="Found bottleneck in database queries",
         location="database_optimization"
     )
     
     await system.record_action(
-        agent_name="Veronica",
+        agent_name="Вероника",
         action="implemented_index",
         result="Created index on user_id column",
         location="database_optimization"

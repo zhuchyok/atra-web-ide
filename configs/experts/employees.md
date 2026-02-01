@@ -2,11 +2,11 @@
 
 **Единый источник правды:** добавьте нового сотрудника в **`configs/experts/employees.json`**, затем запустите: **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и эта таблица.
 
-- **Итого сотрудников:** 58
-- **Отделов:** 21
-- **Обновлено:** 2026-01-27
+- **Итого сотрудников:** 85
+- **Отделов:** 40
+- **Обновлено:** 2026-02-01
 
-## Полный список (58)
+## Полный список (85)
 
 | № | Имя | Роль | Отдел |
 |---|-----|------|-------|
@@ -68,8 +68,35 @@
 | 56 | Ирина | Documentation Writer | Documentation |
 | 57 | Людмила | Analyst | Strategy/Data |
 | 58 | Вероника | Local Developer (Agent) | Development |
+| 59 | Alex | Principal AI Coordination Architect | AI Coordination |
+| 60 | Адриан | Principal System Design Architect | System Design |
+| 61 | Алекс | Principal Multi-Agent Systems Architect | Multi-Agent Systems |
+| 62 | Алекс Ковальски | Principal Software Architect & Engineering Lead | Coding |
+| 63 | Алекс Нейман | Principal Machine Learning Architect | Machine Learning |
+| 64 | Александр Нейман | Principal AI Systems Architect & Technical Fellow | AI Systems |
+| 65 | Александра | Principal Error Handling & User Interface Architect | Error Handling / User Interface |
+| 66 | Альберт | Директор по продажам (Sales Director) | Management |
+| 67 | Артемий | UI/UX Designer | Web & Product |
+| 68 | Артур | Principal Agent Architecture & Workflow Systems Architect | Agent Architecture / Workflow Management |
+| 69 | Артём | Senior UX/UI Designer & Web Strategy Lead | Web & Product |
+| 70 | Виктор | Chief Trading Strategist | Trading |
+| 71 | Виктор_M&A | M&A Analyst / Инвестиционный стратег | Finance & Accounting |
+| 72 | Владимир_CEO | CEO / Executive Director | Management |
+| 73 | Григорий | Главный Экономист / Макроаналитик | Finance & Accounting |
+| 74 | Диана | Performance Coach / Психолог | Management |
+| 75 | Дмитрий_Ad | Classifieds Specialist (Avito, Профи) | Marketing & Growth |
+| 76 | Евгения | PR-директор / Бренд-менеджер | Consulting |
+| 77 | Кристина | Senior Copywriter | Marketing |
+| 78 | Лиза | SMM & Content Lead | Marketing |
+| 79 | Макс | Lead DevOps Architect & Senior System Administrator | System Administration / DevOps |
+| 80 | Маркус | Chief People & Team Excellence Officer | Team Management |
+| 81 | Натан | Director of Competitive Intelligence | Competitive Intelligence |
+| 82 | Николай | GR-директор (Government Relations) | Security & Legal |
+| 83 | Оксана | Digital Strategist / Media Planner | Marketing & Growth |
+| 84 | Оливер | Chief Knowledge Officer & Knowledge Architecture Strategist | Knowledge Management |
+| 85 | Степан | Senior Data Scientist | Tech & AI |
 
-**Итого: 58 сотрудников.**
+**Итого: 85 сотрудников.**
 
 ## Правило для будущего
 
@@ -92,3 +119,4 @@
 - **Основные роли и Cursor:** `configs/experts/team.md`
 - **Seed для БД:** `knowledge_os/db/seed_experts.json`
 - **Department Heads:** `knowledge_os/app/department_heads_system.py`
+- **Автономные кандидаты (MDM):** `configs/experts/autonomous_candidates.json` — автономно нанятые для ревью и добавления в employees.json

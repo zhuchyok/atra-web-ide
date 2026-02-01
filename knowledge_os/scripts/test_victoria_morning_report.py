@@ -20,8 +20,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Настройки
-TG_TOKEN = os.getenv("PROD_TELEGRAM_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
-TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", '556251171')
+TG_TOKEN = os.getenv("PROD_TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
+TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID", "")
 
 # Результаты тестов
 test_results: Dict[str, Dict[str, any]] = {}

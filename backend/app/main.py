@@ -9,7 +9,7 @@ import logging
 import sys
 
 from app.config import get_settings
-from app.routers import chat, files, experts, preview, domains, knowledge, editor, terminal, plan_cache, rag_optimization, metrics, ab_testing, quality_metrics, latency, cache_stats, auto_optimizer, data_retention
+from app.routers import chat, files, experts, preview, domains, knowledge, editor, terminal, plan_cache, rag_optimization, metrics, ab_testing, quality_metrics, latency, cache_stats, auto_optimizer, data_retention, multimodal, system_metrics
 from app.middleware.error_handler import (
     http_exception_handler,
     validation_exception_handler,
@@ -234,6 +234,8 @@ app.include_router(latency.router)
 app.include_router(cache_stats.router)
 app.include_router(auto_optimizer.router)
 app.include_router(data_retention.router)
+app.include_router(multimodal.router, prefix="/api/multimodal", tags=["Multimodal"])
+app.include_router(system_metrics.router)
 
 
 @app.get("/")
@@ -246,6 +248,7 @@ async def root():
         "status": "running",
         "endpoints": {
             "chat": "/api/chat",
+            "system_metrics": "/api/system-metrics",
             "files": "/api/files",
             "experts": "/api/experts",
             "preview": "/api/preview",

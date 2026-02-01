@@ -82,23 +82,29 @@ class KnowledgeOSClient:
             """, expert_id)
             return dict(row) if row else None
     
+    # Veronica/Victoria: Latin в коде → Cyrillic в БД (все регистры)
+    _EXPERT_NAME_TO_DB = {
+        "Veronica": "Вероника", "veronica": "Вероника", "VERONICA": "Вероника",
+        "Victoria": "Виктория", "victoria": "Виктория", "VICTORIA": "Виктория",
+    }
+
     async def get_expert_by_name(self, name: str) -> Optional[dict]:
-        """Получить эксперта по имени"""
+        """Получить эксперта по имени. Veronica→Вероника, Victoria→Виктория."""
         if self._pool is None:
             await self.connect()
-        
+        n = (name or "").strip()
+        resolved = self._EXPERT_NAME_TO_DB.get(n, name)
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT 
-                    id,
-                    name,
-                    role,
-                    system_prompt,
-                    created_at
-                FROM experts
-                WHERE name ILIKE $1
-            """, f"%{name}%")
-            return dict(row) if row else None
+            for candidate in [resolved, name]:
+                if not candidate:
+                    continue
+                row = await conn.fetchrow("""
+                    SELECT id, name, role, system_prompt, created_at
+                    FROM experts WHERE name = $1
+                """, candidate)
+                if row:
+                    return dict(row)
+            return None
     
     async def get_domains(self) -> List[dict]:
         """Получить список доменов"""

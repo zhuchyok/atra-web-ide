@@ -153,8 +153,61 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Retry config for transient LLM failures (503, timeout, connection)
+RETRY_BACKOFF_DELAYS = (2, 5, 10)  # seconds
+RETRY_MAX_ATTEMPTS = 3
+
 # Global user identification for conditional logic
 USER_NAME = getpass.getuser()
+
+
+def _is_transient_llm_error(e_or_msg) -> bool:
+    """Check if error/message indicates transient LLM failure (503, timeout, etc.)."""
+    if e_or_msg is None:
+        return False
+    s = str(e_or_msg).lower()
+    return (
+        "503" in s or "queue is full" in s or "timeout" in s
+        or "connection" in s or "unavailable" in s
+    )
+
+
+async def _retry_llm_with_backoff(coro):
+    """
+    Retry async LLM call with exponential backoff on 503, timeout, connection errors.
+    Fallback order: MLX -> Ollama -> cloud (documented in plan).
+    """
+    last_result = None
+    for attempt in range(RETRY_MAX_ATTEMPTS):
+        try:
+            result = await coro()
+            last_result = result
+            if result is None:
+                if attempt < RETRY_MAX_ATTEMPTS - 1:
+                    delay = RETRY_BACKOFF_DELAYS[min(attempt, len(RETRY_BACKOFF_DELAYS) - 1)]
+                    logger.info("Retry LLM in %s s (attempt %s/%s): got None", delay, attempt + 1, RETRY_MAX_ATTEMPTS)
+                    await asyncio.sleep(delay)
+                    continue
+                return result
+            if isinstance(result, str) and _is_transient_llm_error(result):
+                if attempt < RETRY_MAX_ATTEMPTS - 1:
+                    delay = RETRY_BACKOFF_DELAYS[min(attempt, len(RETRY_BACKOFF_DELAYS) - 1)]
+                    logger.info("Retry LLM in %s s (attempt %s/%s): %s", delay, attempt + 1, RETRY_MAX_ATTEMPTS, result[:80])
+                    await asyncio.sleep(delay)
+                    continue
+            return result
+        except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+            last_result = str(e)
+        except Exception as e:
+            if _is_transient_llm_error(str(e)) and attempt < RETRY_MAX_ATTEMPTS - 1:
+                last_result = str(e)
+            else:
+                raise
+        if attempt < RETRY_MAX_ATTEMPTS - 1:
+            delay = RETRY_BACKOFF_DELAYS[min(attempt, len(RETRY_BACKOFF_DELAYS) - 1)]
+            logger.info("Retry LLM in %s s (attempt %s/%s) after %s", delay, attempt + 1, RETRY_MAX_ATTEMPTS, last_result[:80] if last_result else "error")
+            await asyncio.sleep(delay)
+    return last_result
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
 _DB_POOL = None
@@ -179,19 +232,34 @@ async def _get_db_pool():
 async def _run_cloud_agent_async(prompt: str):
     """Приоритет: локальные модели (Ollama/MLX) → cursor-agent. Локальные модели корпорации используются первыми."""
     # ПРИОРИТЕТ 1: локальные модели (Ollama/MLX) — политика корпорации
-    if LocalAIRouter:
+    # Health check перед запросом (2.3 плана): пропускаем заведомо недоступные узлы
+    use_local = bool(LocalAIRouter)
+    if use_local:
         try:
+            _router = LocalAIRouter()
+            healthy = await _router.check_health(force_refresh=False)
+            if not healthy:
+                logger.info("[HEALTH CHECK] No healthy local nodes, skipping to cloud/cursor-agent")
+                use_local = False
+        except Exception as hc_err:
+            logger.debug("[HEALTH CHECK] Error: %s, will try local anyway", hc_err)
+    if use_local and LocalAIRouter:
+        async def _try_local():
             router = LocalAIRouter()
             result = await router.run_local_llm(prompt, category="general")
             if isinstance(result, tuple):
                 response, _ = result
             else:
                 response = result
-            if response and len(response) > 10:
+            return response
+
+        try:
+            response = await _retry_llm_with_backoff(_try_local)
+            if response and len(str(response)) > 10:
                 logger.info("✅ [LOCAL FIRST] Использована локальная модель (Ollama/MLX) вместо облака")
                 return response
         except Exception as e:
-            logger.warning(f"⚠️ [LOCAL FIRST] Локальный роутер недоступен: {e}, пробуем cursor-agent")
+            logger.warning("⚠️ [LOCAL FIRST] Локальный роутер недоступен: %s, пробуем cursor-agent", e)
     
     # ПРИОРИТЕТ 2: cursor-agent (облако) — только если локальные модели недоступны
     try:
@@ -333,13 +401,13 @@ async def _run_cloud_agent_async(prompt: str):
         except Exception as e:
             logger.warning(f"Ollama fallback failed: {e}")
         
-        # Final fallback: return a helpful message
+        # Final fallback: smart_worker распознаёт "недоступн" и вызывает rule_executor
         return f"⚠️ Все источники недоступны. Запрос: {prompt[:100]}..."
     except Exception as exc:
         return f"❌ Ошибка связи с облаком: {exc}"
 
 async def _get_knowledge_context(query: str) -> str:
-    """Retrieve relevant knowledge nodes (RAG) - включает знания корпорации."""
+    """Retrieve relevant knowledge nodes (RAG) - включает знания корпорации и adaptive_learning_logs (Singularity 10.0)."""
     try:
         embedding = await get_embedding(query)
         if not embedding: return ""
@@ -354,7 +422,15 @@ async def _get_knowledge_context(query: str) -> str:
                 AND confidence_score >= 0.3
                 ORDER BY similarity DESC LIMIT 5
             """, embedding)
-        if not rows: return ""
+            # Singularity 10.0: топ lessons learned из adaptive_learning_logs (high impact_score)
+            lessons_rows = await conn.fetch("""
+                SELECT learned_insight, impact_score, learning_type
+                FROM adaptive_learning_logs
+                WHERE impact_score > 0.7
+                ORDER BY impact_score DESC
+                LIMIT 3
+            """)
+        if not rows and not lessons_rows: return ""
         context = "\n📚 [KNOWLEDGE CONTEXT]:\n"
         for row in rows:
             if row['similarity'] >= 0.6:  # Понизили порог для лучшего покрытия
@@ -368,6 +444,10 @@ async def _get_knowledge_context(query: str) -> str:
                 else:
                     context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
                 context += f"{row['content']}\n"
+        if lessons_rows:
+            context += "\n[LESSONS LEARNED (adaptive_learning)]:\n"
+            for r in lessons_rows:
+                context += f"- {r['learned_insight']}\n"
         return context
     except Exception as exc:
         logger.error("Knowledge retrieval error: %s", exc)
@@ -1349,9 +1429,18 @@ async def run_smart_agent_async(
 
 async def _get_expert_id(name: str) -> str:
     """Helper to get expert UUID from DB."""
+    try:
+        from app.expert_aliases import resolve_expert_name_for_db
+        resolved = resolve_expert_name_for_db(name)
+    except ImportError:
+        n = (name or "").strip()
+        resolved = {
+            "Veronica": "Вероника", "veronica": "Вероника", "VERONICA": "Вероника",
+            "Victoria": "Виктория", "victoria": "Виктория", "VICTORIA": "Виктория",
+        }.get(n, name)
     pool = await _get_db_pool()
     if not pool: return None
     async with pool.acquire() as conn:
-        return await conn.fetchval("SELECT id FROM experts WHERE name = $1", name)
+        return await conn.fetchval("SELECT id FROM experts WHERE name = $1", resolved)
 
 # Sync wrapper implementation would go here (omitted for brevity)

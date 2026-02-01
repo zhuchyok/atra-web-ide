@@ -53,7 +53,7 @@ class SelfLearningAgent:
     
     def __init__(
         self,
-        agent_name: str = "Victoria",
+        agent_name: str = "Виктория",
         model_name: str = "deepseek-r1-distill-llama:70b",
         db_url: str = DB_URL,
         ollama_url: str = OLLAMA_URL
@@ -430,7 +430,7 @@ class SelfLearningAgent:
 
 async def main():
     """Пример использования"""
-    agent = SelfLearningAgent(agent_name="Victoria")
+    agent = SelfLearningAgent(agent_name="Виктория")
     
     # Генерируем задачи
     tasks = await agent.generate_learning_tasks(category="coding", difficulty="medium", count=3)

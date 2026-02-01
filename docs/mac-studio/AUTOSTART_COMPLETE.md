@@ -18,14 +18,15 @@
 - **Проверка:** `defaults read com.docker.docker StartAtLogin` → `1`
 - **Действие:** Запускается автоматически при входе в систему
 
-### 2. ✅ Docker контейнеры (7 контейнеров)
+### 2. ✅ Docker контейнеры (9+ контейнеров)
 
-#### С `restart: always` (3 контейнера):
-- ✅ **db** (PostgreSQL) — автоматический перезапуск
+#### С `restart: always` (5 контейнеров):
+- ✅ **db** (PostgreSQL, knowledge_postgres) — автоматический перезапуск
+- ✅ **redis** (knowledge_redis) — автоматический перезапуск
 - ✅ **victoria-agent** — автоматический перезапуск
 - ✅ **veronica-agent** — автоматический перезапуск
 
-#### С `restart: unless-stopped` (4 контейнера):
+#### С `restart: unless-stopped` (остальные):
 - ✅ **prometheus** — запускается автоматически
 - ✅ **grafana** — запускается автоматически
 - ✅ **elasticsearch** — запускается автоматически

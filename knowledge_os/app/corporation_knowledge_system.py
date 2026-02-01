@@ -1,8 +1,10 @@
 """
 Система автоматического обновления знаний корпорации
 Все агенты и корпорация знают ВСЁ: модели, скрипты, внедрения, изменения
+Singularity 10.0: prompt_change_log для версионирования и отката
 """
 import asyncio
+import hashlib
 import os
 import json
 import httpx
@@ -345,8 +347,8 @@ class CorporationKnowledgeSystem:
         
         return knowledge
     
-    def generate_system_prompt_update(self, knowledge: Dict[str, Any]) -> str:
-        """Генерировать обновление system prompt с актуальными знаниями"""
+    def generate_system_prompt_update(self, knowledge: Dict[str, Any], top_insights: Optional[List[Dict[str, Any]]] = None, lessons_learned: Optional[List[Dict[str, Any]]] = None) -> str:
+        """Генерировать обновление system prompt с актуальными знаниями (Singularity 10.0: + топ-инсайты)"""
         
         prompt = """
 📚 АКТУАЛЬНЫЕ ЗНАНИЯ КОРПОРАЦИИ (обновлено автоматически {}):
@@ -384,6 +386,27 @@ Ollama модели ({}):
             for change in knowledge['recent_changes'][:10]:  # Последние 10
                 prompt += f"- {change.get('date', '')[:19]}: {change.get('message', '')[:100]}\n"
         
+        # Singularity 10.0: топ lessons learned из adaptive_learning_logs
+        if lessons_learned:
+            prompt += "\n📖 LESSONS LEARNED (adaptive_learning_logs):\n"
+            for ll in lessons_learned[:5]:
+                prompt += f"- {ll.get('learned_insight', '')[:300]}\n"
+        # Singularity 10.0: топ-инсайты из knowledge_nodes (макс 2000 символов на блок)
+        if top_insights:
+            insights_block = "\n💡 ТОП-ИНСАЙТЫ КОРПОРАЦИИ (из knowledge_nodes):\n"
+            for ins in top_insights:
+                if len(insights_block) >= 2000:
+                    break
+                content = (ins.get('content') or '')[:350]
+                if content:
+                    domain_name = ins.get('domain_name') or ''
+                    prefix = f"[{domain_name}] " if domain_name else ""
+                    line = f"- {prefix}{content}\n"
+                    if len(insights_block) + len(line) > 2000:
+                        line = line[:2000 - len(insights_block) - 3] + "...\n"
+                    insights_block += line
+            prompt += insights_block
+        
         prompt += "\n⚠️ ВАЖНО: Ты всегда должен знать актуальное состояние корпорации!"
         prompt += "\n💡 Используй эти знания при выборе моделей и инструментов!"
         
@@ -414,7 +437,39 @@ async def update_all_agents_knowledge():
     except Exception as e:
         logger.debug(f"Не удалось извлечь полные знания корпорации: {e}")
     
-    prompt_update = system.generate_system_prompt_update(knowledge)
+    # Singularity 10.0: топ-инсайты и lessons learned
+    top_insights = []
+    lessons_learned = []
+    if ASYNCPG_AVAILABLE:
+        try:
+            conn_ins = await asyncpg.connect(system.db_url, command_timeout=10)
+            try:
+                rows = await conn_ins.fetch("""
+                    SELECT k.content, k.confidence_score, d.name as domain_name
+                    FROM knowledge_nodes k
+                    LEFT JOIN domains d ON k.domain_id = d.id
+                    WHERE (k.is_verified = true OR k.confidence_score > 0.7)
+                      AND k.created_at > NOW() - INTERVAL '7 days'
+                      AND k.metadata->>'source' != 'corporation_knowledge_system'
+                    ORDER BY k.confidence_score DESC, k.created_at DESC
+                    LIMIT 10
+                """)
+                top_insights = [dict(r) for r in rows]
+                # adaptive_learning_logs (high impact_score)
+                ll_rows = await conn_ins.fetch("""
+                    SELECT learned_insight, impact_score, learning_type
+                    FROM adaptive_learning_logs
+                    WHERE impact_score > 0.6
+                    ORDER BY impact_score DESC
+                    LIMIT 5
+                """)
+                lessons_learned = [dict(r) for r in ll_rows]
+            finally:
+                await conn_ins.close()
+        except Exception as e:
+            logger.debug("Не удалось загрузить топ-инсайты/lessons: %s", e)
+    
+    prompt_update = system.generate_system_prompt_update(knowledge, top_insights=top_insights or None, lessons_learned=lessons_learned or None)
     
     # Обновляем system prompts всех агентов через БД
     if ASYNCPG_AVAILABLE:
@@ -449,6 +504,18 @@ async def update_all_agents_knowledge():
                     
                     # Добавляем новое обновление
                     updated_prompt = cleaned_prompt + '\n\n' + prompt_update
+                    
+                    # Singularity 10.0: версионирование — backup перед UPDATE
+                    old_hash = hashlib.sha256((system_prompt or "").encode()).hexdigest()
+                    new_hash = hashlib.sha256(updated_prompt.encode()).hexdigest()
+                    if old_hash != new_hash:
+                        try:
+                            await conn.execute("""
+                                INSERT INTO prompt_change_log (expert_id, old_prompt_hash, new_prompt_hash, metadata)
+                                VALUES ($1, $2, $3, $4::jsonb)
+                            """, expert['id'], old_hash, new_hash, json.dumps({"source": "update_all_agents_knowledge"}))
+                        except Exception as e:
+                            logger.debug("prompt_change_log insert skipped (table may not exist): %s", e)
                     
                     await conn.execute("""
                         UPDATE experts

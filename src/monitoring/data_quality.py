@@ -179,15 +179,24 @@ class DataQualityMonitor:
                 ))
 
     def _send_critical_alert(self, alert: AnomalyAlert):
-        """Отправляет критический алерт"""
+        """Отправляет критический алерт (логи + опционально Telegram через AlertSystem)."""
         try:
-            # Здесь можно добавить отправку в Telegram или другие системы мониторинга
-            # Пока просто логируем
             logger.critical(f"CRITICAL DATA QUALITY ISSUE: {alert.message}")
 
-            # TODO: Интегрировать с системой уведомлений
-            # await send_telegram_alert(alert)
-
+            # Интеграция с системой уведомлений (SRE/мировые практики: единая точка алертинга)
+            try:
+                from src.monitoring.alerts import alert_system
+                alert_system.create_alert(
+                    alert_type="data_quality",
+                    severity=alert.severity if alert.severity in ("low", "medium", "high", "critical") else "critical",
+                    title=f"Data Quality: {alert.alert_type}",
+                    message=alert.message,
+                    channels=["telegram"],
+                    metadata={"symbol": alert.symbol, "source": alert.source, **alert.data},
+                )
+            except (ImportError, AttributeError, RuntimeError) as e:
+                # Нет event loop, модуль не найден или алерты отключены — только лог
+                logger.debug("Alert system not available for data_quality: %s", e)
         except Exception as e:
             logger.error(f"Error sending critical alert: {e}")
 

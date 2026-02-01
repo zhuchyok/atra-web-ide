@@ -65,7 +65,16 @@
 
 ---
 
-## 8. Документы для углубления
+## 8. Маршрутизация: эксперты первыми (Veronica — «руки»)
+
+- **PREFER_EXPERTS_FIRST** (по умолчанию `true`): execution-задачи («сделай», «напиши код», «создай API») идут в **Victoria Enhanced** (85 экспертов в БД); в **Veronica** — только простые одношаговые запросы («покажи файлы», «выведи список», «прочитай файл»). Реальная роль Veronica — исполнитель шагов (руки), не «решатель».
+- **Исправлен баг** в `task_delegation.select_best_agent`: блок «если нет required_capabilities» был с неправильным отступом; код подсчёта agent_scores стал достижим.
+- Файлы: `src/agents/bridge/task_detector.py`, `knowledge_os/app/task_delegation.py`, `knowledge_os/docker-compose.yml` (victoria-agent: PREFER_EXPERTS_FIRST).
+- Детали: `docs/VERONICA_REAL_ROLE.md`, `.cursorrules` (раздел «Маршрутизация: эксперты первыми»).
+
+---
+
+## 9. Документы для углубления
 
 | Тема | Документ |
 |------|----------|
@@ -75,6 +84,8 @@
 | Анализ улучшений, что внедрить | `docs/ARCHITECTURE_IMPROVEMENTS_ANALYSIS.md` |
 | Обновление PLAN.md (компоненты 54+) | `PLAN_UPDATE_SUMMARY.md` |
 | Фиксы (Scout, Victoria, сервер, чат и др.) | `docs/*FIX*.md`, `docs/mac-studio/*.md` |
+| Реальная роль Veronica, PREFER_EXPERTS_FIRST | `docs/VERONICA_REAL_ROLE.md` |
+| Цепочка Victoria → эксперты: нестабильности, таймауты, чеклист | `docs/TELEGRAM_VICTORIA_CHAIN_CHECKLIST.md` |
 
 ---
 

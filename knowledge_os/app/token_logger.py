@@ -88,7 +88,12 @@ async def log_ai_interaction(
         async with pool.acquire() as conn:
             # Находим expert_id если не указан
             if not expert_id and expert_name:
-                expert_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", expert_name)
+                try:
+                    from app.expert_aliases import resolve_expert_name_for_db
+                    resolved_name = resolve_expert_name_for_db(expert_name)
+                except ImportError:
+                    resolved_name = expert_name
+                expert_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", resolved_name)
             
             # Оцениваем токены
             prompt_tokens = await estimate_tokens(prompt)

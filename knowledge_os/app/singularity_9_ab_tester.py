@@ -157,7 +157,7 @@ class Singularity9ABTester:
                     AVG(il.feedback_score::float) as avg_feedback,
                     COUNT(*) as sample_size
                 FROM interaction_logs il
-                LEFT JOIN emotion_logs el ON el.interaction_log_id = il.id
+                LEFT JOIN emotion_logs el ON el.interaction_log_id = il.id::text
                 WHERE il.created_at > NOW() - INTERVAL '1 day' * $1
                   AND il.feedback_score IS NOT NULL
                 GROUP BY variant

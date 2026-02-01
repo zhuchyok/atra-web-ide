@@ -4,6 +4,9 @@
 
 set -e
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
 echo "=============================================="
 echo "🤖 ЗАПУСК АВТОНОМНЫХ СИСТЕМ"
 echo "=============================================="
@@ -16,7 +19,13 @@ cat > /tmp/start_orchestrator.sh << 'ORCH_EOF'
 while true; do
     echo "[$(date)] Запуск Enhanced Orchestrator..."
     # Исправляем REDIS_URL для подключения к atra-redis из контейнера
-    docker exec -e REDIS_URL=redis://atra-redis:6379 -e DATABASE_URL=postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os knowledge_os_api python /app/enhanced_orchestrator.py 2>&1 | tee -a /tmp/orchestrator.log | head -50
+    # Orchestrator уже в Docker (knowledge_os_orchestrator), только проверяем
+    docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os -e REDIS_URL=redis://knowledge_redis:6379 knowledge_os_orchestrator python -c "
+import asyncio, sys
+sys.path.insert(0, '/app/knowledge_os/app')
+from enhanced_orchestrator import run_one_cycle
+asyncio.run(run_one_cycle() if hasattr(__import__('enhanced_orchestrator'), 'run_one_cycle') else asyncio.sleep(0))
+" 2>&1 | tee -a /tmp/orchestrator.log | head -50
     echo "[$(date)] Orchestrator завершен, ожидание 5 минут..."
     sleep 300  # 5 минут
 done
@@ -34,11 +43,12 @@ fi
 
 # 2. Model Tracker (отслеживание моделей каждый час)
 echo "[2/6] Запуск Model Tracker..."
-cat > /tmp/start_model_tracker.sh << 'MODELTRACKER_EOF'
+cat > /tmp/start_model_tracker.sh << MODELTRACKER_EOF
 #!/bin/bash
+ROOT="$ROOT"
 while true; do
     echo "[$(date)] Запуск Model Tracker..."
-    cd /Users/zhuchyok/Documents/atra-web-ide
+    cd "$ROOT"
     bash scripts/start_model_tracker.sh 2>&1 | tee -a /tmp/model_tracker.log
     echo "[$(date)] Model Tracker завершен, ожидание 3600 секунд (1 час)..."
     sleep 3600  # 1 час
@@ -50,22 +60,26 @@ MODELTRACKER_PID=$!
 echo "  ✅ Model Tracker запущен (PID: $MODELTRACKER_PID)"
 echo "  📝 Логи: /tmp/model_tracker.log"
 
-# 3. Self-Check System (самопроверка системы каждую минуту)
+# 3. Self-Check System — самопроверка (verify_mac_studio_self_recovery на хосте)
 echo "[3/6] Запуск Self-Check System..."
-cat > /tmp/start_self_check.sh << 'SELFCHECK_EOF'
+cat > /tmp/start_self_check.sh << SELFCHECK_EOF
 #!/bin/bash
+ROOT="$ROOT"
 while true; do
-    echo "[$(date)] Запуск Self-Check System..."
-    docker exec -e DATABASE_URL=postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os -e REDIS_URL=redis://atra-redis:6379 knowledge_os_api python /app/self_check_system.py 2>&1 | tee -a /tmp/self_check.log
-    echo "[$(date)] Self-Check System завершен, ожидание 60 секунд..."
-    sleep 60  # 1 минута
+    echo "[$(date)] Самопроверка..."
+    bash "$ROOT/scripts/verify_mac_studio_self_recovery.sh" 2>&1 | tee -a /tmp/self_check.log
+    echo "[$(date)] Самопроверка завершена, ожидание 300 секунд..."
+    sleep 300  # 5 минут (совпадает с system_auto_recovery)
 done
 SELFCHECK_EOF
 chmod +x /tmp/start_self_check.sh
-nohup /tmp/start_self_check.sh > /dev/null 2>&1 &
-SELFCHECK_PID=$!
-echo "  ✅ Self-Check System запущен (PID: $SELFCHECK_PID)"
-echo "  📝 Логи: /tmp/self_check.log"
+if ! pgrep -f "start_self_check.sh" > /dev/null; then
+    nohup /tmp/start_self_check.sh > /tmp/self_check_daemon.log 2>&1 &
+    echo "  ✅ Self-Check System запущен (PID: $!)"
+    echo "  📝 Логи: /tmp/self_check.log"
+else
+    echo "  ℹ️ Self-Check уже запущен"
+fi
 
 # 4. Debate Processor (обработка дебатов каждые 2 часа)
 echo "[4/6] Запуск Debate Processor..."
@@ -73,7 +87,7 @@ cat > /tmp/start_debate_processor.sh << 'DEBATE_EOF'
 #!/bin/bash
 while true; do
     echo "[$(date)] Запуск Debate Processor..."
-    docker exec -e DATABASE_URL=postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os knowledge_os_api python /app/debate_processor.py 2>&1 | tee -a /tmp/debate_processor.log
+    docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os knowledge_nightly python /app/knowledge_os/app/debate_processor.py 2>&1 | tee -a /tmp/debate_processor.log
     echo "[$(date)] Debate Processor завершен, ожидание 2 часа..."
     sleep 7200  # 2 часа
 done
@@ -102,7 +116,7 @@ while true; do
     # 3. Или принудительный запуск
     if [ "$FORCE_RUN" = "force" ] || [ "$HOUR" = "06" ] || [ "$LAST_RUN" != "$CURRENT_DATE" ]; then
         echo "[$(date)] Запуск Nightly Learner..."
-        docker exec -e REDIS_URL=redis://atra-redis:6379 -e DATABASE_URL=postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os knowledge_os_api python /app/nightly_learner.py 2>&1 | tee -a /tmp/nightly_learner.log
+        docker exec -e REDIS_URL=redis://knowledge_redis:6379 -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os knowledge_nightly python /app/knowledge_os/app/nightly_learner.py 2>&1 | tee -a /tmp/nightly_learner.log
         echo "$CURRENT_DATE" > "$LAST_RUN_FILE"
         echo "[$(date)] Nightly Learner завершен"
         FORCE_RUN=""  # Сбрасываем флаг после первого запуска
@@ -131,7 +145,7 @@ echo "=============================================="
 echo ""
 echo "📊 Статус:"
 echo "  - Enhanced Orchestrator: каждые 5 минут"
-echo "  - Self-Check System: каждую минуту (САМОПРОВЕРЯЮЩАЯСЯ) ✅"
+echo "  - Self-Check System: каждые 5 мин (самопроверка verify_mac_studio_self_recovery) ✅"
 echo "  - Debate Processor: каждые 2 часа"
 echo "  - Nightly Learner: ежедневно в 6:00 MSK"
 echo "  - Smart Worker: постоянно обрабатывает задачи"

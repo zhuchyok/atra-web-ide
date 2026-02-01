@@ -8,10 +8,49 @@ networks:
     external: true
 
 services:
-  # PostgreSQL: используйте существующий контейнер knowledge_postgres (atra или другой проект)
-  # или запустите свой: docker run -d --name knowledge_postgres --network atra-network -p 5432:5432 -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=knowledge_os pgvector/pgvector:pg16
+  # PostgreSQL: самовосстановление после перезагрузки Mac Studio (restart: always)
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: knowledge_postgres
+    restart: always
+    command: ["postgres", "-c", "max_connections=200"]  # 100 по умолчанию — мало для всех сервисов (эксперты: см. docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: knowledge_os
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d knowledge_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis: кэш и очереди (restart: always)
+  redis:
+    image: redis:7-alpine
+    container_name: knowledge_redis
+    restart: always
+    ports:
+      - "6380:6379"  # 6380 на хосте (6379 может быть занят atra)
+    volumes:
+      - redis_data:/data
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   victoria-agent:
+    depends_on:
+      db:
+        condition: service_healthy
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
@@ -48,6 +87,8 @@ services:
       VICTORIA_USE_CACHE: "true"
       # 🚀 Victoria Enhanced - включает все компоненты супер-корпорации
       USE_VICTORIA_ENHANCED: "true"
+      # Эксперты первыми: execution-задачи идут в Victoria Enhanced (85 экспертов), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
+      PREFER_EXPERTS_FIRST: ${PREFER_EXPERTS_FIRST:-true}
       # 🎯 Victoria Initiative - Event-Driven Architecture и мониторинг (без кавычек в значении)
       ENABLE_EVENT_MONITORING: ${ENABLE_EVENT_MONITORING:-true}
       FILE_WATCHER_ENABLED: ${FILE_WATCHER_ENABLED:-true}
@@ -63,6 +104,9 @@ services:
       HITL_CONFIDENCE_THRESHOLD: ${HITL_CONFIDENCE_THRESHOLD:-"0.7"}
       # 🏢 Основной проект корпорации
       MAIN_PROJECT: "atra-web-ide"  # Основной проект корпорации и агентов
+      WORKSPACE_ROOT: /app  # Корень для SafeFileWriter (create_file/write_file)
+      AGENT_BACKUP_ENABLED: "true"  # Бэкапы перед перезаписью
+      AGENT_APPROVAL_REQUIRED: "false"  # true = отказ в записи в package.json, .env, Dockerfile и т.п.
       # Лимит шагов агента (сложные задачи — анализ, исправления; без этой переменной в контейнере мог остаться 80)
       VICTORIA_MAX_STEPS: ${VICTORIA_MAX_STEPS:-500}
       # Veronica: из контейнера — по имени сервиса (порт 8000 внутри сети)
@@ -81,6 +125,9 @@ services:
     command: python -m src.agents.bridge.victoria_server
 
   veronica-agent:
+    depends_on:
+      db:
+        condition: service_healthy
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
@@ -221,6 +268,52 @@ services:
     working_dir: /app/knowledge_os/app
     command: ["python", "smart_worker_autonomous.py"]
 
+  # Nightly Learner: обучение экспертов, дебаты, гипотезы. Цикл каждые 24ч.
+  # Записывает в knowledge_nodes, tasks — обновляет «БД: X ч назад» на дашборде.
+  knowledge_nightly:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_nightly
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      REDIS_URL: redis://knowledge_redis:6379
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      MAC_LLM_URL: http://host.docker.internal:11434
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["sh", "-c", "while true; do python -u nightly_learner.py; echo '✅ Цикл завершён. Следующий запуск через 24ч'; sleep 86400; done"]
+
+  # Knowledge OS REST API (порт 8002) — логирование чата в interaction_logs (Singularity 9.0)
+  knowledge_rest:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_rest
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "rest_api.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Оркестратор: всё время слушает задачи (вариант A — один процесс с --continuous)
   knowledge_os_orchestrator:
     build:
@@ -261,7 +354,12 @@ services:
     command: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
 
 volumes:
+  # Используем atra_knowledge_postgres_data (85 экспертов, 26k узлов) — данные atra/atra-web-ide
+  # Если нужна пустая БД: заменить на postgres_data: {} и пересоздать контейнер
   postgres_data:
+    external: true
+    name: atra_knowledge_postgres_data
+  redis_data:
   prometheus_data:
   grafana_data:
   elasticsearch_data:

@@ -9,6 +9,7 @@ on:
       - 'backend/app/services/rag_light.py'
       - 'backend/app/services/reranking.py'
       - 'backend/app/services/query_rewriter.py'
+      - 'backend/app/services/query_expansion.py'
       - 'backend/app/evaluation/**'
       - 'backend/app/services/validation_pipeline.py'
       - 'data/validation_queries.json'
@@ -56,6 +57,7 @@ jobs:
       - name: Run quality validation
         env:
           DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          RERANKING_ENABLED: "true"
         run: |
           export PYTHONPATH="$PWD/backend:$PWD"
           if [ ! -f data/validation_queries.json ]; then
@@ -65,9 +67,10 @@ jobs:
           fi
           python scripts/evaluate_rag_quality.py \
             --dataset data/validation_queries.json \
-            --threshold faithfulness:0.7,relevance:0.75 \
+            --threshold faithfulness:0.8,relevance:0.85,coherence:0.7 \
             --output backend/validation_report.json \
             --no-fail \
+            --timeout-per-query 5 \
             --verbose 2>&1 | tee backend/validation_output.txt
           if [ ! -f backend/validation_report.json ]; then
             echo '{"avg_metrics":{"faithfulness":0.8,"relevance":0.8,"coherence":0.8},"passed":true}' > backend/validation_report.json
@@ -85,7 +88,7 @@ jobs:
       - name: Check quality thresholds
         run: |
           if [ -f scripts/check_quality_thresholds.py ] && [ -f backend/validation_report.json ]; then
-            python scripts/check_quality_thresholds.py backend/validation_report.json || true
+            python scripts/check_quality_thresholds.py backend/validation_report.json --threshold faithfulness:0.8,relevance:0.85,coherence:0.7 || true
           fi
 
       - name: Latency benchmark (optional)

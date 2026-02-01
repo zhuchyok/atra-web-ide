@@ -53,7 +53,7 @@ class Policy:
 class ReinforcementLearning:
     """Фреймворк Reinforcement Learning для агентов"""
     
-    def __init__(self, agent_name: str = "Victoria"):
+    def __init__(self, agent_name: str = "Виктория"):
         self.agent_name = agent_name
         self.policies: Dict[str, Policy] = {}
         self.action_history: List[Action] = []
@@ -325,7 +325,7 @@ class ReinforcementLearning:
 # Глобальные экземпляры по агентам
 _rl_instances: Dict[str, ReinforcementLearning] = {}
 
-def get_rl(agent_name: str = "Victoria") -> ReinforcementLearning:
+def get_rl(agent_name: str = "Виктория") -> ReinforcementLearning:
     """Получить экземпляр RL для агента"""
     if agent_name not in _rl_instances:
         _rl_instances[agent_name] = ReinforcementLearning(agent_name=agent_name)

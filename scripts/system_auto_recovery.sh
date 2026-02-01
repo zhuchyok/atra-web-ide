@@ -115,13 +115,11 @@ else
     log "✅ Сеть atra-network существует"
 fi
 
-# 3. Запуск Knowledge OS сервисов (Victoria, Veronica, БД, Redis, и т.д.)
+# 3. Запуск Knowledge OS сервисов (db, redis, Victoria, Veronica, и т.д.)
 log ""
 log "[3/10] Запуск Knowledge OS сервисов..."
 if [ -f "knowledge_os/docker-compose.yml" ]; then
-    cd knowledge_os
-    docker-compose up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
-    cd "$ROOT"
+    docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
     log "✅ Knowledge OS сервисы запущены"
     sleep 5  # Даем время на запуск
 else
@@ -310,10 +308,9 @@ except Exception:
 
 # Перезапуск Victoria/Veronica, если health check не прошёл (контейнер может быть up, но не отвечать)
 if [ -f "knowledge_os/docker-compose.yml" ]; then
-    cd knowledge_os
     if [ "${VICTORIA_HEALTH_OK:-0}" -eq 0 ]; then
         log "⚠️ Victoria Agent не отвечает на /health — перезапускаю victoria-agent..."
-        docker-compose restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
         sleep 10
         if curl -s -f --connect-timeout 5 "http://localhost:8010/health" >/dev/null 2>&1; then
             log "   ✅ Victoria Agent поднялась после перезапуска"
@@ -324,7 +321,7 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         # Victoria отвечает на /health — проверяем, что все три уровня (Agent, Enhanced, Initiative) включены
         if ! check_victoria_levels; then
             log "⚠️ Victoria: не все три уровня активны (agent/enhanced/initiative) — перезапускаю victoria-agent..."
-            docker-compose restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+            docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
             sleep 25
             if check_victoria_levels; then
                 log "   ✅ Victoria: все три уровня запущены после перезапуска"
@@ -335,7 +332,7 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     fi
     if [ "${VERONICA_HEALTH_OK:-0}" -eq 0 ]; then
         log "⚠️ Veronica Agent не отвечает на /health — перезапускаю veronica-agent..."
-        docker-compose restart veronica-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
         sleep 10
         if curl -s -f --connect-timeout 5 "http://localhost:8011/health" >/dev/null 2>&1; then
             log "   ✅ Veronica Agent поднялась после перезапуска"
@@ -344,14 +341,13 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         fi
     fi
     # Перезапуск остальных упавших контейнеров
-    NOT_RUNNING=$(docker-compose ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
+    NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
     NOT_RUNNING=${NOT_RUNNING:-0}
     if [ "$NOT_RUNNING" -gt 0 ]; then
         log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров, перезапускаю..."
-        docker-compose restart 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        docker-compose -f knowledge_os/docker-compose.yml restart 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
         sleep 5
     fi
-    cd "$ROOT"
 fi
 
 if [ -f "docker-compose.yml" ]; then
@@ -387,7 +383,7 @@ else
 fi
 log ""
 
-# 9. Финальная проверка и отчет
+# 9. Финальная проверка
 log ""
 log "[9/10] Финальная проверка..."
 
@@ -402,6 +398,18 @@ log "=============================================="
 log "📊 ИТОГОВЫЙ СТАТУС"
 log "=============================================="
 log "Работающих сервисов: $FINAL_SERVICES_OK/$TOTAL_SERVICES"
+log ""
+
+# 10. Самопроверка — полная верификация (система проверяет сама себя)
+log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."
+if [ -f "scripts/verify_mac_studio_self_recovery.sh" ]; then
+    log "--- Результат самопроверки ---"
+    bash scripts/verify_mac_studio_self_recovery.sh 2>&1 | tee -a "$LOG_FILE" || true
+    log "--- Конец самопроверки ---"
+else
+    log "⚠️ Скрипт verify_mac_studio_self_recovery.sh не найден"
+fi
+log ""
 
 if [ $FINAL_SERVICES_OK -ge 3 ]; then
     log "✅ СИСТЕМА В РАБОЧЕМ СОСТОЯНИИ"

@@ -415,8 +415,11 @@ class ConsensusAgent:
 async def main():
     """Пример использования"""
     consensus = ConsensusAgent(quorum_threshold=0.67)
-    
-    agents = ["Victoria", "Veronica", "Игорь", "Сергей", "Дмитрий"]
+    try:
+        from app.expert_services import get_all_expert_names
+        agents = get_all_expert_names(max_count=10)
+    except ImportError:
+        agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]
     
     result = await consensus.reach_consensus(
         agents=agents,

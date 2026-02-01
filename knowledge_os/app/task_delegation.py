@@ -41,10 +41,10 @@ class TaskDelegator:
     def __init__(self):
         self.collaboration = MultiAgentCollaboration()
         
-        # Профили агентов
+        # Профили агентов (кириллица — соответствует experts в БД)
         self.agent_profiles = {
-            "Victoria": AgentProfile(
-                name="Victoria",
+            "Виктория": AgentProfile(
+                name="Виктория",
                 capabilities=[
                     AgentCapability.PLANNING,
                     AgentCapability.REASONING,
@@ -59,8 +59,8 @@ class TaskDelegator:
                 },
                 max_concurrent_tasks=10
             ),
-            "Veronica": AgentProfile(
-                name="Veronica",
+            "Вероника": AgentProfile(
+                name="Вероника",
                 capabilities=[
                     AgentCapability.EXECUTION,
                     AgentCapability.FILE_OPERATIONS,
@@ -145,9 +145,8 @@ class TaskDelegator:
             # Если нет специфических требований, используем классификацию задачи
             task_type = self.collaboration._classify_task(task_requirements.get("goal", ""))
             if task_type in [TaskType.PLANNING, TaskType.COORDINATION]:
-                return "Victoria"
-            else:
-                return "Veronica"
+                return "Виктория"
+            return "Вероника"
         
         # Оцениваем агентов по требуемым способностям
         agent_scores = {}
@@ -176,7 +175,7 @@ class TaskDelegator:
             return best_agent
         
         # Fallback
-        return "Victoria"
+        return "Виктория"
     
     async def delegate_smart(
         self,

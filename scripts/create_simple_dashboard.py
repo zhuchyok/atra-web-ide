@@ -1,14 +1,30 @@
 #!/usr/bin/env python3
 """
-Создание простого HTML-дашборда для мониторинга качества.
+Дашборд качества RAG v2 (Фаза 4.1, День 5).
+Рекомендации SRE (Елена): детализация по запросам, алерты, история метрик.
 Использование: python3 scripts/create_simple_dashboard.py
 """
+import html
 import json
 from pathlib import Path
 from datetime import datetime
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def load_quality_alerts():
+    """Загружает алерты из backend/quality_alerts.json (QualityMonitor)."""
+    path = REPO_ROOT / "backend" / "quality_alerts.json"
+    if not path.exists():
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("alerts", [])
+    except Exception:
+        return []
+
 
 def load_validation_results():
     """Загружает все validation_results/*.json."""
@@ -33,8 +49,8 @@ def load_latest_report():
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def generate_dashboard_html(history, latest):
-    """Генерирует HTML."""
+def generate_dashboard_html(history, latest, alerts):
+    """Генерирует HTML (v2: детализация по запросам, алерты)."""
     # История метрик для графика
     dates = [h.get("timestamp", "")[:10] for h in history]
     faithfulness = [h.get("avg_metrics", {}).get("faithfulness", 0) * 100 for h in history]
@@ -49,12 +65,30 @@ def generate_dashboard_html(history, latest):
         current_coh = m.get("coherence", 0) * 100
         total = latest.get("total_queries", 0)
         passed = latest.get("passed", False)
+        results = latest.get("results", [])
     else:
         current_faith = current_rel = current_coh = 0
         total = 0
         passed = False
+        results = []
 
-    html = f"""<!DOCTYPE html>
+    # Таблица детализации по запросам (SRE: детализация)
+    rows = []
+    for r in results[:50]:
+        q = html.escape((r.get("query") or "")[:60])
+        met = r.get("metrics", {})
+        rel = met.get("relevance", 0) * 100
+        faith = met.get("faithfulness", 0) * 100
+        coh = met.get("coherence", 0) * 100
+        rows.append(f"<tr><td>{q}</td><td>{rel:.0f}%</td><td>{faith:.0f}%</td><td>{coh:.0f}%</td></tr>")
+    detail_table = "\n".join(rows) if rows else "<tr><td colspan='4'>Нет данных</td></tr>"
+
+    # Блок алертов
+    alert_items = "".join(
+        f"<li>{html.escape(a.get('message', str(a)))}</li>" for a in alerts[:20]
+    ) if alerts else "<li>Нет активных алертов</li>"
+
+    html_content = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -107,6 +141,19 @@ def generate_dashboard_html(history, latest):
             <canvas id="metricsChart"></canvas>
         </div>
         
+        <div class="chart-container">
+            <h2 style="color: #c9d1d9; margin-bottom: 15px;">Детализация по запросам</h2>
+            <table style="width:100%; border-collapse: collapse; color: #c9d1d9;">
+                <thead><tr style="border-bottom: 1px solid #30363d;"><th style="text-align:left; padding:8px;">Запрос</th><th>Relevance</th><th>Faithfulness</th><th>Coherence</th></tr></thead>
+                <tbody>{detail_table}</tbody>
+            </table>
+        </div>
+        
+        <div class="chart-container">
+            <h2 style="color: #c9d1d9; margin-bottom: 15px;">Алерты качества</h2>
+            <ul style="color: #f85149; margin-left: 20px;">{alert_items}</ul>
+        </div>
+        
         <p style="color: #8b949e; text-align: center; margin-top: 20px;">
             Обновлено: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </p>
@@ -155,14 +202,15 @@ def generate_dashboard_html(history, latest):
 </body>
 </html>
 """
-    return html
+    return html_content
 
 def main():
-    print("📊 Создание дашборда качества...")
+    print("📊 Создание дашборда качества (v2)...")
     history = load_validation_results()
     latest = load_latest_report()
+    alerts = load_quality_alerts()
     
-    html = generate_dashboard_html(history, latest)
+    html = generate_dashboard_html(history, latest, alerts)
     output = REPO_ROOT / "quality_dashboard.html"
     
     with open(output, "w", encoding="utf-8") as f:

@@ -3,13 +3,21 @@
 
 Метрики: faithfulness (верность контексту), relevance (релевантность запросу),
 coherence (связность), BLEU/ROUGE при наличии reference.
+Рекомендации QA (Анна): пороги faithfulness ≥ 0.8, relevance ≥ 0.85, coherence ≥ 0.7 для CI/алертов.
 """
 
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Пороги по умолчанию (QA): для CI и авто-оценки
+DEFAULT_THRESHOLDS = {
+    "faithfulness": 0.8,
+    "relevance": 0.85,
+    "coherence": 0.7,
+}
 
 
 class RAGEvaluator:
@@ -37,6 +45,23 @@ class RAGEvaluator:
             result["bleu"] = self._calculate_bleu(response, reference)
             result["rouge"] = self._calculate_rouge(response, reference)
         return result
+
+    @staticmethod
+    def check_thresholds(
+        metrics: Dict[str, float],
+        thresholds: Optional[Dict[str, float]] = None,
+    ) -> Tuple[bool, List[str]]:
+        """
+        Проверка метрик против порогов (для CI и скриптов).
+        Возвращает (passed, list of failed descriptions).
+        """
+        th = thresholds if thresholds is not None else DEFAULT_THRESHOLDS.copy()
+        failed = []
+        for name, min_val in th.items():
+            v = metrics.get(name)
+            if v is not None and v < min_val:
+                failed.append(f"{name}={v:.3f} < {min_val}")
+        return (len(failed) == 0, failed)
 
     def _calculate_faithfulness(self, response: str, context: List[str]) -> float:
         """

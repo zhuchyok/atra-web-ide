@@ -106,7 +106,7 @@ class EmergentHierarchy:
         hierarchy = {}
         
         # Уровень 0: Лидер (Victoria обычно)
-        leader = "Victoria" if "Victoria" in available_agents else available_agents[0]
+        leader = "Виктория" if "Виктория" in available_agents else available_agents[0]
         leader_node = HierarchyNode(
             node_id=f"node_{leader}",
             agent_name=leader,
@@ -161,7 +161,7 @@ class EmergentHierarchy:
         domain_mapping = {
             "database": ["Роман", "Игорь"],
             "backend": ["Игорь", "Сергей"],
-            "development": ["Игорь", "Veronica"],
+            "development": ["Игорь", "Вероника"],
             "testing": ["Анна", "Игорь"]
         }
         

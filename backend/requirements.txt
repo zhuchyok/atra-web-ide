@@ -30,3 +30,6 @@ redis>=5.0.0
 
 # День 5: Prometheus метрики
 prometheus-client==0.20.0
+
+# Системные метрики (CPU, память)
+psutil>=5.9.0

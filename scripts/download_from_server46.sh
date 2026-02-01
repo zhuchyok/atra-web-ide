@@ -90,15 +90,23 @@ else
     echo "   ✅ Найден контейнер: $PG_CONTAINER"
 fi
 
-# Создаем дамп
+# Создаем дамп (или пересоздаём, если пустой < 1MB)
 sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
     cd $DUMP_PATH 2>/dev/null || cd ~
     DUMP_FILE=\"knowledge_os_dump.sql\"
-    
+    NEED_DUMP=1
     if [ -f \"\$DUMP_FILE\" ]; then
-        echo '✅ Дамп уже существует на сервере'
-        ls -lh \"\$DUMP_FILE\"
-    else
+        SZ=\$(stat -c%s \"\$DUMP_FILE\" 2>/dev/null || stat -f%z \"\$DUMP_FILE\" 2>/dev/null || echo 0)
+        if [ \"\$SZ\" -gt 1000000 ]; then
+            echo '✅ Дамп уже существует на сервере (OK)'
+            ls -lh \"\$DUMP_FILE\"
+            NEED_DUMP=0
+        else
+            echo '⚠️  Дамп пустой (\$SZ B), пересоздаём...'
+            rm -f \"\$DUMP_FILE\"
+        fi
+    fi
+    if [ \"\$NEED_DUMP\" = 1 ]; then
         echo '📦 Создание дампа...'
         if [ -n \"$PG_CONTAINER\" ]; then
             docker exec $PG_CONTAINER pg_dump -U admin -d knowledge_os > \"\$DUMP_FILE\" 2>&1

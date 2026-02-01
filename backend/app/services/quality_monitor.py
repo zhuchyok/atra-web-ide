@@ -1,15 +1,25 @@
 """
-Фаза 4, День 7: мониторинг качества в реальном времени.
+Фаза 4, День 5: Advanced Quality Monitor с детекцией аномалий.
 
-Периодическая валидация, сбор метрик, алерты при аномалиях.
+Рекомендации SRE (Елена): метрики из реальных источников, алерты по SLO.
+Рекомендации QA (Анна): пороги faithfulness/relevance/coherence.
+Детекция аномалий: пороги + z-score по последним N прогонам (падение метрик).
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Путь к отчётам (от backend/app/services -> backend/)
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+_REPORT_PATH = _BACKEND_DIR / "validation_report.json"
+_RESULTS_DIR = _BACKEND_DIR / "validation_results"
+_ALERTS_PATH = _BACKEND_DIR / "quality_alerts.json"
 
 
 class QualityMonitor:
@@ -96,16 +106,44 @@ class QualityMonitor:
                 logger.error("Error in live metrics monitoring: %s", e)
 
     async def _collect_live_metrics(self) -> Dict[str, Any]:
-        """Сбор метрик в реальном времени (заглушка под Prometheus/логи)."""
-        return {
+        """Сбор метрик из validation_report и validation_results (SRE: реальный источник)."""
+        out: Dict[str, Any] = {
             "requests_last_minute": 0,
             "avg_response_time_ms": 0,
             "error_rate": 0,
             "cache_hit_rate": 0,
+            "faithfulness": 0.0,
+            "relevance": 0.0,
+            "coherence": 0.0,
+            "total_queries": 0,
         }
+        if _REPORT_PATH.exists():
+            try:
+                with open(_REPORT_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                m = data.get("avg_metrics", {})
+                out["faithfulness"] = m.get("faithfulness", 0.0)
+                out["relevance"] = m.get("relevance", 0.0)
+                out["coherence"] = m.get("coherence", 0.0)
+                out["total_queries"] = data.get("total_queries", 0)
+            except Exception as e:
+                logger.debug("QualityMonitor: read report %s", e)
+        return out
+
+    def _zscore_anomaly(self, values: List[float], current: float, n_std: float = 2.0) -> bool:
+        """Аномалия: текущее значение сильно ниже среднего (ML-подобная детекция)."""
+        if not values or len(values) < 3:
+            return False
+        import statistics
+        mean = statistics.mean(values)
+        stdev = statistics.stdev(values)
+        if stdev < 1e-6:
+            return current < mean and mean > 0.5
+        z = (current - mean) / stdev if stdev else 0
+        return z < -n_std
 
     async def _detect_anomalies(self, metrics: Dict) -> None:
-        """Обнаружение аномалий в метриках."""
+        """Обнаружение аномалий: пороги (QA) + z-score по истории (SRE)."""
         anomalies: List[str] = []
         if metrics.get("avg_response_time_ms", 0) > self.alert_thresholds["response_time_ms"]:
             anomalies.append(
@@ -115,8 +153,31 @@ class QualityMonitor:
             anomalies.append(
                 f"High error rate: {metrics['error_rate']:.1%}"
             )
+        # Пороги качества (QA)
+        if metrics.get("faithfulness", 1) < self.alert_thresholds["faithfulness"]:
+            anomalies.append(
+                f"Low faithfulness: {metrics.get('faithfulness', 0):.2f}"
+            )
+        if metrics.get("relevance", 1) < self.alert_thresholds["relevance"]:
+            anomalies.append(
+                f"Low relevance: {metrics.get('relevance', 0):.2f}"
+            )
+        if metrics.get("coherence", 1) < self.alert_thresholds["coherence"]:
+            anomalies.append(
+                f"Low coherence: {metrics.get('coherence', 0):.2f}"
+            )
+        # Z-score по последним прогонам (падение метрик)
+        hist_rel = [b.get("metrics", {}).get("relevance", 0) for b in self.metrics_buffer[-10:] if b.get("metrics", {}).get("relevance") is not None]
+        hist_faith = [b.get("metrics", {}).get("faithfulness", 0) for b in self.metrics_buffer[-10:] if b.get("metrics", {}).get("faithfulness") is not None]
+        cur_rel = metrics.get("relevance")
+        cur_faith = metrics.get("faithfulness")
+        if cur_rel is not None and self._zscore_anomaly(hist_rel, cur_rel):
+            anomalies.append(f"Relevance anomaly (z-score): {cur_rel:.2f}")
+        if cur_faith is not None and self._zscore_anomaly(hist_faith, cur_faith):
+            anomalies.append(f"Faithfulness anomaly (z-score): {cur_faith:.2f}")
         if anomalies:
             await self._send_alert("Anomalies detected: " + "; ".join(anomalies))
+            self._write_alerts_file(anomalies)
 
     async def _check_alerts(self) -> None:
         """Проверка и отправка алертов."""
@@ -130,6 +191,20 @@ class QualityMonitor:
                 break
             except Exception as e:
                 logger.error("Error in check_alerts: %s", e)
+
+    def _write_alerts_file(self, anomalies: List[str]) -> None:
+        """Запись алертов в файл для дашборда (SRE: runbook, дашборд)."""
+        if not _ALERTS_PATH.parent.exists():
+            return
+        try:
+            payload = {
+                "updated": datetime.now().isoformat(),
+                "alerts": [{"message": m, "severity": "warning"} for m in anomalies],
+            }
+            with open(_ALERTS_PATH, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.debug("QualityMonitor: write alerts %s", e)
 
     async def _send_alert(self, message: str) -> None:
         """Добавление алерта в очередь."""

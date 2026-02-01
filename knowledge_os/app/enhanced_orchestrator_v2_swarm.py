@@ -115,7 +115,12 @@ class EnhancedOrchestratorV2Swarm(EnhancedOrchestratorV2):
                     )
                     + ". Подбери оптимальную команду экспертов по категориям (coding, reasoning, vision, general)."
                 )
-                await self.swarm_intelligence.solve(problem=swarm_prompt)
+                try:
+                    from app.expert_services import get_all_expert_names
+                    swarm_agents = get_all_expert_names(max_count=getattr(self.swarm_intelligence, "swarm_size", 8))
+                except ImportError:
+                    swarm_agents = None
+                await self.swarm_intelligence.solve(problem=swarm_prompt, agent_names=swarm_agents)
                 # Фактические назначения делаем через базовый ExpertMatchingEngine
             except Exception as e:
                 logger.debug("Swarm phase_5 failed, falling back: %s", e)
@@ -147,8 +152,13 @@ class EnhancedOrchestratorV2Swarm(EnhancedOrchestratorV2):
         try:
             texts = [str(r.get("result", r.get("output", ""))) for r in subtask_results if r]
             question = f"Итоговый результат для задачи {task_id} по подзадачам."
+            try:
+                from app.expert_services import get_all_expert_names
+                consensus_agents = get_all_expert_names(max_count=8)
+            except ImportError:
+                consensus_agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]
             result = await self.consensus_agent.reach_consensus(
-                agents=[],
+                agents=consensus_agents,
                 question=question,
                 initial_context={"subtask_results": texts},
             )

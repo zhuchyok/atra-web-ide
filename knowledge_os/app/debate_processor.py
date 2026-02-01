@@ -6,6 +6,7 @@
 """
 import asyncio
 import os
+import re
 import json
 import asyncpg
 from datetime import datetime, timezone
@@ -122,19 +123,43 @@ class DebateProcessor:
             }
     
     def _extract_actionable_insights(self, consensus_text: str) -> List[str]:
-        """Извлекает actionable insights из консенсуса"""
+        """Извлекает actionable insights из консенсуса (Singularity 10.0: расширенный Prompt Engineer)"""
         insights = []
-        
-        # Ищем предложения с глаголами действия
-        action_verbs = ['реализовать', 'внедрить', 'создать', 'разработать', 'оптимизировать', 'улучшить', 'добавить']
-        sentences = consensus_text.split('.')
-        
+        seen = set()
+
+        # Глаголы действия (русский + английский)
+        action_verbs = [
+            'реализовать', 'внедрить', 'создать', 'разработать', 'оптимизировать', 'улучшить', 'добавить',
+            'внедрять', 'создавать', 'разрабатывать', 'оптимизировать', 'улучшать', 'добавлять',
+            'рекомендуется', 'следует', 'необходимо', 'нужно', 'важно',
+            'implement', 'create', 'add', 'improve', 'optimize', 'develop', 'recommend'
+        ]
+        # Паттерны для actionable фраз
+        action_patterns = ['→', '->', ':', '—', '•', '- ', '1.', '2.', 'рекомендация', 'action', 'task']
+
+        def normalize(s: str) -> str:
+            return s.strip()[:500]
+
+        sentences = re.split(r'[.!?\n]+', consensus_text)
         for sentence in sentences:
-            sentence_lower = sentence.lower().strip()
-            if any(verb in sentence_lower for verb in action_verbs) and len(sentence) > 20:
-                insights.append(sentence.strip())
-        
-        return insights[:3]  # Максимум 3 инсайта
+            s = sentence.strip()
+            if len(s) < 20:
+                continue
+            s_lower = s.lower()
+            # Проверка глаголов действия
+            if any(verb in s_lower for verb in action_verbs):
+                n = normalize(s)
+                if n and n not in seen:
+                    seen.add(n)
+                    insights.append(n)
+            # Проверка паттернов (рекомендации, списки)
+            elif any(p in s_lower for p in action_patterns) and len(s) > 30:
+                n = normalize(s)
+                if n and n not in seen:
+                    seen.add(n)
+                    insights.append(n)
+
+        return insights[:5]  # Максимум 5 инсайтов (расширено с 3)
     
     async def create_task_from_debate(self, debate_id: str, analysis: Dict) -> Optional[str]:
         """
@@ -171,7 +196,12 @@ class DebateProcessor:
             if analysis['knowledge_node_id'] and knowledge:
                 original_expert = knowledge.get('metadata', {}).get('expert')
                 if original_expert:
-                    assignee_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", original_expert)
+                    try:
+                        from app.expert_aliases import resolve_expert_name_for_db
+                        resolved_expert = resolve_expert_name_for_db(original_expert)
+                    except ImportError:
+                        resolved_expert = original_expert
+                    assignee_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", resolved_expert)
             
             if not assignee_id:
                 # Берем эксперта домена

@@ -291,12 +291,12 @@ def get_agent(agent_name: str) -> Optional[AgentProtocol]:
 async def main():
     """Пример использования"""
     # Создаем протоколы для агентов
-    victoria_protocol = AgentProtocol("Victoria")
-    veronica_protocol = AgentProtocol("Veronica")
+    victoria_protocol = AgentProtocol("Виктория")
+    veronica_protocol = AgentProtocol("Вероника")
     
     # Регистрируем
-    register_agent("Victoria", victoria_protocol)
-    register_agent("Veronica", veronica_protocol)
+    register_agent("Виктория", victoria_protocol)
+    register_agent("Вероника", veronica_protocol)
     
     # Регистрируем возможности
     await victoria_protocol.register_capabilities(
@@ -311,18 +311,18 @@ async def main():
     
     # Примеры использования
     # PING
-    is_available = await victoria_protocol.ping("Veronica")
+    is_available = await victoria_protocol.ping("Вероника")
     print(f"Veronica доступна: {is_available}")
     
     # TELL
-    await victoria_protocol.tell("Veronica", {"task": "Выполни задачу X"})
+    await victoria_protocol.tell("Вероника", {"task": "Выполни задачу X"})
     
     # ASK
-    answer = await victoria_protocol.ask("Veronica", "Какой статус задачи?")
+    answer = await victoria_protocol.ask("Вероника", "Какой статус задачи?")
     print(f"Ответ: {answer}")
     
     # OBSERVE
-    status = await victoria_protocol.observe("Veronica")
+    status = await victoria_protocol.observe("Вероника")
     print(f"Статус Veronica: {status}")
 
 

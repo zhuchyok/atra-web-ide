@@ -4018,9 +4018,9 @@ async def send_signal(
 
     try:
         # 2. ПРОВЕРКА КОРРЕЛЯЦИОННЫХ РИСКОВ
-        # 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ Correlation Risk для тестирования
-        # TODO: Включить обратно после исправления проблемы с GROUP_LIMIT_EXCEEDED
-        USE_CORRELATION_RISK = False  # 🔧 ТЕСТ: временно отключен
+        # 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ Correlation Risk до исправления GROUP_LIMIT_EXCEEDED
+        # Условия включения: docs/SIGNALS_TODO_REENABLE.md
+        USE_CORRELATION_RISK = False  # 🔧 временно отключен
 
         if USE_CORRELATION_RISK and CORRELATION_MANAGER_AVAILABLE and correlation_manager:
             try:
@@ -5439,9 +5439,9 @@ async def check_ml_filter(
         Tuple[bool, Optional[str], Optional[Dict]]:
         (passed, reason, prediction_dict) - True если ML фильтр пройден
     """
-    # 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ML ФИЛЬТР ДЛЯ ТЕСТИРОВАНИЯ
-    # TODO: Включить обратно после исправления проблем с prob=0.01%
-    USE_ML_FILTER = False  # 🔧 ТЕСТ: временно отключен
+    # 🔧 ВРЕМЕННО ОТКЛЮЧАЕМ ML фильтр до исправления проблем с prob=0.01%
+    # Условия включения: docs/SIGNALS_TODO_REENABLE.md
+    USE_ML_FILTER = False  # 🔧 временно отключен
 
     if not USE_ML_FILTER:
         logger.info("🔧 [ML CHECK] %s: ML фильтр ВРЕМЕННО ОТКЛЮЧЕН для тестирования", symbol)
@@ -5665,32 +5665,28 @@ async def check_ml_filter(
             prediction['recommendation']
         )
 
-        # 🤖 ML ОПТИМИЗАЦИЯ ПОРОГОВ: Автоматическая оптимизация на основе исторических результатов
+        # 🤖 ML ОПТИМИЗАЦИЯ ПОРОГОВ: AIFilterOptimizer.optimize_ml_filter_thresholds (fallback — дефолты)
         try:
-            # AIFilterOptimizer не имеет метода optimize_ml_filter_thresholds, используем дефолтные значения
-            # from src.ai.filter_optimizer import get_filter_optimizer  # Не используется, но оставляем для будущего
-            # 🔧 ВРЕМЕННО ОСЛАБЛЕНЫ для тестирования
-            optimized_thresholds = {
-                'min_success_prob': 0.1,  # 🔧 ТЕСТ: было 0.4
-                'min_expected_profit': 0.1,  # 🔧 ТЕСТ: было 0.3
-                'min_combined_score': 0.01  # 🔧 ТЕСТ: было 0.15
-            }
-            # TODO: Реализовать метод optimize_ml_filter_thresholds в AIFilterOptimizer
-            min_success_prob = optimized_thresholds.get('min_success_prob', 0.1)
-            min_expected_profit = optimized_thresholds.get('min_expected_profit', 0.1)
-            min_combined_score = optimized_thresholds.get('min_combined_score', 0.01)
+            from src.ai.filter_optimizer import get_filter_optimizer
+            optimizer = get_filter_optimizer()
+            metrics = await optimizer.get_recent_performance()
+            optimized_thresholds = optimizer.optimize_ml_filter_thresholds(metrics)
+            min_success_prob = optimized_thresholds.get('min_success_prob', 0.45)
+            min_expected_profit = optimized_thresholds.get('min_expected_profit', 0.35)
+            min_combined_score = optimized_thresholds.get('min_combined_score', 0.20)
             logger.info(
-                "🔧 [ML_THRESHOLDS] %s: ВРЕМЕННО ОСЛАБЛЕНЫ пороги для тестирования: prob=%.2f, profit=%.2f%%, score=%.2f",
+                "🤖 [ML_THRESHOLDS] %s: адаптивные пороги: prob=%.2f, profit=%.2f%%, score=%.2f",
                 symbol, min_success_prob, min_expected_profit, min_combined_score
             )
         except Exception as e:
             logger.debug("⚠️ [ML_THRESHOLDS] Ошибка оптимизации порогов, используем дефолтные: %s", e)
-            # 🔧 Дефолтные пороги для интрадей (ВРЕМЕННО ОСЛАБЛЕНЫ ДЛЯ ТЕСТИРОВАНИЯ)
-            min_success_prob = 0.1  # 🔧 ТЕСТ: было 0.4, стало 0.1 (10%) для диагностики
-            min_expected_profit = 0.1  # 🔧 ТЕСТ: было 0.3%, стало 0.1% для диагностики
-            min_combined_score = 0.01  # 🔧 ТЕСТ: было 0.15, стало 0.01 для диагностики
-            logger.info("🔧 [ML THRESHOLDS] %s: ВРЕМЕННО ОСЛАБЛЕНЫ пороги для тестирования: prob=%.2f, profit=%.2f%%, score=%.2f",
-                       symbol, min_success_prob, min_expected_profit, min_combined_score)
+            min_success_prob = 0.45
+            min_expected_profit = 0.35
+            min_combined_score = 0.20
+            logger.info(
+                "🔧 [ML_THRESHOLDS] %s: дефолтные пороги: prob=%.2f, profit=%.2f%%, score=%.2f",
+                symbol, min_success_prob, min_expected_profit, min_combined_score
+            )
 
         # 📊 ДИАГНОСТИКА: проверяем, что вероятность в разумном диапазоне
         success_prob = prediction['success_probability']

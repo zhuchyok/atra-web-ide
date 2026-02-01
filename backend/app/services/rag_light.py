@@ -55,6 +55,7 @@ class RAGLightService:
         timeout_ms: int = 200,
         ab_testing_service: Any = None,
         reranking_service: Any = None,
+        query_rewriter_service: Any = None,
         config: Any = None,
     ):
         self.knowledge_os = knowledge_os
@@ -64,11 +65,15 @@ class RAGLightService:
         self.timeout_ms = timeout_ms
         self.ab_testing = ab_testing_service
         self.reranking_service = reranking_service
+        self.query_rewriter_service = query_rewriter_service
         self.use_reranking = (
             config.get("reranking_enabled", False) if config else False
         )
         self.use_query_expansion = (
             config.get("query_expansion_enabled", True) if config else True
+        )
+        self.use_query_rewriter = (
+            config.get("query_rewriter_enabled", True) if config else True
         )
         self._cache: dict = {}
         self._cache_max = 200
@@ -206,7 +211,7 @@ class RAGLightService:
             if cached:
                 return cached
 
-        search_query = self._expand_query_for_search(query)
+        search_query = await self._prepare_query_for_search(query)
         embedding = await self._get_embedding_optimized(search_query)
         if not embedding:
             return []
@@ -261,6 +266,23 @@ class RAGLightService:
         chunks = await self.search_with_reranking(query, limit=limit)
         return chunks
 
+    async def _prepare_query_for_search(self, query: str) -> str:
+        """
+        Подготовка запроса: переписывание (если включено) → расширение.
+        QueryRewriter (эвристики) + query expansion для лучшего retrieval.
+        """
+        q = query
+        if self.use_query_rewriter and self.query_rewriter_service and query:
+            try:
+                rewritten = await self.query_rewriter_service.rewrite_for_rag(query)
+                if rewritten and rewritten.strip():
+                    q = rewritten.strip()
+                    if q != query:
+                        logger.debug("Query rewritten: %s -> %s", query[:40], q[:60])
+            except Exception as e:
+                logger.debug("Query rewrite skipped: %s", e)
+        return self._expand_query_for_search(q)
+
     def _expand_query_for_search(self, query: str) -> str:
         """Расширение запроса для улучшения retrieval (query expansion)."""
         if not self.use_query_expansion or not query:
@@ -295,7 +317,7 @@ class RAGLightService:
             if cached:
                 return cached[0]
 
-        search_query = self._expand_query_for_search(query)
+        search_query = await self._prepare_query_for_search(query)
         embedding = await self._get_embedding_optimized(search_query)
         if not embedding:
             return None
@@ -473,8 +495,10 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
         except Exception:
             pass
         reranking_service = None
+        query_rewriter_service = None
         config = {
             "query_expansion_enabled": getattr(settings, "query_expansion_enabled", True),
+            "query_rewriter_enabled": getattr(settings, "query_rewriter_enabled", True),
         }
         if getattr(settings, "reranking_enabled", False):
             try:
@@ -486,6 +510,13 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
                 config["reranking_enabled"] = True
             except Exception as e:
                 logger.debug("RerankingService init skipped: %s", e)
+        if getattr(settings, "query_rewriter_enabled", True):
+            try:
+                from app.services.query_rewriter import QueryRewriter
+                query_rewriter_service = QueryRewriter(use_llm=False)
+            except Exception as e:
+                logger.debug("QueryRewriter init skipped: %s", e)
+                config["query_rewriter_enabled"] = False
         _rag_light_service = RAGLightService(
             knowledge_os=knowledge_os,
             enabled=enabled,
@@ -494,6 +525,7 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
             timeout_ms=getattr(settings, "rag_light_timeout_ms", 200),
             ab_testing_service=ab_testing,
             reranking_service=reranking_service,
+            query_rewriter_service=query_rewriter_service,
             config=config,
         )
         _rag_light_service._init_optimizations()

@@ -81,9 +81,26 @@ search_prompt = f"Исследуй '{topic}'.
 - Автоматическая эволюция экспертов
 - Улучшение system_prompt на основе опыта
 
+#### Шаг 9-11: Singularity 10.0 — Применение знаний
+- **Debate Processor:** обработка дебатов, создание задач из консенсуса
+- **Knowledge Applicator:** lessons learned → guidance, ретроспективы → knowledge_nodes, инсайты → эволюция промптов
+- **Apply All Knowledge:** вызов после Debate Processor в Nightly Learner
+
 ---
 
-### 2. **Enhanced Orchestrator (каждые 5 минут)**
+### 2. **Применение знаний (Singularity 10.0)**
+
+**Knowledge Applicator** (`observability/knowledge_applicator.py`):
+
+1. **Lessons learned → guidance** — топ-5 из `adaptive_learning_logs` (impact_score > 0.5) → обновление .cursorrules
+2. **Ретроспективы → knowledge_nodes** — feedback из `interaction_logs` → INSERT в knowledge_nodes (domain: Feedback)
+3. **Инсайты → задачи** — топ-5 из `knowledge_nodes` (verified) → task для Prompt Engineer
+
+**Интеграция:** `apply_all_knowledge_async()` вызывается в Nightly Learner после Debate Processor.
+
+---
+
+### 3. **Enhanced Orchestrator (каждые 5 минут)**
 
 **Фаза 5: Global Scout (валидация через интернет)**
 
@@ -154,9 +171,11 @@ if needs_web_search:
 ### Ежедневный цикл обучения (Nightly Learner):
 
 ```
-1. Синхронизация OKR
+1. update_all_agents_knowledge (модели, скрипты, инсайты, lessons learned)
    ↓
-2. Для каждого эксперта (58 экспертов):
+2. Синхронизация OKR
+   ↓
+3. Для каждого эксперта (58 экспертов):
    ├─ Определение пробела в знаниях
    ├─ Исследование темы (может использовать веб-поиск)
    ├─ Формулирование инсайтов
@@ -164,13 +183,17 @@ if needs_web_search:
    ├─ Expert Council (если confidence ≥ 0.9)
    └─ Обновление last_learned_at
    ↓
-3. LM Judge (верификация)
+4. LM Judge (верификация)
    ↓
-4. Adversarial Critic (стресс-тесты)
+5. Adversarial Critic (стресс-тесты)
    ↓
-5. Contextual Learning
+6. Contextual Learning
    ↓
-6. Enhanced Expert Evolution
+7. Enhanced Expert Evolution
+   ↓
+8. Debate Processor (обработка дебатов, создание задач)
+   ↓
+9. Apply All Knowledge (Singularity 10.0: lessons → guidance, ретроспективы → knowledge_nodes)
 ```
 
 ### Каждые 5 минут (Orchestrator):

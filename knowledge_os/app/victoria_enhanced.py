@@ -11,6 +11,32 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+
+def _is_gibberish_output(text: str) -> bool:
+    """Проверить, похож ли вывод на мусор (галлюцинации, смешение скриптов, битый текст)."""
+    if not text or len(text.strip()) < 20:
+        return False  # Пустой — не gibberish, просто нет ответа
+    s = text.strip()
+    # Смешение CJK с латиницей в хаотичном виде
+    import re
+    cjk = len(re.findall(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', s))
+    cyrillic = len(re.findall(r'[а-яёА-ЯЁ]', s))
+    latin = len(re.findall(r'[a-zA-Z]', s))
+    total_letters = cyrillic + latin + cjk
+    if total_letters < 10:
+        return False
+    # Много CJK при русском запросе — подозрительно
+    if cjk > 0 and cyrillic < 20 and cjk + latin > cyrillic:
+        return True
+    # Переменные/код в ответе: token_0, _text, Instagram_1
+    if re.search(r'\b(thoughtful_\d|_0-text|Instagram_\d|token[s]?_\d)\b', s):
+        return True
+    # Слишком много случайных символов/скобок
+    if s.count('[') + s.count('{') > 5 and cyrillic < 30:
+        return True
+    return False
+
+
 # Контекст мировых практик для запросов анализа (OpenAI, Anthropic, Meta, Microsoft, LangGraph)
 WORLD_PRACTICES_CONTEXT = (
     "Контекст мировых практик (учитывай в ответе): "
@@ -215,7 +241,7 @@ class VictoriaEnhanced:
                 # Используем модель для coding задач (ReAct часто используется для кода)
                 # Но модель будет выбрана динамически при выполнении через fallback
                 self.react_agent = ReActAgent(
-                    agent_name="Victoria",
+                    agent_name="Виктория",
                     model_name=self.model_name  # Начальная модель, fallback в _generate_response
                 )
                 logger.info(f"✅ ReActAgent инициализирован (модель: {self.model_name}, fallback доступен)")
@@ -259,7 +285,7 @@ class VictoriaEnhanced:
         
         if HIERARCHICAL_AVAILABLE:
             try:
-                self.hierarchical_orch = HierarchicalOrchestrator(root_agent="Victoria")
+                self.hierarchical_orch = HierarchicalOrchestrator(root_agent="Виктория")
                 logger.info("✅ HierarchicalOrchestrator инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации HierarchicalOrchestrator: {e}")
@@ -293,7 +319,7 @@ class VictoriaEnhanced:
         # Новые компоненты 2026
         if self.use_metacognitive:
             try:
-                self.metacognitive = MetacognitiveLearner(agent_name="Victoria")
+                self.metacognitive = MetacognitiveLearner(agent_name="Виктория")
                 logger.info("✅ MetacognitiveLearner инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации MetacognitiveLearner: {e}")
@@ -307,7 +333,7 @@ class VictoriaEnhanced:
         
         if self.use_evolver:
             try:
-                self.evolver = AgentEvolver(agent_name="Victoria")
+                self.evolver = AgentEvolver(agent_name="Виктория")
                 logger.info("✅ AgentEvolver инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации AgentEvolver: {e}")
@@ -519,7 +545,12 @@ class VictoriaEnhanced:
         if is_stats_query:
             return "general"  # Используем более умные модели (qwen2.5-coder:32b, phi3.5:3.8b)
         
-        # 🔍 ЗАПРОСЫ О МИРОВЫХ ПРАКТИКАХ/АНАЛИЗЕ - используем reasoning модели
+        # 📋 ЗАПРОСЫ О СТАТУСЕ/ПРИОРИТЕТАХ — simple (быстро, без долгого extended thinking)
+        status_keywords = ["статус", "приоритет", "приоритеты", "что в работе", "что сейчас"]
+        if any(kw in goal_lower for kw in status_keywords):
+            return "status_query"  # simple — 1 вызов LLM, без ReAct/extended thinking
+
+        # 🔍 ЗАПРОСЫ О МИРОВЫХ ПРАКТИКАХ/АНАЛИЗЕ - используем reasoning (extended thinking)
         analysis_keywords = [
             "мировые практики", "best practices", "что не хватает", "проанализируй",
             "сравни", "анализ", "пробелы", "что отсутствует", "что нужно добавить"
@@ -527,21 +558,28 @@ class VictoriaEnhanced:
         is_analysis_query = any(keyword in goal_lower for keyword in analysis_keywords)
         
         if is_analysis_query:
-            return "reasoning"  # Используем reasoning модели для анализа
+            return "reasoning"  # extended_thinking — для анализа
         
-        # 🚀 БЫСТРЫЕ ЗАДАЧИ - только для действительно простых
+        # 🚀 БЫСТРЫЕ / ИНФОРМАЦИОННЫЕ ЗАДАЧИ — приветствия, «что умеешь», «кто ты»
         simple_keywords = [
-            "привет", "здравствуй", "как дела", "что нового", 
-            "скажи", "расскажи кратко", "да", "нет"
+            "привет", "здравствуй", "как дела", "что нового",
+            "скажи", "расскажи кратко", "да", "нет",
+            "что ты умеешь", "что умеешь", "кто ты", "чем занимаешься",
+            "твои возможности", "чем можешь помочь", "расскажи о себе"
         ]
         
-        # Простые задачи: короткие И содержат простые ключевые слова
+        # Информационные вопросы («что умеешь», «кто ты») — simple, без ReAct
+        is_informational = any(
+            kw in goal_lower for kw in
+            ["что ты умеешь", "что умеешь", "кто ты", "чем занимаешься", "твои возможности", "чем можешь помочь", "расскажи о себе"]
+        )
+        if is_informational:
+            return "informational"  # simple (LLM), не ReAct — не нужны инструменты
+        
+        # Простые: короткие приветствия
         is_simple = (
             goal_length <= 5 and any(keyword in goal_lower for keyword in simple_keywords)
-        ) or (
-            goal_length <= 3  # Очень короткие запросы
-        )
-        
+        ) or goal_length <= 3
         if is_simple:
             return "fast"  # Используем быстрые модели
         
@@ -725,7 +763,7 @@ class VictoriaEnhanced:
             if self.collective_memory:
                 try:
                     memory_context = await self.collective_memory.get_enhanced_context(
-                        agent_name="Victoria",
+                        agent_name="Виктория",
                         location="general"
                     )
                 except Exception as e:
@@ -781,7 +819,7 @@ class VictoriaEnhanced:
             if self.collective_memory:
                 try:
                     await self.collective_memory.record_action(
-                        agent_name="Victoria",
+                        agent_name="Виктория",
                         action="solve",
                         result=result.get("result", ""),
                         location=category
@@ -955,7 +993,7 @@ class VictoriaEnhanced:
             try:
                 from app.task_trace_hooks import log_prompt, log_model_selection
                 log_prompt(
-                    who="Victoria",
+                    who="Виктория",
                     stage="THINKING_FOR_VERONICA",
                     prompt=thinking_prompt,
                     model="ExtendedThinkingEngine" if EXTENDED_THINKING_AVAILABLE else "run_smart_agent_async"
@@ -989,7 +1027,7 @@ class VictoriaEnhanced:
                 try:
                     from app.task_trace_hooks import log_model_selection
                     log_model_selection(
-                        who="Victoria",
+                        who="Виктория",
                         task=goal,
                         selected_model="ExtendedThinkingEngine",
                         reason="Используется для глубокого анализа и планирования",
@@ -1002,13 +1040,13 @@ class VictoriaEnhanced:
                 from app.ai_core import run_smart_agent_async
                 thinking_result = await run_smart_agent_async(
                     thinking_prompt,
-                    expert_name="Victoria",
+                    expert_name="Виктория",
                     category="planning"
                 )
                 try:
                     from app.task_trace_hooks import log_model_selection
                     log_model_selection(
-                        who="Victoria",
+                        who="Виктория",
                         task=goal,
                         selected_model="run_smart_agent_async",
                         reason="Fallback: ExtendedThinkingEngine недоступен",
@@ -1060,7 +1098,7 @@ class VictoriaEnhanced:
                 try:
                     from app.task_trace_hooks import log_prompt
                     log_prompt(
-                        who="Victoria → Task Distribution",
+                        who="Виктория → Task Distribution",
                         stage="TASK_DISTRIBUTION",
                         prompt=task_plan_text,
                         model="N/A (план от Victoria)"
@@ -1169,6 +1207,12 @@ class VictoriaEnhanced:
                     return None
                 
                 expert_name = expert_info.get("name")
+                # Латинское имя (Veronica) → кириллица в БД
+                try:
+                    from app.expert_aliases import resolve_expert_name_for_db
+                    expert_name = resolve_expert_name_for_db(expert_name) if expert_name else expert_name
+                except ImportError:
+                    expert_name = {"Veronica": "Вероника", "Victoria": "Виктория"}.get(expert_name, expert_name)
                 system_prompt = expert_info.get("system_prompt", "")
                 
                 logger.info(f"👤 Выполняю задачу через эксперта '{expert_name}' из отдела '{department}'")
@@ -1585,7 +1629,7 @@ class VictoriaEnhanced:
                 from app.ai_core import run_smart_agent_async
                 synthesis = await run_smart_agent_async(
                     synthesis_prompt,
-                    expert_name="Victoria",
+                    expert_name="Виктория",
                     category="synthesis"
                 )
             
@@ -1646,10 +1690,10 @@ class VictoriaEnhanced:
             veronica_capabilities = ["execution", "file_operations", "research", "system_admin"]
             matching_caps = [cap for cap in veronica_capabilities if cap in required_capabilities]
             if matching_caps:
-                logger.info(f"📋 Найдены способности Veronica: {matching_caps}")
+                logger.info(f"📋 Найдены способности Вероники: {matching_caps}")
                 return True, {
-                    "agent": "Veronica",
-                    "reason": "Требуются способности Veronica",
+                    "agent": "Вероника",
+                    "reason": "Требуются способности Вероники",
                     "capabilities": matching_caps
                 }
             
@@ -1664,9 +1708,9 @@ class VictoriaEnhanced:
             ]
             found_keywords = [kw for kw in veronica_keywords if kw in goal_lower]
             if found_keywords:
-                logger.info(f"📋 Найдены ключевые слова для Veronica: {found_keywords}")
+                logger.info(f"📋 Найдены ключевые слова для Вероники: {found_keywords}")
                 return True, {
-                    "agent": "Veronica",
+                    "agent": "Вероника",
                     "reason": "Задача требует выполнения/файловых операций",
                     "keywords": found_keywords
                 }
@@ -1682,6 +1726,8 @@ class VictoriaEnhanced:
     def _select_optimal_method(self, category: str, goal: str) -> str:
         """Выбрать оптимальный метод. ReAct по умолчанию (доступ к файлам/инструментам), если доступен."""
         method_map = {
+            "informational": "simple",  # «что умеешь», «кто ты» — без ReAct
+            "status_query": "simple",   # статус/приоритеты — быстрый ответ, без долгих методов
             "fast": "react" if self.react_agent else "simple",
             "reasoning": "extended_thinking" if self.extended_thinking else "recap",
             "planning": "tree_of_thoughts" if self.tot else "hierarchical",
@@ -1729,28 +1775,39 @@ class VictoriaEnhanced:
                     result = await self.react_agent.run(goal, context)
                     # Правильная обработка результата ReAct
                     if isinstance(result, dict):
-                        result_text = result.get("final_reflection", result.get("response", ""))
+                        result_text = result.get("final_reflection") or result.get("response", "")
                         if not result_text and result.get("steps"):
-                            # Если нет финального ответа, берем последний шаг
+                            # При action=finish ответ в observation; иначе reflection/thought
                             last_step = result.get("steps", [])[-1] if result.get("steps") else None
                             if last_step:
-                                result_text = last_step.get("reflection", last_step.get("thought", ""))
+                                result_text = (
+                                    last_step.get("observation")
+                                    or last_step.get("reflection")
+                                    or last_step.get("thought", "")
+                                )
                     else:
                         result_text = str(result)
                     
-                    return {
-                        "result": result_text or "Задача выполнена через ReAct Framework",
-                        "method": "react",
-                        "steps": len(result.get("steps", [])) if isinstance(result, dict) else 0,
-                                    "metadata": {
-                                        **(result if isinstance(result, dict) else {}),
-                                        "model_used": coding_model or self.model_name,
-                                        "category": category
-                                    }
-                    }
+                    if result_text and result_text.strip():
+                        if _is_gibberish_output(result_text):
+                            logger.warning("⚠️ ReAct вернул похожий на мусор вывод, fallback на simple")
+                            return await self._execute_method("simple", goal, category, context)
+                        return {
+                            "result": result_text.strip(),
+                            "method": "react",
+                            "steps": len(result.get("steps", [])) if isinstance(result, dict) else 0,
+                            "metadata": {
+                                **(result if isinstance(result, dict) else {}),
+                                "model_used": coding_model or self.model_name,
+                                "category": category
+                            }
+                        }
+                    # ReAct вернул пустой результат — fallback на simple (мировая практика: не отдавать заглушку)
+                    logger.warning("⚠️ ReAct вернул пустой результат, fallback на simple")
+                    return await self._execute_method("simple", goal, category, context)
                 except Exception as e:
                     logger.error(f"❌ Ошибка ReAct: {e}, используем simple метод")
-                    method = "simple"  # Fallback на simple
+                    return await self._execute_method("simple", goal, category, context)
             
             elif method == "extended_thinking" and self.extended_thinking:
                 try:
@@ -1761,17 +1818,23 @@ class VictoriaEnhanced:
                         self.extended_thinking.model_name = reasoning_model
                         logger.info(f"🎯 Используем модель {reasoning_model} для extended thinking")
 
-                    # Подключаем мировые практики: при запросах про best practices добавляем контекст
+                    # Подключаем контекст: best practices или база знаний для статуса/приоритетов
                     goal_lower = (goal or "").lower()
                     if any(kw in goal_lower for kw in ("мировые практики", "best practices", "world practices")):
                         goal = f"{WORLD_PRACTICES_CONTEXT}\n\nЗапрос: {goal}"
                         logger.info("🌍 Добавлен контекст мировых практик в extended thinking")
 
-                    result = await self.extended_thinking.think(goal, context, use_iterative=True)
+                    ctx_str = (context.get("kb_context") if isinstance(context, dict) and context else None) or (
+                        context if isinstance(context, str) else None
+                    )
+                    result = await self.extended_thinking.think(goal, ctx_str, use_iterative=True, category=category)
                     # Проверяем что получили непустой ответ (final_answer может быть str или dict)
                     _fa = result.final_answer
                     _fa_str = (_fa if isinstance(_fa, str) else str(_fa)).strip() if _fa else ""
                     if _fa_str:
+                        if _is_gibberish_output(_fa_str):
+                            logger.warning("⚠️ Extended thinking вернул мусорный вывод, fallback на simple")
+                            return await self._execute_method("simple", goal, category, context)
                         return {
                             "result": _fa_str,
                             "method": "extended_thinking",
@@ -1799,7 +1862,10 @@ class VictoriaEnhanced:
                     logger.info(f"🎯 Используем модель {complex_model} для swarm")
                 
                 try:
-                    result = await self.swarm.solve(goal)
+                    # Агенты из БД — состав растёт динамически (max swarm_size)
+                    from app.expert_services import get_all_expert_names
+                    swarm_agents = get_all_expert_names(max_count=self.swarm.swarm_size if self.swarm else 16)
+                    result = await self.swarm.solve(goal, agent_names=swarm_agents if swarm_agents else None)
                     # Правильная обработка SwarmResult
                     if hasattr(result, 'global_best'):
                         result_text = str(result.global_best)
@@ -1830,9 +1896,12 @@ class VictoriaEnhanced:
                     self.consensus.model_name = complex_model
                     logger.info(f"🎯 Используем модель {complex_model} для consensus")
                 
-                # Используем команду экспертов для consensus
-                agents = ["Victoria", "Veronica", "Игорь", "Сергей", "Дмитрий"]
-                result = await self.consensus.reach_consensus(agents, goal)
+                # Агенты из БД — состав растёт динамически (до 10 для consensus)
+                from app.expert_services import get_all_expert_names
+                consensus_agents = get_all_expert_names(max_count=10)
+                if not consensus_agents:
+                    consensus_agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]
+                result = await self.consensus.reach_consensus(consensus_agents, goal)
                 return {
                     "result": result.final_answer,
                     "method": "consensus",
@@ -1866,8 +1935,8 @@ class VictoriaEnhanced:
             elif method == "hierarchical" and self.hierarchical_orch:
                 # Нужны агенты для hierarchical
                 agents = {
-                    "Victoria": {"role": "team_lead"},
-                    "Veronica": {"role": "developer"},
+                    "Виктория": {"role": "team_lead"},
+                    "Вероника": {"role": "developer"},
                     "Игорь": {"role": "backend"},
                     "Сергей": {"role": "devops"}
                 }
@@ -1990,57 +2059,43 @@ class VictoriaEnhanced:
 
 Твой ответ (только на русском, коротко, 1 предложение):"""
                         else:
-                            # Проверяем, нужен ли запрос к базе данных для статистики
-                            goal_lower = goal.lower()
-                            needs_db_query = any(word in goal_lower for word in ["задач", "задача", "статистик", "сколько", "количество", "выполнен", "невыполнен", "pending", "completed"])
+                            # ========================================================
+                            # УНИВЕРСАЛЬНЫЙ ИНСТРУМЕНТ: Text-to-SQL для любых вопросов
+                            # Вместо жёсткой классификации — модель сама формирует SQL
+                            # ========================================================
+                            needs_db_query = False
+                            db_info = ""
                             
-                            if needs_db_query:
-                                # Пытаемся получить данные из базы
-                                db_info = ""
-                                try:
-                                    import asyncpg
-                                    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
-                                    conn = await asyncpg.connect(db_url, timeout=2.0)
-                                    try:
-                                        stats = await conn.fetchrow("""
-                                            SELECT 
-                                                COUNT(*) FILTER (WHERE status = 'completed') as completed,
-                                                COUNT(*) FILTER (WHERE status != 'completed') as not_completed,
-                                                COUNT(*) FILTER (WHERE status = 'pending') as pending,
-                                                COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress,
-                                                COUNT(*) as total
-                                            FROM tasks
-                                        """)
-                                        if stats:
-                                            db_info = f"\n\nДАННЫЕ ИЗ БАЗЫ ДАННЫХ:\n- Всего задач: {stats['total'] or 0}\n- Выполнено: {stats['completed'] or 0}\n- Не выполнено: {stats['not_completed'] or 0}\n- Ожидают: {stats['pending'] or 0}\n- В работе: {stats['in_progress'] or 0}"
-                                    finally:
-                                        await conn.close()
-                                except Exception as e:
-                                    logger.debug(f"Не удалось получить данные из БД: {e}")
-                                    db_info = ""
-                                
-                                # Формируем простой промпт с данными из БД
-                                if db_info:
-                                    # Если есть данные из БД, используем их напрямую
-                                    simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA. {role_instruction}
-
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!
-
-Вопрос: {goal}
-
-{db_info}
-
-Твой ответ (только факты из данных выше, 1 предложение, ОБЯЗАТЕЛЬНО на русском языке):"""
-                                else:
-                                    simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA.
-
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!
-
-Вопрос: {goal}
-
-Твой ответ (1-2 предложения, ОБЯЗАТЕЛЬНО на русском языке):"""
-                            else:
-                                simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA. {role_instruction}
+                            try:
+                                from app.corporation_data_tool import is_data_question, query_corporation_data, _extract_latest_user_message
+                                # is_data_question(goal) — с историей: "сотрудник" может быть в предыдущих репликах
+                                # goal_for_data — без истории: для Text-to-SQL только последний вопрос (не передаём 120 из истории)
+                                goal_for_data = _extract_latest_user_message(goal)
+                                if is_data_question(goal) or is_data_question(goal_for_data):
+                                    logger.info(f"📊 [CORP DATA] Вопрос о данных: '{goal_for_data[:60]}...'")
+                                    corp_result = await query_corporation_data(goal_for_data)
+                                    if corp_result.get("success") and corp_result.get("answer"):
+                                        logger.info(f"✅ [CORP DATA] Ответ через Text-to-SQL, SQL: {corp_result.get('sql', '')[:80]}...")
+                                        # Возвращаем результат напрямую — не нужен LLM
+                                        return {
+                                            "result": corp_result["answer"],
+                                            "method": "simple",
+                                            "metadata": {
+                                                "source": "corporation_data_tool",
+                                                "sql": corp_result.get("sql"),
+                                                "count": corp_result.get("count"),
+                                                "fast_mode": True
+                                            }
+                                        }
+                                    else:
+                                        logger.debug(f"⚠️ [CORP DATA] Не удалось: {corp_result}")
+                            except ImportError:
+                                logger.debug("corporation_data_tool не импортирован")
+                            except Exception as e:
+                                logger.debug(f"corporation_data_tool ошибка: {e}")
+                            
+                            # Fallback: обычный промпт для LLM (не data-вопрос или Text-to-SQL не сработал)
+                            simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA. {role_instruction}
 
 КРИТИЧЕСКИ ВАЖНО:
 1. ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке!
@@ -2211,22 +2266,6 @@ class VictoriaEnhanced:
                                         result_text = re.sub(r'Ответ.*?:.*?(?=\n|$)', '', result_text, flags=re.MULTILINE | re.DOTALL)
                                         result_text = re.sub(r'Твой ответ.*?(?=\n|$)', '', result_text, flags=re.MULTILINE | re.DOTALL)
                                         
-                                        # Если запрос о статистике задач и есть данные из БД, формируем ответ напрямую
-                                        if needs_db_query and db_info:
-                                            # Извлекаем числа из db_info
-                                            numbers = re.findall(r'\d+', db_info)
-                                            if "не выполненных" in goal.lower() or "невыполнен" in goal.lower():
-                                                not_completed = numbers[2] if len(numbers) > 2 else (numbers[0] if numbers else "0")
-                                                result_text = f"В корпорации {not_completed} невыполненных задач."
-                                            elif "выполненных" in goal.lower() or "выполнен" in goal.lower():
-                                                completed = numbers[1] if len(numbers) > 1 else (numbers[0] if numbers else "0")
-                                                result_text = f"В корпорации {completed} выполненных задач."
-                                            else:
-                                                # Общая статистика
-                                                total = numbers[0] if numbers else "0"
-                                                completed = numbers[1] if len(numbers) > 1 else "0"
-                                                not_completed = numbers[2] if len(numbers) > 2 else "0"
-                                                result_text = f"Всего задач: {total}, выполнено: {completed}, не выполнено: {not_completed}."
                                         source = "MLX API Server"
                                         logger.info(f"✅ Simple метод использует {source}: {llm_url}, модель: {selected_model}")
                                         

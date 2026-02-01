@@ -1,11 +1,14 @@
 #!/bin/bash
+# DEPRECATED: Используйте scripts/backup_knowledge_os_full.sh (Mac Studio + Telegram + GDrive)
+# Этот скрипт для Linux-сервера с путями /root/...
 # Configuration
 BACKUP_DIR="/root/knowledge_os/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"
 GZ_FILE="${BACKUP_FILE}.gz"
-TELEGRAM_TOKEN="8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU"
-CHAT_ID="556251171"
+# Безопасность: используйте переменные окружения, не хардкодьте токены!
+TELEGRAM_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
+CHAT_ID="${TELEGRAM_CHAT_ID:-$TELEGRAM_USER_ID}"
 
 # Create backup directory if not exists
 mkdir -p $BACKUP_DIR
@@ -50,6 +53,7 @@ if [ "$GZ_FILE" = "$LARGEST_BACKUP" ] || [ "$CURRENT_SIZE" -ge "$LARGEST_SIZE" ]
 💾 Size: $(numfmt --to=iec-i --suffix=B $CURRENT_SIZE 2>/dev/null || echo "${CURRENT_SIZE} bytes")
 🔐 Status: SECURE"
 
+    [ -z "$TELEGRAM_TOKEN" ] || [ -z "$CHAT_ID" ] && echo "Telegram skipped: TELEGRAM_BOT_TOKEN/CHAT_ID not set" || \
     curl -F document=@"$GZ_FILE" \
          -F caption="$CAPTION" \
          -F parse_mode="HTML" \

@@ -232,25 +232,41 @@ async def run_expert_council(conn, knowledge_id, content, original_expert_id):
         if debate_summary:
             consensus = "\n\n".join(debate_summary)
             print(f"   Creating debate with consensus length: {len(consensus)}")
+            debate_inserted = False
             try:
-                await conn.execute("""
-                    INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
-                    VALUES ($1, $2, $3, $4, 'closed')
-                """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
-                print(f"   ✅ Debate inserted into expert_discussions")
-                
-                # Обновляем метаданные узла знаний
+                if isinstance(knowledge_id, int):
+                    logger.warning(
+                        "Debate insert skipped: knowledge_nodes.id is int, expert_discussions expects UUID (schema mismatch)"
+                    )
+                else:
+                    await conn.execute("""
+                        INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
+                        VALUES ($1, $2, $3, $4, 'closed')
+                    """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
+                    print(f"   ✅ Debate inserted into expert_discussions")
+                    debate_inserted = True
+            except Exception as insert_error:
+                err_str = str(insert_error).lower()
+                if "uuid" in err_str or "int" in err_str or "bytes" in err_str:
+                    logger.warning(
+                        "Debate insert skipped (schema mismatch: knowledge_nodes.id is int, expert_discussions expects UUID)"
+                    )
+                else:
+                    print(f"❌ Error inserting debate: {insert_error}")
+                    import traceback
+                    traceback.print_exc()
+            # Обновляем метаданные узла знаний (knowledge_nodes.id — integer, работает в обоих случаях)
+            try:
                 await conn.execute("""
                     UPDATE knowledge_nodes 
                     SET metadata = metadata || jsonb_build_object('council_review', $1)
                     WHERE id = $2
                 """, consensus, knowledge_id)
                 print(f"   ✅ council_review added to metadata")
-                print("✅ Expert Council finished successfully.")
-            except Exception as insert_error:
-                print(f"❌ Error inserting debate: {insert_error}")
-                import traceback
-                traceback.print_exc()
+                if debate_inserted:
+                    print("✅ Expert Council finished successfully.")
+            except Exception as upd_err:
+                print(f"⚠️ Failed to update knowledge_nodes metadata: {upd_err}")
         else:
             print("⚠️ Debate summary is empty, skipping debate creation")
             
@@ -410,12 +426,18 @@ async def nightly_learning_cycle():
             await sync_okrs(conn)
             
             # --- ФАЗА 4: LM JUDGE (ВЕРИФИКАЦИЯ) ---
-            print("⚖️ Running LM Judge...")
-            subprocess.run([sys.executable, os.path.join(_APP_DIR, "evaluator.py")], cwd=_APP_DIR)
+            try:
+                print("⚖️ Running LM Judge...")
+                subprocess.run([sys.executable, os.path.join(_APP_DIR, "evaluator.py")], cwd=_APP_DIR)
+            except Exception as e:
+                logger.warning("LM Judge phase failed: %s", e)
 
             # --- ФАЗА 5: CORPORATE IMMUNITY (СТРЕСС-ТЕСТ) ---
-            print("🛡️ Running Adversarial Critic...")
-            subprocess.run([sys.executable, os.path.join(_APP_DIR, "adversarial_critic.py")], cwd=_APP_DIR)
+            try:
+                print("🛡️ Running Adversarial Critic...")
+                subprocess.run([sys.executable, os.path.join(_APP_DIR, "adversarial_critic.py")], cwd=_APP_DIR)
+            except Exception as e:
+                logger.warning("Adversarial Critic phase failed: %s", e)
         
         # --- ФАЗА 6: CONTEXTUAL LEARNING (КОНТЕКСТНАЯ ПАМЯТЬ) ---
         print("🎓 Running Contextual Learning...")
@@ -470,6 +492,35 @@ async def nightly_learning_cycle():
                 print(f"   Sent {stats['notifications_sent']} notifications")
         except Exception as e:
             print(f"⚠️ Debate processing error: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # --- ФАЗА 11: APPLY ALL KNOWLEDGE (SINGULARITY 10.0) ---
+        print("🧠 Applying knowledge (lessons → guidance, retrospectives → knowledge_nodes, insights → tasks)...")
+        try:
+            from pathlib import Path
+            _app_dir = Path(__file__).resolve().parent
+            _ko_root = _app_dir.parent
+            if str(_ko_root) not in sys.path:
+                sys.path.insert(0, str(_ko_root))
+            from observability.knowledge_applicator import apply_all_knowledge_async
+            results = await apply_all_knowledge_async()
+            if any(results.values()):
+                print(f"✅ Knowledge applied: guidance={results.get('guidance_updated')}, knowledge_base={results.get('knowledge_base_updated')}, prompts_evolved={results.get('prompts_evolved')}")
+        except Exception as e:
+            print(f"⚠️ Knowledge application error: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # --- ФАЗА 12: DASHBOARD DAILY IMPROVEMENT (SINGULARITY 10.0) ---
+        print("📊 Running dashboard improvement cycle...")
+        try:
+            from dashboard_daily_improver import run_dashboard_improvement_cycle
+            dash_result = await run_dashboard_improvement_cycle()
+            if dash_result.get("tasks_created", 0) > 0:
+                print(f"✅ Dashboard improvement: {dash_result['tasks_created']} tasks created")
+        except Exception as e:
+            print(f"⚠️ Dashboard improvement error: {e}")
             import traceback
             traceback.print_exc()
 

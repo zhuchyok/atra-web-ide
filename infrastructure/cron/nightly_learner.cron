@@ -1,0 +1,6 @@
+# Nightly Learner — обучение экспертов, дебаты, гипотезы, knowledge_nodes
+# Запуск: ежедневно в 6:00 MSK (3:00 UTC)
+# При использовании Docker: knowledge_nightly в knowledge_os/docker-compose.yml уже крутит цикл каждые 24ч
+# Этот cron — для альтернативного запуска без контейнера knowledge_nightly (например через victoria-agent)
+# Добавить: crontab -e и вставить строку ниже (замените PROJECT_ROOT и DOCKER_BIN)
+# 0 3 * * * cd PROJECT_ROOT && DOCKER_BIN exec -e DATABASE_URL=... -e OLLAMA_BASE_URL=... victoria-agent python3 /app/knowledge_os/app/nightly_learner.py >> /tmp/nightly_learner.log 2>&1

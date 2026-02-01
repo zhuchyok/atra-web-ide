@@ -79,6 +79,22 @@ except ImportError:
         """Fallback for LocalTrainingPipeline."""
         def trigger_auto_upgrade(self): return "MOCK_OFFLINE"
 
+# Canonical domains (план Этап 2): маппинг для recruit_expert
+CANONICAL_DOMAINS = {
+    "Machine Learning": "ML/AI",
+    "AI Systems": "ML/AI",
+    "AI": "ML/AI",
+    "Backend": "Backend",
+    "Frontend": "Frontend",
+    "DevOps": "DevOps/Infra",
+    "Infrastructure": "DevOps/Infra",
+}
+
+
+def _canonical_domain(name: str) -> str:
+    """Возвращает каноническое имя домена."""
+    return CANONICAL_DOMAINS.get(name, name)
+
 try:
     from swarm_orchestrator import SwarmOrchestrator
 except ImportError:
@@ -97,6 +113,15 @@ try:
     from knowledge_graph import run_auto_link_detection
 except ImportError:
     async def run_auto_link_detection(): pass
+
+try:
+    from task_rule_executor import execute_fallback as rule_executor_execute, can_handle as rule_executor_can_handle
+except ImportError:
+    async def rule_executor_execute(task):  # type: ignore
+        return None
+
+    def rule_executor_can_handle(task):  # type: ignore
+        return False
 
 try:
     from evolution_monitor import SingularityEvolutionMonitor
@@ -269,12 +294,20 @@ async def assign_task_to_best_expert(
     conn,
     task_id: str,
     domain_id: Optional[str] = None,
-    required_role: Optional[str] = None
+    required_role: Optional[str] = None,
+    metadata: Optional[Dict] = None
 ) -> Optional[str]:
-    """Назначение задачи лучшему эксперту с учетом загрузки"""
+    """Назначение задачи лучшему эксперту с учетом загрузки и assignee_hint (Этап 6 плана)."""
+    # assignee_hint из metadata (например, "Frontend/Performance", "QA")
+    assignee_hint = None
+    if metadata and isinstance(metadata, dict):
+        assignee_hint = metadata.get("assignee_hint")
+    if not required_role and assignee_hint:
+        required_role = str(assignee_hint)
+
     # Получаем кандидатов
     candidates = None
-    
+
     if domain_id:
         # Пробуем найти экспертов по домену
         candidates = await conn.fetch("""
@@ -561,8 +594,40 @@ async def run_enhanced_orchestration_cycle():
             """)
 
             for task in unassigned_tasks:
-                await assign_task_to_best_expert(conn, task['id'], task['domain_id'])
+                await assign_task_to_best_expert(conn, task['id'], task['domain_id'], metadata=task.get('metadata'))
             logger.info("[ENHANCED_ORCHESTRATOR] phase=2 duration_ms=%.0f result=%s tasks assigned", (time.time() - t2) * 1000, len(unassigned_tasks))
+
+            # --- ФАЗА 2.5: ORCHESTRATOR FALLBACK (задачи с attempt_count >= 3, rule-based) ---
+            t25 = time.time()
+            failed_tasks = await conn.fetch("""
+                SELECT id, title, description, metadata
+                FROM tasks
+                WHERE status = 'pending'
+                AND (
+                    COALESCE((metadata->>'attempt_count')::int, 0) >= 3
+                    OR COALESCE((metadata->>'agent_failed_count')::int, 0) >= 3
+                )
+                LIMIT 20
+            """)
+            rule_completed = 0
+            for ft in failed_tasks:
+                task_dict = dict(ft)
+                if rule_executor_can_handle(task_dict):
+                    try:
+                        result = await rule_executor_execute(task_dict)
+                        if result:
+                            await conn.execute("""
+                                UPDATE tasks
+                                SET status = 'completed', result = $2, updated_at = NOW(),
+                                    metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "orchestrator_fallback": true}'::jsonb
+                                WHERE id = $1
+                            """, ft['id'], result)
+                            rule_completed += 1
+                            logger.info("  rule_executor completed task %s", ft['id'])
+                    except Exception as e:
+                        logger.warning("rule_executor failed for task %s: %s", ft['id'], e)
+            if failed_tasks:
+                logger.info("[ENHANCED_ORCHESTRATOR] phase=2.5 duration_ms=%.0f result=%s rule-based of %s failed", (time.time() - t25) * 1000, rule_completed, len(failed_tasks))
 
             # --- ФАЗА 3: ПЕРЕБАЛАНСИРОВКА НАГРУЗКИ ---
             t3 = time.time()
@@ -624,12 +689,23 @@ async def run_enhanced_orchestration_cycle():
                 LIMIT 5
             """)
 
+            # Лимит автономных экспертов (план: не более 25)
+            autonomous_count = await conn.fetchval(
+                "SELECT count(*) FROM experts WHERE (metadata->>'is_autonomous')::text = 'true'"
+            )
+            autonomous_limit = int(os.getenv("AUTONOMOUS_EXPERT_LIMIT", "25"))
+
             for desert in deserts:
-                expert_count = await conn.fetchval("SELECT count(*) FROM experts WHERE department = $1", desert['name'])
-                if expert_count == 0:
-                    logger.info("  🔍 Recruiting expert for %s...", desert['name'])
+                canonical = _canonical_domain(desert['name'])
+                expert_count = await conn.fetchval(
+                    "SELECT count(*) FROM experts WHERE department = $1 OR department = $2",
+                    desert['name'], canonical
+                )
+                if expert_count == 0 and (autonomous_count or 0) < autonomous_limit:
+                    logger.info("  🔍 Recruiting expert for %s (canonical: %s)...", desert['name'], canonical)
                     expert_gen_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expert_generator.py")
-                    subprocess.run(["python3", expert_gen_path, desert['name']], check=False)
+                    subprocess.run(["python3", expert_gen_path, canonical], check=False)
+                    autonomous_count = (autonomous_count or 0) + 1
 
                 curiosity_task = (
                     f"Проведи глубокое исследование новых технологий и трендов 2026 "

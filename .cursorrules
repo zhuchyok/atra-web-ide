@@ -96,6 +96,15 @@ npm run dev
 - **VICTORIA_MODEL** — явно задать модель (должна быть в списке доступных). Иначе используется лучшая из сканирования.
 - **VICTORIA_PLANNER_MODEL** — модель для understand_goal и plan (по умолчанию та же, что и executor).
 
+### Маршрутизация: эксперты первыми (Veronica — «руки»)
+- **PREFER_EXPERTS_FIRST** (по умолчанию `true`) — execution-задачи («сделай», «напиши код», «создай API») идут в **Victoria Enhanced** (эксперты 85 в БД); в **Veronica** — только простые одношаговые запросы («покажи файлы», «выведи список», «прочитай файл»). Реальная роль Veronica: `docs/VERONICA_REAL_ROLE.md`.
+
 ## Один раз: Knowledge OS (локально)
-- Зависимости и watchdog: `bash knowledge_os/scripts/setup_knowledge_os.sh` (создаёт knowledge_os/.venv, pip install -r requirements.txt)
+- Зависимости (asyncpg, moondream, watchdog): `bash knowledge_os/scripts/setup_knowledge_os.sh` (создаёт knowledge_os/.venv, pip install -r requirements.txt)
+- Работа с картинками (Pillow): кто запускает локальную обработку изображений — один раз `bash knowledge_os/scripts/install_pillow.sh` (нужен libjpeg: при необходимости сначала исправить права — sudo chown -R $(whoami) /opt/homebrew, затем brew install jpeg)
 - Миграция колонок experts (organizational_unit_id, is_manager, manages_unit_id): при доступной БД — скрипт выше применит её, иначе `cd knowledge_os && .venv/bin/python scripts/apply_organizational_columns_migration.py` или один запуск Enhanced Orchestrator (Phase 0.5)
+
+## Зависимости (мировые практики)
+- **Единый источник истины:** все пакеты — только в requirements.txt (backend, knowledge_os, корень для агентов). Не дублировать в коде.
+- **Установка при setup, не в рантайме:** без subprocess pip install в приложении/скриптах (12-Factor, воспроизводимые сборки). При отсутствии пакета — одно чёткое сообщение: «Установите зависимости: bash knowledge_os/scripts/setup_knowledge_os.sh».
+- **Docker:** образ агентов ставит зависимости из корневого requirements.txt; fallback в Dockerfile дублирует ключевые пакеты (asyncpg, moondream).

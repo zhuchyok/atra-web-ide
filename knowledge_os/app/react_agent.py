@@ -70,7 +70,7 @@ class ReActAgent:
     
     def __init__(
         self,
-        agent_name: str = "Victoria",
+        agent_name: str = "Виктория",
         model_name: str = "deepseek-r1-distill-llama:70b",
         ollama_url: str = None,
         max_iterations: int = 10,
@@ -107,6 +107,14 @@ class ReActAgent:
             logger.info("✅ Skill Registry подключен к ReActAgent")
         except Exception as e:
             logger.warning(f"⚠️ Skill Registry недоступен: {e}")
+
+        # SafeFileWriter для create_file/write_file (бэкапы, проверка путей)
+        try:
+            from app.file_writer import SafeFileWriter
+            self.file_writer = SafeFileWriter()
+        except ImportError:
+            self.file_writer = None
+            logger.warning("⚠️ SafeFileWriter недоступен, используется прямая запись")
         
         logger.info(f"✅ ReActAgent инициализирован: URL={self.ollama_url}, модель={self.model_name}")
     
@@ -782,32 +790,41 @@ class ReActAgent:
             elif action == "create_file" or action == "write_file":
                 file_path = action_input.get("file_path", action_input.get("path", ""))
                 content = action_input.get("content", action_input.get("text", ""))
-                
-                # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ перед созданием файла
-                logger.info(f"🔍 [CREATE_FILE] file_path: {file_path}")
-                logger.info(f"🔍 [CREATE_FILE] content type: {type(content)}")
-                logger.info(f"🔍 [CREATE_FILE] content length: {len(content) if isinstance(content, str) else 'N/A'}")
-                if isinstance(content, str):
-                    logger.info(f"🔍 [CREATE_FILE] content preview (первые 300 символов): {repr(content[:300])}")
-                    if len(content) < 50:
-                        logger.warning(f"⚠️ [CREATE_FILE] Подозрительно короткий контент! Длина: {len(content)}")
-                        logger.warning(f"⚠️ [CREATE_FILE] Полный content: {repr(content)}")
-                
+                overwrite = action_input.get("overwrite", True)  # create_file обычно перезаписывает
+
+                logger.info(f"🔍 [CREATE_FILE] file_path: {file_path}, content length: {len(content) if isinstance(content, str) else 'N/A'}")
                 if not file_path:
                     return "Error: file_path не указан"
                 if not content:
                     logger.warning(f"⚠️ [CREATE_FILE] Контент пустой! action_input: {action_input}")
                     return "Error: content не указан"
+                if not isinstance(content, str):
+                    content = str(content)
+
+                # Approval check для критичных файлов (AGENT_APPROVAL_REQUIRED=true)
                 try:
-                    # Создаем директорию если нужно
+                    from app.approval_manager import requires_approval_for_write, is_approval_required
+                    if is_approval_required():
+                        need, reason = requires_approval_for_write(file_path)
+                        if need:
+                            return (
+                                f"Error: {reason} требует подтверждения пользователя. "
+                                f"(Отключить: AGENT_APPROVAL_REQUIRED=false)"
+                            )
+                except ImportError:
+                    pass
+
+                if self.file_writer:
+                    result = self.file_writer.write_file(file_path, content, overwrite=overwrite)
+                    if result.get("success"):
+                        logger.info(f"✅ [CREATE_FILE] {result.get('message', '')}")
+                        return result["message"]
+                    return f"Error: {result.get('error', 'unknown')}"
+                # Fallback: прямая запись (без SafeFileWriter)
+                try:
                     os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(file_path) else None
-                    with open(file_path, 'w', encoding='utf-8') as f:
+                    with open(file_path, "w", encoding="utf-8") as f:
                         f.write(content)
-                    # Проверяем, что файл создан правильно
-                    file_size = os.path.getsize(file_path)
-                    logger.info(f"✅ Файл создан: {file_path} ({len(content)} символов в контенте, {file_size} байт на диске)")
-                    if file_size != len(content.encode('utf-8')):
-                        logger.warning(f"⚠️ [CREATE_FILE] Размер файла не совпадает с размером контента! Контент: {len(content.encode('utf-8'))} байт, Файл: {file_size} байт")
                     return f"Файл '{file_path}' успешно создан ({len(content)} символов)"
                 except Exception as e:
                     logger.error(f"❌ [CREATE_FILE] Ошибка создания файла: {e}")
@@ -1058,7 +1075,22 @@ class ReActAgent:
             return ""
     
     def _build_result(self) -> Dict:
-        """Построить финальный результат"""
+        """Построить финальный результат.
+        
+        Важно: при action=finish ответ модели лежит в step.observation (output),
+        а не в reflection. Reflection заполняется только после цикла Think→Act→Observe→Reflect.
+        """
+        last_step = self.memory.steps[-1] if self.memory.steps else None
+        final_output = None
+        if last_step:
+            # При finish: ответ в observation (модель передала output в finish)
+            if getattr(last_step, "action", None) == "finish" and getattr(last_step, "observation", None):
+                final_output = (last_step.observation or "").strip()
+            # Иначе: ответ в reflection (цикл Reflect завершил задачу)
+            if not final_output:
+                final_output = (getattr(last_step, "reflection", None) or "").strip()
+            if not final_output:
+                final_output = None
         return {
             "agent": self.agent_name,
             "goal": self.memory.goal,
@@ -1074,13 +1106,14 @@ class ReActAgent:
                 }
                 for step in self.memory.steps
             ],
-            "final_reflection": self.memory.steps[-1].reflection if self.memory.steps else None
+            "final_reflection": final_output,
+            "response": final_output,  # для совместимости с Victoria Enhanced
         }
 
 
 async def main():
     """Пример использования"""
-    agent = ReActAgent(agent_name="Victoria", model_name="deepseek-r1-distill-llama:70b")
+    agent = ReActAgent(agent_name="Виктория", model_name="deepseek-r1-distill-llama:70b")
     
     result = await agent.run("Найди информацию о системе отслеживания моделей")
     

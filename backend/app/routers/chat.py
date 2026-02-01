@@ -23,6 +23,7 @@ from app.services.cache import get_cache, cache_key
 from app.services.query_classifier import classify_query, get_template_response, analyze_complexity
 from app.services.rag_light import get_rag_light_service
 from app.services.plan_cache import get_plan_cache_service, PlanCacheService
+from app.services.conversation_context import get_conversation_context_manager
 from app.metrics.agent_suggestions import agent_suggestion_metrics, AgentSuggestionMetric
 from app.metrics.prometheus_metrics import (
     metrics as prometheus_metrics,
@@ -72,6 +73,7 @@ class ChatMessage(BaseModel):
     use_victoria: bool = True
     mode: Optional[str] = Field(default="agent", description="agent | plan | ask — как в Cursor")
     user_id: Optional[str] = Field(default=None, max_length=128, description="Для A/B тестов")
+    session_id: Optional[str] = Field(default=None, max_length=128, description="Фаза 4.2: контекст диалога (multi-turn)")
 
 
 # Простые сообщения для которых не нужен агент Victoria (быстрый путь через MLX)
@@ -355,6 +357,31 @@ async def sse_generator(
         """SSE comment — заставляет прокси/сервер отправить буфер клиенту."""
         return ": \n\n"
 
+    # Фаза 4, Неделя 2: контекст диалога (multi-turn)
+    session_id = getattr(message, "session_id", None) or getattr(message, "user_id", None)
+    context_prefix = ""
+    if session_id:
+        settings_ctx = get_settings()
+        if getattr(settings_ctx, "conversation_context_enabled", True):
+            ctx_mgr = get_conversation_context_manager()
+            recent = await ctx_mgr.get_recent(session_id, last_n=10)
+            context_prefix = ctx_mgr.build_context_prefix(recent)
+    response_parts = []
+    current_prompt = (context_prefix + message.content) if context_prefix else message.content
+
+    async def _save_context_if_needed():
+        if not session_id:
+            return
+        full_response = "".join(response_parts).strip()
+        if not full_response:
+            return
+        try:
+            ctx_mgr = get_conversation_context_manager()
+            await ctx_mgr.append(session_id, "user", message.content)
+            await ctx_mgr.append(session_id, "assistant", full_response)
+        except Exception as e:
+            logger.debug("Conversation context save failed: %s", e)
+
     try:
         # Отправляем начало с информацией об эмоции
         start_event = {
@@ -370,6 +397,23 @@ async def sse_generator(
         mode = (getattr(message, 'mode', None) or "agent").lower()
         logger.info(f"[SSE] use_victoria={use_victoria}, mode={mode}")
 
+        # Быстрая проверка Victoria (agent/plan). При недоступности — Agent fallback на MLX/Ollama (как простые)
+        victoria_available = True
+        if use_victoria and mode in ("agent", "plan"):
+            try:
+                vh = await asyncio.wait_for(victoria.health(), timeout=5.0)
+                if vh.get("status") not in ("healthy", "ok"):
+                    victoria_available = False
+            except (asyncio.TimeoutError, Exception) as e:
+                logger.warning("Victoria health check failed: %s, fallback на MLX/Ollama", e)
+                victoria_available = False
+            if not victoria_available and mode == "plan":
+                # Plan требует Victoria, fallback не применим
+                tip = "Запустите: docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent"
+                yield f"data: {json.dumps({'type': 'error', 'content': f'Victoria недоступна. {tip}'})}\n\n"
+                yield f"data: {json.dumps({'type': 'end'})}\n\n"
+                return
+
         # Используем только Victoria (приоритет)
         if use_victoria:
             # Используем Victoria с контекстом проекта
@@ -381,7 +425,7 @@ async def sse_generator(
                 settings = get_settings()
                 cache = plan_cache or get_plan_cache_service()
                 if getattr(settings, "plan_cache_enabled", True) and cache._maxsize > 0:
-                    cached = await cache.get(message.content, project_context)
+                    cached = await cache.get(current_prompt, project_context)
                     if cached:
                         plan_text = cached.get("result") or cached.get("response") or ""
                         if plan_text:
@@ -391,8 +435,10 @@ async def sse_generator(
                             await asyncio.sleep(0.02)
                             for line in plan_text.split("\n"):
                                 if line.strip():
+                                    response_parts.append(line + chr(10))
                                     yield f"data: {json.dumps({'type': 'chunk', 'content': line + chr(10)})}\n\n"
                                     await asyncio.sleep(0.01)
+                            await _save_context_if_needed()
                             yield f"data: {json.dumps({'type': 'end'})}\n\n"
                             return
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'action', 'title': 'Составляю план', 'content': 'Запрашиваю план у Виктории (без выполнения).'})}\n\n"
@@ -401,19 +447,21 @@ async def sse_generator(
                 try:
                     import time
                     t0 = time.perf_counter()
-                    plan_result = await victoria.plan(goal=message.content, project_context=project_context)
+                    plan_result = await victoria.plan(goal=current_prompt, project_context=project_context)
                     gen_time = time.perf_counter() - t0
                     plan_text = (plan_result.get("result") or plan_result.get("response") or "") if plan_result.get("status") != "error" else ""
                     if not plan_text:
                         plan_text = plan_result.get("error", "Не удалось получить план.")
                     for line in plan_text.split("\n"):
                         if line.strip():
+                            response_parts.append(line + chr(10))
                             yield f"data: {json.dumps({'type': 'chunk', 'content': line + chr(10)})}\n\n"
                             await asyncio.sleep(0.02)
+                    await _save_context_if_needed()
                     yield f"data: {json.dumps({'type': 'end'})}\n\n"
                     min_gen = getattr(settings, "plan_cache_min_gen_time", 2.0)
                     if plan_result.get("status") != "error" and plan_text and gen_time >= min_gen and cache._maxsize > 0:
-                        await cache.set(message.content, plan_result, project_context, ttl=getattr(settings, "plan_cache_ttl", 3600))
+                        await cache.set(current_prompt, plan_result, project_context, ttl=getattr(settings, "plan_cache_ttl", 3600))
                         logger.info("[Plan] saved to cache: '%s...' (gen_time=%.1fs)", (message.content or "")[:40], gen_time)
                     return
                 except Exception as e:
@@ -459,8 +507,10 @@ async def sse_generator(
                         yield _flush_sse()
                         await asyncio.sleep(0.02)
                         for word in template.split():
+                            response_parts.append(word + " ")
                             yield f"data: {json.dumps({'type': 'chunk', 'content': word + ' '})}\n\n"
                             await asyncio.sleep(0.01)
+                        await _save_context_if_needed()
                         yield f"data: {json.dumps({'type': 'end'})}\n\n"
                         return
                 # RAG-light для фактуальных запросов (Фаза 2)
@@ -483,8 +533,10 @@ async def sse_generator(
                                     yield _flush_sse()
                                     await asyncio.sleep(0.02)
                                     for word in fast_answer.split():
+                                        response_parts.append(word + " ")
                                         yield f"data: {json.dumps({'type': 'chunk', 'content': word + ' '})}\n\n"
                                         await asyncio.sleep(0.01)
+                                    await _save_context_if_needed()
                                     yield f"data: {json.dumps({'type': 'end'})}\n\n"
                                     logger.info("[Ask] RAG-light path: factual query -> answer from KB")
                                     return
@@ -525,7 +577,7 @@ async def sse_generator(
                 yield _flush_sse()
                 await asyncio.sleep(0.05)
                 expert_prompt = f"Ты - {message.expert_name}, эксперт ATRA. Отвечай кратко.\n\n" if message.expert_name else ""
-                full_prompt = expert_prompt + message.content
+                full_prompt = expert_prompt + current_prompt
                 ideal_model = message.model or _select_model_for_chat(message.content, message.expert_name)
                 content, source = await _generate_via_mlx_or_ollama(
                     full_prompt, ideal_model, mlx, ollama,
@@ -537,26 +589,29 @@ async def sse_generator(
                     for i, word in enumerate(words):
                         chunk += word + " "
                         if i % 3 == 0 and chunk:
+                            response_parts.append(chunk)
                             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                             chunk = ""
                             await asyncio.sleep(0.02)
                     if chunk:
+                        response_parts.append(chunk)
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await _save_context_if_needed()
                     yield f"data: {json.dumps({'type': 'end'})}\n\n"
                     asyncio.create_task(_log_chat_to_knowledge_os(message.content, content, message.expert_name))
                     return
-                # MLX и Ollama недоступны в режиме Ask — отвечаем через Victoria
-                yield f"data: {json.dumps({'type': 'step', 'stepType': 'action', 'title': 'Запасной вариант', 'content': 'MLX и Ollama недоступны — отвечаю через Victoria.'})}\n\n"
+                # MLX и Ollama не ответили (таймаут, ошибка или модель занята) — отвечаем через Victoria
+                yield f"data: {json.dumps({'type': 'step', 'stepType': 'action', 'title': 'Запасной вариант', 'content': 'MLX и Ollama не ответили вовремя — отвечаю через Victoria.'})}\n\n"
                 yield _flush_sse()
                 await asyncio.sleep(0.05)
-                logger.info("[Ask] MLX и Ollama недоступны, fallback на Victoria")
+                logger.info("[Ask] MLX/Ollama не ответили, fallback на Victoria")
 
             # Вызываем Victoria с таймаутом (тяжёлые модели: прогрев + обработка локальными моделями)
             settings = get_settings()
             try:
                 result = await asyncio.wait_for(
                     victoria.run(
-                        prompt=message.content,
+                        prompt=current_prompt,
                         expert_name=message.expert_name,
                         project_context=project_context
                     ),
@@ -584,8 +639,10 @@ async def sse_generator(
                 await asyncio.sleep(0.05)
                 for line in text.split("\n"):
                     if line.strip():
+                        response_parts.append(line + chr(10))
                         yield f"data: {json.dumps({'type': 'chunk', 'content': line + chr(10)})}\n\n"
                         await asyncio.sleep(0.02)
+                await _save_context_if_needed()
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
 
@@ -599,7 +656,7 @@ async def sse_generator(
                 expert_prompt = ""
                 if message.expert_name:
                     expert_prompt = f"Ты - {message.expert_name}, эксперт ATRA. Отвечай кратко и по делу.\n\n"
-                full_prompt = expert_prompt + message.content
+                full_prompt = expert_prompt + current_prompt
                 ideal_model = message.model or _select_model_for_chat(message.content, message.expert_name)
                 content, source = await _generate_via_mlx_or_ollama(
                     full_prompt, ideal_model, mlx, ollama,
@@ -616,10 +673,13 @@ async def sse_generator(
                     for i, word in enumerate(words):
                         buffer += word + " "
                         if i % 5 == 0:
+                            response_parts.append(buffer)
                             yield f"data: {json.dumps({'type': 'chunk', 'content': buffer})}\n\n"
                             buffer = ""
                     if buffer:
+                        response_parts.append(buffer)
                         yield f"data: {json.dumps({'type': 'chunk', 'content': buffer})}\n\n"
+                    await _save_context_if_needed()
                     yield f"data: {json.dumps({'type': 'end'})}\n\n"
                     return
                 result = {"response": content, "source": source}
@@ -648,15 +708,18 @@ async def sse_generator(
                 for i, word in enumerate(words):
                     buffer += word + " "
                     if i % 5 == 0:  # Отправляем каждые 5 слов
+                        response_parts.append(buffer)
                         yield f"data: {json.dumps({'type': 'chunk', 'content': buffer})}\n\n"
                         buffer = ""
                         await asyncio.sleep(0.05)  # Небольшая задержка для плавности
                 
                 if buffer:
+                    response_parts.append(buffer)
                     yield f"data: {json.dumps({'type': 'chunk', 'content': buffer})}\n\n"
                 
                 # Логируем в interaction_logs (Singularity 9.0)
                 asyncio.create_task(_log_chat_to_knowledge_os(message.content, content, message.expert_name))
+                await _save_context_if_needed()
                 # Отправляем событие завершения
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
@@ -674,14 +737,17 @@ async def sse_generator(
                 for i, word in enumerate(words):
                     chunk += word + " "
                     if i % 3 == 0 and chunk:  # Каждые 3 слова
+                        response_parts.append(chunk)
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                         chunk = ""
                         await asyncio.sleep(0.05)  # Задержка для плавности
                 if chunk:
+                    response_parts.append(chunk)
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                 
                 # Логируем в interaction_logs (Singularity 9.0)
                 asyncio.create_task(_log_chat_to_knowledge_os(message.content, content, message.expert_name))
+                await _save_context_if_needed()
                 # Отправляем событие завершения
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
@@ -690,7 +756,7 @@ async def sse_generator(
             expert_prompt = ""
             if message.expert_name:
                 expert_prompt = f"Ты - {message.expert_name}, эксперт ATRA. Отвечай кратко и по делу.\n\n"
-            full_prompt = expert_prompt + message.content
+            full_prompt = expert_prompt + current_prompt
             ideal_model = message.model or _select_model_for_chat(message.content, message.expert_name)
             logger.info(f"🎯 Идеальная модель для '{message.content[:50]}...': {ideal_model}")
 
@@ -711,10 +777,13 @@ async def sse_generator(
                 for i, word in enumerate(words):
                     chunk += word + " "
                     if i % 3 == 0 and chunk:
+                        response_parts.append(chunk)
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                         chunk = ""
                 if chunk:
+                    response_parts.append(chunk)
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                await _save_context_if_needed()
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
             # Ответ от MLX или Ollama
@@ -724,12 +793,15 @@ async def sse_generator(
             for i, word in enumerate(words):
                 chunk += word + " "
                 if i % 3 == 0 and chunk:
+                    response_parts.append(chunk)
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                     chunk = ""
                     await asyncio.sleep(0.05)
             if chunk:
+                response_parts.append(chunk)
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
             asyncio.create_task(_log_chat_to_knowledge_os(message.content, content, message.expert_name))
+            await _save_context_if_needed()
             yield f"data: {json.dumps({'type': 'end'})}\n\n"
             return
 
@@ -746,10 +818,16 @@ async def sse_generator(
         for i, word in enumerate(words):
             chunk += word + " "
             if i % 3 == 0 and chunk:
+                response_parts.append(chunk)
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                 chunk = ""
         if chunk:
+            response_parts.append(chunk)
             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+        try:
+            await _save_context_if_needed()
+        except Exception:
+            pass
         yield f"data: {json.dumps({'type': 'end'})}\n\n"
 
 

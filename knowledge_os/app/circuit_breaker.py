@@ -210,8 +210,11 @@ class CircuitBreaker:
         """Отправляет Telegram алерт при критическом событии"""
         try:
             import httpx
-            tg_token = os.getenv('TG_TOKEN', '8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU')
-            chat_id = os.getenv('CHAT_ID', '556251171')
+            tg_token = os.getenv('TG_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN', '')
+            chat_id = os.getenv('CHAT_ID') or os.getenv('TELEGRAM_CHAT_ID', '')
+            if not tg_token or not chat_id:
+                logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск Telegram алерта")
+                return
             
             message = (
                 f"🚨 *CIRCUIT BREAKER ALERT*\n\n"

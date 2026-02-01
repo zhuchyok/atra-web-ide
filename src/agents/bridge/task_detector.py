@@ -2,7 +2,13 @@
 Детектор типа задачи для маршрутизации запросов Victoria.
 Определяет: simple_chat (приветствия, простые вопросы) → быстрый путь без Enhanced;
 veronica / department_heads / enhanced — для выбора обработчика.
+
+Мировая практика (docs/VERONICA_REAL_ROLE.md): Veronica — «руки», не «решатель».
+При PREFER_EXPERTS_FIRST=true (по умолчанию) в Veronica идут только простые
+одношаговые запросы (покажи файлы, выведи список); остальные execution → enhanced,
+чтобы Victoria сначала задействовала экспертов (85 в БД).
 """
+import os
 from typing import Optional
 
 
@@ -12,6 +18,12 @@ SIMPLE_CHAT_KEYWORDS = [
     "как дела", "что нового", "расскажи о себе", "кто ты", "чем занимаешься",
     "спасибо", "пожалуйста", "пока", "до свидания", "удачи", "хорошего дня",
     "приветствую", "здорово", "ок", "понятно", "ясно",
+]
+
+# Простые одношаговые запросы — реальная роль Veronica (руки): только показать/вывести/прочитать
+VERONICA_SIMPLE_KEYWORDS = [
+    "покажи файлы", "выведи список файлов", "список файлов", "покажи список",
+    "прочитай файл", "покажи файл", "содержимое файла", "выведи содержимое",
 ]
 
 VERONICA_KEYWORDS = [
@@ -28,21 +40,49 @@ DEPARTMENT_HEADS_KEYWORDS = [
 ]
 
 
+def _is_simple_veronica_request(goal: str) -> bool:
+    """
+    Запрос — одношаговое действие (показать/вывести/прочитать).
+    Только такие запросы по задумке идут сразу в Veronica (руки); остальные — в enhanced (эксперты).
+    """
+    if not goal or len(goal.strip()) > 120:
+        return False
+    goal_lower = goal.lower().strip()
+    if any(kw in goal_lower for kw in VERONICA_SIMPLE_KEYWORDS):
+        return True
+    # Короткая фраза типа «покажи файлы в src»
+    if len(goal_lower) <= 50 and ("покажи" in goal_lower or "выведи" in goal_lower or "список" in goal_lower):
+        return True
+    return False
+
+
 def detect_task_type(goal: str, context: str = "") -> str:
     """
     Определяет тип задачи для маршрутизации:
     - simple_chat: приветствия, простые вопросы → быстрый путь (agent.run без Enhanced)
-    - veronica: исполнительные задачи (код, файлы, команды)
+    - veronica: только простые одношаговые запросы (покажи файлы, выведи список) при PREFER_EXPERTS_FIRST
     - department_heads: аналитические/стратегические
-    - enhanced: сложные комплексные задачи (по умолчанию)
+    - enhanced: сложные задачи, execution через экспертов (по умолчанию для «сделай/напиши код»)
     """
     if not (goal or "").strip():
         return "simple_chat"
     goal_lower = goal.lower().strip()
-    # Исполнительные задачи (до simple_chat, чтобы "покажи файлы" не матчилось по "пока")
+    prefer_experts_first = os.getenv("PREFER_EXPERTS_FIRST", "true").lower() in ("true", "1", "yes")
+
+    # Простые одношаговые запросы → Veronica (реальная роль: руки)
+    if _is_simple_veronica_request(goal):
+        return "veronica"
+
+    # Исполнительные ключевые слова: при PREFER_EXPERTS_FIRST — в enhanced (эксперты первыми)
     for word in VERONICA_KEYWORDS:
         if word in goal_lower:
+            if prefer_experts_first:
+                return "enhanced"
             return "veronica"
+    # Эвристики: код — при PREFER_EXPERTS_FIRST в enhanced
+    if _is_code_related(goal_lower):
+        return "enhanced" if prefer_experts_first else "veronica"
+
     # Аналитические
     for word in DEPARTMENT_HEADS_KEYWORDS:
         if word in goal_lower:
@@ -54,9 +94,6 @@ def detect_task_type(goal: str, context: str = "") -> str:
     for word in SIMPLE_CHAT_KEYWORDS:
         if word in goal_lower:
             return "simple_chat"
-    # Эвристики: код
-    if _is_code_related(goal_lower):
-        return "veronica"
     # Эвристики: анализ
     if _is_analysis_related(goal_lower):
         return "department_heads"

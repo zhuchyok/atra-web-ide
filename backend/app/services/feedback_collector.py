@@ -157,6 +157,16 @@ class FeedbackCollector:
             "satisfaction_rate": high / total if total else 0.0,
         }
 
+    def get_human_preference_score(self, days: int = 30) -> Optional[float]:
+        """
+        Human Preference Score (Фаза 4, Неделя 3): средняя оценка 1–5 за период.
+        Цель: ≥ 4.0 для калибровки и мониторинга.
+        """
+        stats = self.get_feedback_stats(days=days)
+        if stats.get("total_feedback", 0) == 0:
+            return None
+        return stats.get("avg_rating")
+
     def get_quality_issues(self, unresolved_only: bool = True) -> List[Dict]:
         """Получение списка проблем с качеством."""
         with sqlite3.connect(str(self.db_path)) as conn:

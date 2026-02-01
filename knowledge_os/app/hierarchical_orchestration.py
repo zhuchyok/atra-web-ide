@@ -69,7 +69,7 @@ class HierarchicalOrchestrator:
     6. Inter-agent dependencies tracking
     """
     
-    def __init__(self, root_agent: str = "Victoria"):
+    def __init__(self, root_agent: str = "Виктория"):
         self.root_agent = root_agent
         self.state = OrchestrationState()
         self.agents: Dict[str, Dict] = {}  # agent_name -> capabilities
@@ -239,7 +239,7 @@ class HierarchicalOrchestrator:
         elif "database" in description_lower or "db" in description_lower:
             return "Роман"
         
-        return "Victoria"  # Fallback
+        return "Виктория"  # Fallback
     
     def _select_agent_for_expert_task(self, goal: HierarchicalGoal) -> Optional[str]:
         """Выбрать агента для expert задачи"""
@@ -440,10 +440,10 @@ class HierarchicalOrchestrator:
 
 async def main():
     """Пример использования"""
-    orchestrator = HierarchicalOrchestrator(root_agent="Victoria")
+    orchestrator = HierarchicalOrchestrator(root_agent="Виктория")
     
     agents = {
-        "Victoria": {"role": "team_lead", "capabilities": ["planning", "coordination"]},
+        "Виктория": {"role": "team_lead", "capabilities": ["planning", "coordination"]},
         "Игорь": {"role": "backend", "capabilities": ["coding", "api"]},
         "Сергей": {"role": "devops", "capabilities": ["deployment", "infrastructure"]},
         "Дмитрий": {"role": "ml", "capabilities": ["models", "training"]}

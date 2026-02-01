@@ -1,0 +1,20 @@
+{
+  "queries": [
+    {
+      "query": "напишут одностраничный сайт по пластиковым окнам современный и наполнят его сео",
+      "frequency": 224,
+      "source": "logs"
+    },
+    {
+      "query": "qwen2.5-coder:32b",
+      "frequency": 37,
+      "source": "logs"
+    },
+    {
+      "query": "phi3.5:3.8b",
+      "frequency": 34,
+      "source": "logs"
+    }
+  ],
+  "collected_at": "2026-01-31T14:56:48.315860"
+}

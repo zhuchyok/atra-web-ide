@@ -122,7 +122,7 @@ class KnowledgeBridge:
             return {}
 
     def _save_to_knowledge_os(self, insights: List[Dict[str, Any]]):
-        """Saves insights as a Markdown report"""
+        """Saves insights as Markdown report and to knowledge_nodes (Singularity 10.0)"""
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"ai_insights_{timestamp}.md"
         path = os.path.join(self.knowledge_os_path, filename)
@@ -137,6 +137,51 @@ class KnowledgeBridge:
                 f.write("---\n\n")
         
         logger.info(f"✅ AI Insights synced to {path}")
+
+        # Singularity 10.0: дополнительно писать в knowledge_nodes (PostgreSQL)
+        self._save_to_knowledge_nodes(insights)
+
+    def _save_to_knowledge_nodes(self, insights: List[Dict[str, Any]]):
+        """Writes insights to knowledge_nodes table (Singularity 10.0)"""
+        try:
+            import asyncio
+            try:
+                import asyncpg
+            except ImportError:
+                return
+            db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+
+            async def _insert():
+                conn = await asyncpg.connect(db_url)
+                try:
+                    domain_id = await conn.fetchval(
+                        "SELECT id FROM domains WHERE name ILIKE $1", "Strategy"
+                    )
+                    if not domain_id:
+                        await conn.execute(
+                            "INSERT INTO domains (name, description) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
+                            "Strategy",
+                            "AI strategy and market insights",
+                        )
+                        domain_id = await conn.fetchval(
+                            "SELECT id FROM domains WHERE name ILIKE $1", "Strategy"
+                        )
+                    if not domain_id:
+                        return
+                    for ins in insights:
+                        content = f"{ins.get('title', '')}: {ins.get('recommendation', '')}. Data: {json.dumps(ins.get('data', {}))[:1000]}"
+                        metadata = json.dumps({"source": "knowledge_bridge", "type": ins.get("type", "")})
+                        await conn.execute("""
+                            INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
+                            VALUES ($1, $2, $3::jsonb, 0.85, 'ai_insights')
+                        """, domain_id, content[:5000], metadata)
+                    logger.info(f"✅ AI Insights written to knowledge_nodes: {len(insights)} rows")
+                finally:
+                    await conn.close()
+
+            asyncio.run(_insert())
+        except Exception as e:
+            logger.warning("Could not save to knowledge_nodes: %s", e)
 
 async def start_knowledge_sync():
     """Entry point for main.py"""

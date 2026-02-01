@@ -193,3 +193,24 @@ class RAGContextCache:
                     await r.setex(key, self.ttl, json.dumps(data, ensure_ascii=False))
                 except Exception as e:
                     logger.debug("RAG cache redis set: %s", e)
+
+    async def clear_all(self) -> int:
+        """
+        Очистка кэша (Self-healing: при падении качества RAG — инвалидация кэша).
+        Рекомендации Backend (Игорь): единая точка инвалидации для пайплайна качества.
+        Возвращает число очищенных ключей (local + redis).
+        """
+        count = len(self._local)
+        self._local.clear()
+        if self.use_redis:
+            r = _get_redis()
+            if r:
+                try:
+                    keys = await r.keys("rag_ctx:*")
+                    if keys:
+                        await r.delete(*keys)
+                        count += len(keys)
+                except Exception as e:
+                    logger.debug("RAG cache redis clear: %s", e)
+        logger.info("RAG context cache cleared: %s entries", count)
+        return count

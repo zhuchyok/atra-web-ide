@@ -55,7 +55,7 @@ async def list_experts(
         ]
         
         # Сохраняем в кэш
-        cache.set(cache_key, result, ttl=300)  # 5 минут
+        cache.set(cache_key, result, ttl=60)  # 1 мин — быстрее видеть новых (автономных) экспертов
         
         return result
     except Exception as e:
@@ -115,7 +115,7 @@ async def get_expert(
         )
         
         # Сохраняем в кэш
-        cache.set(cache_key, result, ttl=600)  # 10 минут
+        cache.set(cache_key, result, ttl=60)  # 1 мин — быстрее видеть обновления
         
         return result
     except HTTPException:

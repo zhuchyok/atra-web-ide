@@ -166,13 +166,16 @@ def check_victoria_health(url: str, verbose: bool = False) -> bool:
             print(f" ❌ (Error: {e})")
         return False
 
+# Sync timeout: по best practices для ML API 300-600 сек; сложные задачи — до 10 мин
+VICTORIA_SYNC_TIMEOUT = int(os.getenv("VICTORIA_SYNC_TIMEOUT", "600"))
+
 def _do_request(url: str, payload: dict, result_holder: list, error_holder: list) -> None:
     """Выполнить POST в фоне; результат в result_holder[0], исключение в error_holder."""
     try:
         response = requests.post(
             f"{url}/run",
             json=payload,
-            timeout=300,
+            timeout=VICTORIA_SYNC_TIMEOUT,
             stream=False,
         )
         response.raise_for_status()
@@ -214,8 +217,8 @@ def _poll_status(url: str, task_id: str, poll_interval: float = 2.5, max_wait: f
     return None
 
 
-def send_message(url: str, goal: str, max_steps: int = 500, project_context: Optional[str] = None, session_id: Optional[str] = None, chat_history: Optional[list] = None, async_run: bool = True) -> Optional[dict]:
-    """Отправить сообщение Victoria. async_run=True: 202 + опрос статуса (результат в чат по завершении)."""
+def send_message(url: str, goal: str, max_steps: int = 500, project_context: Optional[str] = None, session_id: Optional[str] = None, chat_history: Optional[list] = None, async_run: bool = True, poll_max_wait: Optional[float] = None) -> Optional[dict]:
+    """Отправить сообщение Victoria. async_run=True: 202 + опрос статуса (результат в чат по завершении). poll_max_wait — макс. сек ожидания при async (по умолчанию 3600)."""
     payload = {"goal": goal, "max_steps": max_steps}
     if project_context:
         payload["project_context"] = project_context
@@ -256,7 +259,8 @@ def send_message(url: str, goal: str, max_steps: int = 500, project_context: Opt
                     print("\n❌ Сервер вернул 202 без task_id")
                     return None
                 print("\n📋 Задача принята, выполняется в фоне. Ожидаю результат...")
-                return _poll_status(url, task_id)
+                max_wait = 3600.0 if poll_max_wait is None else float(poll_max_wait)
+                return _poll_status(url, task_id, max_wait=max_wait)
             if r.status_code == 200:
                 result = r.json()
                 if VERBOSE:
@@ -308,7 +312,7 @@ def send_message(url: str, goal: str, max_steps: int = 500, project_context: Opt
     if error_holder:
         e = error_holder[0]
         if isinstance(e, requests.exceptions.Timeout):
-            print("\n⏱️  Таймаут: Victoria не ответила за 5 минут")
+            print(f"\n⏱️  Таймаут: Victoria не ответила за {VICTORIA_SYNC_TIMEOUT // 60} мин")
             print("💡 Попробуйте упростить запрос или проверить логи Victoria.")
         elif isinstance(e, requests.exceptions.ConnectionError):
             print(f"\n❌ Ошибка подключения: {e}")

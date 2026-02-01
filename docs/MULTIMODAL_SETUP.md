@@ -1,4 +1,4 @@
-# Настройка мультимодальных компонентов (Фаза 4, неделя 4)
+# Настройка мультимодальных компонентов (Фаза 4, Неделя 4)
 
 Краткое руководство по подключению обработки изображений и документов в RAG/чат пайплайне.
 
@@ -6,33 +6,60 @@
 
 ## Обзор
 
-- **Изображения:** Vision-модели (Ollama/MLX) для описания картинки или ответа на вопрос по изображению.
-- **Документы:** PDF, DOCX и др. → извлечение текста → индексация в RAG или прямой ответ.
+- **Изображения:** Moondream Station (MLX) → Ollama vision (moondream, llava) для описания или ответа по изображению.
+- **Документы:** PDF, DOCX, TXT, HTML, ODT, RTF (10+ форматов) — извлечение текста для RAG.
+- **Маршрутизация:** по типу контента (image / document) в едином процессоре и API.
+
+---
+
+## Реализация
+
+- **Сервис:** `backend/app/services/multimodal_processor.py` — `MultimodalProcessor`, `get_multimodal_processor()`.
+- **API:** `POST /api/multimodal/process-image`, `POST /api/multimodal/process-document`, `GET /api/multimodal/content-type`.
+- **Конфиг:** `MOONDREAM_STATION_URL`, `MULTIMODAL_VISION_ENABLED`, `MULTIMODAL_VISION_TIMEOUT`.
 
 ---
 
 ## Изображения
 
-1. **Модель:** Ollama/MLX с поддержкой vision (например, llava, moondream).
-2. **Эндпоинт:** загрузка файла или base64; запрос к модели с изображением и текстовым запросом.
-3. **Интеграция:** шаг в пайплайне чата/RAG при наличии типа контента «image».
+1. **Moondream Station (приоритет):** `http://localhost:2020` — REST API `/v1/query` с `{ "image": "<base64>", "prompt": "..." }`.
+2. **Ollama fallback:** модели `moondream`, `llava:7b` через `POST /api/generate` с `images: [base64]`.
+3. **Переменные:** `MOONDREAM_STATION_URL`, `MULTIMODAL_VISION_ENABLED`, `MULTIMODAL_VISION_TIMEOUT` (сек).
 
 ---
 
 ## Документы
 
-1. **Форматы:** PDF, DOCX, TXT, MD — через библиотеки (PyMuPDF, python-docx и т.д.).
-2. **Пайплайн:** загрузка файла → извлечение текста → разбиение на чанки → эмбеддинги → сохранение в векторное хранилище или одноразовый ответ.
-3. **Лимиты:** размер файла, таймаут обработки (настраиваются в конфиге).
+1. **PDF:** PyMuPDF (`pip install pymupdf`) — извлечение текста по страницам.
+2. **DOCX:** python-docx (`pip install python-docx`) — параграфы.
+3. **Пайплайн:** загрузка файла → `extract_document_text(file_path=..., content=...)` → текст для RAG или ответа.
+4. **Лимиты:** ответ API обрезается до 100 000 символов.
 
 ---
 
 ## Конфигурация
 
-(Будет дополнена при реализации `backend/app/services/multimodal_processor.py`.)
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `MOONDREAM_STATION_URL` | `http://localhost:2020` | URL Moondream Station (MLX) |
+| `MULTIMODAL_VISION_ENABLED` | `true` | Включить обработку изображений |
+| `MULTIMODAL_VISION_TIMEOUT` | `60.0` | Таймаут Vision-запроса (сек) |
 
-- `MULTIMODAL_IMAGES_ENABLED` — включить обработку изображений.
-- `MULTIMODAL_DOCUMENTS_ENABLED` — включить обработку документов.
-- `MULTIMODAL_MAX_FILE_SIZE_MB` — максимальный размер файла.
+Ollama URL берётся из `OLLAMA_URL` (общий с чатом).
 
-Подробный план — в `docs/PHASE4_PLAN.md` (неделя 4).
+---
+
+## API
+
+- **POST /api/multimodal/process-image** — тело: `{ "image_base64": "...", "prompt": "Опиши изображение" }`. Ответ: `{ "text": "...", "content_type": "image" }`.
+- **POST /api/multimodal/process-document** — multipart: PDF, DOCX, TXT, HTML, ODT, RTF. Ответ: `{ "text": "...", "content_type": "document" }`.
+- **GET /api/multimodal/content-type?filename=file.pdf** — определение типа для маршрутизации.
+
+---
+
+## Интеграция в пайплайн
+
+- Чат/RAG: при получении вложения с типом image или document вызвать `get_multimodal_processor().get_text_for_rag(content_type, ...)` и подставить полученный текст в контекст или запрос.
+- Определение типа: `detect_content_type(filename=..., content_type=...)` → `"image"` | `"document"` | `"unknown"`.
+
+Подробный план — в `docs/PHASE4_PLAN.md` (Неделя 4).

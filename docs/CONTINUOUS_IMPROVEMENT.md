@@ -25,6 +25,16 @@
 
 ---
 
+## Еженедельный цикл (QA / SRE)
+
+1. **Запуск пайплайна:** `./scripts/run_quality_pipeline.sh`
+2. **Анализ проблемных запросов:** после валидации создаётся `problematic_queries_analysis.json` (если порог relevance < 85%).
+3. **Разбор:** QA просматривает `problematic_queries_analysis.json` — группы: критичные (rel=0), короткие, многошаговые.
+4. **Пополнение validation set:** добавить проблемные примеры в `data/validation_queries.json` с reference; при необходимости расширить `query_expansion.py` или `query_rewriter.py`.
+5. **Повторная валидация:** `./scripts/run_quality_pipeline.sh`
+
+---
+
 ## Пороги и откат
 
 - Настройка порогов в `docs/QUALITY_METRICS.md`.

@@ -107,6 +107,8 @@ class Settings(BaseSettings):
     reranking_enabled: bool = os.getenv("RERANKING_ENABLED", "false").lower() == "true"
     # Фаза 4: query expansion для улучшения retrieval
     query_expansion_enabled: bool = os.getenv("QUERY_EXPANSION_ENABLED", "true").lower() == "true"
+    # Фаза 4: переписывание запроса (QueryRewriter) до поиска — эвристики, опционально LLM
+    query_rewriter_enabled: bool = os.getenv("QUERY_REWRITER_ENABLED", "true").lower() == "true"
 
     # Agent suggestion (Фаза 2, день 3–4: подсказка перейти в режим Агент)
     agent_suggestion_enabled: bool = os.getenv("AGENT_SUGGESTION_ENABLED", "true").lower() == "true"
@@ -137,6 +139,18 @@ class Settings(BaseSettings):
     plan_cache_maxsize: int = int(os.getenv("PLAN_CACHE_MAXSIZE", "100"))
     plan_cache_min_gen_time: float = float(os.getenv("PLAN_CACHE_MIN_GEN_TIME", "2.0"))  # кэшировать если генерация > N сек
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+    # Фаза 4, Неделя 2: контекст диалога (multi-turn)
+    conversation_context_enabled: bool = os.getenv("CONVERSATION_CONTEXT_ENABLED", "true").lower() == "true"
+    conversation_context_ttl_sec: int = int(os.getenv("CONVERSATION_CONTEXT_TTL_SEC", "3600"))
+    conversation_context_max_messages: int = int(os.getenv("CONVERSATION_CONTEXT_MAX_MESSAGES", "50"))
+    conversation_context_max_chars: int = int(os.getenv("CONVERSATION_CONTEXT_MAX_CHARS", "8000"))
+    conversation_context_use_redis: bool = os.getenv("CONVERSATION_CONTEXT_USE_REDIS", "false").lower() == "true"
+
+    # Фаза 4, Неделя 4: мультимодальность (изображения, документы)
+    moondream_station_url: str = os.getenv("MOONDREAM_STATION_URL", "http://localhost:2020")
+    multimodal_vision_enabled: bool = os.getenv("MULTIMODAL_VISION_ENABLED", "true").lower() == "true"
+    multimodal_vision_timeout: float = float(os.getenv("MULTIMODAL_VISION_TIMEOUT", "60.0"))
 
     # Фаза 3, день 3–4: оптимизации RAG-light
     embedding_batch_enabled: bool = os.getenv("EMBEDDING_BATCH_ENABLED", "false").lower() == "true"

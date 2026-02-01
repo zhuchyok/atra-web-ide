@@ -273,7 +273,7 @@ async def main():
     
     # Регистрация агента
     victoria_config = {
-        'name': 'Victoria',
+        'name': 'Виктория',
         'capabilities': ['reasoning', 'planning', 'coordination'],
         'dependencies': ['react_agent', 'extended_thinking'],
         'documentation': 'Victoria Enhanced Agent'
@@ -281,7 +281,7 @@ async def main():
     
     version = manager.register_agent(
         agent_id='victoria-001',
-        agent_name='Victoria',
+        agent_name='Виктория',
         config=victoria_config,
         code_path='victoria_enhanced.py'
     )

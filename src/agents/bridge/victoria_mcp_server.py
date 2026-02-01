@@ -2,21 +2,24 @@
 Victoria MCP Server — подключение Victoria к Cursor через MCP.
 Запуск: python -m src.agents.bridge.victoria_mcp_server
 """
-import asyncio
-import os
-import httpx
+import json
 import logging
+import os
+
+import httpx
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("victoria_mcp")
 
-# Victoria на Mac Studio (192.168.1.64). Переопределение: VICTORIA_URL.
+# Victoria: localhost для работы с Cursor на этой машине; Mac Studio — через VICTORIA_URL.
 VICTORIA_URL = os.getenv(
     "VICTORIA_URL",
-    "http://192.168.1.64:8010",  # Mac Studio — основной сервер Victoria
+    "http://localhost:8010",
 )
+# Таймаут для victoria_run (сек). Задачи на код (оркестратор → эксперты) часто > 5 мин. По умолчанию 10 мин.
+VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "600"))
 
 mcp = FastMCP(
     "VictoriaATRA",
@@ -47,7 +50,8 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
         Результат выполнения задачи от Victoria
     """
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        timeout_sec = VICTORIA_MCP_RUN_TIMEOUT_SEC
+        async with httpx.AsyncClient(timeout=timeout_sec) as client:
             # 1) Стандартный API (goal + max_steps)
             resp = await client.post(
                 f"{VICTORIA_URL}/run",
@@ -63,11 +67,61 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
             data = resp.json()
             return _parse_run_result(data)
     except httpx.TimeoutException:
-        return "⏱️ Таймаут: задача заняла слишком много времени."
+        return f"⏱️ Таймаут: задача заняла больше {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с. Увеличьте VICTORIA_MCP_RUN_TIMEOUT_SEC или упростите задачу."
     except httpx.RequestError as e:
         return f"❌ Ошибка связи с Victoria: {e}"
     except Exception as e:
         logger.exception("Ошибка victoria_run")
+        return f"❌ Ошибка: {e}"
+
+
+@mcp.tool()
+async def victoria_chat(
+    message: str,
+    history_json: Optional[str] = None,
+    project_context: Optional[str] = "atra-web-ide",
+) -> str:
+    """Написать сообщение Виктории и получить ответ (для диалога).
+    
+    Args:
+        message: Сообщение/вопрос для Виктории
+        history_json: Опционально — JSON история диалога [{"user":"...","assistant":"..."}]
+        project_context: Контекст проекта (по умолчанию atra-web-ide)
+    
+    Returns:
+        Ответ Виктории
+    """
+    try:
+        payload: dict = {
+            "goal": message,
+            "project_context": project_context,
+        }
+        if history_json:
+            try:
+                history = json.loads(history_json)
+                if isinstance(history, list):
+                    payload["chat_history"] = history
+            except json.JSONDecodeError:
+                pass
+        async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
+            resp = await client.post(
+                f"{VICTORIA_URL}/run",
+                json=payload,
+            )
+            if resp.status_code == 422:
+                resp = await client.post(
+                    f"{VICTORIA_URL}/run",
+                    json={"prompt": message},
+                )
+            resp.raise_for_status()
+            data = resp.json()
+            return _parse_run_result(data)
+    except httpx.TimeoutException:
+        return f"⏱️ Таймаут: Victoria не ответила за {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с. Упрости запрос или увеличь VICTORIA_MCP_RUN_TIMEOUT_SEC."
+    except httpx.RequestError as e:
+        return f"❌ Ошибка связи с Victoria: {e}"
+    except Exception as e:
+        logger.exception("Ошибка victoria_chat")
         return f"❌ Ошибка: {e}"
 
 

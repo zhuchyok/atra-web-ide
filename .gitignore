@@ -49,3 +49,6 @@ problematic_queries_analysis.json
 # SQLite
 *.db
 feedback.db
+
+# Allow cursor rules for cross-project sharing
+!.cursor/rules/

@@ -35,7 +35,7 @@ class MetacognitiveLearner:
     3. Metacognitive Evaluation - рефлексировать над опытом
     """
     
-    def __init__(self, agent_name: str = "Victoria"):
+    def __init__(self, agent_name: str = "Виктория"):
         self.agent_name = agent_name
         self.state = MetacognitiveState(
             self_assessment=0.5,
@@ -246,7 +246,7 @@ class MetacognitiveLearner:
 
 
 # Интеграция с Victoria Enhanced
-async def integrate_metacognitive_learning(agent_name: str = "Victoria"):
+async def integrate_metacognitive_learning(agent_name: str = "Виктория"):
     """Интегрировать метакогнитивное обучение в агента"""
     learner = MetacognitiveLearner(agent_name=agent_name)
     

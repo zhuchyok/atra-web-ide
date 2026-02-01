@@ -45,8 +45,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Настройки Telegram (из переменных окружения)
-TG_TOKEN = os.getenv("PROD_TELEGRAM_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
-TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", '556251171')
+TG_TOKEN = os.getenv("PROD_TELEGRAM_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
+TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID") or os.getenv("CHAT_ID", "")
 
 async def get_pool():
     """Lazy initialization of the PostgreSQL connection pool."""
@@ -73,6 +73,9 @@ async def run_cursor_agent(prompt: str):
 
 def send_telegram_msg(msg: str):
     """Отправка сообщения в Telegram"""
+    if not TG_TOKEN or not TG_CHAT_ID:
+        logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск отправки в Telegram")
+        return
     url = f'https://api.telegram.org/bot{TG_TOKEN}/sendMessage'
     data = {'chat_id': TG_CHAT_ID, 'text': msg, 'parse_mode': 'Markdown'}
     try:

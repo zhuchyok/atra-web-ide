@@ -96,11 +96,26 @@ async def run_code_audit():
             try:
                 clean_json = output.strip()
                 if "```json" in clean_json:
-                    clean_json = clean_json.split("```json")[1].split("```")[0]
+                    parts = clean_json.split("```json", 1)[1].split("```", 1)
+                    clean_json = parts[0].strip()
                 elif "```" in clean_json:
-                    clean_json = clean_json.split("```")[1].split("```")[0]
-                
-                tasks = json.loads(clean_json)
+                    parts = clean_json.split("```", 2)
+                    clean_json = (parts[1] if len(parts) > 1 else parts[0]).strip()
+                clean_json = clean_json.strip()
+                if not clean_json:
+                    print("⚠️ Пустой JSON после извлечения из markdown")
+                    await conn.close()
+                    return
+                try:
+                    tasks = json.loads(clean_json)
+                except json.JSONDecodeError as je:
+                    print(f"❌ Ошибка парсинга JSON: {je}")
+                    await conn.close()
+                    return
+                if isinstance(tasks, dict):
+                    tasks = [tasks] if tasks else []
+                if not isinstance(tasks, list):
+                    tasks = []
                 
                 victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория'")
                 

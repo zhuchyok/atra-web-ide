@@ -20,8 +20,8 @@ def main() -> int:
     parser.add_argument("report", help="Path to validation_report.json")
     parser.add_argument(
         "--threshold",
-        default="faithfulness:0.7,relevance:0.75,coherence:0.7",
-        help="Comma-separated metric:value",
+        default="faithfulness:0.8,relevance:0.85,coherence:0.7",
+        help="Comma-separated metric:value (QA: faithfulness≥0.8, relevance≥0.85, coherence≥0.7)",
     )
     args = parser.parse_args()
 

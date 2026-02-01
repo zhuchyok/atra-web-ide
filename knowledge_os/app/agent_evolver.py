@@ -43,7 +43,7 @@ class AgentEvolver:
     3. Self-Attributing - улучшенная эффективность выборки
     """
     
-    def __init__(self, agent_name: str = "Victoria"):
+    def __init__(self, agent_name: str = "Виктория"):
         self.agent_name = agent_name
         self.questions: List[Question] = []
         self.navigation_state = NavigationState(
@@ -313,7 +313,7 @@ class AgentEvolver:
 
 # Пример использования
 async def main():
-    evolver = AgentEvolver("Victoria")
+    evolver = AgentEvolver("Виктория")
     
     # Self-Questioning
     questions = await evolver.self_question(

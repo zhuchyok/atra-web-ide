@@ -20,6 +20,10 @@
 | **semantic_ai_cache** | Кэш ответов (query→response). Колонка `last_used_at`. | Очищать записи, не использовавшиеся > 90 дней. Таблица может быть пустой. |
 | **embedding_cache** (БД) | Кэш эмбеддингов в knowledge_os. `last_used_at`. | Не используется atra-web-ide backend (там in-memory). При необходимости — очистка по `last_used_at` > 90 дней. |
 
+## knowledge_cleaner (архивация узлов)
+
+`knowledge_os/app/knowledge_cleaner.py` переносит в `knowledge_nodes_archive` узлы с `usage_count=0`, `created_at` > 30 дней, `confidence_score` < 0.9. **Восстановление:** `psql -f scripts/restore_knowledge_from_archive.sql`
+
 ## ⚠️ Уже есть
 
 - **CacheCleanupTask** (knowledge_os) — очищает `semantic_ai_cache` по `expires_at`, но колонки `expires_at` нет в схеме → фактически ничего не удаляет.

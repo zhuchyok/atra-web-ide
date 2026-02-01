@@ -234,6 +234,8 @@ class VictoriaAgent(BaseAgent):
         self.db_pool = None
         self.expert_team = {}
         self._expert_team_loaded = False
+        self._last_expert_sync = None  # TTL для экспертов (5 мин)
+        self._expert_cache_ttl_sec = int(os.getenv("VICTORIA_EXPERT_CACHE_TTL", "300"))
         self.use_cache = os.getenv("VICTORIA_USE_CACHE", "true").lower() == "true"
         self.task_cache = {}
         self.cache_ttl = timedelta(hours=24)
@@ -263,9 +265,12 @@ class VictoriaAgent(BaseAgent):
         return self.db_pool
     
     async def _load_expert_team(self):
-        """Загрузить команду экспертов из Knowledge OS"""
-        if self._expert_team_loaded:
-            return
+        """Загрузить команду экспертов из Knowledge OS. TTL кэша 5 мин (VICTORIA_EXPERT_CACHE_TTL)."""
+        now = datetime.now(timezone.utc)
+        if self._expert_team_loaded and self._last_expert_sync:
+            if (now - self._last_expert_sync).total_seconds() < self._expert_cache_ttl_sec:
+                return
+            self._expert_team_loaded = False
         
         pool = await self._get_db_pool()
         if not pool:
@@ -280,6 +285,7 @@ class VictoriaAgent(BaseAgent):
                 """)
                 self.expert_team = {row['name']: dict(row) for row in rows}
                 self._expert_team_loaded = True
+                self._last_expert_sync = datetime.now(timezone.utc)
                 logger.info(f"✅ Загружено {len(self.expert_team)} экспертов из Knowledge OS")
         except Exception as e:
             logger.error(f"❌ Ошибка загрузки экспертов: {e}")
@@ -1692,6 +1698,7 @@ async def _run_task_background(
         store["status"] = "running"
         store["stage"] = "running"
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        logger.info("[VICTORIA_CYCLE] background start task_id=%s goal_preview=%s", task_id, (goal or "")[:60])
         logger.info("[TRACE] _run_task_background: start task_id=%s goal_preview=%s", task_id, (goal or "")[:60])
         use_enhanced_actual = should_use_enhanced(goal, project_context, use_enhanced)
         veronica_tried_and_failed = False
@@ -1711,15 +1718,15 @@ async def _run_task_background(
                 if not isinstance(meta, dict):
                     meta = {}
                 knowledge["metadata"] = meta
-                meta["model_used"] = meta.get("model_used") or "Veronica"
+                meta["model_used"] = meta.get("model_used") or "Вероника"
                 meta.setdefault("source", "local")
-                knowledge["delegated_to"] = "Veronica"
+                knowledge["delegated_to"] = "Вероника"
                 knowledge["execution_trace"] = {
                     "task_type": task_type,
                     "use_enhanced": use_enhanced_actual,
                     "routed_to": "veronica",
-                    "delegated_to": "Veronica",
-                    "method": meta.get("model_used") or "Veronica",
+                    "delegated_to": "Вероника",
+                    "method": meta.get("model_used") or "Вероника",
                     "correlation_id": correlation_id,
                     "goal_preview": (goal or "")[:120],
                 }
@@ -1728,6 +1735,7 @@ async def _run_task_background(
                 if not isinstance(store["output"], str):
                     store["output"] = str(store["output"]) if store["output"] is not None else ""
                 store["knowledge"] = knowledge
+                logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=veronica", task_id)
                 logger.info("[TRACE] _run_task_background: completed via Veronica task_id=%s", task_id)
                 return
             veronica_tried_and_failed = True
@@ -1807,6 +1815,7 @@ async def _run_task_background(
                     logger.warning("Нормализация вывода Enhanced: %s", norm_e)
                     store["output"] = str(raw_result) if raw_result is not None else "Результат не удалось нормализовать."
                 store["knowledge"] = knowledge
+            logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=enhanced", task_id)
             logger.info("[TRACE] _run_task_background: after enhanced.solve task_id=%s", task_id)
         else:
             store["stage"] = "agent_run"
@@ -1843,8 +1852,10 @@ async def _run_task_background(
                 store["knowledge"] = knowledge
             finally:
                 agent.executor.system_prompt = original_prompt
+            logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=agent_run", task_id)
             logger.info("[TRACE] _run_task_background: after agent.run task_id=%s", task_id)
     except Exception as e:
+        logger.info("[VICTORIA_CYCLE] background failed task_id=%s error=%s", task_id, str(e)[:200])
         logger.exception("Фоновая задача %s завершилась с ошибкой", task_id)
         store["status"] = "failed"
         store["error"] = str(e)
@@ -1878,11 +1889,14 @@ async def get_run_status(task_id: str):
     out = _normalize_output_for_user(rec.get("output"))
     if not isinstance(out, str):
         out = str(out) if out is not None else ""
-    if len(out) > 2000:
-        out = out[:2000].rstrip() + "\n\n[... ответ обрезан ...]"
+    # Лимит 8000 для Telegram/длинных ответов (раньше 2000 — обрезало сложные ответы)
+    if len(out) > 8000:
+        out = out[:8000].rstrip() + "\n\n[... ответ обрезан ...]"
+    status_val = rec.get("status", "queued")
+    logger.info("[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out))
     return {
         "task_id": task_id,
-        "status": rec.get("status", "queued"),
+        "status": status_val,
         "stage": rec.get("stage"),
         "output": out,
         "knowledge": knowledge,
@@ -1906,6 +1920,8 @@ async def run_task(
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
     
     # === REQUEST FLOW TRACING ===
+    logger.info("[VICTORIA_CYCLE] accept POST /run correlation_id=%s goal_preview=%s async_mode=%s",
+                correlation_id, (body.goal or "")[:80], async_mode)
     logger.info("[REQUEST] ========== POST /run ==========")
     logger.info("[REQUEST] Correlation ID: %s", correlation_id)
     logger.info("[REQUEST] Goal: %s", body.goal[:200] if body.goal else "(empty)")
@@ -2000,6 +2016,7 @@ async def run_task(
             task_type=_task_type_for_async,
             max_steps=_max_steps,
         ))
+        logger.info("[VICTORIA_CYCLE] async 202 task_id=%s status_url=/run/status/%s", task_id, task_id)
         return JSONResponse(
             status_code=202,
             content={
@@ -2085,21 +2102,23 @@ async def run_task(
                 if not isinstance(meta, dict):
                     meta = {}
                 knowledge["metadata"] = meta
-                meta["model_used"] = meta.get("model_used") or "Veronica"
+                meta["model_used"] = meta.get("model_used") or "Вероника"
                 meta.setdefault("source", "local")
                 meta["correlation_id"] = correlation_id
-                knowledge["delegated_to"] = "Veronica"
+                knowledge["delegated_to"] = "Вероника"
                 knowledge["execution_trace"] = {
                     "task_type": task_type,
                     "use_enhanced": use_enhanced_for_request,
                     "routed_to": "veronica",
-                    "delegated_to": "Veronica",
-                    "method": knowledge.get("metadata", {}).get("model_used") or "Veronica",
+                    "delegated_to": "Вероника",
+                    "method": knowledge.get("metadata", {}).get("model_used") or "Вероника",
                     "correlation_id": correlation_id,
                     "goal_preview": (restated_goal or "")[:120],
                 }
                 orch_ctx["status"] = "completed"
                 orch_ctx["result"] = (veronica_result.get("output") or "")[:5000]
+                out_len = len(veronica_result.get("output") or "")
+                logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=veronica output_len=%s", correlation_id[:8], out_len)
                 return TaskResponse(
                     status="success",
                     output=_normalize_output_for_user(veronica_result.get("output") or ""),
@@ -2185,6 +2204,8 @@ async def run_task(
                         }
                         orch_ctx["status"] = "completed"
                         orch_ctx["result"] = (enhanced_result.get("result") or "")[:5000]
+                        out_len = len(enhanced_result.get("result") or "")
+                        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=enhanced output_len=%s", correlation_id[:8], out_len)
                         return TaskResponse(
                             status="success",
                             output=_normalize_output_for_user(enhanced_result.get("result") or ""),
@@ -2252,6 +2273,7 @@ async def run_task(
         }
         orch_ctx["status"] = "completed"
         orch_ctx["result"] = (str(result) or "")[:5000]
+        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=agent_run output_len=%s", correlation_id[:8], len(str(result) or ""))
         return TaskResponse(
             status="success",
             output=_normalize_output_for_user(result),

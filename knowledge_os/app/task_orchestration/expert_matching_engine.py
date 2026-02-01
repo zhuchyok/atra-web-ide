@@ -39,7 +39,7 @@ DEFAULT_DB_URL = os.getenv("DATABASE_URL") or "postgresql://admin:secret@localho
 
 # Маппинг категории задачи (coding/reasoning/general/fast) → роли экспертов из configs/experts (team.md, employees.md).
 # Подбор экспертов учитывает роли: для категории выбираются только эксперты с подходящей ролью.
-# Роли из configs/experts/employees.md — полный охват для подбора по категории задачи
+# Роли из configs/experts/employees.md — полный охват. Автономные эксперты: роли из БД дополняют general.
 CATEGORY_TO_ROLES = {
     "coding": [
         "Backend Developer",
@@ -286,8 +286,20 @@ class ExpertMatchingEngine:
             else:
                 logger.debug("expert_specializations query failed: %s", e)
 
-        # Fallback по ролям: категория задачи (coding/reasoning/general/fast) → список ролей из configs/experts
-        roles_for_category = CATEGORY_TO_ROLES.get(required_category)
+        # Fallback по ролям: категория задачи (coding/reasoning/general/fast) → список ролей
+        # Для general: дополняем ролями из БД (автономные эксперты)
+        roles_for_category = list(CATEGORY_TO_ROLES.get(required_category, []))
+        if not roles_for_category:
+            roles_for_category = list(CATEGORY_TO_ROLES.get("general", []))
+        if required_category == "general":
+            try:
+                db_roles = await conn.fetch("SELECT DISTINCT role FROM experts WHERE role IS NOT NULL AND role != ''")
+                for row in db_roles:
+                    r = row.get("role") if hasattr(row, "get") else row["role"]
+                    if r and r not in roles_for_category:
+                        roles_for_category.append(r)
+            except Exception:
+                pass
         if roles_for_category:
             try:
                 rows = await conn.fetch("""

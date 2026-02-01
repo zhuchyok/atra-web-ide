@@ -106,7 +106,12 @@ async def process_task(pool, task):
                 print(f'[{datetime.now()}] Task {task_id} already being processed or recently updated, skipping...')
                 return
             
-            expert_config = await conn.fetchrow("SELECT id, system_prompt, role, department FROM experts WHERE name = $1", expert_name)
+            try:
+                from app.expert_aliases import resolve_expert_name_for_db
+                resolved_name = resolve_expert_name_for_db(expert_name)
+            except ImportError:
+                resolved_name = expert_name
+            expert_config = await conn.fetchrow("SELECT id, system_prompt, role, department FROM experts WHERE name = $1", resolved_name)
             if not expert_config:
                 await conn.execute("UPDATE tasks SET status = 'failed', result = 'Expert not found', updated_at = NOW() WHERE id = $1", task_id)
                 return
@@ -360,14 +365,12 @@ DESC: {task_description}
             # Проверяем, что ответ не является сообщением об ошибке
             error_indicators = ['⚠️', '❌', '⌛', 'Error', 'failed', 'недоступен', 'не могу', 'Все источники недоступны', 'Ошибка связи']
             is_error = any(indicator in report for indicator in error_indicators)
+            # LLM unavailable — не retry бесконечно, сразу пробуем rule_executor (мировая практика: circuit breaker)
+            is_llm_unavailable = 'недоступн' in (report or '').lower() or 'unavailable' in (report or '').lower()
             
             if is_error:
-                # Если агент вернул ошибку, НЕ помечаем задачу как completed
-                # Вместо этого возвращаем в pending для повторной попытки
-                print(f'[{datetime.now()}] ⚠️ Agent returned error for task {task_id}, NOT completing task. Will retry later.')
-                print(f'[{datetime.now()}] Error response: {report[:200]}...')
+                print(f'[{datetime.now()}] ⚠️ Agent returned error for task {task_id}: {report[:150]}...')
                 
-                # Обновляем счетчик попыток и возвращаем в pending
                 attempt_count = 0
                 try:
                     async with pool.acquire() as conn:
@@ -377,22 +380,43 @@ DESC: {task_description}
                 except (asyncpg.PostgresError, ValueError, TypeError) as e:
                     logger.debug(f"Error reading attempt_count for task {task_id}: {e}, using default 0")
                     attempt_count = 0
-                
                 attempt_count += 1
                 
-                # После 5 попыток помечаем как failed, а не completed
-                if attempt_count >= 5:
-                    print(f'[{datetime.now()}] ⚠️ Task {task_id} failed after {attempt_count} attempts, marking as FAILED')
-                    async with pool.acquire() as conn:
-                        await conn.execute("""
-                            UPDATE tasks 
-                            SET status = 'failed', 
-                                result = $2, 
-                                updated_at = NOW(),
-                                metadata = metadata || jsonb_build_object('auto_failed', true, 'attempt_count', $3, 'failure_reason', 'AI agent unavailable after multiple attempts')
-                            WHERE id = $1
-                        """, task_id, f"Задача не выполнена: AI агент недоступен после {attempt_count} попыток.\n\nОшибка: {report[:500]}", attempt_count)
-                    print(f'[{datetime.now()}] ✅ Task {task_id} marked as FAILED after {attempt_count} attempts.')
+                # При LLM unavailable или после 3 попыток: rule_executor вместо retry (circuit breaker)
+                if is_llm_unavailable or attempt_count >= 3:
+                    rule_result = None
+                    try:
+                        from task_rule_executor import execute_fallback as rule_execute, can_handle as rule_can_handle
+                        task_dict = dict(task) if not isinstance(task, dict) else task
+                        if rule_can_handle(task_dict):
+                            rule_result = await rule_execute(task_dict)
+                    except Exception as e:
+                        logger.debug("Rule executor failed for task %s: %s", task_id, e)
+                    if rule_result:
+                        async with pool.acquire() as conn:
+                            await conn.execute("""
+                                UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
+                                    metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "llm_unavailable_fallback": true}'::jsonb
+                                WHERE id = $1
+                            """, task_id, rule_result)
+                        print(f'[{datetime.now()}] ✅ Task {task_id} completed via rule_executor (LLM unavailable)')
+                        return
+                    # LLM unavailable или 3+ попыток: rule не сработал — complete с deferred
+                    if is_llm_unavailable or attempt_count >= 3:
+                        final_result = f"""Задача: {task_title}
+Статус: AI агент недоступен после {attempt_count} попыток.
+Ошибка: {report[:300]}
+[deferred_to_human: рекомендуется ручная проверка]"""
+                        async with pool.acquire() as conn:
+                            await conn.execute("""
+                                UPDATE tasks 
+                                SET status = 'completed', result = $2, updated_at = NOW(),
+                                    metadata = metadata || jsonb_build_object('attempt_count', $3, 'deferred_to_human', true, 'execution_mode', 'minimal_response')
+                                WHERE id = $1
+                            """, task_id, final_result, attempt_count)
+                        print(f'[{datetime.now()}] ✅ Task {task_id} completed with deferred_to_human (attempt {attempt_count})')
+                        return
+                # attempt_count < 3 и не LLM unavailable: retry
                 else:
                     # Записываем неудачную попытку
                     try:
@@ -542,34 +566,57 @@ DESC: {task_description}
         
         attempt_count += 1
         
-        # После 3 попыток завершаем задачу с минимальным ответом
+        # После 3 попыток: сначала rule-based fallback, иначе minimal_response (Этап 5 плана)
         if attempt_count >= 3:
-            print(f'[{datetime.now()}] ⚠️ Task {task_id} failed after {attempt_count} attempts, completing with minimal response')
-            minimal_response = f"""Задача: {task_title}
+            rule_result = None
+            try:
+                from task_rule_executor import execute_fallback as rule_execute, can_handle as rule_can_handle
+                task_dict = dict(task) if not isinstance(task, dict) else task
+                if rule_can_handle(task_dict):
+                    rule_result = await rule_execute(task_dict)
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug("Rule executor failed for task %s: %s", task_id, e)
+
+            final_result = rule_result
+            exec_mode = "rule_based" if rule_result else "minimal_response"
+            deferred = not rule_result
+
+            if not final_result:
+                print(f'[{datetime.now()}] ⚠️ Task {task_id} failed after {attempt_count} attempts, completing with minimal response')
+                final_result = f"""Задача: {task_title}
 
 Статус: Завершена автоматически после {attempt_count} неудачных попыток обработки AI агентом.
 
 Примечание: AI агент был недоступен. Задача помечена как выполненная для очистки очереди."""
-            # Проставляем исполнителя, чтобы в дашборде не было «Не назначен»
+                if deferred:
+                    final_result += "\n\n[deferred_to_human: true — рекомендуется ручная проверка]"
+
             assignee_id = task.get('assignee_expert_id')
+            meta_extra = json.dumps({
+                'auto_completed': True, 'attempt_count': attempt_count,
+                'execution_mode': exec_mode,
+                'deferred_to_human': deferred
+            })
             async with pool.acquire() as conn:
                 if assignee_id:
                     await conn.execute("""
                         UPDATE tasks 
                         SET status = 'completed', result = $2, updated_at = NOW(),
                             assignee_expert_id = $4,
-                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('auto_completed', true, 'attempt_count', $3)
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb
                         WHERE id = $1
-                    """, task_id, minimal_response, attempt_count, assignee_id)
+                    """, task_id, final_result, attempt_count, assignee_id, meta_extra)
                 else:
                     await conn.execute("""
                         UPDATE tasks 
                         SET status = 'completed', result = $2, updated_at = NOW(),
                             assignee_expert_id = (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('auto_completed', true, 'attempt_count', $3)
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb
                         WHERE id = $1
-                    """, task_id, minimal_response, attempt_count)
-            print(f'[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (assignee set).')
+                    """, task_id, final_result, attempt_count, meta_extra)
+            print(f'[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (mode=%s).', exec_mode)
         else:
             # Обновляем счетчик попыток и возвращаем в pending
             async with pool.acquire() as conn:

@@ -77,7 +77,34 @@
     }
   }
   
+  async function askVictoria(t, goal) {
+    t.writeln('\r\n\x1b[33m🤖 Victoria...\x1b[0m')
+    try {
+      const r = await fetch('/api/terminal/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: goal }),
+      })
+      const data = await r.json()
+      const resp = data.response || data.error || 'Нет ответа'
+      const lines = String(resp).split('\n')
+      for (const line of lines) {
+        t.writeln('\x1b[36m' + line + '\x1b[0m')
+      }
+    } catch (e) {
+      t.writeln('\x1b[31mОшибка: ' + (e.message || 'нет связи с бэкендом') + '\x1b[0m')
+    }
+    t.write('\r\n$ ')
+  }
+
   function runCommand(t, cmd) {
+    const trimmed = cmd.trim()
+    const isVictoriaCmd = /^v\s+/i.test(trimmed)
+    if (isVictoriaCmd && (isConnected || !ws)) {
+      const goal = trimmed.replace(/^v\s+/i, '').trim().replace(/^["']|["']$/g, '')
+      askVictoria(t, goal)
+      return
+    }
     if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
       // Отправляем команду через PTY
       ws.send(cmd + '\r')
@@ -90,7 +117,9 @@
       }
       if (c === 'help' || c === '') {
         writeln(t, 'ATRA Web IDE Terminal (xterm.js)')
-        writeln(t, '  help, clear — доступные команды')
+        writeln(t, '  help, clear — команды')
+        writeln(t, '  v "задача" — спросить Victoria Agent')
+        writeln(t, '  Снаружи: bash scripts/chat_victoria.sh — интерактивный чат')
         writeln(t, '  Подключение к PTY...')
         connectPTY()
         return
@@ -138,29 +167,26 @@
     ro.observe(container)
 
     term.onData((data) => {
-      if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
-        // Отправляем данные напрямую в PTY
-        ws.send(data)
-      } else {
-        // Локальный режим (fallback)
-        const key = data
-        if (key === '\r' || key === '\n') {
-          runCommand(term, currentLine)
-          currentLine = ''
-          if (!isConnected) {
-            term.write('\r\n$ ')
-          }
-          return
+      const key = data
+      if (key === '\r' || key === '\n') {
+        runCommand(term, currentLine)
+        currentLine = ''
+        return
+      }
+      if (key === '\u007F' || key === '\b') {
+        if (currentLine.length > 0) {
+          currentLine = currentLine.slice(0, -1)
+          term.write('\b \b')
         }
-        if (key === '\u007F' || key === '\b') {
-          if (currentLine.length > 0) {
-            currentLine = currentLine.slice(0, -1)
-            term.write('\b \b')
-          }
-          return
-        }
-        if (key >= ' ' && key <= '~' || key.length > 1) {
-          currentLine += key
+        return
+      }
+      if (key >= ' ' && key <= '~' || key.length > 1) {
+        const newLine = currentLine + key
+        const isVictoria = /^v\s+/i.test(newLine)
+        currentLine = newLine
+        if (isConnected && ws?.readyState === WebSocket.OPEN && !isVictoria) {
+          ws.send(data)
+        } else {
           term.write(key)
         }
       }

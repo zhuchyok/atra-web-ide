@@ -44,6 +44,22 @@ logger = logging.getLogger("streaming_orchestrator")
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
 
+# Canonical domains (план Этап 2): маппинг для recruit_expert
+CANONICAL_DOMAINS = {
+    "Machine Learning": "ML/AI",
+    "AI Systems": "ML/AI",
+    "AI": "ML/AI",
+    "Backend": "Backend",
+    "Frontend": "Frontend",
+    "DevOps": "DevOps/Infra",
+    "Infrastructure": "DevOps/Infra",
+}
+
+
+def _canonical_domain(name: str) -> str:
+    """Возвращает каноническое имя домена."""
+    return CANONICAL_DOMAINS.get(name, name)
+
 # Resource lock (простая реализация через Redis)
 _lock_key = "orchestrator:lock"
 
@@ -285,26 +301,34 @@ class StreamingOrchestrator:
         
         victoria_id = await pool.fetchval("SELECT id FROM experts WHERE name = 'Виктория'")
         
+        # Лимит автономных экспертов (план: не более 25)
+        autonomous_count = await pool.fetchval(
+            "SELECT count(*) FROM experts WHERE (metadata->>'is_autonomous')::text = 'true'"
+        )
+        autonomous_limit = int(os.getenv("AUTONOMOUS_EXPERT_LIMIT", "25"))
+
         for desert in deserts:
-            logger.info(f"🏜️ Curiosity Engine: Domain '{desert['name']}' needs attention")
+            canonical = _canonical_domain(desert['name'])
+            logger.info(f"🏜️ Curiosity Engine: Domain '{desert['name']}' (canonical: {canonical}) needs attention")
             
-            # Проверяем наличие экспертов
+            # Проверяем наличие экспертов (в каноническом домене)
             expert_count = await pool.fetchval(
-                "SELECT count(*) FROM experts WHERE department = $1",
-                desert['name']
+                "SELECT count(*) FROM experts WHERE department = $1 OR department = $2",
+                desert['name'], canonical
             )
             
-            if expert_count == 0:
-                logger.info(f"👤 Recruiting expert for {desert['name']}...")
+            if expert_count == 0 and (autonomous_count or 0) < autonomous_limit:
+                logger.info(f"👤 Recruiting expert for {canonical}...")
                 try:
                     subprocess.run(
                         ["/root/knowledge_os/venv/bin/python",
                          "/root/knowledge_os/app/expert_generator.py",
-                         desert['name']],
+                         canonical],
                         timeout=60
                     )
                 except Exception as e:
                     logger.warning(f"Expert generation failed: {e}")
+                autonomous_count = (autonomous_count or 0) + 1
                 continue
             
             # Создаём исследовательскую задачу

@@ -34,16 +34,22 @@ MAC_LLM_URL = os.getenv('MAC_LLM_URL', 'http://localhost:11434')
 SERVER_LLM_URL = os.getenv('SERVER_LLM_URL', 'http://localhost:11434')
 VISION_MODEL = os.getenv('VISION_MODEL', 'moondream')
 
-# Попытка импортировать moondream (для прямого использования)
+# Попытка импортировать moondream (клиент для Moondream Station).
+# Зависимости устанавливаются на этапе setup, не в рантайме (12-Factor, reproducible builds).
 try:
     import moondream as md
     MOONDREAM_AVAILABLE = True
 except ImportError:
     MOONDREAM_AVAILABLE = False
-    logger.warning(
-        "⚠️ [VISION] moondream не установлен, будет использоваться только API. "
-        "Установить: pip install moondream-station (уже в knowledge_os/requirements.txt)"
+    md = None  # type: ignore
+    _vision_setup_hint = (
+        "Установите зависимости: bash knowledge_os/scripts/setup_knowledge_os.sh "
+        "(или pip install moondream)"
     )
+    if MOONDREAM_STATION_ENABLED:
+        logger.debug("[VISION] moondream не установлен, используется API. %s", _vision_setup_hint)
+    else:
+        logger.warning("⚠️ [VISION] moondream не установлен, только API. %s", _vision_setup_hint)
 
 class VisionProcessor:
     """
@@ -75,7 +81,10 @@ class VisionProcessor:
     def _prepare_image(self, image_path: Optional[str] = None, image_base64: Optional[str] = None):
         """Подготавливает PIL Image из пути или base64"""
         if not PIL_AVAILABLE:
-            logger.error("❌ [VISION] PIL (Pillow) не установлен. Установите: pip install Pillow")
+            logger.error(
+                "❌ [VISION] PIL (Pillow) не установлен. "
+                "Для локальной работы с картинками: bash knowledge_os/scripts/install_pillow.sh"
+            )
             return None
         
         try:

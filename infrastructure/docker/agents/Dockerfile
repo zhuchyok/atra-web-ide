@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt* ./
 RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || \
-    pip install fastapi uvicorn httpx pydantic aiohttp asyncpg python-dotenv
+    pip install fastapi uvicorn httpx pydantic aiohttp asyncpg python-dotenv moondream Pillow
 
 COPY . .
 RUN mkdir -p logs data cache

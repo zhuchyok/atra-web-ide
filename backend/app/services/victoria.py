@@ -93,6 +93,8 @@ class VictoriaClient:
             Результат выполнения
         """
         async def _make_request():
+            logger.info("[VICTORIA_CYCLE] client POST /run goal_preview=%s timeout=%s",
+                        (prompt or "")[:80], self.timeout)
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 payload = {
                     "goal": prompt,  # Victoria expects 'goal', not 'prompt'
@@ -105,7 +107,10 @@ class VictoriaClient:
                     json=payload
                 )
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                logger.info("[VICTORIA_CYCLE] client response status=%s output_len=%s",
+                            data.get("status"), len(data.get("output") or data.get("result") or ""))
+                return data
         
         try:
             data = await self._retry_request(_make_request)
@@ -127,6 +132,7 @@ class VictoriaClient:
                 "clarification_questions": data.get("clarification_questions"),  # для needs_clarification
             }
         except httpx.HTTPError as e:
+            logger.error("[VICTORIA_CYCLE] client error: %s", e)
             logger.error(f"Victoria error: {e}")
             return {
                 "status": "error",

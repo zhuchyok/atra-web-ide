@@ -416,11 +416,15 @@ class SwarmIntelligence:
 async def main():
     """Пример использования"""
     swarm = SwarmIntelligence(swarm_size=16, max_iterations=10)
+    try:
+        from app.expert_services import get_all_expert_names
+        agent_names = get_all_expert_names(max_count=16)
+    except ImportError:
+        agent_names = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий", "Анна", "Максим", "Елена"]
     
     result = await swarm.solve(
         problem="Как оптимизировать производительность веб-приложения?",
-        agent_names=["Victoria", "Veronica", "Игорь", "Сергей", "Дмитрий", "Анна", "Максим", "Елена",
-                    "Алексей", "Павел", "Мария", "Роман", "Ольга", "Татьяна", "Андрей", "Евгений"]
+        agent_names=agent_names
     )
     
     print("Результат Swarm Intelligence:")

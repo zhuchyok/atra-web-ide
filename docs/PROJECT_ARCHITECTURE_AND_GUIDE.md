@@ -98,6 +98,7 @@ atra-web-ide/
    - Backend: `curl -s http://localhost:8080/health`
    - Victoria: `curl -s http://localhost:8010/status` (в ответе `victoria_levels`: agent, enhanced, initiative)
    - Frontend: http://localhost:3000
+   - **Victoria Telegram Bot** (процесс на хосте, не в Docker): `pgrep -f victoria_telegram_bot` — если пусто, запустить: `cd /path/to/atra-web-ide && python3 -m src.agents.bridge.victoria_telegram_bot`. Автозапуск при загрузке: `bash scripts/setup_victoria_telegram_bot_autostart.sh`. Подробнее: `docs/TELEGRAM_VICTORIA_TROUBLESHOOTING.md`.
 
 Если backend недоступен — сначала поднять Knowledge OS (сеть atra-network и сервисы).
 
@@ -155,7 +156,7 @@ atra-web-ide/
 
 ## 9. Конфигурация
 
-- **.env** — переменные окружения (VICTORIA_URL, PROJECT_NAME, DATABASE_URL, REDIS_URL, MAX_CONCURRENT_VICTORIA и др.).
+- **.env** — переменные окружения (VICTORIA_URL, PROJECT_NAME, DATABASE_URL, REDIS_URL, MAX_CONCURRENT_VICTORIA и др.). Для Telegram-бота: TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID; при долгих задачах — VICTORIA_POLL_TIMEOUT_SEC (по умолчанию 900 сек = 15 мин).
 - **docker-compose.yml** — Web IDE (backend, frontend, Prometheus, Grafana).
 - **knowledge_os/docker-compose.yml** — Victoria, Veronica, БД, Redis, Prometheus, Grafana, оркестратор и др.
 - **.cursorrules** — правила Cursor: компоненты, API, порядок запуска, Cursor-роли, конфигурация Victoria/Veronica.

@@ -4,7 +4,7 @@ E2E tests for critical scenarios
 
 import pytest
 import asyncio
-from knowledge_os.app.knowledge_graph import KnowledgeGraph
+from knowledge_os.app.knowledge_graph import KnowledgeGraph, LinkType
 from knowledge_os.app.security import SecurityManager, Role
 from knowledge_os.app.contextual_learner import ContextualMemory, AdaptiveLearner
 

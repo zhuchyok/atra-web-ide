@@ -1,9 +1,14 @@
 """
 Department Heads System - Иерархическая оркестрация через Department Heads
 На основе практик Anthropic (Hierarchical Orchestration) и Meta (Supervisor-Worker)
+
+Автономный найм: для отделов не в DEPARTMENT_HEADS — загрузка первого эксперта из БД как head.
 """
 
 import logging
+import os
+import time
+import threading
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from enum import Enum
@@ -94,11 +99,17 @@ class DepartmentHeadsSystem:
     - Anthropic: Hierarchical Orchestration с изолированными контекстами
     - Meta: Supervisor-Worker models
     - OpenAI: LLM-Driven Orchestration
+    - Автономный найм: для новых отделов — первый эксперт из БД как head
     """
     
+    _DB_HEADS_CACHE: Dict[str, str] = {}
+    _DB_HEADS_TS: float = 0.0
+    _DB_HEADS_LOCK = threading.Lock()
+    _DB_HEADS_TTL = 300  # 5 мин
+    
     def __init__(self, db_url: Optional[str] = None):
-        self.db_url = db_url
-        self.department_heads = DEPARTMENT_HEADS
+        self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        self.department_heads = dict(DEPARTMENT_HEADS)
         self.department_keywords = DEPARTMENT_KEYWORDS
     
     def determine_department(self, goal: str) -> Optional[str]:
@@ -150,14 +161,44 @@ class DepartmentHeadsSystem:
         # Простые задачи
         return TaskComplexity.SIMPLE
     
+    async def _load_heads_from_db(self) -> Dict[str, str]:
+        """Загрузка heads из БД для отделов, отсутствующих в DEPARTMENT_HEADS (автономный найм)."""
+        now = time.time()
+        with DepartmentHeadsSystem._DB_HEADS_LOCK:
+            if now - DepartmentHeadsSystem._DB_HEADS_TS < DepartmentHeadsSystem._DB_HEADS_TTL:
+                return DepartmentHeadsSystem._DB_HEADS_CACHE
+        if not ASYNCPG_AVAILABLE or not self.db_url:
+            return {}
+        try:
+            conn = await asyncpg.connect(self.db_url, timeout=5.0)
+            rows = await conn.fetch("""
+                SELECT DISTINCT ON (department) department, name
+                FROM experts
+                WHERE department IS NOT NULL
+                ORDER BY department, id
+            """)
+            await conn.close()
+            db_heads = {r["department"]: r["name"] for r in rows}
+            with DepartmentHeadsSystem._DB_HEADS_LOCK:
+                DepartmentHeadsSystem._DB_HEADS_CACHE = db_heads
+                DepartmentHeadsSystem._DB_HEADS_TS = time.time()
+            return db_heads
+        except Exception as e:
+            logger.debug("department_heads: DB load failed: %s", e)
+            return {}
+    
     async def get_department_head(self, department: str) -> Optional[Dict]:
         """
-        Получить информацию о Department Head
+        Получить информацию о Department Head.
+        Сначала хардкод DEPARTMENT_HEADS, затем БД для новых отделов (автономный найм).
         
         Returns:
             Dict с информацией о Head или None
         """
         head_name = self.department_heads.get(department)
+        if not head_name:
+            db_heads = await self._load_heads_from_db()
+            head_name = db_heads.get(department)
         if not head_name:
             return None
         

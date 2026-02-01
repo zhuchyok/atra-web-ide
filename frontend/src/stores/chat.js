@@ -203,7 +203,12 @@ export async function sendMessage(content, mode = null) {
       }
     }
   } catch (e) {
-    const errorMessage = e.message || 'Ошибка при отправке сообщения. Проверьте подключение к серверу.'
+    let errorMessage = e.message || 'Ошибка при отправке сообщения.'
+    if (e.message?.includes('503') || e.message?.includes('service_busy')) {
+      errorMessage = 'Сервер перегружен. Подождите и попробуйте снова.'
+    } else if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')) {
+      errorMessage = 'Нет связи с сервером. Проверьте, что бэкенд запущен (порт 8080).'
+    }
     error.set(errorMessage)
     console.error('Chat error:', e)
     

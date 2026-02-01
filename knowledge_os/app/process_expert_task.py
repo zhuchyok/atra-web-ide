@@ -14,9 +14,13 @@ def run_cursor_agent(prompt: str, expert_name: str = "Глеб"):
 async def process_task_for_expert(expert_name):
     print(f"🧠 {expert_name} приступает к выполнению задачи...")
     conn = await asyncpg.connect(DB_URL)
-    
+    try:
+        from app.expert_aliases import resolve_expert_name_for_db
+        resolved_name = resolve_expert_name_for_db(expert_name)
+    except ImportError:
+        resolved_name = expert_name
     # 1. Получаем конфиг эксперта
-    expert = await conn.fetchrow("SELECT id, name, system_prompt, role, department FROM experts WHERE name = $1", expert_name)
+    expert = await conn.fetchrow("SELECT id, name, system_prompt, role, department FROM experts WHERE name = $1", resolved_name)
     if not expert:
         print(f"❌ Эксперт {expert_name} не найден.")
         return

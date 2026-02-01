@@ -23,17 +23,22 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 # Backend app
 os.environ.setdefault("BACKEND_APP", "1")
 try:
-    from app.evaluation.rag_evaluator import RAGEvaluator
+    from app.evaluation.rag_evaluator import RAGEvaluator, DEFAULT_THRESHOLDS
 except ImportError:
     RAGEvaluator = None
+    DEFAULT_THRESHOLDS = {"faithfulness": 0.8, "relevance": 0.85, "coherence": 0.7}
 
 # RAG-light (опционально, для получения ответов на запросы)
 try:
     from app.services.rag_light import RAGLightService
     from app.services.knowledge_os import KnowledgeOSClient
+    from app.services.query_rewriter import QueryRewriter
+    from app.services.reranking import RerankingService
 except ImportError:
     RAGLightService = None
     KnowledgeOSClient = None
+    QueryRewriter = None
+    RerankingService = None
 
 
 def load_validation_set(path: Path) -> list:
@@ -42,24 +47,60 @@ def load_validation_set(path: Path) -> list:
     return data.get("queries", data) if isinstance(data, dict) else data
 
 
-async def get_response_for_query(query: str) -> tuple:
-    """Получить ответ и контекст от RAG-light (если доступен)."""
+async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
+    """
+    Получить ответ и контекст от RAG-light (если доступен).
+    fast_fail: при недоступности RAG/Ollama быстро возвращать stub (таймауты 2с connect, 5с search).
+    """
     response_text = ""
     context_chunks = []
     if RAGLightService and KnowledgeOSClient:
         kos = KnowledgeOSClient()
         try:
-            await kos.connect()
-            rag = RAGLightService(knowledge_os=kos)
-            result = await rag.search_one_chunk(query, limit=3)
-            if result:
-                content, _ = result
-                context_chunks = [content]
-                response_text = rag.extract_direct_answer(query, content)
+            if fast_fail:
+                await asyncio.wait_for(kos.connect(), timeout=2.0)
+            else:
+                await kos.connect()
+            qr = QueryRewriter(use_llm=False) if QueryRewriter else None
+            rerank = None
+            if os.environ.get("RERANKING_ENABLED", "false").lower() == "true" and RerankingService:
+                try:
+                    rerank = RerankingService(method="text_similarity", top_k=5)
+                except Exception:
+                    pass
+            config = {
+                "query_rewriter_enabled": bool(qr),
+                "query_expansion_enabled": True,
+                "reranking_enabled": bool(rerank),
+            }
+            rag = RAGLightService(
+                knowledge_os=kos,
+                query_rewriter_service=qr,
+                reranking_service=rerank,
+                config=config,
+            )
+            search_timeout = 5.0 if fast_fail else 30.0
+            if rerank:
+                chunks = await asyncio.wait_for(rag.get_chunks_for_query(query, limit=3), timeout=search_timeout)
+                if chunks:
+                    content = chunks[0]
+                    context_chunks = chunks
+                    response_text = rag.extract_direct_answer(query, content)
+            else:
+                result = await asyncio.wait_for(rag.search_one_chunk(query, limit=3), timeout=search_timeout)
+                if result:
+                    content, _ = result
+                    context_chunks = [content]
+                    response_text = rag.extract_direct_answer(query, content)
+        except asyncio.TimeoutError:
+            response_text = "[RAG timeout: Ollama/embedding slow or unavailable]"
         except Exception as e:
             response_text = f"[RAG unavailable: {e}]"
         finally:
-            await kos.disconnect()
+            try:
+                await asyncio.wait_for(kos.disconnect(), timeout=1.0)
+            except Exception:
+                pass
     else:
         response_text = "[RAG not available: run from backend or set PYTHONPATH]"
     return response_text, context_chunks
@@ -68,10 +109,15 @@ async def get_response_for_query(query: str) -> tuple:
 async def main():
     parser = argparse.ArgumentParser(description="Evaluate RAG quality on validation set")
     parser.add_argument("--dataset", default="data/validation_queries.json", help="Path to validation JSON")
-    parser.add_argument("--threshold", default="faithfulness:0.8,relevance:0.85", help="Comma-separated metric:value")
+    parser.add_argument(
+        "--threshold",
+        default="faithfulness:0.8,relevance:0.85,coherence:0.7",
+        help="Comma-separated metric:value (QA defaults: faithfulness≥0.8, relevance≥0.85, coherence≥0.7)",
+    )
     parser.add_argument("--no-fail", action="store_true", help="Do not exit with code 1 when thresholds fail (e.g. RAG offline)")
     parser.add_argument("--output", "-o", help="Write JSON report (avg_metrics, results) to file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Print per-query results")
+    parser.add_argument("--timeout-per-query", type=float, default=10.0, help="Timeout per query when RAG/Ollama unavailable (seconds)")
     args = parser.parse_args()
 
     path = REPO_ROOT / args.dataset
@@ -97,12 +143,17 @@ async def main():
         return 1
 
     results = []
+    timeout_sec = getattr(args, "timeout_per_query", 10.0)
     for i, item in enumerate(queries):
         q = item.get("query", item) if isinstance(item, dict) else str(item)
         reference = item.get("reference") if isinstance(item, dict) else None
         context_expected = item.get("context_expected") if isinstance(item, dict) else None
 
-        response, context_chunks = await get_response_for_query(q)
+        try:
+            response, context_chunks = await asyncio.wait_for(get_response_for_query(q), timeout=timeout_sec)
+        except asyncio.TimeoutError:
+            response = "[RAG timeout: Ollama/embedding unavailable]"
+            context_chunks = []
         context = context_chunks or ([" ".join(context_expected)] if context_expected else [])
 
         metrics = await evaluator.evaluate_response(q, response, context, reference=reference)
@@ -124,11 +175,14 @@ async def main():
     print(f"Average relevance:     {avg.get('relevance', 0):.3f}")
     print(f"Average coherence:     {avg.get('coherence', 0):.3f}")
 
-    failed = []
-    for name, th in thresholds.items():
-        val = avg.get(name)
-        if val is not None and val < th:
-            failed.append(f"{name}={val:.3f} < {th}")
+    if RAGEvaluator:
+        passed, failed = RAGEvaluator.check_thresholds(avg, thresholds)
+    else:
+        failed = []
+        for name, th in thresholds.items():
+            val = avg.get(name)
+            if val is not None and val < th:
+                failed.append(f"{name}={val:.3f} < {th}")
 
     if args.output:
         out_path = Path(args.output)

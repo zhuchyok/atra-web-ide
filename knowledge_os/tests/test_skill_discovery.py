@@ -7,8 +7,8 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from app.skill_discovery import SkillDiscovery
-from app.skill_registry import SkillRegistry, get_skill_registry
+from knowledge_os.app.skill_discovery import SkillDiscovery
+from knowledge_os.app.skill_registry import SkillRegistry, get_skill_registry
 
 
 @pytest.mark.asyncio

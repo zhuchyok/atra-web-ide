@@ -1,5 +1,5 @@
 {
-  "_comment": "Validation set для оценки качества RAG (Фаза 4). reference = эталонный ответ для relevance/BLEU/ROUGE.",
+  "_comment": "Validation set для оценки качества RAG (Фаза 4). reference = эталонный ответ.",
   "version": "1.0",
   "updated": "2026-01-31",
   "queries": [
@@ -7,91 +7,1077 @@
       "id": "v1",
       "query": "сколько стоит подписка",
       "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",
-      "context_expected": ["тариф", "подписка", "цена"]
+      "context_expected": [
+        "тариф",
+        "подписка",
+        "цена"
+      ]
     },
     {
       "id": "v2",
       "query": "как создать аккаунт",
       "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
-      "context_expected": ["регистрация", "аккаунт", "создать"]
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ]
     },
     {
       "id": "v3",
       "query": "время работы поддержки",
       "reference": "Служба поддержки работает с 9:00 до 21:00 по московскому времени, 7 дней в неделю.",
-      "context_expected": ["поддержка", "время", "часы"]
+      "context_expected": [
+        "поддержка",
+        "время",
+        "часы"
+      ]
     },
     {
       "id": "v4",
       "query": "документация API",
       "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
-      "context_expected": ["API", "документация", "эндпоинт"]
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ]
     },
     {
       "id": "v5",
       "query": "как сбросить пароль",
       "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
-      "context_expected": ["пароль", "сброс", "восстановление"]
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ]
     },
     {
       "id": "v6",
       "query": "тарифы и цены",
       "reference": "Базовый тариф: 999 руб/мес, Профессиональный: 1999 руб/мес, Корпоративный: по запросу.",
-      "context_expected": ["тариф", "цена", "план"]
+      "context_expected": [
+        "тариф",
+        "цена",
+        "план"
+      ]
     },
     {
       "id": "v7",
       "query": "контакты поддержки",
       "reference": "Email: support@atra.ai, Telegram: @atra_support, чат на сайте доступен 24/7.",
-      "context_expected": ["поддержка", "контакт", "email", "чат"]
+      "context_expected": [
+        "поддержка",
+        "контакт",
+        "email",
+        "чат"
+      ]
     },
     {
       "id": "v8",
       "query": "как отменить подписку",
       "reference": "Для отмены подписки перейдите в настройки аккаунта → Подписка → Отменить подписку.",
-      "context_expected": ["отмена", "подписка", "отписаться"]
+      "context_expected": [
+        "отмена",
+        "подписка",
+        "отписаться"
+      ]
     },
     {
       "id": "v9",
       "query": "справка по использованию",
       "reference": "Справка доступна в разделе /help. Основные режимы: Ask (вопрос-ответ), Agent (выполнение задач).",
-      "context_expected": ["справка", "руководство", "использование"]
+      "context_expected": [
+        "справка",
+        "руководство",
+        "использование"
+      ]
     },
     {
       "id": "v10",
       "query": "часто задаваемые вопросы",
       "reference": "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность.",
-      "context_expected": ["FAQ", "вопросы", "ответы"]
+      "context_expected": [
+        "FAQ",
+        "вопросы",
+        "ответы"
+      ]
     },
     {
       "id": "v11",
       "query": "как настроить Victoria",
       "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
-      "context_expected": ["Victoria", "настройка", "конфигурация"]
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ]
     },
     {
       "id": "v12",
       "query": "что такое RAG",
       "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
-      "context_expected": ["RAG", "поиск", "генерация", "контекст"]
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ]
     },
     {
       "id": "v13",
       "query": "порты сервисов",
       "reference": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis: 6380.",
-      "context_expected": ["порт", "8080", "3000", "8010"]
+      "context_expected": [
+        "порт",
+        "8080",
+        "3000",
+        "8010"
+      ]
     },
     {
       "id": "v14",
       "query": "как запустить проект локально",
       "reference": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
-      "context_expected": ["запуск", "локально", "uvicorn", "npm"]
+      "context_expected": [
+        "запуск",
+        "локально",
+        "uvicorn",
+        "npm"
+      ]
     },
     {
       "id": "v15",
       "query": "метрики Prometheus",
       "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
-      "context_expected": ["Prometheus", "метрики", "/metrics"]
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ]
+    },
+    {
+      "id": "v1_var1",
+      "query": "какая стоимость стоит подписка",
+      "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",
+      "context_expected": [
+        "тариф",
+        "подписка",
+        "цена"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v1_var2",
+      "query": "сколько стоит тариф",
+      "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",
+      "context_expected": [
+        "тариф",
+        "подписка",
+        "цена"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v2_var1",
+      "query": "каким образом создать аккаунт",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v3_var1",
+      "query": "режим работы поддержки",
+      "reference": "Служба поддержки работает с 9:00 до 21:00 по московскому времени, 7 дней в неделю.",
+      "context_expected": [
+        "поддержка",
+        "время",
+        "часы"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1",
+      "query": "документация по API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var2",
+      "query": "документация эндпоинты",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v5_var1",
+      "query": "каким образом сбросить пароль",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v8_var1",
+      "query": "каким образом отменить подписку",
+      "reference": "Для отмены подписки перейдите в настройки аккаунта → Подписка → Отменить подписку.",
+      "context_expected": [
+        "отмена",
+        "подписка",
+        "отписаться"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v9_var1",
+      "query": "руководство по использованию",
+      "reference": "Справка доступна в разделе /help. Основные режимы: Ask (вопрос-ответ), Agent (выполнение задач).",
+      "context_expected": [
+        "справка",
+        "руководство",
+        "использование"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1",
+      "query": "каким образом настроить Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2",
+      "query": "как настроить конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v12_var1",
+      "query": "объясни что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v14_var1",
+      "query": "каким образом запустить проект локально",
+      "reference": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
+      "context_expected": [
+        "запуск",
+        "локально",
+        "uvicorn",
+        "npm"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v15_var1",
+      "query": "метрики и мониторинг Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "merged_30",
+      "query": "напишут одностраничный сайт по пластиковым окнам современный и наполнят его сео",
+      "reference": null,
+      "context_expected": [],
+      "source": "logs",
+      "frequency": 224
+    },
+    {
+      "id": "merged_31",
+      "query": "qwen2.5-coder:32b",
+      "reference": null,
+      "context_expected": [],
+      "source": "logs",
+      "frequency": 37
+    },
+    {
+      "id": "merged_32",
+      "query": "phi3.5:3.8b",
+      "reference": null,
+      "context_expected": [],
+      "source": "logs",
+      "frequency": 34
+    },
+    {
+      "id": "v1_var1_var1",
+      "query": "какая стоимость стоит тариф",
+      "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",
+      "context_expected": [
+        "тариф",
+        "подписка",
+        "цена"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1",
+      "query": "документация по по API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var2",
+      "query": "документация по эндпоинты",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1",
+      "query": "каким образом настроить конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var2",
+      "query": "каким образом настройка Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2",
+      "query": "как настроить конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v12_var1_var1",
+      "query": "объясни объясни что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v15_var1_var1",
+      "query": "метрики и мониторинг и мониторинг Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var3",
+      "query": "как настройка Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var3",
+      "query": "как настройка конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var1",
+      "query": "документация по по по API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var2",
+      "query": "документация по по эндпоинты",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var1",
+      "query": "каким образом настроить конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var2",
+      "query": "каким образом настройка конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var2",
+      "query": "как настроить конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var3",
+      "query": "как настройка конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v12_var1_var1_var1",
+      "query": "объясни объясни объясни что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v15_var1_var1_var1",
+      "query": "метрики и мониторинг и мониторинг и мониторинг Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v2_var2",
+      "query": "инструкция по созданию аккаунт",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v2_var3",
+      "query": "как создать учётная запись",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v5_var2",
+      "query": "сброс пароля инструкция пароль",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v5_var3",
+      "query": "как сбросить password",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v7_var1",
+      "query": "контактная информация поддержки",
+      "reference": "Email: support@atra.ai, Telegram: @atra_support, чат на сайте доступен 24/7.",
+      "context_expected": [
+        "поддержка",
+        "контакт",
+        "email",
+        "чат"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v8_var2",
+      "query": "процедура отмены подписку",
+      "reference": "Для отмены подписки перейдите в настройки аккаунта → Подписка → Отменить подписку.",
+      "context_expected": [
+        "отмена",
+        "подписка",
+        "отписаться"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v10_var1",
+      "query": "FAQ часто задаваемые вопросы",
+      "reference": "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность.",
+      "context_expected": [
+        "FAQ",
+        "вопросы",
+        "ответы"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v13_var1",
+      "query": "порты сервисов сервисов",
+      "reference": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis: 6380.",
+      "context_expected": [
+        "порт",
+        "8080",
+        "3000",
+        "8010"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v14_var2",
+      "query": "как локальный запуск проекта проект локально",
+      "reference": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
+      "context_expected": [
+        "запуск",
+        "локально",
+        "uvicorn",
+        "npm"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v2_var1_var1",
+      "query": "каким образом создать учётная запись",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v5_var1_var1",
+      "query": "каким образом сбросить password",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v9_var1_var1",
+      "query": "руководство по использованию по использованию",
+      "reference": "Справка доступна в разделе /help. Основные режимы: Ask (вопрос-ответ), Agent (выполнение задач).",
+      "context_expected": [
+        "справка",
+        "руководство",
+        "использование"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v14_var1_var1",
+      "query": "каким образом локальный запуск проекта проект локально",
+      "reference": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
+      "context_expected": [
+        "запуск",
+        "локально",
+        "uvicorn",
+        "npm"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var1_var1",
+      "query": "документация по по по по API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var1_var2",
+      "query": "документация по по по эндпоинты",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var1_var1",
+      "query": "каким образом настроить конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var1_var2",
+      "query": "каким образом настройка конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var2_var2",
+      "query": "как настроить конфигурацию конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var2_var3",
+      "query": "как настройка конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v12_var1_var1_var1_var1",
+      "query": "объясни объясни объясни объясни что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v15_var1_var1_var1_var1",
+      "query": "метрики и мониторинг и мониторинг и мониторинг и мониторинг Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v6_var1",
+      "query": "тарифы и цены и цены",
+      "reference": "Базовый тариф: 999 руб/мес, Профессиональный: 1999 руб/мес, Корпоративный: по запросу.",
+      "context_expected": [
+        "тариф",
+        "цена",
+        "план"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v2_var2_var1",
+      "query": "инструкция по созданию учётная запись",
+      "reference": "Для создания аккаунта перейдите на страницу регистрации, укажите email и пароль, подтвердите email.",
+      "context_expected": [
+        "регистрация",
+        "аккаунт",
+        "создать"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v5_var2_var1",
+      "query": "сброс пароля инструкция password",
+      "reference": "Для сброса пароля перейдите по ссылке 'Забыли пароль?' на странице входа, укажите email для восстановления.",
+      "context_expected": [
+        "пароль",
+        "сброс",
+        "восстановление"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v10_var1_var1",
+      "query": "FAQ FAQ часто задаваемые вопросы",
+      "reference": "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность.",
+      "context_expected": [
+        "FAQ",
+        "вопросы",
+        "ответы"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v13_var1_var1",
+      "query": "порты сервисов сервисов сервисов",
+      "reference": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis: 6380.",
+      "context_expected": [
+        "порт",
+        "8080",
+        "3000",
+        "8010"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v9_var1_var1_var1",
+      "query": "руководство по использованию по использованию по использованию",
+      "reference": "Справка доступна в разделе /help. Основные режимы: Ask (вопрос-ответ), Agent (выполнение задач).",
+      "context_expected": [
+        "справка",
+        "руководство",
+        "использование"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var1_var1_var1",
+      "query": "документация по по по по по API",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v4_var1_var1_var1_var1_var2",
+      "query": "документация по по по по эндпоинты",
+      "reference": "Документация API доступна по адресу /docs (Swagger UI) и /redoc. Основной endpoint: /api/chat для чата с агентами.",
+      "context_expected": [
+        "API",
+        "документация",
+        "эндпоинт"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var1_var1_var1",
+      "query": "каким образом настроить конфигурацию конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var1_var1_var1_var1_var2",
+      "query": "каким образом настройка конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var2_var2_var2",
+      "query": "как настроить конфигурацию конфигурацию конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v11_var2_var2_var2_var2_var3",
+      "query": "как настройка конфигурацию конфигурацию конфигурацию конфигурацию Victoria",
+      "reference": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
+      "context_expected": [
+        "Victoria",
+        "настройка",
+        "конфигурация"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v12_var1_var1_var1_var1_var1",
+      "query": "объясни объясни объясни объясни объясни что такое RAG",
+      "reference": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
+      "context_expected": [
+        "RAG",
+        "поиск",
+        "генерация",
+        "контекст"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "v15_var1_var1_var1_var1_var1",
+      "query": "метрики и мониторинг и мониторинг и мониторинг и мониторинг и мониторинг Prometheus",
+      "reference": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
+      "context_expected": [
+        "Prometheus",
+        "метрики",
+        "/metrics"
+      ],
+      "source": "synthetic_variation"
+    },
+    {
+      "id": "e1",
+      "query": "интеграция с внешними системами",
+      "reference": "API REST, webhooks, OAuth. Документация: /docs.",
+      "context_expected": [
+        "интеграция",
+        "API",
+        "webhook"
+      ]
+    },
+    {
+      "id": "e2",
+      "query": "безопасность данных",
+      "reference": "Шифрование, аутентификация, rate limiting. SECRET_KEY в env.",
+      "context_expected": [
+        "безопасность",
+        "шифрование",
+        "auth"
+      ]
+    },
+    {
+      "id": "e3",
+      "query": "экспорт знаний",
+      "reference": "Скрипт export_knowledge_portable.py. Форматы: JSON, CSV.",
+      "context_expected": [
+        "экспорт",
+        "export",
+        "данные"
+      ]
+    },
+    {
+      "id": "e4",
+      "query": "Ollama модели",
+      "reference": "Ollama на порту 11434. Модели: qwen2.5-coder, phi3.5, nomic-embed-text.",
+      "context_expected": [
+        "Ollama",
+        "модели",
+        "11434"
+      ]
+    },
+    {
+      "id": "e5",
+      "query": "MLX API Server",
+      "reference": "MLX на порту 11435. Альтернатива Ollama для Mac.",
+      "context_expected": [
+        "MLX",
+        "11435",
+        "модели"
+      ]
+    },
+    {
+      "id": "e6",
+      "query": "база данных PostgreSQL",
+      "reference": "PostgreSQL + pgvector. Порт 5432. knowledge_os.",
+      "context_expected": [
+        "PostgreSQL",
+        "pgvector",
+        "5432"
+      ]
+    },
+    {
+      "id": "e7",
+      "query": "Redis кэш",
+      "reference": "Redis для кэширования. Порт 6380. RAG context cache.",
+      "context_expected": [
+        "Redis",
+        "кэш",
+        "6380"
+      ]
+    },
+    {
+      "id": "e8",
+      "query": "Docker запуск",
+      "reference": "docker-compose up -d. knowledge_os и atra-web-ide.",
+      "context_expected": [
+        "Docker",
+        "docker-compose",
+        "запуск"
+      ]
+    },
+    {
+      "id": "e9",
+      "query": "Victoria Agent порт",
+      "reference": "Victoria на порту 8010. VICTORIA_URL.",
+      "context_expected": [
+        "Victoria",
+        "8010",
+        "агент"
+      ]
+    },
+    {
+      "id": "e10",
+      "query": "Veronica Agent порт",
+      "reference": "Veronica на порту 8011. Local Developer.",
+      "context_expected": [
+        "Veronica",
+        "8011",
+        "агент"
+      ]
+    },
+    {
+      "id": "e11",
+      "query": "обратная связь оценка",
+      "reference": "FeedbackCollector. record_human_preference.py. Оценка 1-5.",
+      "context_expected": [
+        "feedback",
+        "оценка",
+        "рейтинг"
+      ]
+    },
+    {
+      "id": "e12",
+      "query": "валидация качества RAG",
+      "reference": "evaluate_rag_quality.py. Пороги: faithfulness 0.8, relevance 0.85.",
+      "context_expected": [
+        "валидация",
+        "quality",
+        "RAG"
+      ]
+    },
+    {
+      "id": "e13",
+      "query": "дашборд качества",
+      "reference": "quality_dashboard.html, create_simple_dashboard.py.",
+      "context_expected": [
+        "дашборд",
+        "dashboard",
+        "метрики"
+      ]
+    },
+    {
+      "id": "e14",
+      "query": "чат API эндпоинт",
+      "reference": "POST /api/chat. SSE streaming. ChatMessage.",
+      "context_expected": [
+        "чат",
+        "API",
+        "chat"
+      ]
+    },
+    {
+      "id": "e15",
+      "query": "мультимодальность изображения",
+      "reference": "MultimodalProcessor. Moondream, Ollama llava. POST /api/multimodal/process-image.",
+      "context_expected": [
+        "multimodal",
+        "image",
+        "vision"
+      ]
     }
   ]
 }
