@@ -50,5 +50,8 @@ problematic_queries_analysis.json
 *.db
 feedback.db
 
+# Large AI learning data (exceeds GitHub 100MB)
+knowledge_os/ai_learning_data/
+
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/
