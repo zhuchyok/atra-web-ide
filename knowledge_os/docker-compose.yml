@@ -13,7 +13,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    command: ["postgres", "-c", "max_connections=200"]  # 100 по умолчанию — мало для всех сервисов (эксперты: см. docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
+    command: ["postgres", "-c", "max_connections=300"]  # 200 было мало при воркере+дашборд+Victoria+rest+оркестраторы (эксперты: docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
@@ -30,13 +30,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis: кэш и очереди (restart: always)
+  # Redis: кэш и очереди (restart: always). Имя knowledge_os_redis — чтобы не конфликтовать с atra (отдельный проект)
   redis:
     image: redis:7-alpine
-    container_name: knowledge_redis
+    container_name: knowledge_os_redis
     restart: always
     ports:
-      - "6380:6379"  # 6380 на хосте (6379 может быть занят atra)
+      - "6381:6379"  # 6381 на хосте (6380 может быть занят atra в отдельном проекте)
     volumes:
       - redis_data:/data
     networks:
@@ -64,6 +64,8 @@ services:
       ATRA_ENV: prod
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_API_URL: http://host.docker.internal:11434
+      SERVER_LLM_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       # 🔄 АВТОВЫБОР МОДЕЛЕЙ: При запуске сканируются Ollama (11434) и MLX (11435)
       # Выбираются самые мощные из каждого списка РАЗДЕЛЬНО:
@@ -262,10 +264,27 @@ services:
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_API_URL: http://host.docker.internal:11434
+      OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
       MLX_API_URL: http://host.docker.internal:11435
+      SERVER_LLM_URL: http://host.docker.internal:11434
+      # Потолок: макс. задач «в работе»; адаптив снизит при перегрузке MLX/Ollama
+      SMART_WORKER_MAX_CONCURRENT: "5"
+      SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
+      # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
+      ADAPTIVE_MLX_SAFE_MAX: "2"
+      # Жёсткий таймаут на LLM вызов (300 сек = 5 мин) — защита от зависания
+      SMART_WORKER_LLM_TIMEOUT: "300"
+      # Больше попыток и задержка перед повтором — меньше накопления в ручной очереди
+      SMART_WORKER_MAX_ATTEMPTS: "5"
+      SMART_WORKER_RETRY_DELAY_SEC: "180"
+      # Батч по batch_group: один вызов LLM на 2–3 задачи (ARCHITECTURE_IMPROVEMENTS §2.5)
+      SMART_WORKER_BATCH_GROUP_LLM: "true"
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["python", "smart_worker_autonomous.py"]
 
   # Nightly Learner: обучение экспертов, дебаты, гипотезы. Цикл каждые 24ч.
@@ -281,7 +300,7 @@ services:
     environment:
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
-      REDIS_URL: redis://knowledge_redis:6379
+      REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
@@ -306,10 +325,16 @@ services:
     environment:
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      MAC_LLM_URL: http://host.docker.internal:11435
+      SERVER_LLM_URL: http://host.docker.internal:11434
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "rest_api.py"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -326,7 +351,9 @@ services:
     environment:
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
-      REDIS_URL: redis://knowledge_redis:6379
+      REDIS_URL: redis://redis:6379
+      # Phase 1.6: batch_group для задач одного domain (low/medium)
+      BATCH_SMALL_TASKS_ENABLED: "true"
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app

@@ -1,6 +1,6 @@
 {
   "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
-  "updated": "2026-02-01",
+  "updated": "2026-02-03",
   "employees": [
     {
       "name": "Виктория",
@@ -423,9 +423,19 @@
       "department": "Knowledge Management"
     },
     {
+      "name": "Арина",
+      "role": "Prompt Engineer",
+      "department": "ML/AI"
+    },
+    {
       "name": "Степан",
       "role": "Senior Data Scientist",
       "department": "Tech & AI"
+    },
+    {
+      "name": "Test Expert",
+      "role": "Test Role",
+      "department": "Test Department"
     }
   ]
 }

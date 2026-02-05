@@ -264,11 +264,13 @@ class ExpertCouncil:
         ]
     
     async def save_hypotheses(self, hypotheses: List[Dict], discussion_id: str = None):
-        """Сохранить гипотезы в БД"""
+        """Сохранить гипотезы в БД и отправить в дебаты для обсуждения."""
         pool = await asyncpg.create_pool(self.db_url, min_size=1, max_size=3)
         async with pool.acquire() as conn:
             for hyp in hypotheses:
-                await conn.execute("""
+                content = hyp.get('description', '')
+                domain_id = hyp.get('domain_id')
+                kn_id = await conn.fetchval("""
                     INSERT INTO knowledge_nodes (
                         content, 
                         domain_id,
@@ -276,10 +278,11 @@ class ExpertCouncil:
                         metadata,
                         created_at
                     ) VALUES ($1, $2, $3, $4, $5)
-                """, 
-                    hyp.get('description', ''),
-                    hyp.get('domain_id'),  # Можно найти домен по теме
-                    0.8,  # Высокий confidence для гипотез от экспертов
+                    RETURNING id
+                """,
+                    content,
+                    domain_id,
+                    0.8,
                     json.dumps({
                         'type': 'hypothesis',
                         'title': hyp.get('title'),
@@ -291,6 +294,13 @@ class ExpertCouncil:
                     }),
                     datetime.now(timezone.utc)
                 )
+                # Отправка гипотезы в дебаты для обсуждения экспертами
+                if kn_id and content:
+                    try:
+                        from nightly_learner import create_debate_for_hypothesis
+                        await create_debate_for_hypothesis(conn, kn_id, content[:800], domain_id)
+                    except Exception as e:
+                        logger.debug("Hypothesis debate skip: %s", e)
         logger.info(f"✅ Сохранено {len(hypotheses)} гипотез в БД")
 
 

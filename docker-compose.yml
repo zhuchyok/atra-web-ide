@@ -36,7 +36,7 @@ services:
       - OLLAMA_URL=http://host.docker.internal:11434
       - MLX_API_URL=http://host.docker.internal:11435  # MLX API Server на хосте (из контейнера — через host.docker.internal)
       - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
-      - REDIS_URL=redis://knowledge_redis:6379  # Используем Redis из knowledge_os
+      - REDIS_URL=redis://knowledge_os_redis:6379  # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 9.0)
       - WORKSPACE_ROOT=/workspace
       # RAG-light оптимизации (Фаза 3, день 3–4)
@@ -136,7 +136,7 @@ services:
 
   # ============================================
   # Redis - Кэш и очереди
-  # Используем существующий Redis из knowledge_os (knowledge_redis)
+  # Используем Redis из knowledge_os (knowledge_os_redis)
   # ============================================
   # redis:
   #   image: redis:7-alpine
@@ -148,7 +148,7 @@ services:
   #     - redis_data:/data
   #   networks:
   #     - atra-network
-  # Используем knowledge_redis из knowledge_os/docker-compose.yml
+  # Используем knowledge_os_redis из knowledge_os/docker-compose.yml
 
 # ============================================
 # Volumes

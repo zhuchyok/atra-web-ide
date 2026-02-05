@@ -11,7 +11,7 @@ Security Module: Аутентификация, авторизация и без�
 import jwt
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any
 from enum import Enum
 import asyncpg
@@ -90,8 +90,8 @@ class SecurityManager:
             "user_id": user_id,
             "username": username,
             "role": role.value,
-            "exp": datetime.utcnow() + timedelta(hours=expires_in_hours),
-            "iat": datetime.utcnow()
+            "exp": datetime.now(timezone.utc) + timedelta(hours=expires_in_hours),
+            "iat": datetime.now(timezone.utc),
         }
         return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     

@@ -16,6 +16,15 @@ except ImportError:
 
 import httpx
 
+try:
+    from http_client import get_http_client
+except ImportError:
+    get_http_client = None
+try:
+    from json_fast import loads as _json_loads
+except ImportError:
+    _json_loads = None
+
 logger = logging.getLogger(__name__)
 
 # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
@@ -23,26 +32,66 @@ _DEFAULT_DB = 'postgresql://admin:secret@localhost:5432/knowledge_os'
 DATABASE_URL = os.getenv('DATABASE_URL') or _DEFAULT_DB
 DB_URL_PRIMARY = DATABASE_URL
 DB_URL_FALLBACK = DATABASE_URL
-OLLAMA_EMBED_URL = os.getenv('OLLAMA_EMBED_URL', 'http://localhost:11434/api/embeddings')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'nomic-embed-text')  # Dedicated embedding model
-CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
 
-async def get_embedding(text: str) -> list:
+# Ollama embeddings: в Docker localhost недоступен — используем host.docker.internal
+_is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+_default_embed_base = 'http://host.docker.internal:11434' if _is_docker else 'http://localhost:11434'
+_embed_base = os.getenv('OLLAMA_BASE_URL') or os.getenv('OLLAMA_API_URL') or _default_embed_base
+OLLAMA_EMBED_URL = os.getenv('OLLAMA_EMBED_URL') or f"{_embed_base.rstrip('/')}/api/embeddings"
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'nomic-embed-text')  # Dedicated embedding model
+# nomic-embed-text (v1/v1.5) output dimension; БД и кэш должны совпадать (миграция fix_embedding_dimensions_768)
+EMBEDDING_DIM = 768
+CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
+STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для стратегических вопросов
+
+# Ключевые слова стратегических вопросов (для высокого приоритета кэширования)
+STRATEGIC_KEYWORDS = [
+    "архитектур", "микросервис", "структур", "приоритет", "стратег", "планиро",
+    "рефактор", "бюджет", "срок", "качество", "скорость", "стоит ли", "нужно ли",
+    "совет", "директор", "okr", "цел", "задач"
+]
+
+async def get_embedding(text: str) -> Optional[list]:
     """
-    Get embedding from Ollama.
+    Get embedding from Ollama. Uses shared HTTP client (connection reuse).
+    При недоступности общего клиента — fallback на разовый AsyncClient (resilience).
     """
-    async with httpx.AsyncClient() as client:
+    client = None
+    if get_http_client:
         try:
-            response = await client.post(
-                OLLAMA_EMBED_URL,
-                json={"model": OLLAMA_MODEL, "prompt": text},
-                timeout=10.0
-            )
-            response.raise_for_status()
-            return response.json()["embedding"]
+            client = await get_http_client()
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.error("Embedding error (Ollama): %s", exc)
+            logger.debug("Shared HTTP client unavailable, using fallback: %s", exc)
+    if client is None:
+        async with httpx.AsyncClient() as fallback_client:
+            return await _do_embed_request(fallback_client, text)
+    try:
+        return await _do_embed_request(client, text)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error("Embedding error (Ollama): %s", exc)
+        return None
+
+
+async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[list]:
+    """Single embedding request (shared or ad-hoc client)."""
+    try:
+        response = await client.post(
+            OLLAMA_EMBED_URL,
+            json={"model": OLLAMA_MODEL, "prompt": text},
+            timeout=10.0
+        )
+        response.raise_for_status()
+        raw = response.content
+        if not raw:
+            logger.warning("Embedding response empty")
             return None
+        data = _json_loads(raw) if _json_loads else response.json()
+        if not isinstance(data, dict):
+            return None
+        return data.get("embedding")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error("Embedding error (Ollama): %s", exc)
+        return None
 
 class SemanticAICache:
     """
@@ -106,9 +155,14 @@ class SemanticAICache:
                 await self._embedding_optimizer.save_embedding(text, embedding)
             return embedding
         
-        # Fallback на старую логику (для обратной совместимости)
-        import hashlib
-        text_hash = hashlib.md5(text.encode()).hexdigest()
+        # Fallback на старую логику (для обратной совместимости); ключ = хэш нормализованного текста
+        try:
+            from cache_normalizer import normalize_and_hash as _rust_nh
+            text_hash = _rust_nh(text)
+        except ImportError:
+            import hashlib
+            normalized = ' '.join(text.lower().split())
+            text_hash = hashlib.md5(normalized.encode()).hexdigest()
         
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
@@ -127,6 +181,9 @@ class SemanticAICache:
 
     async def get_cached_response(self, query: str, expert_name: str) -> str:
         """Try to find a similar query in the semantic cache."""
+        # Определяем, является ли это стратегическим вопросом
+        is_strategic = any(keyword in query.lower() for keyword in STRATEGIC_KEYWORDS)
+        
         # Используем кэш эмбеддингов для ускорения
         embedding = await self._get_cached_embedding(query)
         if not embedding:
@@ -137,9 +194,16 @@ class SemanticAICache:
             return None
 
         try:
-            # Use vector cosine similarity (более агрессивный порог для похожих запросов)
-            # Снижаем порог с 0.92 до 0.87 для более агрессивного кэширования
-            aggressive_threshold = max(CACHE_THRESHOLD - 0.05, 0.75)
+            # Используем более строгий threshold для стратегических вопросов
+            threshold = STRATEGIC_CACHE_THRESHOLD if is_strategic else CACHE_THRESHOLD
+            # Для не-стратегических - более агрессивное кэширование
+            aggressive_threshold = threshold if is_strategic else max(CACHE_THRESHOLD - 0.05, 0.75)
+            
+            logger.debug(
+                f"🔍 [CACHE] Поиск в кэше: expert={expert_name}, "
+                f"strategic={is_strategic}, threshold={aggressive_threshold:.2f}"
+            )
+            
             # Проверяем наличие колонок TTL (для обратной совместимости)
             has_ttl = await conn.fetchval("""
                 SELECT EXISTS (
@@ -202,6 +266,12 @@ class SemanticAICache:
         """Save a new interaction to the semantic cache with routing metrics."""
         embedding = await get_embedding(query)
         if not embedding:
+            return
+        if len(embedding) != EMBEDDING_DIM:
+            logger.warning(
+                "Save to cache skipped: embedding dimension %s != %s (OLLAMA_MODEL=%s). Run migration fix_embedding_dimensions_768.sql and use nomic-embed-text.",
+                len(embedding), EMBEDDING_DIM, OLLAMA_MODEL
+            )
             return
 
         conn, source = await self._get_conn()

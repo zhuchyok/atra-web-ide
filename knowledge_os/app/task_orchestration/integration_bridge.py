@@ -134,12 +134,17 @@ class IntegrationBridge:
         task_description: str,
         metadata: Optional[Dict[str, Any]] = None,
         use_v2: Optional[bool] = None,
+        project_context: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         A/B: при use_v2=None решает по ORCHESTRATION_V2_PERCENTAGE (random);
         при use_v2=True/False — явный выбор. Возвращает orchestrator: "v2" | "existing".
+        project_context передаётся в metadata для сохранения в задачах БД.
         """
+        meta = dict(metadata) if metadata else {}
+        if project_context:
+            meta["project_context"] = project_context
         if use_v2 is not None:
             use_new = use_v2
         elif ORCHESTRATION_V2_ENABLED and self.v2_percentage > 0:
@@ -148,5 +153,5 @@ class IntegrationBridge:
             use_new = self.use_new_orchestration
 
         if use_new and self._orchestrator_v2:
-            return await self._process_with_v2(task_description, metadata, kwargs)
-        return await self._process_with_existing(task_description, metadata, kwargs)
+            return await self._process_with_v2(task_description, meta, kwargs)
+        return await self._process_with_existing(task_description, meta, kwargs)

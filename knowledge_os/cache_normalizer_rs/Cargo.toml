@@ -1,0 +1,19 @@
+[package]
+name = "cache_normalizer"
+version = "0.1.0"
+edition = "2021"
+description = "Normalize text and MD5 hash for embedding cache keys (PyO3)"
+
+[lib]
+name = "cache_normalizer"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module"] }
+md5 = "0.7"
+faster-hex = "0.10"

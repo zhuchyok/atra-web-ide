@@ -178,6 +178,38 @@ async def sync_okrs(conn):
     except Exception as e:
         print(f"OKR Sync error: {e}")
 
+async def create_debate_for_hypothesis(conn, knowledge_node_id, content, domain_id=None):
+    """Создаёт дебат по гипотезе: находит эксперта по домену и вызывает run_expert_council."""
+    expert = None
+    if domain_id:
+        try:
+            expert = await conn.fetchrow(
+                "SELECT id FROM experts WHERE domain_id = $1 ORDER BY RANDOM() LIMIT 1",
+                domain_id
+            )
+        except Exception:
+            pass
+    if not expert and domain_id:
+        try:
+            domain = await conn.fetchrow("SELECT name FROM domains WHERE id = $1", domain_id)
+            if domain:
+                expert = await conn.fetchrow(
+                    "SELECT id FROM experts WHERE department = $1 ORDER BY RANDOM() LIMIT 1",
+                    domain['name']
+                )
+        except Exception:
+            pass
+    if not expert:
+        try:
+            expert = await conn.fetchrow("SELECT id FROM experts ORDER BY RANDOM() LIMIT 1")
+        except Exception:
+            pass
+    if expert:
+        await run_expert_council(conn, knowledge_node_id, content, expert['id'])
+    else:
+        logger.warning("No experts found for hypothesis debate, skipping")
+
+
 async def run_expert_council(conn, knowledge_id, content, original_expert_id):
     """Инициирует дебаты между экспертами по поводу нового знания."""
     print(f"Starting Expert Council for knowledge {knowledge_id}...")
@@ -234,34 +266,23 @@ async def run_expert_council(conn, knowledge_id, content, original_expert_id):
             print(f"   Creating debate with consensus length: {len(consensus)}")
             debate_inserted = False
             try:
-                if isinstance(knowledge_id, int):
-                    logger.warning(
-                        "Debate insert skipped: knowledge_nodes.id is int, expert_discussions expects UUID (schema mismatch)"
-                    )
-                else:
-                    await conn.execute("""
-                        INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
-                        VALUES ($1, $2, $3, $4, 'closed')
-                    """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
-                    print(f"   ✅ Debate inserted into expert_discussions")
-                    debate_inserted = True
+                await conn.execute("""
+                    INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
+                    VALUES ($1, $2, $3, $4, 'closed')
+                """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
+                print(f"   ✅ Debate inserted into expert_discussions")
+                debate_inserted = True
             except Exception as insert_error:
-                err_str = str(insert_error).lower()
-                if "uuid" in err_str or "int" in err_str or "bytes" in err_str:
-                    logger.warning(
-                        "Debate insert skipped (schema mismatch: knowledge_nodes.id is int, expert_discussions expects UUID)"
-                    )
-                else:
-                    print(f"❌ Error inserting debate: {insert_error}")
-                    import traceback
-                    traceback.print_exc()
+                print(f"❌ Error inserting debate: {insert_error}")
+                import traceback
+                traceback.print_exc()
             # Обновляем метаданные узла знаний (knowledge_nodes.id — integer, работает в обоих случаях)
             try:
                 await conn.execute("""
                     UPDATE knowledge_nodes 
-                    SET metadata = metadata || jsonb_build_object('council_review', $1)
+                    SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('council_review', $1::text)
                     WHERE id = $2
-                """, consensus, knowledge_id)
+                """, str(consensus) if consensus else '', knowledge_id)
                 print(f"   ✅ council_review added to metadata")
                 if debate_inserted:
                     print("✅ Expert Council finished successfully.")
@@ -523,6 +544,172 @@ async def nightly_learning_cycle():
             print(f"⚠️ Dashboard improvement error: {e}")
             import traceback
             traceback.print_exc()
+
+        # --- ФАЗА 13: AUTONOMOUS TESTS (Living Brain) ---
+        print("🧪 Running autonomous test phase...")
+        try:
+            tests_dir = os.path.join(_KNOWLEDGE_OS_ROOT, "tests")
+            if os.path.exists(tests_dir):
+                result = subprocess.run(
+                    [sys.executable, "-m", "pytest", "tests/test_json_fast_http_client.py", "tests/test_rest_api.py", "-v", "--tb=no", "-q"],
+                    cwd=_KNOWLEDGE_OS_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                passed = result.returncode == 0
+                summary = (result.stdout or "")[-500:] + (result.stderr or "")[-300:]
+                content_kn = f"Autonomous tests run at {datetime.now().isoformat()}: passed={passed}, returncode={result.returncode}\n\n{summary}"
+                domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1 LIMIT 1", "QA") or await conn.fetchval("SELECT id FROM domains LIMIT 1")
+                await conn.execute("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
+                    VALUES ($1, $2, $3, $4, $5)
+                """, domain_id or 1, content_kn, 1.0 if passed else 0.5, "autonomous_tests", json.dumps({"passed": passed, "returncode": result.returncode}))
+                if not passed:
+                    await conn.execute("""
+                        INSERT INTO tasks (title, description, status, priority, metadata)
+                        VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+                    """, "🔧 Исправить падающие автотесты (Nightly Learner)", content_kn[:2000], json.dumps({"source": "nightly_learner", "assignee_hint": "QA"}))
+                    print(f"⚠️ Tests failed, task created for QA")
+                else:
+                    print(f"✅ Autonomous tests passed")
+        except Exception as e:
+            logger.warning("Autonomous tests phase failed: %s", e)
+
+        # --- ФАЗА 14: GIT DIFF → ЗАДАЧИ НА ГЕНЕРАЦИЮ ТЕСТОВ (Living Brain §6.1) ---
+        print("📝 Running git diff → test generation tasks...")
+        try:
+            repo_root = os.path.dirname(_KNOWLEDGE_OS_ROOT)
+            if os.path.exists(os.path.join(repo_root, ".git")):
+                r = subprocess.run(
+                    ["git", "log", "--since=24 hours ago", "--name-only", "--pretty=format:"],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                changed = [f.strip() for f in (r.stdout or "").splitlines() if f.strip() and f.strip().endswith(".py")]
+                changed = list(dict.fromkeys(changed))  # dedupe
+                tests_dir_rel = "knowledge_os/tests" if repo_root != _KNOWLEDGE_OS_ROOT else "tests"
+                created = 0
+                for path in changed[:10]:
+                    if "knowledge_os/app/" not in path and "knowledge_os/" not in path:
+                        continue
+                    mod = path.replace("knowledge_os/", "").replace(".py", "").replace("/", ".")
+                    test_name = f"test_{mod.split('.')[-1]}.py"
+                    if any(test_name in p for p in changed):
+                        continue
+                    test_path = os.path.join(repo_root, tests_dir_rel, test_name)
+                    if os.path.exists(test_path):
+                        continue
+                    exists = await conn.fetchval(
+                        "SELECT 1 FROM tasks WHERE metadata->>'module' = $1 AND status NOT IN ('completed','cancelled') AND created_at > NOW() - INTERVAL '7 days' LIMIT 1",
+                        mod,
+                    )
+                    if exists:
+                        continue
+                    meta = json.dumps({"source": "nightly_learner", "assignee_hint": "QA", "module": mod})
+                    await conn.execute("""
+                        INSERT INTO tasks (title, description, status, priority, metadata)
+                        VALUES ($1, $2, 'pending', 'medium', $3::jsonb)
+                    """, f"🧪 Сгенерировать pytest для {mod}", f"Модуль изменён за 24ч. Создать тесты в {tests_dir_rel}/{test_name}. Модуль: {path}", meta)
+                    created += 1
+                    if created >= 3:
+                        break
+                if created > 0:
+                    print(f"✅ Phase 14: {created} test generation task(s) created")
+            else:
+                logger.debug("Phase 14 skipped: no .git in repo root")
+        except Exception as e:
+            logger.debug("Phase 14 (git diff → test tasks) failed: %s", e)
+
+        # --- ФАЗА 15: АВТО-ПРОФИЛИРОВАНИЕ (Living Brain §6.3, AUTO_PROFILING_GUIDE) ---
+        # Запускаем раз в неделю (воскресенье) чтобы не замедлять каждый Nightly
+        if datetime.now().weekday() == 6:  # 0=Mon, 6=Sun
+            print("📊 Running auto-profiling phase (cProfile)...")
+            try:
+                import cProfile
+                import pstats
+                import io
+                try:
+                    from app.json_fast import loads, dumps
+                except ImportError:
+                    try:
+                        from json_fast import loads, dumps
+                    except ImportError:
+                        loads, dumps = __import__("json").loads, __import__("json").dumps
+                prof = cProfile.Profile()
+                prof.enable()
+                for _ in range(500):
+                    loads(dumps({"test": "value", "n": 42}))
+                prof.disable()
+                s = io.StringIO()
+                pstats.Stats(prof, stream=s).sort_stats("cumulative").print_stats(15)
+                report = s.getvalue()
+                domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1 LIMIT 1", "Performance") or await conn.fetchval("SELECT id FROM domains LIMIT 1")
+                content = f"Auto-profiling at {datetime.now().isoformat()} (json_fast roundtrip x500)\n\n{report[:3000]}"
+                await conn.execute("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
+                    VALUES ($1, $2, 0.8, $3, $4)
+                """, domain_id or 1, content, "auto_profiling", json.dumps({"phase": 15, "workload": "json_roundtrip"}))
+                print("✅ Phase 15: profiling result saved to knowledge_nodes")
+            except Exception as e:
+                logger.debug("Phase 15 (auto-profiling) failed: %s", e)
+
+        # --- ФАЗА 16: ЗАДАЧА НА СИНХРОНИЗАЦИЮ ДОКУМЕНТАЦИИ (Living Organism §8, Татьяна) ---
+        # При merge в main за 24ч — создать задачу для Technical Writer обновить MASTER_REFERENCE/docs
+        print("📄 Checking for documentation sync task...")
+        try:
+            repo_root = os.path.dirname(_KNOWLEDGE_OS_ROOT)
+            if os.path.exists(os.path.join(repo_root, ".git")):
+                r = subprocess.run(
+                    ["git", "log", "--since=24 hours ago", "--merges", "--oneline"],
+                    cwd=repo_root,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                merge_count = len([l for l in (r.stdout or "").strip().splitlines() if l.strip()])
+                if merge_count > 0:
+                    exists = await conn.fetchval("""
+                        SELECT 1 FROM tasks
+                        WHERE title LIKE '%Синхронизировать документацию%'
+                        AND created_at > NOW() - INTERVAL '7 days'
+                        AND status NOT IN ('completed', 'cancelled')
+                        LIMIT 1
+                    """)
+                    if not exists:
+                        meta = json.dumps({"source": "nightly_learner", "assignee_hint": "Technical Writer", "phase": 16})
+                        await conn.execute("""
+                            INSERT INTO tasks (title, description, status, priority, metadata)
+                            VALUES ($1, $2, 'pending', 'low', $3::jsonb)
+                        """, "📝 Синхронизировать документацию с последними изменениями",
+                            f"В main за 24ч было {merge_count} merge(ов). Проверить MASTER_REFERENCE, CHANGES_FROM_OTHER_CHATS и связанные доки (правило библии).", meta)
+                        print("✅ Phase 16: documentation sync task created")
+        except Exception as e:
+            logger.debug("Phase 16 (doc sync task) failed: %s", e)
+
+        # --- ФАЗА 17: АВТООЧИСТКА СТАРЫХ ЗАДАЧ (completed > 30 дней, cancelled) ---
+        print("🗑️ Running tasks cleanup (completed >30 days, cancelled)...")
+        try:
+            deleted_completed = await conn.fetchval("""
+                WITH d AS (
+                    DELETE FROM tasks
+                    WHERE status = 'completed' AND updated_at < NOW() - INTERVAL '30 days'
+                    RETURNING id
+                )
+                SELECT count(*)::int FROM d
+            """) or 0
+            deleted_cancelled = await conn.fetchval("""
+                WITH d AS (DELETE FROM tasks WHERE status = 'cancelled' RETURNING id)
+                SELECT count(*)::int FROM d
+            """) or 0
+            if deleted_completed or deleted_cancelled:
+                print(f"✅ Phase 17: deleted {deleted_completed} old completed, {deleted_cancelled} cancelled")
+            else:
+                print("✅ Phase 17: nothing to clean")
+        except Exception as e:
+            logger.debug("Phase 17 (tasks cleanup) failed: %s", e)
 
         await pool.release(conn)
         await pool.close()

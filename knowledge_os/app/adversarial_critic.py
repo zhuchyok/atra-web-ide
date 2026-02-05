@@ -87,8 +87,8 @@ async def run_adversarial_cycle():
                 await conn.execute("""
                     UPDATE knowledge_nodes 
                     SET confidence_score = $1, 
-                        expert_consensus = expert_consensus || $2,
-                        metadata = metadata || jsonb_build_object('adversarial_tested', 'true', 'survived', $3::boolean)
+                        expert_consensus = COALESCE(expert_consensus, '{}'::jsonb) || $2::jsonb,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('adversarial_tested', 'true', 'survived', $3::boolean)
                     WHERE id = $4
                 """, result['new_confidence_score'], json.dumps({"adversarial_attack": result['attack_report']}), 
                 result['survived'], node['id'])

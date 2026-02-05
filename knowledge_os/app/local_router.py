@@ -42,9 +42,14 @@ if VICTORIA_DEBUG:
     logger.setLevel(logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
 
-# Config
-MAC_LLM_URL = os.getenv('MAC_LLM_URL', 'http://localhost:11435')  # MacBook через SSH reverse tunnel (11435 -> MacBook:11434)
-SERVER_LLM_URL = os.getenv('SERVER_LLM_URL', 'http://localhost:11434')
+# Config - Mac Studio (локальная обработка). OLLAMA_BASE_URL используется Victoria/Veronica
+_is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+_default_ollama = 'http://host.docker.internal:11434' if _is_docker else 'http://localhost:11434'
+OLLAMA_API_URL = os.getenv('OLLAMA_API_URL') or os.getenv('OLLAMA_BASE_URL') or os.getenv('SERVER_LLM_URL') or _default_ollama
+MLX_API_URL = os.getenv('MLX_API_URL') or os.getenv('MAC_LLM_URL') or ('http://host.docker.internal:11435' if _is_docker else 'http://localhost:11435')
+# Обратная совместимость (legacy)
+MAC_LLM_URL = MLX_API_URL
+SERVER_LLM_URL = OLLAMA_API_URL
 USE_LOCAL_LLM = os.getenv('USE_LOCAL_LLM', 'true').lower() == 'true'
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 
@@ -52,24 +57,60 @@ DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/kno
 _health_cache = {"nodes": [], "timestamp": 0}
 _HEALTH_CACHE_TTL = 120  # 2 минуты вместо 30 секунд для снижения rate limiting
 
-# Model mapping with environment overrides for different hardware (Mac Studio)
-MODEL_MAP = {
-    "coding": os.getenv('MODEL_CODING', "qwen2.5-coder:32b"),
-    "reasoning": os.getenv('MODEL_REASONING', "deepseek-r1-distill-llama:70b"),
-    "fast": os.getenv('MODEL_FAST', "phi3.5:3.8b"),
-    "vision": "moondream",
-    "vision_pdf": "llava:7b",
-    "default": os.getenv('MODEL_DEFAULT', "phi3.5:3.8b")
+# ========== ДИНАМИЧЕСКОЕ ОБНАРУЖЕНИЕ МОДЕЛЕЙ ==========
+# Модели сканируются с серверов каждые 2 минуты через available_models_scanner
+# Это позволяет автоматически подхватывать новые модели и замечать удаленные
+
+try:
+    from available_models_scanner import (
+        get_available_models, 
+        pick_ollama_for_category, 
+        pick_mlx_for_category,
+        OLLAMA_PRIORITY_BY_CATEGORY,
+        MLX_PRIORITY_BY_CATEGORY
+    )
+    _HAS_MODEL_SCANNER = True
+except ImportError:
+    _HAS_MODEL_SCANNER = False
+    logger.warning("⚠️ available_models_scanner не доступен, используем fallback")
+
+# Кэш доступных моделей (обновляется динамически)
+_cached_mlx_models: list = []
+_cached_ollama_models: list = []
+_models_cache_time: float = 0
+_MODELS_CACHE_TTL = 120  # 2 минуты
+
+# Fallback модели (используются если scanner недоступен)
+MLX_MODELS_FALLBACK = {
+    "reasoning": "deepseek-r1-distill-llama:70b",
+    "coding": "qwen2.5-coder:32b",
+    "chat": "qwen2.5-coder:32b",
+    "fast": "phi3.5:3.8b",
+    "default": "qwen2.5-coder:32b"
 }
 
-# Ollama модели
-OLLAMA_MODELS = {
+OLLAMA_MODELS_FALLBACK = {
+    "reasoning": "qwq:32b",
+    "coding": "qwen2.5-coder:32b",
+    "chat": "glm-4.7-flash:q8_0",
     "fast": "phi3.5:3.8b",
     "vision": "moondream",
     "vision_pdf": "llava:7b",
-    "coding": "glm-4.7-flash:q8_0",
-    "reasoning": "glm-4.7-flash:q8_0",
-    "default": "phi3.5:3.8b"
+    "default": "glm-4.7-flash:q8_0"
+}
+
+# Для обратной совместимости
+MLX_MODELS = MLX_MODELS_FALLBACK
+OLLAMA_MODELS = OLLAMA_MODELS_FALLBACK
+
+# Legacy MODEL_MAP для обратной совместимости
+MODEL_MAP = {
+    "coding": os.getenv('MODEL_CODING', OLLAMA_MODELS["coding"]),
+    "reasoning": os.getenv('MODEL_REASONING', MLX_MODELS["reasoning"]),
+    "fast": os.getenv('MODEL_FAST', OLLAMA_MODELS["fast"]),
+    "vision": OLLAMA_MODELS["vision"],
+    "vision_pdf": OLLAMA_MODELS["vision_pdf"],
+    "default": os.getenv('MODEL_DEFAULT', OLLAMA_MODELS["default"])
 }
 
 # List of task categories that can be handled locally (L1)
@@ -89,16 +130,13 @@ class LocalAIRouter:
         self.use_local = USE_LOCAL_LLM
         import os
         is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-        if is_docker:
-            ollama_url = "http://host.docker.internal:11434"
-            mlx_url = "http://host.docker.internal:11435"
-        else:
-            ollama_url = "http://localhost:11434"
-            mlx_url = "http://localhost:11435"
+        # Используем URL из env (docker-compose), иначе в Docker — host.docker.internal, локально — localhost
+        # Раньше в Docker игнорировали OLLAMA_API_URL/MLX_API_URL → сканер и nodes могли указывать на разные хосты
+        ollama_url = OLLAMA_API_URL or OLLAMA_BASE_URL or ("http://host.docker.internal:11434" if is_docker else "http://localhost:11434")
+        mlx_url = MLX_API_URL or ("http://host.docker.internal:11435" if is_docker else "http://localhost:11435")
         self.nodes = [
             {"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 0, "routing_key": "mlx_studio"},
-            {"name": "MacBook (Ollama)", "url": ollama_url, "priority": 0, "routing_key": "local_mac"},
-            {"name": "Server (Light)", "url": SERVER_LLM_URL, "priority": 0, "routing_key": "local_server"}
+            {"name": "Mac Studio (Ollama)", "url": ollama_url, "priority": 1, "routing_key": "ollama_studio"}
         ]
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
@@ -111,7 +149,7 @@ class LocalAIRouter:
         
         # Model Memory Manager для оптимизации памяти (ленивая инициализация)
         self._memory_manager = None
-        self._memory_manager_url = SERVER_LLM_URL
+        self._memory_manager_url = OLLAMA_API_URL
         self._tunnel_checked = False
         # Кэш ответов по (prompt, category, model) — ускорение повторяющихся запросов
         self._prompt_cache: Dict[str, Tuple[str, str]] = {}
@@ -143,13 +181,21 @@ class LocalAIRouter:
                 self._prompt_cache.pop(k, None)
                 self._prompt_cache_meta.pop(k, None)
     
+    _cached_ml_model = None  # класс-уровень: один экземпляр на процесс (переиспользование при множестве LocalAIRouter)
+    _cached_ml_model_path = None
+
     def _load_ml_model(self):
-        """Загружает ML-модель если доступна"""
+        """Загружает ML-модель если доступна. Переиспользует кэш на уровне класса (один раз на процесс)."""
         if MLRouterModel and os.path.exists(self.ml_model_path):
+            if LocalAIRouter._cached_ml_model_path == self.ml_model_path and LocalAIRouter._cached_ml_model is not None:
+                self.ml_model = LocalAIRouter._cached_ml_model
+                return
             try:
                 self.ml_model = MLRouterModel()
                 self.ml_model.load(self.ml_model_path)
-                logger.info("✅ [ML ROUTER] ML model loaded successfully")
+                LocalAIRouter._cached_ml_model = self.ml_model
+                LocalAIRouter._cached_ml_model_path = self.ml_model_path
+                logger.info("✅ [ML ROUTER] ML model loaded successfully (cached for process)")
             except Exception as e:
                 logger.warning(f"⚠️ [ML ROUTER] Failed to load ML model: {e}")
                 self.ml_model = None
@@ -235,6 +281,11 @@ class LocalAIRouter:
                         })
                 except Exception as e:
                     logger.warning(f"⚠️ Node {node['name']} is offline: {e}")
+        
+        # Не кэшируем пустой результат — следующая попытка сразу перепроверит
+        if not healthy_nodes:
+            logger.warning("⚠️ [HEALTH] Нет здоровых узлов, не кэшируем (повторная проверка при следующем запросе)")
+            return []
         
         # Get performance metrics from cache for each node
         performance_metrics = await self._get_node_performance_metrics()
@@ -330,6 +381,26 @@ class LocalAIRouter:
             logger.warning(f"⚠️ Error in _get_node_performance_metrics: {e}")
             return {}
 
+    def _is_echo_response(self, result: str, prompt: str) -> bool:
+        """Проверяет, не является ли ответ эхом промпта (модель/сервер вернула запрос как ответ).
+        Условие ослаблено: короткий ответ (<200 символов) считаем эхо только при явном совпадении
+        или если ответ почти полностью совпадает с началом промпта (≥80% длины ответа), чтобы
+        не отбрасывать легитимные короткие ответы («Да», «Готово»)."""
+        if not result or not prompt:
+            return False
+        r = result.strip()
+        p = prompt.strip()
+        if r == p:
+            return True
+        # Частичное эхо: только если ответ короткий И явно копирует промпт (промпт начинается с ответа
+        # и ответ не слишком короткий для легитимного «Да»/«Ок» — минимум 50 символов для частичного эхо)
+        if len(r) < 200:
+            if p.startswith(r) and len(r) >= 50:
+                return True
+            if r.startswith(p) and len(p) >= 50:
+                return True
+        return False
+    
     def _is_simple_task(self, prompt: str, category: Optional[str] = None) -> bool:
         """Определяет, является ли задача простой (можно использовать Ollama при перегрузке MLX)"""
         # Простые задачи:
@@ -356,52 +427,107 @@ class LocalAIRouter:
         
         return False
     
+    async def _refresh_available_models(self, force: bool = False) -> None:
+        """Обновляет кэш доступных моделей с серверов (если истёк TTL или force=True)"""
+        global _cached_mlx_models, _cached_ollama_models, _models_cache_time
+        
+        now = time.time()
+        if not force and (now - _models_cache_time) < _MODELS_CACHE_TTL:
+            return  # Кэш ещё актуален
+        
+        if _HAS_MODEL_SCANNER:
+            try:
+                mlx_url = MLX_API_URL
+                ollama_url = OLLAMA_API_URL
+                mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url, force_refresh=force)
+                _cached_mlx_models = mlx_models
+                _cached_ollama_models = ollama_models
+                _models_cache_time = now
+                logger.info(f"🔄 [MODEL SCAN] Обновлены модели: MLX={len(mlx_models)}, Ollama={len(ollama_models)}")
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка сканирования моделей: {e}, используем fallback")
+    
     def _select_model(self, prompt: str, category: Optional[str] = None, use_ollama: bool = False, node_type: Optional[str] = None) -> str:
         """Select the best local model for the task.
-        Система автоматически выбирает модель на основе типа задачи, независимо от источника (MLX/Ollama).
+        
+        ДИНАМИЧЕСКИЙ ВЫБОР: Если available_models_scanner доступен, выбирает из реально доступных моделей.
+        Если модель удалена/добавлена, система автоматически адаптируется (кэш обновляется каждые 2 мин).
         
         Args:
             prompt: User prompt
             category: Task category
-            use_ollama: If True, use Ollama models (deprecated - система сама выберет)
+            use_ollama: If True, use Ollama models (deprecated)
             node_type: Тип узла ('mlx' или 'ollama') - для выбора подходящей модели
         """
         prompt_lower = prompt.lower()
         
-        # Выбираем модель на основе задачи, а не источника
-        # Оба источника (MLX и Ollama) поддерживают одинаковые модели
-        
-        # Reasoning задачи - нужна мощная модель
-        if category == "reasoning" or "подумай" in prompt_lower or "логика" in prompt_lower or "планир" in prompt_lower:
-            # Пробуем найти reasoning модель в доступных источниках
-            if node_type == "mlx":
-                return "deepseek-r1-distill-llama:70b"  # MLX модель
+        # Определяем категорию из промпта если не задана явно
+        effective_category = category
+        if not effective_category:
+            if "подумай" in prompt_lower or "логика" in prompt_lower or "планир" in prompt_lower:
+                effective_category = "reasoning"
+            elif "привет" in prompt_lower or "здравств" in prompt_lower:
+                effective_category = "general"
+            elif "код" in prompt_lower or "программируй" in prompt_lower:
+                effective_category = "coding"
+            elif "изображен" in prompt_lower or "картинк" in prompt_lower:
+                effective_category = "vision"
+            elif len(prompt) < 300:
+                effective_category = "fast"
             else:
-                return OLLAMA_MODELS.get("reasoning", "command-r-plus:104b")  # Ollama модель
+                effective_category = "default"
         
-        # Coding задачи - нужна специализированная модель для кода
-        if "код" in prompt_lower or "программируй" in prompt_lower or category == "coding":
+        # ========== ДИНАМИЧЕСКИЙ ВЫБОР МОДЕЛИ ==========
+        # Используем scanner если доступен, иначе fallback
+        
+        if _HAS_MODEL_SCANNER and (_cached_mlx_models or _cached_ollama_models):
+            # Динамический выбор из реально доступных моделей
+            if node_type == "mlx" and _cached_mlx_models:
+                model = pick_mlx_for_category(effective_category, _cached_mlx_models)
+                if model:
+                    logger.debug(f"🎯 [DYNAMIC] MLX: {model} для {effective_category}")
+                    return model
+            elif node_type == "ollama" and _cached_ollama_models:
+                model = pick_ollama_for_category(effective_category, _cached_ollama_models)
+                if model:
+                    logger.debug(f"🎯 [DYNAMIC] Ollama: {model} для {effective_category}")
+                    return model
+        
+        # ========== FALLBACK: Статический выбор ==========
+        # Используется если scanner недоступен или модели не найдены
+        
+        if effective_category == "reasoning":
             if node_type == "mlx":
-                return "qwen2.5-coder:32b"  # MLX модель
+                return MLX_MODELS_FALLBACK["reasoning"]
             else:
-                return OLLAMA_MODELS.get("coding", "glm-4.7-flash:q8_0")  # Ollama модель
+                return OLLAMA_MODELS_FALLBACK["reasoning"]
         
-        # Быстрые задачи - легкая модель
-        if category == "fast" or len(prompt) < 300:
+        if effective_category == "general":
             if node_type == "mlx":
-                return "phi3.5:3.8b"  # MLX модель
+                return MLX_MODELS_FALLBACK["chat"]
             else:
-                return OLLAMA_MODELS.get("fast", "phi3.5:3.8b")  # Ollama модель
+                return OLLAMA_MODELS_FALLBACK["chat"]
         
-        # Vision задачи
-        if category == "vision" or "изображен" in prompt_lower or "картинк" in prompt_lower:
-            return OLLAMA_MODELS.get("vision", "moondream")  # Vision только в Ollama
+        if effective_category == "coding":
+            if node_type == "mlx":
+                return MLX_MODELS_FALLBACK["coding"]
+            else:
+                return OLLAMA_MODELS_FALLBACK["coding"]
         
-        # По умолчанию - выбираем на основе доступности
+        if effective_category == "fast":
+            if node_type == "mlx":
+                return MLX_MODELS_FALLBACK["fast"]
+            else:
+                return OLLAMA_MODELS_FALLBACK["fast"]
+        
+        if effective_category == "vision":
+            return OLLAMA_MODELS_FALLBACK["vision"]
+        
+        # По умолчанию
         if node_type == "mlx":
-            return "phi3.5:3.8b"  # MLX модель по умолчанию
+            return MLX_MODELS_FALLBACK["default"]
         else:
-            return OLLAMA_MODELS.get("default", "phi3.5:3.8b")  # Ollama модель по умолчанию
+            return OLLAMA_MODELS_FALLBACK["default"]
     
     async def _is_mlx_overloaded(self) -> bool:
         """Проверяет, перегружен ли MLX API Server"""
@@ -475,33 +601,22 @@ class LocalAIRouter:
         logger.info("[ROUTER] Prompt length: %d chars", len(prompt))
         logger.info("[ROUTER] Prompt preview: %s...", prompt[:150])
         
+        # 🔄 ДИНАМИЧЕСКОЕ ОБНОВЛЕНИЕ СПИСКА МОДЕЛЕЙ (если истёк TTL)
+        # Это позволяет подхватывать новые модели и замечать удалённые
+        await self._refresh_available_models()
+        
         # ПРИОРИТЕТ: Использовать MLX API Server и Ollama через HTTP роутинг
         # MLX Router напрямую не используется в контейнере (требует модуль mlx)
         # Вместо этого используем MLX API Server через HTTP (уже настроен в nodes)
-        # АВТОМАТИЧЕСКИ включаем туннель для MacBook при первом использовании
-        if ("localhost:11435" in MAC_LLM_URL or "127.0.0.1:11435" in MAC_LLM_URL) and not self._tunnel_checked:
-            try:
-                from tunnel_manager import ensure_tunnel, get_tunnel_status
-                # Проверяем и автоматически создаем туннель если нужно
-                status_before = get_tunnel_status()
-                logger.info(f"🔍 Проверка SSH tunnel для MacBook (статус: {status_before})...")
-                await ensure_tunnel()
-                status_after = get_tunnel_status()
-                if status_after == "активен" and status_before != "активен":
-                    logger.info("✅ SSH tunnel для MacBook автоматически включен!")
-                elif status_after == "активен":
-                    logger.debug("✅ SSH tunnel для MacBook уже активен")
-                self._tunnel_checked = True
-            except Exception as e:
-                logger.warning(f"⚠️ Tunnel check failed: {e}")
-                self._tunnel_checked = True  # Помечаем как проверенный, чтобы не повторять
         """Call local LLM (Ollama style) with automatic failover, retry logic and node selection."""
-        if not model:
-            model = self._select_model(prompt, category)
-            logger.info("[ROUTER] Model selected by _select_model(): %s", model)
+        
+        # Модель: параметр вызова, или _preferred_model от воркера (батчи по модели — меньше load/unload)
+        initial_model = model or getattr(self, '_preferred_model', None)
+        
         if images and MODEL_MAP.get("vision"):
             model = MODEL_MAP["vision"]
             logger.info("[ROUTER] Using vision model: %s", model)
+            initial_model = model  # Vision - принудительно
         
         # Кэш: только для коротких промптов без изображений
         prompt_cache_key = None
@@ -605,6 +720,15 @@ class LocalAIRouter:
         mlx_nodes = [n for n in healthy_nodes if "11435" in n['url'] or "mlx" in n['url'].lower()]
         ollama_nodes = [n for n in healthy_nodes if "11434" in n['url'] or "ollama" in n['url'].lower()]
         other_nodes = [n for n in healthy_nodes if n not in mlx_nodes and n not in ollama_nodes]
+        # Логируем раз в 5 мин, если MLX недоступен — чтобы было видно, что задачи идут только в Ollama
+        if not mlx_nodes and ollama_nodes:
+            _t = time.time()
+            if not hasattr(LocalAIRouter, "_last_no_mlx_log") or (_t - LocalAIRouter._last_no_mlx_log) > 300:
+                logger.warning(
+                    "⚠️ [ROUTER] MLX API Server (порт 11435) недоступен — все задачи обрабатываются через Ollama. "
+                    "Запуск: scripts/start_mlx_api_server.sh; проверка: curl -s http://localhost:11435/health"
+                )
+                LocalAIRouter._last_no_mlx_log = _t
         prefer_ollama_due_to_mlx_overload = False
         
         # 4.1 Если MLX перегружен (очередь/rate limit) — пробуем Ollama первым
@@ -668,52 +792,69 @@ class LocalAIRouter:
             is_ollama = "11434" in node['url'] or "ollama" in node['url'].lower()
             is_mlx = "11435" in node['url'] or "mlx" in node['url'].lower()
             
-            # ИНТЕЛЛЕКТУАЛЬНЫЙ ВЫБОР МОДЕЛИ на основе мировых практик (или переданная модель — Victoria)
+            # ИНТЕЛЛЕКТУАЛЬНЫЙ ВЫБОР МОДЕЛИ на основе мировых практик
+            # ВАЖНО: MLX и Ollama имеют РАЗНЫЕ модели! Выбираем для КАЖДОГО узла отдельно!
             node_type = "mlx" if is_mlx else "ollama" if is_ollama else "unknown"
             
-            # 1. Переданная модель (Victoria: лучшая из Ollama+MLX) — используем для всех узлов
-            current_model = model
-            # 2. Проверяем рекомендованную модель (из предыдущих попыток)
-            recommended_model = getattr(self, '_recommended_model', None)
-            if recommended_model and not current_model:
-                current_model = recommended_model
-                logger.info(f"🎯 [ROUTER] Используем рекомендованную модель: {current_model}")
-            if not current_model:
-                # 3. Используем интеллектуальный роутер на основе мировых практик
-                try:
-                    from intelligent_model_router import get_intelligent_router
-                    intelligent_router = get_intelligent_router()
-                    
-                    # Получаем доступные модели для этого узла
-                    available_models = []
-                    if is_mlx:
-                        # MLX модели
-                        available_models = ['qwen2.5-coder:32b', 'deepseek-r1-distill-llama:70b', 'phi3.5:3.8b']
-                    elif is_ollama:
-                        # Ollama модели
-                        available_models = ['glm-4.7-flash:q8_0', 'phi3.5:3.8b']
-                    
-                    if available_models:
-                        # Выбираем оптимальную модель (возвращает model, TaskCategory, confidence)
-                        optimal_model, _task_cat, confidence = await intelligent_router.select_optimal_model(
-                            prompt=prompt,
-                            category=category or "",
-                            available_models=available_models,
-                            optimize_for='balanced'  # Баланс качества, скорости и стоимости
-                        )
-                        
-                        if optimal_model and confidence > 0.5:
-                            current_model = optimal_model
-                            logger.info(f"🧠 [INTELLIGENT ROUTER] Выбрана модель: {current_model} (confidence: {confidence:.2f})")
-                        else:
-                            current_model = self._select_model(prompt, category, node_type=node_type)
-                            logger.debug(f"Intelligent router confidence too low ({confidence:.2f}), using fallback: {current_model}")
+            # 1. Модель от воркера (_preferred_model при батчах по модели) или параметр вызова
+            current_model = None
+            if initial_model:
+                # Воркер задаёт модель по сканеру (source+model) — принимаем для подходящего типа узла
+                if is_mlx or is_ollama:
+                    current_model = initial_model
+                else:
+                    if initial_model in (list(MLX_MODELS.values()) + list(OLLAMA_MODELS.values())):
+                        current_model = initial_model
                     else:
-                        current_model = self._select_model(prompt, category, node_type=node_type)
-                except Exception as e:
-                    logger.debug(f"Intelligent router failed: {e}, using fallback")
-                    current_model = self._select_model(prompt, category, node_type=node_type)
+                        logger.debug(f"⚠️ Модель {initial_model} не в fallback для {node_type}, выбираем автоматически")
+                        current_model = None
             
+            # 2. Если модель не задана или не совместима - выбираем для этого узла
+            if not current_model:
+                # ВАЖНО: Для REASONING задач ВСЕГДА используем _select_model()
+                # Он гарантирует выбор мощной модели (qwq:32b / deepseek-r1:70b)
+                if category == "reasoning":
+                    current_model = self._select_model(prompt, category, node_type=node_type)
+                    logger.info(f"🎯 [REASONING] Узел: {node_type} | Модель: {current_model} (принудительный выбор для reasoning)")
+                else:
+                    # Используем простой выбор модели по приоритетам (быстрые модели первыми)
+                    # Intelligent router отключён — он выбирает тяжёлые модели и перегружает систему
+                    use_intelligent = os.getenv('USE_INTELLIGENT_ROUTER', 'false').lower() in ('true', '1', 'yes')
+                    if use_intelligent:
+                        try:
+                            from intelligent_model_router import get_intelligent_router
+                            intelligent_router = get_intelligent_router()
+                            
+                            available_models = []
+                            if is_mlx:
+                                available_models = list(MLX_MODELS.values())
+                            elif is_ollama:
+                                available_models = list(OLLAMA_MODELS.values())
+                            
+                            if available_models:
+                                optimize_mode = os.getenv('INTELLIGENT_ROUTER_OPTIMIZE', 'speed')
+                                optimal_model, _task_cat, confidence = await intelligent_router.select_optimal_model(
+                                    prompt=prompt,
+                                    category=category or "",
+                                    available_models=available_models,
+                                    optimize_for=optimize_mode
+                                )
+                                
+                                if optimal_model and confidence > 0.5:
+                                    current_model = optimal_model
+                                    logger.info(f"🧠 [INTELLIGENT ROUTER] Узел: {node_type} | Модель: {current_model} (confidence: {confidence:.2f})")
+                                else:
+                                    current_model = self._select_model(prompt, category, node_type=node_type)
+                            else:
+                                current_model = self._select_model(prompt, category, node_type=node_type)
+                        except Exception as e:
+                            logger.debug(f"Intelligent router failed: {e}, using fallback")
+                            current_model = self._select_model(prompt, category, node_type=node_type)
+                    else:
+                        # Простой выбор по приоритетам (лёгкие модели первыми)
+                        current_model = self._select_model(prompt, category, node_type=node_type)
+            
+            # Финальная модель для этого узла
             model = current_model
             logger.info(f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}")
             
@@ -777,11 +918,13 @@ class LocalAIRouter:
                         request_start = time.time()
                         # Чат с Викторией использует приоритет HIGH
                         headers = {"X-Request-Priority": "high"}
+                        # Таймаут запроса к узлу: по умолчанию 300 с, чтобы дождаться ответа под нагрузкой (воркер ждёт SMART_WORKER_LLM_TIMEOUT)
+                        _node_timeout = float(os.getenv("LOCAL_ROUTER_LLM_TIMEOUT", "300"))
                         response = await client.post(
                             node_url,
                             json=payload,
                             headers=headers,
-                            timeout=120.0  # Reduced from 300 to 120 seconds
+                            timeout=_node_timeout
                         )
                         latency_ms = (time.time() - request_start) * 1000
                         
@@ -815,8 +958,13 @@ class LocalAIRouter:
                             
                             logger.info("[ROUTER] Response preview: %s...", result[:200] if result else "(empty)")
                             
+                            # Защита от эхо: если сервер/модель вернула промпт как ответ — не считаем успехом, пробуем следующий узел
+                            if result and self._is_echo_response(result, prompt):
+                                logger.warning("[ROUTER] ⚠️ Эхо-ответ от %s (модель вернула промпт), пробуем следующий узел", node['name'])
+                                continue
+                            
                             if result:
-                                routing_source = node.get('routing_key', 'local_mac' if node['name'].startswith("MacBook") else 'local_server')
+                                routing_source = node.get('routing_key', 'ollama_studio')
                                 performance_score = node.get('performance_score', 0.8)
                                 logger.info("[ROUTER] ✅ [SUCCESS] Node: %s, Model: %s, Latency: %.2fms, Performance: %.2f", 
                                            node['name'], model, latency_ms, performance_score)
@@ -929,14 +1077,6 @@ class LocalAIRouter:
         Yields:
             Response chunks as strings
         """
-        # Убеждаемся, что туннель активен перед использованием MacBook
-        if "localhost:11435" in MAC_LLM_URL or "127.0.0.1:11435" in MAC_LLM_URL:
-            try:
-                from tunnel_manager import ensure_tunnel
-                await ensure_tunnel()
-            except Exception as e:
-                logger.debug(f"Tunnel check failed: {e}")
-        
         # Select model
         if model is None:
             model = self._select_model(prompt, category)

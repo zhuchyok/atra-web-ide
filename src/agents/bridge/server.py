@@ -9,6 +9,7 @@ import uvicorn
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url
 from src.agents.tools.system_tools import SystemTools, WebTools
+from src.agents.bridge.project_registry import get_projects_registry, get_main_project
 
 # Интеграция с той же базой знаний, что и Виктория (одна БД knowledge_os)
 USE_KNOWLEDGE_OS = os.getenv("USE_KNOWLEDGE_OS", "true").lower() == "true"
@@ -249,42 +250,24 @@ async def run_task(request: TaskRequest):
     project_context: Контекст проекта (atra-web-ide, atra, и т.д.)
     Если не указан, используется MAIN_PROJECT (по умолчанию atra-web-ide)
     """
-    # Определяем контекст проекта
-    project_context = request.project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")
-    main_project = os.getenv("MAIN_PROJECT", "atra-web-ide")
-    
-    # ✅ SECURITY: Валидация project_context (предотвращение prompt injection)
-    # Whitelist разрешенных проектов
-    ALLOWED_PROJECTS = os.getenv("ALLOWED_PROJECTS", "atra-web-ide,atra").split(",")
-    if project_context not in ALLOWED_PROJECTS:
+    # Реестр проектов из БД (кэш при первом запросе)
+    main_project = get_main_project()
+    project_context = request.project_context or main_project
+    allowed_list, project_configs = await get_projects_registry()
+    if project_context not in allowed_list:
         logger.warning(f"⚠️ Invalid project_context: {project_context}, using default: {main_project}")
         project_context = main_project
-    
-    # ✅ SECURITY: Deterministic mapping (не отправляем user input напрямую в промпт)
-    PROJECT_CONFIGS = {
-        "atra-web-ide": {
-            "name": "ATRA Web IDE",
-            "description": "Браузерная оболочка для ИИ-корпорации",
-            "workspace": "/workspace/atra-web-ide"
-        },
-        "atra": {
-            "name": "ATRA Trading System",
-            "description": "Торговая система с ИИ-агентами",
-            "workspace": "/workspace/atra"
-        }
-    }
-    
-    # Получаем безопасную конфигурацию проекта
-    project_config = PROJECT_CONFIGS.get(project_context, PROJECT_CONFIGS[main_project])
+    project_config = project_configs.get(project_context, project_configs.get(main_project, {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"}))
+    main_config = project_configs.get(main_project, project_config)
     
     # Обновляем системный промпт с безопасным контекстом проекта
     project_prompt = f"""
 🏢 КОНТЕКСТ ПРОЕКТА: {project_config['name']}
-🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {PROJECT_CONFIGS[main_project]['name']}
+🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config['name']}
 
 ВАЖНО:
 - Ты работаешь в контексте проекта: {project_config['name']}
-- Основной проект корпорации: {PROJECT_CONFIGS[main_project]['name']}
+- Основной проект корпорации: {main_config['name']}
 - Все файлы, команды и операции должны быть в контексте проекта {project_config['name']}
 - При работе с файлами используй пути относительно корня проекта
 

@@ -25,7 +25,7 @@ SEED_ANSWERS = {
     "часто задаваемые вопросы": "FAQ доступен по адресу /faq. Популярные вопросы: тарифы, интеграция, API, безопасность.",
     "как настроить Victoria": "Victoria настраивается через VICTORIA_URL (порт 8010), VICTORIA_TIMEOUT. Конфигурация в backend/app/config.py.",
     "что такое RAG": "RAG (Retrieval-Augmented Generation) — метод, при котором LLM использует поиск по базе знаний для генерации точных ответов.",
-    "порты сервисов": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis: 6380.",
+    "порты сервисов": "Backend: 8080, Victoria: 8010, Ollama: 11434, MLX: 11435, PostgreSQL: 5432, Redis (хост): 6381.",
     "как запустить проект локально": "1) docker-compose -f knowledge_os/docker-compose.yml up -d, 2) docker-compose up -d, 3) cd frontend && npm run dev.",
     "метрики Prometheus": "Метрики доступны на /metrics. Основные: rag_requests_total, rag_duration_seconds, victoria_requests.",
 }

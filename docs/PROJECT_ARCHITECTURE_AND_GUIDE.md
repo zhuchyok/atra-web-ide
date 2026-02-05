@@ -2,7 +2,7 @@
 
 Единый документ: структура проекта, компоненты, порты, запуск, API, метрики, стресс-тест, Cursor и команда экспертов. Детальная схема Victoria → Veronica и оркестрация: **`docs/ARCHITECTURE_FULL.md`**.
 
-**Обновлено:** 2026-01-31
+**Обновлено:** 2026-02-01. Единый справочник по архитектуре, логике и изменениям: **`docs/MASTER_REFERENCE.md`**.
 
 ---
 
@@ -11,6 +11,8 @@
 - **Название:** ATRA Web IDE  
 - **Назначение:** браузерная оболочка для ИИ-корпорации Singularity 9.0 (чат с Victoria/Veronica, редактор кода, файлы, превью).  
 - **Контекст:** основной проект корпорации — `MAIN_PROJECT=atra-web-ide`; агенты Victoria и Veronica общие для всех проектов (atra, atra-web-ide и др.), контекст передаётся через `project_context` в запросах.
+- **Независимость от atra:** проект atra — отдельный (будет в новом репозитории/проекте). В atra-web-ide свой Redis: контейнер **knowledge_os_redis**, порт на хосте **6381**; в compose не используем контейнеры atra (knowledge_redis и др.).
+- **Реестр проектов и новый проект:** список разрешённых проектов и конфиг хранятся в БД (таблица `projects`). Регистрация: скрипт `scripts/register_project.py` или `POST /api/projects/register` (Knowledge OS 8002). Подробно: [MASTER_REFERENCE.md](MASTER_REFERENCE.md) §1а, §1б, §1в.
 
 ---
 
@@ -49,13 +51,16 @@ atra-web-ide/
 │   ├── run_load_test.sh     # Стресс-тест (Locust)
 │   ├── run_full_load_test.sh
 │   └── load_test/           # locustfile.py, setup_venv.sh, out/
-├── docs/                    # Документация
+├── docs/                    # Документация (актуальная — MASTER_REFERENCE, таблица §8)
+│   └── archive/             # Историческое: root_reports/ (отчёты из корня), obsolete_backups/ (.backup из src)
 ├── prometheus/              # Конфиг Prometheus Web IDE (порт 9091)
 ├── grafana/                 # Дашборды Web IDE (порт 3002)
 ├── docker-compose.yml       # Web IDE: backend, frontend, Prometheus, Grafana
 ├── .cursorrules             # Правила Cursor (компоненты, API, запуск, Cursor-роли)
-├── VICTORIA.md              # Контекст Victoria
-├── VERONICA.md              # Контекст Veronica
+├── README.md, PLAN.md       # В корне только необходимое
+├── VICTORIA.md              # Контекст Victoria (.cursorrules)
+├── VERONICA.md              # Контекст Veronica (.cursorrules)
+├── requirements.txt         # Зависимости (корень)
 ├── PLAN.md
 └── README.md
 ```
@@ -71,11 +76,12 @@ atra-web-ide/
 | **Victoria** | 8010 | Team Lead, один сервис (victoria-agent). Три уровня: Agent, Enhanced, Initiative. Запуск: knowledge_os/docker-compose.yml. |
 | **Veronica** | 8011 | Local Developer (veronica-agent). Вызывается Victoria при делегировании. |
 | **PostgreSQL** | 5432 | knowledge_postgres, БД knowledge_os (experts, tasks и др.). |
-| **Redis** | 6379 (в сети) | knowledge_redis из Knowledge OS. Web IDE использует его (REDIS_URL), отдельный atra-redis не нужен. |
+| **Redis** | 6379 (в сети), 6381 (хост) | knowledge_os_redis из Knowledge OS. Web IDE: REDIS_URL=redis://knowledge_os_redis:6379. Проект atra — отдельный, свой Redis. |
 | **Prometheus (Web IDE)** | 9091 | Метрики backend. |
 | **Grafana (Web IDE)** | 3002 | Дашборды (логин admin/admin). |
 | **Prometheus (Knowledge OS)** | 9092 | Метрики Knowledge OS (если 9090 занят). |
 | **Grafana (Knowledge OS)** | 3001 | Дашборды Knowledge OS. |
+| **Smart Worker (knowledge_os_worker)** | — | Обработка задач из БД (pending → in_progress → completed). Пул БД, heartbeat, батчи по модели. Запуск: knowledge_os/docker-compose.yml. |
 | **Ollama** | 11434 | LLM на хосте. |
 | **MLX API** | 11435 | LLM на хосте. |
 
@@ -99,6 +105,7 @@ atra-web-ide/
    - Victoria: `curl -s http://localhost:8010/status` (в ответе `victoria_levels`: agent, enhanced, initiative)
    - Frontend: http://localhost:3000
    - **Victoria Telegram Bot** (процесс на хосте, не в Docker): `pgrep -f victoria_telegram_bot` — если пусто, запустить: `cd /path/to/atra-web-ide && python3 -m src.agents.bridge.victoria_telegram_bot`. Автозапуск при загрузке: `bash scripts/setup_victoria_telegram_bot_autostart.sh`. Подробнее: `docs/TELEGRAM_VICTORIA_TROUBLESHOOTING.md`.
+   - **MLX API (11435)** на хосте: `bash scripts/start_mlx_api_server.sh`. При падениях (Metal OOM) мониторинг перезапускает автоматически — один раз настроить: `bash scripts/setup_system_auto_recovery.sh` (создаёт com.atra.mlx-monitor). См. docs/MASTER_REFERENCE.md §5, docs/VERIFICATION_CHECKLIST_OPTIMIZATIONS.md §3.
 
 Если backend недоступен — сначала поднять Knowledge OS (сеть atra-network и сервисы).
 
@@ -120,6 +127,13 @@ atra-web-ide/
 | POST | /api/rag-optimization/cache/clear | Очистка кэша RAG. |
 | GET | /api/ab-testing/experiments | A/B-эксперименты. |
 | GET | /api/ab-testing/user/{user_id}/variants | Варианты пользователя. |
+
+**Knowledge OS REST API (knowledge_rest, порт 8002):** Backend вызывает для логирования чата и консультации Совета.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | /api/log_interaction | Логирование взаимодействия (prompt, response, expert_name). |
+| POST | /api/board/consult | Консультация Совета Директоров по стратегическому вопросу. Body: question, session_id?, user_id?, correlation_id?, source? (chat\|api). Заголовок X-API-Key. Ответ: directive_text, structured_decision, risk_level?, recommend_human_review. |
 
 ---
 
@@ -165,13 +179,26 @@ atra-web-ide/
 
 ## 10. Цепочка запроса (кратко)
 
+### 10.1 Чат: пользователь → Victoria
+
 1. Пользователь → **Frontend (3000)** или API → **Backend (8080)**.
 2. Backend → семафор (лимит слотов Victoria) → при перегрузке 503.
 3. Backend → **Victoria (8010)** (`POST /run` с goal, project_context).
 4. Victoria решает: Department Heads (эксперты БД), делегирование **Veronica (8011)** или выполнение сама (ReAct, swarm).
 5. Ответ возвращается пользователю (SSE или JSON).
 
-Подробная схема и потоки: **`docs/ARCHITECTURE_FULL.md`**. Процесс Victoria от запроса до выполнения: **`docs/VICTORIA_PROCESS_FULL.md`**.
+### 10.2 Задачи из БД: tasks → воркер → Ollama/MLX
+
+Записи в таблице **tasks** (созданные пользователем, API, дашбордом или оркестратором) обрабатываются **knowledge_os_worker** (контейнер в knowledge_os/docker-compose.yml, без порта на хост):
+
+1. **Enhanced Orchestrator** (фоновый цикл) назначает эксперта задачам с `assignee_expert_id IS NULL` (Phase 0–5).
+2. **Smart Worker** (`smart_worker_autonomous.py`): сбрасывает зависшие (in_progress с `updated_at` старше 15 мин → pending), выбирает pending с назначенным экспертом, сканирует модели (Ollama/MLX по URL из env), группирует по **(source, model)**, обрабатывает через семафор (не ждёт весь батч).
+3. Для каждой задачи: **process_task** → heartbeat, обогащение контекста (file_context_enricher в run_in_executor) → **run_cursor_agent_smart** → **ai_core.run_smart_agent_async** → **LocalAIRouter** → **Ollama (11434)** / **MLX (11435)**.
+4. По завершении — валидатор результата, перевод в `completed` или возврат в `pending` при ошибке.
+
+Подробно: **`docs/CURRENT_STATE_WORKER_AND_LLM.md`**, **`docs/WORKER_THROUGHPUT_AND_STUCK_TASKS.md`**, **`docs/OLLAMA_MLX_CONNECTION_AND_ECHO.md`**. Чеклист верификации воркера и LLM: пункты 14–19 в [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md).
+
+Подробная схема чата и делегирования: **`docs/ARCHITECTURE_FULL.md`**. Процесс Victoria от запроса до выполнения: **`docs/VICTORIA_PROCESS_FULL.md`**.
 
 ---
 
@@ -191,3 +218,7 @@ atra-web-ide/
 | **configs/experts/employees.md** | Таблица сотрудников (генерируется из employees.json). |
 | **docs/LOAD_TEST_RESULTS.md** | Стресс-тест: как запускать, результаты. |
 | **docs/REPORT_STRESS_AND_METRICS.md** | Отчёт: метрики, стресс-тест, concurrency limiter. |
+| **docs/WORKER_THROUGHPUT_AND_STUCK_TASKS.md** | Воркер: пропускная способность, зависания, батчи по модели, чеклист 14–19. |
+| **docs/OLLAMA_MLX_CONNECTION_AND_ECHO.md** | Ollama/MLX: URL из env, эхо-ответы, сканер моделей, чеклист при проблемах. |
+| **docs/DASHBOARDS_AND_AGENTS_FULL_PICTURE.md** | Полная картина: все дашборды (Grafana 3001/3002, Corporation 8501, quality), агенты, порты, что проверять. |
+| **docs/MASTER_REFERENCE.md** | Единый справочник проекта: архитектура, логика, разработка, изменения — «библия» проекта. |

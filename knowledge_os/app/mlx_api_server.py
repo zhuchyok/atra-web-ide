@@ -6,6 +6,7 @@ FastAPI сервер для обслуживания запросов от аг�
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -48,7 +49,24 @@ except ImportError:
     psutil = None
     logger.warning("⚠️ psutil не установлен, мониторинг памяти будет ограничен")
 
-app = FastAPI(title="MLX Model Server", version="2.0.0")
+
+@asynccontextmanager
+async def _mlx_lifespan(app: FastAPI):
+    """Startup: предзагрузка моделей и очистка кэша. Shutdown: очистка кэша (мировая практика: lifespan вместо on_event)."""
+    asyncio.create_task(preload_models())
+    if _cache_cleanup_interval_sec > 0:
+        asyncio.create_task(periodic_cache_cleanup())
+        logger.info(
+            "🔄 Периодическая очистка кэша моделей каждые %ds (макс %d в кэше)",
+            _cache_cleanup_interval_sec,
+            _max_cached_models,
+        )
+    yield
+    _models_cache.clear()
+    logger.info("✅ Кэш моделей очищен (shutdown)")
+
+
+app = FastAPI(title="MLX Model Server", version="2.0.0", lifespan=_mlx_lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -66,6 +84,10 @@ _models_cache = {}
 # Защита от перегрузки (настраивается через env — меньше 429, чаще успешные запросы)
 _active_requests = 0
 _max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "5"))
+# Семафор: запросы ждут слот вместо немедленного 503 (дожидаются очереди)
+_concurrent_semaphore = asyncio.Semaphore(_max_concurrent_requests)
+# Таймаут ожидания слота: из env или макс по оценкам моделей (загрузка + инференс + запас)
+_queue_wait_timeout = None  # задаётся через _max_queue_wait_timeout() после определения MODEL_TIME_ESTIMATES
 _request_lock = threading.Lock()
 _request_times = defaultdict(list)  # Для rate limiting
 _rate_limit_window = int(os.getenv("MLX_RATE_LIMIT_WINDOW", "90"))  # секунд (увеличено окно — реже упираемся в лимит)
@@ -84,9 +106,9 @@ _active_model_requests = defaultdict(int)  # {model_key: count} - сколько
 _model_locks = defaultdict(threading.Lock)  # Блокировки для каждой модели
 _loading_models = set()  # Модели, которые сейчас загружаются
 
-# Мониторинг памяти
-_memory_warning_threshold = 0.85  # 85% использования памяти
-_memory_critical_threshold = 0.95  # 95% использования памяти
+# Мониторинг памяти (можно задать через env, если 95% — норма для вашей нагрузки)
+_memory_warning_threshold = float(os.getenv("MLX_MEMORY_WARNING_PERCENT", "85")) / 100.0
+_memory_critical_threshold = float(os.getenv("MLX_MEMORY_CRITICAL_PERCENT", "95")) / 100.0
 _last_memory_check = 0
 _memory_check_interval = 10  # секунд
 
@@ -159,6 +181,86 @@ OLLAMA_TO_MLX_MAP = {
     "tinyllama:1.1b-chat": "tinyllama:1.1b-chat",
 }
 
+# Оценки времени по моделям: загрузка (сек), инференс (сек на 1k токенов), запас (сек).
+# Таймаут запроса = load_sec + (max_tokens/1000 * inference_sec_per_1k) + margin_sec.
+# Для неизвестной модели — fallback по размеру (104b/70b/32b/3b/1b) или default.
+MODEL_TIME_ESTIMATES = {
+    "default": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
+    "command-r-plus:104b": {"load_sec": 180, "inference_sec_per_1k": 180, "margin_sec": 120},
+    "deepseek-r1-distill-llama:70b": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
+    "llama3.3:70b": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
+    "reasoning": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
+    "qwen2.5-coder:32b": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
+    "coding": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
+    "phi3.5:3.8b": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
+    "phi3:mini-4k": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
+    "fast": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
+    "qwen2.5:3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
+    "qwen_3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
+    "tinyllama:1.1b-chat": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20},
+    "tiny": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20},
+}
+
+
+def _get_estimates_for_model(model_key: str) -> dict:
+    """Возвращает оценку времени для модели (exact или по размеру 104b/70b/32b/3b/1b)."""
+    if model_key in MODEL_TIME_ESTIMATES:
+        return MODEL_TIME_ESTIMATES[model_key].copy()
+    # Fallback по размеру из имени (например llama3.3:70b уже есть, но на случай новых 70b)
+    key_lower = model_key.lower()
+    if "104b" in key_lower or "104" in key_lower:
+        return {"load_sec": 180, "inference_sec_per_1k": 180, "margin_sec": 120}
+    if "70b" in key_lower or "70" in key_lower:
+        return {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120}
+    if "32b" in key_lower or "32" in key_lower:
+        return {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60}
+    if "3b" in key_lower or "3.8" in key_lower or "4k" in key_lower:
+        return {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30}
+    if "1b" in key_lower or "1.1" in key_lower:
+        return {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20}
+    return MODEL_TIME_ESTIMATES["default"].copy()
+
+
+def get_model_timeout_estimate(
+    model_key: str,
+    max_tokens: int,
+    load_time_actual: Optional[float] = None,
+) -> float:
+    """
+    Оценка полного таймаута запроса: загрузка модели + инференс + запас.
+    load_time_actual — фактическое время последней загрузки (если модель уже в кэше).
+    """
+    est = _get_estimates_for_model(model_key)
+    load = load_time_actual if load_time_actual is not None else est["load_sec"]
+    inference = (max_tokens / 1000.0) * est["inference_sec_per_1k"]
+    total = load + inference + est["margin_sec"]
+    return max(60.0, total)  # минимум 1 минута
+
+
+def _max_queue_wait_timeout() -> float:
+    """Максимальный таймаут ожидания слота: из env или макс по всем моделям (загрузка + инференс 2k + запас)."""
+    env_val = os.getenv("MLX_QUEUE_WAIT_TIMEOUT")
+    if env_val is not None:
+        try:
+            return float(env_val)
+        except ValueError:
+            pass
+    max_sec = 300.0
+    for key in MODEL_TIME_ESTIMATES:
+        t = get_model_timeout_estimate(key, max_tokens=2048, load_time_actual=None)
+        if t > max_sec:
+            max_sec = t
+    return max_sec
+
+
+def _get_queue_wait_timeout() -> float:
+    """Таймаут ожидания слота в middleware (ленивая инициализация)."""
+    global _queue_wait_timeout
+    if _queue_wait_timeout is None:
+        _queue_wait_timeout = _max_queue_wait_timeout()
+        logger.info("⏱️ Таймаут ожидания слота: %s с (модели: загрузка + инференс + запас)", _queue_wait_timeout)
+    return _queue_wait_timeout
+
 
 class GenerateRequest(BaseModel):
     prompt: str
@@ -181,6 +283,20 @@ class AnthropicMessagesRequest(BaseModel):
     max_tokens: Optional[int] = 1024
     temperature: Optional[float] = 0.7
     stream: Optional[bool] = False
+
+
+class ChatMessage(BaseModel):
+    """Сообщение для Ollama Chat API (/api/chat)"""
+    role: str  # "user", "assistant", "system"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Запрос для Ollama Chat API (/api/chat)"""
+    model: str
+    messages: List[ChatMessage]
+    stream: Optional[bool] = False
+    options: Optional[Dict] = None  # temperature, num_predict и др.
 
 
 def check_memory() -> Dict[str, float]:
@@ -564,23 +680,33 @@ async def rate_limit_middleware(request: Request, call_next):
                 content={"error": f"Rate limit exceeded. Max {_rate_limit_max} requests per {_rate_limit_window} seconds"}
             )
         
-        # Проверка concurrent requests
-        if _active_requests >= _max_concurrent_requests:
-            logger.warning(f"⚠️ Превышен лимит параллельных запросов: {_active_requests}/{_max_concurrent_requests}")
-            return JSONResponse(
-                status_code=503,
-                content={"error": f"Server overloaded. Max {_max_concurrent_requests} concurrent requests"}
-            )
-        
-        _active_requests += 1
         _request_times[client_ip].append(now)
     
+    # Health/read-only не занимают слот генерации — иначе при одной долгой генерации 70b все проверки ждут и падают по таймауту
+    path = request.url.path or ""
+    skip_semaphore = path in ("/", "/health", "/api/tags") or path.rstrip("/") in ("", "/health", "/api/tags")
+    
+    if skip_semaphore:
+        return await call_next(request)
+    
+    queue_wait = _get_queue_wait_timeout()
+    try:
+        await asyncio.wait_for(_concurrent_semaphore.acquire(), timeout=queue_wait)
+    except asyncio.TimeoutError:
+        logger.warning(f"⚠️ Ожидание слота превысило {queue_wait}с, отклоняем запрос")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Server overloaded. Waited {int(queue_wait)}s for slot. Max {_max_concurrent_requests} concurrent requests"}
+        )
+    with _request_lock:
+        _active_requests += 1
     try:
         response = await call_next(request)
         return response
     finally:
         with _request_lock:
             _active_requests -= 1
+        _concurrent_semaphore.release()
 
 
 @app.get("/")
@@ -659,6 +785,17 @@ async def generate_text(
     
     logger.debug(f"📥 Запрос на генерацию (приоритет: {request_priority.name}, модель: {request.model})")
     
+    # Оценка таймаута по модели (загрузка + инференс + запас) для очереди и ожидания результата
+    if request.model:
+        _queue_model_key = OLLAMA_TO_MLX_MAP.get(request.model, request.model)
+        if _queue_model_key not in MODEL_PATHS:
+            _queue_model_key = CATEGORY_TO_MODEL.get(request.model, "default")
+    elif request.category:
+        _queue_model_key = CATEGORY_TO_MODEL.get(request.category, "default")
+    else:
+        _queue_model_key = "default"
+    timeout_estimate = get_model_timeout_estimate(_queue_model_key, request.max_tokens, load_time_actual=None)
+    
     # Если очередь доступна, используем её
     if REQUEST_QUEUE_AVAILABLE:
         queue = get_request_queue()
@@ -669,17 +806,19 @@ async def generate_text(
         async def _execute_generation():
             try:
                 result = await _generate_text_internal(request, start_time)
-                result_future.set_result(result)
+                if not result_future.done():
+                    result_future.set_result(result)
                 return result
             except Exception as e:
-                result_future.set_exception(e)
+                if not result_future.done():
+                    result_future.set_exception(e)
                 raise
         
-        # Добавляем в очередь
+        # Добавляем в очередь (таймаут по модели: загрузка + инференс + запас)
         success, request_id, queue_position = await queue.add_request(
             priority=request_priority,
             callback=_execute_generation,
-            timeout=300.0,
+            timeout=timeout_estimate,
             metadata={"model": request.model, "category": request.category}
         )
         
@@ -692,14 +831,13 @@ async def generate_text(
         # Если запрос выполняется сразу (queue_position = 0), ждем результат
         # Если в очереди (queue_position > 0), также ждем результат
         try:
-            # Ждем результат выполнения (с таймаутом)
-            result = await asyncio.wait_for(result_future, timeout=300.0)
+            result = await asyncio.wait_for(result_future, timeout=timeout_estimate)
             return result
         except asyncio.TimeoutError:
-            logger.error(f"❌ Таймаут ожидания результата для запроса {request_id}")
+            logger.error(f"❌ Таймаут ожидания результата для запроса {request_id} (лимит {timeout_estimate:.0f}с)")
             raise HTTPException(
                 status_code=504,
-                detail="Request timeout while waiting in queue"
+                detail=f"Request timeout while waiting in queue (limit {timeout_estimate:.0f}s for this model)"
             )
         except Exception as e:
             logger.error(f"❌ Ошибка выполнения запроса {request_id}: {e}")
@@ -707,6 +845,74 @@ async def generate_text(
     
     # Fallback: прямая обработка (старый способ)
     return await _generate_text_internal(request, start_time)
+
+
+@app.post("/api/chat")
+async def chat(
+    request: ChatRequest,
+    http_request: Request
+):
+    """
+    Ollama Chat API (/api/chat) - совместимость с LocalAIRouter
+    Преобразует messages в prompt и вызывает /api/generate
+    """
+    # Формируем prompt из messages
+    system_parts = []
+    user_parts = []
+    for msg in request.messages:
+        if msg.role == "system":
+            system_parts.append(msg.content)
+        elif msg.role == "user":
+            user_parts.append(msg.content)
+        elif msg.role == "assistant":
+            # Пропускаем assistant messages при формировании промпта
+            pass
+    
+    # Объединяем system и user в один prompt
+    prompt_parts = []
+    if system_parts:
+        prompt_parts.append("\n".join(system_parts))
+    if user_parts:
+        prompt_parts.append("\n".join(user_parts))
+    
+    prompt = "\n\n".join(prompt_parts)
+    
+    # Извлекаем параметры из options
+    temperature = 0.7
+    max_tokens = 512
+    if request.options:
+        temperature = request.options.get("temperature", 0.7)
+        max_tokens = request.options.get("num_predict", 512)
+    
+    # Создаём GenerateRequest
+    gen_request = GenerateRequest(
+        prompt=prompt,
+        model=request.model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        stream=request.stream
+    )
+    
+    # Вызываем /api/generate
+    response = await generate_text(gen_request, http_request)
+    
+    # Преобразуем ответ в формат /api/chat
+    if isinstance(response, dict) and "response" in response:
+        return {
+            "model": request.model,
+            "created_at": response.get("created_at", datetime.now().isoformat()),
+            "message": {
+                "role": "assistant",
+                "content": response["response"]
+            },
+            "done": True
+        }
+    elif isinstance(response, StreamingResponse):
+        # Для stream=true возвращаем StreamingResponse как есть
+        return response
+    else:
+        # Fallback
+        return response
 
 
 async def _generate_text_internal(request: GenerateRequest, start_time: float):
@@ -750,6 +956,13 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 logger.error(f"❌ Ошибка загрузки модели {model_key}: {e}")
                 raise HTTPException(status_code=503, detail=f"Model loading failed: {str(e)}")
             
+            # Таймаут генерации: загрузка (факт или оценка) + инференс по max_tokens + запас
+            gen_timeout = get_model_timeout_estimate(
+                model_key,
+                request.max_tokens,
+                load_time_actual=model_data.get("load_time_seconds"),
+            )
+            
             # КРИТИЧНО: Metal не поддерживает одновременные операции с одним command buffer
             # Сериализуем все операции генерации для одной модели через блокировку
             # Разные модели могут работать параллельно, но одна модель - последовательно
@@ -774,7 +987,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                     
                     response_text = await asyncio.wait_for(
                         loop.run_in_executor(None, generate_with_lock),
-                        timeout=300.0  # 5 минут максимум
+                        timeout=gen_timeout
                     )
                     
                     duration = time.time() - start_time
@@ -786,8 +999,11 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                         "done": True
                     }
                 except asyncio.TimeoutError:
-                    logger.error(f"❌ Таймаут генерации для модели {model_key}")
-                    raise HTTPException(status_code=504, detail="Generation timeout (exceeded 5 minutes)")
+                    logger.error(f"❌ Таймаут генерации для модели {model_key} (лимит {gen_timeout:.0f}с)")
+                    raise HTTPException(
+                        status_code=504,
+                        detail=f"Generation timeout (limit {gen_timeout:.0f}s for this model and max_tokens)"
+                    )
                 except MemoryError as e:
                     logger.error(f"❌ Нехватка памяти при генерации: {e}")
                     # Экстренная очистка при MemoryError
@@ -1107,15 +1323,6 @@ async def preload_models():
     # Финальная проверка памяти
     memory_info = check_memory()
     logger.info(f"📊 Использование памяти после предзагрузки: {memory_info['used_percent']*100:.1f}% ({memory_info['available_gb']:.1f}GB свободно)")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Событие запуска сервера - предзагрузка моделей и фоновая очистка кэша"""
-    asyncio.create_task(preload_models())
-    if _cache_cleanup_interval_sec > 0:
-        asyncio.create_task(periodic_cache_cleanup())
-        logger.info(f"🔄 Периодическая очистка кэша моделей каждые {_cache_cleanup_interval_sec}с (макс {_max_cached_models} в кэше)")
 
 
 if __name__ == "__main__":

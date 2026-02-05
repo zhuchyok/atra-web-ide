@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import logging
 import os
+import uuid
 
 from app.services.victoria import VictoriaClient, get_victoria_client
 from app.services.ollama import OllamaClient, get_ollama_client
@@ -110,9 +111,11 @@ async def get_autocomplete(
 """
         
         # Используем Victoria для генерации автодополнений
+        correlation_id = str(uuid.uuid4())
         result = await victoria.run(
             prompt=prompt,
-            project_context=os.getenv("PROJECT_NAME", "atra-web-ide")
+            project_context=os.getenv("PROJECT_NAME", "atra-web-ide"),
+            correlation_id=correlation_id,
         )
         
         # Парсим ответ

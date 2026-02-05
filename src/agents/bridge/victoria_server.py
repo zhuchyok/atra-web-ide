@@ -33,6 +33,7 @@ from src.agents.core.executor import OllamaExecutor, _ollama_base_url
 from src.agents.tools.system_tools import SystemTools, WebTools
 from src.agents.bridge.task_detector import detect_task_type, should_use_enhanced
 from src.agents.bridge.enhanced_router import delegate_to_veronica
+from src.agents.bridge.project_registry import get_projects_registry, get_main_project
 
 # Интеграция с Knowledge OS (оркестратор, Виктория и сотрудники используют базу знаний)
 # Выключить: USE_KNOWLEDGE_OS=false
@@ -143,6 +144,20 @@ async def lifespan(app: FastAPI):
                     break
         except Exception as e:
             logger.warning(f"⚠️ Ошибка инициализации Victoria Enhanced при старте: {e}")
+    
+    # Предзагрузка команды экспертов из Knowledge OS (чтобы /status показывал experts_count)
+    if USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE:
+        try:
+            await agent._load_expert_team()
+        except Exception as e:
+            logger.warning("Предзагрузка экспертов при старте: %s", e)
+
+    # Реестр проектов: загрузка из БД при старте (кэш для валидации project_context)
+    try:
+        await get_projects_registry()
+        logger.info("Реестр проектов загружен при старте Victoria")
+    except Exception as e:
+        logger.warning("Загрузка реестра проектов при старте: %s", e)
     
     yield
     
@@ -308,12 +323,32 @@ class VictoriaAgent(BaseAgent):
             return None
 
     async def _get_knowledge_context(self, goal: str, limit: int = 5) -> str:
-        """Релевантные знания из Knowledge OS: векторный поиск (RAG+) при наличии эмбеддингов, иначе ILIKE."""
+        """Релевантные знания из Knowledge OS: векторный поиск (RAG+) при наличии эмбеддингов, иначе ILIKE.
+        Длина сниппета настраивается через RAG_SNIPPET_CHARS (по умолчанию 500).
+        Для топ-1 по similarity передаётся полный контент до RAG_TOP1_FULL_MAX_CHARS (0 = отключено)."""
         pool = await self._get_db_pool()
         if not pool:
             return ""
         limit = min(int(os.getenv("RAG_CONTEXT_LIMIT", "5")), limit)
         threshold = float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.6"))
+        snippet_chars = int(os.getenv("RAG_SNIPPET_CHARS", "500"))
+        top1_full_max = int(os.getenv("RAG_TOP1_FULL_MAX_CHARS", "2000"))
+
+        def _format_content(row_content: str, index: int, is_vector: bool, similarity: float) -> str:
+            raw = row_content or ""
+            if not raw:
+                return ""
+            # Топ-1 по релевантности: полный контент до top1_full_max (мировая практика: один полный чанк улучшает ответ)
+            if index == 0 and top1_full_max > 0 and is_vector and similarity >= threshold:
+                use = raw[:top1_full_max]
+                if len(raw) > top1_full_max:
+                    use += "..."
+                return use
+            use = raw[:snippet_chars]
+            if len(raw) > snippet_chars:
+                use += "..."
+            return use
+
         try:
             # RAG+: векторный поиск, если есть эмбеддинг
             embedding = await self._get_embedding_for_rag(goal)
@@ -328,29 +363,34 @@ class VictoriaAgent(BaseAgent):
                     """, str(embedding), limit)
                     if rows:
                         context = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ (RAG) ---\n"
-                        for row in rows:
+                        for i, row in enumerate(rows):
                             if row["similarity"] >= threshold:
-                                content = (row["content"] or "")[:200]
-                                if len((row["content"] or "")) > 200:
-                                    content += "..."
-                                context += f"- {content}\n"
+                                content = _format_content(
+                                    row["content"], i, is_vector=True, similarity=row["similarity"]
+                                )
+                                if content:
+                                    context += f"- {content}\n"
                         if context.count("\n") > 1:
                             return context
-            # Fallback: текстовый поиск
+            # Fallback: текстовый поиск (без similarity — все сниппеты)
             async with pool.acquire() as conn:
                 rows = await conn.fetch("""
                     SELECT content, confidence_score
                     FROM knowledge_nodes
                     WHERE confidence_score > 0.3
                     AND content ILIKE $1
-                    ORDER BY confidence_score DESC, usage_count DESC
+                    ORDER BY confidence_score DESC NULLS LAST, created_at DESC
                     LIMIT $2
                 """, f"%{goal[:50]}%", limit)
                 if rows:
                     context = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ ---\n"
-                    for row in rows:
-                        content = row["content"][:200] if len(row["content"]) > 200 else row["content"]
-                        context += f"- {content}...\n"
+                    for i, row in enumerate(rows):
+                        raw = row["content"] or ""
+                        use = raw[:snippet_chars]
+                        if len(raw) > snippet_chars:
+                            use += "..."
+                        if use:
+                            context += f"- {use}\n"
                     return context
         except Exception as e:
             logger.warning(f"Ошибка поиска знаний: {e}")
@@ -995,11 +1035,13 @@ Q: "покажи файлы в текущей директории" → План
             try:
                 # Формируем system_prompt из executor; передаём модель — роутер попробует MLX и Ollama
                 system_prompt = self.executor.system_prompt
+                # category=None → LocalAIRouter сам определит из промпта (fast/general/reasoning/coding)
+                # Это даёт автовыбор модели из MLX/Ollama в зависимости от сложности запроса
                 result, routing_source = await self.local_router.run_local_llm(
                     prompt=prompt,
                     system_prompt=system_prompt,
-                    category="reasoning",
-                    model=getattr(self.executor, "model", None)  # лучшая из Ollama+MLX
+                    category=None,  # автоопределение как в ai_core и worker
+                    model=getattr(self.executor, "model", None)
                 )
                 if result and routing_source:
                     logger.debug(f"✅ Victoria использовала {routing_source} через LocalAIRouter")
@@ -1093,10 +1135,18 @@ Q: "покажи файлы в текущей директории" → План
                     logger.warning("[MODEL_SELECT]    Доступные Ollama модели: %s", list(ollama_lower_to_exact.keys()))
             
             if not executor_model:
-                executor_model = selection.ollama_best
-                logger.info("[MODEL_SELECT] Используем лучшую Ollama модель: %s", executor_model)
+                # Предпочитаем qwen2.5-coder:32b для executor (качество) или glm-4.7-flash
+                preferred_executor = ["qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
+                for pref in preferred_executor:
+                    if pref.lower() in ollama_lower_to_exact:
+                        executor_model = ollama_lower_to_exact[pref.lower()]
+                        break
+                if not executor_model:
+                    executor_model = selection.ollama_best
+                logger.info("[MODEL_SELECT] Используем Ollama модель для executor: %s", executor_model)
             
-            # Planner model
+            # Planner model - используем БЫСТРУЮ модель для плпланирования!
+            # Это критично для отзывчивости Victoria
             planner_model = None
             if env_planner:
                 if env_planner.strip().lower() in ollama_lower_to_exact:
@@ -1106,7 +1156,15 @@ Q: "покажи файлы в текущей директории" → План
                     logger.warning("[MODEL_SELECT] ⚠️ VICTORIA_PLANNER_MODEL='%s' НЕ НАЙДЕНА в Ollama!", env_planner)
             
             if not planner_model:
-                planner_model = executor_model  # По умолчанию та же что и executor
+                # Предпочитаем БЫСТРУЮ модель для planner (отзывчивость важнее качества для планирования)
+                preferred_planner = ["phi3.5:3.8b", "glm-4.7-flash:q8_0", "tinyllama:1.1b-chat"]
+                for pref in preferred_planner:
+                    if pref.lower() in ollama_lower_to_exact:
+                        planner_model = ollama_lower_to_exact[pref.lower()]
+                        logger.info("[MODEL_SELECT] Используем быструю модель для planner: %s", planner_model)
+                        break
+                if not planner_model:
+                    planner_model = executor_model  # Fallback на executor
             
             # Применяем выбранные модели
             if executor_model:
@@ -1328,6 +1386,49 @@ def _strip_internal_monologue(text: str) -> str:
             "Попробуйте переформулировать вопрос короче (например: «что ты умеешь?», «перечисли свои возможности»)."
         )
     return s
+
+
+async def _try_corporation_data_quick_response(goal: str, correlation_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Если goal — вопрос о данных (метрики Mac Studio, корпорация), сразу отвечаем через corporation_data_tool.
+    Используется до выбора enhanced/agent, чтобы не упираться в лимит 500 шагов на старом агенте.
+    """
+    if not (goal or "").strip():
+        return None
+    ko_paths = [
+        "/app/knowledge_os",
+        os.path.normpath(os.path.join(os.path.dirname(__file__), "../../../knowledge_os")),
+    ]
+    for ko_root in ko_paths:
+        if not os.path.exists(ko_root) and not ko_root.startswith("/app"):
+            continue
+        if ko_root not in sys.path:
+            sys.path.insert(0, ko_root)
+        app_path = os.path.join(ko_root, "app")
+        if app_path not in sys.path:
+            sys.path.insert(0, app_path)
+        try:
+            from app.corporation_data_tool import is_data_question, query_corporation_data, _extract_latest_user_message
+            q = _extract_latest_user_message(goal) or goal
+            if not is_data_question(goal) and not is_data_question(q):
+                return None
+            logger.info("[CORP_DATA] Ранний ответ через corporation_data_tool (goal=%s...)", (goal or "")[:60])
+            corp_result = await query_corporation_data(q)
+            answer = corp_result.get("answer") or ""
+            if not answer:
+                return None
+            knowledge = {
+                "method": "simple",
+                "metadata": {"source": "corporation_data_tool", "fast_mode": True},
+                "correlation_id": correlation_id,
+            }
+            return {"output": answer, "knowledge": knowledge}
+        except ImportError:
+            continue
+        except Exception as e:
+            logger.warning("[CORP_DATA] corporation_data_tool: %s", e)
+            return None
+    return None
 
 
 def _normalize_output_for_user(raw: Any) -> str:
@@ -1615,6 +1716,42 @@ async def _record_orchestration_task_start(agent, goal: str, orchestrator_versio
         return None
 
 
+async def _get_session_context_from_db(session_id: str, goal: str) -> str:
+    """Подмешивание session_context при user_id/session_id (мировая практика: контекст диалога).
+    session_context_manager берёт последние запросы из БД (knowledge_os.session_context).
+    Возвращает пустую строку при недоступности или ошибке."""
+    if not session_id or not goal:
+        return ""
+    try:
+        ko_paths = [
+            os.path.normpath(os.path.join(os.path.dirname(__file__), "../../../knowledge_os")),
+            "/app/knowledge_os",
+        ]
+        for ko_root in ko_paths:
+            if not os.path.exists(ko_root) and not ko_root.startswith("/app"):
+                continue
+            app_path = os.path.join(ko_root, "app")
+            for p in (app_path, ko_root):
+                if p not in sys.path:
+                    sys.path.insert(0, p)
+            try:
+                from app.session_context_manager import get_session_context_manager
+                mgr = get_session_context_manager()
+                ctx = await mgr.get_session_context(
+                    user_id=session_id,  # session_id используется как user_id для lookup
+                    expert_name="Виктория",
+                    current_query=goal,
+                )
+                if ctx:
+                    logger.debug("📝 [SESSION_CONTEXT] Добавлен контекст сессии из БД (%d символов)", len(ctx))
+                return ctx or ""
+            except ImportError:
+                continue
+    except Exception as e:
+        logger.debug("Session context fetch: %s", e)
+    return ""
+
+
 async def _record_orchestration_task_complete(
     agent,
     knowledge_os_task_id: Optional[str],
@@ -1652,6 +1789,7 @@ async def _run_task_background(
     correlation_id: Optional[str] = None,
     task_type: Optional[str] = None,
     max_steps: Optional[int] = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """Фоновое выполнение задачи (202 + polling). Результат пишется в _run_task_store[task_id]."""
     if max_steps is None:
@@ -1662,6 +1800,15 @@ async def _run_task_background(
     if store and correlation_id:
         store["correlation_id"] = correlation_id
     if not store:
+        return
+    # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
+    quick_data = await _try_corporation_data_quick_response(goal, correlation_id)
+    if quick_data:
+        store["status"] = "completed"
+        store["output"] = quick_data["output"]
+        store["knowledge"] = quick_data.get("knowledge", {})
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=corporation_data_tool", task_id)
         return
     knowledge_os_task_id = None
     orchestration_plan_bg = None
@@ -1682,7 +1829,7 @@ async def _run_task_background(
                 try:
                     from app.task_orchestration.integration_bridge import IntegrationBridge
                     bridge = IntegrationBridge()
-                    bridge_result = await bridge.process_task(goal)
+                    bridge_result = await bridge.process_task(goal, project_context=project_context)
                     version = bridge_result.get("orchestrator", "existing")
                     knowledge_os_task_id = await _record_orchestration_task_start(agent, goal, version)
                     if knowledge_os_task_id:
@@ -1767,6 +1914,10 @@ async def _run_task_background(
                     for msg in chat_history[-30:]
                 ])
                 context_with_history["chat_history"] = history_text
+            elif session_id:
+                session_ctx = await _get_session_context_from_db(session_id, goal)
+                if session_ctx:
+                    context_with_history["chat_history"] = session_ctx
             if orchestration_context_bg:
                 context_with_history["orchestrator_plan"] = orchestration_context_bg
             goal_for_enhanced_bg = _sanitize_goal_for_prompt(goal)
@@ -1931,42 +2082,24 @@ async def run_task(
     logger.info("[REQUEST] Current executor model: %s", getattr(agent.executor, 'model', 'unknown'))
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, 'model', 'unknown'))
     
-    # Определяем контекст проекта
-    project_context = body.project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")
-    main_project = os.getenv("MAIN_PROJECT", "atra-web-ide")
-    
-    # ✅ SECURITY: Валидация project_context (предотвращение prompt injection)
-    # Whitelist разрешенных проектов
-    ALLOWED_PROJECTS = os.getenv("ALLOWED_PROJECTS", "atra-web-ide,atra").split(",")
-    if project_context not in ALLOWED_PROJECTS:
+    # Определяем контекст проекта (реестр из БД с fallback на env/hardcoded)
+    main_project = get_main_project()
+    project_context = body.project_context or main_project
+    allowed_list, project_configs = await get_projects_registry()
+    if project_context not in allowed_list:
         logger.warning(f"⚠️ Invalid project_context: {project_context}, using default: {main_project}")
         project_context = main_project
-    
-    # ✅ SECURITY: Deterministic mapping (не отправляем user input напрямую в промпт)
-    PROJECT_CONFIGS = {
-        "atra-web-ide": {
-            "name": "ATRA Web IDE",
-            "description": "Браузерная оболочка для ИИ-корпорации",
-            "workspace": "/workspace/atra-web-ide"
-        },
-        "atra": {
-            "name": "ATRA Trading System",
-            "description": "Торговая система с ИИ-агентами",
-            "workspace": "/workspace/atra"
-        }
-    }
-    
-    # Получаем безопасную конфигурацию проекта
-    project_config = PROJECT_CONFIGS.get(project_context, PROJECT_CONFIGS[main_project])
+    project_config = project_configs.get(project_context, project_configs.get(main_project, {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"}))
+    main_config = project_configs.get(main_project, project_config)
     
     # Обновляем системный промпт с безопасным контекстом проекта
     project_prompt = f"""
 🏢 КОНТЕКСТ ПРОЕКТА: {project_config['name']}
-🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {PROJECT_CONFIGS[main_project]['name']}
+🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config['name']}
 
 ВАЖНО:
 - Ты работаешь в контексте проекта: {project_config['name']}
-- Основной проект корпорации: {PROJECT_CONFIGS[main_project]['name']}
+- Основной проект корпорации: {main_config['name']}
 - Все файлы, команды и операции должны быть в контексте проекта {project_config['name']}
 - При работе с файлами используй пути относительно корня проекта
 
@@ -2015,6 +2148,7 @@ async def run_task(
             correlation_id=correlation_id,
             task_type=_task_type_for_async,
             max_steps=_max_steps,
+            session_id=body.session_id,
         ))
         logger.info("[VICTORIA_CYCLE] async 202 task_id=%s status_url=/run/status/%s", task_id, task_id)
         return JSONResponse(
@@ -2025,6 +2159,17 @@ async def run_task(
                 "status_url": f"/run/status/{task_id}",
                 "message": "Задача принята, выполняется в фоне. Опрашивайте status_url до status=completed.",
             },
+        )
+    
+    # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
+    quick_data = await _try_corporation_data_quick_response(body.goal, correlation_id)
+    if quick_data:
+        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=corporation_data_tool", correlation_id[:8])
+        return TaskResponse(
+            status="success",
+            output=quick_data["output"],
+            knowledge=quick_data.get("knowledge"),
+            correlation_id=correlation_id,
         )
     
     # Понимание цели и проверка неоднозначности (уточняющие вопросы)
@@ -2061,7 +2206,7 @@ async def run_task(
                 try:
                     from app.task_orchestration.integration_bridge import IntegrationBridge
                     bridge = IntegrationBridge()
-                    bridge_result = await bridge.process_task(restated_goal)
+                    bridge_result = await bridge.process_task(restated_goal, project_context=project_context)
                     version = bridge_result.get("orchestrator", "existing")
                     knowledge_os_task_id = await _record_orchestration_task_start(agent, restated_goal, version)
                     orchestration_plan = bridge_result  # Сохраняем план и назначения для использования при выполнении
@@ -2168,6 +2313,11 @@ async def run_task(
                             ])
                             context_with_history["chat_history"] = history_text
                             logger.debug(f"📝 Передана история чата ({len(body.chat_history)} сообщений)")
+                        elif body.session_id:
+                            # Подмешивание session_context при session_id без chat_history (Telegram, скрипты)
+                            session_ctx = await _get_session_context_from_db(body.session_id, restated_goal)
+                            if session_ctx:
+                                context_with_history["chat_history"] = session_ctx
                         if orchestration_context_str:
                             context_with_history["orchestrator_plan"] = orchestration_context_str
                         
@@ -2357,6 +2507,12 @@ async def plan_only(request: PlanRequest):
 
 @app.get("/status")
 async def get_status():
+    # При первом запросе к /status подгрузить экспертов, если ещё не загружены (БД могла быть недоступна при старте)
+    if USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE and not agent._expert_team_loaded:
+        try:
+            await agent._load_expert_team()
+        except Exception:
+            pass
     # Получить статистику экспертов из БД
     experts_stats = {
         "total": len(agent.expert_team),

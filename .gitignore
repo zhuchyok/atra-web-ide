@@ -53,5 +53,18 @@ feedback.db
 # Large AI learning data (exceeds GitHub 100MB)
 knowledge_os/ai_learning_data/
 
+# Rust / C build artifacts
+target/
+*.o
+*.rlib
+*.dylib
+*.a
+
+# Backup / temp (мировая практика: не коммитить)
+*.backup
+*.bak
+*.swp
+*.tmp
+
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/

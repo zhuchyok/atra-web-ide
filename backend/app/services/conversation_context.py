@@ -128,6 +128,25 @@ class ConversationContextManager:
             return ""
         return "Предыдущий диалог:\n" + "\n".join(lines) + "\n\n"
 
+    def to_victoria_chat_history(self, messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        """Конвертирует [{"role", "content"}] в формат Victoria [{"user", "assistant"}]."""
+        if not messages:
+            return []
+        out: List[Dict[str, str]] = []
+        current: Dict[str, str] = {}
+        for m in messages:
+            role = m.get("role", "user")
+            content = (m.get("content") or "").strip()
+            if role == "user":
+                if current.get("assistant"):
+                    out.append(current)
+                current = {"user": content, "assistant": ""}
+            else:
+                current["assistant"] = content
+        if current.get("user") or current.get("assistant"):
+            out.append(current)
+        return out
+
     async def clear(self, session_id: str) -> None:
         """Очистить историю сессии."""
         if not session_id:

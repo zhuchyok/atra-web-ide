@@ -47,6 +47,8 @@ MLX_PORT=${MLX_API_PORT:-11435}
 # Rate limit: реже 429 (по умолчанию 150 запросов / 90 с)
 export MLX_RATE_LIMIT_MAX=${MLX_RATE_LIMIT_MAX:-150}
 export MLX_RATE_LIMIT_WINDOW=${MLX_RATE_LIMIT_WINDOW:-90}
+# Параллелизм: 1 — снижает Metal OOM (Insufficient Memory) при тяжёлых промптах
+export MLX_MAX_CONCURRENT=${MLX_MAX_CONCURRENT:-1}
 
 # Проверка, не запущен ли уже
 if lsof -ti:$MLX_PORT >/dev/null 2>&1; then

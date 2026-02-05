@@ -72,9 +72,9 @@ def test_login_user(client):
 
 
 def test_protected_endpoint_without_token(client):
-    """Test accessing protected endpoint without token"""
+    """Test accessing protected endpoint without token (401 Unauthorized — нет токена)."""
     response = client.get("/stats")
-    assert response.status_code == 403  # Forbidden
+    assert response.status_code == 401  # Unauthorized: отсутствует или невалиден токен
 
 
 def test_protected_endpoint_with_token(client):
@@ -107,4 +107,16 @@ def test_protected_endpoint_with_token(client):
         
         # Может быть 200 (успех) или 500 (если БД не настроена)
         assert response.status_code in [200, 500]
+
+
+def test_list_projects(client):
+    """GET /api/projects returns list of projects (200, array)."""
+    response = client.get("/api/projects")
+    # 200 when DB available; 500 if DB not configured (e.g. in CI without DB)
+    assert response.status_code in [200, 500]
+    if response.status_code == 200:
+        data = response.json()
+        assert isinstance(data, list)
+        for item in data:
+            assert "slug" in item and "name" in item
 

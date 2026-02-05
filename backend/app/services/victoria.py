@@ -6,6 +6,7 @@ Retry logic, timeout handling, error recovery
 import httpx
 import asyncio
 import os
+import uuid
 from typing import AsyncGenerator, Optional
 import logging
 import json
@@ -78,7 +79,10 @@ class VictoriaClient:
         prompt: str, 
         expert_name: Optional[str] = None,
         stream: bool = False,
-        project_context: Optional[str] = None
+        project_context: Optional[str] = None,
+        session_id: Optional[str] = None,
+        chat_history: Optional[list] = None,
+        correlation_id: Optional[str] = None,
     ) -> dict:
         """
         Выполнить задачу через Victoria
@@ -88,6 +92,9 @@ class VictoriaClient:
             expert_name: Имя эксперта (опционально)
             stream: Использовать стриминг
             project_context: Контекст проекта (atra-web-ide, atra, и т.д.)
+            session_id: ID сессии для session_context (мировая практика: связный диалог)
+            chat_history: История чата [{"user": "...", "assistant": "..."}] для Victoria
+            correlation_id: ID для трассировки (чат → Victoria → Veronica). Передаётся в X-Correlation-ID.
         
         Returns:
             Результат выполнения
@@ -101,11 +108,15 @@ class VictoriaClient:
                     "max_steps": 500,  # Limit steps for chat responses
                     "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),  # Контекст проекта
                 }
-                
-                response = await client.post(
-                    f"{self.base_url}/run",
-                    json=payload
-                )
+                if session_id:
+                    payload["session_id"] = session_id
+                if chat_history:
+                    payload["chat_history"] = chat_history[-30:]  # Последние 30 пар
+                req_kw = {"json": payload}
+                if correlation_id:
+                    req_kw["headers"] = {"X-Correlation-ID": correlation_id}
+                    logger.info("[VICTORIA_CYCLE] correlation_id=%s", correlation_id[:8])
+                response = await client.post(f"{self.base_url}/run", **req_kw)
                 response.raise_for_status()
                 data = response.json()
                 logger.info("[VICTORIA_CYCLE] client response status=%s output_len=%s",
@@ -141,36 +152,42 @@ class VictoriaClient:
             }
     
     async def run_stream(
-        self, 
-        prompt: str, 
-        expert_name: Optional[str] = None
+        self,
+        prompt: str,
+        expert_name: Optional[str] = None,
+        project_context: Optional[str] = None,
+        session_id: Optional[str] = None,
+        chat_history: Optional[list] = None,
+        correlation_id: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """
-        Стриминг ответа от Victoria
-        
-        Yields:
-            Части ответа в формате SSE
+        Стриминг ответа от Victoria.
+        Контракт Victoria POST /run: body.goal (не prompt), project_context, session_id, chat_history опционально.
         """
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             payload = {
-                "prompt": prompt,
-                "stream": True
+                "goal": prompt,  # Victoria API ожидает goal
+                "stream": True,
+                "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),
             }
             if expert_name:
                 payload["expert_name"] = expert_name
-            
+            if session_id:
+                payload["session_id"] = session_id
+            if chat_history:
+                payload["chat_history"] = chat_history[-30:]
+            stream_kw = {"json": payload}
+            if correlation_id:
+                stream_kw["headers"] = {"X-Correlation-ID": correlation_id}
+
             try:
-                async with client.stream(
-                    "POST",
-                    f"{self.base_url}/run",
-                    json=payload
-                ) as response:
+                async with client.stream("POST", f"{self.base_url}/run", **stream_kw) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         if line:
                             yield line
             except httpx.HTTPError as e:
-                logger.error(f"Victoria stream error: {e}")
+                logger.error("Victoria stream error: %s", e)
                 yield json.dumps({"error": str(e)})
     
     async def status(self) -> dict:

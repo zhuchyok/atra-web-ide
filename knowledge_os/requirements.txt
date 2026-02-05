@@ -16,6 +16,8 @@ numpy>=2.0.2
 requests>=2.31.0
 aiohttp>=3.13.2
 httpx>=0.28.1
+# Быстрый JSON в горячих путях (кэш, эмбеддинги); fallback — stdlib json
+orjson>=3.9.0
 urllib3<2
 aiofiles>=23.2.1
 
@@ -62,3 +64,6 @@ watchdog>=3.0.0
 moondream>=0.1.0
 moondream-station>=0.1.0
 Pillow>=10.0.0
+
+# Веб-поиск: Veronica, researcher, scout (duckduckgo_search — без API-ключа)
+duckduckgo-search>=6.0.0

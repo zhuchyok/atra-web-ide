@@ -159,6 +159,12 @@ class AnomalyDetector:
         self.request_history.append((current_time, prompt_hash))
         self.request_counts[identifier] += 1
         
+        # ВАЖНО: Запросы от worker/экспертов (tasks) НИКОГДА не блокируем
+        # Иначе все задачи уходят в deferred_to_human
+        if metadata and metadata.get('expert_name'):
+            logger.debug(f"🔄 [ANOMALY] Пропуск проверок для эксперта: {metadata.get('expert_name')}")
+            return False, None
+        
         alerts = []
         
         # 1. Проверка на инъекции
@@ -176,8 +182,24 @@ class AnomalyDetector:
             return True, alert
         
         # 2. Проверка на повторяющиеся промпты (brute force)
+        # ИСКЛЮЧЕНИЕ: Внутренние системные запросы (worker, эксперты) НИКОГДА не блокируются
+        _internal_categories = {'task_processing', 'research', 'internal', 'autonomous_worker', 'orchestrator', 'planning', 'execution', 'synthesis', 'report', 'architecture'}
+        is_internal_request = (
+            (metadata and (
+                metadata.get('expert_name') or  # Запрос от эксперта (Ирина, Виктория, etc.)
+                metadata.get('category') in _internal_categories or
+                (isinstance(metadata.get('category'), str) and (metadata.get('category') or '').startswith('task_'))
+            )) or
+            (identifier and (
+                identifier.startswith('worker_') or
+                identifier.startswith('expert_') or
+                identifier.startswith('Виктория_') or  # ai_core: expert_name_timestamp
+                identifier == 'unknown'
+            ))
+        )
+        
         is_repeated, repeat_count = self.detect_repeated_prompts(prompt)
-        if is_repeated:
+        if is_repeated and not is_internal_request:
             alert = AnomalyAlert(
                 anomaly_type="brute_force",
                 severity="high",
@@ -188,6 +210,9 @@ class AnomalyDetector:
             alerts.append(alert)
             await self._log_anomaly(alert)
             return True, alert
+        elif is_repeated and is_internal_request:
+            # Логируем, но не блокируем внутренние запросы
+            logger.debug(f"🔄 [ANOMALY] Пропускаем внутренний запрос (repeat_count={repeat_count})")
         
         # 3. Проверка на резкий рост запросов (DDoS)
         is_rate_spike, request_count = self.detect_rate_spike(identifier, time_window=60)

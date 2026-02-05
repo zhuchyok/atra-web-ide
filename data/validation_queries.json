@@ -314,30 +314,6 @@
       "source": "synthetic_variation"
     },
     {
-      "id": "merged_30",
-      "query": "напишут одностраничный сайт по пластиковым окнам современный и наполнят его сео",
-      "reference": null,
-      "context_expected": [],
-      "source": "logs",
-      "frequency": 224
-    },
-    {
-      "id": "merged_31",
-      "query": "qwen2.5-coder:32b",
-      "reference": null,
-      "context_expected": [],
-      "source": "logs",
-      "frequency": 37
-    },
-    {
-      "id": "merged_32",
-      "query": "phi3.5:3.8b",
-      "reference": null,
-      "context_expected": [],
-      "source": "logs",
-      "frequency": 34
-    },
-    {
       "id": "v1_var1_var1",
       "query": "какая стоимость стоит тариф",
       "reference": "Стоимость подписки составляет 999 рублей в месяц. Доступна пробная версия на 14 дней.",

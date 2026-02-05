@@ -62,10 +62,9 @@ class VisionProcessor:
         self.moondream_station_enabled = MOONDREAM_STATION_ENABLED
         self.moondream_client = None
         
-        # Fallback узлы (Ollama)
+        # Fallback узлы (Ollama на Mac Studio)
         self.fallback_nodes = [
-            {"name": "MacBook", "url": MAC_LLM_URL, "priority": 1},
-            {"name": "Server", "url": SERVER_LLM_URL, "priority": 2}
+            {"name": "Mac Studio (Ollama)", "url": MAC_LLM_URL, "priority": 1}
         ]
         self.model = VISION_MODEL
         

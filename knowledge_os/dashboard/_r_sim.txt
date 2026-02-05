@@ -1,0 +1,303 @@
+def _render_simulator():
+        with st.form("simulation_form"):
+            idea = st.text_area("Опишите вашу идею или стратегию для анализа:", placeholder="Например: Запуск нового SaaS для автоматизации юристов на базе нашей Knowledge OS")
+            project_sim = st.selectbox("Проект", ["— Не указан / внутренняя —"] + _get_project_slugs(), key="sim_project")
+            submit = st.form_submit_button("Запустить Симуляцию Совета Директоров")
+            if submit and idea:
+                project_ctx_sim = None if project_sim == "— Не указан / внутренняя —" else project_sim
+                # Вставляем идею и получаем ID
+                sim_id = None
+                with get_db_connection() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("INSERT INTO simulations (idea) VALUES (%s) RETURNING id", (idea,))
+                        row = cur.fetchone()
+                        if row:
+                            sim_id = row['id']
+                        conn.commit()
+            
+                if sim_id is None:
+                    st.error("❌ Не удалось создать запись симуляции в БД.")
+                else:
+                    # Запускаем скрипт симуляции в фоне через docker exec (путь в контейнере knowledge_os_worker)
+                    try:
+                        result = subprocess.run(
+                            ["docker", "exec", "-d", "knowledge_os_worker",
+                             "python3", "/app/knowledge_os/app/simulator.py", str(sim_id)],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if result.returncode == 0:
+                            st.success(f"✅ Симуляция #{sim_id} запущена. Результат появится ниже через 1-2 минуты.")
+                        else:
+                            st.warning(f"⚠️ Запуск симуляции: {result.stderr or 'неизвестно'}")
+                            try:
+                                conn = get_db_connection()
+                                with conn.cursor() as cur:
+                                    cur.execute("""
+                                        INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata, project_context)
+                                        SELECT %s, %s, 'pending',
+                                            (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
+                                            (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
+                                            %s, %s
+                                        WHERE EXISTS (SELECT 1 FROM experts WHERE name = 'Виктория')
+                                    """, (f"🚀 Симуляция бизнес-идеи #{sim_id}", f"Провести симуляцию бизнес-идеи: {idea}", json.dumps({"source": "dashboard_simulator", "simulation_id": sim_id, "idea": idea}), project_ctx_sim))
+                                    conn.commit()
+                                st.info("📋 Задача создана в системе. Виктория обработает её автоматически.")
+                            except Exception as e:
+                                st.error(f"❌ Ошибка создания задачи: {e}")
+                    except FileNotFoundError:
+                        try:
+                            conn = get_db_connection()
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata, project_context)
+                                    SELECT %s, %s, 'pending',
+                                        (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
+                                        (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
+                                        %s, %s
+                                    WHERE EXISTS (SELECT 1 FROM experts WHERE name = 'Виктория')
+                                """, (f"🚀 Симуляция бизнес-идеи #{sim_id}", f"Провести симуляцию бизнес-идеи: {idea}", json.dumps({"source": "dashboard_simulator", "simulation_id": sim_id, "idea": idea}), project_ctx_sim))
+                                conn.commit()
+                            st.success("✅ Задача создана в системе. Виктория обработает её автоматически через worker.")
+                        except Exception as e:
+                            st.error(f"❌ Ошибка создания задачи: {e}")
+                    except Exception as e:
+                        st.error(f"❌ Ошибка запуска симуляции: {e}")
+
+        st.markdown("---")
+        st.subheader("История Симуляций")
+        st.caption("💡 Вы можете удалить ненужные симуляции, нажав кнопку 🗑️ Удалить")
+    
+        # Функция удаления симуляции
+        def delete_simulation(sim_id: int):
+            """Удаляет симуляцию из базы данных"""
+            try:
+                conn = get_db_connection()
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM simulations WHERE id = %s", (sim_id,))
+                    conn.commit()
+                return True
+            except Exception as e:
+                st.error(f"❌ Ошибка удаления симуляции: {e}")
+                return False
+    
+        history = fetch_data("SELECT id, idea, result, created_at FROM simulations ORDER BY created_at DESC LIMIT 10")
+        if history:
+            for sim in history:
+                sim_id = sim.get('id', 'N/A')
+                sim_date = sim.get('created_at', datetime.now())
+                if isinstance(sim_date, datetime):
+                    sim_date_str = sim_date.strftime('%d.%m %H:%M')
+                else:
+                    sim_date_str = str(sim_date)
+                sim_idea = sim.get('idea', 'Нет описания')
+                sim_result = sim.get('result')
+                # Если в симуляции нет результата — проверяем связанную задачу (task мог завершиться, а simulations.result не обновился)
+                if not sim_result and sim_id != 'N/A':
+                    task_for_sim = fetch_data(
+                        "SELECT result FROM tasks WHERE status = 'completed' AND metadata->>'simulation_id' = %s ORDER BY updated_at DESC LIMIT 1",
+                        (str(sim_id),)
+                    )
+                    if task_for_sim and task_for_sim[0].get('result'):
+                        sim_result = task_for_sim[0]['result']
+                        # Синхронизируем в simulations, чтобы в следующий раз результат был уже в БД
+                        try:
+                            conn = get_db_connection()
+                            with conn.cursor() as cur:
+                                cur.execute("UPDATE simulations SET result = %s WHERE id = %s AND (result IS NULL OR result = '')", (sim_result, sim_id))
+                                conn.commit()
+                        except Exception:
+                            pass
+                if not sim_result:
+                    sim_result = None
+            
+                # Создаем уникальный ключ для кнопки удаления
+                delete_key = f"delete_sim_{sim_id}"
+            
+                with st.expander(f"📌 #{sim_id} | {sim_date_str} | {sim_idea[:50]}..."):
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        st.markdown(f"**Идея:** {sim_idea}")
+                        if sim_result:
+                            st.markdown(f"**Результат:**\n{sim_result}")
+                        else:
+                            st.info("⌛ Симуляция еще выполняется или не завершена. Проверьте вкладку «Задачи» — если задача завершена, результат подтянется при обновлении.")
+                    with col2:
+                        if st.button("🗑️ Удалить", key=delete_key, type="secondary", use_container_width=True):
+                            if delete_simulation(sim_id):
+                                st.success("✅ Симуляция удалена")
+                                st.rerun()
+                            else:
+                                st.error("❌ Не удалось удалить симуляцию")
+        else:
+            st.info("Пока нет симуляций")
+
+        # 📈 ФИНАНСЫ ИИ (улучшенная версия)
+        with tabs[1]:
+        st.subheader("📈 Финансовый Учет Интеллекта (Knowledge P&L)")
+    
+        # Метрики вверху (оптимизированные запросы)
+        finance_metrics = fetch_data("""
+            SELECT 
+                COUNT(*) as total_experts,
+                COUNT(*) FILTER (WHERE virtual_budget IS NOT NULL) as experts_with_budget,
+                SUM(virtual_budget) as total_budget,
+                AVG(performance_score) as avg_performance
+            FROM experts
+        """)
+    
+        if finance_metrics and finance_metrics[0]:
+            fm = finance_metrics[0]
+            metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+            with metrics_col1:
+                st.metric("👥 Всего экспертов", f"{fm['total_experts']}")
+            with metrics_col2:
+                st.metric("💰 С бюджетом", f"{fm['experts_with_budget']}")
+            with metrics_col3:
+                st.metric("💵 Общий бюджет", f"${fm['total_budget']:.2f}" if fm['total_budget'] else "$0.00")
+            with metrics_col4:
+                st.metric("⭐ Средняя производительность", f"{fm['avg_performance']:.2f}" if fm['avg_performance'] else "N/A")
+    
+        st.markdown("---")
+    
+        # Визуализации
+        exp_finance = fetch_data("SELECT name, department, virtual_budget, performance_score FROM experts WHERE virtual_budget IS NOT NULL ORDER BY virtual_budget DESC")
+        if exp_finance:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.markdown("### 💰 Бюджеты Департаментов")
+                dept_budgets = pd.DataFrame(exp_finance).groupby('department')['virtual_budget'].sum().reset_index()
+                dept_budgets = dept_budgets.sort_values('virtual_budget', ascending=False)
+                fig_dept = px.bar(
+                    dept_budgets, x='department', y='virtual_budget', 
+                    color='virtual_budget',
+                    template="plotly_dark",
+                    labels={'department': 'Департамент', 'virtual_budget': 'Бюджет ($)'},
+                    color_continuous_scale='Viridis'
+                )
+                fig_dept.update_layout(xaxis_tickangle=-45, height=400)
+                st.plotly_chart(fig_dept, use_container_width=True)
+        
+            with col2:
+                st.markdown("### 🏆 Топ Прибыльных Экспертов")
+                df_finance = pd.DataFrame(exp_finance)
+                df_finance['ROI'] = (df_finance['virtual_budget'] * df_finance['performance_score']).round(2)
+                df_finance = df_finance.sort_values('ROI', ascending=False).head(20)
+            
+                # Интерактивная таблица
+                st.dataframe(
+                    df_finance[['name', 'department', 'virtual_budget', 'performance_score', 'ROI']].rename(columns={
+                        'name': 'Эксперт',
+                        'department': 'Департамент',
+                        'virtual_budget': 'Бюджет',
+                        'performance_score': 'Производительность',
+                        'ROI': 'ROI'
+                    }),
+                    hide_index=True,
+                    use_container_width=True
+                )
+            
+                # График производительности
+                fig_perf = px.scatter(
+                    df_finance.head(15), x='virtual_budget', y='performance_score',
+                    size='ROI', hover_data=['name', 'department'],
+                    title="📊 Бюджет vs Производительность",
+                    template="plotly_dark",
+                    labels={'virtual_budget': 'Бюджет ($)', 'performance_score': 'Производительность'}
+                )
+                st.plotly_chart(fig_perf, use_container_width=True)
+
+        # 📡 РАДАР (Hypothesis 4)
+        with tabs[2]:
+        st.subheader("📡 Интеллектуальный Радар Аномалий")
+        anomalies = fetch_data("SELECT description, severity, status, created_at FROM anomalies ORDER BY created_at DESC LIMIT 20")
+        if anomalies:
+            for anom in anomalies:
+                color = "#f38ba8" if anom.get('severity') == 'high' else "#fab387"
+                created_at = anom.get('created_at')
+                anom_created_str = created_at.strftime('%d.%m %H:%M') if hasattr(created_at, 'strftime') else (str(created_at)[:16] if created_at else 'N/A')
+                st.markdown(f"""
+                    <div style="background: #161b22; border-left: 5px solid {color}; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                        <span style="float: right; color: #8b949e; font-size: 12px;">{anom_created_str}</span>
+                        <div style="color: {color}; font-weight: 800; font-size: 14px; text-transform: uppercase;">КРИТИЧНОСТЬ: {anom.get('severity', 'N/A')}</div>
+                        <div style="color: #c9d1d9; margin-top: 5px;">{anom.get('description') or ''}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.success("✅ Аномалий не обнаружено. Радар чист.")
+
+        # 🕵️ РЕКРУТИНГ (Singularity 3.0)
+        with tabs[3]:
+        st.subheader("🕵️ Автономный Рекрутинг Экспертов")
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Обновить", key="refresh_autonomous_recruiting"):
+                st.cache_data.clear()
+                st.rerun()
+        hired_experts = fetch_data("""
+            SELECT name, role, department, metadata->>'hired_at' as hired_at 
+            FROM experts 
+            WHERE metadata->>'is_autonomous' = 'true'
+            ORDER BY created_at DESC
+        """)
+        if hired_experts:
+            for exp in hired_experts:
+                st.markdown(f"""
+                    <div class="premium-card">
+                        <span class="domain-badge">{exp['department']}</span>
+                        <div class="expert-header">👤 {exp['name']}</div>
+                        <div class="expert-role">{exp['role']}</div>
+                        <div style="font-size: 11px; color: #8b949e;">Нанят автономно: {exp['hired_at']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Пока не было автономных наймов.")
+
+        # 🛡️ ИММУНИТЕТ (Singularity 3.0)
+        with tabs[4]:
+        st.subheader("🛡️ Иммунитет: Результаты Стресс-Тестов")
+        attacks = fetch_data("""
+            SELECT LEFT(content, 300) as content, expert_consensus->>'adversarial_attack' as attack, 
+                   metadata->>'survived' as survived, confidence_score
+            FROM knowledge_nodes 
+            WHERE metadata->>'adversarial_tested' = 'true'
+            ORDER BY created_at DESC LIMIT 15
+        """)
+        for at in attacks:
+            survived = at.get('survived') == 'true'
+            status = "✅ ВЫДЕРЖАЛО" if survived else "💀 УНИЧТОЖЕНО"
+            color = "#a6e3a1" if survived else "#f38ba8"
+            content_preview = (at.get('content') or '')[:150]
+            st.markdown(f"""
+                <div style="background: #0d1117; border-left: 5px solid {color}; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
+                    <div style="color: {color}; font-weight: 800;">{status} (Score: {at.get('confidence_score', 'N/A')})</div>
+                    <div style="color: #c9d1d9; font-size: 14px; margin-top: 5px;"><b>Знание:</b> {content_preview}{'...' if len(at.get('content') or '') > 150 else ''}</div>
+                    <div style="color: #8b949e; font-size: 13px; margin-top: 5px; font-style: italic;"><b>Атака:</b> {at.get('attack') or 'N/A'}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # 🎭 АУДИТ КОДА (Singularity 3.0)
+        with tabs[5]:
+        st.subheader("🎭 Когнитивное Зеркало: Аудит Системы")
+        show_completed = st.checkbox("Показать завершённые", value=False, key="audit_show_completed")
+        status_filter = "" if show_completed else "AND status NOT IN ('completed', 'cancelled')"
+        audit_tasks = fetch_data(f"""
+            SELECT title, description, metadata->>'severity' as severity, status
+            FROM tasks 
+            WHERE metadata->>'source' = 'code_auditor' {status_filter}
+            ORDER BY created_at DESC LIMIT 10
+        """)
+        for task in audit_tasks:
+            color = "#f38ba8" if task['severity'] == 'high' else "#fab387" if task['severity'] == 'medium' else "#94e2d5"
+            st.markdown(f"""
+                <div style="background: #11111b; border: 1px solid {color}; padding: 15px; border-radius: 10px; margin-bottom: 10px;">
+                    <span style="color: {color}; font-weight: 800; float: right;">{task['severity'].upper()}</span>
+                    <div style="font-weight: 700; color: #cdd6f4;">{task['title']}</div>
+                    <div style="font-size: 14px; color: #c9d1d9; margin-top: 8px;">{task['description']}</div>
+                    <div style="font-size: 12px; color: #8b949e; margin-top: 5px;">Статус: {task['status']}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # 📢 МАРКЕТИНГ (Новый отдел)
+

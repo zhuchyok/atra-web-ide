@@ -71,9 +71,9 @@ async def evolve_experts():
             await conn.execute("""
                 UPDATE experts 
                 SET system_prompt = $1, version = version + 1, 
-                    metadata = metadata || jsonb_build_object('last_evolution', NOW(), 'prev_prompt', $2)
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_evolution', NOW()::text, 'prev_prompt', $2::text)
                 WHERE id = $3
-            """, new_prompt, exp['system_prompt'], exp['id'])
+            """, new_prompt, str(exp['system_prompt']) if exp.get('system_prompt') else '', exp['id'])
             print(f"✨ Expert {exp['name']} mutated to v{exp['version'] + 1}")
             
             # Сохраняем событие эволюции

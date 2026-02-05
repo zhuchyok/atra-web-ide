@@ -13,11 +13,14 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import numpy as np
 
-# Import database connection from evaluator
+# Единый пул БД (при миграции на Rust — замена в db_pool.py)
 try:
-    from evaluator import get_pool
+    from db_pool import get_pool
 except ImportError:
-    get_pool = None
+    try:
+        from evaluator import get_pool
+    except ImportError:
+        get_pool = None
 
 logger = logging.getLogger(__name__)
 
@@ -68,20 +71,32 @@ class ContextAnalyzer:
                 return self._simple_relevance(context, query)
             
             # Разбиваем контекст на части (по абзацам или предложениям)
-            parts = self._split_context(context)
-            
-            # Вычисляем релевантность каждой части
+            parts = [p for p in self._split_context(context) if p.strip()]
+            if not parts:
+                return []
+
+            # Батч эмбеддингов: параллельно получаем эмбеддинги всех частей (ограничиваем конкурентность)
+            max_concurrent = 10
+            sem = asyncio.Semaphore(max_concurrent)
+
+            async def embed_one(part: str):
+                async with sem:
+                    return await get_embedding(part)
+
+            part_embeddings = await asyncio.gather(*[embed_one(part) for part in parts], return_exceptions=True)
+
+            # Собираем релевантные части по similarity
             relevant_parts = []
-            for part in parts:
-                if not part.strip():
+            for part, part_emb in zip(parts, part_embeddings):
+                if isinstance(part_emb, Exception):
+                    logger.debug("Embedding for part failed: %s", part_emb)
                     continue
-                
-                part_embedding = await get_embedding(part)
-                if part_embedding:
-                    similarity = self._cosine_similarity(query_embedding, part_embedding)
-                    if similarity >= self.relevance_threshold:
-                        relevant_parts.append((part, similarity))
-            
+                if not part_emb:
+                    continue
+                similarity = self._cosine_similarity(query_embedding, part_emb)
+                if similarity >= self.relevance_threshold:
+                    relevant_parts.append((part, similarity))
+
             # Сортируем по релевантности
             relevant_parts.sort(key=lambda x: x[1], reverse=True)
             

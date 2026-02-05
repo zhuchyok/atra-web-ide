@@ -1,13 +1,14 @@
+# folder: "Knowledge OS" — дашборды отображаются в левой панели в папке "Knowledge OS" (оркестрация, агенты, обзор)
 apiVersion: 1
 
 providers:
-  - name: 'ATRA Dashboards'
+  - name: 'Knowledge OS'
     orgId: 1
-    folder: ''
+    folder: 'Knowledge OS'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards
-      foldersFromFilesStructure: true
+      foldersFromFilesStructure: false

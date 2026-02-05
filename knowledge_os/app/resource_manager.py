@@ -15,7 +15,9 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
     rd = None
     redis_urls = [
         os.getenv('REDIS_URL'),
-        'redis://knowledge_redis:6379',
+        'redis://redis:6379',              # имя сервиса в knowledge_os compose
+        'redis://knowledge_os_redis:6379', # контейнер atra-web-ide
+        'redis://knowledge_redis:6379',    # контейнер atra (отдельный проект)
         'redis://atra-redis:6379',
         'redis://localhost:6379',
     ]

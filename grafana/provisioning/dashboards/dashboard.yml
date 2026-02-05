@@ -1,10 +1,11 @@
 # Grafana provisioning: дашборды (День 5)
+# folder: "Web IDE" — дашборды отображаются в левой панели в папке "Web IDE" (мировая практика: группировка по источнику)
 apiVersion: 1
 
 providers:
-  - name: "default"
+  - name: "Web IDE"
     orgId: 1
-    folder: ""
+    folder: "Web IDE"
     type: file
     disableDeletion: false
     editable: true

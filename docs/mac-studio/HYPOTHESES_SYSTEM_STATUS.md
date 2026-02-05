@@ -33,7 +33,14 @@
 
 ---
 
-## ⚠️ ОБСУЖДЕНИЕ (ДЕБАТЫ): ЧАСТИЧНО РАБОТАЕТ
+## ✅ ОБСУЖДЕНИЕ (ДЕБАТЫ): ГИПОТЕЗЫ → ДЕБАТЫ
+
+### **Новая цепочка (2026-02):**
+При создании гипотезы она автоматически отправляется в дебаты:
+1. **Cross-Domain Linker** (Enhanced, Streaming, plain Orchestrator) → `create_debate_for_hypothesis()` → `run_expert_council()` → `expert_discussions`
+2. **Expert Council** `save_hypotheses()` → `create_debate_for_hypothesis()` → `run_expert_council()` → `expert_discussions`
+
+Debate Processor обрабатывает `expert_discussions` и создаёт задачи при consensus_score >= 0.5.
 
 ### **Debate Processor:**
 - **Статус:** ✅ Реализован, но **НЕ ЗАПУЩЕН автоматически**

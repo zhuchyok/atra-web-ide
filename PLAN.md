@@ -163,7 +163,7 @@ bash .mac_studio_auto_start
 
 ## 🧠 АКТУАЛЬНЫЕ МОДЕЛИ OLLAMA/MLX (29.01.2026)
 
-**Статус:** ✅ MLX API Server работает на порту **11435** (приоритет над Ollama)  
+**Статус:** ✅ MLX API Server настроен на порту **11435** (приоритет над Ollama). *Живая проверка:* `bash scripts/check_local_models.sh` или `curl -s http://localhost:11435/health` — если порт не отвечает, задачи идут только в Ollama.  
 **Расположение MLX моделей:** `~/mlx-models/`  
 **Victoria Enhanced:** Использует MLX API Server с приоритетом, fallback на Ollama (11434)  
 **Vision модели:** Moondream Station (MLX, порт 2020) → Ollama (moondream/llava:7b) → Fallback

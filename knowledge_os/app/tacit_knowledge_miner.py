@@ -315,13 +315,12 @@ class TacitKnowledgeMiner:
     
     def _create_fallback_vector(self, preferences: Dict[str, any]) -> List[float]:
         """Создает простой вектор на основе предпочтений (fallback)"""
-        # Простое хеширование предпочтений в вектор размером 384 (стандартный размер embedding)
-        vector = [0.0] * 384
+        # Размер 768 = nomic-embed-text; knowledge_nodes.embedding vector(768)
+        vector = [0.0] * 768
         style_text = self._create_style_text(preferences)
         
-        # Хешируем строку в числа и распределяем по вектору
         for i, char in enumerate(style_text):
-            idx = (i * ord(char)) % 384
+            idx = (i * ord(char)) % 768
             vector[idx] += ord(char) / 1000.0
         
         # Нормализуем вектор

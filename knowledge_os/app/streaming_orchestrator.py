@@ -22,6 +22,14 @@ sys.path.insert(0, '/root/knowledge_os/src')
 
 import asyncpg
 
+try:
+    from task_dedup import same_task_for_expert_in_last_n_days
+except ImportError:
+    try:
+        from app.task_dedup import same_task_for_expert_in_last_n_days
+    except ImportError:
+        same_task_for_expert_in_last_n_days = None
+
 from infrastructure.streaming import (
     EventProducer,
     EventConsumer,
@@ -278,6 +286,17 @@ class StreamingOrchestrator:
                 )
             
             logger.info(f"💡 Created cross-domain insight: {node['domain']} ↔ {random_node['domain']}")
+
+            # Отправка гипотезы в дебаты для обсуждения экспертами
+            try:
+                from nightly_learner import create_debate_for_hypothesis
+                async with pool.acquire() as conn:
+                    await create_debate_for_hypothesis(
+                        conn, knowledge_id, f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
+                        node['domain_id']
+                    )
+            except Exception as db_err:
+                logger.debug("Hypothesis debate skip: %s", db_err)
         
         # Помечаем как обработанный
         await pool.execute("""
@@ -336,20 +355,32 @@ class StreamingOrchestrator:
                 f"Проведи глубокое исследование новых технологий и трендов 2026 "
                 f"в области {desert['name']}. Найди 3 прорывных инсайта."
             )
-            
+            title_curiosity = f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}"
+
             # Находим эксперта
             assignee = await pool.fetchrow(
                 "SELECT id, name FROM experts WHERE department = $1 ORDER BY RANDOM() LIMIT 1",
                 desert['name']
             )
-            
+
             if assignee and victoria_id:
+                # Дедупликация: та же задача (title+description) для того же эксперта не чаще раза в 30 дней
+                if same_task_for_expert_in_last_n_days:
+                    async with pool.acquire() as conn:
+                        if await same_task_for_expert_in_last_n_days(
+                            conn, title_curiosity, curiosity_task, assignee['id'], days=30
+                        ):
+                            logger.info(
+                                "⏭️ Skip duplicate: same research task for %s (%s) in last 30 days",
+                                assignee['name'], desert['name']
+                            )
+                            continue
                 task_id = await pool.fetchval("""
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
                     RETURNING id
                 """,
-                    f"🔥 СРОЧНОЕ ИССЛЕДОВАНИЕ: {desert['name']}",
+                    title_curiosity,
                     curiosity_task,
                     assignee['id'],
                     victoria_id,

@@ -466,8 +466,24 @@ class ReActAgent:
                 prompt += f"   Действие: {step.action}\n"
             if step.observation:
                 prompt += f"   Наблюдение: {step.observation[:150]}\n"
-        
-        prompt += """
+
+        # Рефлексия при ошибках: явно просим проанализировать и попробовать другой подход
+        last_obs = (steps[-1].observation or "") if steps else ""
+        has_error = (
+            "Error:" in last_obs or "ошибка" in last_obs.lower() or "не удалось" in last_obs.lower()
+            or "требуется одобрение" in last_obs.lower()
+        )
+        if has_error:
+            prompt += """
+
+ВНИМАНИЕ: Последнее действие вернуло ошибку. Проанализируй причину:
+1. Что пошло не так?
+2. Какой другой подход можно попробовать?
+3. Нужно ли прочитать файл/каталог перед записью, выбрать другой путь или скорректировать действие?
+
+ТВОЯ РЕФЛЕКСИЯ (с предложением исправления):"""
+        else:
+            prompt += """
 
 ПРОАНАЛИЗИРУЙ прогресс и реши:
 1. Достигнута ли цель?
@@ -802,11 +818,30 @@ class ReActAgent:
                     content = str(content)
 
                 # Approval check для критичных файлов (AGENT_APPROVAL_REQUIRED=true)
+                # Интеграция HITL: request_approval создаёт запрос для будущего UI; агент получает понятное сообщение
                 try:
                     from app.approval_manager import requires_approval_for_write, is_approval_required
                     if is_approval_required():
                         need, reason = requires_approval_for_write(file_path)
                         if need:
+                            # Создаём запрос на одобрение (HITL) для UI/Telegram
+                            try:
+                                from app.human_in_the_loop import get_hitl
+                                hitl = get_hitl()
+                                req = await hitl.request_approval(
+                                    action=action,
+                                    description=f"Запись в {file_path}: {len(content)} символов",
+                                    agent_name=self.agent_name,
+                                    proposed_result={"file_path": file_path, "content_preview": content[:200]},
+                                    context={"reason": reason, "critical_file": True},
+                                )
+                                return (
+                                    f"Error: {reason} Требуется одобрение пользователя. "
+                                    f"Запрос создан: {req.request_id}. "
+                                    f"(Можно попробовать другой путь или отключить: AGENT_APPROVAL_REQUIRED=false)"
+                                )
+                            except Exception as hitl_err:
+                                logger.debug("HITL request_approval: %s", hitl_err)
                             return (
                                 f"Error: {reason} требует подтверждения пользователя. "
                                 f"(Отключить: AGENT_APPROVAL_REQUIRED=false)"

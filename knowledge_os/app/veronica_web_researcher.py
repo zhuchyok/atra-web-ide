@@ -20,20 +20,30 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Config
-MAC_LLM_URL = os.getenv('MAC_LLM_URL', 'http://localhost:11434')
-SERVER_LLM_URL = os.getenv('SERVER_LLM_URL', 'http://localhost:11434')
+# Config: в Docker используем host.docker.internal
+_is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+if _is_docker:
+    _default_ollama = os.getenv('OLLAMA_API_URL') or os.getenv('OLLAMA_BASE_URL') or 'http://host.docker.internal:11434'
+    _default_mlx = os.getenv('MLX_API_URL') or 'http://host.docker.internal:11435'
+else:
+    _default_ollama = os.getenv('MAC_LLM_URL') or os.getenv('OLLAMA_API_URL') or 'http://localhost:11434'
+    _default_mlx = os.getenv('MLX_API_URL') or 'http://localhost:11435'
+
+MAC_LLM_URL = os.getenv('MAC_LLM_URL') or _default_ollama
+SERVER_LLM_URL = os.getenv('SERVER_LLM_URL') or os.getenv('OLLAMA_API_URL') or _default_ollama
 
 class VeronicaWebResearcher:
     """
     Вероника: Локальная модель с возможностью веб-поиска.
-    Работает без токенов, используя локальные модели на MacBook/Server.
+    Работает без токенов, используя локальные модели на Mac Studio.
     """
     
     def __init__(self):
+        ollama_url = MAC_LLM_URL or SERVER_LLM_URL or _default_ollama
+        mlx_url = os.getenv('MLX_API_URL') or _default_mlx
         self.nodes = [
-            {"name": "MacBook (Normal)", "url": MAC_LLM_URL, "priority": 1},
-            {"name": "Server (Light)", "url": SERVER_LLM_URL, "priority": 2}
+            {"name": "Mac Studio (Ollama)", "url": ollama_url, "priority": 1},
+            {"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 2}
         ]
     
     async def web_search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:

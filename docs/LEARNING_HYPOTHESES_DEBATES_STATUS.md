@@ -35,7 +35,7 @@
 
 - **Где:**
   - Cross-Domain Linker (в Enhanced/Streaming Orchestrator) — пишет в `knowledge_nodes` с `metadata->>'source' = 'cross_domain_linker'`
-  - Streaming Orchestrator — обработка событий INSIGHT_HYPOTHESIS, создание задач на валидацию
+  - При создании гипотезы вызывается `create_debate_for_hypothesis()` → гипотеза отправляется в дебаты (`expert_discussions`)
   - Research Lab — гипотезы по макро-данным (DXY), логи в `research/hypotheses_log.json`
   - Expert Council Discussion — `generate_hypotheses()`, `save_hypotheses()` в `knowledge_nodes` с `metadata->>'type' = 'hypothesis'`
 - **Автозапуск:** оркестраторы не в docker-compose. Запуск вручную/скриптами:

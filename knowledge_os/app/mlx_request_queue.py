@@ -22,15 +22,15 @@ class RequestPriority(Enum):
     LOW = 3       # Фоновые задачи
 
 
-@dataclass
+@dataclass(order=True)
 class QueuedRequest:
     """Запрос в очереди"""
-    request_id: str
-    priority: RequestPriority
-    callback: Callable
-    created_at: datetime
-    timeout: float = 300.0  # 5 минут по умолчанию
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    priority: RequestPriority = field(compare=True)
+    created_at: datetime = field(compare=True)
+    request_id: str = field(compare=False)
+    callback: Callable = field(compare=False, default=None)
+    timeout: float = field(compare=False, default=300.0)
+    metadata: Dict[str, Any] = field(compare=False, default_factory=dict)
     
     def is_expired(self) -> bool:
         """Проверить, истек ли таймаут"""

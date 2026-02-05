@@ -152,7 +152,11 @@ async def _evolve_prompts_from_insights(conn: asyncpg.Connection) -> bool:
         title = "Prompt evolution from top insights"
         description = f"Apply these verified insights to expert prompts:\n\n{insight_summary[:2000]}"
 
-        metadata = json.dumps({"source": "knowledge_applicator", "insights_count": len(rows)})
+        metadata = json.dumps({
+            "source": "knowledge_applicator",
+            "insights_count": len(rows),
+            "assignee_hint": "Prompt Engineer",
+        })
         await conn.execute("""
             INSERT INTO tasks (title, description, status, priority, metadata)
             VALUES ($1, $2, 'pending', 'medium', $3::jsonb)

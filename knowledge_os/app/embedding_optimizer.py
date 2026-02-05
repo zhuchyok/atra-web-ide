@@ -16,6 +16,20 @@ logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 
+# Rust-ускорение: нормализация + хэш для ключей кэша (опционально)
+try:
+    from cache_normalizer import (
+        normalize_and_hash as _rust_normalize_and_hash,
+        normalize_text as _rust_normalize_text,
+        normalize_and_hash_batch as _rust_normalize_and_hash_batch,
+    )
+    _USE_RUST_NORMALIZER = True
+except ImportError:
+    _USE_RUST_NORMALIZER = False
+    _rust_normalize_and_hash = None
+    _rust_normalize_text = None
+    _rust_normalize_and_hash_batch = None
+
 class EmbeddingOptimizer:
     """
     Оптимизация эмбеддингов через кэширование и batch-обработку.
@@ -36,67 +50,69 @@ class EmbeddingOptimizer:
     
     def _normalize_text(self, text: str) -> str:
         """Нормализует текст для кэширования (убирает лишние пробелы, приводит к нижнему регистру)"""
+        if _USE_RUST_NORMALIZER and _rust_normalize_text:
+            return _rust_normalize_text(text)
         return ' '.join(text.lower().split())
     
     def _get_text_hash(self, text: str) -> str:
-        """Получает хэш нормализованного текста"""
+        """Получает хэш нормализованного текста (Rust при наличии, иначе Python)"""
+        if _USE_RUST_NORMALIZER:
+            return _rust_normalize_and_hash(text)
         normalized = self._normalize_text(text)
         return hashlib.md5(normalized.encode()).hexdigest()
-    
-    async def get_cached_embedding(self, text: str) -> Optional[List[float]]:
-        """
-        Получает эмбеддинг из кэша (память -> БД).
-        
-        Args:
-            text: Текст для получения эмбеддинга
-        
-        Returns:
-            Эмбеддинг или None
-        """
-        text_hash = self._get_text_hash(text)
-        
-        # Проверяем in-memory кэш
+
+    def _get_text_hashes_batch(self, texts: List[str]) -> List[str]:
+        """Батч хэшей: один вызов Rust при наличии, иначе N вызовов Python (меньше переходов Python↔Rust)."""
+        if _USE_RUST_NORMALIZER and _rust_normalize_and_hash_batch is not None:
+            return _rust_normalize_and_hash_batch(texts)
+        return [self._get_text_hash(t) for t in texts]
+
+    async def _get_cached_embedding_by_hash(self, text_hash: str) -> Optional[List[float]]:
+        """Получает эмбеддинг из кэша по уже вычисленному хэшу (память -> БД)."""
         if text_hash in self._memory_cache:
-            logger.debug(f"✅ [EMBEDDING CACHE] Memory hit for: {text[:50]}...")
             return self._memory_cache[text_hash]
-        
-        # Проверяем БД кэш
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                # Проверяем наличие таблицы embedding_cache
                 table_exists = await conn.fetchval("""
                     SELECT EXISTS (
                         SELECT 1 FROM information_schema.tables 
                         WHERE table_name = 'embedding_cache'
                     )
                 """)
-                
                 if not table_exists:
                     return None
-                
-                row = await conn.fetchrow("""
-                    SELECT embedding
-                    FROM embedding_cache
-                    WHERE text_hash = $1
-                """, text_hash)
-                
+                row = await conn.fetchrow(
+                    "SELECT embedding FROM embedding_cache WHERE text_hash = $1", text_hash
+                )
                 if row:
-                    embedding = row['embedding']
-                    # Сохраняем в memory cache
+                    embedding = row["embedding"]
                     if len(self._memory_cache) >= self._cache_size:
-                        # Удаляем старые (FIFO)
                         oldest_key = next(iter(self._memory_cache))
                         del self._memory_cache[oldest_key]
                     self._memory_cache[text_hash] = embedding
-                    logger.debug(f"✅ [EMBEDDING CACHE] DB hit for: {text[:50]}...")
                     return embedding
             finally:
                 await conn.close()
         except Exception as e:
             logger.debug(f"⚠️ [EMBEDDING CACHE] DB lookup failed: {e}")
-        
         return None
+
+    async def get_cached_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        Получает эмбеддинг из кэша (память -> БД).
+
+        Args:
+            text: Текст для получения эмбеддинга
+
+        Returns:
+            Эмбеддинг или None
+        """
+        text_hash = self._get_text_hash(text)
+        cached = await self._get_cached_embedding_by_hash(text_hash)
+        if cached:
+            logger.debug(f"✅ [EMBEDDING CACHE] Hit for: {text[:50]}...")
+        return cached
     
     async def save_embedding(self, text: str, embedding: List[float]):
         """
@@ -163,10 +179,10 @@ class EmbeddingOptimizer:
         results = []
         texts_to_compute = []
         indices_to_compute = []
-        
-        # Проверяем кэш для каждого текста
-        for i, text in enumerate(texts):
-            cached = await self.get_cached_embedding(text)
+        # Один вызов батча для всех хэшей (Rust при наличии — меньше переходов Python↔Rust)
+        hashes = self._get_text_hashes_batch(texts)
+        for i, (text, text_hash) in enumerate(zip(texts, hashes)):
+            cached = await self._get_cached_embedding_by_hash(text_hash)
             if cached:
                 results.append((i, cached))
             else:

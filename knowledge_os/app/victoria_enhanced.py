@@ -635,6 +635,37 @@ class VictoriaEnhanced:
             # Определяем категорию задачи (нужно для делегирования)
             category = self._categorize_task(goal)
             
+            # Ранняя проверка: вопросы о данных корпорации и метриках Mac Studio — сразу через corporation_data_tool
+            try:
+                from app.corporation_data_tool import is_data_question, query_corporation_data, _extract_latest_user_message
+                goal_for_data = _extract_latest_user_message(goal)
+                if is_data_question(goal) or is_data_question(goal_for_data):
+                    logger.info(f"📊 [CORP DATA] Ранний маршрут: вопрос о данных/метриках — '{goal_for_data[:80]}...'")
+                    corp_result = await query_corporation_data(goal_for_data)
+                    if corp_result.get("success") and corp_result.get("answer"):
+                        logger.info(f"✅ [CORP DATA] Ответ через corporation_data_tool (метрики/корпорация)")
+                        return {
+                            "result": corp_result["answer"],
+                            "method": "simple",
+                            "metadata": {
+                                "source": "corporation_data_tool",
+                                "sql": corp_result.get("sql"),
+                                "count": corp_result.get("count"),
+                                "fast_mode": True,
+                            },
+                        }
+                    elif corp_result.get("answer"):
+                        # Ответ есть (например текст ошибки) — возвращаем его
+                        return {
+                            "result": corp_result["answer"],
+                            "method": "simple",
+                            "metadata": {"source": "corporation_data_tool", "fast_mode": True},
+                        }
+            except ImportError:
+                logger.debug("corporation_data_tool не импортирован")
+            except Exception as e:
+                logger.warning(f"corporation_data_tool (ранний маршрут): {e}", exc_info=True)
+            
             # Проверяем, нужно ли делегировать через Department Heads (мировые практики)
             should_use_department_heads, dept_info = await self._should_use_department_heads(goal, category)
             if should_use_department_heads:
@@ -1056,21 +1087,46 @@ class VictoriaEnhanced:
                     pass
             
             # Извлекаем JSON промпт (с улучшенной обработкой ошибок)
+            # Мировая практика: LLM часто возвращает почти-валидный JSON (trailing comma, \n в строках)
             import json
             import re
+
+            def _try_parse_llm_json(s: str) -> dict | None:
+                """Пробуем распарсить JSON из ответа LLM с исправлением типичных ошибок."""
+                if not s or not s.strip():
+                    return None
+                # 1. Базовая попытка
+                try:
+                    return json.loads(s)
+                except json.JSONDecodeError:
+                    pass
+                # 2. Исправляем trailing comma перед ] или }
+                fixed = re.sub(r',\s*([}\]])', r'\1', s)
+                try:
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    pass
+                # 3. Убираем markdown code fences если есть
+                cleaned = re.sub(r'^```(?:json)?\s*', '', s.strip())
+                cleaned = re.sub(r'\s*```$', '', cleaned)
+                try:
+                    return json.loads(cleaned)
+                except json.JSONDecodeError:
+                    pass
+                return None
+
             json_match = re.search(r'\{.*\}', thinking_result, re.DOTALL)
             if json_match:
                 try:
-                    # Пробуем распарсить JSON с обработкой ошибок
                     json_str = json_match.group()
-                    # Исправляем частые проблемы с JSON
-                    json_str = json_str.replace('\n', ' ').replace('\r', ' ')
-                    # Убираем лишние пробелы
-                    json_str = re.sub(r'\s+', ' ', json_str)
-                    
-                    prompt_data = json.loads(json_str)
+                    prompt_data = _try_parse_llm_json(json_str)
+                    if not prompt_data:
+                        prompt_data = _try_parse_llm_json(
+                            json_str.replace('\n', ' ').replace('\r', ' ').strip()
+                        )
                     # Формируем текстовый план (task_plan) для Task Distribution
-                    task_plan_text = f"""ЗАДАЧА ОТ VICTORIA:
+                    if prompt_data:
+                        task_plan_text = f"""ЗАДАЧА ОТ VICTORIA:
 
 {prompt_data.get('task_description', goal)}
 
@@ -1078,9 +1134,22 @@ class VictoriaEnhanced:
 
 ПОДЗАДАЧИ:
 """
-                except json.JSONDecodeError as json_err:
-                    logger.warning(f"⚠️ [VICTORIA THINKING] Не удалось распарсить JSON: {json_err}")
-                    logger.debug(f"   JSON строка (первые 500 символов): {json_str[:500]}")
+                    else:
+                        logger.warning("⚠️ [VICTORIA THINKING] Не удалось распарсить JSON из ответа LLM")
+                        logger.debug(f"   JSON строка (первые 500 символов): {json_str[:500]}")
+                        task_plan_text = f"""ЗАДАЧА ОТ VICTORIA:
+
+{goal}
+
+АНАЛИЗ ЗАДАЧИ (от Victoria):
+{thinking_result[:2000]}
+
+{structure_summary}
+
+ПОДЗАДАЧИ:
+"""
+                except Exception as parse_err:
+                    logger.warning(f"⚠️ [VICTORIA THINKING] Ошибка парсинга JSON: {parse_err}")
                     prompt_data = None
                     task_plan_text = f"""ЗАДАЧА ОТ VICTORIA:
 
@@ -1093,7 +1162,7 @@ class VictoriaEnhanced:
 
 ПОДЗАДАЧИ:
 """
-                
+
                 # Логируем план (task_plan) для Task Distribution
                 try:
                     from app.task_trace_hooks import log_prompt
@@ -1105,7 +1174,7 @@ class VictoriaEnhanced:
                     )
                 except ImportError:
                     pass
-                for i, subtask in enumerate(prompt_data.get('subtasks', []), 1):
+                for i, subtask in enumerate((prompt_data or {}).get('subtasks', []), 1):
                     recommended_models = subtask.get('recommended_models', [])
                     model_selection = subtask.get('model_selection', 'expert_choice')
                     model_hint = ""
@@ -1127,13 +1196,14 @@ class VictoriaEnhanced:
    - Требования: {subtask.get('requirements', 'N/A')}{model_hint}
 """
                 task_plan_text += f"""
-КОНТЕКСТ: {prompt_data.get('context', 'N/A')}
+КОНТЕКСТ: {(prompt_data or {}).get('context', 'N/A')}
 
-ОЖИДАЕМЫЙ РЕЗУЛЬТАТ: {prompt_data.get('expected_result', 'N/A')}
+ОЖИДАЕМЫЙ РЕЗУЛЬТАТ: {(prompt_data or {}).get('expected_result', 'N/A')}
 
 ТВОЯ ЗАДАЧА: Распредели подзадачи по отделам/департаментам/сотрудникам и координируй выполнение.
 """
-                logger.info(f"✅ [VICTORIA THINKING] План (task_plan) создан ({len(task_plan_text)} символов, структура JSON есть)")
+                has_struct = prompt_data is not None and bool((prompt_data or {}).get('subtasks'))
+                logger.info(f"✅ [VICTORIA THINKING] План (task_plan) создан ({len(task_plan_text)} символов, task_plan_struct={has_struct})")
                 return task_plan_text, prompt_data
             else:
                 # Fallback: простой план
@@ -1663,9 +1733,30 @@ class VictoriaEnhanced:
                 )
             return fallback
     
+    def _is_simple_veronica_request(self, goal: str) -> bool:
+        """
+        Запрос — одношаговое действие (показать/вывести/прочитать).
+        Только такие при PREFER_EXPERTS_FIRST идут в Veronica; остальные — Victoria/эксперты.
+        Согласовано с task_detector.VERONICA_SIMPLE_KEYWORDS и docs/VERONICA_REAL_ROLE.md.
+        """
+        if not goal or len(goal.strip()) > 120:
+            return False
+        goal_lower = goal.lower().strip()
+        simple = [
+            "покажи файлы", "выведи список файлов", "список файлов", "покажи список",
+            "прочитай файл", "покажи файл", "содержимое файла", "выведи содержимое",
+        ]
+        if any(kw in goal_lower for kw in simple):
+            return True
+        if len(goal_lower) <= 50 and ("покажи" in goal_lower or "выведи" in goal_lower or "список" in goal_lower):
+            return True
+        return False
+
     async def _should_delegate_task(self, goal: str, category: Optional[str] = None) -> Tuple[bool, Dict]:
         """
-        Определить, нужно ли делегировать задачу другому агенту
+        Определить, нужно ли делегировать задачу другому агенту.
+        При PREFER_EXPERTS_FIRST=true в Veronica идут только простые одношаговые запросы;
+        «сделай», «напиши код», «создай API» остаются в Victoria/экспертах (docs/VERONICA_REAL_ROLE.md).
         
         Returns:
             (should_delegate, delegation_info)
@@ -1675,20 +1766,31 @@ class VictoriaEnhanced:
             return False, {}
         
         try:
+            prefer_experts_first = os.getenv("PREFER_EXPERTS_FIRST", "true").lower() in ("true", "1", "yes")
+            if prefer_experts_first and not self._is_simple_veronica_request(goal):
+                logger.debug("🔍 PREFER_EXPERTS_FIRST: задача не одношаговая → остаётся Victoria/эксперты")
+                return False, {}
+
             # Анализируем задачу
             requirements = self.task_delegator.analyze_task(goal)
             logger.debug(f"🔍 Анализ задачи: requirements={requirements}")
             
             # Определяем, нужно ли делегировать
             # Victoria выполняет сама: planning, coordination, reasoning, code_analysis
-            # Veronica выполняет: execution, file_operations, research, system_admin
+            # Veronica — только простые одношаговые (уже отфильтровано выше при PREFER_EXPERTS_FIRST)
             
             required_capabilities = requirements.get("required_capabilities", [])
             logger.debug(f"🔍 Требуемые способности: {required_capabilities}")
             
-            # Если задача требует execution, file_operations, research, system_admin - делегируем Veronica
-            veronica_capabilities = ["execution", "file_operations", "research", "system_admin"]
-            matching_caps = [cap for cap in veronica_capabilities if cap in required_capabilities]
+            # Если задача требует execution, file_operations и т.д. (enum AgentCapability)
+            from app.task_delegation import AgentCapability
+            veronica_cap_set = {
+                AgentCapability.EXECUTION,
+                AgentCapability.FILE_OPERATIONS,
+                AgentCapability.RESEARCH,
+                AgentCapability.SYSTEM_ADMIN,
+            }
+            matching_caps = [c for c in required_capabilities if c in veronica_cap_set]
             if matching_caps:
                 logger.info(f"📋 Найдены способности Вероники: {matching_caps}")
                 return True, {
@@ -1697,7 +1799,7 @@ class VictoriaEnhanced:
                     "capabilities": matching_caps
                 }
             
-            # Если задача простая execution/file_operation - делегируем Veronica
+            # Простые ключевые слова для Вероники (одно действие)
             goal_lower = goal.lower()
             veronica_keywords = [
                 "создай файл", "create file", "прочитай файл", "read file",

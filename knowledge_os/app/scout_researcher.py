@@ -33,7 +33,7 @@ async def get_embedding(text: str) -> List[float]:
             return response.json()["embedding"]
         except (httpx.HTTPError, KeyError, ValueError) as e:
             logger.error("VectorCore error: %s", e)
-            return [0.0] * 384
+            return [0.0] * 768  # nomic-embed-text; knowledge_nodes.embedding vector(768)
 
 
 async def get_pool():

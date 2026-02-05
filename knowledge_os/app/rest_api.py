@@ -7,6 +7,7 @@ REST API для внешних систем
 - Документация через OpenAPI/Swagger
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,10 +25,26 @@ _app_dir = os.path.dirname(os.path.abspath(__file__))
 if _app_dir not in sys.path:
     sys.path.insert(0, _app_dir)
 
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Startup: миграции. Shutdown: закрыть общий HTTP-клиент (мировая практика: lifespan вместо on_event)."""
+    await _ensure_orchestrator_version_migration()
+    await _ensure_projects_table_migration()
+    await _ensure_project_context_on_tasks_migration()
+    yield
+    try:
+        from http_client import close_http_client
+        await close_http_client()
+    except Exception:
+        pass
+
+
 app = FastAPI(
     title="Knowledge OS REST API",
     description="REST API для интеграции с Knowledge OS",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=_lifespan,
 )
 
 # CORS
@@ -41,6 +58,11 @@ app.add_middleware(
 
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 API_KEY = os.getenv('API_KEY', 'your-secret-api-key')
+
+# Единый пул БД (при переходе на Rust — замена в db_pool.py)
+async def _get_db():
+    from db_pool import get_pool
+    return await get_pool()
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 security = HTTPBearer()
@@ -115,29 +137,102 @@ class LogInteractionRequest(BaseModel):
     source: str = "web_ide"
 
 
+class BoardConsultRequest(BaseModel):
+    """Запрос на консультацию Совета Директоров"""
+    question: str
+    session_id: Optional[str] = None
+    user_id: Optional[str] = None
+    correlation_id: Optional[str] = None
+    source: Optional[str] = "api"  # chat | api | nightly | dashboard
+
+
+class BoardConsultResponse(BaseModel):
+    """Ответ от Совета Директоров"""
+    directive_text: str
+    structured_decision: Dict[str, Any]
+    risk_level: Optional[str] = None
+    recommend_human_review: bool = False
+    correlation_id: Optional[str] = None
+
+
+class RegisterProjectRequest(BaseModel):
+    """Регистрация проекта в реестре (таблица projects)."""
+    slug: str
+    name: str
+    description: Optional[str] = None
+    workspace_path: Optional[str] = None
+
+
+class ProjectListItem(BaseModel):
+    """Элемент списка проектов (GET /api/projects)."""
+    slug: str
+    name: str
+    description: Optional[str] = None
+    workspace_path: Optional[str] = None
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
 async def _ensure_orchestrator_version_migration():
     """При старте API: применить миграцию orchestrator_version если колонки нет."""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        row = await conn.fetchrow(
-            """SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'tasks' AND column_name = 'orchestrator_version'"""
-        )
-        if row is None:
-            await conn.execute(
-                "ALTER TABLE tasks ADD COLUMN orchestrator_version VARCHAR(20) DEFAULT NULL"
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'tasks' AND column_name = 'orchestrator_version'"""
             )
-            await conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_tasks_orchestrator_version ON tasks (orchestrator_version) WHERE orchestrator_version IS NOT NULL"
-            )
-        await conn.close()
+            if row is None:
+                await conn.execute(
+                    "ALTER TABLE tasks ADD COLUMN orchestrator_version VARCHAR(20) DEFAULT NULL"
+                )
+                await conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_tasks_orchestrator_version ON tasks (orchestrator_version) WHERE orchestrator_version IS NOT NULL"
+                )
     except Exception:
         pass
 
 
-@app.on_event("startup")
-async def startup_migrations():
-    await _ensure_orchestrator_version_migration()
+async def _ensure_projects_table_migration():
+    """При старте API: создать таблицу projects (реестр проектов), если её нет."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects'"
+            )
+            if row is None:
+                migration_path = os.path.join(
+                    os.path.dirname(__file__), "..", "db", "migrations", "add_projects_table.sql"
+                )
+                if os.path.exists(migration_path):
+                    with open(migration_path, "r", encoding="utf-8") as f:
+                        sql = f.read()
+                    await conn.execute(sql)
+    except Exception:
+        pass
+
+
+async def _ensure_project_context_on_tasks_migration():
+    """При старте API: добавить колонку project_context в tasks, если её нет."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'tasks' AND column_name = 'project_context'"""
+            )
+            if row is None:
+                migration_path = os.path.join(
+                    os.path.dirname(__file__), "..", "db", "migrations", "add_project_context_to_tasks.sql"
+                )
+                if os.path.exists(migration_path):
+                    with open(migration_path, "r", encoding="utf-8") as f:
+                        sql = f.read()
+                    await conn.execute(sql)
+    except Exception:
+        pass
 
 
 @app.get("/")
@@ -154,31 +249,86 @@ async def root():
 async def health_check():
     """Проверка здоровья API"""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        await conn.execute("SELECT 1")
-        await conn.close()
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            await conn.execute("SELECT 1")
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+
+@app.get("/api/models")
+async def get_available_models():
+    """
+    Получить список реально доступных моделей с MLX и Ollama серверов.
+    Данные кэшируются на 2 минуты (TTL=120сек).
+    
+    Полезно для:
+    - Проверки какие модели загружены
+    - Отладки выбора моделей
+    - Мониторинга состояния серверов
+    """
+    import os
+    
+    # URL для Docker контейнера
+    mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+    ollama_url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434")
+    
+    try:
+        from available_models_scanner import scan_and_select_models
+        
+        # Получаем полный отчёт о моделях с правильными URL
+        selection = await scan_and_select_models(
+            mlx_url=mlx_url,
+            ollama_url=ollama_url,
+            force_refresh=True
+        )
+        
+        return {
+            "status": "success",
+            "mlx": {
+                "url": mlx_url,
+                "models": selection.mlx_models,
+                "count": len(selection.mlx_models) if selection.mlx_models else 0,
+                "best_model": selection.mlx_best,
+            },
+            "ollama": {
+                "url": ollama_url,
+                "models": selection.ollama_models,
+                "count": len(selection.ollama_models) if selection.ollama_models else 0,
+                "best_model": selection.ollama_best,
+            },
+            "cache_ttl_seconds": 120,
+            "note": "Модели сканируются автоматически каждые 2 минуты. Удаление/добавление модели будет замечено при следующем скане."
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+            "mlx": {"models": [], "count": 0, "url": mlx_url},
+            "ollama": {"models": [], "count": 0, "url": ollama_url}
+        }
 
 
 async def _ab_metrics_prometheus(hours: int = 24) -> str:
     """A/B метрики из tasks (orchestrator_version) в формате Prometheus."""
     lines = []
     try:
-        conn = await asyncpg.connect(DB_URL)
-        query = """
-        SELECT orchestrator_version,
-               COUNT(*) AS total,
-               COUNT(*) FILTER (WHERE status = 'completed') AS completed,
-               AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) FILTER (WHERE completed_at IS NOT NULL) AS avg_duration
-        FROM tasks
-        WHERE created_at > NOW() - make_interval(hours => $1)
-          AND orchestrator_version IN ('v2', 'existing')
-        GROUP BY orchestrator_version
-        """
-        rows = await conn.fetch(query, hours)
-        await conn.close()
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            query = """
+            SELECT orchestrator_version,
+                   COUNT(*) AS total,
+                   COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+                   AVG(EXTRACT(EPOCH FROM (completed_at - created_at))) FILTER (WHERE completed_at IS NOT NULL) AS avg_duration
+            FROM tasks
+            WHERE created_at > NOW() - make_interval(hours => $1)
+              AND orchestrator_version IN ('v2', 'existing')
+            GROUP BY orchestrator_version
+            """
+            rows = await conn.fetch(query, hours)
         v2_total = v2_success = v2_dur = 0
         ex_total = ex_success = ex_dur = 0
         for r in rows:
@@ -264,6 +414,124 @@ async def log_interaction(body: LogInteractionRequest):
     except Exception as e:
         _log.exception("[LOG_INTERACTION] exception: %s", e)
         return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/projects", response_model=List[ProjectListItem])
+async def list_projects():
+    """
+    Список зарегистрированных проектов (is_active=true).
+    Используется дашбордом и клиентами для фильтра задач и выбора project_context.
+    """
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT slug, name, description, workspace_path, is_active, created_at, updated_at
+                FROM projects
+                WHERE is_active = true
+                ORDER BY slug
+                """
+            )
+        return [ProjectListItem(**dict(r)) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/projects/register", dependencies=[Depends(verify_api_key)])
+async def register_project(body: RegisterProjectRequest):
+    """
+    Регистрация проекта в реестре (таблица projects).
+    После регистрации Victoria и Veronica принимают запросы с project_context=body.slug.
+    Защита: X-API-Key (тот же API_KEY, что для log_interaction, board/consult).
+    """
+    slug = (body.slug or "").strip().lower()
+    if not slug or not slug.replace("-", "").replace("_", "").isalnum():
+        raise HTTPException(status_code=400, detail="slug must be non-empty alphanumeric (hyphens/underscores allowed)")
+    name = (body.name or slug)[:500]
+    description = (body.description or "")[:5000] if body.description else None
+    workspace_path = (body.workspace_path or f"/workspace/{slug}")[:1000] if body.workspace_path else f"/workspace/{slug}"
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO projects (slug, name, description, workspace_path, is_active)
+                VALUES ($1, $2, $3, $4, true)
+                ON CONFLICT (slug) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    workspace_path = EXCLUDED.workspace_path,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                slug,
+                name,
+                description,
+                workspace_path,
+            )
+        return {"ok": True, "slug": slug, "message": "Project registered. Restart Victoria/Veronica to pick up (or use TTL cache)."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/board/consult", response_model=BoardConsultResponse, dependencies=[Depends(verify_api_key)])
+async def board_consult(body: BoardConsultRequest):
+    """
+    Консультация Совета Директоров по стратегическому вопросу.
+    
+    Вызывается backend'ом при обнаружении стратегического вопроса в чате.
+    Совет анализирует контекст (OKR, задачи, знания) и выдаёт структурированное решение.
+    """
+    import logging
+    import uuid
+    _log = logging.getLogger(__name__)
+    
+    # Генерируем correlation_id если не передан
+    correlation_id = body.correlation_id or str(uuid.uuid4())
+    
+    _log.info(f"[BOARD_CONSULT] question='{body.question[:100]}...' correlation_id={correlation_id}")
+    
+    try:
+        from strategic_board import consult_board
+        
+        result = await consult_board(
+            question=body.question,
+            context=None,  # Контекст собирается внутри consult_board
+            correlation_id=correlation_id,
+            source=(body.source or "api"),
+            session_id=body.session_id,
+            user_id=body.user_id,
+        )
+        
+        if result is None:
+            _log.error(f"[BOARD_CONSULT] consult_board returned None for correlation_id={correlation_id}")
+            raise HTTPException(
+                status_code=503,
+                detail="Board of Directors could not process the request. LLM may be unavailable."
+            )
+        
+        _log.info(f"[BOARD_CONSULT] success correlation_id={correlation_id} decision='{result['structured_decision'].get('decision', '')[:50]}...'")
+        
+        return BoardConsultResponse(
+            directive_text=result["directive_text"],
+            structured_decision=result["structured_decision"],
+            risk_level=result.get("risk_level"),
+            recommend_human_review=result.get("recommend_human_review", False),
+            correlation_id=correlation_id
+        )
+    
+    except ImportError as e:
+        _log.exception(f"[BOARD_CONSULT] ImportError: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"strategic_board module not available: {str(e)}"
+        )
+    except Exception as e:
+        _log.exception(f"[BOARD_CONSULT] exception: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Board consult error: {str(e)}"
+        )
 
 
 @app.post("/auth/login")
@@ -369,8 +637,8 @@ async def get_audit_logs(
 async def create_knowledge(knowledge: KnowledgeNodeCreate):
     """Создание нового знания"""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
             # Получаем или создаем домен
             domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1", knowledge.domain)
             if not domain_id:
@@ -390,8 +658,6 @@ async def create_knowledge(knowledge: KnowledgeNodeCreate):
                 confidence_score=knowledge.confidence_score,
                 created_at=datetime.now()
             )
-        finally:
-            await conn.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -400,8 +666,8 @@ async def create_knowledge(knowledge: KnowledgeNodeCreate):
 async def get_knowledge(knowledge_id: str):
     """Получение знания по ID"""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT k.id, k.content, d.name as domain, k.confidence_score, k.created_at
                 FROM knowledge_nodes k
@@ -419,8 +685,6 @@ async def get_knowledge(knowledge_id: str):
                 confidence_score=row['confidence_score'],
                 created_at=row['created_at']
             )
-        finally:
-            await conn.close()
     except HTTPException:
         raise
     except Exception as e:
@@ -431,8 +695,8 @@ async def get_knowledge(knowledge_id: str):
 async def search_knowledge(request: SearchRequest):
     """Поиск знаний"""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
             query = """
                 SELECT k.id, k.content, d.name as domain, k.confidence_score
                 FROM knowledge_nodes k
@@ -462,8 +726,6 @@ async def search_knowledge(request: SearchRequest):
                     for row in rows
                 ]
             }
-        finally:
-            await conn.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -494,8 +756,8 @@ async def create_webhook(webhook: WebhookCreate):
 async def get_stats():
     """Получение статистики системы"""
     try:
-        conn = await asyncpg.connect(DB_URL)
-        try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
             stats = await conn.fetchrow("""
                 SELECT 
                     (SELECT count(*) FROM knowledge_nodes) as total_knowledge,
@@ -512,8 +774,66 @@ async def get_stats():
                 "pending_tasks": stats['pending_tasks'] or 0,
                 "completed_tasks": stats['completed_tasks'] or 0
             }
-        finally:
-            await conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tasks/reset-stuck")
+async def reset_stuck_tasks(hours: int = 1):
+    """
+    Вернуть зависшие задачи (in_progress > N часов) обратно в pending.
+    Нормально одновременно обрабатывается ~10 задач. Много «в работе» = зависли.
+    
+    hours: считать зависшими задачи в in_progress дольше N часов (по умолчанию 1)
+    """
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            result = await conn.execute("""
+                UPDATE tasks 
+                SET status = 'pending', updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('stuck_reset', true, 'previous_status', 'in_progress')
+                WHERE status = 'in_progress' 
+                  AND updated_at < NOW() - make_interval(hours => $1)
+            """, hours)
+            count = int(result.split()[-1]) if result and result.startswith("UPDATE") else 0
+            return {"status": "success", "reset_count": count, "message": f"Вернуто в очередь: {count} зависших задач"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/tasks/reset-deferred")
+async def reset_deferred_to_pending(limit: int = 100):
+    """
+    Вернуть задачи из deferred_to_human (ручная обработка) обратно в pending для повторной попытки.
+    
+    Используйте когда задачи ушли в ручную обработку из-за блокировки security/anomaly,
+    но проблема уже исправлена.
+    
+    limit: максимум задач для сброса (по умолчанию 100)
+    """
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            result = await conn.execute("""
+                WITH to_reset AS (
+                    SELECT id FROM tasks 
+                    WHERE status = 'completed' AND metadata->>'deferred_to_human' = 'true' 
+                    LIMIT $1
+                )
+                UPDATE tasks 
+                SET status = 'pending', 
+                    updated_at = NOW(),
+                    metadata = COALESCE(metadata, '{}'::jsonb) - 'deferred_to_human' - 'attempt_count' - 'last_attempt_failed' - 'last_error' - 'next_retry_after'
+                WHERE id IN (SELECT id FROM to_reset)
+            """, limit)
+            # parse "UPDATE N" from result
+            count = int(result.split()[-1]) if result and result.startswith("UPDATE") else 0
+            return {
+                "status": "success",
+                "reset_count": count,
+                "message": f"Вернуто в очередь: {count} задач. Worker подхватит их при следующем цикле."
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

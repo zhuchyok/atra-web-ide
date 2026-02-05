@@ -8,6 +8,7 @@ from typing import Optional
 import logging
 import os
 import subprocess
+import uuid
 import os
 import sys
 import asyncio
@@ -218,9 +219,11 @@ async def terminal_ask(req: TerminalAskRequest):
         from app.services.victoria import get_victoria_client
         victoria = await get_victoria_client()
         project_context = os.getenv("PROJECT_NAME", "atra-web-ide")
+        correlation_id = str(uuid.uuid4())
         result = await victoria.run(
             prompt=goal,
             project_context=project_context,
+            correlation_id=correlation_id,
         )
         output = result.get("response") or result.get("result") or result.get("error") or "Нет ответа"
         if isinstance(output, dict):

@@ -23,8 +23,7 @@ class StreamingProcessor:
     
     def __init__(self):
         self.nodes = [
-            {"name": "MacBook", "url": MAC_LLM_URL, "priority": 1},
-            {"name": "Server", "url": SERVER_LLM_URL, "priority": 2}
+            {"name": "Mac Studio (Ollama)", "url": MAC_LLM_URL, "priority": 1}
         ]
     
     async def stream_local_llm(

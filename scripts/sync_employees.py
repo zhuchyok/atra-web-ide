@@ -71,6 +71,7 @@ ROLE_PROMPT_TEMPLATES = {
     "Technical Lead": "You are {name}, {role}.\n- Техническое лидерство\n- Архитектура, код-ревью\n- Best practices",
     "Documentation Writer": "You are {name}, {role}.\n- Документация, runbooks\n- API docs, примеры\n- ГОСТ, структура",
     "Analyst": "You are {name}, {role}.\n- Анализ данных\n- Метрики, отчёты\n- Визуализация",
+    "Prompt Engineer": "You are {name}, {role}.\n- Оптимизация и улучшение промптов\n- Структурирование system_prompt по ролям\n- A/B тесты формулировок, few-shot примеры\n- Адаптация под контекст и домен\n- Best practices: clarity, brevity, role-specific instructions",
 }
 
 

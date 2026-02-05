@@ -68,26 +68,34 @@ async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
                     rerank = RerankingService(method="text_similarity", top_k=5)
                 except Exception:
                     pass
+            # При валидации можно отключить expansion/rewriter, чтобы запрос совпадал с «Вопрос: ...» в БЗ
+            use_rewriter = os.environ.get("RAG_VALIDATION_QUERY_REWRITER", "true").lower() == "true"
+            use_expansion = os.environ.get("RAG_VALIDATION_QUERY_EXPANSION", "true").lower() == "true"
             config = {
-                "query_rewriter_enabled": bool(qr),
-                "query_expansion_enabled": True,
+                "query_rewriter_enabled": bool(qr) and use_rewriter,
+                "query_expansion_enabled": use_expansion,
                 "reranking_enabled": bool(rerank),
             }
+            # Ниже порог и больше чанков — лучше retrieval для валидации (relevance)
+            sim_threshold = float(os.environ.get("RAG_SIMILARITY_THRESHOLD", "0.45"))
             rag = RAGLightService(
                 knowledge_os=kos,
                 query_rewriter_service=qr,
                 reranking_service=rerank,
                 config=config,
+                similarity_threshold=sim_threshold,
+                max_response_length=int(os.environ.get("RAG_MAX_RESPONSE_LENGTH", "400")),
             )
+            search_limit = int(os.environ.get("RAG_VALIDATION_LIMIT", "5"))
             search_timeout = 5.0 if fast_fail else 30.0
             if rerank:
-                chunks = await asyncio.wait_for(rag.get_chunks_for_query(query, limit=3), timeout=search_timeout)
+                chunks = await asyncio.wait_for(rag.get_chunks_for_query(query, limit=search_limit), timeout=search_timeout)
                 if chunks:
                     content = chunks[0]
                     context_chunks = chunks
                     response_text = rag.extract_direct_answer(query, content)
             else:
-                result = await asyncio.wait_for(rag.search_one_chunk(query, limit=3), timeout=search_timeout)
+                result = await asyncio.wait_for(rag.search_one_chunk(query, limit=search_limit), timeout=search_timeout)
                 if result:
                     content, _ = result
                     context_chunks = [content]

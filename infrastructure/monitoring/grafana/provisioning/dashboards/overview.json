@@ -1,0 +1,29 @@
+{
+  "dashboard": {
+    "title": "Overview (Prometheus)",
+    "uid": "overview-prometheus",
+    "tags": ["overview", "prometheus"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Targets UP (1=ok, 0=down)",
+        "type": "graph",
+        "targets": [{"expr": "up", "legendFormat": "{{job}}"}],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "Scrape duration (seconds)",
+        "type": "graph",
+        "targets": [{"expr": "scrape_duration_seconds", "legendFormat": "{{job}}"}],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 27,
+    "version": 1,
+    "id": null
+  },
+  "overwrite": true
+}

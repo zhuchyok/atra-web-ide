@@ -103,7 +103,8 @@
   Проверяет **Task Distribution** через `manager_review_task` (управляющий отдела или Victoria по умолчанию, при необходимости через TaskValidator).
 
 - **В цепочке B (БД):**  
-  **Никто** — проверки после выполнения Smart Worker нет.
+  **Smart Worker** вызывает `task_result_validator.validate_task_result` перед отметкой completed; при провале — задача возвращается в pending для повторной попытки.
+- **Декомпозиция сложных задач:** Enhanced Orchestrator Phase 1.5 — для priority=high/urgent или metadata.complex вызывается Victoria; создаются подзадачи (parent_task_id), назначаются экспертам; оригинал помечается decomposed.
 
 ---
 

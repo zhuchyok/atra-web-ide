@@ -99,14 +99,25 @@ async def run_orchestration_cycle():
                     # Используем LocalAIRouter с category="reasoning" для выбора оптимальной модели
                     hypothesis = await run_local_llm(link_prompt, category="reasoning")
                     if hypothesis:
-                        await conn.execute("""
+                        kn_id = await conn.fetchval("""
                             INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
                             VALUES ($1, $2, 0.95, $3, true)
+                            RETURNING id
                         """, node['domain_id'], f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}", 
                         json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]}))
                         
                         # Публикация в Redis Stream для мгновенной реакции других агентов
                         await rd.xadd("knowledge_stream", {"type": "synthetic_link", "content": hypothesis})
+                        
+                        # Отправка гипотезы в дебаты для обсуждения экспертами
+                        try:
+                            from nightly_learner import create_debate_for_hypothesis
+                            await create_debate_for_hypothesis(
+                                conn, kn_id, f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
+                                node['domain_id']
+                            )
+                        except Exception as db_err:
+                            pass  # не прерываем цикл при ошибке дебата
 
                 await conn.execute("UPDATE knowledge_nodes SET metadata = metadata || '{\"orchestrated\": \"true\"}'::jsonb WHERE id = $1", node['id'])
 

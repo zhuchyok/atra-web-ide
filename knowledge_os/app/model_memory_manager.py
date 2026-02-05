@@ -27,14 +27,22 @@ class ModelState(Enum):
     LOADING = "loading"
     UNLOADING = "unloading"
 
+def _default_ollama_url() -> str:
+    """URL Ollama: в Docker localhost недоступен — используем host.docker.internal."""
+    is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+    if is_docker:
+        return os.getenv('OLLAMA_BASE_URL') or os.getenv('OLLAMA_API_URL') or 'http://host.docker.internal:11434'
+    return os.getenv('OLLAMA_BASE_URL') or os.getenv('OLLAMA_API_URL') or 'http://localhost:11434'
+
+
 class ModelMemoryManager:
     """
     Менеджер памяти для управления моделями Ollama.
     Отслеживает использование памяти и автоматически выгружает неиспользуемые модели.
     """
     
-    def __init__(self, ollama_url: str = "http://localhost:11434"):
-        self.ollama_url = ollama_url
+    def __init__(self, ollama_url: str = None):
+        self.ollama_url = ollama_url or _default_ollama_url()
         self.model_states: Dict[str, ModelState] = {}
         self.model_last_used: Dict[str, datetime] = {}
         self.model_memory_usage: Dict[str, int] = {}  # MB
@@ -230,7 +238,7 @@ class ModelMemoryManager:
 # Глобальный экземпляр
 _memory_manager: Optional[ModelMemoryManager] = None
 
-def get_memory_manager(ollama_url: str = "http://localhost:11434") -> ModelMemoryManager:
+def get_memory_manager(ollama_url: str = None) -> ModelMemoryManager:
     """Получить глобальный экземпляр ModelMemoryManager"""
     global _memory_manager
     if _memory_manager is None:

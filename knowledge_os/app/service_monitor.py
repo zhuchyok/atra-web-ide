@@ -133,7 +133,7 @@ class ServiceMonitor:
             Service(
                 name="Redis",
                 service_type="docker",
-                endpoint="knowledge_redis",
+                endpoint="redis",  # имя сервиса в compose; контейнер — knowledge_os_redis
                 port=6379
             ),
         ]

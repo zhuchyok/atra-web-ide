@@ -2,11 +2,11 @@
 
 **Единый источник правды:** добавьте нового сотрудника в **`configs/experts/employees.json`**, затем запустите: **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и эта таблица.
 
-- **Итого сотрудников:** 85
-- **Отделов:** 40
-- **Обновлено:** 2026-02-01
+- **Итого сотрудников:** 87
+- **Отделов:** 41
+- **Обновлено:** 2026-02-03
 
-## Полный список (85)
+## Полный список (87)
 
 | № | Имя | Роль | Отдел |
 |---|-----|------|-------|
@@ -94,9 +94,11 @@
 | 82 | Николай | GR-директор (Government Relations) | Security & Legal |
 | 83 | Оксана | Digital Strategist / Media Planner | Marketing & Growth |
 | 84 | Оливер | Chief Knowledge Officer & Knowledge Architecture Strategist | Knowledge Management |
-| 85 | Степан | Senior Data Scientist | Tech & AI |
+| 85 | Арина | Prompt Engineer | ML/AI |
+| 86 | Степан | Senior Data Scientist | Tech & AI |
+| 87 | Test Expert | Test Role | Test Department |
 
-**Итого: 85 сотрудников.**
+**Итого: 87 сотрудников.**
 
 ## Правило для будущего
 

@@ -19,6 +19,7 @@
 | **Роман** | Database Engineer | БД, миграции, оптимизация запросов |
 | **Ольга** | Performance Engineer | Профилирование, latency, нагрузка |
 | **Татьяна** | Technical Writer | Документация, API docs, отчёты |
+| **Арина** | Prompt Engineer | Оптимизация system_prompt экспертов, улучшение промптов по feedback и knowledge_nodes |
 
 ## Алиасы (expert_aliases)
 

@@ -6,7 +6,7 @@ import asyncio
 import httpx
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ class ELKHandler(logging.Handler):
         try:
             # Формируем структурированный лог
             log_data = {
-                "@timestamp": datetime.utcnow().isoformat() + "Z",
+                "@timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "level": record.levelname,
                 "message": record.getMessage(),
                 "logger": record.name,
@@ -129,7 +129,7 @@ class ELKHandler(logging.Handler):
         
         try:
             # Создаем индекс для сегодняшней даты
-            index_name = f"{self.index_prefix}-{datetime.utcnow().strftime('%Y.%m.%d')}"
+            index_name = f"{self.index_prefix}-{datetime.now(timezone.utc).strftime('%Y.%m.%d')}"
             
             # Отправляем через bulk API для эффективности
             bulk_body = []

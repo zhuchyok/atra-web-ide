@@ -38,9 +38,50 @@ from app.services.concurrency_limiter import (
 )
 import httpx
 import time
+import uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Минимальная длина ответа, при которой проверяем повторения (символы)
+_REPEAT_CHECK_MIN_LEN = 200
+# Максимум повторов одной и той же фразы — после этого обрезаем
+_MAX_REPEATS_ALLOWED = 2
+# Длина фрагмента для поиска повтора (одно предложение, напр. «Виктория: Я - виктория, ассистент...»)
+_REPEAT_PATTERN_LEN = 100
+
+
+def _truncate_repeated_response(content: str) -> str:
+    """
+    Обрезает ответ, если модель зациклилась на одной фразе (например «Виктория: Я - виктория, ассистент...»).
+    Оставляет не более _MAX_REPEATS_ALLOWED повторов и добавляет пометку.
+    """
+    if not content or len(content) < _REPEAT_CHECK_MIN_LEN:
+        return content
+    text = content.strip()
+    pattern_len = min(_REPEAT_PATTERN_LEN, len(text) // 2)
+    if pattern_len < 50:
+        return content
+    sample = text[:pattern_len]
+    # Считаем, сколько раз подряд в начале текста повторяется тот же блок
+    start = 0
+    repeat_count = 0
+    while start + pattern_len <= len(text):
+        if text[start : start + pattern_len] == sample:
+            repeat_count += 1
+            start += pattern_len
+        else:
+            break
+    if repeat_count <= _MAX_REPEATS_ALLOWED:
+        return content
+    cut = pattern_len * _MAX_REPEATS_ALLOWED
+    space_at = text.rfind(" ", 0, min(cut + 1, len(text)))
+    if space_at > cut // 2:
+        cut = space_at
+    result = text[:cut].strip()
+    if result and result[-1] not in ".!?":
+        result += "."
+    return result + "\n\n(повторение в ответе модели сокращено)"
 
 
 async def _log_chat_to_knowledge_os(prompt: str, response: str, expert_name: Optional[str] = None) -> None:
@@ -357,15 +398,20 @@ async def sse_generator(
         """SSE comment — заставляет прокси/сервер отправить буфер клиенту."""
         return ": \n\n"
 
+    # Correlation ID для трассировки (чат → Victoria → Veronica). ARCHITECTURE_IMPROVEMENTS_ANALYSIS.
+    correlation_id = str(uuid.uuid4())
+    logger.info("[CHAT] correlation_id=%s goal_preview=%s", correlation_id[:8], (message.content or "")[:50])
+
     # Фаза 4, Неделя 2: контекст диалога (multi-turn)
     session_id = getattr(message, "session_id", None) or getattr(message, "user_id", None)
     context_prefix = ""
+    recent_messages: list = []
     if session_id:
         settings_ctx = get_settings()
         if getattr(settings_ctx, "conversation_context_enabled", True):
             ctx_mgr = get_conversation_context_manager()
-            recent = await ctx_mgr.get_recent(session_id, last_n=10)
-            context_prefix = ctx_mgr.build_context_prefix(recent)
+            recent_messages = await ctx_mgr.get_recent(session_id, last_n=10)
+            context_prefix = ctx_mgr.build_context_prefix(recent_messages)
     response_parts = []
     current_prompt = (context_prefix + message.content) if context_prefix else message.content
 
@@ -470,8 +516,10 @@ async def sse_generator(
                     yield f"data: {json.dumps({'type': 'end'})}\n\n"
                     return
 
-            # Шаг: мысль (анализ запроса)
-            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ запроса', 'content': 'Проверяю запрос, подбираю эксперта и контекст из базы знаний (RAG).'})}\n\n"
+            # Шаг: мысль (анализ запроса). correlation_id для трассировки.
+            # Progress event (ARCHITECTURE_IMPROVEMENTS §2.1): { step, total, status } для длинных сценариев
+            yield f"data: {json.dumps({'type': 'progress', 'step': 1, 'total': 4, 'status': 'analysis'})}\n\n"
+            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ запроса', 'content': 'Проверяю запрос, подбираю эксперта и контекст из базы знаний (RAG).', 'correlation_id': correlation_id})}\n\n"
             yield _flush_sse()
             await asyncio.sleep(0.05)
 
@@ -490,6 +538,7 @@ async def sse_generator(
                     logger.debug(f"Эксперт не найден в Knowledge OS: {e}")
 
             # Шаг: действие (запрос к Victoria)
+            yield f"data: {json.dumps({'type': 'progress', 'step': 2, 'total': 4, 'status': 'executing'})}\n\n"
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'action', 'title': 'Запрос к Victoria Agent', 'content': 'Формирую план и запрашиваю ответ у агента.'})}\n\n"
             yield _flush_sse()
             await asyncio.sleep(0.05)
@@ -584,6 +633,7 @@ async def sse_generator(
                     system="Ты - полезный ИИ-ассистент корпорации ATRA. Отвечай кратко на русском.",
                 )
                 if content:
+                    content = _truncate_repeated_response(content)
                     words = content.split()
                     chunk = ""
                     for i, word in enumerate(words):
@@ -606,19 +656,116 @@ async def sse_generator(
                 await asyncio.sleep(0.05)
                 logger.info("[Ask] MLX/Ollama не ответили, fallback на Victoria")
 
+            # 🏛 BOARD OF DIRECTORS CONSULT: классификация стратегического вопроса
+            board_decision_text = None
+            correlation_id = None
+            
+            try:
+                from app.services.strategic_classifier import is_strategic_question
+                
+                is_strategic, reason = is_strategic_question(message.content)
+                logger.info(f"[STRATEGIC_CLASSIFIER] is_strategic={is_strategic}, reason={reason}, question='{message.content[:100]}...'")
+                
+                if is_strategic:
+                    # Генерируем correlation_id для трассировки
+                    import uuid
+                    correlation_id = str(uuid.uuid4())
+                    
+                    # Показываем пользователю, что консультируемся с Советом
+                    yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Консультация Совета Директоров', 'content': 'Этот вопрос стратегический. Консультируюсь с Советом Директоров для принятия решения...'})}\n\n"
+                    yield _flush_sse()
+                    await asyncio.sleep(0.1)
+                    
+                    # Вызов Knowledge OS API: POST /api/board/consult
+                    settings_board = get_settings()
+                    board_api_url = f"{settings_board.knowledge_os_api_url.rstrip('/')}/api/board/consult"
+                    api_key = os.getenv('API_KEY', 'your-secret-api-key')
+                    
+                    try:
+                        async with httpx.AsyncClient(timeout=45.0) as client:
+                            board_response = await client.post(
+                                board_api_url,
+                                json={
+                                    "question": message.content,
+                                    "session_id": session_id,
+                                    "user_id": getattr(message, 'user_id', None),
+                                    "correlation_id": correlation_id,
+                                    "source": "chat",
+                                },
+                                headers={"X-API-Key": api_key}
+                            )
+                            board_response.raise_for_status()
+                            board_result = board_response.json()
+                            
+                            board_decision_text = board_result.get("directive_text", "")
+                            structured_decision = board_result.get("structured_decision", {})
+                            risk_level = board_result.get("risk_level")
+                            recommend_review = board_result.get("recommend_human_review", False)
+                            
+                            logger.info(f"[BOARD_CONSULT] success correlation_id={correlation_id} decision='{structured_decision.get('decision', '')[:80]}...' risk={risk_level}")
+                            
+                            # Показываем решение Совета пользователю
+                            decision_summary = structured_decision.get("decision", board_decision_text[:150])
+                            board_step_content = f"Совет Директоров принял решение:\n\n{decision_summary}"
+                            if recommend_review:
+                                board_step_content += "\n\n⚠️ Совет рекомендует подтверждение этого решения человеком (высокий риск или низкая уверенность)."
+                            
+                            yield f"data: {json.dumps({'type': 'step', 'stepType': 'observation', 'title': 'Решение Совета', 'content': board_step_content})}\n\n"
+                            yield _flush_sse()
+                            await asyncio.sleep(0.1)
+                            
+                    except httpx.HTTPError as e:
+                        logger.error(f"[BOARD_CONSULT] HTTP error: {e}")
+                        yield f"data: {json.dumps({'type': 'step', 'stepType': 'error', 'title': 'Ошибка консультации Совета', 'content': f'Не удалось получить решение Совета: {str(e)}. Продолжаю с Victoria...'})}\n\n"
+                        yield _flush_sse()
+                        board_decision_text = None
+                    except Exception as e:
+                        logger.error(f"[BOARD_CONSULT] error: {e}", exc_info=True)
+                        yield f"data: {json.dumps({'type': 'step', 'stepType': 'error', 'title': 'Ошибка консультации Совета', 'content': f'Ошибка при консультации Совета: {str(e)}. Продолжаю с Victoria...'})}\n\n"
+                        yield _flush_sse()
+                        board_decision_text = None
+            except ImportError:
+                logger.warning("[STRATEGIC_CLASSIFIER] strategic_classifier module not found, skipping board consult")
+            except Exception as e:
+                logger.error(f"[STRATEGIC_CLASSIFIER] unexpected error: {e}", exc_info=True)
+            
+            # Если получено решение Совета, формируем расширенный промпт для Victoria
+            if board_decision_text:
+                board_prompt_block = f"""
+[РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ]
+{board_decision_text}
+[/РЕШЕНИЕ]
+
+Запрос пользователя: {message.content}
+
+Инструкция: Сформулируй ответ пользователю, опираясь на решение Совета Директоров выше. 
+Можешь начать с фразы "По решению Совета Директоров..." и далее развить ответ с учётом решения.
+Если решение содержит рекомендацию подтверждения человеком, обязательно упомяни это в конце.
+"""
+                current_prompt = board_prompt_block
+            
             # Вызываем Victoria с таймаутом (тяжёлые модели: прогрев + обработка локальными моделями)
+            # session_id и chat_history для Victoria (контракт POST /run, связный диалог)
+            chat_history_vic = []
+            if session_id and recent_messages:
+                ctx_mgr = get_conversation_context_manager()
+                chat_history_vic = ctx_mgr.to_victoria_chat_history(recent_messages)
             settings = get_settings()
             try:
                 result = await asyncio.wait_for(
                     victoria.run(
                         prompt=current_prompt,
                         expert_name=message.expert_name,
-                        project_context=project_context
+                        project_context=project_context,
+                        session_id=session_id,
+                        chat_history=chat_history_vic if chat_history_vic else None,
+                        correlation_id=correlation_id,
                     ),
                     timeout=settings.victoria_timeout  # по умолчанию 600 сек
                 )
             except asyncio.TimeoutError:
                 logger.error(f"Victoria timeout для запроса (limit {settings.victoria_timeout}s): {message.content[:50]}")
+                yield f"data: {json.dumps({'type': 'progress', 'step': 4, 'total': 4, 'status': 'error'})}\n\n"
                 error_event = {
                     'type': 'error',
                     'content': 'Превышено время ожидания ответа от Victoria. Попробуйте переформулировать вопрос или использовать более простой запрос.'
@@ -643,6 +790,7 @@ async def sse_generator(
                         yield f"data: {json.dumps({'type': 'chunk', 'content': line + chr(10)})}\n\n"
                         await asyncio.sleep(0.02)
                 await _save_context_if_needed()
+                yield f"data: {json.dumps({'type': 'progress', 'step': 4, 'total': 4, 'status': 'complete'})}\n\n"
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
 
@@ -685,6 +833,7 @@ async def sse_generator(
                 result = {"response": content, "source": source}
             else:
                 # Victoria успешно ответила
+                yield f"data: {json.dumps({'type': 'progress', 'step': 4, 'total': 4, 'status': 'complete'})}\n\n"
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'action', 'title': 'Генерация ответа', 'content': 'Формирую ответ.'})}\n\n"
                 yield _flush_sse()
                 await asyncio.sleep(0.05)
@@ -701,6 +850,7 @@ async def sse_generator(
                             content = parts[-1].strip()
                             if not content:
                                 content = "Обрабатываю ваш запрос..."
+                    content = _truncate_repeated_response(content)
                 
                 # Разбиваем на слова для плавного отображения
                 words = content.split()
@@ -720,13 +870,14 @@ async def sse_generator(
                 # Логируем в interaction_logs (Singularity 9.0)
                 asyncio.create_task(_log_chat_to_knowledge_os(message.content, content, message.expert_name))
                 await _save_context_if_needed()
-                # Отправляем событие завершения
+                # Отправляем событие завершения (progress уже отправлен выше)
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
                 return
             
             # Обработка результата от MLX fallback (если Victoria была недоступна)
             if result and isinstance(result, dict) and result.get("response"):
                 content = result.get("response", "")
+                content = _truncate_repeated_response(content)
                 source = result.get("source", "unknown")
                 model_used = result.get("model", "unknown")
                 logger.info(f"✅ Ответ получен от {source} (модель: {model_used}) через fallback")
@@ -788,6 +939,7 @@ async def sse_generator(
                 return
             # Ответ от MLX или Ollama
             logger.info(f"✅ Ответ получен от {source}")
+            content = _truncate_repeated_response(content)
             words = content.split()
             chunk = ""
             for i, word in enumerate(words):
@@ -843,9 +995,54 @@ async def send_message(
         Ответ от чата
     """
     try:
+        correlation_id = str(uuid.uuid4())
+        session_id = getattr(message, "session_id", None) or getattr(message, "user_id", None)
+        chat_history_vic = []
+        if session_id:
+            ctx_mgr = get_conversation_context_manager()
+            recent = await ctx_mgr.get_recent(session_id, last_n=10)
+            chat_history_vic = ctx_mgr.to_victoria_chat_history(recent)
+
+        prompt_for_victoria = message.content
+        try:
+            from app.services.strategic_classifier import is_strategic_question
+            is_strategic, _ = is_strategic_question(message.content)
+            if is_strategic:
+                settings_send = get_settings()
+                board_api_url = f"{settings_send.knowledge_os_api_url.rstrip('/')}/api/board/consult"
+                api_key = os.environ.get("API_KEY", "your-secret-api-key")
+                async with httpx.AsyncClient(timeout=45.0) as client:
+                    board_response = await client.post(
+                        board_api_url,
+                        json={
+                            "question": message.content,
+                            "session_id": session_id,
+                            "user_id": getattr(message, "user_id", None),
+                            "correlation_id": correlation_id,
+                            "source": "chat",
+                        },
+                        headers={"X-API-Key": api_key},
+                    )
+                    board_response.raise_for_status()
+                    board_result = board_response.json()
+                    directive_text = board_result.get("directive_text", "")
+                    if directive_text:
+                        prompt_for_victoria = f"""[РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ]
+{directive_text}
+[/РЕШЕНИЕ]
+
+Запрос пользователя: {message.content}
+
+Инструкция: Сформулируй ответ пользователю, опираясь на решение Совета Директоров выше. Можешь начать с фразы "По решению Совета Директоров..."."""
+        except Exception as e:
+            logger.debug("Board consult skipped for send_message: %s", e)
+
         result = await victoria.run(
-            prompt=message.content,
-            expert_name=message.expert_name
+            prompt=prompt_for_victoria,
+            expert_name=message.expert_name,
+            session_id=session_id,
+            chat_history=chat_history_vic if chat_history_vic else None,
+            correlation_id=correlation_id,
         )
         
         if "error" in result:

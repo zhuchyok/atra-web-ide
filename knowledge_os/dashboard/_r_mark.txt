@@ -1,0 +1,51 @@
+def _render_marketing():
+        with st.form("ad_gen_form"):
+            product_desc = st.text_area("Описание вашего продукта/услуги", placeholder="Например: Магазин фермерских продуктов с доставкой в МСК")
+            project_marketing = st.selectbox("Проект", ["— Не указан / внутренняя —"] + _get_project_slugs(), key="marketing_project")
+            submitted = st.form_submit_button("Создать рекламную стратегию")
+            if submitted and product_desc:
+                project_ctx_marketing = None if project_marketing == "— Не указан / внутренняя —" else project_marketing
+                with st.spinner("Отдел маркетинга (Артем, Лиза, Кристина) готовит стратегию..."):
+                    strategy_done = False
+                    try:
+                        script_path = "/app/knowledge_os/app/ad_generator.py"
+                        if not os.path.isfile(script_path):
+                            script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "app", "ad_generator.py")
+                        cmd = ["python3", script_path, product_desc]
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120,
+                                                cwd=os.path.dirname(os.path.dirname(__file__)) if not script_path.startswith("/app") else "/app")
+                        if result.returncode == 0 and (result.stdout or "").strip():
+                            st.markdown("### 📋 Финальный План Кампании")
+                            st.markdown(result.stdout)
+                            st.success("Стратегия успешно сохранена в базу знаний!")
+                            strategy_done = True
+                        elif result.stderr:
+                            st.warning(f"Скрипт вернул предупреждение: {(result.stderr or '')[:300]}")
+                    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                        st.warning(f"Запуск скрипта недоступен: {e}")
+                    except Exception as e:
+                        st.warning(f"Ошибка запуска генератора: {e}")
+                    if not strategy_done:
+                        try:
+                            conn = get_db_connection()
+                            with conn.cursor() as cur:
+                                cur.execute("""
+                                    INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata, project_context)
+                                    SELECT %s, %s, 'pending',
+                                        (SELECT id FROM experts WHERE name = 'Артем' LIMIT 1),
+                                        (SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1),
+                                        %s, %s
+                                    WHERE EXISTS (SELECT 1 FROM experts WHERE name = 'Артем')
+                                """, (
+                                    "📢 Рекламная стратегия",
+                                    f"Создать рекламную стратегию для продукта/услуги: {product_desc[:200]}",
+                                    json.dumps({"source": "dashboard_marketing", "product_desc": product_desc}),
+                                    project_ctx_marketing
+                                ))
+                                conn.commit()
+                            st.info("📋 Задача создана. Отдел маркетинга (Артем) обработает её через worker.")
+                        except Exception as e2:
+                            st.error(f"Не удалось создать задачу для маркетинга: {e2}")
+
+        # 🕵️‍♂️ РАЗВЕДКА (ENHANCED)
+

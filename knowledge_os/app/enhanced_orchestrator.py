@@ -43,6 +43,10 @@ except ImportError:
         return MockLock()
 
 try:
+    from task_dedup import same_task_for_expert_in_last_n_days
+except ImportError:
+    same_task_for_expert_in_last_n_days = None
+try:
     from ai_core import run_smart_agent_sync, run_smart_agent_async
 except ImportError:
     def run_smart_agent_sync(prompt, **kwargs):  # pylint: disable=unused-argument
@@ -94,6 +98,30 @@ CANONICAL_DOMAINS = {
 def _canonical_domain(name: str) -> str:
     """Возвращает каноническое имя домена."""
     return CANONICAL_DOMAINS.get(name, name)
+
+
+async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
+    """Декомпозиция сложной задачи через Victoria (ORCHESTRATION_IMPROVEMENTS §3.2).
+    Возвращает task_plan_struct с subtasks или None."""
+    import re
+    try:
+        prompt = f"""Разложи задачу на подзадачи по отделам. Задача:
+{goal[:2000]}
+
+Верни ТОЛЬКО валидный JSON:
+{{"task_description": "кратко", "subtasks": [{{"subtask": "промпт для сотрудника", "department": "отдел", "expert_role": "имя/роль", "priority": "medium"}}]}}"""
+        result = await run_smart_agent_async(prompt, expert_name="Виктория", category="planning")
+        if not result or not isinstance(result, str):
+            return None
+        match = re.search(r'\{.*\}', result, re.DOTALL)
+        if not match:
+            return None
+        fixed = re.sub(r',\s*([}\]])', r'\1', match.group())
+        data = json.loads(fixed)
+        return data if isinstance(data, dict) else None
+    except Exception as e:
+        logger.debug("_decompose_via_victoria: %s", e)
+        return None
 
 try:
     from swarm_orchestrator import SwarmOrchestrator
@@ -371,19 +399,97 @@ async def assign_task_to_best_expert(
             best_expert = expert
 
     if best_expert:
-        # Назначаем задачу
+        # Оркестратор назначает preferred_source (mlx/ollama) по отделу эксперта
+        # ML/Backend/R&D/Performance/Trading/Quant → mlx; остальные → ollama (тяжёлый/лёгкий pairing)
+        dept = (best_expert.get('department') or '').lower()
+        mlx_depts = ('ml', 'backend', 'r&d', 'performance', 'trading', 'quant', 'devops', 'sre')
+        preferred_source = 'mlx' if any(d in dept for d in mlx_depts) else 'ollama'
+        # Если создатель уже указал preferred_source в metadata — уважаем
+        if metadata and isinstance(metadata, dict) and metadata.get('preferred_source'):
+            preferred_source = str(metadata['preferred_source']).lower()
+            if preferred_source not in ('mlx', 'ollama'):
+                preferred_source = 'ollama'
+        meta_extra = {"preferred_source": preferred_source}
         await conn.execute("""
             UPDATE tasks
             SET assignee_expert_id = $1,
                 status = 'pending',
-                updated_at = NOW()
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
             WHERE id = $2
-        """, best_expert['id'], task_id)
+        """, best_expert['id'], task_id, json.dumps(meta_extra))
 
-        logger.info("✅ Task %s assigned to %s (workload: %.2f)", task_id, best_expert['name'], best_score)
+        logger.info("✅ Task %s assigned to %s (workload: %.2f, source=%s)", task_id, best_expert['name'], best_score, preferred_source)
         return best_expert['id']
 
     return None
+
+
+async def get_best_expert_for_domain(
+    conn,
+    domain_id: Optional[str],
+    required_role: Optional[str] = None,
+    metadata: Optional[Dict] = None
+):
+    """
+    Возвращает лучшего эксперта для домена по загрузке (без записи в БД).
+    Используется для проверки дедупликации перед созданием задачи Curiosity.
+    """
+    assignee_hint = None
+    if metadata and isinstance(metadata, dict):
+        assignee_hint = metadata.get("assignee_hint")
+    if not required_role and assignee_hint:
+        required_role = str(assignee_hint)
+
+    candidates = None
+    if domain_id:
+        candidates = await conn.fetch("""
+            SELECT id, name, role, department
+            FROM experts
+            WHERE is_active = true
+            AND department = (SELECT name FROM domains WHERE id = $1)
+        """, domain_id)
+        if not candidates:
+            candidates = await conn.fetch("""
+                SELECT DISTINCT e.id, e.name, e.role, e.department
+                FROM experts e
+                INNER JOIN knowledge_nodes kn ON kn.domain_id = $1
+                WHERE e.is_active = true
+                AND (e.department ILIKE '%' || (SELECT name FROM domains WHERE id = $1) || '%'
+                     OR e.role ILIKE '%' || (SELECT name FROM domains WHERE id = $1) || '%')
+                LIMIT 20
+            """, domain_id)
+    if not candidates and required_role:
+        candidates = await conn.fetch("""
+            SELECT id, name, role, department
+            FROM experts
+            WHERE is_active = true
+            AND role ILIKE $1
+        """, f"%{required_role}%")
+    if not candidates:
+        candidates = await conn.fetch("""
+            SELECT id, name, role, department
+            FROM experts
+            WHERE is_active = true
+            ORDER BY RANDOM()
+            LIMIT 50
+        """)
+    if not candidates:
+        return None
+
+    best_expert = None
+    best_score = float('inf')
+    for expert in candidates:
+        workload = await get_expert_workload(conn, expert['id'])
+        score = (
+            workload['workload_score'] * 0.5 +
+            (1.0 - workload['success_rate']) * 100 * 0.3 +
+            (workload['avg_duration_minutes'] / 10) * 0.2
+        )
+        if score < best_score:
+            best_score = score
+            best_expert = expert
+    return best_expert
 
 
 async def rebalance_workload(conn):
@@ -425,7 +531,7 @@ async def rebalance_workload(conn):
             # Назначаем незагруженному эксперту из того же домена
             if task['domain_id']:
                 new_expert = await conn.fetchrow("""
-                    SELECT e.id
+                    SELECT e.id, e.department
                     FROM experts e
                     JOIN domains d ON e.department = d.name
                     WHERE d.id = $1
@@ -445,13 +551,17 @@ async def rebalance_workload(conn):
                 """, task['domain_id'], expert_id)
 
                 if new_expert:
+                    dept = (new_expert.get('department') or '').lower()
+                    mlx_depts = ('ml', 'backend', 'r&d', 'performance', 'trading', 'quant', 'devops', 'sre')
+                    pref = 'mlx' if any(d in dept for d in mlx_depts) else 'ollama'
                     await conn.execute("""
                         UPDATE tasks
                         SET assignee_expert_id = $1,
-                            updated_at = NOW()
+                            updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
                         WHERE id = $2
-                    """, new_expert['id'], task['id'])
-                    logger.info("  ↻ Task %s reassigned from overloaded expert", task['id'])
+                    """, new_expert['id'], task['id'], json.dumps({"preferred_source": pref}))
+                    logger.info("  ↻ Task %s reassigned (source=%s)", task['id'], pref)
 
 
 async def run_enhanced_orchestration_cycle():
@@ -575,6 +685,115 @@ async def run_enhanced_orchestration_cycle():
                     logger.info("  📌 Task %s: priority updated to %s", task['id'], new_priority)
             logger.info("[ENHANCED_ORCHESTRATOR] phase=1 duration_ms=%.0f result=%s tasks reprioritized", (time.time() - t1) * 1000, len(unprioritized_tasks))
 
+            # --- ФАЗА 1.5: ДЕКОМПОЗИЦИЯ СЛОЖНЫХ ЗАДАЧ (ORCHESTRATION_IMPROVEMENTS §3.2) ---
+            t15 = time.time()
+            decomposed_count = 0
+            try:
+                complex_unassigned = await conn.fetch("""
+                    SELECT id, title, description, domain_id, priority, metadata,
+                           (metadata->>'project_context') AS project_context
+                    FROM tasks
+                    WHERE assignee_expert_id IS NULL
+                    AND status = 'pending'
+                    AND (metadata->>'decomposed') IS DISTINCT FROM 'true'
+                    AND (
+                        priority IN ('high', 'urgent')
+                        OR (metadata->>'complex')::boolean = true
+                    )
+                    AND parent_task_id IS NULL
+                    ORDER BY
+                        CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 ELSE 3 END,
+                        created_at ASC
+                    LIMIT 3
+                """)
+            except Exception as schema_err:
+                if "parent_task_id" in str(schema_err).lower() or "column" in str(schema_err).lower():
+                    logger.debug("Phase 1.5 skipped: parent_task_id not in schema (run add_task_orchestration_schema migration)")
+                else:
+                    logger.warning("Phase 1.5 query failed: %s", schema_err)
+                complex_unassigned = []
+            for task in complex_unassigned:
+                try:
+                    goal = f"{task['title']}\n\n{task['description'] or ''}"
+                    struct = await _decompose_via_victoria(goal)
+                    if struct and struct.get('subtasks'):
+                        subtasks = struct['subtasks']
+                        for st in subtasks[:5]:  # max 5 subtasks
+                            st_desc = st.get('subtask', st.get('description', ''))
+                            st_dept = st.get('department', 'General')
+                            domain_row = await conn.fetchrow("SELECT id FROM domains WHERE name = $1", st_dept)
+                            st_domain_id = domain_row['id'] if domain_row else task['domain_id']
+                            meta = json.dumps({
+                                "source": "orchestrator_decompose",
+                                "parent_task_id": str(task['id']),
+                                "expert_role": st.get('expert_role', ''),
+                            })
+                            _meta = task.get('metadata')
+                            parent_pc = task.get('project_context') or (json.loads(_meta).get('project_context') if isinstance(_meta, str) else (_meta or {}).get('project_context'))
+                            try:
+                                sub_id = await conn.fetchval("""
+                                    INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id, project_context)
+                                    VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7, $8)
+                                    RETURNING id
+                                """, (st_desc[:255] if len(st_desc) > 255 else st_desc), st_desc, st.get('priority', 'medium'), st_domain_id, victoria_id, meta, task['id'], parent_pc)
+                            except Exception as col_err:
+                                if "project_context" in str(col_err) or "column" in str(col_err).lower():
+                                    sub_id = await conn.fetchval("""
+                                        INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id)
+                                        VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7)
+                                        RETURNING id
+                                    """, (st_desc[:255] if len(st_desc) > 255 else st_desc), st_desc, st.get('priority', 'medium'), st_domain_id, victoria_id, meta, task['id'])
+                                else:
+                                    raise
+                            if sub_id:
+                                await assign_task_to_best_expert(conn, str(sub_id), st_domain_id, metadata={"assignee_hint": st.get('expert_role')})
+                                decomposed_count += 1
+                        await conn.execute("""
+                            UPDATE tasks
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"decomposed": true}'::jsonb,
+                                updated_at = NOW()
+                            WHERE id = $1
+                        """, task['id'])
+                        logger.info("  📦 Task %s decomposed into %s subtasks", task['id'], min(len(subtasks), 5))
+                except Exception as e:
+                    logger.warning("Decompose task %s failed: %s", task['id'], e)
+            logger.info("[ENHANCED_ORCHESTRATOR] phase=1.5 duration_ms=%.0f result=%s decomposed", (time.time() - t15) * 1000, decomposed_count)
+
+            # --- ФАЗА 1.6: БАТЧ-ГРУППИРОВКА МЕЛКИХ ЗАДАЧ (ARCHITECTURE_IMPROVEMENTS §2.5) ---
+            # При BATCH_SMALL_TASKS_ENABLED=true: задачи одного domain, low/medium, не complex → batch_group в metadata
+            t16 = time.time()
+            batch_grouped = 0
+            if os.getenv("BATCH_SMALL_TASKS_ENABLED", "").lower() in ("1", "true", "yes"):
+                try:
+                    batch_threshold = int(os.getenv("BATCH_SMALL_TASKS_THRESHOLD", "3"))
+                    domains_with_many = await conn.fetch("""
+                        SELECT domain_id, COUNT(*) as cnt
+                        FROM tasks
+                        WHERE assignee_expert_id IS NULL
+                        AND status = 'pending'
+                        AND priority IN ('low', 'medium')
+                        AND (metadata->>'complex') IS DISTINCT FROM 'true'
+                        AND domain_id IS NOT NULL
+                        GROUP BY domain_id
+                        HAVING COUNT(*) >= $1
+                    """, batch_threshold)
+                    for row in domains_with_many:
+                        batch_id = f"batch_{row['domain_id']}"
+                        await conn.execute("""
+                            UPDATE tasks
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                                updated_at = NOW()
+                            WHERE assignee_expert_id IS NULL
+                            AND status = 'pending'
+                            AND domain_id = $1
+                            AND priority IN ('low', 'medium')
+                            AND (metadata->>'complex') IS DISTINCT FROM 'true'
+                        """, row['domain_id'], json.dumps({"batch_group": batch_id}))
+                        batch_grouped += row['cnt']
+                except Exception as e:
+                    logger.debug("Phase 1.6 (batch grouping) failed: %s", e)
+            logger.info("[ENHANCED_ORCHESTRATOR] phase=1.6 duration_ms=%.0f result=%s batch_grouped", (time.time() - t16) * 1000, batch_grouped)
+
             # --- ФАЗА 2: НАЗНАЧЕНИЕ ЗАДАЧ БЕЗ ИСПОЛНИТЕЛЯ ---
             t2 = time.time()
             logger.info("👥 Phase 2: Assigning unassigned tasks...")
@@ -583,6 +802,7 @@ async def run_enhanced_orchestration_cycle():
                 FROM tasks
                 WHERE assignee_expert_id IS NULL
                 AND status = 'pending'
+                AND (metadata->>'decomposed') IS DISTINCT FROM 'true'
                 ORDER BY
                     CASE priority
                         WHEN 'urgent' THEN 1
@@ -664,13 +884,23 @@ async def run_enhanced_orchestration_cycle():
                     """
                     hypothesis = await run_cursor_agent(link_prompt)
                     if hypothesis:
-                        await conn.execute("""
+                        kn_id = await conn.fetchval("""
                             INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
                             VALUES ($1, $2, 0.95, $3, true)
+                            RETURNING id
                         """, node['domain_id'], f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
                         json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]}))
                         if rd:
                             await rd.xadd("knowledge_stream", {"type": "synthetic_link", "content": hypothesis})
+                        # Отправка гипотезы в дебаты для обсуждения экспертами
+                        try:
+                            from nightly_learner import create_debate_for_hypothesis
+                            await create_debate_for_hypothesis(
+                                conn, kn_id, f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
+                                node['domain_id']
+                            )
+                        except Exception as db_err:
+                            logger.debug("Hypothesis debate skip: %s", db_err)
 
                 await conn.execute("""
                     UPDATE knowledge_nodes
@@ -711,12 +941,23 @@ async def run_enhanced_orchestration_cycle():
                     f"Проведи глубокое исследование новых технологий и трендов 2026 "
                     f"в области {desert['name']}. Найди 3 прорывных инсайта."
                 )
+                title_curiosity = f"🔥 ИССЛЕДОВАНИЕ: {desert['name']}"
+                best_expert = await get_best_expert_for_domain(conn, desert['id'])
+                if best_expert and same_task_for_expert_in_last_n_days:
+                    if await same_task_for_expert_in_last_n_days(
+                        conn, title_curiosity, curiosity_task, best_expert['id'], days=30
+                    ):
+                        logger.info(
+                            "  ⏭️ Skip duplicate: same research task for expert %s (%s) in last 30 days",
+                            best_expert.get('name'), desert['name']
+                        )
+                        continue
                 priority = 'high' if desert['node_count'] < 20 else 'medium'
                 task_id = await conn.fetchval("""
                     INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5, $6)
                     RETURNING id
-                """, f"🔥 ИССЛЕДОВАНИЕ: {desert['name']}", curiosity_task, priority, victoria_id, desert['id'],
+                """, title_curiosity, curiosity_task, priority, victoria_id, desert['id'],
                 json.dumps({"reason": "curiosity_engine_starvation", "node_count": desert['node_count']}))
                 await assign_task_to_best_expert(conn, task_id, desert['id'])
 
@@ -870,6 +1111,40 @@ async def run_enhanced_orchestration_cycle():
                 logger.info("  ⚠️ KnowledgeArchiver module not found.")
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Archive error: %s", exc)
+
+            # Автоочистка старых задач (completed > 30 дней, cancelled) — раз в сутки
+            cleanup_key = "last_tasks_cleanup"
+            last_cleanup = None
+            if rd:
+                last_cleanup = await rd.get(cleanup_key)
+            should_cleanup = True
+            if last_cleanup:
+                try:
+                    last_cleanup_dt = datetime.fromisoformat(last_cleanup)
+                    if datetime.now() - last_cleanup_dt < timedelta(days=1):
+                        should_cleanup = False
+                except (TypeError, ValueError):
+                    pass
+            if should_cleanup:
+                try:
+                    deleted_completed = await conn.fetchval("""
+                        WITH d AS (
+                            DELETE FROM tasks
+                            WHERE status = 'completed' AND updated_at < NOW() - INTERVAL '30 days'
+                            RETURNING id
+                        )
+                        SELECT count(*)::int FROM d
+                    """) or 0
+                    deleted_cancelled = await conn.fetchval("""
+                        WITH d AS (DELETE FROM tasks WHERE status = 'cancelled' RETURNING id)
+                        SELECT count(*)::int FROM d
+                    """) or 0
+                    if deleted_completed or deleted_cancelled:
+                        logger.info("  🗑️ Tasks cleanup: %s old completed, %s cancelled deleted.", deleted_completed, deleted_cancelled)
+                    if rd:
+                        await rd.set(cleanup_key, datetime.now().isoformat())
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    logger.warning("Tasks cleanup error: %s", exc)
 
             await conn.close()
             logger.info("[ENHANCED_ORCHESTRATOR] cycle finished successfully.")

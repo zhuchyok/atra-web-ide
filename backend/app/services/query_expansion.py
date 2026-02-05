@@ -20,7 +20,7 @@ QUERY_EXPANSION_TERMS: dict[str, str] = {
     "часто задаваемые вопросы": "FAQ faq тарифы интеграция API",
     "как настроить Victoria": "Victoria VICTORIA_URL порт 8010 config настраивается конфигурация backend app config.py",
     "что такое RAG": "RAG retrieval generation поиск генерация",
-    "порты сервисов": "порты 8080 8010 11434 11435 5432 6380",
+    "порты сервисов": "порты 8080 8010 11434 11435 5432 6381 (Redis на хосте)",
     "как запустить проект локально": "docker-compose frontend npm run dev",
     "метрики Prometheus": "metrics Prometheus rag_requests victoria /metrics rag_duration",
 }

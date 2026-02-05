@@ -364,7 +364,42 @@ class SelfCheckSystem:
             logger.error(f"❌ [SELF-CHECK] Ошибка автоматического исправления {check.name}: {e}")
         
         return False
-    
+
+    async def _create_recovery_task(self, check: ComponentCheck) -> None:
+        """Создать задачу в БД при деградации компонента (если auto_fix не сработал)."""
+        try:
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+            conn = await asyncpg.connect(db_url)
+            try:
+                full_title = f"🔧 Self-Check: восстановить {check.name}"
+                # Избегаем дублирования: не создаём если такая задача уже есть за последние 24ч
+                existing = await conn.fetchval("""
+                    SELECT 1 FROM tasks
+                    WHERE title = $1 AND created_at > NOW() - INTERVAL '24 hours'
+                    LIMIT 1
+                """, full_title)
+                if existing:
+                    return
+                description = f"Компонент {check.name}: {check.status.value}. {check.message}"
+                metadata = json.dumps({
+                    "source": "self_check_system",
+                    "assignee_hint": "SRE",
+                    "component": check.name,
+                    "status": check.status.value,
+                })
+                await conn.execute("""
+                    INSERT INTO tasks (title, description, status, priority, metadata)
+                    VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+                """, full_title, description, metadata)
+                logger.info(f"📋 [SELF-CHECK] Создана задача на восстановление: {check.name}")
+            finally:
+                await conn.close()
+        except ImportError:
+            logger.debug("asyncpg не доступен, пропускаем создание задачи self_check")
+        except Exception as e:
+            logger.warning("Ошибка создания задачи self_check: %s", e)
+
     async def run_full_check(self) -> Dict[str, Any]:
         """Запуск полной проверки всех компонентов"""
         logger.info("🔍 [SELF-CHECK] Запуск полной проверки системы...")
@@ -382,6 +417,16 @@ class SelfCheckSystem:
         # ✅ ВАЖНО: Проверяем саму систему самопроверки
         if self.self_check_enabled:
             checks.append(await self.check_self())
+
+        # Предиктивный мониторинг (Living Organism §6) — тренды, пороги → задачи
+        try:
+            from app.predictive_monitor import run_predictive_check
+            pred = await run_predictive_check()
+            if pred.get("tasks_created", 0) > 0:
+                logger.info("📊 [PREDICTIVE] Создано %s задач (stuck=%s, old_pending=%s)",
+                            pred["tasks_created"], pred.get("stuck_count"), pred.get("old_pending_count"))
+        except Exception as e:
+            logger.debug("Predictive check failed: %s", e)
         
         # Обновляем статусы
         for check in checks:
@@ -393,6 +438,9 @@ class SelfCheckSystem:
                     fixed = await self.auto_fix_component(check)
                     if fixed:
                         logger.info(f"✅ [SELF-CHECK] {check.name} автоматически исправлен")
+                # Если auto_fix не сработал — создаём задачу в БД для SRE
+                if not check.auto_fixed and check.status in [ComponentStatus.UNHEALTHY, ComponentStatus.DEGRADED]:
+                    await self._create_recovery_task(check)
         
         # Сохраняем в историю
         self.check_history.extend(checks)

@@ -1,8 +1,12 @@
 # Настройка Grafana для метрик ATRA Web IDE (День 5)
 
-## 1. Вход в Grafana
+В проекте два экземпляра Grafana:
+- **Web IDE:** http://localhost:**3002** (логин `admin` / пароль `admin`) — дашборды чата, метрики бэкенда. В левой панели дашборды сгруппированы в папку **«Web IDE»**.
+- **Knowledge OS:** http://localhost:**3001** (логин `admin` / пароль `atra2025`) — дашборды оркестрации, БЗ, агентов. В левой панели дашборды сгруппированы в папку **«Knowledge OS»**.
 
-- **URL:** http://localhost:3001  
+## 1. Вход в Grafana (Web IDE)
+
+- **URL:** http://localhost:3002  
 - **Логин:** `admin`  
 - **Пароль:** `admin`  
 
@@ -89,8 +93,9 @@
 
 ## 6. Полезные ссылки
 
-- Grafana: http://localhost:3001  
-- Prometheus (наш, порт 9091): http://localhost:9091  
+- Grafana Web IDE: http://localhost:3002  
+- Grafana Knowledge OS: http://localhost:3001  
+- Prometheus Web IDE (порт 9091): http://localhost:9091  
 - Метрики бэкенда (сырой вывод): http://localhost:8080/metrics  
 - Сводка метрик: http://localhost:8080/metrics/summary  
 

@@ -3,6 +3,7 @@ Isolated Context Heaps - Изолированные контексты для а
 На основе практики Anthropic: изолированные контексты для sub-agents
 """
 
+import os
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
@@ -10,6 +11,10 @@ from datetime import datetime, timezone
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Лимиты для предотвращения утечки памяти (56+ ГБ: неограниченный рост contexts и размера message)
+MAX_CONTEXTS = int(os.getenv('ISOLATED_CONTEXT_MAX_CONTEXTS', '200'))
+MAX_MESSAGE_CONTENT_CHARS = int(os.getenv('ISOLATED_CONTEXT_MAX_MESSAGE_CHARS', '2000'))
 
 
 class ContextType(Enum):
@@ -44,13 +49,21 @@ class IsolatedContext:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_accessed: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     
+    # Лимит сообщений в памяти (предотвращение утечки при долгой работе)
+    MAX_MEMORY_ENTRIES = 100
+
     def add_memory(self, role: str, content: str):
-        """Добавить запись в память"""
+        """Добавить запись в память (храним последние MAX_MEMORY_ENTRIES; content обрезается до MAX_MESSAGE_CONTENT_CHARS)."""
+        content_stored = content
+        if isinstance(content_stored, str) and len(content_stored) > MAX_MESSAGE_CONTENT_CHARS:
+            content_stored = content_stored[:MAX_MESSAGE_CONTENT_CHARS] + "..."
         self.memory.append({
             "role": role,
-            "content": content,
+            "content": content_stored,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        if len(self.memory) > self.MAX_MEMORY_ENTRIES:
+            self.memory = self.memory[-self.MAX_MEMORY_ENTRIES:]
         self.last_accessed = datetime.now(timezone.utc)
     
     def get_memory(self, limit: Optional[int] = None) -> List[Dict[str, str]]:
@@ -75,7 +88,8 @@ class ContextManager:
     """
     Менеджер изолированных контекстов
     
-    Управляет контекстами для всех агентов и проектов
+    Управляет контекстами для всех агентов и проектов.
+    Лимит MAX_CONTEXTS: при превышении удаляется контекст с самым старым last_accessed (причина 56 ГБ).
     """
     
     def __init__(self):
@@ -84,6 +98,14 @@ class ContextManager:
     def _get_key(self, agent_name: str, project_context: str) -> str:
         """Получить ключ для контекста"""
         return f"{agent_name}:{project_context}"
+    
+    def _evict_lru_context(self) -> None:
+        """Удалить контекст с самым старым last_accessed (если достигнут лимит)."""
+        if len(self.contexts) < MAX_CONTEXTS:
+            return
+        oldest_key = min(self.contexts.keys(), key=lambda k: self.contexts[k].last_accessed)
+        del self.contexts[oldest_key]
+        logger.debug(f"🗑️ [MEMORY] Evicted context {oldest_key} (max {MAX_CONTEXTS})")
     
     def get_context(
         self,
@@ -105,6 +127,7 @@ class ContextManager:
         key = self._get_key(agent_name, project_context)
         
         if key not in self.contexts:
+            self._evict_lru_context()
             self.contexts[key] = IsolatedContext(
                 agent_name=agent_name,
                 project_context=project_context,

@@ -339,8 +339,17 @@ class RAGLightService:
     def extract_direct_answer(self, query: str, chunk: str) -> str:
         """
         Извлекает краткий ответ из чанка для запроса.
-        Ищет предложения с ключевыми словами и фактами (числа, даты).
+        Если чанк в формате «Вопрос: ... Ответ: ...», приоритет — текст после «Ответ:»
+        (для лучшей relevance при оценке по эталону).
+        Иначе — предложения с ключевыми словами и фактами (числа, даты).
         """
+        # Формат «Вопрос: ... Ответ: ...» — возвращаем только часть после «Ответ:»
+        for marker in ("\nОтвет:", "\nAnswer:", "Ответ:", "Answer:"):
+            idx = chunk.find(marker)
+            if idx >= 0:
+                answer_part = chunk[idx + len(marker) :].strip()
+                if answer_part:
+                    return self._truncate_response(answer_part)
         query_lower = query.lower()
         chunk_lower = chunk.lower()
         keywords = (
@@ -352,6 +361,9 @@ class RAGLightService:
             if not s:
                 continue
             s_lower = s.lower()
+            # Пропускаем предложения, которые выглядят как вопрос (для Q+A чанков)
+            if s_lower.startswith("вопрос:") or s_lower.startswith("question:"):
+                continue
             if any(w in s_lower for w in query_lower.split()[:3]):
                 return self._truncate_response(s)
             if any(kw in s_lower for kw in keywords):

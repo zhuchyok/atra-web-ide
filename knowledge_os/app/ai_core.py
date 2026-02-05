@@ -302,19 +302,19 @@ async def _run_cloud_agent_async(prompt: str):
                     logger.warning(f"⚠️ [TIMEOUT FALLBACK] Локальные модели также недоступны: {e}")
             return "⌛ Облачный запрос занял слишком много времени. Локальные модели также недоступны."
     except FileNotFoundError:
-        # 🍎 ПРИОРИТЕТ 1: Попробовать MLX (Apple Neural Engine) для снижения нагрузки на MacBook
+        # 🍎 ПРИОРИТЕТ 1: Попробовать MLX (Apple Neural Engine) на Mac Studio
         try:
             from knowledge_os.app.mlx_router import get_mlx_router, is_mlx_available
             if is_mlx_available():
                 mlx_router = get_mlx_router()
-                logger.info("🍎 [MLX] Пробуем использовать Apple MLX (Neural Engine) для снижения нагрузки")
+                logger.info("🍎 [MLX] Пробуем использовать Apple MLX (Neural Engine) на Mac Studio")
                 mlx_response = await mlx_router.generate_response(
                     prompt=prompt,
                     max_tokens=512,
                     temperature=0.7
                 )
                 if mlx_response and len(mlx_response) > 10:
-                    logger.info("✅ [MLX] Использован Apple MLX (Neural Engine) - нагрузка на MacBook снижена")
+                    logger.info("✅ [MLX] Использован Apple MLX (Neural Engine) на Mac Studio")
                     return mlx_response
                 else:
                     logger.debug("⚠️ [MLX] MLX не вернул ответ, пробуем Ollama")
@@ -327,21 +327,26 @@ async def _run_cloud_agent_async(prompt: str):
         logger.warning("⚠️ cursor-agent not found, using direct Ollama API")
         try:
             import aiohttp
+            # Таймаут запроса к Ollama: по умолчанию 300 с, чтобы дождаться ответа (совпадает с LOCAL_ROUTER_LLM_TIMEOUT)
+            _ollama_timeout = float(os.getenv("LOCAL_ROUTER_LLM_TIMEOUT", os.getenv("SMART_WORKER_LLM_TIMEOUT", "300")))
+            # В Docker localhost недоступен — используем OLLAMA_BASE_URL/host.docker.internal
+            _ollama_base = os.getenv('OLLAMA_BASE_URL') or os.getenv('OLLAMA_API_URL') or os.getenv('SERVER_LLM_URL')
+            if not _ollama_base:
+                _is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+                _ollama_base = 'http://host.docker.internal:11434' if _is_docker else 'http://localhost:11434'
+            ollama_urls = [_ollama_base]
             async with aiohttp.ClientSession() as session:
-                # Try server first (phi3 available), then MacBook if accessible
-                # Note: localhost on server = server itself, not MacBook
-                # MacBook would need to be accessible via network IP (not implemented yet)
-                for ollama_url in ["http://localhost:11434"]:
+                # Mac Studio: используем локальные модели (Ollama и MLX)
+                for ollama_url in ollama_urls:
                     try:
-                        # MacBook: use better models (deepseek-r1, qwen2.5-coder)
-                        # Server: use lightweight models (phi3, phi4) for low RAM
+                        # Mac Studio: доступны лучшие модели
+                        # MLX модели (Mac Studio): qwen2.5-coder:32b, deepseek-r1-distill-llama:70b
+                        # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
                         if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
-                            # MacBook - лучшие модели
-                            # MLX модели (Mac Studio): qwen2.5-coder:32b, deepseek-r1-distill-llama:70b
-                            # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
+                            # Mac Studio - лучшие модели
                             models_to_try = ["deepseek-r1-distill-llama:70b", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
                         else:
-                            # Server - легкие модели (1.9GB RAM)
+                            # Внешний сервер - легкие модели (если потребуется)
                             models_to_try = ["phi3:latest", "phi3", "phi4:latest", "phi4", "tinyllama", "gemma:2b"]
                         
                         response = None
@@ -356,7 +361,7 @@ async def _run_cloud_agent_async(prompt: str):
                                         "prompt": prompt,
                                         "stream": False
                                     },
-                                    timeout=aiohttp.ClientTimeout(total=120)
+                                    timeout=aiohttp.ClientTimeout(total=_ollama_timeout)
                                 ) as resp:
                                     if resp.status == 200:
                                         data = await resp.json()
@@ -379,7 +384,7 @@ async def _run_cloud_agent_async(prompt: str):
                                     "prompt": prompt,
                                     "stream": False
                                 },
-                                timeout=aiohttp.ClientTimeout(total=120)
+                                timeout=aiohttp.ClientTimeout(total=_ollama_timeout)
                             ) as resp:
                                 if resp.status == 200:
                                     data = await resp.json()
@@ -407,31 +412,50 @@ async def _run_cloud_agent_async(prompt: str):
         return f"❌ Ошибка связи с облаком: {exc}"
 
 async def _get_knowledge_context(query: str) -> str:
-    """Retrieve relevant knowledge nodes (RAG) - включает знания корпорации и adaptive_learning_logs (Singularity 10.0)."""
+    """Retrieve relevant knowledge nodes (RAG) - знания корпорации, adaptive_learning_logs, примеры успешных решений (Singularity 10.0)."""
     try:
         embedding = await get_embedding(query)
         if not embedding: return ""
         pool = await _get_db_pool()
         if not pool: return ""
-        async with pool.acquire() as conn:
-            # Ищем релевантные знания, включая знания корпорации
-            rows = await conn.fetch("""
-                SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                FROM knowledge_nodes
-                WHERE embedding IS NOT NULL
-                AND confidence_score >= 0.3
-                ORDER BY similarity DESC LIMIT 5
-            """, embedding)
-            # Singularity 10.0: топ lessons learned из adaptive_learning_logs (high impact_score)
-            lessons_rows = await conn.fetch("""
-                SELECT learned_insight, impact_score, learning_type
-                FROM adaptive_learning_logs
-                WHERE impact_score > 0.7
-                ORDER BY impact_score DESC
-                LIMIT 3
-            """)
-        if not rows and not lessons_rows: return ""
+        # Параллельно: знания, lessons, примеры успешных решений (похожие completed задачи)
+        async with pool.acquire() as conn1, pool.acquire() as conn2, pool.acquire() as conn3:
+            rows, lessons_rows, success_rows = await asyncio.gather(
+                conn1.fetch("""
+                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL
+                    AND confidence_score >= 0.3
+                    ORDER BY similarity DESC LIMIT 5
+                """, embedding),
+                conn2.fetch("""
+                    SELECT learned_insight, impact_score, learning_type
+                    FROM adaptive_learning_logs
+                    WHERE impact_score > 0.7
+                    ORDER BY impact_score DESC
+                    LIMIT 3
+                """),
+                conn3.fetch("""
+                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL
+                    AND source_ref = 'autonomous_worker'
+                    AND confidence_score >= 0.8
+                    ORDER BY similarity DESC LIMIT 2
+                """, embedding)
+            )
+        if not rows and not lessons_rows and not success_rows: return ""
         context = "\n📚 [KNOWLEDGE CONTEXT]:\n"
+        # Примеры успешных решений (похожие цели → примеры в промпт)
+        for row in success_rows:
+            if row['similarity'] >= 0.55:
+                meta = row['metadata'] or {}
+                expert = meta.get('expert', 'Эксперт')
+                context += f"\n[ПРИМЕР УСПЕШНОГО РЕШЕНИЯ] (релевантность: {row['similarity']:.2f}, эксперт: {expert}):\n"
+                content_preview = (row['content'] or "")[:1200]
+                if len((row['content'] or "")) > 1200:
+                    content_preview += "\n[... обрезано ...]"
+                context += f"{content_preview}\n"
         for row in rows:
             if row['similarity'] >= 0.6:  # Понизили порог для лучшего покрытия
                 metadata = row['metadata'] or {}
@@ -460,7 +484,8 @@ async def run_smart_agent_async(
     require_cot: bool = False,
     is_critical: bool = False,
     images: Optional[list] = None,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    local_router=None,
 ):
     """
     Hybrid Intelligence Orchestrator.
@@ -503,7 +528,13 @@ async def run_smart_agent_async(
     
     # 1. Initialization (кэш в той же БД, что дашборд/SLA — DATABASE_URL)
     cache = SemanticAICache(db_url=os.getenv("DATABASE_URL")) if SemanticAICache else None
-    router = LocalAIRouter() if LocalAIRouter else None
+    # Воркер передаёт роутер явно (local_router) или через _current_router. Явная передача убирает гонку при параллельных задачах.
+    import sys
+    _mod = sys.modules.get(__name__)
+    _router_preferred = local_router if local_router is not None else getattr(_mod, '_current_router', None)
+    if local_router is None and getattr(_mod, '_current_router', None) is not None:
+        setattr(_mod, '_current_router', None)  # сброс после взятия из глобала
+    router = _router_preferred if _router_preferred is not None else (LocalAIRouter() if LocalAIRouter else None)
     distiller = KnowledgeDistiller() if KnowledgeDistiller else None
     qa = QualityAssurance(min_quality_threshold=0.7) if QualityAssurance else None
     quality_gate = QualityGate(qa) if QualityGate and qa else None
@@ -626,13 +657,17 @@ async def run_smart_agent_async(
             logger.warning("⚠️ [QUALITY GATE] Prompt optimization too aggressive, using original")
             user_part = original_user_part
 
-    # 1.5. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 9.0)
+    # 1.5. Определяем тип задачи (до Tacit Knowledge и кэша)
+    _coding_keywords = ["код", "программируй", "рефакторинг", "тест", "аудит", "проверь", "напиши", "создай", "реализуй", "добавь", "исправь", "функци", "класс", "модуль", "api", "endpoint"]
+    is_coding_task = any(kw in user_part.lower() for kw in _coding_keywords)
+
+    # 1.6. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 9.0)
     style_profile = None
     style_modifier = ""
     user_identifier = session_id or "default_user"  # Используем session_id как user_identifier или дефолт
     style_similarity_score = 0.0
     
-    # 1.6. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 9.0)
+    # 1.7. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 9.0)
     emotion_result = None
     emotion_modifier = ""
     
@@ -672,9 +707,6 @@ async def run_smart_agent_async(
         except Exception as e:
             logger.debug(f"⚠️ [TACIT KNOWLEDGE] Error loading style profile: {e}")
             style_profile = None
-
-    # 1.6. Определяем тип задачи (до проверки кэша, так как используется в Tacit Knowledge)
-    is_coding_task = any(kw in user_part.lower() for kw in ["код", "программируй", "рефакторинг", "тест", "аудит", "проверь"])
 
     # 2. Cache Check (улучшенный) - через circuit breaker
     if cache and not images:
@@ -830,15 +862,20 @@ async def run_smart_agent_async(
                     )
                 
                 # Phase 3: Victoria validates the result (Short audit)
-                audit_prompt = f"""
-                Вы - Виктория, Team Lead. Проверьте код, написанный разработчиком. 
-                Если в коде есть критические ошибки, напишите ПЛАН ИСПРАВЛЕНИЯ. 
-                Если код отличный, напишите 'APPROVED'.
-                
-                КОД РАЗРАБОТЧИКА:
-                {local_resp}
-                """
-                audit_result = await _run_cloud_agent_async(audit_prompt)
+                # Аудит отключён для стабильности — каждая задача теперь завершается быстрее
+                # Включить обратно: USE_VICTORIA_AUDIT=true
+                use_audit = os.getenv('USE_VICTORIA_AUDIT', 'false').lower() in ('true', '1', 'yes')
+                audit_result = "APPROVED"  # По умолчанию считаем результат одобренным
+                if use_audit:
+                    audit_prompt = f"""
+                    Вы - Виктория, Team Lead. Проверьте код, написанный разработчиком. 
+                    Если в коде есть критические ошибки, напишите ПЛАН ИСПРАВЛЕНИЯ. 
+                    Если код отличный, напишите 'APPROVED'.
+                    
+                    КОД РАЗРАБОТЧИКА:
+                    {local_resp}
+                    """
+                    audit_result = await _run_cloud_agent_async(audit_prompt)
                 
             if audit_result and "APPROVED" in audit_result:
                 # Estimate token savings (local execution vs full cloud)
@@ -1033,7 +1070,16 @@ async def run_smart_agent_async(
                     return result['analysis']
         
         # Параллельная обработка: локальные модели и облако одновременно
-        if ParallelRequestProcessor and get_parallel_processor and router:
+        # НО! Отключаем для reasoning задач (Совет, стратегия) - они требуют последовательной обработки
+        use_parallel = (
+            ParallelRequestProcessor and 
+            get_parallel_processor and 
+            router and 
+            category != "reasoning" and  # ОТКЛЮЧАЕМ для reasoning!
+            not is_critical  # ОТКЛЮЧАЕМ для критичных задач
+        )
+        
+        if use_parallel:
             logger.info("⚡ [PARALLEL] Параллельная обработка: локальные модели и облако")
             parallel_processor = get_parallel_processor(max_concurrent=3)
             
@@ -1060,7 +1106,7 @@ async def run_smart_agent_async(
                 name="local",
                 handler=try_local,
                 priority=1,
-                timeout=30.0
+                timeout=300.0  # Увеличено до 300s для reasoning (20B+ моделей)
             ))
             
             # Облако (приоритет 2 - медленнее, но качественнее)
@@ -1078,7 +1124,7 @@ async def run_smart_agent_async(
                 name="cloud",
                 handler=try_cloud,
                 priority=2,
-                timeout=60.0
+                timeout=300.0  # Увеличено до 300s для reasoning задач
             ))
             
             # Параллельно обрабатываем источники

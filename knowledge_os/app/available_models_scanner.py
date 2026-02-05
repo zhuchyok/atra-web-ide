@@ -49,24 +49,29 @@ MLX_BEST_FIRST: List[str] = [
 ]
 
 # Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
+# Приоритеты моделей Ollama (из сканера актуальных моделей)
+# Оркестратор решает тип задачи; если нужна тяжёлая — выбирается из приоритетов
+# Время загрузки тяжёлых (30–90 сек) учитывается через SMART_WORKER_HEAVY_MODEL_TIMEOUT_MULTIPLIER
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "tinyllama:1.1b-chat", "moondream:latest"],
-    "default": ["qwen2.5-coder:32b", "phi3.5:3.8b", "tinyllama:1.1b-chat"],
-    "general": ["qwen2.5-coder:32b", "qwq:32b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"],
-    "coding": ["qwen2.5-coder:32b", "qwq:32b", "phi3.5:3.8b"],
-    "reasoning": ["qwq:32b", "glm-4.7-flash:q8_0", "qwen2.5-coder:32b"],
-    "complex": ["qwq:32b", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0"],
+    "default": ["phi3.5:3.8b", "qwen2.5-coder:32b", "tinyllama:1.1b-chat"],
+    "general": ["phi3.5:3.8b", "glm-4.7-flash:q8_0", "qwen2.5-coder:32b", "qwq:32b"],
+    "coding": ["phi3.5:3.8b", "qwen2.5-coder:32b", "qwq:32b"],
+    "reasoning": ["phi3.5:3.8b", "qwq:32b", "glm-4.7-flash:q8_0", "qwen2.5-coder:32b"],
+    "complex": ["phi3.5:3.8b", "qwq:32b", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0"],
     "vision": ["llava:7b", "moondream:latest"],
 }
 
 # Приоритеты моделей MLX по категории
+# Приоритеты моделей MLX (из сканера актуальных моделей)
+# Оркестратор решает тип; тяжёлые — при необходимости; время загрузки учитывается
 MLX_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "default": ["qwen2.5-coder:32b", "deepseek-r1-distill-llama:70b", "phi3.5:3.8b"],
-    "general": ["command-r-plus:104b", "llama3.3:70b", "qwen2.5-coder:32b"],
-    "coding": ["qwen2.5-coder:32b", "deepseek-r1-distill-llama:70b", "phi3.5:3.8b"],
-    "reasoning": ["deepseek-r1-distill-llama:70b", "command-r-plus:104b", "llama3.3:70b"],
-    "complex": ["command-r-plus:104b", "deepseek-r1-distill-llama:70b", "llama3.3:70b"],
+    "default": ["phi3.5:3.8b", "qwen2.5-coder:32b", "deepseek-r1-distill-llama:70b"],
+    "general": ["phi3.5:3.8b", "qwen2.5-coder:32b", "command-r-plus:104b", "llama3.3:70b"],
+    "coding": ["phi3.5:3.8b", "qwen2.5-coder:32b", "deepseek-r1-distill-llama:70b"],
+    "reasoning": ["phi3.5:3.8b", "deepseek-r1-distill-llama:70b", "command-r-plus:104b", "llama3.3:70b"],
+    "complex": ["phi3.5:3.8b", "command-r-plus:104b", "deepseek-r1-distill-llama:70b", "llama3.3:70b"],
 }
 
 
@@ -223,9 +228,27 @@ def pick_mlx_for_category(category: str, mlx_models: List[str]) -> Optional[str]
     return mlx_models[0].strip() if mlx_models else None
 
 
+def _default_ollama_url() -> str:
+    import os
+    if os.getenv("OLLAMA_API_URL"):
+        return os.getenv("OLLAMA_API_URL", "").rstrip("/")
+    if os.getenv("OLLAMA_BASE_URL"):
+        return os.getenv("OLLAMA_BASE_URL", "").rstrip("/")
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in ("true", "1")
+    return "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
+
+
+def _default_mlx_url() -> str:
+    import os
+    if os.getenv("MLX_API_URL"):
+        return os.getenv("MLX_API_URL", "").rstrip("/")
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in ("true", "1")
+    return "http://host.docker.internal:11435" if is_docker else "http://localhost:11435"
+
+
 async def scan_and_select_models(
-    mlx_url: str = "http://localhost:11435",
-    ollama_url: str = "http://localhost:11434",
+    mlx_url: Optional[str] = None,
+    ollama_url: Optional[str] = None,
     force_refresh: bool = False,
 ) -> ModelSelection:
     """
@@ -234,6 +257,8 @@ async def scan_and_select_models(
     Returns:
         ModelSelection с раздельными списками и лучшими моделями для Ollama и MLX
     """
+    mlx_url = mlx_url or _default_mlx_url()
+    ollama_url = ollama_url or _default_ollama_url()
     mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url, force_refresh=force_refresh)
     
     result = ModelSelection(

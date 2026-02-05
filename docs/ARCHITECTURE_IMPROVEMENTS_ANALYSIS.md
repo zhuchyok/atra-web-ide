@@ -33,7 +33,7 @@
 |-------------|------------|
 | Детальная трассировка, correlation ID | **observability.py** — OpenTelemetry, `trace_span`, атрибуты. **victoria_enhanced** оборачивает solve в span. **event_bus** — correlation_id для request/response. **task_distribution_system** — correlation_id в заданиях. |
 
-**Вывод:** Трассировка и correlation_id есть, но не прокидываются единым ID по всей цепочке (чат → Victoria → Veronica → ответ). Имеет смысл добавить один `correlation_id` в запрос к Victoria и передавать его во все вызовы и логи — небольшое изменение, большое удобство при отладке.
+**Вывод:** Трассировка и correlation_id есть. **Реализовано (2026-02-03):** Backend chat генерирует correlation_id, передаёт в VictoriaClient.run/run_stream → заголовок X-Correlation-ID → Victoria. Victoria уже читает X-Correlation-ID и прокидывает по цепочке. SSE step содержит correlation_id для отладки.
 
 ---
 

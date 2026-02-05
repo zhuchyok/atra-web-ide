@@ -2,6 +2,10 @@ import asyncio
 import os
 import json
 import asyncpg
+try:
+    from json_fast import loads as json_fast_loads, dumps as json_fast_dumps
+except ImportError:
+    json_fast_loads = json_fast_dumps = None
 import httpx
 import redis.asyncio as redis
 from mcp.server.fastmcp import FastMCP
@@ -56,14 +60,14 @@ async def search_knowledge(query: str, domain: str = None) -> str:
     cached_data = await rd.get(cache_key)
     if cached_data:
         try:
-            data = json.loads(cached_data)
-            print(f"⚡ [CACHE HIT] for query: {query}")
-            # Increment usage_count even on cache hit
-            async with db_pool.acquire() as conn:
-                await conn.execute("UPDATE knowledge_nodes SET usage_count = usage_count + 1 WHERE id = ANY($1)", data['node_ids'])
-            return data['result_text']
+            data = (json_fast_loads(cached_data) if json_fast_loads else json.loads(cached_data))
+            if data and isinstance(data, dict) and "result_text" in data and "node_ids" in data:
+                print(f"⚡ [CACHE HIT] for query: {query}")
+                async with db_pool.acquire() as conn:
+                    await conn.execute("UPDATE knowledge_nodes SET usage_count = usage_count + 1 WHERE id = ANY($1)", data["node_ids"])
+                return data["result_text"]
         except Exception:
-            # If cache format is old, ignore and re-search
+            # Старый формат кэша или невалидный JSON — идём в поиск
             pass
 
     # Получение эмбеддинга через VectorCore
@@ -96,10 +100,8 @@ async def search_knowledge(query: str, domain: str = None) -> str:
         result_text = "\n".join([f"Similarity {r['similarity']:.2f}: {r['content']}" for r in results])
         
         # Сохраняем в кеш на 1 час (текст + ID узлов)
-        cache_payload = json.dumps({
-            "result_text": result_text,
-            "node_ids": node_ids
-        })
+        _dumps = json_fast_dumps if json_fast_dumps else json.dumps
+        cache_payload = _dumps({"result_text": result_text, "node_ids": node_ids})
         await rd.set(cache_key, cache_payload, ex=3600)
         return result_text
 

@@ -53,10 +53,9 @@ async def perform_research():
     
     pool = await get_pool()
     
-    # Определяем доступные узлы для локальных моделей
+    # Определяем доступные узлы для локальных моделей (Mac Studio)
     local_nodes = [
-        {"url": os.getenv('MAC_LLM_URL', 'http://localhost:11434'), "name": "MacBook"},
-        {"url": os.getenv('SERVER_LLM_URL', 'http://localhost:11434'), "name": "Server"}
+        {"url": os.getenv('MAC_LLM_URL', 'http://localhost:11434'), "name": "Mac Studio (Ollama)"}
     ]
     
     # Выбираем первый доступный узел

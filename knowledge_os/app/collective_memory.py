@@ -39,6 +39,30 @@ class CollectiveMemory:
     aggregated_knowledge: Dict = field(default_factory=dict)
 
 
+# Лимиты для предотвращения утечки памяти (56+ ГБ при долгой работе Victoria)
+MAX_TRACES_PER_LOCATION = int(os.getenv('COLLECTIVE_MEMORY_MAX_TRACES_PER_LOCATION', '200'))
+MAX_TRACE_RESULT_CHARS = int(os.getenv('COLLECTIVE_MEMORY_MAX_RESULT_CHARS', '2000'))
+MAX_TRACE_LOCATIONS = int(os.getenv('COLLECTIVE_MEMORY_MAX_LOCATIONS', '500'))
+# Лимит числа агентов в памяти и размера одного experience (причина 56 ГБ: неограниченный рост agent_memories)
+MAX_AGENT_MEMORIES = int(os.getenv('COLLECTIVE_MEMORY_MAX_AGENTS', '100'))
+MAX_EXPERIENCE_VALUE_CHARS = int(os.getenv('COLLECTIVE_MEMORY_MAX_EXPERIENCE_CHARS', '2000'))
+
+
+def _truncate_experience(experience: Dict, depth: int = 0) -> Dict:
+    """Обрезать строковые значения в experience до MAX_EXPERIENCE_VALUE_CHARS (предотвращение роста памяти)."""
+    if depth > 5:
+        return experience
+    out = {}
+    for k, v in experience.items():
+        if isinstance(v, str) and len(v) > MAX_EXPERIENCE_VALUE_CHARS:
+            out[k] = v[:MAX_EXPERIENCE_VALUE_CHARS] + "..."
+        elif isinstance(v, dict):
+            out[k] = _truncate_experience(v, depth + 1)
+        else:
+            out[k] = v
+    return out
+
+
 class CollectiveMemorySystem:
     """
     Collective Memory System - коллективная память через stigmergy
@@ -75,22 +99,35 @@ class CollectiveMemorySystem:
             location: Место действия (файл, задача, домен)
             metadata: Дополнительные метаданные
         """
+        # Ограничиваем размер result в памяти (полный ответ LLM может быть 100KB+)
+        result_stored = result
+        if isinstance(result_stored, str) and len(result_stored) > MAX_TRACE_RESULT_CHARS:
+            result_stored = result_stored[:MAX_TRACE_RESULT_CHARS] + "..."
+        elif result_stored is not None and not isinstance(result_stored, (str, int, float, bool)):
+            result_stored = str(result_stored)[:MAX_TRACE_RESULT_CHARS] + ("..." if len(str(result_stored)) > MAX_TRACE_RESULT_CHARS else "")
+        
         trace = EnvironmentalTrace(
             trace_id=f"{agent_name}_{datetime.now(timezone.utc).isoformat()}",
             agent_name=agent_name,
             action=action,
-            result=result,
+            result=result_stored,
             location=location,
             metadata=metadata or {}
         )
         
-        # Сохраняем trace
+        # Сохраняем trace с лимитом на количество (предотвращение утечки памяти)
         if location not in self.traces:
+            if len(self.traces) >= MAX_TRACE_LOCATIONS:
+                # Удаляем самую старую location (первый ключ в порядке вставки)
+                oldest_key = next(iter(self.traces))
+                del self.traces[oldest_key]
             self.traces[location] = []
         self.traces[location].append(trace)
+        if len(self.traces[location]) > MAX_TRACES_PER_LOCATION:
+            self.traces[location] = self.traces[location][-MAX_TRACES_PER_LOCATION:]
         
-        # Сохраняем в БД
-        await self._save_trace_to_db(trace)
+        # Сохраняем в БД полный result (без обрезки) — мысль не теряется; в памяти только обрезка
+        await self._save_trace_to_db(trace, full_result=result)
         
         logger.debug(f"📝 Записан trace: {agent_name} → {location}")
     
@@ -157,12 +194,18 @@ class CollectiveMemorySystem:
             agent_name: Имя агента
             experience: Опыт для сохранения
         """
+        # Ограничиваем число агентов в памяти (причина 56 ГБ: неограниченный рост agent_memories)
         if agent_name not in self.agent_memories:
+            if len(self.agent_memories) >= MAX_AGENT_MEMORIES:
+                oldest_agent = next(iter(self.agent_memories))
+                del self.agent_memories[oldest_agent]
+                logger.debug(f"🗑️ [MEMORY] Evicted agent {oldest_agent} (max {MAX_AGENT_MEMORIES})")
             self.agent_memories[agent_name] = CollectiveMemory(agent_name=agent_name)
         
         memory = self.agent_memories[agent_name]
+        exp_truncated = _truncate_experience(experience)
         memory.individual_memory.append({
-            **experience,
+            **exp_truncated,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
@@ -302,11 +345,19 @@ class CollectiveMemorySystem:
         
         return min(base_factor, 1.687)  # Максимум +68.7%
     
-    async def _save_trace_to_db(self, trace: EnvironmentalTrace):
-        """Сохранить trace в БД"""
+    async def _save_trace_to_db(self, trace: EnvironmentalTrace, full_result: Any = None):
+        """
+        Сохранить trace в БД.
+        full_result: полный текст результата (без обрезки) — пишем в БД целиком;
+        в памяти в trace хранится только обрезка (см. record_action).
+        """
+        result_for_db = full_result if full_result is not None else trace.result
+        if result_for_db is not None and not isinstance(result_for_db, str):
+            result_for_db = str(result_for_db)
         try:
-            conn = await asyncpg.connect(self.db_url)
-            try:
+            from db_pool import get_pool
+            pool = await get_pool()
+            async with pool.acquire() as conn:
                 # Проверяем наличие таблицы
                 table_exists = await conn.fetchval("""
                     SELECT EXISTS (
@@ -324,13 +375,11 @@ class CollectiveMemorySystem:
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (trace_id) DO UPDATE SET
                         strength = EXCLUDED.strength,
-                        timestamp = EXCLUDED.timestamp
+                        timestamp = EXCLUDED.timestamp,
+                        result = EXCLUDED.result
                 """, trace.trace_id, trace.agent_name, trace.action,
-                    str(trace.result)[:1000], trace.location, trace.timestamp,
+                    result_for_db or "", trace.location, trace.timestamp,
                     trace.strength, json.dumps(trace.metadata) if trace.metadata else None)
-                
-            finally:
-                await conn.close()
         except Exception as e:
             logger.warning(f"⚠️ Ошибка сохранения trace: {e}")
     
