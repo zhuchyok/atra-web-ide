@@ -1882,6 +1882,35 @@
 
 ---
 
+## 19. Singularity 10.0: Самоэволюция и Автономная Инфраструктура (2026-02-14)
+
+- **Цель:** Достижение 10/10 по шкале автономности OpenAI/Anthropic. Переход от статичной архитектуры к «живому» коду и полной изоляции экспериментов.
+- **Реализация:**
+  1. **Self-Evolution Loop:**
+     - `ArchitectureProfiler`: Декоратор `@profile_function` собирает метрики исполнения в БД `architecture_performance_log`.
+     - `MetaArchitect`: Автономно генерирует гипотезы по оптимизации «горячих точек» и синтезирует мутировавший код (например, `ai_core_v2.py`).
+     - `TrafficMirror`: Зеркалирует реальные запросы в теневые контейнеры для проверки мутаций без риска для продакшена.
+     - `ServiceMonitor`: Выполняет атомарную замену кода (`promote_mutation`) с механизмом отката.
+  2. **Autonomous Sandboxes:**
+     - `SandboxManager`: Позволяет экспертам (Игорь, Вероника) деплоить микросервисы в Docker.
+     - Бэкенд получил доступ к `/var/run/docker.sock` и библиотеку `docker-py` для управления жизненным циклом песочниц.
+  3. **Global GraphRAG:**
+     - Модули `entity_extractor`, `community_detector` и `multi_hop_retriever` в `knowledge_os/app/graphrag/`.
+     - Система понимает логические связи между 26k+ узлами знаний, выходя за рамки простого векторного сходства.
+  4. **vLLM-level Inference:**
+     - `mlx_api_server.py`: Внедрен `ContinuousBatcher` и очистка Metal-кэша для ускорения инференса на Mac Studio.
+  5. **Cross-Container Self-Diagnosis:**
+     - Сбор метрик через `docker stats` в реальном времени.
+     - `ContainerAnomalyDetector`: Выявление аномалий по Z-score (спам запросами, утечки ресурсов).
+     - `ContainerIsolationManager`: Автоматический перевод «агрессоров» в изолированную сеть `quarantine-net`.
+  6. **Multi-Project Command Center:**
+     - Дашборд: Интерактивная таблица проектов с защитой `atra-web-ide` от отключения.
+     - Синхронизация путей: Честный маппинг `/workspace/[slug]` между Mac Studio и Docker для всех проектов.
+- **Файлы:** `knowledge_os/app/sandbox_manager.py`, `knowledge_os/app/architecture_profiler.py`, `knowledge_os/app/traffic_mirror.py`, `knowledge_os/app/graphrag/*`, `knowledge_os/dashboard/tabs/system_tab.py`, `docker-compose.yml`.
+- **Итог:** Корпорация получила инструменты для бесконечного самосовершенствования и безопасного масштабирования на неограниченное количество проектов.
+
+---
+
 ## 14. Документы для углубления
 
 | Тема | Документ |
