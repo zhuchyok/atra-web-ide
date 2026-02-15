@@ -46,6 +46,9 @@ def render_expert_sandbox():
     with col_sel:
         selected_expert = st.selectbox("Агент в песочнице", expert_names)
         
+        # Инициализируем sb_status значением по умолчанию
+        sb_status = {"status": "unknown"}
+        
         # Получаем реальный статус из API
         try:
             import requests
