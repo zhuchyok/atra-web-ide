@@ -30,6 +30,11 @@ services:
     env_file: .env  # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — те же что у Victoria, для алертов
     ports:
       - "8080:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/app/project
+      - workspace_data:/workspace
+      - ./data:/app/data:ro  # Частые запросы для RAG prefetch (Фаза 3)
     environment:
       - VICTORIA_URL=http://victoria-agent:8000  # Используем общий контейнер Victoria из knowledge_os
       - PROJECT_NAME=atra-web-ide  # Контекст проекта для агентов
@@ -40,6 +45,7 @@ services:
       - REDIS_URL=redis://knowledge_os_redis:6379  # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 10.0)
       - WORKSPACE_ROOT=/workspace
+      - PYTHONPATH=/app:/app/project:/app/project/knowledge_os/app
       # Таймаут ожидания Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
       - VICTORIA_TIMEOUT=${VICTORIA_TIMEOUT:-900}
       # RAG-light оптимизации (Фаза 3, день 3–4)
@@ -49,14 +55,8 @@ services:
       - RAG_LIGHT_PREFETCH_ENABLED=true
       - RAG_LIGHT_PREFETCH_FILE=/app/data/frequent_queries.json
       - RAG_LIGHT_PREFETCH_MAX_QUERIES=50
-    volumes:
-      - workspace_data:/workspace
-      - ./data:/app/data:ro  # Частые запросы для RAG prefetch (Фаза 3)
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
     networks:
       - atra-network
 
@@ -112,55 +112,6 @@ services:
     networks:
       - atra-network
     restart: unless-stopped
-
-  # ============================================
-  # Victoria и Veronica - ОБЩИЕ ДЛЯ ВСЕХ ПРОЕКТОВ
-  # Запускаются через knowledge_os/docker-compose.yml
-  # Порт Victoria: 8010 (общий)
-  # Порт Veronica: 8011 (общий)
-  # ============================================
-  # Victoria и Veronica удалены отсюда - они в knowledge_os/docker-compose.yml
-  # Это правильная архитектура: один экземпляр агентов для всех проектов!
-
-  # ============================================
-  # PostgreSQL + pgvector - Knowledge OS
-  # Используем существующую БД из knowledge_os/docker-compose.yml
-  # ============================================
-  # db:
-  #   image: pgvector/pgvector:pg16
-  #   container_name: atra-knowledge-os-db
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: admin
-  #     POSTGRES_PASSWORD: secret
-  #     POSTGRES_DB: knowledge_os
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U admin -d knowledge_os"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - atra-network
-
-  # ============================================
-  # Redis - Кэш и очереди
-  # Используем Redis из knowledge_os (knowledge_os_redis)
-  # ============================================
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: atra-redis
-  #   restart: unless-stopped
-  #   ports:
-  #     - "6380:6379"  # Изменено с 6379 на 6380 для работы одновременно с atra
-  #   volumes:
-  #     - redis_data:/data
-  #   networks:
-  #     - atra-network
-  # Используем knowledge_os_redis из knowledge_os/docker-compose.yml
 
 # ============================================
 # Volumes

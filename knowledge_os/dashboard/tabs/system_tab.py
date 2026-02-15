@@ -46,14 +46,15 @@ def render_expert_sandbox():
     with col_sel:
         selected_expert = st.selectbox("Агент в песочнице", expert_names)
         
-        # Инициализируем sb_status значением по умолчанию
+        # Инициализируем sb_status и backend_url значением по умолчанию
         sb_status = {"status": "unknown"}
+        import os
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:8080")
         
         # Получаем реальный статус из API
         try:
             import requests
             # Внутри Docker контейнера dashboard может обращаться к backend по имени сервиса или localhost:8080
-            backend_url = os.getenv("BACKEND_URL", "http://localhost:8080")
             status_resp = requests.get(f"{backend_url}/api/sandbox/status/{selected_expert}", timeout=2)
             if status_resp.status_code == 200:
                 sb_status = status_resp.json()
@@ -62,12 +63,17 @@ def render_expert_sandbox():
                     st.caption(f"Образ: {sb_status.get('image')}")
                 elif sb_status.get("status") == "not_found":
                     st.info(f"ℹ️ Песочница для {selected_expert} еще не создана. Она появится автоматически при выполнении первой команды.")
+                elif sb_status.get("status") == "unavailable":
+                    st.warning(f"⚠️ {sb_status.get('reason', 'Docker not connected')}")
+                    st.info(f"Проверьте права доступа к /var/run/docker.sock и наличие библиотеки docker.")
                 else:
                     st.warning(f"⚠️ Статус: {sb_status.get('status')} ({sb_status.get('reason', 'unknown')})")
             else:
-                st.error("Не удалось получить статус из API")
+                st.error(f"Не удалось получить статус из API (Код: {status_resp.status_code})")
+                st.info(f"URL: {backend_url}")
         except Exception as e:
             st.error(f"Ошибка связи с API: {e}")
+            st.info(f"Попытка подключения к: {backend_url}")
         
         if st.button("🧹 Очистить песочницу"):
             try:
@@ -117,34 +123,44 @@ def render_expert_sandbox():
     
     # Сбор метрик в реальном времени
     try:
-        from container_metrics_collector import get_metrics_collector
-        from container_anomaly_detector import get_anomaly_detector
+        # Пытаемся импортировать локально, чтобы избежать ошибок при отсутствии файлов
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app"))
         
-        collector = get_metrics_collector()
-        detector = get_anomaly_detector()
-        
-        # Собираем текущие метрики
-        import asyncio
-        # Используем синхронную обертку для Streamlit
-        loop = asyncio.new_event_loop()
-        metrics = loop.run_until_complete(collector.collect_all_metrics())
-        anomalies = detector.analyze_metrics(metrics)
-        
-        if metrics:
-            df_metrics = pd.DataFrame(metrics)
-            st.dataframe(df_metrics[['name', 'cpu_percent', 'memory_usage_mb', 'net_tx_mb']], use_container_width=True)
+        try:
+            from container_metrics_collector import get_metrics_collector
+            from container_anomaly_detector import get_anomaly_detector
             
-            if anomalies:
-                for a in anomalies:
-                    st.error(f"🚨 ОБНАРУЖЕН АГРЕССОР: `{a['container_name']}` | Причина: {a['reason']}")
-                    if st.button(f"🛡️ Изолировать {a['container_name']}", key=f"iso_{a['container_name']}"):
-                        from container_isolation_manager import get_isolation_manager
-                        iso_manager = get_isolation_manager()
-                        loop.run_until_complete(iso_manager.isolate_container(a['container_name'], a['severity']))
-                        st.success(f"Контейнер {a['container_name']} переведен в карантин.")
-            else:
-                st.success("✅ Все микросервисы работают в штатном режиме. Аномалий не обнаружено.")
-        loop.close()
+            collector = get_metrics_collector()
+            detector = get_anomaly_detector()
+            
+            # Собираем текущие метрики
+            import asyncio
+            # Используем синхронную обертку для Streamlit
+            loop = asyncio.new_event_loop()
+            metrics = loop.run_until_complete(collector.collect_all_metrics())
+            anomalies = detector.analyze_metrics(metrics)
+            
+            if metrics:
+                df_metrics = pd.DataFrame(metrics)
+                st.dataframe(df_metrics[['name', 'cpu_percent', 'memory_usage_mb', 'net_tx_mb']], use_container_width=True)
+                
+                if anomalies:
+                    for a in anomalies:
+                        st.error(f"🚨 ОБНАРУЖЕН АГРЕССОР: `{a['container_name']}` | Причина: {a['reason']}")
+                        if st.button(f"🛡️ Изолировать {a['container_name']}", key=f"iso_{a['container_name']}"):
+                            from container_isolation_manager import get_isolation_manager
+                            iso_manager = get_isolation_manager()
+                            loop.run_until_complete(iso_manager.isolate_container(a['container_name'], a['severity']))
+                            st.success(f"Контейнер {a['container_name']} переведен в карантин.")
+                else:
+                    st.success("✅ Все микросервисы работают в штатном режиме. Аномалий не обнаружено.")
+            loop.close()
+        except ImportError as ie:
+            st.warning(f"Компоненты самодиагностики еще не загружены в контейнер: {ie}")
+            st.info("Попробуйте перезапустить дашборд через `docker-compose up -d --build corporation-dashboard`.")
     except Exception as e:
         st.warning(f"Метрики самодиагностики временно недоступны: {e}")
 
@@ -163,31 +179,25 @@ def render_war_room():
     """🚨 Tactical War Room UI."""
     st.subheader("🚨 Tactical War Room (Экстренное реагирование)")
     
+    # В таблице expert_discussions нет колонки metadata в текущей схеме
     sessions = fetch_data("""
-        SELECT topic, status, metadata, consensus_summary, created_at
+        SELECT topic, status, consensus_summary, created_at
         FROM expert_discussions 
-        WHERE metadata->>'type' = 'war_room'
         ORDER BY created_at DESC LIMIT 10
     """)
     
     if sessions:
         for s in sessions:
-            meta = s['metadata']
-            severity = meta.get('severity', 'medium').upper()
-            color = {'CRITICAL': '#f38ba8', 'HIGH': '#fab387'}.get(severity, '#cdd6f4')
+            # Упрощенная логика без метаданных
+            severity = "MEDIUM"
+            color = '#cdd6f4'
             
             with st.expander(f"🚨 {severity}: {s['topic']} ({s['status'].upper()})"):
-                st.caption(f"Создано: {format_msk(s['created_at'])} | Эксперты: {', '.join(meta.get('experts', []))}")
-                
-                # Лог обсуждения
-                if 'log' in meta:
-                    st.markdown("**💬 Ход обсуждения:**")
-                    for entry in meta['log']:
-                        st.markdown(f"**{entry['role']}:** {entry['content']}")
+                st.caption(f"Создано: {format_msk(s['created_at'])}")
                 
                 # Финальный план
                 if s['consensus_summary']:
-                    st.success("**✅ Утвержденный план исправления:**")
+                    st.success("**✅ Утвержденный план:**")
                     st.markdown(s['consensus_summary'])
     else:
         st.info("Активных сессий в War Room нет. Система работает в штатном режиме.")
@@ -252,14 +262,13 @@ def render_singularity_metrics():
         cols = st.columns(len(orch_stats))
         for i, stat in enumerate(orch_stats):
             with cols[i]:
-                version = stat['orchestrator_version'].upper()
+                version = str(stat['orchestrator_version']).upper()
                 success_rate = (stat['success_count'] / stat['task_count'] * 100) if stat['task_count'] > 0 else 0
                 st.metric(f"Оркестратор {version}", f"{stat['task_count']} задач", f"{success_rate:.1f}% успех")
                 if stat['avg_duration']:
                     st.caption(f"⏱️ Ср. время: {stat['avg_duration']:.1f} сек")
         
         # График сравнения
-        import pandas as pd
         import plotly.express as px
         df_orch = pd.DataFrame(orch_stats)
         fig = px.bar(df_orch, x='orchestrator_version', y='task_count', color='orchestrator_version',
@@ -271,11 +280,14 @@ def render_singularity_metrics():
 def render_projects():
     """📁 Реестр Проектов."""
     st.subheader("📁 Активные Проекты")
-    projects = fetch_data("SELECT slug, name, workspace_path, is_active FROM projects ORDER BY created_at DESC")
-    if projects:
-        st.dataframe(projects, use_container_width=True)
-    else:
-        st.info("Проекты не зарегистрированы.")
+    try:
+        projects = fetch_data("SELECT slug, name, workspace_path, is_active FROM projects ORDER BY created_at DESC")
+        if projects:
+            st.dataframe(pd.DataFrame(projects), use_container_width=True)
+        else:
+            st.info("Проекты не зарегистрированы.")
+    except Exception as e:
+        st.error(f"Ошибка загрузки проектов: {e}")
 
 def render_agent_logs():
     """🤖 Логи Агента."""
@@ -292,7 +304,9 @@ def render_agent_logs():
         
         if logs:
             for log in logs:
-                with st.expander(f"🕒 {format_msk(log['created_at']).split()[-1]} | {log['expert'] or 'System'}"):
+                expert_name = log['expert'] or 'System'
+                time_str = format_msk(log['created_at']).split()[-1]
+                with st.expander(f"🕒 {time_str} | {expert_name}"):
                     st.markdown(f"**Запрос:** {log['user_query']}")
                     st.markdown(f"**Ответ:** {log['assistant_response']}")
         else:

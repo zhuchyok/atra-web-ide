@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, List, Any
 import os
 import logging
-from ..services.knowledge_service import knowledge_service
+# from ..services.knowledge_service import knowledge_service
 
 # Пытаемся импортировать SandboxManager
 try:

@@ -33,3 +33,6 @@ prometheus-client==0.20.0
 
 # Системные метрики (CPU, память)
 psutil>=5.9.0
+
+# Docker SDK для SandboxManager
+docker>=7.0.0
