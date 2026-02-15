@@ -54,7 +54,7 @@ class SelfLearningAgent:
     def __init__(
         self,
         agent_name: str = "Виктория",
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         db_url: str = DB_URL,
         ollama_url: str = OLLAMA_URL
     ):
@@ -365,7 +365,16 @@ class SelfLearningAgent:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                # TODO: Создать таблицу learning_tasks если не существует
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS learning_tasks (
+                        task_id TEXT PRIMARY KEY,
+                        description TEXT,
+                        difficulty TEXT,
+                        category TEXT,
+                        generated_by TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    )
+                """)
                 for task in tasks:
                     await conn.execute("""
                         INSERT INTO learning_tasks 
@@ -384,7 +393,15 @@ class SelfLearningAgent:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                # TODO: Создать таблицу learning_sessions если не существует
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS learning_sessions (
+                        session_id TEXT PRIMARY KEY,
+                        agent_name TEXT,
+                        start_time TIMESTAMP WITH TIME ZONE,
+                        end_time TIMESTAMP WITH TIME ZONE,
+                        improvement_score FLOAT DEFAULT 0
+                    )
+                """)
                 await conn.execute("""
                     INSERT INTO learning_sessions
                     (session_id, agent_name, start_time, end_time, improvement_score)

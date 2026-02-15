@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger("victoria_bridge")
 
 VERONICA_URL = (os.getenv("VERONICA_URL") or "http://localhost:8011").rstrip("/")
-DELEGATE_VERONICA_TIMEOUT = int(os.getenv("DELEGATE_VERONICA_TIMEOUT", "60"))
+DELEGATE_VERONICA_TIMEOUT = int(os.getenv("DELEGATE_VERONICA_TIMEOUT", "90"))
 
 # Лог при первом использовании (почему делегирование не срабатывает — часто неверный URL)
 _logged_url = False

@@ -2,7 +2,8 @@
 
 Браузерная оболочка для работы с AI-агентами корпорации ATRA.
 
-**Архитектура проекта (структура, порты, запуск, API, метрики, Cursor, команда):** **`docs/PROJECT_ARCHITECTURE_AND_GUIDE.md`**.
+**Архитектура проекта (структура, порты, запуск, API, метрики, Cursor, команда):** **`docs/PROJECT_ARCHITECTURE_AND_GUIDE.md`**.  
+**Участие в разработке:** **`CONTRIBUTING.md`** — тесты, методология, E2E (Playwright), TODO backlog.
 
 **Здесь же — всё по Mac Studio:** серверы, Victoria, Veronica, MCP, миграция, эксперты.  
 → **Индекс:** `docs/MAC_STUDIO_INDEX.md` · **Что скопировано:** `docs/COPY_FROM_ATRA_COMPLETE.md`
@@ -52,7 +53,7 @@
 
 ```bash
 # Клонирование и настройка
-cp .env.example .env   # при наличии; отредактируйте .env при необходимости
+cp .env.example .env   # шаблон в корне (без секретов); отредактируйте .env, не коммитьте пароли и токены
 ```
 
 ### Knowledge OS (Victoria, Veronica, оркестратор)

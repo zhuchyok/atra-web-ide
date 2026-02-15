@@ -29,7 +29,7 @@ async def test_victoria_enhanced():
         
         # Инициализируем Victoria Enhanced
         victoria = VictoriaEnhanced(
-            model_name="deepseek-r1-distill-llama:70b",
+            model_name="phi3.5:3.8b",
             use_react=True,
             use_extended_thinking=True,
             use_swarm=True,

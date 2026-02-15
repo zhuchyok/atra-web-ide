@@ -98,7 +98,7 @@ class VictoriaEnhanced:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         use_react: bool = True,
         use_extended_thinking: bool = True,
         use_swarm: bool = True,

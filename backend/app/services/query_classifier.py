@@ -19,6 +19,13 @@ SIMPLE_PATTERNS = [
     r"ок|хорошо|понятно|ясно\b",
     r"отлично|супер|круто\b",
 ]
+# Информационные запросы — быстрый путь без LLM (что умеешь, кто ты, чем помочь)
+INFORMATIONAL_PATTERNS = [
+    r"что\s+(ты\s+)?умеешь|что\s+умеешь",
+    r"кто\s+ты|представься|расскажи\s+о\s+себе",
+    r"чем\s+(можешь\s+)?помочь|твои?\s+возможности|чем\s+занимаешься",
+    r"what\s+can\s+you\s+do|who\s+are\s+you|your\s+capabilities",
+]
 
 # Паттерны для фактуальных вопросов (короткий ответ, возможно с RAG)
 FACTUAL_PATTERNS = [
@@ -56,6 +63,12 @@ TEMPLATE_RESPONSES: Dict[str, List[str]] = {
         "Хорошо. Если что-то ещё понадобится — пишите.",
         "Понятно. Обращайтесь, если появятся вопросы.",
     ],
+    "что умеешь": [
+        "Я Виктория, Team Lead Atra Core. Отвечаю на вопросы, составляю планы, помогаю с кодом и архитектурой. "
+        "Могу вызывать экспертов, искать в базе знаний, анализировать проект. Переключитесь в режим «Чат» для быстрых ответов или «План» для пошаговых планов.",
+        "Я — ИИ-агент Singularity 10.0. Помогаю с задачами: чат, планирование, анализ кода, RAG по базе знаний, вызов экспертов. "
+        "В режиме «Агент» — полный ReAct с шагами; в «Чат» — быстрее для простых вопросов.",
+    ],
 }
 
 
@@ -70,6 +83,10 @@ def classify_query(query: str) -> Dict[str, str | float]:
         return {"type": "simple", "confidence": 0.95}
 
     text = query.strip().lower()
+    # Информационные («что умеешь», «кто ты») — простой путь без LLM
+    for pattern in INFORMATIONAL_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return {"type": "simple", "confidence": 0.95}
     # Простые приветствия / короткие реплики
     if len(text) <= SIMPLE_MAX_LEN:
         for pattern in SIMPLE_PATTERNS:
@@ -107,6 +124,11 @@ def get_template_response(query: str, expert_name: Optional[str] = None) -> Opti
         return random.choice(TEMPLATE_RESPONSES["пока"])
     if re.search(r"^ок$|^хорошо$|^понятно$|^ясно$|^отлично$|^супер$|^круто$", text):
         return random.choice(TEMPLATE_RESPONSES["понятно"])
+
+    # Информационные: что умеешь, кто ты, чем помочь
+    for pattern in INFORMATIONAL_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            return random.choice(TEMPLATE_RESPONSES["что умеешь"])
 
     return random.choice(TEMPLATE_RESPONSES["привет"])
 

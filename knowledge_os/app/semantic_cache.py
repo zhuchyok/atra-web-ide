@@ -80,6 +80,9 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
             json={"model": OLLAMA_MODEL, "prompt": text},
             timeout=10.0
         )
+        if response.status_code == 503:
+            logger.warning("Ollama embeddings service unavailable (503). Skipping embedding.")
+            return None
         response.raise_for_status()
         raw = response.content
         if not raw:

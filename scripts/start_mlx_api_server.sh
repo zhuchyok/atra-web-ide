@@ -47,8 +47,12 @@ MLX_PORT=${MLX_API_PORT:-11435}
 # Rate limit: реже 429 (по умолчанию 150 запросов / 90 с)
 export MLX_RATE_LIMIT_MAX=${MLX_RATE_LIMIT_MAX:-150}
 export MLX_RATE_LIMIT_WINDOW=${MLX_RATE_LIMIT_WINDOW:-90}
-# Параллелизм: 1 — снижает Metal OOM (Insufficient Memory) при тяжёлых промптах
+# Параллелизм: 1 — снижает Metal OOM и краш Python (mlx::core::gpu::check_error)
 export MLX_MAX_CONCURRENT=${MLX_MAX_CONCURRENT:-1}
+# Кэш: 1 модель — меньше пиковая память GPU, реже краши (см. docs/MLX_PYTHON_CRASH_CAUSE.md)
+export MLX_MAX_CACHED_MODELS=${MLX_MAX_CACHED_MODELS:-1}
+# Предзагрузка: только лёгкая модель; 70B/104B не предзагружаем
+export MLX_PRELOAD_MODELS=${MLX_PRELOAD_MODELS:-fast}
 
 # Проверка, не запущен ли уже
 if lsof -ti:$MLX_PORT >/dev/null 2>&1; then

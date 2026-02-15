@@ -137,6 +137,33 @@ else
     log_error "docker-compose.yml не найден"
 fi
 
+# 4.5. Проверка Ollama (после sleep/wake контекст Metal может инвалидироваться — PROJECT_GAPS §3)
+log ""
+OLLAMA_PORT=${OLLAMA_PORT:-11434}
+if curl -s -f --connect-timeout 3 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+    log "[4.5/10] ✅ Ollama (${OLLAMA_PORT}): работает"
+else
+    log "[4.5/10] ❌ Ollama (${OLLAMA_PORT}): не отвечает"
+    if pgrep -f "ollama" >/dev/null; then
+        log "   ⚠️ Процесс Ollama найден, но не отвечает (возможно после sleep/wake). Перезапускаю..."
+        pkill -f "ollama" 2>/dev/null || true
+        sleep 3
+    fi
+    if command -v ollama &>/dev/null; then
+        log "   🚀 Запускаю Ollama..."
+        nohup ollama serve >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+        sleep 5
+        if curl -s -f --connect-timeout 5 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+            log "   ✅ Ollama запустился"
+        else
+            log "   ⏳ Ollama запущен в фоне (порт может подняться позже)"
+        fi
+    else
+        log "   ⚠️ ollama не найден в PATH"
+    fi
+fi
+log ""
+
 # 5. Проверка и запуск MLX API Server (если не запущен)
 log ""
 log "[5/10] Проверка MLX API Server..."
@@ -289,6 +316,17 @@ else
     log_error "   MLX API Server критичен для работы агентов!"
 fi
 
+# Ollama (после sleep/wake может не отвечать — PROJECT_GAPS §3)
+TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
+OLLAMA_PORT=${OLLAMA_PORT:-11434}
+if curl -s -f --connect-timeout 3 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+    log "   ✅ Ollama (${OLLAMA_PORT}): работает"
+    SERVICES_OK=$((SERVICES_OK + 1))
+else
+    log "   ❌ Ollama (${OLLAMA_PORT}): недоступен"
+    log_error "   Ollama критичен для работы Victoria (executor/planner)!"
+fi
+
 # 7. Автоматическое исправление проблем
 log ""
 log "[7/10] Автоматическое исправление проблем..."
@@ -340,13 +378,24 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
             log_error "   Veronica Agent всё ещё недоступна после перезапуска"
         fi
     fi
-    # Перезапуск остальных упавших контейнеров
+    # Перезапуск упавших контейнеров: up -d поднимает остановленные (restart только перезапускает уже работающие)
     NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
     NOT_RUNNING=${NOT_RUNNING:-0}
     if [ "$NOT_RUNNING" -gt 0 ]; then
-        log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров, перезапускаю..."
-        docker-compose -f knowledge_os/docker-compose.yml restart 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров Knowledge OS — поднимаю (up -d)..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
         sleep 5
+    fi
+    # Явный контроль оркестратора и Nightly Learner: без них не создаются задачи и не идёт обучение
+    if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
+        log "⚠️ Nightly Learner (knowledge_nightly) не запущен — поднимаю..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        sleep 3
+    fi
+    if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
+        log "⚠️ Orchestrator (knowledge_os_orchestrator) не запущен — поднимаю..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        sleep 3
     fi
 fi
 
@@ -354,8 +403,8 @@ if [ -f "docker-compose.yml" ]; then
     NOT_RUNNING=$(docker-compose ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l | tr -d ' \n' || echo "0")
     NOT_RUNNING=${NOT_RUNNING:-0}
     if [ "$NOT_RUNNING" -gt 0 ]; then
-        log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров ATRA Web IDE, перезапускаю..."
-        docker-compose restart 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
+        log "⚠️ Найдено $NOT_RUNNING не запущенных контейнеров ATRA Web IDE — поднимаю (up -d)..."
+        docker-compose up -d 2>&1 | grep -v "level=warning" | tee -a "$LOG_FILE" || true
         sleep 5
     fi
 fi
@@ -367,16 +416,24 @@ log "[8/10] Проверка устойчивости к потере интер
 if [ "$INTERNET_AVAILABLE" = "false" ]; then
     log "⚠️ Интернет недоступен, проверяю работу в режиме только локальных моделей..."
     
-    # Проверяем, что MLX API Server работает (критично для работы без интернета)
+    # MLX и Ollama критичны для работы без интернета
     MLX_PORT=${MLX_API_PORT:-11435}
+    OLLAMA_PORT=${OLLAMA_PORT:-11434}
     if ! curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/api/tags" >/dev/null 2>&1; then
         log_error "❌ КРИТИЧНО: MLX API Server не работает, а интернет недоступен!"
-        log_error "   Система не сможет работать без интернета и локальных моделей"
         log_error "   Запускаю MLX API Server..."
         bash scripts/start_mlx_api_server.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" &
         sleep 10
     else
-        log "✅ MLX API Server работает - система может работать без интернета"
+        log "✅ MLX API Server работает"
+    fi
+    if ! curl -s -f --connect-timeout 3 "http://localhost:${OLLAMA_PORT}/api/tags" >/dev/null 2>&1; then
+        log_error "❌ КРИТИЧНО: Ollama не работает, а интернет недоступен!"
+        log_error "   Запускаю Ollama..."
+        nohup ollama serve >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+        sleep 5
+    else
+        log "✅ Ollama работает - система может работать без интернета"
     fi
 else
     log "✅ Интернет доступен - система работает в обычном режиме"
@@ -400,18 +457,34 @@ log "=============================================="
 log "Работающих сервисов: $FINAL_SERVICES_OK/$TOTAL_SERVICES"
 log ""
 
-# 10. Самопроверка — полная верификация (система проверяет сама себя)
-log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."
-if [ -f "scripts/verify_mac_studio_self_recovery.sh" ]; then
-    log "--- Результат самопроверки ---"
-    bash scripts/verify_mac_studio_self_recovery.sh 2>&1 | tee -a "$LOG_FILE" || true
-    log "--- Конец самопроверки ---"
-else
-    log "⚠️ Скрипт verify_mac_studio_self_recovery.sh не найден"
-fi
-log ""
+    # 10. Самопроверка — полная верификация (система проверяет сама себя)
+    log "[10/10] Самопроверка (verify_mac_studio_self_recovery)..."
+    if [ -f "scripts/verify_mac_studio_self_recovery.sh" ]; then
+        log "--- Результат самопроверки ---"
+        bash scripts/verify_mac_studio_self_recovery.sh 2>&1 | tee -a "$LOG_FILE" || true
+        log "--- Конец самопроверки ---"
+    else
+        log "⚠️ Скрипт verify_mac_studio_self_recovery.sh не найден"
+    fi
+    log ""
 
-if [ $FINAL_SERVICES_OK -ge 3 ]; then
+    # 11. Проверка и перезапуск Telegram бота (Singularity 10.0)
+    log "[11/11] Проверка Telegram бота..."
+    if pgrep -f "src.agents.bridge.victoria_telegram_bot" > /dev/null; then
+        log "✅ Telegram бот: работает"
+    else
+        log "❌ Telegram бот: не работает. Перезапускаю..."
+        if [ -x "backend/.venv/bin/python" ]; then
+            nohup "$ROOT/backend/.venv/bin/python" -m src.agents.bridge.victoria_telegram_bot >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+            log "🚀 Telegram бот запущен в фоне через venv"
+        else
+            nohup python3 -m src.agents.bridge.victoria_telegram_bot >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+            log "🚀 Telegram бот запущен в фоне через системный python"
+        fi
+    fi
+    log ""
+
+    if [ $FINAL_SERVICES_OK -ge 3 ]; then
     log "✅ СИСТЕМА В РАБОЧЕМ СОСТОЯНИИ"
     log ""
     log "🌐 Доступные сервисы:"

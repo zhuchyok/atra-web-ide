@@ -164,7 +164,7 @@ class CodebaseUnderstanding:
             'total_components': len(components),
             'relevant_components': len(relevant_components),
             'by_type': by_type,
-            'recommendations': self._generate_recommendations(task_description, relevant_components),
+            'recommendations': await self._generate_recommendations(task_description, relevant_components),
         }
         
         logger.info(f"📋 [CODEBASE] Анализ завершен: найдено {len(relevant_components)} релевантных компонентов")
@@ -205,7 +205,7 @@ class CodebaseUnderstanding:
         
         return relevant
     
-    def _generate_recommendations(
+    async def _generate_recommendations(
         self,
         task_description: str,
         relevant_components: List[Dict[str, Any]]
@@ -223,7 +223,7 @@ class CodebaseUnderstanding:
         recommendations = []
         
         for component in relevant_components[:5]:  # Максимум 5 рекомендаций
-            classification = self._classify_component(component, task_description)
+            classification = await self._classify_component(component, task_description)
             
             recommendations.append({
                 'file': component['file'],
@@ -235,36 +235,47 @@ class CodebaseUnderstanding:
         
         return recommendations
     
-    def _classify_component(
+    def _classify_component_heuristic(
+        self,
+        component: Dict[str, Any],
+        task_description: str
+    ) -> str:
+        """Эвристическая классификация без LLM."""
+        task_lower = task_description.lower()
+        component_type = component['type']
+        if component_type in task_lower:
+            return "reuse"
+        if any(kw in task_lower for kw in ['улучшить', 'оптимизировать', 'модифицировать']):
+            return "reuse+refactor"
+        return "reuse"
+    
+    async def _classify_component(
         self,
         component: Dict[str, Any],
         task_description: str
     ) -> str:
         """
-        Классифицирует компонент: reuse / reuse+refactor / deprecate / new
-        
-        Args:
-            component: Компонент
-            task_description: Описание задачи
-        
-        Returns:
-            str: Классификация
+        Классифицирует компонент: reuse / reuse+refactor / deprecate / new (с LLM при возможности).
         """
-        # Простая эвристика: если компонент найден и релевантен, предлагаем reuse
-        # TODO: Использовать LLM для более точной классификации
-        
-        task_lower = task_description.lower()
-        component_type = component['type']
-        
-        # Если тип компонента совпадает с задачей, предлагаем reuse
-        if component_type in task_lower:
-            return "reuse"
-        
-        # Если есть похожие ключевые слова, предлагаем reuse+refactor
-        if any(kw in task_lower for kw in ['улучшить', 'оптимизировать', 'модифицировать']):
-            return "reuse+refactor"
-        
-        return "reuse"
+        try:
+            from ai_core import run_smart_agent_async
+        except ImportError:
+            return self._classify_component_heuristic(component, task_description)
+        prompt = f"""Классифицируй компонент кода по отношению к задаче. Ответь ОДНИМ словом: reuse, reuse+refactor, deprecate или new.
+
+Задача: {task_description[:500]}
+Компонент: тип={component.get('type')}, файл={component.get('file')}, фрагмент={str(component.get('match', ''))[:200]}
+
+Ответ (только одно слово):"""
+        try:
+            out = await run_smart_agent_async(prompt, expert_name="Виктория", category="general")
+            if out:
+                c = out.strip().lower().split()[0] if out.strip() else ""
+                if c in ("reuse", "reuse+refactor", "deprecate", "new"):
+                    return c
+        except Exception as e:
+            logger.debug("classify_component LLM: %s", e)
+        return self._classify_component_heuristic(component, task_description)
     
     def _get_action_for_classification(self, classification: str) -> str:
         """
@@ -287,27 +298,33 @@ class CodebaseUnderstanding:
     
     async def classify_code_match(self, code_file: str, task: str) -> str:
         """
-        Классифицирует совпадение кода с задачей
-        
-        Args:
-            code_file: Путь к файлу кода
-            task: Описание задачи
-        
-        Returns:
-            str: Классификация (reuse / reuse+refactor / deprecate / new)
+        Классифицирует совпадение кода с задачей (LLM при возможности, иначе эвристика).
         """
-        # Упрощенная классификация
-        # TODO: Использовать LLM для более точной классификации
-        
+        try:
+            from ai_core import run_smart_agent_async
+        except ImportError:
+            pass
+        else:
+            prompt = f"""По файлу кода и задаче ответь ОДНИМ словом: reuse, reuse+refactor, deprecate или new.
+
+Файл: {code_file}
+Задача: {task[:500]}
+
+Ответ (только одно слово):"""
+            try:
+                out = await run_smart_agent_async(prompt, expert_name="Виктория", category="general")
+                if out:
+                    c = out.strip().lower().split()[0] if out.strip() else ""
+                    if c in ("reuse", "reuse+refactor", "deprecate", "new"):
+                        return c
+            except Exception as e:
+                logger.debug("classify_code_match LLM: %s", e)
         task_lower = task.lower()
         file_lower = code_file.lower()
-        
-        # Если файл релевантен задаче
         if any(kw in file_lower for kw in task_lower.split() if len(kw) > 3):
             if any(kw in task_lower for kw in ['улучшить', 'оптимизировать', 'модифицировать']):
                 return "reuse+refactor"
             return "reuse"
-        
         return "new"
     
     async def suggest_reuse(self, strategy_name: str, task: str) -> Optional[Dict[str, str]]:

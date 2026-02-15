@@ -20,17 +20,18 @@ settings = get_settings()
 class OllamaClient:
     """Клиент для Ollama API с улучшенной обработкой ошибок и поддержкой Cloud Models"""
     
-    # Локальные модели Mac Studio M4 Max (автоматический выбор)
+    # Локальные модели (70b/104b удалены — см. MLX_PYTHON_CRASH_CAUSE)
     MODELS = {
-        "complex": "command-r-plus:104b",              # ~65GB - Максимальная мощность
-        "enterprise": "command-r-plus:104b",            # ~65GB - RAG, мультиязычность
-        "reasoning": "deepseek-r1-distill-llama:70b", # ~40GB - Reasoning, планирование
-        "complex_alt": "llama3.3:70b",                 # ~40GB - Максимальное качество
+        "complex": "qwen3-v1:30b",                     # ~19GB - Qwen 3 (NEW)
+        "enterprise": "qwen3-v1:30b",
+        "reasoning": "lfm2.5-thinking:1.2b",           # ~730MB - Thinking (NEW)
+        "complex_alt": "qwen2.5-coder:32b",
         "coding": "qwen2.5-coder:32b",                 # ~20GB - Качественный код
-        "fast": "phi3.5:3.8b",                         # ~2.5GB - Быстрые задачи
+        "fast": "lfm2.5-thinking:1.2b",                # ~730MB - Быстрые задачи
         "fast_light": "phi3:mini-4k",                  # ~2GB - Быстрые ответы
         "default": "qwen2.5:3b",                       # ~2GB - По умолчанию
-        "tiny": "tinyllama:1.1b-chat"                  # ~700MB - Очень быстрые
+        "tiny": "tinyllama:1.1b-chat",                 # ~700MB - Очень быстрые
+        "embedding": "qwen3-embedding:4b"              # ~2.5GB - Эмбеддинги (NEW)
     }
     
     # Cloud Models (Ollama Cloud - работают без локального GPU)

@@ -15,6 +15,36 @@
 - `ORCHESTRATION_V2_ENABLED=true`
 - `ORCHESTRATION_V2_PERCENTAGE=10`
 
+### Включить V2 для 100% трафика
+
+Чтобы весь трафик шёл в EnhancedOrchestratorV2 (без A/B):
+```bash
+ORCHESTRATION_V2_PERCENTAGE=100
+```
+Или в `knowledge_os/docker-compose.yml` для victoria-agent:
+```yaml
+ORCHESTRATION_V2_PERCENTAGE: "100"
+```
+После изменения перезапустить victoria-agent. Рекомендуется сначала прогнать тесты и при необходимости быстрый прогон куратора (CURATOR_RUNBOOK §1.5).
+
+### Включить V2 для 100% трафика
+
+Чтобы весь трафик шёл через EnhancedOrchestratorV2 (без A/B), задайте процент 100:
+
+```bash
+export ORCHESTRATION_V2_PERCENTAGE=100
+```
+
+В Docker (victoria-agent):
+
+```yaml
+environment:
+  ORCHESTRATION_V2_ENABLED: "true"
+  ORCHESTRATION_V2_PERCENTAGE: "100"
+```
+
+Или в `.env`: `ORCHESTRATION_V2_PERCENTAGE=100`. После изменения перезапустите Victoria (пересборка образа не нужна — переменные читаются при старте).
+
 ## Миграция БД
 
 Колонка `tasks.orchestrator_version` создаётся **автоматически при старте Knowledge OS API** (в `rest_api.py` — `startup`). Ручной запуск не нужен.

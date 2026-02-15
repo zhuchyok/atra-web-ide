@@ -243,7 +243,79 @@ class StrategySessionManager:
         except Exception as e:
             logger.error(f"❌ [SESSION MANAGER] Ошибка создания плана: {e}")
             raise
-    
+
+    def get_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Возвращает план по id.
+
+        Returns:
+            Dict с ключами id, session_id, level, title, markdown_body, role_hint, status и т.д. или None.
+        """
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, session_id, level, parent_plan_id, role_hint, title, markdown_body, status FROM strategy_plans WHERE id = ?",
+                (plan_id,),
+            )
+            row = cursor.fetchone()
+            conn.close()
+            if not row:
+                return None
+            return dict(row)
+        except Exception as e:
+            logger.error(f"❌ [SESSION MANAGER] Ошибка получения плана: {e}")
+            return None
+
+    def update_plan(
+        self,
+        plan_id: str,
+        *,
+        markdown: Optional[str] = None,
+        title: Optional[str] = None,
+        status: Optional[str] = None,
+        role_hint: Optional[str] = None,
+    ) -> bool:
+        """
+        Обновляет поля плана. Передавать только те поля, которые нужно изменить.
+
+        Returns:
+            True если план найден и обновлён, иначе False.
+        """
+        if not any(x is not None for x in (markdown, title, status, role_hint)):
+            return False
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            updates = []
+            params = []
+            if markdown is not None:
+                updates.append("markdown_body = ?")
+                params.append(markdown)
+            if title is not None:
+                updates.append("title = ?")
+                params.append(title)
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+            if role_hint is not None:
+                updates.append("role_hint = ?")
+                params.append(role_hint)
+            params.append(plan_id)
+            cursor.execute(
+                "UPDATE strategy_plans SET " + ", ".join(updates) + " WHERE id = ?",
+                params,
+            )
+            conn.commit()
+            affected = cursor.rowcount
+            conn.close()
+            if affected:
+                logger.info(f"📋 [SESSION MANAGER] План {plan_id} обновлён")
+            return affected > 0
+        except Exception as e:
+            logger.error(f"❌ [SESSION MANAGER] Ошибка обновления плана: {e}")
+            return False
+
     def get_session_summary(self, session_id: str) -> str:
         """
         Получает краткий summary сессии для восстановления контекста

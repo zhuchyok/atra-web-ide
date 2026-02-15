@@ -1,0 +1,101 @@
+[
+  {
+    "model": "coding",
+    "source": "mlx",
+    "cold_total_sec": 5.66,
+    "warm_response_sec": 4.07,
+    "deploy_estimate_sec": 1.59,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "fast",
+    "source": "mlx",
+    "cold_total_sec": 0.67,
+    "warm_response_sec": 0.31,
+    "deploy_estimate_sec": 0.36,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "tiny",
+    "source": "mlx",
+    "cold_total_sec": 0.38,
+    "warm_response_sec": 0.11,
+    "deploy_estimate_sec": 0.27,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "qwen_3b",
+    "source": "mlx",
+    "cold_total_sec": 0.95,
+    "warm_response_sec": 0.41,
+    "deploy_estimate_sec": 0.54,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "phi3_mini",
+    "source": "mlx",
+    "cold_total_sec": 0.74,
+    "warm_response_sec": 0.39,
+    "deploy_estimate_sec": 0.35,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "default",
+    "source": "mlx",
+    "cold_total_sec": 5.08,
+    "warm_response_sec": 4.04,
+    "deploy_estimate_sec": 1.04,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "qwen2.5-coder:32b",
+    "source": "mlx",
+    "cold_total_sec": 5.79,
+    "warm_response_sec": 4.03,
+    "deploy_estimate_sec": 1.76,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "phi3.5:3.8b",
+    "source": "mlx",
+    "cold_total_sec": 1.11,
+    "warm_response_sec": 0.39,
+    "deploy_estimate_sec": 0.72,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "phi3:mini-4k",
+    "source": "mlx",
+    "cold_total_sec": 1.21,
+    "warm_response_sec": 0.34,
+    "deploy_estimate_sec": 0.87,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "qwen2.5:3b",
+    "source": "mlx",
+    "cold_total_sec": 0.96,
+    "warm_response_sec": 0.39,
+    "deploy_estimate_sec": 0.57,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  },
+  {
+    "model": "tinyllama:1.1b-chat",
+    "source": "mlx",
+    "cold_total_sec": 0.4,
+    "warm_response_sec": 0.08,
+    "deploy_estimate_sec": 0.32,
+    "request_timeout_sec": 1800,
+    "status": "ok"
+  }
+]

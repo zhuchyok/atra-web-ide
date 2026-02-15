@@ -11,6 +11,18 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+# Единый источник «русский + краткость» (план «как я» п.11.3 п.1)
+try:
+    from configs.victoria_common import PROMPT_RUSSIAN_ONLY, PROMPT_RUSSIAN_AND_BREVITY_LINES
+except ImportError:
+    PROMPT_RUSSIAN_ONLY = "КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!"
+    PROMPT_RUSSIAN_AND_BREVITY_LINES = (
+        "1. ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке!\n"
+        "2. Ответ должен быть КРАТКИМ - максимум 3-5 предложений!\n"
+        "3. НЕ генерируй длинные списки, инструкции или повторяющийся текст!\n"
+        "4. НЕ повторяй вопрос, НЕ пиши \"Запрос:\" или \"Ответ:\"!"
+    )
+
 
 def _is_gibberish_output(text: str) -> bool:
     """Проверить, похож ли вывод на мусор (галлюцинации, смешение скриптов, битый текст)."""
@@ -35,6 +47,56 @@ def _is_gibberish_output(text: str) -> bool:
     if s.count('[') + s.count('{') > 5 and cyrillic < 30:
         return True
     return False
+
+
+# Допустимые типы от лёгкой MLX-классификации (гипотеза 1, docs/MLX_STRATEGY_LIGHT_AND_VITALITY.md)
+_MLX_LIGHT_CLASSIFY_ALLOWED = frozenset(("greeting", "data_question", "coding", "reasoning", "general"))
+
+
+async def _try_mlx_light_classify(goal: str, timeout_sec: float = 8.0) -> Tuple[Optional[str], float]:
+    """
+    Опциональная классификация запроса через лёгкую модель MLX (один короткий промпт).
+    Включение: VICTORIA_MLX_LIGHT_CLASSIFY=true. При таймауте/ошибке возвращает (None, duration_sec).
+    Возвращает (категория или None, длительность в секундах) для замера.
+    """
+    import re
+    import time
+    t0 = time.perf_counter()
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() == "true"
+    mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435" if is_docker else "http://localhost:11435")
+    prompt = (
+        "Определи тип запроса одним словом из списка: greeting, data_question, coding, reasoning, general.\n"
+        f"Запрос: {goal[:300]}\nТип:"
+    )
+    payload = {"prompt": prompt, "category": "fast", "max_tokens": 10, "stream": False}
+    try:
+        from app.network_resilience import safe_http_request
+        response = await safe_http_request(
+            f"{mlx_url.rstrip('/')}/api/generate",
+            method="POST",
+            timeout=timeout_sec,
+            json=payload,
+        )
+        duration = time.perf_counter() - t0
+        if response is None or response.status_code != 200:
+            return None, duration
+        data = response.json()
+        text = (data.get("response") or "").strip()
+        if not text:
+            return None, duration
+        first_word = re.sub(r"[^\w]", " ", text).split()
+        if not first_word:
+            return None, duration
+        raw = first_word[0].lower()
+        if raw in _MLX_LIGHT_CLASSIFY_ALLOWED:
+            if raw == "greeting":
+                return "fast", duration
+            return raw, duration
+        return None, duration
+    except Exception as e:
+        duration = time.perf_counter() - t0
+        logger.debug("MLX light classify: %s", e)
+        return None, duration
 
 
 # Контекст мировых практик для запросов анализа (OpenAI, Anthropic, Meta, Microsoft, LangGraph)
@@ -167,7 +229,7 @@ class VictoriaEnhanced:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         use_react: bool = True,
         use_extended_thinking: bool = True,
         use_swarm: bool = True,
@@ -374,108 +436,28 @@ class VictoriaEnhanced:
     
     async def _get_model_for_category_async(self, category: str) -> Optional[str]:
         """
-        Получить модель для категории задачи на основе PLAN.md (асинхронная версия)
-        
-        Приоритеты моделей по категориям из PLAN.md:
-        - complex/enterprise: command-r-plus:104b, llama3.3:70b, deepseek-r1-distill-llama:70b
-        - reasoning: deepseek-r1-distill-llama:70b, llama3.3:70b, qwen2.5-coder:32b
-        - coding: qwen2.5-coder:32b, phi3.5:3.8b, qwen2.5:3b
-        - fast: phi3.5:3.8b, phi3:mini-4k, qwen2.5:3b
-        - default: qwen2.5:3b, phi3.5:3.8b
-        # tinyllama исключена - только для внутренней коммуникации агентов
+        Получить модель для категории задачи (динамический выбор из доступных в Ollama/MLX).
         """
         if not MODEL_SELECTOR_AVAILABLE:
             return self.model_name
         
-        # Ollama не используется - там нет моделей, используем только MLX
-        # Определяем MLX URL
-        is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-        if is_docker:
-            mlx_url_for_selector = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
-        else:
-            mlx_url_for_selector = os.getenv("MLX_API_URL", "http://localhost:11435")
-        
-        model_priorities = {
-            "complex": [
-                "command-r-plus:104b",
-                "llama3.3:70b", 
-                "deepseek-r1-distill-llama:70b",
-                "qwen2.5-coder:32b",
-                "phi3.5:3.8b",
-                "qwen2.5:3b",
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-            ],
-            "enterprise": [
-                "command-r-plus:104b",
-                "llama3.3:70b",
-                "deepseek-r1-distill-llama:70b",
-                "qwen2.5-coder:32b"
-            ],
-            "reasoning": [
-                "deepseek-r1-distill-llama:70b",
-                "llama3.3:70b",
-                "qwen2.5-coder:32b",
-                "phi3.5:3.8b",
-                "qwen2.5:3b",
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-            ],
-            "coding": [
-                "qwen2.5-coder:32b",
-                "phi3.5:3.8b",
-                "qwen2.5:3b",
-                "phi3:mini-4k",
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-            ],
-            "fast": [
-                "qwen2.5-coder:32b",  # Самая умная для понимания контекста и данных
-                "phi3.5:3.8b",  # Хорошее понимание русского языка
-                "qwen2.5:3b",  # Хорошо понимает русский
-                "phi3:mini-4k",  # Быстрая альтернатива
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов  # Fallback на самую быструю
-            ],
-            "default": [
-                "qwen2.5:3b",
-                "phi3.5:3.8b",
-                "phi3:mini-4k",
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-            ],
-            "planning": [
-                "deepseek-r1-distill-llama:70b",
-                "llama3.3:70b",
-                "qwen2.5-coder:32b",
-                "phi3.5:3.8b"
-            ],
-            "execution": [
-                "qwen2.5-coder:32b",
-                "phi3.5:3.8b",
-                "qwen2.5:3b"
-            ],
-            "general": [
-                "qwen2.5-coder:32b",  # Самая умная для понимания контекста
-                "phi3.5:3.8b",  # Хорошее понимание русского
-                "qwen2.5:3b",  # Баланс скорости и качества
-                "phi3:mini-4k",
-                # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-            ]
-        }
-        
-        priorities = model_priorities.get(category, model_priorities["default"])
-        
         try:
-            # Используем только MLX API Server (Ollama не используется)
-            mlx_url_for_selector = os.getenv("MLX_API_URL", "http://localhost:11435")
-            if os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true':
-                mlx_url_for_selector = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
-            # Передаем MLX URL вместо Ollama (model_selector будет использовать только MLX)
-            selected_model = await select_available_model(priorities, mlx_url_for_selector, category)
-            if selected_model:
-                logger.info(f"✅ Выбрана модель для {category}: {selected_model}")
-                return selected_model
-            else:
-                logger.warning(f"⚠️ Ни одна модель не доступна для {category}, используем {self.model_name}")
-                return self.model_name
+            # Используем ModelRegistry для динамического выбора
+            from app.task_orchestration.model_registry import ModelRegistry
+            registry = ModelRegistry()
+            
+            # Для Mac Studio предпочитаем Ollama (там тяжелые модели)
+            model_with_provider = await registry.get_available_model(category, priority="ollama")
+            
+            if model_with_provider and ":" in model_with_provider:
+                provider, model_name = model_with_provider.split(":", 1)
+                logger.info(f"✅ Динамически выбрана модель для {category}: {model_name} (через {provider})")
+                return model_name
+            
+            logger.warning(f"⚠️ Ни одна модель не найдена для категории {category}, используем {self.model_name}")
+            return self.model_name
         except Exception as e:
-            logger.warning(f"⚠️ Ошибка выбора модели для {category}: {e}, используем {self.model_name}")
+            logger.warning(f"⚠️ Ошибка динамического выбора модели для {category}: {e}, используем {self.model_name}")
             return self.model_name
     
     def _get_model_for_category(self, category: str) -> str:
@@ -543,7 +525,7 @@ class VictoriaEnhanced:
         is_stats_query = any(keyword in goal_lower for keyword in stats_keywords)
         
         if is_stats_query:
-            return "general"  # Используем более умные модели (qwen2.5-coder:32b, phi3.5:3.8b)
+            return "general"  # phi3.5:3.8b, glm-4.7-flash и др.
         
         # 📋 ЗАПРОСЫ О СТАТУСЕ/ПРИОРИТЕТАХ — simple (быстро, без долгого extended thinking)
         status_keywords = ["статус", "приоритет", "приоритеты", "что в работе", "что сейчас"]
@@ -592,7 +574,316 @@ class VictoriaEnhanced:
             return "execution"
         else:
             return "general"
-    
+
+    async def _get_curator_rag_context(self, goal: str) -> str:
+        """
+        Подтянуть эталон из RAG (домен curator_standards) для кураторских типов запросов.
+        План «умнее быстрее» §3.1: при совпадении с эталонами из standards/ (по ключевым словам)
+        подмешивать соответствующий эталон — status_project, what_can_you_do, list_files, greeting, one_line_code.
+        """
+        if not goal or not goal.strip():
+            return ""
+        goal_lower = goal.lower().strip()
+        # Ключевые слова для всех эталонов куратора (standards/)
+        curator_keywords = (
+            "статус", "дашборд", "что умеешь", "что ты умеешь", "какой статус", "проект",
+            "список файлов", "покажи файлы", "файлы в", "list file", "list dir", "list directory",
+            "привет", "здравствуй", "hello", "hi ", "хай",
+            "одна строка", "одну строку", "one line", "однострочн",
+        )
+        if not any(kw in goal_lower for kw in curator_keywords):
+            return ""
+        try:
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                return ""
+            conn = await asyncpg.connect(db_url)
+            try:
+                row = None
+                # 1) Статус проекта / дашборд
+                if "статус" in goal_lower or "дашборд" in goal_lower or "проект" in goal_lower:
+                    row = await conn.fetchrow(
+                        """SELECT content FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'curator_standards'
+                             AND (kn.content ILIKE '%статус%' OR kn.content ILIKE '%дашборд%'
+                                  OR kn.content ILIKE '%проект%' OR kn.metadata::text ILIKE '%status_project%')
+                             AND (kn.confidence_score IS NULL OR kn.confidence_score >= 0.1)
+                           ORDER BY (CASE WHEN kn.metadata::text ILIKE '%status_project%' THEN 0 ELSE 1 END),
+                                    kn.usage_count DESC NULLS LAST
+                           LIMIT 1"""
+                    )
+                    if not row or not (str(row.get("content") or "").strip()):
+                        row = await conn.fetchrow(
+                            """SELECT content FROM knowledge_nodes kn
+                               JOIN domains d ON d.id = kn.domain_id
+                               WHERE d.name = 'curator_standards'
+                                 AND kn.metadata::jsonb->>'standard' = 'status_project'
+                               LIMIT 1"""
+                        )
+                # 2) Что умеешь
+                elif any(k in goal_lower for k in ("что умеешь", "что ты умеешь", "чем можешь", "возможност", "кто ты")):
+                    row = await conn.fetchrow(
+                        """SELECT content FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'curator_standards'
+                             AND (kn.content ILIKE '%умею%' OR kn.content ILIKE '%возможност%'
+                                  OR kn.metadata::text ILIKE '%what_can_you_do%')
+                             AND (kn.confidence_score IS NULL OR kn.confidence_score >= 0.1)
+                           ORDER BY kn.usage_count DESC NULLS LAST
+                           LIMIT 1"""
+                    )
+                    if not row or not (str(row.get("content") or "").strip()):
+                        row = await conn.fetchrow(
+                            """SELECT content FROM knowledge_nodes kn
+                               JOIN domains d ON d.id = kn.domain_id
+                               WHERE d.name = 'curator_standards'
+                                 AND kn.metadata::jsonb->>'standard' = 'what_can_you_do'
+                               LIMIT 1"""
+                        )
+                # 3) Список файлов (план §3.1 — расширение эталонов)
+                elif any(k in goal_lower for k in ("список файлов", "покажи файлы", "файлы в", "list file", "list dir", "list directory")):
+                    row = await conn.fetchrow(
+                        """SELECT content FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'curator_standards'
+                             AND (kn.metadata::jsonb->>'standard' = 'list_files'
+                                  OR kn.content ILIKE '%список%файл%' OR kn.content ILIKE '%list%file%')
+                             AND (kn.confidence_score IS NULL OR kn.confidence_score >= 0.1)
+                           ORDER BY (CASE WHEN kn.metadata::jsonb->>'standard' = 'list_files' THEN 0 ELSE 1 END),
+                                    kn.usage_count DESC NULLS LAST
+                           LIMIT 1"""
+                    )
+                # 4) Приветствие
+                elif any(k in goal_lower for k in ("привет", "здравствуй", "hello", "hi ", "хай")) and len(goal_lower.split()) <= 5:
+                    row = await conn.fetchrow(
+                        """SELECT content FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'curator_standards'
+                             AND (kn.metadata::jsonb->>'standard' = 'greeting'
+                                  OR kn.content ILIKE '%привет%' OR kn.content ILIKE '%здравствуй%')
+                             AND (kn.confidence_score IS NULL OR kn.confidence_score >= 0.1)
+                           ORDER BY (CASE WHEN kn.metadata::jsonb->>'standard' = 'greeting' THEN 0 ELSE 1 END)
+                           LIMIT 1"""
+                    )
+                # 5) Одна строка кода
+                elif any(k in goal_lower for k in ("одна строка", "одну строку", "one line", "однострочн")):
+                    row = await conn.fetchrow(
+                        """SELECT content FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'curator_standards'
+                             AND (kn.metadata::jsonb->>'standard' = 'one_line_code'
+                                  OR kn.content ILIKE '%одна строка%' OR kn.content ILIKE '%one line%')
+                             AND (kn.confidence_score IS NULL OR kn.confidence_score >= 0.1)
+                           ORDER BY (CASE WHEN kn.metadata::jsonb->>'standard' = 'one_line_code' THEN 0 ELSE 1 END)
+                           LIMIT 1"""
+                    )
+                if row and row["content"]:
+                    return (row["content"] or "").strip()[:2000]
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("RAG curator_standards: %s", e)
+        return ""
+
+    async def _get_similar_tasks_context(self, goal: str, max_chars: int = 600) -> str:
+        """
+        Подтянуть 1–2 похожих успешных решения из домена victoria_tasks (план «умнее, быстрее»).
+        _learn_from_task пишет туда результат; при повторной задаче или «сделай как вчера» даём опору.
+        """
+        if not goal or not goal.strip() or len(goal.strip()) < 4:
+            return ""
+        try:
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                return ""
+            conn = await asyncpg.connect(db_url)
+            try:
+                goal_preview = goal.strip()[:80]
+                # Похожие по тексту задачи (metadata->>'task' или content) + приоритет usage_count
+                rows = await conn.fetch(
+                    """SELECT kn.content, kn.metadata
+                       FROM knowledge_nodes kn
+                       JOIN domains d ON d.id = kn.domain_id
+                       WHERE d.name = 'victoria_tasks'
+                         AND (kn.content IS NOT NULL AND length(trim(kn.content)) > 20)
+                         AND (kn.metadata::text ILIKE $1 OR kn.content ILIKE $1)
+                       ORDER BY kn.usage_count DESC NULLS LAST, kn.created_at DESC
+                       LIMIT 2""",
+                    f"%{goal_preview}%"
+                )
+                if not rows:
+                    # Fallback: последние 2 по использованию (любая задача)
+                    rows = await conn.fetch(
+                        """SELECT kn.content, kn.metadata
+                           FROM knowledge_nodes kn
+                           JOIN domains d ON d.id = kn.domain_id
+                           WHERE d.name = 'victoria_tasks'
+                             AND (kn.content IS NOT NULL AND length(trim(kn.content)) > 20)
+                           ORDER BY kn.usage_count DESC NULLS LAST, kn.created_at DESC
+                           LIMIT 2"""
+                    )
+                if not rows:
+                    return ""
+                parts = []
+                for r in rows:
+                    content = (r["content"] or "").strip()[:400]
+                    meta = r.get("metadata") or {}
+                    task = (meta.get("task") or "")[:80] if isinstance(meta, dict) else ""
+                    if content:
+                        parts.append(f"- Задача: {task}\n  Результат: {content}" if task else f"- {content}")
+                if not parts:
+                    return ""
+                out = "Похожие успешные решения (из прошлых задач):\n" + "\n".join(parts)
+                return out[:max_chars]
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("similar_tasks RAG: %s", e)
+        return ""
+
+    async def _get_project_tasks_context(self, project_context: str, limit: int = 5, max_chars: int = 500) -> str:
+        """
+        Последние задачи по проекту (план «как я» п.12.2): контекст из БД для Victoria.
+        Используется при наличии project_context в context при сборке simple-промпта.
+        """
+        pc = (project_context or "").strip()
+        if not pc:
+            return ""
+        try:
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                return ""
+            conn = await asyncpg.connect(db_url)
+            try:
+                # Колонка project_context есть после миграции add_project_context_to_tasks
+                rows = await conn.fetch(
+                    """SELECT title, status, updated_at
+                       FROM tasks
+                       WHERE project_context = $1
+                       ORDER BY updated_at DESC NULLS LAST
+                       LIMIT $2""",
+                    pc,
+                    limit,
+                )
+                if not rows:
+                    return ""
+                parts = []
+                for r in rows:
+                    title = (r.get("title") or "")[:80]
+                    status = r.get("status") or "?"
+                    updated = r.get("updated_at")
+                    updated_str = updated.strftime("%d.%m %H:%M") if hasattr(updated, "strftime") else str(updated)[:16] if updated else ""
+                    parts.append(f"- {title} — {status} ({updated_str})")
+                out = "Текущие задачи по проекту (последние):\n" + "\n".join(parts)
+                return out[:max_chars]
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("project_tasks context: %s", e)
+        return ""
+
+    async def _get_ai_research_context(self, goal: str, max_chars: int = 1500) -> str:
+        """
+        Сингулярность 10.0: Подтянуть знания о гигантах (AI Research) из БД.
+        Используется для вопросов об Anthropic, Google, OpenAI, DeepSeek и др.
+        """
+        if not goal or not goal.strip():
+            return ""
+        goal_lower = goal.lower().strip()
+        ai_keywords = ["anthropic", "google", "openai", "deepseek", "meta", "llama", "claude", "gemini", "gpt-4", "gpt-5", "research", "исследования"]
+        
+        if not any(kw in goal_lower for kw in ai_keywords):
+            return ""
+            
+        try:
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                return ""
+            conn = await asyncpg.connect(db_url)
+            try:
+                # Поиск по домену 'AI Research' или метатегу 'external_docs_indexer'
+                rows = await conn.fetch(
+                    """SELECT kn.content, kn.metadata->>'title' as title
+                       FROM knowledge_nodes kn
+                       JOIN domains d ON d.id = kn.domain_id
+                       WHERE (d.name = 'AI Research' OR kn.metadata->>'source' = 'external_docs_indexer')
+                         AND (kn.content ILIKE $1 OR kn.metadata::text ILIKE $1)
+                       ORDER BY kn.confidence_score DESC NULLS LAST, kn.created_at DESC
+                       LIMIT 3""",
+                    f"%{goal_lower[:30]}%"
+                )
+                if not rows:
+                    return ""
+                
+                parts = []
+                for r in rows:
+                    title = r.get("title") or "Без названия"
+                    content = (r["content"] or "").strip()[:800]
+                    if content:
+                        parts.append(f"### {title}\n{content}")
+                
+                if not parts:
+                    return ""
+                
+                return "\n---\n**Актуальные знания AI Research:**\n" + "\n\n".join(parts)
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("AI Research RAG: %s", e)
+        return ""
+
+    async def _get_semantic_history_context(self, goal: str, session_id: Optional[str] = None) -> str:
+        """
+        [SEMANTIC HISTORY SEARCH] Поиск по смыслу в прошлых сессиях (Claude Opus 4.6 Pattern)
+        """
+        goal_lower = goal.lower()
+        # Триггеры для поиска по истории
+        triggers = ["как мы делали", "как раньше", "помнишь", "вчера", "обсуждали", "прошлый раз"]
+        if not any(t in goal_lower for t in triggers):
+            return ""
+
+        logger.info(f"🔍 [SEMANTIC HISTORY] Запуск поиска по истории для: '{goal[:50]}...'")
+        try:
+            from app.semantic_cache import get_embedding
+            embedding = await get_embedding(goal)
+            if not embedding:
+                return ""
+            
+            db_url = os.getenv('DATABASE_URL')
+            import asyncpg
+            conn = await asyncpg.connect(db_url)
+            try:
+                # Ищем в knowledge_nodes по эмбеддингам
+                rows = await conn.fetch("""
+                    SELECT content, metadata->>'date' as date, (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE (metadata->>'type' = 'session_exchange' OR metadata->>'source' = 'victoria_enhanced')
+                    AND embedding IS NOT NULL
+                    AND (1 - (embedding <=> $1::vector)) > 0.8
+                    ORDER BY similarity DESC
+                    LIMIT 3
+                """, str(embedding))
+                
+                if not rows:
+                    return ""
+                
+                history_parts = []
+                for r in rows:
+                    date_str = r['date'] or "ранее"
+                    history_parts.append(f"[{date_str}] {r['content']}")
+                
+                return "\n### ИЗ ИСТОРИИ ПРОШЛЫХ ОБСУЖДЕНИЙ:\n" + "\n---\n".join(history_parts)
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug(f"Ошибка семантического поиска по истории: {e}")
+            return ""
+
     async def solve(
         self,
         goal: str,
@@ -634,8 +925,24 @@ class VictoriaEnhanced:
             
             # Определяем категорию задачи (нужно для делегирования)
             category = self._categorize_task(goal)
-            
+            # Опционально: для неочевидных general (5–25 слов) — один вызов лёгкой MLX для уточнения категории (docs/MLX_STRATEGY_LIGHT_AND_VITALITY.md §5.1)
+            if (
+                category == "general"
+                and 5 <= len((goal or "").split()) <= 25
+                and os.getenv("VICTORIA_MLX_LIGHT_CLASSIFY", "false").lower() in ("true", "1", "yes")
+            ):
+                new_cat, duration_sec = await _try_mlx_light_classify(goal)
+                if new_cat and new_cat != "general":
+                    logger.info(
+                        "[MLX_LIGHT_CLASSIFY] general -> %s goal_len=%d duration_ms=%.0f",
+                        new_cat, len((goal or "").split()), duration_sec * 1000,
+                    )
+                    category = new_cat
+                elif new_cat is None and duration_sec > 0:
+                    logger.debug("[MLX_LIGHT_CLASSIFY] no_change_or_error duration_ms=%.0f", duration_sec * 1000)
+
             # Ранняя проверка: вопросы о данных корпорации и метриках Mac Studio — сразу через corporation_data_tool
+            logger.info(f"DEBUG solve: checking early route for goal='{goal[:50]}'")
             try:
                 from app.corporation_data_tool import is_data_question, query_corporation_data, _extract_latest_user_message
                 goal_for_data = _extract_latest_user_message(goal)
@@ -672,7 +979,6 @@ class VictoriaEnhanced:
                 logger.info(f"🏢 Использую Department Heads System для задачи: {goal[:50]}...")
                 try:
                     from app.department_heads_system import get_department_heads_system
-                    import os
                     db_url = os.getenv('DATABASE_URL')
                     
                     # Логируем подключение к БД
@@ -827,13 +1133,20 @@ class VictoriaEnhanced:
             # Выполняем через выбранный метод
             result = await self._execute_method(method, goal, category, context)
             
-            # Сохраняем в кэш
-            if self.use_cache and self.cache:
-                try:
-                    await self.cache.set(method, goal, result, context)
-                    logger.debug(f"💾 Результат сохранен в кэш: {method}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка сохранения в кэш: {e}")
+            # Сохраняем в кэш только успешные ответы (не кэшируем «модели недоступны» и др.)
+            if self.use_cache and self.cache and result:
+                meta = result.get("metadata") or {}
+                skip_cache = (
+                    meta.get("note") == "models_unavailable"
+                    or (result.get("result") or "").startswith("Сейчас не могу подключиться к моделям")
+                    or result.get("error")
+                )
+                if not skip_cache:
+                    try:
+                        await self.cache.set(method, goal, result, context)
+                        logger.debug(f"💾 Результат сохранен в кэш: {method}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка сохранения в кэш: {e}")
             
             # Добавляем метрики в span
             if hasattr(self, 'observability') and self.observability:
@@ -915,7 +1228,6 @@ class VictoriaEnhanced:
         goal_lower = goal.lower()
         try:
             from app.department_heads_system import get_department_heads_system
-            import os
             db_url = os.getenv('DATABASE_URL')
             dept_system = get_department_heads_system(db_url)
             
@@ -931,7 +1243,6 @@ class VictoriaEnhanced:
             if department:
                 # Получаем актуальную структуру организации (корпорация растет!)
                 from app.organizational_structure import get_organizational_structure
-                import os
                 db_url = os.getenv('DATABASE_URL')
                 org_structure = get_organizational_structure(db_url)
                 try:
@@ -977,7 +1288,6 @@ class VictoriaEnhanced:
         structure_summary = ""
         try:
             from app.organizational_structure import get_organizational_structure
-            import os
             db_url = os.getenv('DATABASE_URL')
             org_structure = get_organizational_structure(db_url)
             # Система автоматически проверит изменения в БД
@@ -997,7 +1307,7 @@ class VictoriaEnhanced:
 ОБЯЗАТЕЛЬНО:
 1. СРАЗУ составь план: разбей задачу на конкретные подзадачи (шаги).
 2. Для КАЖДОЙ подзадачи укажи: промпт (текст задания для сотрудника), отдел, эксперта (роль/имя из структуры), рекомендуемую модель.
-3. Рекомендуемая модель — одна из категорий: "coding" (код, файлы, боты), "reasoning" (анализ, логика, планирование), "fast" (короткие ответы), "general" (общее). Либо имя модели: glm-4.7-flash, qwen2.5-coder, deepseek-r1 и т.д.
+3. Рекомендуемая модель — одна из категорий: "coding" (код, файлы, боты), "reasoning" (анализ, логика, планирование), "fast" (короткие ответы), "general" (общее). Либо имя модели: glm-4.7-flash, phi3.5, qwen2.5 и т.д.
 
 4. ПОДЗАДАЧИ должны быть конкретными и исполняемыми: каждая — один промпт для одного сотрудника с одной рекомендуемой моделью.
 
@@ -1297,7 +1607,7 @@ class VictoriaEnhanced:
 
 Для задач на создание кода, файлов или ботов: обязательно используй инструменты create_file или write_file. Завершай задачу (finish) только после выполнения инструментов и всегда передавай в finish параметр output с кратким описанием сделанного и путями к созданным файлам.
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!"""
+{PROMPT_RUSSIAN_ONLY}"""
                     expert_agent = ReActAgent(
                         agent_name=expert_name,
                         system_prompt=expert_system_prompt,
@@ -1345,7 +1655,7 @@ class VictoriaEnhanced:
 КРИТИЧЕСКИ ВАЖНО — ПОВТОРНАЯ ПОПЫТКА: Предыдущий запуск завершился без результата.
 Ты ОБЯЗАН: 1) разбить задачу на конкретные подзадачи (шаги), 2) выполнить каждую через create_file или write_file, 3) в конце вызвать finish с параметром output — краткое описание сделанного и пути к созданным файлам. Не завершай задачу (finish) без использования инструментов и без параметра output.
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!"""
+{PROMPT_RUSSIAN_ONLY}"""
                             logger.info("🔄 [DEPARTMENT_TASK] Пустой успех — автоматический retry с разбивкой на подзадачи (выполняет эксперт)")
                             try:
                                 retry_agent = ReActAgent(
@@ -1415,7 +1725,7 @@ class VictoriaEnhanced:
                         
                         prompt = f"""{system_prompt or f"Вы {expert_name}, эксперт отдела {department}."}
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!
+{PROMPT_RUSSIAN_ONLY}
 
 ЗАДАЧА: {goal}
 
@@ -1510,7 +1820,6 @@ class VictoriaEnhanced:
         
         try:
             from app.task_distribution_system import get_task_distribution_system
-            import os
             # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
             db_url = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
             task_dist = get_task_distribution_system(db_url)
@@ -1826,7 +2135,8 @@ class VictoriaEnhanced:
             return False, {}
     
     def _select_optimal_method(self, category: str, goal: str) -> str:
-        """Выбрать оптимальный метод. ReAct по умолчанию (доступ к файлам/инструментам), если доступен."""
+        """Выбрать оптимальный метод. ReAct по умолчанию (доступ к файлам/инструментам), если доступен.
+        Команда экспертов (много агентов) — только для complex (swarm/consensus); остальное — один исполнитель (модель или ReAct). См. docs/VICTORIA_TASK_CHAIN_FULL.md."""
         method_map = {
             "informational": "simple",  # «что умеешь», «кто ты» — без ReAct
             "status_query": "simple",   # статус/приоритеты — быстрый ответ, без долгих методов
@@ -1864,6 +2174,26 @@ class VictoriaEnhanced:
     ) -> Dict:
         """Выполнить задачу через выбранный метод"""
         start_time = datetime.now(timezone.utc)
+        
+        # Куратор + аудит 2026-02-08: единый источник configs.victoria_common.get_capabilities_text()
+        if category == "informational":
+            try:
+                _root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                import sys
+                if _root not in sys.path:
+                    sys.path.insert(0, _root)
+                from configs.victoria_common import get_capabilities_text
+                capabilities = get_capabilities_text()
+            except Exception:
+                capabilities = (
+                    "Я Виктория, Team Lead Atra Core. Умею:\n"
+                    "• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n"
+                    "• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n"
+                    "• Показывать список файлов, читать и анализировать проект\n"
+                    "• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\n"
+                    "Режимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач."
+                )
+            return {"result": capabilities, "method": "simple", "metadata": {"source": "curator_informational"}}
         
         try:
             if method == "react" and self.react_agent:
@@ -2113,13 +2443,16 @@ class VictoriaEnhanced:
                     is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
                     if is_docker:
                         mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
-                        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+                        ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or "http://host.docker.internal:11434"
                     else:
                         mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
-                        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                        ollama_url = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or "http://localhost:11434"
                     try:
                         from app.available_models_scanner import get_available_models, pick_ollama_model_for_category
                         mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url)
+                        # Повтор скана при пустом списке (из Docker первый запрос к host.docker.internal может не уложиться в таймаут)
+                        if not ollama_models and not mlx_models:
+                            mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url, force_refresh=True)
                     except ImportError:
                         mlx_models, ollama_models = [], []
                     urls_to_try = []
@@ -2128,19 +2461,23 @@ class VictoriaEnhanced:
                     if ollama_models:
                         urls_to_try.append(ollama_url)
                     if not urls_to_try:
-                        urls_to_try = [mlx_url, ollama_url]
+                        urls_to_try = [ollama_url, mlx_url] if is_docker else [mlx_url, ollama_url]
+                    # В Docker: Ollama первым — из контейнера MLX часто таймаут/вылет, Ollama стабильнее (host.docker.internal:11434)
+                    if is_docker and ollama_url in urls_to_try and mlx_url in urls_to_try:
+                        urls_to_try = [ollama_url, mlx_url]
                     logger.info(f"🔍 Доступно: MLX={len(mlx_models)}, Ollama={len(ollama_models)}. Пробуем: {urls_to_try}")
                     
                     # Персона: модель должна отвечать именно как Виктория, а не как безличный ассистент
                     role_instruction = "Отвечай от первого лица как Виктория (я, мы). Не как безличный справочник или энциклопедия — как Team Lead корпорации."
                     # Промпт зависит от категории
                     if category == "coding":
-                        # Для задач с кодом - более детальный промпт
+                        # Для задач с кодом - более детальный промпт; план §2: похожие успешные решения
+                        similar_tasks_coding = await self._get_similar_tasks_context(goal, max_chars=400)
+                        similar_block = f"\n{similar_tasks_coding}\n\n" if similar_tasks_coding else ""
                         simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA, эксперт по программированию. {role_instruction}
 
-ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все объяснения, комментарии и текст должны быть на русском.
-
-Задача: {goal}
+{PROMPT_RUSSIAN_ONLY}
+{similar_block}Задача: {goal}
 
 Создай рабочий код. Отвечай на русском языке, но код пиши правильно.
 Если нужно создать файл, укажи полный путь и содержимое файла.
@@ -2152,7 +2489,7 @@ class VictoriaEnhanced:
                         if len(goal.split()) <= 3 and any(word in goal.lower() for word in ["привет", "здравствуй", "hi", "hello"]):
                             simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA. {role_instruction}
 
-ВАЖНО: Отвечай ТОЛЬКО на русском языке! НЕ используй английский, испанский или другие языки!
+{PROMPT_RUSSIAN_ONLY}
 
 Пример правильного ответа на "привет":
 "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
@@ -2197,35 +2534,112 @@ class VictoriaEnhanced:
                                 logger.debug(f"corporation_data_tool ошибка: {e}")
                             
                             # Fallback: обычный промпт для LLM (не data-вопрос или Text-to-SQL не сработал)
-                            simple_prompt = f"""Ты Виктория, Team Lead корпорации ATRA. {role_instruction}
+                            # Подтягиваем эталон из RAG (curator_standards) для «статус проекта» / «что умеешь» — иначе 0/3 по эталону (Backend/QA)
+                            kb_context = await self._get_curator_rag_context(goal)
+                            
+                            # Сингулярность 10.0: Подтягиваем знания AI Research (Anthropic, Google, OpenAI и др.)
+                            ai_research_context = await self._get_ai_research_context(goal)
+                            if ai_research_context:
+                                logger.info("🧠 [AI RESEARCH] Добавлен контекст исследований гигантов")
+                                if kb_context:
+                                    kb_context += "\n" + ai_research_context
+                                else:
+                                    kb_context = ai_research_context
 
-КРИТИЧЕСКИ ВАЖНО:
-1. ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке!
-2. Ответ должен быть КРАТКИМ - максимум 3-5 предложений!
-3. НЕ генерируй длинные списки, инструкции или повторяющийся текст!
-4. НЕ повторяй вопрос, НЕ пиши "Запрос:" или "Ответ:"!
+                            # [SEMANTIC HISTORY SEARCH] Поиск по смыслу в прошлых сессиях (Claude Opus 4.6 Pattern)
+                            # Срабатывает на фразы: "помнишь", "как вчера", "обсуждали", "прошлый раз"
+                            history_context = await self._get_semantic_history_context(goal, context.get("session_id") if context else None)
+                            if history_context:
+                                if kb_context:
+                                    kb_context += "\n" + history_context
+                                else:
+                                    kb_context = history_context
 
-Запрос: {goal}
+                            # [SUMMARY READER] Если пользователь просит раскрыть логику ("как ты пришла к этому?")
+                            goal_lower_for_rag = (goal or "").lower()
+                            if any(kw in goal_lower_for_rag for kw in ["как ты пришла", "почему такое решение", "раскрой логику", "покажи мысли"]):
+                                session_id = context.get("session_id") if context else None
+                                if session_id:
+                                    hidden_thoughts = VictoriaEnhanced.get_hidden_thoughts(session_id)
+                                    if hidden_thoughts:
+                                        thoughts_text = "\n".join([f"Шаг {t['step']}: {t['thought']}" for t in hidden_thoughts])
+                                        kb_context = (kb_context or "") + f"\n\n### ТВОИ ПРЕДЫДУЩИЕ СКРЫТЫЕ МЫСЛИ (для ответа на вопрос о логике):\n{thoughts_text}"
+                                        logger.info(f"🔓 [SUMMARY READER] Скрытые мысли подставлены в контекст для сессии {session_id}")
 
-Ответ (кратко, 3-5 предложений, ОБЯЗАТЕЛЬНО на русском языке):"""
+                            is_status_project_query = "статус" in goal_lower_for_rag and ("проект" in goal_lower_for_rag or "дашборд" in goal_lower_for_rag)
+                            if not kb_context and is_status_project_query:
+                                logger.warning(
+                                    "RAG curator_standards пуст для запроса «статус проекта» — используем эталон из кода (проверьте узел status_project в БД)"
+                                )
+                                kb_context = (
+                                    "Статус проекта смотрите в дашборде (Corporation Dashboard, порт 8501) и в списке задач Knowledge OS. "
+                                    "Опираюсь на факты из MASTER_REFERENCE и задач, не придумываю сроки."
+                                )
+                            similar_tasks = await self._get_similar_tasks_context(goal)
+                            kb_block = ""
+                            if kb_context:
+                                kb_block = f"""По базе знаний (эталон): используй ТОЛЬКО этот контекст для ответа. Не придумывай сроки и детали.
+{kb_context}
+
+"""
+                            if similar_tasks:
+                                kb_block += f"""{similar_tasks}
+
+"""
+                            if context and context.get("project_context"):
+                                project_tasks = await self._get_project_tasks_context(context["project_context"])
+                                if project_tasks:
+                                    kb_block += f"""{project_tasks}
+
+"""
+                            try:
+                                from configs.victoria_common import build_simple_prompt, WORLD_PRACTICES_LINE as _wp_common
+                            except ImportError:
+                                _wp_common = "Учитывай лучшие практики: один источник истины (документация), проверяемый результат, актуальная библия (MASTER_REFERENCE)."
+                                def build_simple_prompt(role_instruction, kb_block, goal, *, world_practices_line=None):
+                                    wp = world_practices_line or _wp_common
+                                    return (
+                                        f"Ты Виктория, Team Lead корпорации ATRA. {role_instruction}\n\nКРИТИЧЕСКИ ВАЖНО:\n{PROMPT_RUSSIAN_AND_BREVITY_LINES}\n"
+                                        f"5. Если выше дан контекст из базы знаний — ответь ТОЛЬКО на его основе.\n6. {wp}\n\n{kb_block}Запрос: {goal}\n\nОтвет (кратко, 3-5 предложений, на русском):"
+                                    )
+                            # План «как я» п.4: для статус/что умеешь — краткий блок «в духе команды» (без вызова Swarm)
+                            if category in ("status_query", "general"):
+                                kb_block += """Ответ в духе команды: дашборд, MASTER_REFERENCE, эксперты Backend/QA/SRE/ML.
+
+"""
+                            if context and context.get("task_memory"):
+                                task_mem = (context.get("task_memory") or "").strip()
+                                if task_mem:
+                                    kb_block += f"""Ранее по этой задаче (сессия):
+{task_mem}
+
+"""
+                            if context and context.get("long_term_memory"):
+                                long_term = (context.get("long_term_memory") or "").strip()
+                                if long_term:
+                                    kb_block += f"""Ранее по этому проекту/пользователю:
+{long_term}
+
+"""
+                            simple_prompt = build_simple_prompt(role_instruction, kb_block, goal)
                     
-                    # Вставляем историю чата в промпт (контекст диалога), если передана
+                    # Вставляем историю чата в промпт как «ранее по задаче» (план «умнее, быстрее»: достаточно сказать)
                     if context and context.get("chat_history"):
                         _h = context.get("chat_history") or ""
                         history_text = (_h if isinstance(_h, str) else str(_h)).strip()
                         if history_text:
-                            simple_prompt = f"""Контекст предыдущих сообщений в чате:
+                            simple_prompt = f"""Ранее по задаче (контекст чата):
 {history_text}
 
 ---
-Текущий запрос пользователя (ответь с учётом контекста выше):
+Текущий запрос (ответь с учётом контекста выше):
 
 {simple_prompt}"""
                     
                     # Таймаут и параметры зависят от категории
-                    # Для general и stats запросов - больше времени для более мощных моделей
-                    if category == "general" or needs_db_query:
-                        timeout = 60.0  # Больше времени для умных моделей
+                    # Для general, status_query и stats — больше времени (в Docker запрос к host.docker.internal может быть медленным)
+                    if category in ("general", "status_query") or needs_db_query:
+                        timeout = 60.0  # Больше времени для умных моделей и запросов из контейнера
                     elif category == "fast":
                         timeout = 15.0
                     else:
@@ -2235,6 +2649,9 @@ class VictoriaEnhanced:
                     is_simple_greeting = (
                         len(goal.split()) <= 3 and 
                         any(word in goal_lower for word in ["привет", "здравствуй", "hi", "hello"])
+                    )
+                    is_what_can_you_do = any(
+                        x in goal_lower for x in ["что умеешь", "что ты умеешь", "чем можешь помочь", "твои возможности", "кто ты"]
                     )
                     # Для general и stats запросов - больше токенов для более детальных ответов
                     if category == "general" or needs_db_query:
@@ -2333,7 +2750,13 @@ class VictoriaEnhanced:
                                             "stop": ["\n\n\n", "---", "###", "1. ", "2. ", "3. ", "Запрос:", "Ответ (кратко", "ОБЯЗАТЕЛЬНО на русском"]
                                         }
                                     }
-                                timeout_sec = timeout.total_seconds() if hasattr(timeout, 'total_seconds') else timeout
+                                timeout_sec = timeout.total_seconds() if hasattr(timeout, 'total_seconds') else float(timeout)
+                                # В Docker запрос к host.docker.internal может идти дольше — даём запас (status_query до 120 с)
+                                if is_docker:
+                                    if category == "status_query":
+                                        timeout_sec = max(timeout_sec, 120.0)
+                                    elif timeout_sec < 90:
+                                        timeout_sec = max(timeout_sec * 1.5, 90.0)
                                 response = await safe_http_request(
                                     f"{llm_url}/api/generate",
                                     method="POST",
@@ -2472,6 +2895,42 @@ class VictoriaEnhanced:
                         # Если все URL не сработали
                         logger.warning(f"⚠️ Не удалось использовать модель ни на одном URL (MLX 11435, Ollama 11434)")
                     
+                    # Для «статус проекта» при недоступности LLM — эталонный ответ (дашборд, список задач), куратор 3/3 (CURATOR_MENTOR_CAUSES)
+                    if category == "status_query" and is_status_project_query:
+                        return {
+                            "result": (
+                                "Статус проекта смотрите в дашборде (Corporation Dashboard, порт 8501) и в списке задач (список задач Knowledge OS). "
+                                "Опираюсь на факты из MASTER_REFERENCE и задач, не придумываю сроки."
+                            ),
+                            "method": "simple",
+                            "metadata": {
+                                "category": category,
+                                "note": "status_project_fallback_no_llm"
+                            }
+                        }
+                    # При недоступности LLM — эталонные ответы для приветствия и «что умеешь» (куратор, 3/3)
+                    if category == "fast" and is_simple_greeting:
+                        return {
+                            "result": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+                            "method": "simple",
+                            "metadata": {"category": category, "note": "greeting_fallback_no_llm"}
+                        }
+                    if is_what_can_you_do:
+                        try:
+                            from configs.victoria_common import get_capabilities_text
+                            what_result = get_capabilities_text().replace("\n", " ").strip()
+                        except Exception:
+                            what_result = (
+                                "Я Виктория, Team Lead Atra Core. Умею: отвечать на вопросы и вести чат; "
+                                "составлять планы и выполнять задачи; показывать список файлов; "
+                                "делегировать в Veronica, сложные — оркестрировать с командой."
+                            )
+                        return {
+                            "result": what_result,
+                            "method": "simple",
+                            "metadata": {"category": category, "note": "what_can_you_do_fallback_no_llm"}
+                        }
+                    
                     # Fallback: реальный ответ не получен — подсказка, что проверить
                     return {
                         "result": (
@@ -2520,18 +2979,19 @@ class VictoriaEnhanced:
         """
         Запустить Event-Driven Architecture и мониторинг (AutoGen pattern)
         
-        Запускает:
-        - Event Bus
-        - File Watcher
-        - Service Monitor
-        - Deadline Tracker
-        - Skills Watcher
-        - Подписка на события
+        При ENABLE_EVENT_MONITORING=false только помечает мониторинг как запущенный (экономия памяти).
+        Иначе запускает: Event Bus, File Watcher, Service Monitor, Deadline Tracker, Skills Watcher.
         """
         if self.monitoring_started:
             logger.warning("⚠️ Мониторинг уже запущен")
             return
         
+        _enable = (os.getenv("ENABLE_EVENT_MONITORING") or "").strip().lower() in ("true", "1", "yes")
+        if not _enable:
+            self.monitoring_started = True
+            logger.info("✅ Victoria Enhanced готов (Event Bus/File Watcher отключены — ENABLE_EVENT_MONITORING=false)")
+            return
+
         try:
             # Запускаем Event Bus
             if self.event_bus:

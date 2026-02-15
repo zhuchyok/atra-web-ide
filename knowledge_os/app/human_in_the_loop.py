@@ -91,6 +91,8 @@ class HumanInTheLoop:
             "update_config": ActionCriticality.MEDIUM,
             "create": ActionCriticality.LOW,
             "read": ActionCriticality.LOW,
+            "plan_approval": ActionCriticality.HIGH,
+            "complex_task": ActionCriticality.HIGH,
         }
     
     def _assess_criticality(self, action: str, context: Dict[str, Any]) -> ActionCriticality:

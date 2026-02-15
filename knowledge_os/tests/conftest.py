@@ -4,6 +4,7 @@ Pytest configuration and fixtures
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,31 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # Test database URL: fallback на knowledge_os если _test недоступна
 TEST_DB_URL = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+
+
+@pytest.fixture(scope="session")
+def wait_for_victoria():
+    """
+    Ожидание готовности Victoria перед интеграционными тестами (session-scoped).
+    До 60 с опрашивает GET {VICTORIA_URL}/health; при неудаче — pytest.fail.
+    """
+    try:
+        import requests
+    except ImportError:
+        pytest.skip("requests не установлен")
+    base = os.getenv("VICTORIA_URL", "http://localhost:8010").rstrip("/")
+    url = f"{base}/health"
+    timeout = 60
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            r = requests.get(url, timeout=5)
+            if r.status_code == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(2)
+    pytest.fail(f"Victoria не ответила на {url} за {timeout} с. Запустите: docker compose -f knowledge_os/docker-compose.yml up -d")
 
 
 @pytest.fixture
@@ -64,6 +90,24 @@ async def test_expert_id(db_connection):
         RETURNING id
     """)
     yield expert_id
-    # Cleanup
+    # Cleanup: сначала все зависимости (FK → experts), потом эксперт
+    await db_connection.execute("DELETE FROM adaptive_learning_logs WHERE expert_id = $1", expert_id)
+    await db_connection.execute(
+        "DELETE FROM tasks WHERE assignee_expert_id = $1 OR creator_expert_id = $1",
+        expert_id,
+    )
+    await db_connection.execute("DELETE FROM interaction_logs WHERE expert_id = $1", expert_id)
     await db_connection.execute("DELETE FROM experts WHERE id = $1", expert_id)
+
+
+@pytest.fixture
+async def knowledge_nodes_id_is_uuid(db_connection) -> bool:
+    """True если knowledge_nodes.id имеет тип uuid (иначе тесты links требуют skip)."""
+    try:
+        row = await db_connection.fetchrow(
+            "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'knowledge_nodes' AND column_name = 'id'"
+        )
+        return row and str(row["data_type"]).lower() == "uuid"
+    except Exception:
+        return False
 

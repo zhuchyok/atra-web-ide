@@ -48,28 +48,19 @@ class VeronicaWebResearcher:
     
     async def web_search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         """
-        Веб-поиск через DuckDuckGo (без токенов).
+        Веб-поиск через единый модуль web_search_fallback (П.6: DuckDuckGo → Ollama).
+        Sync I/O выполняется в run_in_executor, чтобы не блокировать event loop.
         """
-        if not DDGS_AVAILABLE:
-            logger.warning("⚠️ [WEB SEARCH] duckduckgo_search не установлен. Установите: pip install duckduckgo-search")
-            return []
-        
         try:
-            logger.info(f"🔍 [WEB SEARCH] Вероника ищет: {query}")
-            with DDGS() as ddgs:
-                results = list(ddgs.text(query, max_results=max_results))
-            
-            formatted_results = []
-            for res in results:
-                formatted_results.append({
-                    "title": res.get('title', ''),
-                    "url": res.get('href', ''),
-                    "snippet": res.get('body', ''),
-                    "source": "duckduckgo"
-                })
-            
-            logger.info(f"✅ [WEB SEARCH] Найдено {len(formatted_results)} результатов")
-            return formatted_results
+            from app.web_search_fallback import web_search_sync
+            import asyncio
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None, lambda: web_search_sync(query, max_results=max_results)
+            )
+            if results:
+                logger.info(f"✅ [WEB SEARCH] Найдено {len(results)} результатов")
+            return results or []
         except Exception as e:
             logger.error(f"❌ [WEB SEARCH] Ошибка: {e}")
             return []
@@ -101,7 +92,7 @@ class VeronicaWebResearcher:
         
         # Выбираем модель в зависимости от категории (MLX модели Mac Studio)
         model_map = {
-            "research": "deepseek-r1-distill-llama:70b",  # MLX модель (Mac Studio)
+            "research": "phi3.5:3.8b",
             "coding": "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
             "fast": "phi3.5:3.8b",  # Ollama модель
             "default": "qwen2.5-coder:32b"  # MLX модель (Mac Studio)
@@ -144,7 +135,53 @@ class VeronicaWebResearcher:
                 except:
                     continue
         return None
-    
+
+    # --- PERPLEXITY BROWSER PATTERNS (Phase 5) ---
+
+    async def open_page_for_viewing(self, url: str) -> Dict[str, Any]:
+        """
+        [Perplexity Pattern] Открыть страницу в видимой вкладке для пользователя.
+        Используется, когда пользователь хочет 'посмотреть' сайт или видео.
+        """
+        logger.info(f"🌐 [BROWSER] Открытие страницы для просмотра: {url}")
+        # В текущей реализации Web IDE мы можем вернуть команду для фронтенда или iframe URL
+        return {"action": "open_visible_tab", "url": url, "mode": "viewing"}
+
+    async def get_full_page_content(self, url: str) -> str:
+        """
+        [Perplexity Pattern] Чтение полного содержимого страницы без взаимодействия.
+        Используется для глубокого анализа документации или статей.
+        """
+        logger.info(f"📖 [BROWSER] Чтение содержимого страницы: {url}")
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                # Используем Jina Reader или аналогичный сервис для чистого Markdown (мировая практика)
+                reader_url = f"https://r.jina.ai/{url}"
+                response = await client.get(reader_url)
+                if response.status_code == 200:
+                    return response.text
+                
+                # Fallback на прямой запрос
+                response = await client.get(url)
+                return response.text[:50000] # Лимит для стабильности
+        except Exception as e:
+            logger.error(f"❌ [BROWSER] Ошибка чтения страницы {url}: {e}")
+            return f"Error reading page: {str(e)}"
+
+    async def control_browser(self, task: str, start_url: Optional[str] = None) -> Dict[str, Any]:
+        """
+        [Perplexity Pattern] Интерактивное управление браузером (клики, формы).
+        Работает в скрытых вкладках. Требует Playwright/Selenium в будущем.
+        """
+        logger.info(f"🤖 [BROWSER CONTROL] Выполнение задачи: {task}")
+        # Пока возвращаем заглушку, готовую к интеграции с Playwright воркером
+        return {
+            "action": "browser_interaction",
+            "task": task,
+            "status": "planned",
+            "note": "Требуется Playwright воркер для выполнения действий"
+        }
+
     async def research_and_analyze(
         self, 
         query: str, 

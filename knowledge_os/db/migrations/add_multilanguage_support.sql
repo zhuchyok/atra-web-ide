@@ -53,16 +53,19 @@ CREATE TABLE IF NOT EXISTS user_language_preferences (
 );
 
 -- Триггеры
+DROP TRIGGER IF EXISTS update_knowledge_translations_updated_at ON knowledge_translations;
 CREATE TRIGGER update_knowledge_translations_updated_at
     BEFORE UPDATE ON knowledge_translations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_ui_translations_updated_at ON ui_translations;
 CREATE TRIGGER update_ui_translations_updated_at
     BEFORE UPDATE ON ui_translations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_user_language_preferences_updated_at ON user_language_preferences;
 CREATE TRIGGER update_user_language_preferences_updated_at
     BEFORE UPDATE ON user_language_preferences
     FOR EACH ROW

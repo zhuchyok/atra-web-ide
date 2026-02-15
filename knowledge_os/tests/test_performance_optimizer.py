@@ -2,8 +2,16 @@
 Unit tests for Performance Optimizer
 """
 
+import hashlib
+import json
 import pytest
 from knowledge_os.app.performance_optimizer import QueryCache, AsyncTaskQueue, PerformanceMonitor
+
+
+def _cache_key_hash(query: str, params: tuple) -> str:
+    """Хэш ключа кэша (как в QueryCache._make_cache_key)."""
+    key_data = f"{query}:{json.dumps(params, sort_keys=True)}"
+    return hashlib.md5(key_data.encode()).hexdigest()
 
 
 @pytest.mark.asyncio
@@ -21,15 +29,16 @@ async def test_query_cache():
 
 @pytest.mark.asyncio
 async def test_query_cache_invalidation():
-    """Test cache invalidation"""
+    """Test cache invalidation (invalidate по паттерну = хэшу ключа)."""
     cache = QueryCache()
     
     # Set multiple cache entries
     await cache.set("query1", (), {"data": 1})
     await cache.set("query2", (), {"data": 2})
     
-    # Invalidate by pattern
-    invalidated = await cache.invalidate("query1")
+    # Invalidate by pattern: ключ в Redis = CACHE_PREFIX + md5("query1:()"), передаём хэш
+    pattern = _cache_key_hash("query1", ())
+    invalidated = await cache.invalidate(pattern)
     
     # Check that query1 is gone but query2 remains
     result1 = await cache.get("query1", ())

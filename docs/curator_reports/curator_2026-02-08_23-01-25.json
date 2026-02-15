@@ -1,0 +1,37 @@
+{
+  "ts": "2026-02-08T23:01:30.383757+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "1ab53b92-1b5f-4cdd-bf83-ca99aeca2fcb",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "1ab53b92-1b5f-4cdd-bf83-ca99aeca2fcb",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.02
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 5.02
+    }
+  ]
+}

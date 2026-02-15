@@ -1,0 +1,82 @@
+[
+  {
+    "model": "qwen3-coder:30b",
+    "source": "ollama",
+    "size_category": "medium",
+    "measured_sec": 2.75,
+    "request_timeout_sec": 120,
+    "startup_buffer_sec": 60,
+    "recommended_timeout_sec": 62.8,
+    "status": "ok"
+  },
+  {
+    "model": "qwq:32b",
+    "source": "ollama",
+    "size_category": "medium",
+    "measured_sec": 16.7,
+    "request_timeout_sec": 120,
+    "startup_buffer_sec": 60,
+    "recommended_timeout_sec": 76.7,
+    "status": "ok"
+  },
+  {
+    "model": "qwen2.5-coder:32b",
+    "source": "ollama",
+    "size_category": "medium",
+    "measured_sec": 0.74,
+    "request_timeout_sec": 120,
+    "startup_buffer_sec": 60,
+    "recommended_timeout_sec": 60.7,
+    "status": "ok"
+  },
+  {
+    "model": "glm-4.7-flash:q8_0",
+    "source": "ollama",
+    "size_category": "medium",
+    "measured_sec": 12.27,
+    "request_timeout_sec": 120,
+    "startup_buffer_sec": 60,
+    "recommended_timeout_sec": 72.3,
+    "status": "ok"
+  },
+  {
+    "model": "llava:7b",
+    "source": "ollama",
+    "size_category": "small",
+    "measured_sec": 2.47,
+    "request_timeout_sec": 60,
+    "startup_buffer_sec": 30,
+    "recommended_timeout_sec": 32.5,
+    "status": "ok"
+  },
+  {
+    "model": "phi3.5:3.8b",
+    "source": "ollama",
+    "size_category": "small",
+    "measured_sec": 0,
+    "request_timeout_sec": 60,
+    "startup_buffer_sec": 30,
+    "recommended_timeout_sec": 30,
+    "status": "error:TimeoutError"
+  },
+  {
+    "model": "moondream:latest",
+    "source": "ollama",
+    "size_category": "medium",
+    "measured_sec": 1.22,
+    "request_timeout_sec": 120,
+    "startup_buffer_sec": 60,
+    "recommended_timeout_sec": 61.2,
+    "status": "ok"
+  },
+  {
+    "model": "tinyllama:1.1b-chat",
+    "source": "ollama",
+    "size_category": "small",
+    "measured_sec": 0.93,
+    "request_timeout_sec": 60,
+    "startup_buffer_sec": 30,
+    "recommended_timeout_sec": 30.9,
+    "status": "ok"
+  }
+]

@@ -1,11 +1,5 @@
-"""
-Database trigger для автоматической синхронизации при изменениях в таблице experts.
-
-Создает webhook/задачу для обновления .cursor/rules/ при:
-- INSERT (найм)
-- UPDATE (изменение данных)
-- DELETE (увольнение)
-"""
+-- Database trigger для автоматической синхронизации при изменениях в таблице experts.
+-- Создает webhook/задачу для обновления .cursor/rules/ при: INSERT (найм), UPDATE, DELETE.
 
 -- Таблица для отслеживания изменений экспертов
 CREATE TABLE IF NOT EXISTS experts_changelog (

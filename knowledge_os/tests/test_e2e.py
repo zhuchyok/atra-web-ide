@@ -10,8 +10,10 @@ from knowledge_os.app.contextual_learner import ContextualMemory, AdaptiveLearne
 
 
 @pytest.mark.asyncio
-async def test_e2e_knowledge_creation_and_linking(db_connection, test_domain_id):
-    """E2E test: Create knowledge and link it"""
+async def test_e2e_knowledge_creation_and_linking(db_connection, test_domain_id, knowledge_nodes_id_is_uuid):
+    """E2E test: Create knowledge and link it (требует knowledge_nodes.id = UUID)."""
+    if not knowledge_nodes_id_is_uuid:
+        pytest.skip("knowledge_nodes.id не UUID — knowledge_links ожидают UUID")
     graph = KnowledgeGraph()
     
     # 1. Create knowledge nodes

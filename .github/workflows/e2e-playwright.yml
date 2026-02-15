@@ -1,0 +1,59 @@
+# E2E Playwright — чат, health (PROJECT_GAPS §2, CHANGES §0.4f)
+# Запуск: push/pull_request в main. Требует backend + frontend.
+name: E2E Playwright
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: e2e (chat, health)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend deps
+        run: cd frontend && npm ci
+
+      - name: Build frontend
+        run: cd frontend && npm run build
+
+      - name: Create network (atra-network external)
+        run: docker network create atra-network 2>/dev/null || true
+
+      - name: Create .env for docker compose
+        run: touch .env
+
+      - name: Start services (docker compose)
+        run: docker compose up -d
+
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/health && break
+            sleep 2
+          done
+
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: http://localhost:3000
+          BACKEND_URL: http://localhost:8080
+        run: cd frontend && npm run e2e
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: tests/e2e/test-results/

@@ -6,21 +6,26 @@ Extended Thinking Mode - Расширенное рассуждение для с
 import os
 import asyncio
 import logging
-from typing import Dict, Optional, List
+import time
+import json
+from typing import Dict, Optional, List, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 # Используем ТОЛЬКО MLX API Server (порт 11435)
-# Используется только MLX API Server
 MLX_URL = os.getenv('MLX_API_URL', 'http://localhost:11435')
-# Всегда используем MLX
 DEFAULT_LLM_URL = MLX_URL
 
 # Кэш для списка моделей (чтобы не делать частые запросы к /api/tags)
 _models_cache = {"data": None, "timestamp": 0}
 _MODELS_CACHE_TTL = 120  # 2 минуты кэш для списка моделей
+
+# Кэш для скрытых рассуждений (Dual-channel reasoning)
+# Хранит последние рассуждения для Summary Reader
+_hidden_thoughts_cache = {}  # {session_id: [thoughts]}
+_MAX_HIDDEN_CACHE_SIZE = 100
 
 
 @dataclass
@@ -56,7 +61,7 @@ class ExtendedThinkingEngine:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "qwq:32b",  # Самая мощная reasoning модель после удаления 70B/104B
         thinking_budget: int = 10000,  # Токены для рассуждения
         max_steps: int = 10,
         use_intelligent_routing: bool = True  # Использовать интеллектуальный роутинг
@@ -96,7 +101,12 @@ class ExtendedThinkingEngine:
         else:
             self.model_router = None
             logger.info(f"✅ ExtendedThinkingEngine инициализирован: URL={self.llm_url}, модель={self.model_name}")
-    
+
+    @classmethod
+    def get_hidden_thoughts(cls, session_id: str) -> Optional[List[Dict]]:
+        """Получить скрытые рассуждения для сессии (Summary Reader)"""
+        return _hidden_thoughts_cache.get(session_id)
+
     async def think(
         self,
         prompt: str,
@@ -160,28 +170,30 @@ class ExtendedThinkingEngine:
         
         # Fallback: возвращаем все известные модели из PLAN.md
         # ВАЖНО: tinyllama исключена - используется только для внутренней коммуникации агентов
+        # Тяжёлые 70B/104B удалены из-за Apple Silicon Metal limits
         fallback_models = [
-            "command-r-plus:104b",
-            "deepseek-r1-distill-llama:70b",
-            "llama3.3:70b",
+            "qwq:32b",
             "qwen2.5-coder:32b",
             "phi3.5:3.8b",
             "phi3:mini-4k",
             "qwen2.5:3b"
         ]
+        return fallback_models
     
     async def _iterative_thinking(
         self,
         prompt: str,
-        context: Optional[str] = None,
+        context: Optional[Any] = None,
         category: Optional[str] = None
     ) -> ExtendedThinkingResult:
         """Итеративное рассуждение - несколько шагов"""
         thinking_steps = []
         current_understanding = ""
+        start_time = datetime.now(timezone.utc)
         
         # Начальный промпт для рассуждения
-        thinking_prompt = self._build_thinking_prompt(prompt, context, step=1)
+        ctx_str = context.get("kb_context") if isinstance(context, dict) else context
+        thinking_prompt = self._build_thinking_prompt(prompt, ctx_str, step=1)
         
         for step_num in range(1, self.max_steps + 1):
             # Генерируем шаг рассуждения
@@ -213,13 +225,32 @@ class ExtendedThinkingEngine:
             
             # Обновляем промпт для следующего шага
             thinking_prompt = self._build_thinking_prompt(
-                prompt, context, step=step_num + 1, previous_steps=current_understanding
+                prompt, ctx_str, step=step_num + 1, previous_steps=current_understanding
             )
         
         # Формируем финальный ответ на основе всех рассуждений
         final_answer = await self._synthesize_final_answer(prompt, thinking_steps, category)
         
-        elapsed = (datetime.now(timezone.utc) - datetime.now(timezone.utc)).total_seconds()
+        # Сохраняем скрытые рассуждения для Summary Reader (Dual-channel)
+        session_id = context.get("session_id") if isinstance(context, dict) else None
+        if session_id:
+            try:
+                global _hidden_thoughts_cache
+                # Ограничиваем размер кэша
+                if len(_hidden_thoughts_cache) >= _MAX_HIDDEN_CACHE_SIZE:
+                    oldest_key = next(iter(_hidden_thoughts_cache))
+                    _hidden_thoughts_cache.pop(oldest_key)
+                
+                # Сохраняем цепочку мыслей
+                _hidden_thoughts_cache[session_id] = [
+                    {"step": s.step_number, "thought": s.thought, "conclusion": s.conclusion}
+                    for s in thinking_steps
+                ]
+                logger.info(f"🧠 [DUAL-CHANNEL] Скрытые рассуждения сохранены для сессии {session_id}")
+            except Exception as e:
+                logger.debug(f"Ошибка сохранения скрытых рассуждений: {e}")
+
+        elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         return ExtendedThinkingResult(
             final_answer=final_answer,
@@ -232,29 +263,28 @@ class ExtendedThinkingEngine:
     async def _single_pass_thinking(
         self,
         prompt: str,
-        context: Optional[str] = None,
+        context: Optional[Any] = None,
         category: Optional[str] = None
     ) -> ExtendedThinkingResult:
         """Одношаговое рассуждение - все сразу"""
-        thinking_prompt = self._build_thinking_prompt(prompt, context, step=1)
+        ctx_str = context.get("kb_context") if isinstance(context, dict) else context
+        thinking_prompt = self._build_thinking_prompt(prompt, ctx_str, step=1)
         
+        t_start = time.perf_counter()
         # Генерируем полное рассуждение
         full_thinking = await self._generate_response(thinking_prompt, max_tokens=self.thinking_budget, category=category)
-        
         # Извлекаем финальный ответ
         final_answer = await self._extract_final_answer(full_thinking, prompt)
-        
         # Разбиваем на шаги (если есть нумерация)
         thinking_steps = self._parse_thinking_into_steps(full_thinking)
-        
-        elapsed = 0.0  # TODO: реальное время
+        elapsed = time.perf_counter() - t_start
         
         return ExtendedThinkingResult(
             final_answer=final_answer,
             thinking_steps=thinking_steps,
             total_tokens_used=len(full_thinking) + len(final_answer),
             thinking_time_seconds=elapsed,
-            confidence=0.8  # TODO: реальная уверенность
+            confidence=self._calculate_confidence(thinking_steps),
         )
     
     def _build_thinking_prompt(
@@ -304,408 +334,214 @@ class ExtendedThinkingEngine:
         current_understanding: str,
         category: Optional[str] = None
     ) -> str:
-        """Генерировать один шаг рассуждения"""
-        return await self._generate_response(prompt, max_tokens=2048, category=category)
+        """Сгенерировать один шаг рассуждения"""
+        return await self._generate_response(prompt, max_tokens=1000, category=category)
     
-    def _parse_thinking_step(self, step_text: str) -> tuple[str, Optional[str]]:
-        """Парсить шаг рассуждения"""
-        lines = step_text.strip().split('\n')
-        thought = ""
+    def _parse_thinking_step(self, step_text: str) -> Tuple[str, Optional[str]]:
+        """Разобрать текст шага на мысль и вывод"""
+        thought = step_text.strip()
         conclusion = None
         
-        for line in lines:
-            if "ФИНАЛЬНЫЙ ОТВЕТ:" in line or "ВЫВОД:" in line:
-                conclusion = line.split(":", 1)[1].strip() if ":" in line else line
-            else:
-                thought += line + "\n"
+        if "ФИНАЛЬНЫЙ ОТВЕТ:" in thought:
+            parts = thought.split("ФИНАЛЬНЫЙ ОТВЕТ:", 1)
+            thought = parts[0].strip()
+            conclusion = parts[1].strip()
         
-        return thought.strip(), conclusion
+        return thought, conclusion
     
     def _is_final_conclusion(self, conclusion: str) -> bool:
         """Проверить, является ли вывод финальным"""
-        return "ФИНАЛЬНЫЙ ОТВЕТ" in conclusion.upper() or len(conclusion) > 50
+        return conclusion is not None and len(conclusion) > 0
     
     async def _synthesize_final_answer(
         self,
-        original_prompt: str,
+        prompt: str,
         thinking_steps: List[ThinkingStep],
         category: Optional[str] = None
     ) -> str:
-        """Синтезировать финальный ответ на основе всех рассуждений"""
-        # Собираем все выводы
-        all_conclusions = [s.conclusion for s in thinking_steps if s.conclusion]
+        """Сформировать финальный ответ на основе всех шагов"""
+        if thinking_steps and thinking_steps[-1].conclusion:
+            return thinking_steps[-1].conclusion
         
-        if all_conclusions:
-            # Берем последний вывод или объединяем
-            if len(all_conclusions) == 1:
-                return all_conclusions[0]
-            else:
-                # Объединяем выводы
-                synthesis_prompt = f"""На основе следующих шагов рассуждения, сформируй финальный ответ:
+        # Если нет явного вывода, просим модель суммировать
+        steps_text = "\n".join([f"Шаг {s.step_number}: {s.thought}" for s in thinking_steps])
+        
+        synthesis_prompt = f"""На основе твоих рассуждений, дай финальный ответ на задачу.
 
-ЗАДАЧА: {original_prompt}
+ЗАДАЧА: {prompt}
 
-ШАГИ РАССУЖДЕНИЯ:
-"""
-                for i, step in enumerate(thinking_steps, 1):
-                    synthesis_prompt += f"\n{i}. {step.thought}\n"
-                    if step.conclusion:
-                        synthesis_prompt += f"   Вывод: {step.conclusion}\n"
-                
-                synthesis_prompt += "\nФИНАЛЬНЫЙ ОТВЕТ:"
-                
-                return await self._generate_response(synthesis_prompt, max_tokens=2048, category=category)
+ТВОИ РАССУЖДЕНИЯ:
+{steps_text}
+
+ФИНАЛЬНЫЙ ОТВЕТ:"""
         
-        # Fallback: берем последнюю мысль
-        if thinking_steps:
-            return thinking_steps[-1].thought
-        
-        return "Не удалось сформировать ответ"
-    
-    async def _extract_final_answer(self, thinking: str, original_prompt: str) -> str:
-        """Извлечь финальный ответ из рассуждения"""
-        # Ищем маркеры финального ответа
-        markers = ["ФИНАЛЬНЫЙ ОТВЕТ:", "ОТВЕТ:", "ИТОГ:", "ВЫВОД:"]
-        
-        for marker in markers:
-            if marker in thinking:
-                parts = thinking.split(marker, 1)
-                if len(parts) > 1:
-                    return parts[1].strip()
-        
-        # Если маркеров нет, берем последний абзац
-        paragraphs = thinking.split('\n\n')
-        if paragraphs:
-            return paragraphs[-1].strip()
-        
-        return thinking.strip()
-    
-    def _parse_thinking_into_steps(self, thinking: str) -> List[ThinkingStep]:
-        """Разобрать рассуждение на шаги"""
-        steps = []
-        
-        # Ищем нумерованные шаги
-        import re
-        step_pattern = r'(?:Шаг|Step|Шаг)\s*(\d+)[:.]\s*(.+?)(?=(?:Шаг|Step|Шаг)\s*\d+|$)'
-        matches = re.finditer(step_pattern, thinking, re.IGNORECASE | re.DOTALL)
-        
-        for match in matches:
-            step_num = int(match.group(1))
-            thought = match.group(2).strip()
-            steps.append(ThinkingStep(step_number=step_num, thought=thought))
-        
-        # Если не нашли, создаем один шаг
-        if not steps:
-            steps.append(ThinkingStep(step_number=1, thought=thinking))
-        
-        return steps
+        return await self._generate_response(synthesis_prompt, max_tokens=2000, category=category)
     
     def _calculate_confidence(self, thinking_steps: List[ThinkingStep]) -> float:
-        """Рассчитать уверенность на основе шагов рассуждения"""
+        """Рассчитать уверенность в ответе"""
         if not thinking_steps:
             return 0.0
         
-        # Базовая уверенность
-        confidence = 0.5
+        # Простая эвристика: чем больше шагов (до предела), тем выше уверенность
+        # Также наличие вывода в последнем шаге повышает уверенность
+        base_confidence = min(0.5 + (len(thinking_steps) * 0.05), 0.9)
         
-        # Бонус за количество шагов (больше шагов = более тщательное рассуждение)
-        if len(thinking_steps) >= 3:
-            confidence += 0.2
-        
-        # Бонус за наличие выводов
-        conclusions_count = sum(1 for s in thinking_steps if s.conclusion)
-        if conclusions_count > 0:
-            confidence += 0.2 * min(conclusions_count / len(thinking_steps), 1.0)
-        
-        # Бонус за финальный вывод
         if thinking_steps[-1].conclusion:
-            confidence += 0.1
+            base_confidence += 0.1
+            
+        return min(base_confidence, 1.0)
+
+    def _parse_thinking_into_steps(self, full_text: str) -> List[ThinkingStep]:
+        """Разбить полный текст рассуждения на шаги"""
+        import re
+        steps = []
         
-        return min(confidence, 1.0)
-    
-    async def _get_available_models(self) -> List[str]:
-        """
-        Получает список доступных моделей из MLX API Server с кэшированием
-        """
-        global _models_cache
-        import httpx
-        import os
-        import time
-        from typing import List
+        # Ищем паттерны типа "Шаг 1", "1.", "Step 1"
+        raw_steps = re.split(r'(?:Шаг|Step|Step\s*#)?\s*(\d+)[\.:\)]', full_text)
         
-        current_time = time.time()
+        if len(raw_steps) > 1:
+            for i in range(1, len(raw_steps), 2):
+                step_num = int(raw_steps[i])
+                step_content = raw_steps[i+1].strip()
+                
+                thought, conclusion = self._parse_thinking_step(step_content)
+                steps.append(ThinkingStep(
+                    step_number=step_num,
+                    thought=thought,
+                    conclusion=conclusion
+                ))
+        else:
+            # Если не удалось разбить, считаем все одним шагом
+            thought, conclusion = self._parse_thinking_step(full_text)
+            steps.append(ThinkingStep(
+                step_number=1,
+                thought=thought,
+                conclusion=conclusion
+            ))
+            
+        return steps
+
+    async def _extract_final_answer(self, full_text: str, original_prompt: str) -> str:
+        """Извлечь финальный ответ из полного текста"""
+        if "ФИНАЛЬНЫЙ ОТВЕТ:" in full_text:
+            return full_text.split("ФИНАЛЬНЫЙ ОТВЕТ:", 1)[1].strip()
         
-        # Возвращаем кэшированный результат если еще валиден
-        if _models_cache["data"] and (current_time - _models_cache["timestamp"]) < _MODELS_CACHE_TTL:
-            logger.debug(f"📋 Используем кэшированный список моделей ({len(_models_cache['data'])} моделей)")
-            return _models_cache["data"]
-        
-        try:
-            mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{mlx_url}/api/tags")
-                if response.status_code == 200:
-                    models_data = response.json()
-                    models = models_data.get("models", [])
-                    available = [m.get("name") for m in models if m.get("exists", True)]
-                    logger.debug(f"📋 Доступно моделей в MLX: {len(available)}")
-                    
-                    # Обновляем кэш
-                    _models_cache = {"data": available, "timestamp": current_time}
-                    return available
-        except Exception as e:
-            logger.warning(f"⚠️ Не удалось получить список моделей: {e}")
-            # Если есть кэш, используем его даже если истек
-            if _models_cache["data"]:
-                logger.debug("📋 Используем устаревший кэш из-за ошибки")
-                return _models_cache["data"]
-        
-        # Fallback: возвращаем все известные модели из PLAN.md
-        return [
-            "command-r-plus:104b",
-            "deepseek-r1-distill-llama:70b",
-            "llama3.3:70b",
-            "qwen2.5-coder:32b",
-            "phi3.5:3.8b",
-            "phi3:mini-4k",
-            "qwen2.5:3b"
-            # "tinyllama:1.1b-chat"  # Исключена - только для внутренней коммуникации агентов
-        ]
-    
+        # Если нет явного маркера, пробуем найти последний абзац
+        paragraphs = [p.strip() for p in full_text.split('\n\n') if p.strip()]
+        if paragraphs:
+            return paragraphs[-1]
+            
+        return full_text
+
     async def _generate_response(
         self,
         prompt: str,
-        max_tokens: int = 2048,
+        max_tokens: int = 2000,
         category: Optional[str] = None
     ) -> str:
         """
-        Генерирует ответ через модель (только MLX)
-        Использует интеллектуальный роутинг для выбора оптимальной модели
-        
-        Args:
-            prompt: Промпт для генерации
-            max_tokens: Максимум токенов
-            category: Категория задачи (для роутинга)
+        Генерация ответа через MLX API Server или Ollama (fallback)
         """
         import httpx
-        from typing import List
         
-        logger.info("[VICTORIA_CYCLE] extended_thinking _generate_response prompt_preview=%s category=%s",
-                    (prompt or "")[:60], category)
-        # КРИТИЧНО: Интеллектуальный выбор модели на основе задачи
-        selected_model = self.model_name  # Fallback на базовую модель
-        
+        # Выбираем модель
+        model_to_use = self.model_name
         if self.use_intelligent_routing and self.model_router:
             try:
-                # Получаем список доступных моделей из MLX Server
+                # Используем интеллектуальный роутер для выбора модели
+                # Передаем доступные модели из MLX
                 available_models = await self._get_available_models()
                 
-                # Выбираем оптимальную модель
-                # Для reasoning задач приоритет качества (нужны мощные модели)
-                is_reasoning = category and category.lower() in ["reasoning", "логика", "анализ", "planning"]
-                prioritize_quality = is_reasoning or "подумай" in prompt.lower() or "логика" in prompt.lower()
+                # Классифицируем задачу если категория не задана
+                task_category = category or self.model_router.classify_task(prompt)
                 
-                optimal_model, task_category, confidence = await self.model_router.select_optimal_model(
+                # Выбираем оптимальную модель
+                optimal_model, _task_cat, confidence = await self.model_router.select_optimal_model(
                     prompt=prompt,
-                    category=category,
+                    category=task_category,
                     available_models=available_models,
-                    prioritize_quality=prioritize_quality,
-                    prioritize_speed=False
+                    optimize_for='quality'  # Для рассуждений важно качество
                 )
                 
-                if optimal_model:
-                    selected_model = optimal_model
-                    logger.info(
-                        f"🎯 Интеллектуальный роутинг: выбрана модель {selected_model} "
-                        f"для категории {task_category.value} (confidence: {confidence:.3f})"
-                    )
-                else:
-                    logger.warning(f"⚠️ Интеллектуальный роутинг не нашел модель, используем базовую: {self.model_name}")
+                if optimal_model and confidence > 0.5:
+                    model_to_use = optimal_model
+                    logger.info(f"🧠 [INTELLIGENT ROUTER] Выбрана модель: {model_to_use} (confidence: {confidence:.2f})")
             except Exception as e:
-                logger.warning(f"⚠️ Ошибка интеллектуального роутинга: {e}, используем базовую модель")
+                logger.warning(f"⚠️ Ошибка интеллектуального роутера: {e}, используем базовую модель {model_to_use}")
+
+        # Список URL для попыток (сначала MLX, затем Ollama)
+        urls_to_try = [self.llm_url]
         
-        # Используем выбранную модель
-        model_to_use = selected_model
-        
-        # Используем MLX API Server с fallback на Ollama
-        mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
-        is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+        # Добавляем Ollama как fallback
         ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+        is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
         if is_docker:
             ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
         
-        # Начинаем с MLX, Ollama будет добавлен при rate limit
-        urls_to_try = [mlx_url] if mlx_url else []
-        
-        try:
-            # КРИТИЧНО: Таймаут увеличен до 300 секунд (5 минут)
-            # Генерации deepseek-r1-distill-llama:70b занимают 120-125 секунд
-            # Старый таймаут 120 секунд был слишком коротким
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                for llm_url in urls_to_try:
-                    try:
-                        # Используем выбранную модель (через интеллектуальный роутинг или базовую)
-                        # Чат с Викторией использует приоритет HIGH
-                        headers = {"X-Request-Priority": "high"}
-                        response = await client.post(
-                            f"{llm_url}/api/generate",
-                            json={
-                                "model": model_to_use,  # Используем выбранную модель
-                                "prompt": prompt,
-                                "stream": False,
-                                "options": {
-                                    "temperature": 0.5,  # Низкая для reasoning
-                                    "num_predict": max_tokens
-                                }
-                            },
-                            headers=headers
-                        )
-                        
-                        if response.status_code == 200:
-                            result = response.json().get('response', '')
-                            if result:
-                                source = "MLX"
-                                logger.debug(f"✅ ExtendedThinking использует {source}: {llm_url} (модель: {model_to_use})")
-                                return result
-                        elif response.status_code == 429:
-                            # Rate limit - для MLX пробуем Ollama fallback
-                            is_mlx = "11435" in llm_url or "mlx" in llm_url.lower()
-                            if is_mlx:
-                                logger.warning(f"⚠️ [RATE LIMIT] MLX rate limit на {llm_url}, пробуем Ollama fallback...")
-                                # Добавляем Ollama в список для следующей попытки
-                                ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-                                if is_docker:
-                                    ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-                                if ollama_url not in urls_to_try:
-                                    urls_to_try.append(ollama_url)
-                                    logger.info(f"🔄 [FALLBACK] Добавлен Ollama для обработки rate limit: {ollama_url}")
-                            else:
-                                logger.warning(f"⚠️ [RATE LIMIT] Rate limit на {llm_url}, пробуем следующий URL...")
-                            # Ждем немного перед следующей попыткой
-                            await asyncio.sleep(2)
-                            continue
-                        elif response.status_code >= 500:
-                            # Серверная ошибка - для MLX пробуем Ollama fallback
-                            is_mlx = "11435" in llm_url or "mlx" in llm_url.lower()
-                            if is_mlx:
-                                logger.warning(f"⚠️ [SERVER ERROR] MLX серверная ошибка {response.status_code} на {llm_url}, пробуем Ollama fallback...")
-                                # Добавляем Ollama в список для следующей попытки
-                                ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-                                if is_docker:
-                                    ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-                                if ollama_url not in urls_to_try:
-                                    urls_to_try.append(ollama_url)
-                                    logger.info(f"🔄 [FALLBACK] Добавлен Ollama для обработки серверной ошибки: {ollama_url}")
-                            else:
-                                logger.warning(f"⚠️ [SERVER ERROR] Серверная ошибка {response.status_code} на {llm_url}")
-                            continue
-                        elif response.status_code == 404:
-                            # Модель не найдена, используем интеллектуальный fallback
-                            if self.use_intelligent_routing and self.model_router:
-                                try:
-                                    # Получаем fallback модели через роутер
-                                    task_category = self.model_router.classify_task(prompt, category)
-                                    fallback_models = self.model_router.get_fallback_models(
-                                        model_to_use,
-                                        task_category,
-                                        max_fallbacks=5
-                                    )
-                                    logger.info(f"🔄 Интеллектуальный fallback для {model_to_use}: {fallback_models}")
-                                except Exception as e:
-                                    logger.warning(f"⚠️ Ошибка получения fallback моделей: {e}, используем стандартный список")
-                                    fallback_models = [
-                                        "deepseek-r1-distill-llama:70b",
-                                        "llama3.3:70b",
-                                        "qwen2.5-coder:32b",
-                                        "phi3.5:3.8b",
-                                        "qwen2.5:3b",
-                                        "phi3:mini-4k"
-                                        # tinyllama исключена - только для внутренней коммуникации агентов
-                                    ]
-                            else:
-                                # Стандартный fallback список
-                                fallback_models = [
-                                    "deepseek-r1-distill-llama:70b",
-                                    "llama3.3:70b",
-                                    "qwen2.5-coder:32b",
-                                    "phi3.5:3.8b",
-                                    "qwen2.5:3b",
-                                    "phi3:mini-4k"
-                                    # tinyllama исключена - только для внутренней коммуникации агентов
-                                ]
-                            
-                            logger.warning(f"Модель {model_to_use} не найдена на {llm_url}, пробуем fallback модели...")
-                            for fallback_model in fallback_models:
-                                if fallback_model == model_to_use:
-                                    continue  # Пропускаем уже проверенную модель
-                                try:
-                                    # Чат с Викторией использует приоритет HIGH
-                                    headers = {"X-Request-Priority": "high"}
-                                    fallback_response = await client.post(
-                                        f"{llm_url}/api/generate",
-                                        json={
-                                            "model": fallback_model,
-                                            "prompt": prompt,
-                                            "stream": False,
-                                            "options": {
-                                                "temperature": 0.5,
-                                                "num_predict": max_tokens
-                                            }
-                                        },
-                                        headers=headers,
-                                        timeout=300.0  # Увеличен таймаут для fallback моделей
-                                    )
-                                    if fallback_response.status_code == 200:
-                                        source = "MLX"
-                                        logger.info(f"✅ Использована {source} fallback модель: {fallback_model}")
-                                        return fallback_response.json().get('response', '')
-                                    elif fallback_response.status_code == 429:
-                                        # Rate limit на fallback модели - пропускаем
-                                        logger.warning(f"⚠️ [RATE LIMIT] Fallback модель {fallback_model} на {llm_url} - rate limit")
-                                        await asyncio.sleep(2)  # Ждем перед следующей попыткой
-                                        continue
-                                    elif fallback_response.status_code >= 500:
-                                        # Серверная ошибка на fallback - пропускаем
-                                        logger.warning(f"⚠️ [SERVER ERROR] Fallback модель {fallback_model} на {llm_url} - серверная ошибка {fallback_response.status_code}")
-                                        continue
-                                except Exception as e:
-                                    logger.debug(f"Fallback модель {fallback_model} недоступна на {llm_url}: {e}")
-                                    continue
-                            
-                            # Пробуем следующий URL (только MLX)
-                            continue
-                    except Exception as e:
-                        logger.debug(f"Ошибка при использовании {llm_url}: {e}")
+        if ollama_url not in urls_to_try:
+            urls_to_try.append(ollama_url)
+
+        async with httpx.AsyncClient() as client:
+            for llm_url in urls_to_try:
+                try:
+                    # Чат с Викторией использует приоритет HIGH
+                    headers = {"X-Request-Priority": "high"}
+                    
+                    # Для MLX API Server используем /api/generate с параметром category
+                    # Для Ollama используем /api/generate с параметром model
+                    is_mlx = "11435" in llm_url or "mlx" in llm_url.lower()
+                    
+                    if is_mlx:
+                        payload = {
+                            "category": "reasoning",  # Принудительно используем категорию reasoning для MLX
+                            "prompt": prompt,
+                            "stream": False,
+                            "options": {
+                                "temperature": 0.5,
+                                "num_predict": max_tokens
+                            }
+                        }
+                    else:
+                        payload = {
+                            "model": model_to_use,
+                            "prompt": prompt,
+                            "stream": False,
+                            "options": {
+                                "temperature": 0.5,
+                                "num_predict": max_tokens
+                            }
+                        }
+                    
+                    response = await client.post(
+                        f"{llm_url.rstrip('/')}/api/generate",
+                        json=payload,
+                        headers=headers,
+                        timeout=300.0  # 5 минут на генерацию
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        return data.get('response', '')
+                    elif response.status_code == 429:
+                        # Rate limit - пробуем подождать или другой сервер
+                        logger.warning(f"⚠️ [RATE LIMIT] Сервер {llm_url} перегружен (429)")
+                        if llm_url == urls_to_try[-1]:
+                            # Если это последний сервер, ждем и пробуем еще раз
+                            await asyncio.sleep(5)
+                            # Рекурсивный вызов (осторожно с бесконечной рекурсией)
+                            # return await self._generate_response(prompt, max_tokens, category)
                         continue
-                
-                logger.error(f"❌ Все модели и URL недоступны")
-                return ""
-        except Exception as e:
-            logger.error(f"Ошибка запроса к модели: {e}")
+                    elif response.status_code >= 500:
+                        logger.warning(f"⚠️ [SERVER ERROR] Ошибка сервера {llm_url}: {response.status_code}")
+                        continue
+                    elif response.status_code == 404:
+                        # Модель не найдена, пробуем fallback модели
+                        logger.warning(f"⚠️ [NOT FOUND] Модель {model_to_use} не найдена на {llm_url}")
+                        continue
+                        
+                except Exception as e:
+                    logger.debug(f"Ошибка при обращении к {llm_url}: {e}")
+                    continue
+            
+            logger.error(f"❌ Все LLM бэкенды недоступны для генерации")
             return ""
-
-
-async def main():
-    """Пример использования"""
-    engine = ExtendedThinkingEngine(
-        model_name="deepseek-r1-distill-llama:70b",
-        thinking_budget=10000
-    )
-    
-    result = await engine.think(
-        "Реши задачу: У Маши было 5 яблок, она отдала 2 другу, затем купила еще 3. Сколько яблок у Маши теперь?",
-        use_iterative=True
-    )
-    
-    print("Финальный ответ:", result.final_answer)
-    print("Уверенность:", result.confidence)
-    print("Шагов рассуждения:", len(result.thinking_steps))
-    for step in result.thinking_steps:
-        print(f"\nШаг {step.step_number}: {step.thought[:100]}...")
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())

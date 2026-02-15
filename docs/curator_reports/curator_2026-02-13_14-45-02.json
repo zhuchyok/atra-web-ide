@@ -1,0 +1,75 @@
+{
+  "ts": "2026-02-13T15:34:51.112787+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. У меня всё отлично, готова к работе! Чем могу помочь?",
+      "output_length": 100,
+      "correlation_id": "8cf46529-dac2-4bff-ac09-09d748f73cad",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.02
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9e162e86-6d1b-4e15-afb7-694ea211f389",
+      "execution_trace": {},
+      "elapsed_seconds": 910.77
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6024b5fe-564c-4673-92a1-5b1678be2d40",
+      "execution_trace": {},
+      "elapsed_seconds": 601.23
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю рез",
+      "output_length": 543,
+      "correlation_id": "524114f0-1b80-4401-99fd-48367738cace",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2a5abf22-7744-45ce-bff6-56af21be9966",
+      "execution_trace": {},
+      "elapsed_seconds": 1477.0
+    }
+  ]
+}

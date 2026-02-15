@@ -138,9 +138,10 @@ class VeronicaAgent(BaseAgent):
         ПИШИ ТОЛЬКО ПЛАН, БЕЗ ВВОДНЫХ СЛОВ."""
         return await self.planner.ask(plan_prompt, raw_response=True)
 
-    async def step(self, prompt: str):
+    async def step(self, prompt: str, step_number: int = 1, blocked_tools=None):
+        blocked_tools = blocked_tools or []
         # Настройка системного промпта исполнителя перед каждым шагом (для гарантии правил)
-        self.executor.system_prompt = """ТЫ — ВЕРОНИКА, ЛОКАЛЬНЫЙ АГЕНТ КОРПОРАЦИИ ATRA. ТЫ ИСПОЛЬЗУЕШЬ VERONICA ENHANCED.
+        self.executor.system_prompt = """ТЫ — ВЕРОНИКА, ЛОКАЛЬНЫЙ АГЕНТ (ПОМОЩНИК ВИКТОРИИ). Ты «руки» корпорации: выполняешь только конкретные шаги (read_file, list_directory, run_terminal_cmd, apply_patch) по плану от Victoria или одно действие по запросу. Решения и планирование — за Victoria и экспертами; ты исполняешь уже определённые шаги. ТЫ ИСПОЛЬЗУЕШЬ VERONICA ENHANCED.
 
 🌟 ТВОИ VERONICA ENHANCED ВОЗМОЖНОСТИ:
 - ReAct Framework: Reasoning + Acting для сложных задач с инструментами
@@ -173,7 +174,7 @@ class VeronicaAgent(BaseAgent):
   "tool_input": { "file_path": "src/risk/correlation_risk.py" }
 }
 """
-        return await self.executor.ask(prompt, history=self.memory)
+        return await self.executor.ask(prompt, history=self.memory, blocked_tools=blocked_tools)
 
     async def _ensure_best_available_models(self) -> None:
         """Один раз за сессию: сканируем Ollama (и MLX для списка) и ставим planner/executor на лучшую доступную модель из Ollama."""

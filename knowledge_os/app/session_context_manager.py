@@ -103,7 +103,53 @@ class SessionContextManager:
         except Exception as e:
             logger.debug(f"⚠️ [SESSION CONTEXT] Ошибка получения контекста: {e}")
             return ""
-    
+
+    async def get_session_memory_summary(
+        self,
+        user_id: str,
+        expert_name: str,
+        max_items: int = 5,
+        max_chars: int = 500,
+    ) -> str:
+        """
+        Краткая память по сессии для блока «По этой сессии уже делали» (план «как я»).
+        Возвращает последние max_items запросов в формате «запрос → ответ» (обрезано).
+        """
+        session_id = self._generate_session_id(user_id, expert_name)
+        try:
+            conn = await asyncpg.connect(self.db_url)
+            try:
+                table_exists = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'session_context'
+                    )
+                """)
+                if not table_exists:
+                    return ""
+                rows = await conn.fetch("""
+                    SELECT query_text, response_text
+                    FROM session_context
+                    WHERE session_id = $1
+                    AND created_at > NOW() - INTERVAL '1 hour' * $2
+                    ORDER BY created_at DESC
+                    LIMIT $3
+                """, session_id, self.session_ttl_hours, max_items)
+                if not rows:
+                    return ""
+                parts = []
+                for r in reversed(rows):
+                    q = (r["query_text"] or "")[:80].replace("\n", " ")
+                    a = (r["response_text"] or "")[:80].replace("\n", " ")
+                    parts.append(f"• {q} → {a}")
+                out = "\n".join(parts)
+                return out[:max_chars] if len(out) > max_chars else out
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("get_session_memory_summary: %s", e)
+        return ""
+
     async def save_to_context(
         self,
         user_id: str,

@@ -1,0 +1,37 @@
+{
+  "ts": "2026-02-13T14:53:11.438794+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. У меня всё отлично, готова к работе! Чем могу помочь?",
+      "output_length": 100,
+      "correlation_id": "6b17bf97-3175-4d1b-8281-5a1193b73e0b",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e0e28eba-ec00-48e2-8fbf-607431cb3346",
+      "execution_trace": {},
+      "elapsed_seconds": 213.56
+    }
+  ]
+}

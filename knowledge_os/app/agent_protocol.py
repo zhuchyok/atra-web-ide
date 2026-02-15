@@ -250,11 +250,36 @@ class AgentProtocol:
         logger.debug(f"✅ Зарегистрирован обработчик для {verb.value}")
     
     async def _send_message(self, message: AgentMessage):
-        """Отправить сообщение (заглушка - нужно интегрировать с реальной системой)"""
-        # В реальной системе здесь была бы отправка через Event Bus или прямой канал
+        """Отправить сообщение: direct dispatch по реестру агентов, при необходимости — Event Bus."""
         logger.debug(f"📤 [{self.agent_name}] Отправка сообщения {message.verb.value} → {message.to_agent}")
-        
-        # TODO: Интеграция с Event Bus или direct communication
+        target = get_agent(message.to_agent)
+        if target:
+            try:
+                response = await target.handle_message(message)
+                if message.requires_response and response is not None:
+                    self._complete_request(message.message_id, response)
+            except Exception as e:
+                logger.warning(f"⚠️ [{self.agent_name}] Ошибка доставки → {message.to_agent}: {e}")
+                if message.requires_response:
+                    self._complete_request(message.message_id, {"error": str(e)})
+        else:
+            try:
+                try:
+                    from app.event_bus import get_event_bus, Event, EventType
+                except ImportError:
+                    from event_bus import get_event_bus, Event, EventType
+                event_bus = get_event_bus()
+                await event_bus.publish(Event(
+                    event_id=message.message_id,
+                    event_type=EventType.AGENT_MESSAGE,
+                    payload={"verb": message.verb.value, "from_agent": message.from_agent, "to_agent": message.to_agent, "payload": message.payload, "message_id": message.message_id, "requires_response": message.requires_response},
+                    source=self.agent_name,
+                    correlation_id=message.correlation_id,
+                ))
+            except ImportError:
+                pass
+            if message.requires_response:
+                self._complete_request(message.message_id, {"status": "no_agent", "to_agent": message.to_agent})
     
     async def _wait_for_response(self, message_id: str) -> Optional[Dict]:
         """Ждать ответа на сообщение"""

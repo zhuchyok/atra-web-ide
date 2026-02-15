@@ -9,7 +9,7 @@ import logging
 import os
 import shutil
 import subprocess
-from typing import Tuple
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +19,18 @@ except ImportError:
     httpx = None
 
 
-def _get_llm_urls() -> Tuple[str, str]:
-    """MLX (11435) и Ollama (11434) — с учётом Docker."""
+def _get_llm_urls() -> Tuple[Optional[str], str]:
+    """MLX (11435) и Ollama (11434) — с учётом Docker. При MLX_API_URL=disabled возвращает (None, ollama_url)."""
     is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
     if is_docker:
-        mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+        mlx_raw = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
     else:
-        mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
+        mlx_raw = os.getenv("MLX_API_URL", "http://localhost:11435")
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    return mlx_url, ollama_url
+    if not mlx_raw or str(mlx_raw).strip().lower() in ("disabled", "false", "0"):
+        return None, ollama_url
+    return mlx_raw.strip(), ollama_url
 
 
 async def _check_mlx_health(mlx_url: str, timeout: float = 2.0) -> bool:
@@ -87,14 +89,14 @@ def _try_start_ollama() -> bool:
 
 
 async def ensure_llm_backends_available(
-    mlx_url: str = None,
-    ollama_url: str = None,
+    mlx_url: Optional[str] = None,
+    ollama_url: Optional[str] = None,
     start_ollama_if_missing: bool = True,
     refresh_local_router_cache: bool = True,
 ) -> None:
     """
     Проверить доступность Ollama и MLX; при необходимости поднять их, затем обновить кэш роутера.
-    Вызывать в начале solve() при получении задачи.
+    Вызывать в начале solve() при получении задачи. При MLX_API_URL=disabled MLX не запускается.
     """
     if mlx_url is None or ollama_url is None:
         mlx_url, ollama_url = _get_llm_urls()
@@ -102,8 +104,8 @@ async def ensure_llm_backends_available(
     mlx_started = False
     ollama_started = False
 
-    # 1) MLX API Server
-    if not await _check_mlx_health(mlx_url):
+    # 1) MLX API Server — пропускаем, если MLX отключён (MLX_API_URL=disabled)
+    if mlx_url and not await _check_mlx_health(mlx_url):
         try:
             from app.mlx_server_supervisor import get_mlx_supervisor
             supervisor = get_mlx_supervisor()
@@ -118,8 +120,9 @@ async def ensure_llm_backends_available(
             logger.warning("Ошибка при запуске MLX: %s", e)
         # Даём серверу время подняться
         await asyncio.sleep(2)
-    else:
+    elif mlx_url:
         logger.debug("MLX API Server уже доступен")
+    # при mlx_url is None (MLX_API_URL=disabled) блок MLX пропущен
 
     # 2) Ollama
     if not await _check_ollama_health(ollama_url):

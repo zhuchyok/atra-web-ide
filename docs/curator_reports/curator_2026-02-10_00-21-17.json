@@ -1,0 +1,99 @@
+{
+  "ts": "2026-02-10T00:27:44.111949+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "99fdd6df-b6a8-4f05-bc17-b757b4d0d3df",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "99fdd6df-b6a8-4f05-bc17-b757b4d0d3df",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.0
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Проект в стадии завершения с небольшиmi отчетами и проверкой. Готов к одобрению через неделю.",
+      "output_length": 93,
+      "correlation_id": "0e0e84ae-c1f8-4de2-836c-9a8d9ee84391",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "0e0e84ae-c1f8-4de2-836c-9a8d9ee84391",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 7.54
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "STDOUT: total 5560\ndrwxr-xr-x   1 root root    4096 Feb 10 00:14 .\ndrwxr-xr-x   1 root root    4096 Feb 10 00:09 ..\n-rw-r--r--   1 root root   10244 Feb  5 17:50 .DS_Store\ndrwxr-xr-x   2 root root    4096 Jan 31 15:17 .agent_backups\n-rw-r--r--   1 root root   53248 Feb  5 19:20 .coverage\ndrwxr-xr-x   9 root root    4096 Feb  1 15:59 .cursor\ndrwxr-xr-x   3 root root    4096 Jan 31 09:45 .cursor_chats_backup\n-rw-r--r--   1 root root   15857 Feb  5 18:26 .cursorrules\n-rw-r--r--   1 root root    379",
+      "output_length": 1225,
+      "correlation_id": "836fa425-898a-46e3-9b40-7ea4de787a68",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "836fa425-898a-46e3-9b40-7ea4de787a68",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 92.83
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.",
+      "output_length": 407,
+      "correlation_id": "7b0d34dd-b375-4246-8290-ee2adc9378f4",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "7b0d34dd-b375-4246-8290-ee2adc9378f4",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 7.53
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "Сейчас не могу подключиться к моделям (MLX API Server или Ollama). Проверьте: MLX API Server на порту 11435, Ollama на 11434. После запуска напишите снова — отвечу по существу.",
+      "output_length": 176,
+      "correlation_id": "4c8c7cc4-27cf-4ebc-bee0-06361fa6f8f5",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "4c8c7cc4-27cf-4ebc-bee0-06361fa6f8f5",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 278.38
+    }
+  ]
+}

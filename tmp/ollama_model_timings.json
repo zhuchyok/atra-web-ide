@@ -1,0 +1,18 @@
+[
+  {"model": "qwen3-coder:30b", "time_sec": 1.79, "status": "ok"}
+,
+  {"model": "qwq:32b", "time_sec": 44.23, "status": "ok"}
+,
+  {"model": "qwen2.5-coder:32b", "time_sec": 31.24, "status": "ok"}
+,
+  {"model": "glm-4.7-flash:q8_0", "time_sec": 19.27, "status": "ok"}
+,
+  {"model": "llava:7b", "time_sec": 2.79, "status": "ok"}
+,
+  {"model": "phi3.5:3.8b", "time_sec": 60.03, "status": "http_000"}
+,
+  {"model": "moondream:latest", "time_sec": 1.27, "status": "ok"}
+,
+  {"model": "tinyllama:1.1b-chat", "time_sec": 2.08, "status": "ok"}
+
+]

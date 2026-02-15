@@ -13,6 +13,14 @@ from resource_manager import acquire_resource_lock
 
 logger = logging.getLogger(__name__)
 
+
+def _log_step(msg: str) -> None:
+    """Печать и сброс буфера — при OOM/Killed в логах будет видно последний шаг."""
+    print(msg)
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+
 # Пути для Mac Studio и Linux (без /root/)
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 _KNOWLEDGE_OS_ROOT = os.path.dirname(_APP_DIR)
@@ -160,6 +168,28 @@ async def run_cursor_agent(prompt: str) -> Optional[str]:
         print(f"⚠️ Cursor agent exception: {e}")
         return None
 
+async def get_nightly_context(conn):
+    """Синхронизация OKR и получение контекста ошибок за день (Phase 0)."""
+    # 1. OKR
+    okrs = await conn.fetch("SELECT objective FROM okrs WHERE created_at > NOW() - INTERVAL '30 days'")
+    okr_text = "\n".join([f"- {o['objective']}" for o in okrs])
+    
+    # 2. ОШИБКИ И ПЛОХОЙ FEEDBACK (Phase 0: Error Analysis)
+    bad_interactions = await conn.fetch("""
+        SELECT user_query, assistant_response, metadata->>'error' as error
+        FROM interaction_logs 
+        WHERE (feedback_score < 3 OR metadata->>'error' IS NOT NULL)
+          AND created_at > NOW() - INTERVAL '24 hours'
+        LIMIT 10
+    """)
+    error_context = ""
+    if bad_interactions:
+        error_context = "\n".join([f"Q: {i['user_query'][:100]} | Error: {i['error'] or 'Low feedback'}" for i in bad_interactions])
+        print(f"⚠️ Phase 0: Найдено {len(bad_interactions)} проблемных взаимодействий для анализа.")
+    
+    return okr_text, error_context
+
+
 async def sync_okrs(conn):
     """Синхронизация метрик в таблице OKR с реальными данными БД."""
     print("Syncing OKR metrics...")
@@ -211,10 +241,16 @@ async def create_debate_for_hypothesis(conn, knowledge_node_id, content, domain_
 
 
 async def run_expert_council(conn, knowledge_id, content, original_expert_id):
-    """Инициирует дебаты между экспертами по поводу нового знания."""
-    print(f"Starting Expert Council for knowledge {knowledge_id}...")
+    """
+    Инициирует многораундовые дебаты (Red Team Pattern) между экспертами.
+    Раунд 1: Критика инсайта.
+    Раунд 2: Ответ автора на критику.
+    Раунд 3: Финальный синтез и вердикт.
+    """
+    _log_step(f"[NIGHTLY] Enhanced Expert Council (Red Team) starting for knowledge_id={knowledge_id}")
     try:
-        # Выбираем 2 случайных экспертов из ДРУГИХ департаментов
+        # 1. Выбираем автора и оппонентов
+        author = await conn.fetchrow("SELECT name, role FROM experts WHERE id = $1", original_expert_id)
         opponents = await conn.fetch("""
             SELECT id, name, role, system_prompt 
             FROM experts 
@@ -222,84 +258,78 @@ async def run_expert_council(conn, knowledge_id, content, original_expert_id):
             ORDER BY RANDOM() LIMIT 2
         """, original_expert_id)
         
-        if not opponents: return
+        if not opponents or not author: return
 
-        debate_summary = []
-        print(f"   Found {len(opponents)} opponents for debate")
+        debate_log = []
+        debate_log.append(f"📝 **Автор ({author['name']}):** {content}")
+
+        # РАУНД 1: КРИТИКА (RED TEAM)
+        criticisms = []
         for opp in opponents:
             prompt = f"""
-            Вы {opp['name']}, {opp['role']}. 
-            Проанализируйте следующий инсайт и дайте свою оценку с точки зрения вашей экспертизы:
+            ВЫ - RED TEAM ЭКСПЕРТ. 
+            РОЛЬ: {opp['name']}, {opp['role']}.
+            ЗАДАЧА: Найдите 3 критических уязвимости, логических ошибки или практических сложности в следующем инсайте:
             "{content}"
             
-            Верните краткий критический комментарий (2-3 предложения).
+            ОТВЕТЬТЕ ЖЕСТКО И ПО СУЩЕСТВУ (2-3 предложения).
             """
-            # Используем локальную модель для экспертного совета (run_local_model использует сканер Ollama/MLX)
-            try:
-                comment = await run_local_model(prompt)
-                if not comment or len(comment.strip()) < 10:
-                    comment = await run_cursor_agent(prompt)
-                if not comment or len(comment.strip()) < 10:
-                    role = opp.get('role', 'эксперт')
-                    dept = opp.get('department', '')
-                    content_preview = content[:200] if len(content) > 200 else content
-                    simple_prompt = f"Вы {opp['name']}, {role}. Дайте краткий (2-3 предложения) критический комментарий к следующему инсайту с точки зрения вашей экспертизы: {content_preview}"
-                    comment = await run_local_model(simple_prompt)
-                    if not comment or len(comment.strip()) < 10:
-                        comment = f"С точки зрения {role} ({dept}), данный инсайт требует дополнительного анализа в контексте текущих практик и стандартов отрасли. Рекомендуется провести более глубокое исследование с учетом специфики домена."
-                        print(f"   ℹ️ Сгенерирован структурированный комментарий для {opp['name']}")
-            except Exception as e:
-                print(f"   ⚠️ Ошибка получения комментария от {opp['name']}: {e}")
-                # Реальный fallback - используем информацию об эксперте
-                role = opp.get('role', 'эксперт')
-                dept = opp.get('department', '')
-                comment = f"С точки зрения {role} ({dept}), инсайт требует дополнительного анализа. Рекомендуется провести более глубокое исследование."
-            
+            comment = await run_local_model(prompt) or await run_cursor_agent(prompt)
             if comment:
-                debate_summary.append(f"🧐 {opp['name']} ({opp['role']}): {comment}")
-                print(f"   ✅ Added comment from {opp['name']} (length: {len(comment)})")
+                criticisms.append(f"🧐 {opp['name']} ({opp['role']}): {comment}")
+                debate_log.append(f"❌ **Критика от {opp['name']}:** {comment}")
 
-        # Создаем дебаты даже если только один эксперт ответил
-        print(f"   Debate summary length: {len(debate_summary)}")
-        if debate_summary:
-            consensus = "\n\n".join(debate_summary)
-            print(f"   Creating debate with consensus length: {len(consensus)}")
-            debate_inserted = False
-            try:
-                await conn.execute("""
-                    INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
-                    VALUES ($1, $2, $3, $4, 'closed')
-                """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], consensus)
-                print(f"   ✅ Debate inserted into expert_discussions")
-                debate_inserted = True
-            except Exception as insert_error:
-                print(f"❌ Error inserting debate: {insert_error}")
-                import traceback
-                traceback.print_exc()
-            # Обновляем метаданные узла знаний (knowledge_nodes.id — integer, работает в обоих случаях)
-            try:
-                await conn.execute("""
-                    UPDATE knowledge_nodes 
-                    SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('council_review', $1::text)
-                    WHERE id = $2
-                """, str(consensus) if consensus else '', knowledge_id)
-                print(f"   ✅ council_review added to metadata")
-                if debate_inserted:
-                    print("✅ Expert Council finished successfully.")
-            except Exception as upd_err:
-                print(f"⚠️ Failed to update knowledge_nodes metadata: {upd_err}")
-        else:
-            print("⚠️ Debate summary is empty, skipping debate creation")
+        # РАУНД 2: ОТВЕТ АВТОРА
+        if criticisms:
+            rebuttal_prompt = f"""
+            ВЫ - {author['name']}, {author['role']}.
+            ВАШ ИНСАЙТ: "{content}"
+            КРИТИКА:
+            {chr(10).join(criticisms)}
             
+            ЗАДАЧА: Ответьте на критику. Признайте ошибки, если они есть, или обоснуйте свою позицию.
+            ОТВЕТЬТЕ КРАТКО (2-3 предложения).
+            """
+            rebuttal = await run_local_model(rebuttal_prompt) or await run_cursor_agent(rebuttal_prompt)
+            if rebuttal:
+                debate_log.append(f"🛡️ **Ответ автора ({author['name']}):** {rebuttal}")
+
+        # РАУНД 3: ФИНАЛЬНЫЙ СИНТЕЗ (КОНСЕНСУС)
+        synthesis_prompt = f"""
+        ВЫ - НЕЙТРАЛЬНЫЙ АРБИТР КОРПОРАЦИИ.
+        ХОД ОБСУЖДЕНИЯ:
+        {chr(10).join(debate_log)}
+        
+        ЗАДАЧА: Сформулируйте итоговый консенсус. Насколько инсайт полезен для корпорации? 
+        Укажите финальный уровень уверенности (0.0 - 1.0).
+        """
+        consensus = await run_local_model(synthesis_prompt) or await run_cursor_agent(synthesis_prompt)
+        
+        if consensus:
+            # Сохраняем дебаты
+            full_summary = "\n\n".join(debate_log) + f"\n\n🏁 **ИТОГОВЫЙ КОНСЕНСУС:**\n{consensus}"
+            await conn.execute("""
+                INSERT INTO expert_discussions (knowledge_node_id, expert_ids, topic, consensus_summary, status)
+                VALUES ($1, $2, $3, $4, 'closed')
+            """, knowledge_id, [original_expert_id] + [o['id'] for o in opponents], content[:100], full_summary)
+            
+            # Обновляем метаданные узла
+            await conn.execute("""
+                UPDATE knowledge_nodes 
+                SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('council_review', $1::text, 'red_team_status', 'passed')
+                WHERE id = $2
+            """, consensus, knowledge_id)
+            _log_step("✅ Enhanced Expert Council finished successfully.")
+
     except Exception as e:
-        print(f"❌ Expert Council error: {e}")
+        print(f"❌ Enhanced Expert Council error: {e}")
         import traceback
         traceback.print_exc()
 
 async def nightly_learning_cycle():
     async with acquire_resource_lock("nightly_learner"):
         start_time = datetime.now()
-        print(f"[{start_time}] Total Nightly Learning Cycle (Council Phase enabled) starting...")
+        _log_step(f"[{start_time}] Total Nightly Learning Cycle (Council Phase enabled) starting...")
         
         # Обновляем знания корпорации перед обучением
         try:
@@ -317,6 +347,8 @@ async def nightly_learning_cycle():
         pool = await get_pool()
         conn = await pool.acquire()
         
+        # Phase 0: Получаем контекст OKR и ошибок
+        okr_context, error_context = await get_nightly_context(conn)
         await sync_okrs(conn)
         
         # Получаем всех активных экспертов или тех, кто не обучался давно
@@ -341,7 +373,8 @@ async def nightly_learning_cycle():
 
         print(f"📚 Найдено экспертов для обучения: {total_experts}")
         
-        for expert in experts:
+        for idx, expert in enumerate(experts):
+            _log_step(f"[NIGHTLY] Expert {idx + 1}/{total_experts}: {expert.get('name', '?')}")
             expert_name = expert['name']
             expert_role = expert['role']
             last_learned = expert.get('last_learned_at')
@@ -378,7 +411,18 @@ async def nightly_learning_cycle():
                 print(f"   Первое обучение")
             
             # Используем локальную модель для обучения (run_local_model использует сканер Ollama/MLX)
-            gap_prompt = f"Вы {expert_name}, {expert_role}. Какая одна самая важная технология или тренд 2025 года в области {expert['department']} требует немедленного изучения для успеха нашей корпорации? Ответьте ОДНОЙ фразой."
+            # Adversarial Self-Play: Эксперт должен учитывать OKR и прошлые ошибки
+            gap_prompt = f"""ВЫ - {expert_name}, {expert_role}.
+            ЦЕЛЬ КОРПОРАЦИИ (OKR):
+            {okr_context}
+            
+            ПРОБЛЕМЫ ЗА ДЕНЬ (Phase 0):
+            {error_context if error_context else "Ошибок не зафиксировано."}
+            
+            ЗАДАЧА: Какая одна самая важная технология или тренд 2026 года в области {expert['department']} 
+            поможет решить указанные проблемы и достичь целей? 
+            ОТВЕТЬТЕ ОДНОЙ ФРАЗОЙ.
+            """
 
             topic = await run_local_model(gap_prompt)
             if not topic or len(topic.strip()) < 5:
@@ -388,7 +432,20 @@ async def nightly_learning_cycle():
                 current_year = datetime.now().year
                 topic = f"Актуальные технологии и тренды {current_year} года в области {dept}"
 
-            search_prompt = f"Исследуй '{topic}'. Сформулируй 1-2 глубоких инсайта. Верни JSON: {{\"topic\": \"{topic}\", \"summary\": \"...\", \"insights\": [ {{\"content\": \"...\", \"confidence\": 0.95}} ]}} ОТВЕТЬ ТОЛЬКО ЧИСТЫМ JSON."
+            # РЕФЛЕКСИЯ (Adversarial Self-Play Phase 2)
+            search_prompt = f"""Исследуй '{topic}'. 
+            Сформулируй 1-2 глубоких инсайта. 
+            КРИТИЧЕСКИЙ ФИЛЬТР: Найди 1 причину, почему этот инсайт может быть ошибочным или бесполезным.
+            
+            Верни JSON: 
+            {{
+                "topic": "{topic}", 
+                "summary": "...", 
+                "insights": [ {{"content": "...", "confidence": 0.95}} ],
+                "self_criticism": "..."
+            }} 
+            ОТВЕТЬ ТОЛЬКО ЧИСТЫМ JSON.
+            """
 
             search_output = await run_local_model(search_prompt)
             if not search_output or ('insights' not in search_output and '{' not in search_output):
@@ -407,12 +464,31 @@ async def nightly_learning_cycle():
                         domain_id = await conn.fetchval('INSERT INTO domains (name) VALUES ($1) RETURNING id', expert['department'])
                     
                     for insight in learning_data.get('insights', []):
-                        # Сохраняем знание
-                        k_id = await conn.fetchval("""
-                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified) 
-                            VALUES ($1, $2, $3, $4, $5)
-                            RETURNING id
-                        """, domain_id, insight['content'], insight['confidence'], json.dumps({"expert": expert_name, "cycle": "nightly_council"}), True)
+                        # Сохраняем знание (по возможности с embedding — VERIFICATION §5)
+                        content_kn = insight['content']
+                        meta_kn = json.dumps({
+                            "expert": expert_name, 
+                            "cycle": "nightly_council_v2",
+                            "self_criticism": learning_data.get('self_criticism', '')
+                        })
+                        embedding = None
+                        try:
+                            from semantic_cache import get_embedding
+                            embedding = await get_embedding(content_kn[:8000])
+                        except Exception:
+                            pass
+                        if embedding is not None:
+                            k_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                                VALUES ($1, $2, $3, $4, $5, $6::vector)
+                                RETURNING id
+                            """, domain_id, content_kn, insight['confidence'], meta_kn, True, str(embedding))
+                        else:
+                            k_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                                VALUES ($1, $2, $3, $4, $5)
+                                RETURNING id
+                            """, domain_id, content_kn, insight['confidence'], meta_kn, True)
                         
                         total_learned += 1
                         
@@ -448,20 +524,20 @@ async def nightly_learning_cycle():
             
             # --- ФАЗА 4: LM JUDGE (ВЕРИФИКАЦИЯ) ---
             try:
-                print("⚖️ Running LM Judge...")
+                _log_step("⚖️ Running LM Judge...")
                 subprocess.run([sys.executable, os.path.join(_APP_DIR, "evaluator.py")], cwd=_APP_DIR)
             except Exception as e:
                 logger.warning("LM Judge phase failed: %s", e)
 
             # --- ФАЗА 5: CORPORATE IMMUNITY (СТРЕСС-ТЕСТ) ---
             try:
-                print("🛡️ Running Adversarial Critic...")
+                _log_step("🛡️ Running Adversarial Critic...")
                 subprocess.run([sys.executable, os.path.join(_APP_DIR, "adversarial_critic.py")], cwd=_APP_DIR)
             except Exception as e:
                 logger.warning("Adversarial Critic phase failed: %s", e)
         
         # --- ФАЗА 6: CONTEXTUAL LEARNING (КОНТЕКСТНАЯ ПАМЯТЬ) ---
-        print("🎓 Running Contextual Learning...")
+        _log_step("🎓 Running Contextual Learning...")
         try:
             from contextual_learner import run_contextual_learning_cycle
             await run_contextual_learning_cycle()
@@ -469,15 +545,16 @@ async def nightly_learning_cycle():
             print(f"⚠️ Contextual Learning error: {e}")
         
         # --- ФАЗА 7: ENHANCED EXPERT EVOLUTION (АВТОМАТИЧЕСКАЯ ЭВОЛЮЦИЯ) ---
-        print("🧬 Running Enhanced Expert Evolution...")
+        _log_step("🧬 Running Autonomous Talent Management...")
         try:
-            from enhanced_expert_evolver import run_enhanced_evolution_cycle
-            await run_enhanced_evolution_cycle()
+            # Теперь эксперты сами решают, какие скиллы им нужны
+            from expert_evolver import evolve_experts
+            await evolve_experts()
         except Exception as e:
-            print(f"⚠️ Enhanced Expert Evolution error: {e}")
+            print(f"⚠️ Talent Management error: {e}")
         
         # --- ФАЗА 10: ADAPTIVE LEARNING (АДАПТИВНОЕ ОБУЧЕНИЕ) ---
-        print("🎓 Running Adaptive Learning...")
+        _log_step("🎓 Running Adaptive Learning...")
         try:
             from adaptive_learner import run_adaptive_learning_cycle
             await run_adaptive_learning_cycle()
@@ -485,7 +562,7 @@ async def nightly_learning_cycle():
             print(f"⚠️ Adaptive Learning error: {e}")
         
         # --- ФАЗА 8: AUTO-TRANSLATION (АВТОМАТИЧЕСКИЙ ПЕРЕВОД) ---
-        print("🌍 Running Auto-Translation...")
+        _log_step("🌍 Running Auto-Translation...")
         try:
             from translator import run_auto_translation_cycle
             await run_auto_translation_cycle()
@@ -493,7 +570,7 @@ async def nightly_learning_cycle():
             print(f"⚠️ Auto-Translation error: {e}")
         
         # --- ФАЗА 9: UPDATE CURSORRULES (ОБНОВЛЕНИЕ .CURSORRULES) ---
-        print("📝 Updating .cursorrules from database...")
+        _log_step("📝 Updating .cursorrules from database...")
         try:
             from cursorrules_generator import update_cursorrules_file
             await update_cursorrules_file()
@@ -501,7 +578,7 @@ async def nightly_learning_cycle():
             print(f"⚠️ .cursorrules update error: {e}")
         
         # --- ФАЗА 10: DEBATE PROCESSING (ОБРАБОТКА ДЕБАТОВ) ---
-        print("💬 Processing debates and creating tasks...")
+        _log_step("💬 Processing debates and creating tasks...")
         try:
             from debate_processor import DebateProcessor
             processor = DebateProcessor()
@@ -517,7 +594,7 @@ async def nightly_learning_cycle():
             traceback.print_exc()
 
         # --- ФАЗА 11: APPLY ALL KNOWLEDGE (SINGULARITY 10.0) ---
-        print("🧠 Applying knowledge (lessons → guidance, retrospectives → knowledge_nodes, insights → tasks)...")
+        _log_step("🧠 Applying knowledge (lessons → guidance, retrospectives → knowledge_nodes, insights → tasks)...")
         try:
             from pathlib import Path
             _app_dir = Path(__file__).resolve().parent
@@ -527,14 +604,14 @@ async def nightly_learning_cycle():
             from observability.knowledge_applicator import apply_all_knowledge_async
             results = await apply_all_knowledge_async()
             if any(results.values()):
-                print(f"✅ Knowledge applied: guidance={results.get('guidance_updated')}, knowledge_base={results.get('knowledge_base_updated')}, prompts_evolved={results.get('prompts_evolved')}")
+                print(f"✅ Knowledge applied: guidance={results.get('guidance_updated')}, knowledge_base={results.get('knowledge_base_updated')}, prompts_evolved={results.get('prompts_evolved')}, code_tasks={results.get('code_tasks_created')}")
         except Exception as e:
             print(f"⚠️ Knowledge application error: {e}")
             import traceback
             traceback.print_exc()
 
         # --- ФАЗА 12: DASHBOARD DAILY IMPROVEMENT (SINGULARITY 10.0) ---
-        print("📊 Running dashboard improvement cycle...")
+        _log_step("📊 Running dashboard improvement cycle...")
         try:
             from dashboard_daily_improver import run_dashboard_improvement_cycle
             dash_result = await run_dashboard_improvement_cycle()
@@ -546,7 +623,7 @@ async def nightly_learning_cycle():
             traceback.print_exc()
 
         # --- ФАЗА 13: AUTONOMOUS TESTS (Living Brain) ---
-        print("🧪 Running autonomous test phase...")
+        _log_step("🧪 Running autonomous test phase...")
         try:
             tests_dir = os.path.join(_KNOWLEDGE_OS_ROOT, "tests")
             if os.path.exists(tests_dir):
@@ -561,10 +638,22 @@ async def nightly_learning_cycle():
                 summary = (result.stdout or "")[-500:] + (result.stderr or "")[-300:]
                 content_kn = f"Autonomous tests run at {datetime.now().isoformat()}: passed={passed}, returncode={result.returncode}\n\n{summary}"
                 domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1 LIMIT 1", "QA") or await conn.fetchval("SELECT id FROM domains LIMIT 1")
-                await conn.execute("""
-                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
-                    VALUES ($1, $2, $3, $4, $5)
-                """, domain_id or 1, content_kn, 1.0 if passed else 0.5, "autonomous_tests", json.dumps({"passed": passed, "returncode": result.returncode}))
+                embedding = None
+                try:
+                    from semantic_cache import get_embedding
+                    embedding = await get_embedding(content_kn[:8000])
+                except Exception:
+                    pass
+                if embedding is not None:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata, embedding)
+                        VALUES ($1, $2, $3, $4, $5, $6::vector)
+                    """, domain_id or 1, content_kn, 1.0 if passed else 0.5, "autonomous_tests", json.dumps({"passed": passed, "returncode": result.returncode}), str(embedding))
+                else:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """, domain_id or 1, content_kn, 1.0 if passed else 0.5, "autonomous_tests", json.dumps({"passed": passed, "returncode": result.returncode}))
                 if not passed:
                     await conn.execute("""
                         INSERT INTO tasks (title, description, status, priority, metadata)
@@ -577,7 +666,7 @@ async def nightly_learning_cycle():
             logger.warning("Autonomous tests phase failed: %s", e)
 
         # --- ФАЗА 14: GIT DIFF → ЗАДАЧИ НА ГЕНЕРАЦИЮ ТЕСТОВ (Living Brain §6.1) ---
-        print("📝 Running git diff → test generation tasks...")
+        _log_step("📝 Running git diff → test generation tasks...")
         try:
             repo_root = os.path.dirname(_KNOWLEDGE_OS_ROOT)
             if os.path.exists(os.path.join(repo_root, ".git")):
@@ -626,7 +715,7 @@ async def nightly_learning_cycle():
         # --- ФАЗА 15: АВТО-ПРОФИЛИРОВАНИЕ (Living Brain §6.3, AUTO_PROFILING_GUIDE) ---
         # Запускаем раз в неделю (воскресенье) чтобы не замедлять каждый Nightly
         if datetime.now().weekday() == 6:  # 0=Mon, 6=Sun
-            print("📊 Running auto-profiling phase (cProfile)...")
+            _log_step("📊 Running auto-profiling phase (cProfile)...")
             try:
                 import cProfile
                 import pstats
@@ -648,17 +737,29 @@ async def nightly_learning_cycle():
                 report = s.getvalue()
                 domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1 LIMIT 1", "Performance") or await conn.fetchval("SELECT id FROM domains LIMIT 1")
                 content = f"Auto-profiling at {datetime.now().isoformat()} (json_fast roundtrip x500)\n\n{report[:3000]}"
-                await conn.execute("""
-                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
-                    VALUES ($1, $2, 0.8, $3, $4)
-                """, domain_id or 1, content, "auto_profiling", json.dumps({"phase": 15, "workload": "json_roundtrip"}))
+                embedding = None
+                try:
+                    from semantic_cache import get_embedding
+                    embedding = await get_embedding(content[:8000])
+                except Exception:
+                    pass
+                if embedding is not None:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata, embedding)
+                        VALUES ($1, $2, 0.8, $3, $4, $5::vector)
+                    """, domain_id or 1, content, "auto_profiling", json.dumps({"phase": 15, "workload": "json_roundtrip"}), str(embedding))
+                else:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, source_ref, metadata)
+                        VALUES ($1, $2, 0.8, $3, $4)
+                    """, domain_id or 1, content, "auto_profiling", json.dumps({"phase": 15, "workload": "json_roundtrip"}))
                 print("✅ Phase 15: profiling result saved to knowledge_nodes")
             except Exception as e:
                 logger.debug("Phase 15 (auto-profiling) failed: %s", e)
 
         # --- ФАЗА 16: ЗАДАЧА НА СИНХРОНИЗАЦИЮ ДОКУМЕНТАЦИИ (Living Organism §8, Татьяна) ---
         # При merge в main за 24ч — создать задачу для Technical Writer обновить MASTER_REFERENCE/docs
-        print("📄 Checking for documentation sync task...")
+        _log_step("📄 Checking for documentation sync task...")
         try:
             repo_root = os.path.dirname(_KNOWLEDGE_OS_ROOT)
             if os.path.exists(os.path.join(repo_root, ".git")):
@@ -690,7 +791,7 @@ async def nightly_learning_cycle():
             logger.debug("Phase 16 (doc sync task) failed: %s", e)
 
         # --- ФАЗА 17: АВТООЧИСТКА СТАРЫХ ЗАДАЧ (completed > 30 дней, cancelled) ---
-        print("🗑️ Running tasks cleanup (completed >30 days, cancelled)...")
+        _log_step("🗑️ Running tasks cleanup (completed >30 days, cancelled)...")
         try:
             deleted_completed = await conn.fetchval("""
                 WITH d AS (
@@ -713,7 +814,7 @@ async def nightly_learning_cycle():
 
         await pool.release(conn)
         await pool.close()
-        print(f"[{datetime.now()}] Total cycle with Council Review finished.")
+        _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")
 
 
 if __name__ == '__main__':

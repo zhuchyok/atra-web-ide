@@ -162,32 +162,57 @@ A: {"thought": "Выполню ls для текущей директории", "
         logger.error(f"[FALLBACK] ❌ No available fallback models found")
         return None, None
 
-    async def ask(self, prompt: str, history: List[Dict[str, str]] = None, raw_response: bool = False) -> Any:
+    async def ask(
+        self,
+        prompt: str,
+        history: List[Dict[str, str]] = None,
+        raw_response: bool = False,
+        phase: Optional[str] = None,
+        blocked_tools: Optional[List[str]] = None,
+        model: Optional[str] = None,
+        system: Optional[str] = None,
+    ) -> Any:
         """
         Send request to LLM with automatic fallback on model crash.
+        phase: опционально — понимание цели / план / шаг N, логируется при таймауте.
+        blocked_tools: инструменты, которые нельзя выбирать (заблокированы из-за цикла).
+        model: переопределить модель для этого запроса.
+        system: переопределить системный промпт.
         """
         return await self._ask_with_fallback(
             prompt=prompt,
             history=history,
             raw_response=raw_response,
-            model=self.model,
+            model=model or self.model,
             base_url=self.base_url,
-            is_retry=False
+            is_retry=False,
+            phase=phase,
+            blocked_tools=blocked_tools,
+            system_override=system,
         )
 
     async def _ask_with_fallback(
-        self, 
-        prompt: str, 
-        history: List[Dict[str, str]], 
+        self,
+        prompt: str,
+        history: List[Dict[str, str]],
         raw_response: bool,
         model: str,
         base_url: str,
-        is_retry: bool = False
+        is_retry: bool = False,
+        phase: Optional[str] = None,
+        blocked_tools: Optional[List[str]] = None,
+        system_override: Optional[str] = None,
     ) -> Any:
         """Internal method with fallback support"""
         url = f"{base_url}/api/chat"
-        
-        messages = [{"role": "system", "content": self.system_prompt}]
+        system_content = system_override or self.system_prompt
+        if blocked_tools:
+            allowed = sorted(ALLOWED_TOOLS - set(blocked_tools))
+            system_content += (
+                f"\n\n⚠️ ЗАПРЕЩЕНО использовать (заблокированы из-за цикла): {', '.join(sorted(blocked_tools))}. "
+                f"Доступны ТОЛЬКО: {', '.join(allowed)}. Ответь JSON с tool из доступных или finish."
+            )
+        messages = [{"role": "system", "content": system_content}]
         if history:
             messages.extend(history)
         messages.append({"role": "user", "content": prompt})
@@ -198,6 +223,22 @@ A: {"thought": "Выполню ls для текущей директории", "
             "stream": False,
             "options": { "temperature": 0.1 }
         }
+        # Адаптивный keep_alive на основе веса модели (Singularity 10.0)
+        def get_smart_keep_alive(m_name: str) -> Any:
+            raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
+            if raw:
+                try:
+                    return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
+                except: return raw
+            
+            key = (m_name or "").lower()
+            if "70b" in key or "104b" in key or "next" in key: return 60
+            if "32b" in key or "30b" in key or "qwq" in key: return 300
+            if "7b" in key or "8b" in key or "14b" in key: return 600
+            if "3b" in key or "1b" in key or "tiny" in key or "embedding" in key: return 3600
+            return 300
+
+        payload["keep_alive"] = get_smart_keep_alive(model)
         
         # === DETAILED DEBUG LOGGING ===
         logger.info(f"[LLM_CALL] ========== OllamaExecutor.ask() ==========")
@@ -212,8 +253,10 @@ A: {"thought": "Выполню ls для текущей директории", "
         
         start_time = time.time()
         
-        # Увеличиваем таймаут для больших моделей (32B+ могут быть медленными)
-        timeout = aiohttp.ClientTimeout(total=180)  # 3 минуты для больших моделей
+        # Таймаут на один вызов LLM: настраивается через OLLAMA_EXECUTOR_TIMEOUT (по умолчанию 300 с)
+        # connect=30 — стабильность из контейнера к host.docker.internal (не обрывать долгие ответы)
+        _exec_timeout = float(os.getenv("OLLAMA_EXECUTOR_TIMEOUT", "300"))
+        timeout = aiohttp.ClientTimeout(total=_exec_timeout, connect=30.0)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             try:
                 logger.info(f"[LLM_CALL] Sending request to {url}...")
@@ -238,7 +281,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                         
                         if raw_response:
                             return content
-                        return self._parse_response(content)
+                        return self._parse_response(content, blocked_tools=blocked_tools)
                     else:
                         # Model crashed or error
                         error_body = await response.text()
@@ -271,14 +314,21 @@ A: {"thought": "Выполню ls для текущей директории", "
                                     raw_response=raw_response,
                                     model=fallback_model,
                                     base_url=fallback_url,
-                                    is_retry=True
+                                    is_retry=True,
+                                    phase=phase,
+                                    blocked_tools=blocked_tools,
+                                    system_override=system_override,
                                 )
                         
                         return {"error": f"Ollama HTTP {response.status}: {error_body[:200]}"}
                         
             except asyncio.TimeoutError:
                 elapsed = time.time() - start_time
-                logger.error(f"[LLM_ERROR] ⏱️ Timeout after {elapsed:.2f}s for model {model}")
+                phase_info = f" phase={phase}" if phase else ""
+                logger.error(
+                    "[LLM_ERROR] ⏱️ Timeout after %.2fs for model %s%s",
+                    elapsed, model, phase_info,
+                )
                 
                 # Timeout on large model - try fallback
                 if model in RESOURCE_HEAVY_MODELS:
@@ -294,10 +344,12 @@ A: {"thought": "Выполню ls для текущей директории", "
                             raw_response=raw_response,
                             model=fallback_model,
                             base_url=fallback_url,
-                            is_retry=True
+                            is_retry=True,
+                            phase=phase,
+                            blocked_tools=blocked_tools,
                         )
                 
-                return {"error": f"Timeout: модель {model} не ответила за 3 минуты"}
+                return {"error": f"Timeout: модель {model} не ответила за {int(_exec_timeout)} с"}
                 
             except aiohttp.ClientConnectorError as e:
                 logger.error(f"[LLM_ERROR] 🔌 Connection failed to {url}: {e}")
@@ -313,7 +365,9 @@ A: {"thought": "Выполню ls для текущей директории", "
                             raw_response=raw_response,
                             model=fallback_model,
                             base_url=fallback_url,
-                            is_retry=True
+                            is_retry=True,
+                            phase=phase,
+                            blocked_tools=blocked_tools,
                         )
                 
                 return {"error": f"Connection failed to {url}: {e}"}
@@ -323,7 +377,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                 logger.error(f"[LLM_ERROR] Traceback: {traceback.format_exc()}")
                 return {"error": str(e)}
 
-    def _parse_response(self, content: str) -> Any:
+    def _parse_response(self, content: str, blocked_tools: Optional[List[str]] = None) -> Any:
         logger.info(f"[LLM_PARSE] Parsing response ({len(content)} chars)...")
         
         # Убираем лишние пробелы и возможные теги <think>
@@ -395,6 +449,13 @@ A: {"thought": "Выполню ls для текущей директории", "
                         logger.warning(f"[LLM_PARSE] Unknown tool '{bad}' rejected")
                         return AgentFinish(
                             output=f"Доступны только: finish, read_file, list_directory, run_terminal_cmd, ssh_run. Ты указал: {bad}. Ответь одним JSON с tool: finish и tool_input: {{\"output\": \"твой краткий ответ\"}}.",
+                            thought=thought,
+                        )
+                    if blocked_tools and tool_name in blocked_tools:
+                        logger.warning(f"[LLM_PARSE] Blocked tool '{tool_name}' rejected (cycle prevention)")
+                        allowed = sorted(ALLOWED_TOOLS - set(blocked_tools))
+                        return AgentFinish(
+                            output=f"Инструмент {tool_name} заблокирован из-за цикла. Используй только: {', '.join(allowed)}. Ответь JSON с tool: finish или другим доступным инструментом.",
                             thought=thought,
                         )
                     if data["tool"] == "finish" or (data.get("tool") == "" and not tool_input):

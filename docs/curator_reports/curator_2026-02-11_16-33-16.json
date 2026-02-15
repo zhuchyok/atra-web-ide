@@ -1,0 +1,29 @@
+{
+  "ts": "2026-02-11T16:36:28.585417+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=30)",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 96.02
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=30)",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 96.01
+    }
+  ]
+}

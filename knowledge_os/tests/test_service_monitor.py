@@ -32,8 +32,8 @@ async def test_service_monitor_add_service():
     
     monitor.add_service(service)
     
-    assert len(monitor.services) == 1
-    assert monitor.services[0].name == "test_service"
+    assert "test_service" in monitor.services
+    assert monitor.services["test_service"].name == "test_service"
 
 
 @pytest.mark.asyncio

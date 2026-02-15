@@ -185,15 +185,19 @@ class CorporationKnowledgeSystem:
         # Сохраняем в БД с эмбеддингами для поиска
         if ASYNCPG_AVAILABLE:
             try:
-                # Импортируем get_embedding для создания эмбеддингов
+                # Импортируем get_embedding: сначала semantic_cache (лёгкий, Ollama), чтобы не тянуть app.main (MCP, redis, pool) — меньше памяти в оркестраторе
+                get_embedding = None
                 try:
-                    from app.main import get_embedding
+                    from semantic_cache import get_embedding as _get_embedding
+                    get_embedding = _get_embedding
                 except ImportError:
                     try:
-                        from app.enhanced_search import get_embedding
+                        from app.main import get_embedding
                     except ImportError:
-                        get_embedding = None
-                        logger.warning("⚠️ get_embedding недоступен, сохраняем без эмбеддингов")
+                        try:
+                            from app.enhanced_search import get_embedding
+                        except ImportError:
+                            logger.warning("⚠️ get_embedding недоступен, сохраняем без эмбеддингов")
                 
                 # Используем прямое соединение вместо пула
                 conn = await asyncpg.connect(self.db_url, command_timeout=30)

@@ -120,3 +120,43 @@ def test_list_projects(client):
         for item in data:
             assert "slug" in item and "name" in item
 
+
+def test_board_consult_without_api_key_returns_401(client):
+    """POST /api/board/consult без X-API-Key возвращает 401 (VERIFICATION_CHECKLIST §36, board/consult)."""
+    response = client.post(
+        "/api/board/consult",
+        json={
+            "question": "Какие приоритеты по архитектуре?",
+            "session_id": "test-session",
+            "user_id": None,
+            "correlation_id": "test-corr",
+            "source": "chat",
+        },
+    )
+    assert response.status_code == 401
+    assert "Invalid API Key" in response.json().get("detail", "") or "Unauthorized" in str(response.json())
+
+
+def test_board_consult_with_wrong_api_key_returns_401(client):
+    """POST /api/board/consult с неверным X-API-Key возвращает 401."""
+    response = client.post(
+        "/api/board/consult",
+        json={
+            "question": "Какие приоритеты?",
+            "session_id": "test-session",
+            "user_id": None,
+            "correlation_id": "test-corr",
+            "source": "chat",
+        },
+        headers={"X-API-Key": "wrong-key"},
+    )
+    assert response.status_code == 401
+
+
+def test_metrics_include_deferred_to_human(client):
+    """GET /metrics возвращает метрику deferred_to_human (PROJECT_GAPS §3, мониторинг). last_error_total появляется только при наличии задач с last_error."""
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    text = response.text
+    assert "knowledge_os_tasks_deferred_to_human_total" in text
+

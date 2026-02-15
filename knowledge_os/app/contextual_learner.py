@@ -134,16 +134,18 @@ class AdaptiveLearner:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
+                # Привязка id: в части БД interaction_logs.id — integer
+                _il_id = int(interaction_log_id) if isinstance(interaction_log_id, str) and interaction_log_id.isdigit() else interaction_log_id
                 # Получаем данные взаимодействия
                 interaction = await conn.fetchrow("""
                     SELECT il.user_query, il.assistant_response, il.metadata,
                            e.name as expert_name, d.name as domain_name
                     FROM interaction_logs il
                     LEFT JOIN experts e ON il.expert_id = e.id
-                    LEFT JOIN knowledge_nodes k ON (il.metadata->>'knowledge_id')::uuid = k.id
+                    LEFT JOIN knowledge_nodes k ON (il.metadata->>'knowledge_id')::text = k.id::text
                     LEFT JOIN domains d ON k.domain_id = d.id
                     WHERE il.id = $1
-                """, interaction_log_id)
+                """, _il_id)
                 
                 if not interaction:
                     return None
@@ -169,13 +171,14 @@ class AdaptiveLearner:
                     impact_score = 0.3
                     learned_insight = f"Неудачный паттерн: {interaction['user_query'][:100]} - {feedback_text or 'negative feedback'}"
                 
-                # Сохраняем в лог обучения
+                # Сохраняем в лог обучения (interaction_log_id в таблице — UUID; при integer id из interaction_logs передаём NULL)
+                _il_id_insert = None if isinstance(_il_id, int) else _il_id
                 learning_id = await conn.fetchval("""
                     INSERT INTO adaptive_learning_logs 
                     (interaction_log_id, expert_id, learning_type, learned_insight, impact_score, applied_at)
                     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
                     RETURNING id
-                """, interaction_log_id, expert_id, learning_type, learned_insight, impact_score)
+                """, _il_id_insert, expert_id, learning_type, learned_insight, impact_score)
                 
                 logger.info(f"✅ Learned from feedback: {learning_type} (impact: {impact_score:.2f})")
                 return str(learning_id)

@@ -25,7 +25,7 @@ class AuditAgent(AtraBaseAgent):
         # В будущем здесь будет LLM-планировщик
         return ["Check server availability", "Inspect main.log", "Verify DB health"]
 
-    async def step(self, prompt: str):
+    async def step(self, prompt: str, step_number: int = 1):
         """Выполнение одного шага через OllamaExecutor"""
         # Преобразуем историю памяти для Ollama
         history = []

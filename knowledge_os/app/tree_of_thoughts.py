@@ -61,7 +61,7 @@ class TreeOfThoughts:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         ollama_url: str = OLLAMA_URL,
         max_depth: int = 5,
         max_branching: int = 3
@@ -363,7 +363,7 @@ class TreeOfThoughts:
 
 async def main():
     """Пример использования"""
-    tot = TreeOfThoughts(model_name="deepseek-r1-distill-llama:70b", max_depth=3, max_branching=2)
+    tot = TreeOfThoughts(model_name="phi3.5:3.8b", max_depth=3, max_branching=2)
     
     result = await tot.solve(
         "Как оптимизировать производительность веб-приложения?"

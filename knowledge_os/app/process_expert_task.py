@@ -79,17 +79,31 @@ async def process_task_for_expert(expert_name):
     report = run_cursor_agent(prompt, expert_name=expert['name'])
     
     if report:
-        # 5. Сохраняем результат как верифицированное знание
+        # 5. Сохраняем результат как верифицированное знание (по возможности с embedding — VERIFICATION §5)
         domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1", expert['department'])
-        await conn.execute("""
-            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-            VALUES ($1, $2, 0.98, $3, TRUE)
-        """, domain_id, f"📊 ОТЧЕТ РАЗВЕДКИ: {task['title']}\n\n{report}", json.dumps({
+        content_kn = f"📊 ОТЧЕТ РАЗВЕДКИ: {task['title']}\n\n{report}"
+        meta_kn = json.dumps({
             "source": "expert_task_report",
             "expert_id": str(expert['id']),
             "expert_name": expert['name'],
             "task_id": str(task['id'])
-        }))
+        })
+        embedding = None
+        try:
+            from semantic_cache import get_embedding
+            embedding = await get_embedding(content_kn[:8000])
+        except Exception:
+            pass
+        if embedding is not None:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                VALUES ($1, $2, 0.98, $3, TRUE, $4::vector)
+            """, domain_id, content_kn, meta_kn, str(embedding))
+        else:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, 0.98, $3, TRUE)
+            """, domain_id, content_kn, meta_kn)
 
         
         # 6. Обновляем статус задачи

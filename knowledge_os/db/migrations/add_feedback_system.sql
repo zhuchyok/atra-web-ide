@@ -20,8 +20,12 @@ CREATE TABLE IF NOT EXISTS user_feedback (
 CREATE INDEX IF NOT EXISTS idx_user_feedback_user_id ON user_feedback(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_expert_name ON user_feedback(expert_name);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_type ON user_feedback(feedback_type);
-CREATE INDEX IF NOT EXISTS idx_user_feedback_processed ON user_feedback(processed);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_created_at ON user_feedback(created_at);
+
+-- Дозаполнить колонки, если таблица уже существовала без них
+ALTER TABLE user_feedback ADD COLUMN IF NOT EXISTS processed BOOLEAN DEFAULT FALSE;
+ALTER TABLE user_feedback ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP WITH TIME ZONE;
+CREATE INDEX IF NOT EXISTS idx_user_feedback_processed ON user_feedback(processed);
 
 -- Комментарии
 COMMENT ON TABLE user_feedback IS 'Явный feedback от пользователей (👍/👎) для улучшения промптов';

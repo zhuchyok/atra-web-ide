@@ -1,0 +1,91 @@
+{
+  "ts": "2026-02-13T21:42:37.764299+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. У меня всё отлично, готова к работе! Чем могу помочь?",
+      "output_length": 100,
+      "correlation_id": "a2cd7f3f-2556-4f4b-b54b-3aae54e9bb85",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Результаты:\n1. количество_задач: 7167, количество_ожидающих: 33, количество_в_работе: 10, количество_завершенных: 7096, количество_отмененных: 0\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE.\n\n_Источник: `SELECT COUNT(*) AS количество_задач, \n       SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS количество_ожидающих,\n       SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS количество_в_работе,\n       SUM(CA",
+      "output_length": 683,
+      "correlation_id": "013f812b-ffc7-4bc2-86a4-200f58b36ffb",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "013f812b-ffc7-4bc2-86a4-200f58b36ffb",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 180.59
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "STDOUT: total 564\ndrwxr-xr-x   1 root root   4096 Feb 13 02:02 .\ndrwxr-xr-x   1 root root   4096 Feb 13 21:13 ..\ndrwxr-xr-x   2 root root   4096 Jan 31 15:17 .agent_backups\n-rw-r--r--   1 root root  17147 Feb 11 09:53 .cursorrules\n-rw-r--r--   1 root root   1053 Feb 11 20:56 .dockerignore\n-rw-r--r--   1 root root   2285 Feb 11 16:23 .env.example\ndrwxr-xr-x   2 root root   4096 Jan 30 22:21 .githooks\n-rwxr-xr-x   1 root root    862 Jan 25 20:44 APPLY_CHANGES_NOW.sh\n-rw-r--r--   1 root root   7104",
+      "output_length": 1225,
+      "correlation_id": "7a2b41d5-c367-4967-9560-d7f0efb727b2",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "7a2b41d5-c367-4967-9560-d7f0efb727b2",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 168.02
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю рез",
+      "output_length": 543,
+      "correlation_id": "145532ff-572b-4f03-8245-95d348973f59",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "feaed86e-375d-42ed-a763-a6b135f302ef",
+      "execution_trace": {},
+      "elapsed_seconds": 600.34
+    }
+  ]
+}

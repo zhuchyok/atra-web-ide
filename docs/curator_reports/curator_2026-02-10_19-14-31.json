@@ -1,0 +1,99 @@
+{
+  "ts": "2026-02-10T19:23:12.965159+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "5254a48c-0392-4224-ada4-d4f4129d5d0c",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "5254a48c-0392-4224-ada4-d4f4129d5d0c",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "```json\n{\"thought\": \"Чтобы определить текущий статус проекта и проверить структуру каталога frontend, сначала нужно просмотреть содержимое каталога.\", \"tool\": \"list_directory\"}\n```\n\n`tool_input`: \n```json\n{\n  \"path\": \"frontend\"\n}\n```",
+      "output_length": 233,
+      "correlation_id": "e9cdc884-93e4-4bd0-a173-5ac8a50007d4",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "e9cdc884-93e4-4bd0-a173-5ac8a50007d4",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "STDOUT: total 5560\ndrwxr-xr-x   1 root root    4096 Feb 10 07:46 .\ndrwxr-xr-x   1 root root    4096 Feb 10 07:44 ..\n-rw-r--r--   1 root root   10244 Feb  5 17:50 .DS_Store\ndrwxr-xr-x   2 root root    4096 Jan 31 15:17 .agent_backups\n-rw-r--r--   1 root root   53248 Feb  5 19:20 .coverage\ndrwxr-xr-x   9 root root    4096 Feb  1 15:59 .cursor\ndrwxr-xr-x   3 root root    4096 Jan 31 09:45 .cursor_chats_backup\n-rw-r--r--   1 root root   15857 Feb  5 18:26 .cursorrules\n-rw-r--r--   1 root root    379",
+      "output_length": 1225,
+      "correlation_id": "e593a223-e537-4fc2-ad80-402e0d11842b",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "e593a223-e537-4fc2-ad80-402e0d11842b",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 92.78
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.",
+      "output_length": 407,
+      "correlation_id": "44dbac21-dc25-4862-8310-2183ee6844ec",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "44dbac21-dc25-4862-8310-2183ee6844ec",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "```python\nimport datetime; print(datetime.date.today())\n```",
+      "output_length": 59,
+      "correlation_id": "a9b7f733-567a-4121-b0f8-fae2fb9d1a7f",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "a9b7f733-567a-4121-b0f8-fae2fb9d1a7f",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 428.72
+    }
+  ]
+}

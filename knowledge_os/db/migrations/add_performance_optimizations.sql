@@ -47,55 +47,44 @@ CREATE INDEX IF NOT EXISTS idx_experts_active ON experts (is_active) WHERE is_ac
 -- ПАРТИЦИОНИРОВАНИЕ ТАБЛИЦ
 -- ============================================
 
--- Партиционирование knowledge_nodes по дате создания (если еще не сделано)
--- Создаем партиции для каждого месяца
+-- Партиции для knowledge_nodes только если таблица уже партиционирована (relkind = 'p')
 DO $$
 DECLARE
     start_date DATE := '2024-01-01';
     end_date DATE := '2026-12-31';
-    current_date DATE;
+    cur_date DATE;
     partition_name TEXT;
 BEGIN
-    -- Проверяем, не партиционирована ли уже таблица
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_class WHERE relname = 'knowledge_nodes' AND relkind = 'p'
-    ) THEN
-        -- Создаем партиции по месяцам
-        current_date := start_date;
-        WHILE current_date <= end_date LOOP
-            partition_name := 'knowledge_nodes_' || to_char(current_date, 'YYYY_MM');
-            
+    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'knowledge_nodes' AND relkind = 'p') THEN
+        cur_date := start_date;
+        WHILE cur_date <= end_date LOOP
+            partition_name := 'knowledge_nodes_' || to_char(cur_date, 'YYYY_MM');
             EXECUTE format('
                 CREATE TABLE IF NOT EXISTS %I PARTITION OF knowledge_nodes
                 FOR VALUES FROM (%L) TO (%L)
-            ', partition_name, current_date, current_date + INTERVAL '1 month');
-            
-            current_date := current_date + INTERVAL '1 month';
+            ', partition_name, cur_date, cur_date + INTERVAL '1 month');
+            cur_date := cur_date + INTERVAL '1 month';
         END LOOP;
     END IF;
 END $$;
 
--- Партиционирование tasks по дате создания
+-- Партиции для tasks только если таблица уже партиционирована
 DO $$
 DECLARE
     start_date DATE := '2024-01-01';
     end_date DATE := '2026-12-31';
-    current_date DATE;
+    cur_date DATE;
     partition_name TEXT;
 BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_class WHERE relname = 'tasks' AND relkind = 'p'
-    ) THEN
-        current_date := start_date;
-        WHILE current_date <= end_date LOOP
-            partition_name := 'tasks_' || to_char(current_date, 'YYYY_MM');
-            
+    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'tasks' AND relkind = 'p') THEN
+        cur_date := start_date;
+        WHILE cur_date <= end_date LOOP
+            partition_name := 'tasks_' || to_char(cur_date, 'YYYY_MM');
             EXECUTE format('
                 CREATE TABLE IF NOT EXISTS %I PARTITION OF tasks
                 FOR VALUES FROM (%L) TO (%L)
-            ', partition_name, current_date, current_date + INTERVAL '1 month');
-            
-            current_date := current_date + INTERVAL '1 month';
+            ', partition_name, cur_date, cur_date + INTERVAL '1 month');
+            cur_date := cur_date + INTERVAL '1 month';
         END LOOP;
     END IF;
 END $$;

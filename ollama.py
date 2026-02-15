@@ -18,12 +18,12 @@ settings = get_settings()
 class OllamaClient:
     """Клиент для Ollama API с улучшенной обработкой ошибок"""
     
-    # Модели Mac Studio M4 Max (автоматический выбор)
+    # Модели (70b/104b удалены)
     MODELS = {
-        "complex": "command-r-plus:104b",              # ~65GB - Максимальная мощность
-        "enterprise": "command-r-plus:104b",            # ~65GB - RAG, мультиязычность
-        "reasoning": "deepseek-r1-distill-llama:70b", # ~40GB - Reasoning, планирование
-        "complex_alt": "llama3.3:70b",                 # ~40GB - Максимальное качество
+        "complex": "qwen2.5-coder:32b",
+        "enterprise": "qwen2.5-coder:32b",
+        "reasoning": "qwq:32b",
+        "complex_alt": "qwen2.5-coder:32b",
         "coding": "qwen2.5-coder:32b",                 # ~20GB - Качественный код
         "fast": "phi3.5:3.8b",                         # ~2.5GB - Быстрые задачи
         "fast_light": "phi3:mini-4k",                  # ~2GB - Быстрые ответы

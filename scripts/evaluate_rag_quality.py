@@ -76,8 +76,8 @@ async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
                 "query_expansion_enabled": use_expansion,
                 "reranking_enabled": bool(rerank),
             }
-            # Ниже порог и больше чанков — лучше retrieval для валидации (relevance)
-            sim_threshold = float(os.environ.get("RAG_SIMILARITY_THRESHOLD", "0.45"))
+            # Порог similarity: 0.2 для валидации (максимум чанков после seed_dataset)
+            sim_threshold = float(os.environ.get("RAG_SIMILARITY_THRESHOLD", "0.2"))
             rag = RAGLightService(
                 knowledge_os=kos,
                 query_rewriter_service=qr,
@@ -88,18 +88,53 @@ async def get_response_for_query(query: str, fast_fail: bool = True) -> tuple:
             )
             search_limit = int(os.environ.get("RAG_VALIDATION_LIMIT", "5"))
             search_timeout = 5.0 if fast_fail else 30.0
-            if rerank:
-                chunks = await asyncio.wait_for(rag.get_chunks_for_query(query, limit=search_limit), timeout=search_timeout)
-                if chunks:
-                    content = chunks[0]
-                    context_chunks = chunks
-                    response_text = rag.extract_direct_answer(query, content)
-            else:
-                result = await asyncio.wait_for(rag.search_one_chunk(query, limit=search_limit), timeout=search_timeout)
-                if result:
-                    content, _ = result
-                    context_chunks = [content]
-                    response_text = rag.extract_direct_answer(query, content)
+
+            # Приоритет: чанки формата «Вопрос: X Ответ: Y» (seed_dataset) — keyword ищет точнее
+            _kw_prefer = os.environ.get("RAG_VALIDATION_KEYWORD_FIRST", "true").lower() == "true"
+            if _kw_prefer and kos:
+                try:
+                    rows = await asyncio.wait_for(kos.search_knowledge(query, limit=3), timeout=3.0)
+                    for r in rows:
+                        c = (r.get("content") or "")
+                        if "Ответ:" in c or "Answer:" in c:
+                            context_chunks = [c]
+                            response_text = rag.extract_direct_answer(query, c)
+                            if response_text and len(response_text) > 10:
+                                break
+                except Exception:
+                    pass
+
+            if not response_text and not context_chunks:
+                if rerank:
+                    chunks = await asyncio.wait_for(rag.get_chunks_for_query(query, limit=search_limit), timeout=search_timeout)
+                    if chunks:
+                        content = chunks[0]
+                        context_chunks = chunks
+                        response_text = rag.extract_direct_answer(query, content)
+                else:
+                    result = await asyncio.wait_for(rag.search_one_chunk(query, limit=search_limit), timeout=search_timeout)
+                    if result:
+                        content, _ = result
+                        context_chunks = [content]
+                        response_text = rag.extract_direct_answer(query, content)
+
+            # Fallback: keyword-поиск при пустом векторном результате
+            if not response_text and not context_chunks and KnowledgeOSClient and kos:
+                stop = {"как", "что", "какой", "какая", "каким", "объясни", "расскажи"}
+                terms = [w for w in query.lower().split() if len(w) >= 3 and w not in stop][:5]
+                if not terms:
+                    terms = [query[:40]]
+                for term in terms:
+                    try:
+                        rows = await kos.search_knowledge(term, limit=3)
+                        if rows:
+                            content = rows[0].get("content", "")
+                            if content and len(content) > 20:
+                                context_chunks = [content]
+                                response_text = rag.extract_direct_answer(query, content)
+                                break
+                    except Exception:
+                        continue
         except asyncio.TimeoutError:
             response_text = "[RAG timeout: Ollama/embedding slow or unavailable]"
         except Exception as e:

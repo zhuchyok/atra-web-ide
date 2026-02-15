@@ -83,7 +83,7 @@
         A
       </div>
       <h1 class="text-lg font-semibold">ATRA Web IDE</h1>
-      <span class="text-xs text-gray-500 bg-atra-accent px-2 py-0.5 rounded">Singularity 9.0</span>
+      <span class="text-xs text-gray-500 bg-atra-accent px-2 py-0.5 rounded">Singularity 10.0</span>
     </div>
     
     <div class="flex items-center gap-4">

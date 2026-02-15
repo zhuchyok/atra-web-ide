@@ -58,11 +58,24 @@ async def generate_ad_campaign(product_description: str):
     if not domain_id:
         domain_id = await conn.fetchval("INSERT INTO domains (name) VALUES ('Marketing') RETURNING id")
         
-    await conn.execute("""
-        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-        VALUES ($1, $2, 0.98, $3, true)
-    """, domain_id, f"🎯 РЕКЛАМНАЯ КАМПАНИЯ: {product_description[:100]}\n\n{final_plan}", 
-    json.dumps({"source": "ad_generator", "product": product_description}))
+    content_kn = f"🎯 РЕКЛАМНАЯ КАМПАНИЯ: {product_description[:100]}\n\n{final_plan}"
+    meta_kn = json.dumps({"source": "ad_generator", "product": product_description})
+    embedding = None
+    try:
+        from semantic_cache import get_embedding
+        embedding = await get_embedding(content_kn[:8000])
+    except Exception:
+        pass
+    if embedding is not None:
+        await conn.execute("""
+            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+            VALUES ($1, $2, 0.98, $3, true, $4::vector)
+        """, domain_id, content_kn, meta_kn, str(embedding))
+    else:
+        await conn.execute("""
+            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+            VALUES ($1, $2, 0.98, $3, true)
+        """, domain_id, content_kn, meta_kn)
     
     await conn.close()
     return final_plan

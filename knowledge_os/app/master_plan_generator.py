@@ -240,14 +240,61 @@ class MasterPlanGenerator:
 """
         return master_plan
     
-    async def update_master_plan(self, plan_id: str, changes: Dict[str, Any]):
+    async def update_master_plan(self, plan_id: str, changes: Dict[str, Any]) -> bool:
         """
-        Обновляет MASTER_PLAN
-        
-        Args:
-            plan_id: ID плана
-            changes: Изменения для применения
+        Обновляет MASTER_PLAN.
+
+        Поддерживаемые ключи в changes:
+        - markdown: полная замена содержимого плана
+        - title: новое название
+        - status: новый статус (active/archived и т.д.)
+        - role_hint: рекомендуемая роль
+        - amend_instruction: текст инструкции для LLM — план дорабатывается по инструкции (например «добавь раздел про риск»)
+
+        Returns:
+            True если план обновлён, иначе False.
         """
-        # TODO: Реализовать обновление плана
-        logger.debug(f"📝 [MASTER PLAN] Обновление плана {plan_id} (не реализовано)")
+        if not self.session_manager:
+            logger.warning("⚠️ [MASTER PLAN] SessionManager не доступен")
+            return False
+        plan = self.session_manager.get_plan(plan_id)
+        if not plan:
+            logger.warning(f"⚠️ [MASTER PLAN] План {plan_id} не найден")
+            return False
+        current_md = (plan.get("markdown_body") or "").strip()
+        updated = False
+        if "markdown" in changes and changes["markdown"] is not None:
+            updated = self.session_manager.update_plan(
+                plan_id, markdown=str(changes["markdown"]).strip()
+            )
+        if "title" in changes and changes["title"] is not None:
+            updated = self.session_manager.update_plan(plan_id, title=str(changes["title"])) or updated
+        if "status" in changes and changes["status"] is not None:
+            updated = self.session_manager.update_plan(plan_id, status=str(changes["status"])) or updated
+        if "role_hint" in changes and changes["role_hint"] is not None:
+            updated = self.session_manager.update_plan(plan_id, role_hint=str(changes["role_hint"])) or updated
+        if "amend_instruction" in changes and changes["amend_instruction"]:
+            instruction = str(changes["amend_instruction"]).strip()
+            if run_smart_agent_async and instruction:
+                try:
+                    prompt = f"""Текущий MASTER_PLAN (Markdown):
+
+{current_md}
+
+Инструкция по доработке: {instruction}
+
+Верни ТОЛЬКО обновлённый полный MASTER_PLAN в Markdown, без пояснений до или после."""
+                    new_md = await run_smart_agent_async(
+                        prompt, expert_name="Виктория", category="architecture"
+                    )
+                    if new_md and len(new_md.strip()) > 50:
+                        updated = self.session_manager.update_plan(
+                            plan_id, markdown=new_md.strip()
+                        ) or updated
+                        logger.info(f"📝 [MASTER PLAN] План {plan_id} доработан по инструкции LLM")
+                except Exception as e:
+                    logger.error(f"❌ [MASTER PLAN] Ошибка доработки плана через LLM: {e}")
+        if updated:
+            logger.info(f"📝 [MASTER PLAN] Обновление плана {plan_id} применено")
+        return updated
 

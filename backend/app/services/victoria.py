@@ -99,13 +99,16 @@ class VictoriaClient:
         Returns:
             Результат выполнения
         """
+        from app.config import get_settings
+        settings = get_settings()
+        max_steps = getattr(settings, "victoria_max_steps_chat", 50)
         async def _make_request():
-            logger.info("[VICTORIA_CYCLE] client POST /run goal_preview=%s timeout=%s",
-                        (prompt or "")[:80], self.timeout)
+            logger.info("[VICTORIA_CYCLE] client POST /run goal_preview=%s timeout=%s max_steps=%s",
+                        (prompt or "")[:80], self.timeout, max_steps)
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 payload = {
                     "goal": prompt,  # Victoria expects 'goal', not 'prompt'
-                    "max_steps": 500,  # Limit steps for chat responses
+                    "max_steps": max_steps,  # VICTORIA_MAX_STEPS_CHAT (50) — меньше «превышен лимит 500» на локальных моделях
                     "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),  # Контекст проекта
                 }
                 if session_id:
@@ -159,36 +162,43 @@ class VictoriaClient:
         session_id: Optional[str] = None,
         chat_history: Optional[list] = None,
         correlation_id: Optional[str] = None,
+        mode: str = "agent",
     ) -> AsyncGenerator[str, None]:
         """
-        Стриминг ответа от Victoria.
-        Контракт Victoria POST /run: body.goal (не prompt), project_context, session_id, chat_history опционально.
+        Стриминг ответа от Victoria (Singularity 10.0 Unified).
+        Вызывает эндпоинт /stream на сервере Victoria.
         """
+        from app.config import get_settings
+        settings = get_settings()
+        max_steps = getattr(settings, "victoria_max_steps_chat", 50)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             payload = {
-                "goal": prompt,  # Victoria API ожидает goal
-                "stream": True,
+                "goal": prompt,
+                "max_steps": max_steps,
                 "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),
+                "session_id": session_id,
+                "mode": mode,
             }
             if expert_name:
                 payload["expert_name"] = expert_name
-            if session_id:
-                payload["session_id"] = session_id
             if chat_history:
                 payload["chat_history"] = chat_history[-30:]
+            
             stream_kw = {"json": payload}
             if correlation_id:
                 stream_kw["headers"] = {"X-Correlation-ID": correlation_id}
 
             try:
-                async with client.stream("POST", f"{self.base_url}/run", **stream_kw) as response:
+                # Вызываем новый эндпоинт /stream
+                async with client.stream("POST", f"{self.base_url}/stream", **stream_kw) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         if line:
                             yield line
             except httpx.HTTPError as e:
                 logger.error("Victoria stream error: %s", e)
-                yield json.dumps({"error": str(e)})
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                yield f"data: {json.dumps({'type': 'end'})}\n\n"
     
     async def status(self) -> dict:
         """Получить статус Victoria"""
@@ -217,6 +227,20 @@ class VictoriaClient:
             return {"status": "healthy", **result}
         except httpx.HTTPError as e:
             return {"status": "unhealthy", "error": str(e)}
+
+    async def get_hidden_thoughts(self, session_id: str) -> dict:
+        """Получить скрытые рассуждения для сессии (Summary Reader)"""
+        async def _make_request():
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(f"{self.base_url}/api/hidden-thoughts/{session_id}")
+                response.raise_for_status()
+                return response.json()
+        
+        try:
+            return await self._retry_request(_make_request)
+        except httpx.HTTPError as e:
+            logger.error(f"Victoria hidden thoughts error: {e}")
+            return {"status": "error", "error": str(e)}
 
 
 # Singleton instance

@@ -6,11 +6,12 @@
 ```bash
 pgrep -fl victoria_telegram_bot
 ```
-Должен показать процесс. Если пусто — запустите:
+Должен показать процесс. Если пусто — запустите (рекомендуется из .venv — тогда Pillow и pypdf уже есть):
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
-python3 -m src.agents.bridge.victoria_telegram_bot
+.venv/bin/python -m src.agents.bridge.victoria_telegram_bot
 ```
+Или: `python3 -m src.agents.bridge.victoria_telegram_bot` (если пакеты установлены в этом Python).
 
 ### 2. Victoria Agent отвечает?
 ```bash
@@ -41,21 +42,25 @@ tail -f victoria_bot.log
 ```
 Или смотрите вывод в терминале при запуске в foreground.
 
-### 6. «PIL (Pillow) не установлен» / «pypdf не установлен» после перезагрузки
-Бот запускается **тем же Python**, что указан в команде (например, системный `python3` или из Launchd). Пакеты нужно ставить **в это окружение**, иначе после перезапуска снова будет «не установлен».
+### 6. «PIL (Pillow) не установлен» / «pypdf не установлен»
+Бот запускается **тем же Python**, что в команде. **Рекомендуемый способ:** запускать из venv проекта, где пакеты уже есть:
+```bash
+cd /Users/bikos/Documents/atra-web-ide && .venv/bin/python -m src.agents.bridge.victoria_telegram_bot
+```
+Если venv нет: `python3 -m venv .venv && .venv/bin/pip install Pillow pypdf` (или `pip install -r requirements.txt`).
 
-В логе при старте бота выводится команда вида:
+Если бот запускаете системным `python3` или из Launchd — в логе при старте выводится команда вида:
 ```
 Установите в окружении бота: /путь/к/python -m pip install Pillow pypdf
 ```
-Скопируйте и выполните **эту команду** (с вашим путём к Python). Тогда Pillow и pypdf окажутся в том же окружении, что и бот.
+Скопируйте и выполните её (для системного Homebrew Python может понадобиться `--user` или отдельный venv).
 
 ### 7. Бот не отвечает после перезагрузки Mac
 Victoria Telegram Bot — **процесс на хосте**, не в Docker. После перезагрузки его нужно запускать вручную или через LaunchAgent.
 
-**Запуск вручную:**
+**Запуск вручную (из .venv — с Pillow/pypdf):**
 ```bash
-cd /path/to/atra-web-ide && python3 -m src.agents.bridge.victoria_telegram_bot
+cd /path/to/atra-web-ide && .venv/bin/python -m src.agents.bridge.victoria_telegram_bot
 ```
 
 **Автозапуск при загрузке (опционально):**

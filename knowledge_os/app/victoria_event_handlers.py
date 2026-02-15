@@ -95,6 +95,70 @@ class VictoriaEventHandlers:
         context.state = state
         logger.debug(f"💾 Checkpoint создан: {state.value}")
     
+    async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
+        """Обработчик деградации производительности (Игорь/Дмитрий)"""
+        metric = event.payload.get("metric")
+        value = event.payload.get("value")
+        expert = event.payload.get("expert")
+        
+        logger.info(f"🚨 [AUTONOMOUS] {expert} обнаружил проблему: {metric} = {value}")
+        
+        # Автоматическая постановка задачи на исправление
+        if self.victoria:
+            task_prompt = f"ЭКСТРЕННО: {expert} обнаружил деградацию {metric} до {value}. Проведи диагностику и исправь."
+            # В реальности здесь вызывается Victoria Enhanced для планирования и выполнения
+            # await self.victoria.solve(task_prompt, priority='high')
+            
+        return {"status": "task_created", "expert": expert, "metric": metric}
+
+    async def handle_performance_degraded(self, event: Event) -> Dict[str, Any]:
+        """Обработчик деградации производительности (Игорь/Дмитрий)"""
+        metric = event.payload.get("metric")
+        value = event.payload.get("value")
+        expert = event.payload.get("expert")
+        
+        logger.info(f"🚨 [AUTONOMOUS] {expert} обнаружил проблему: {metric} = {value}")
+        
+        # [Task Queue v2] Автоматическая постановка задачи напрямую в Redis Stream
+        try:
+            from app.redis_manager import redis_manager
+            import uuid
+            
+            task_id = str(uuid.uuid4())
+            task_data = {
+                "task_id": task_id,
+                "expert_name": expert,
+                "description": f"АВТО-ДИАГНОСТИКА: Деградация {metric} до {value}. Проведи анализ и предложи исправление.",
+                "category": "system",
+                "metadata": {"autonomous": True, "source_event": event.event_id}
+            }
+            
+            await redis_manager.push_to_stream("expert_tasks", task_data)
+            logger.info(f"✅ [AUTONOMOUS] Задача {task_id} поставлена в очередь для {expert}")
+            
+            return {"status": "task_queued", "task_id": task_id, "expert": expert}
+        except Exception as e:
+            logger.error(f"❌ [AUTONOMOUS] Ошибка постановки задачи: {e}")
+            return {"status": "error", "message": str(e)}
+
+    async def handle_sentinel_event(self, event: Event) -> Dict[str, Any]:
+        """Универсальный обработчик для Sentinel Framework."""
+        try:
+            from app.sentinel_framework import ExpertSentinel
+            # В реальности здесь может быть пул стражей, но для API возвращаем статус
+            return {"status": "sentinel_triggered", "event": event.event_type.value}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    async def handle_event(self, event: Event) -> Dict[str, Any]:
+        """Общий диспетчер событий"""
+        if event.event_type == EventType.FILE_CREATED:
+            return await self.handle_file_created(event)
+        elif event.event_type == EventType.PERFORMANCE_DEGRADED:
+            return await self.handle_performance_degraded(event)
+        # ... другие типы ...
+        return {"status": "ignored"}
+
     async def handle_file_created(self, event: Event) -> Dict[str, Any]:
         """Обработчик создания файла"""
         # Используем state machine если доступна
@@ -210,6 +274,12 @@ class VictoriaEventHandlers:
         try:
             service_name = event.payload.get("service_name")
             service_type = event.payload.get("service_type")
+            
+            # Не перезапускаем себя (Victoria Agent): иначе цикл/путаница при ложном down
+            if service_name == "Victoria Agent":
+                logger.debug("Пропуск перезапуска: это мы (Victoria Agent)")
+                context.state = HandlerState.COMPLETED
+                return {"action": "skipped", "service_name": service_name, "reason": "self"}
             
             logger.warning(f"🔴 Обработка падения сервиса: {service_name}")
             

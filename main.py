@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 # FastAPI приложение
 app = FastAPI(
     title=settings.app_name,
-    description="Браузерная оболочка для ИИ-корпорации Singularity 9.0",
+    description="Браузерная оболочка для ИИ-корпорации Singularity 10.0",
     version=settings.api_version,
     lifespan=lifespan,
     docs_url="/docs",

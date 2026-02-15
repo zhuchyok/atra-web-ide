@@ -68,7 +68,7 @@ echo ""
 
 echo "3️⃣  LLM и модели"
 echo "-------------------------------------------"
-check "Ollama (11434)" "curl -sf --connect-timeout 5 http://localhost:11434/api/tags >/dev/null" "brew services start ollama" || true
+check "Ollama (11434)" "curl -sf --connect-timeout 5 http://localhost:11434/api/tags >/dev/null" "bash scripts/system_auto_recovery.sh или ollama serve (от пользователя с моделями)" || true
 warn "MLX API Server (11435)" "curl -sf --connect-timeout 5 http://localhost:11435/api/tags >/dev/null" || true
 echo ""
 

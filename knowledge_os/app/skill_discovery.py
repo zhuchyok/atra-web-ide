@@ -200,7 +200,35 @@ metadata: {metadata_json}
     async def _generate_skill_handler(self, skill_name: str, library_info: Dict[str, Any], api_info: Optional[Dict[str, Any]] = None) -> str:
         """Генерировать Python код для skill handler"""
         library_name = library_info.get("library") or library_info.get("name", skill_name)
-        
+        # Инжект вызова библиотеки при наличии api_info.function (реализация логики skill)
+        injected_logic = ""
+        if api_info and api_info.get("function"):
+            func_name = api_info.get("function")
+            lib_mod = (api_info.get("library") or library_name).replace("-", "_")
+            injected_logic = f'''
+        import importlib
+        import asyncio
+        mod = importlib.import_module("{lib_mod}")
+        fn = getattr(mod, "{func_name}", None)
+        if callable(fn):
+            result = await fn(**kwargs) if asyncio.iscoroutinefunction(fn) else fn(**kwargs)
+            return {{"success": True, "result": result}}
+        return {{"success": False, "error": "Функция {func_name} не найдена или не callable", "skill": "{skill_name}"}}
+'''
+        # Страховка: при отсутствии api_info.function — ищем стандартные точки входа (run/execute/skill_handler)
+        lib_mod = (api_info.get("library") if api_info else None) or library_name
+        lib_mod = lib_mod.replace("-", "_")
+        fallback_logic = f'''
+        import importlib
+        import asyncio
+        _mod = importlib.import_module("{lib_mod}")
+        for _entry in ("skill_handler", "run", "execute"):
+            _fn = getattr(_mod, _entry, None)
+            if callable(_fn):
+                _res = await _fn(**kwargs) if asyncio.iscoroutinefunction(_fn) else _fn(**kwargs)
+                return {{"success": True, "result": _res}}
+        return {{"success": False, "error": "Нет точки входа (skill_handler/run/execute). Задайте api_info.function при генерации.", "skill": "{skill_name}"}}
+'''
         handler_code = f'''"""
 Skill Handler для {skill_name}
 Автоматически сгенерирован Skill Discovery
@@ -244,16 +272,8 @@ async def skill_handler(**kwargs) -> Dict[str, Any]:
         }}
     
     try:
-        # TODO: Реализовать логику skill
-        # Пример:
-        # result = library_function(**kwargs)
-        # return {{"success": True, "result": result}}
-        
-        return {{
-            "success": True,
-            "message": "Skill {skill_name} выполнен (заглушка)",
-            "note": "Требуется реализация логики"
-        }}
+        # Логика: api_info.function → вызов указанной функции; иначе — поиск стандартных точек входа (run/execute/skill_handler)
+        {injected_logic if injected_logic else fallback_logic}
     except Exception as e:
         logger.error(f"❌ Ошибка выполнения skill {skill_name}: {{e}}")
         return {{
@@ -297,18 +317,32 @@ Metadata:
                     "INSERT INTO domains (name, description) VALUES ('skills', 'Skills registry') RETURNING id"
                 )
             
-            # Сохраняем в knowledge_nodes
-            await conn.execute("""
-                INSERT INTO knowledge_nodes (content, domain_id, metadata, confidence_score)
-                VALUES ($1, $2, $3, 0.9)
-                ON CONFLICT DO NOTHING
-            """, skill_content, domain_id, json.dumps({
+            # Сохраняем в knowledge_nodes (по возможности с embedding — VERIFICATION §5)
+            meta_kn = json.dumps({
                 "type": "skill",
                 "skill_name": skill.name,
                 "skill_version": skill.version,
                 "skill_source": skill.source.value,
                 "skill_path": skill.skill_path
-            }))
+            })
+            embedding = None
+            try:
+                from semantic_cache import get_embedding
+                embedding = await get_embedding(skill_content[:8000])
+            except Exception:
+                pass
+            if embedding is not None:
+                await conn.execute("""
+                    INSERT INTO knowledge_nodes (content, domain_id, metadata, confidence_score, embedding)
+                    VALUES ($1, $2, $3, 0.9, $4::vector)
+                    ON CONFLICT DO NOTHING
+                """, skill_content, domain_id, meta_kn, str(embedding))
+            else:
+                await conn.execute("""
+                    INSERT INTO knowledge_nodes (content, domain_id, metadata, confidence_score)
+                    VALUES ($1, $2, $3, 0.9)
+                    ON CONFLICT DO NOTHING
+                """, skill_content, domain_id, meta_kn)
             
             logger.info(f"💾 Skill сохранен в базу знаний: {skill.name}")
         except Exception as e:

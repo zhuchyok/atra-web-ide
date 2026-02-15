@@ -16,6 +16,9 @@ else
 fi
 export PYTHONPATH="${REPO_ROOT}/backend:${REPO_ROOT}"
 
+# 0. Опционально: seed БЗ эталонами (один раз: python3 scripts/seed_knowledge_from_dataset.py)
+# Если knowledge_nodes пуста — валидация не пройдёт; seed добавляет 97 узлов из validation_queries.json.
+
 # 1. Валидация на validation set (с реранкингом для повышения метрик)
 echo "1. Валидация..."
 export RERANKING_ENABLED="${RERANKING_ENABLED:-true}"

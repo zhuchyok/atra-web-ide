@@ -1,0 +1,95 @@
+{
+  "_comment": "Замеры холодного запуска и ответа. Использовать для таймаутов. Обновляется скриптом measure_cold_start_all_models.py.",
+  "measured_at": "2026-02-09",
+  "source": "mlx",
+  "models": [
+    {
+      "model": "coding",
+      "source": "mlx",
+      "deploy_estimate_sec": 1.59,
+      "warm_response_sec": 4.07,
+      "cold_total_sec": 5.66,
+      "recommended_timeout_sec": 66
+    },
+    {
+      "model": "fast",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.36,
+      "warm_response_sec": 0.31,
+      "cold_total_sec": 0.67,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "tiny",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.27,
+      "warm_response_sec": 0.11,
+      "cold_total_sec": 0.38,
+      "recommended_timeout_sec": 60
+    },
+    {
+      "model": "qwen_3b",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.54,
+      "warm_response_sec": 0.41,
+      "cold_total_sec": 0.95,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "phi3_mini",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.35,
+      "warm_response_sec": 0.39,
+      "cold_total_sec": 0.74,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "default",
+      "source": "mlx",
+      "deploy_estimate_sec": 1.04,
+      "warm_response_sec": 4.04,
+      "cold_total_sec": 5.08,
+      "recommended_timeout_sec": 65
+    },
+    {
+      "model": "qwen2.5-coder:32b",
+      "source": "mlx",
+      "deploy_estimate_sec": 1.76,
+      "warm_response_sec": 4.03,
+      "cold_total_sec": 5.79,
+      "recommended_timeout_sec": 66
+    },
+    {
+      "model": "phi3.5:3.8b",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.72,
+      "warm_response_sec": 0.39,
+      "cold_total_sec": 1.11,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "phi3:mini-4k",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.87,
+      "warm_response_sec": 0.34,
+      "cold_total_sec": 1.21,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "qwen2.5:3b",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.57,
+      "warm_response_sec": 0.39,
+      "cold_total_sec": 0.96,
+      "recommended_timeout_sec": 61
+    },
+    {
+      "model": "tinyllama:1.1b-chat",
+      "source": "mlx",
+      "deploy_estimate_sec": 0.32,
+      "warm_response_sec": 0.08,
+      "cold_total_sec": 0.4,
+      "recommended_timeout_sec": 60
+    }
+  ]
+}

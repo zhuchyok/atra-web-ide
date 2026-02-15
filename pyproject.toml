@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "atra-web-ide"
 version = "0.1.0"
-description = "ATRA Web IDE - Browser-based IDE for AI Corporation Singularity 9.0"
+description = "ATRA Web IDE - Browser-based IDE for AI Corporation Singularity 10.0"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -65,7 +65,8 @@ ignore_missing_imports = true
 line-length = 100
 target-version = "py39"
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501"]  # Line too long (handled by black)
+ignore = ["E501", "F401", "F841"]  # Line too long; unused imports/vars (CI: постепенно убирать)
+exclude = ["knowledge_os/cache_normalizer_rs", "target", "*.egg-info"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "scripts"]

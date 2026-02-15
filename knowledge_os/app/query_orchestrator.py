@@ -321,10 +321,62 @@ class QueryOrchestrator:
             except Exception as e:
                 logger.debug(f"⚠️ [QUERY ORCHESTRATOR] Ошибка восстановления контекста сессии: {e}")
         
-        # TODO: Добавить подбор релевантных планов/кода/знаний из БД
-        # Это будет реализовано в Этапе 2-3
+        if context.relevant_knowledge is None:
+            context.relevant_knowledge = []
+        # Подбор релевантных планов/знаний из БД (knowledge_nodes) по запросу
+        if normalized_query and normalized_query.goal:
+            await self.enrich_context_from_db_async(context, normalized_query.goal, limit=5)
         
         return context
+    
+    async def enrich_context_from_db_async(
+        self,
+        context: PromptContext,
+        query_text: str,
+        limit: int = 5,
+    ) -> None:
+        """
+        Подбор релевантных планов/знаний из БД (knowledge_nodes) по запросу.
+        Вызывать из async-кода после gather_context для заполнения context.relevant_knowledge.
+        """
+        if not query_text or len(query_text.strip()) < 2:
+            return
+        try:
+            import os
+            import asyncpg
+            db_url = os.getenv("DATABASE_URL")
+            if not db_url:
+                return
+            conn = await asyncpg.connect(db_url)
+            try:
+                table_exists = await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'knowledge_nodes')"
+                )
+                if not table_exists:
+                    return
+                q = query_text.strip()[:200].replace("%", "\\%")
+                rows = await conn.fetch(
+                    """
+                    SELECT LEFT(content, 500) AS snippet
+                    FROM knowledge_nodes
+                    WHERE content IS NOT NULL AND content ILIKE $1
+                    ORDER BY updated_at DESC NULLS LAST
+                    LIMIT $2
+                    """,
+                    f"%{q}%",
+                    limit,
+                )
+                if context.relevant_knowledge is None:
+                    context.relevant_knowledge = []
+                for r in rows:
+                    if r["snippet"]:
+                        context.relevant_knowledge.append(r["snippet"])
+                if rows:
+                    logger.debug("QueryOrchestrator: подобрано %s фрагментов из knowledge_nodes", len(rows))
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.debug("QueryOrchestrator enrich_context_from_db: %s", e)
     
     def build_prompt(
         self,

@@ -28,7 +28,9 @@ async def get_http_client(limits: Optional[httpx.Limits] = None) -> httpx.AsyncC
     """Ленивая инициализация общего клиента. Потокобезопасно."""
     global _client
     async with _lock:
-        if _client is None:
+        if _client is None or _client.is_closed:
+            if _client is not None and _client.is_closed:
+                logger.debug("Shared HTTP client was closed, re-initializing")
             _client = httpx.AsyncClient(
                 limits=limits or DEFAULT_LIMITS,
                 timeout=httpx.Timeout(10.0),

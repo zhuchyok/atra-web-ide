@@ -258,20 +258,32 @@ class StreamingOrchestrator:
         hypothesis = run_cursor_agent(link_prompt)
         
         if hypothesis:
-            # Сохраняем в БД
-            knowledge_id = await pool.fetchval("""
-                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                VALUES ($1, $2, 0.95, $3, true)
-                RETURNING id
-            """, node['domain_id'],
-                f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
-                json.dumps({
-                    "source": "cross_domain_linker",
-                    "parents": [str(node['id']), str(random_node['id'])],
-                    "source_domain": node['domain'],
-                    "target_domain": random_node['domain']
-                })
-            )
+            # Сохраняем в БД (по возможности с embedding — VERIFICATION §5)
+            content_kn = f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}"
+            meta_kn = json.dumps({
+                "source": "cross_domain_linker",
+                "parents": [str(node['id']), str(random_node['id'])],
+                "source_domain": node['domain'],
+                "target_domain": random_node['domain']
+            })
+            embedding = None
+            try:
+                from semantic_cache import get_embedding
+                embedding = await get_embedding(content_kn[:8000])
+            except Exception:
+                pass
+            if embedding is not None:
+                knowledge_id = await pool.fetchval("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                    VALUES ($1, $2, 0.95, $3, true, $4::vector)
+                    RETURNING id
+                """, node['domain_id'], content_kn, meta_kn, str(embedding))
+            else:
+                knowledge_id = await pool.fetchval("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                    VALUES ($1, $2, 0.95, $3, true)
+                    RETURNING id
+                """, node['domain_id'], content_kn, meta_kn)
             
             # Публикуем событие через streaming инфраструктуру
             if self.producer:

@@ -56,12 +56,26 @@ async def synthesize_wisdom():
     wisdom = run_cursor_agent(synthesis_prompt)
     
     if wisdom:
-        # Сохраняем Мета-Знание
+        # Сохраняем Мета-Знание (по возможности с embedding — VERIFICATION §5)
         domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = 'Strategy'")
-        await conn.execute("""
-            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-            VALUES ($1, $2, 1.0, $3, true)
-        """, domain_id, f"🏛 META-STRATEGY: {wisdom}", json.dumps({"type": "meta_wisdom", "nodes_count": len(nodes)}), True)
+        content_kn = f"🏛 META-STRATEGY: {wisdom}"
+        meta_kn = json.dumps({"type": "meta_wisdom", "nodes_count": len(nodes)})
+        embedding = None
+        try:
+            from semantic_cache import get_embedding
+            embedding = await get_embedding(content_kn[:8000])
+        except Exception:
+            pass
+        if embedding is not None:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                VALUES ($1, $2, 1.0, $3, true, $4::vector)
+            """, domain_id, content_kn, meta_kn, str(embedding))
+        else:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, 1.0, $3, true)
+            """, domain_id, content_kn, meta_kn)
         
         print(f"✅ Meta-Strategy synthesized and stored.")
 

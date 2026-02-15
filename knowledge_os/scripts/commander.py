@@ -68,7 +68,7 @@ async def main():
     print("🤖 ATRA COMMAND CENTER (Autonomous Agent)")
     print("="*50)
     print("Я готов выполнять твои задачи через Ollama.")
-    print("Brain: deepseek-r1-distill-llama:70b | Hands: qwen2.5-coder:32b")  # MLX модели (Mac Studio)
+    print("Brain: phi3.5:3.8b | Hands: qwen2.5-coder:32b")
     print("Для выхода напиши 'exit' или 'выход'.\n")
 
     agent = VictoriaAgent(name="Victoria")

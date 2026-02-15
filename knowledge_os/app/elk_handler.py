@@ -80,9 +80,15 @@ class ELKHandler(logging.Handler):
             # Добавляем в буфер
             self._log_buffer.append(log_data)
             
-            # Отправляем если буфер заполнен
+            # Отправляем если буфер заполнен (только при уже запущенном event loop)
             if len(self._log_buffer) >= self.batch_size:
-                asyncio.create_task(self._flush_buffer())
+                try:
+                    loop = asyncio.get_running_loop()
+                    if loop.is_running():
+                        asyncio.create_task(self._flush_buffer())
+                except RuntimeError:
+                    # Нет running loop (напр. при инициализации Victoria до старта Uvicorn) — не падать
+                    pass
         except Exception:
             self.handleError(record)
     

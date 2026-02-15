@@ -57,7 +57,7 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         sleep 10
     fi
     
-    # Проверка, какие контейнеры не запущены
+    # Проверка, какие контейнеры не запущены (up -d поднимает остановленные)
     NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l || echo "0")
     
     if [ "$NOT_RUNNING" -gt 0 ]; then
@@ -68,6 +68,17 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         sleep 20
     else
         echo "   ✅ Все контейнеры Knowledge OS запущены"
+    fi
+    # Явная проверка оркестратора и Nightly Learner (задачи и обучение)
+    if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_nightly$'; then
+        echo "   ⚠️  Nightly Learner не запущен — поднимаю..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_nightly 2>&1 | grep -v "level=warning" || true
+        sleep 3
+    fi
+    if ! docker ps --format '{{.Names}}' | grep -q '^knowledge_os_orchestrator$'; then
+        echo "   ⚠️  Orchestrator не запущен — поднимаю..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator 2>&1 | grep -v "level=warning" || true
+        sleep 3
     fi
 else
     echo "   ❌ docker-compose.yml не найден!"

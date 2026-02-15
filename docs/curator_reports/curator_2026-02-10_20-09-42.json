@@ -1,0 +1,99 @@
+{
+  "ts": "2026-02-10T20:11:12.756401+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "1025c3cc-d4c0-438c-a9b8-c84e63ab2289",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "1025c3cc-d4c0-438c-a9b8-c84e63ab2289",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Ошибка при обращении к модели: name 'Any' is not defined. Проверьте MLX API Server (порт 11435) или Ollama (11434).",
+      "output_length": 115,
+      "correlation_id": "1d3145ff-7814-4c0c-a1ea-9b060c0d2046",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "1d3145ff-7814-4c0c-a1ea-9b060c0d2046",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 7.64
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "Вероника: 'Исправляю формат аргумента для list_directory, передаю путь напрямую, как требует API.'",
+      "output_length": 98,
+      "correlation_id": "4698195e-ea84-45d7-9415-234f0730cb6b",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "veronica",
+        "delegated_to": "Вероника",
+        "method": "Вероника",
+        "correlation_id": "4698195e-ea84-45d7-9415-234f0730cb6b",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 67.71
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.\nРаботаю по логике корпорации: библия (MASTER_REFERENCE), уточняю при неясности, проверяю рез",
+      "output_length": 543,
+      "correlation_id": "04a77cdc-e4dc-4e84-bea4-b91aed56bfb4",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "04a77cdc-e4dc-4e84-bea4-b91aed56bfb4",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 7.54
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "Ошибка при обращении к модели: name 'Any' is not defined. Проверьте MLX API Server (порт 11435) или Ollama (11434).",
+      "output_length": 115,
+      "correlation_id": "7dd002f8-1cf2-437c-80bc-492bb3240a16",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "7dd002f8-1cf2-437c-80bc-492bb3240a16",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 7.53
+    }
+  ]
+}

@@ -279,7 +279,7 @@ async def run_simulation(simulation_id: int):
                 response = await client.post(
                     f"{MLX_API_URL}/api/generate",
                     json={
-                        "model": "deepseek-r1-distill-llama:70b",  # Reasoning модель для глубокого анализа
+                        "model": "phi3.5:3.8b",
                         "prompt": prompt,
                         "stream": False,
                         "options": {

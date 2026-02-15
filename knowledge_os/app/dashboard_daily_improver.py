@@ -209,10 +209,23 @@ async def _log_improvement_to_knowledge(conn, summary: str) -> bool:
         if not domain_id:
             return False
         metadata = json.dumps({"source": "dashboard_daily_improver", "cycle": datetime.now().isoformat()})
-        await conn.execute("""
-            INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
-            VALUES ($1, $2, $3::jsonb, 0.8, 'dashboard_improvement_cycle')
-        """, domain_id, summary[:2000], metadata)
+        content_kn = summary[:2000]
+        embedding = None
+        try:
+            from semantic_cache import get_embedding
+            embedding = await get_embedding(content_kn[:8000])
+        except Exception:
+            pass
+        if embedding is not None:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref, embedding)
+                VALUES ($1, $2, $3::jsonb, 0.8, 'dashboard_improvement_cycle', $4::vector)
+            """, domain_id, content_kn, metadata, str(embedding))
+        else:
+            await conn.execute("""
+                INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
+                VALUES ($1, $2, $3::jsonb, 0.8, 'dashboard_improvement_cycle')
+            """, domain_id, content_kn, metadata)
         return True
     except Exception as e:
         logger.warning("Could not log to knowledge_nodes: %s", e)

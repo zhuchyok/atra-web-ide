@@ -18,6 +18,11 @@ try:
 except ImportError:
     QueryOrchestrator = None
 
+try:
+    from ai_core import run_smart_agent_async
+except ImportError:
+    run_smart_agent_async = None
+
 
 class StrategyDiscovery:
     """
@@ -139,7 +144,62 @@ class StrategyDiscovery:
             questions.append("Есть ли еще важные детали или требования к стратегии?")
         
         return questions
-    
+
+    async def _maybe_generate_follow_up_questions(self, session_id: str, question_id: str, answer: str) -> Optional[List[str]]:
+        """
+        Использует LLM для анализа ответа: нужны ли ещё уточняющие вопросы.
+        Если да — генерирует до 3 вопросов, сохраняет в сессию и возвращает их id.
+        """
+        if not run_smart_agent_async or not self.session_manager:
+            return None
+        try:
+            summary = self.session_manager.get_session_summary(session_id)
+            if not summary or len(summary) > 4000:
+                summary = summary[:4000] + "..." if summary and len(summary) > 4000 else (summary or "")
+            prompt = f"""Контекст сессии стратегии (вопросы и ответы):
+{summary}
+
+Только что пользователь ответил на вопрос. Его ответ: «{answer[:1500]}»
+
+Темы Discovery, которые нужно покрыть: цели, ограничения, риски, приоритеты.
+Нужны ли ещё 1–3 уточняющих вопроса по этому ответу или по непокрытым темам?
+Если да — напиши только вопросы, по одному на строку, без нумерации и пояснений (максимум 3 строки).
+Если нет — напиши ровно: НЕТ"""
+
+            raw = await run_smart_agent_async(
+                prompt, expert_name="Виктория", category="strategy"
+            )
+            if not raw or not raw.strip():
+                return None
+            raw_clean = raw.strip().upper()
+            if raw_clean == "НЕТ" or raw_clean.startswith("НЕТ ") or raw_clean.startswith("НЕТ\n"):
+                return None
+            lines = [ln.strip() for ln in raw.strip().split("\n") if ln.strip() and ln.strip().upper() != "НЕТ"]
+            questions = []
+            for ln in lines[:3]:
+                if len(ln) > 10 and not ln.upper().startswith("НЕТ"):
+                    questions.append(ln)
+            if not questions:
+                return None
+            role = "Виктория"
+            if self.query_orch:
+                try:
+                    session = self.session_manager.get_session(session_id)
+                    if session and session.get("title"):
+                        norm = self.query_orch.normalize_query(session["title"])
+                        if norm:
+                            role = self.query_orch.select_role(norm.query_type) or role
+                except Exception:
+                    pass
+            new_ids = []
+            for q_text in questions:
+                qid = self.session_manager.add_question(session_id, role, q_text)
+                new_ids.append(qid)
+            return new_ids
+        except Exception as e:
+            logger.debug("❓ [DISCOVERY] LLM для уточняющих вопросов: %s", e)
+            return None
+
     async def process_answer(self, session_id: str, question_id: str, answer: str) -> Optional[List[str]]:
         """
         Обрабатывает ответ пользователя: сохраняет ответ и генерирует новые вопросы (если нужно)
@@ -158,13 +218,15 @@ class StrategyDiscovery:
         try:
             # Сохраняем ответ
             self.session_manager.answer_question(question_id, answer)
-            
-            # Проверяем, нужно ли задать дополнительные вопросы
-            # TODO: Использовать LLM для анализа ответа и генерации новых вопросов
-            
+
+            # Анализ ответа через LLM и генерация новых вопросов при необходимости
+            new_question_ids = await self._maybe_generate_follow_up_questions(session_id, question_id, answer)
+            if new_question_ids:
+                logger.info(f"❓ [DISCOVERY] Сгенерировано {len(new_question_ids)} уточняющих вопросов для сессии {session_id}")
+                return new_question_ids
+
             logger.debug(f"✅ [DISCOVERY] Обработан ответ на вопрос {question_id} в сессии {session_id}")
-            
-            return None  # Пока не генерируем автоматически новые вопросы
+            return None
         except Exception as e:
             logger.error(f"❌ [DISCOVERY] Ошибка обработки ответа: {e}")
             return None

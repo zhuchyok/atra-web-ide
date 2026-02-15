@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 # Иерархия моделей от простых к сложным
 MODEL_HIERARCHY = {
-    'fast': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0', 'deepseek-r1-distill-llama:70b'],
+    'fast': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0'],
     'coding': ['phi3.5:3.8b', 'qwen2.5-coder:32b', 'glm-4.7-flash:q8_0'],
-    'reasoning': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0', 'deepseek-r1-distill-llama:70b'],
-    'default': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0', 'deepseek-r1-distill-llama:70b']
+    'reasoning': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0'],
+    'default': ['phi3.5:3.8b', 'glm-4.7-flash:q8_0']
 }
 
 class ModelPerformanceTracker:

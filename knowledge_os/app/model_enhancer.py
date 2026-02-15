@@ -183,8 +183,8 @@ class SpeculativeDecodingEngine:
         
         # Draft модели (быстрые) для разных target моделей
         self.draft_models = {
-            "command-r-plus:104b": "qwen2.5:3b",  # Tiny для большой
-            "deepseek-r1-distill-llama:70b": "phi3.5:3.8b",  # Маленькая для средней
+            "command-r-plus:104b": "phi3.5:3.8b",
+            "deepseek-r1-distill-llama:70b": "phi3.5:3.8b",
             "llama3.3:70b": "phi3.5:3.8b",
             "qwen2.5-coder:32b": "qwen2.5:3b",
             "phi3.5:3.8b": "tinyllama:1.1b-chat",  # Tiny для маленькой
@@ -320,35 +320,42 @@ class EnhancedRAGEngine:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                # 1. Векторный поиск
-                # TODO: Добавить реальный векторный поиск через pgvector
-                
-                # 2. Поиск по ключевым словам с фильтрацией
-                keywords = query.lower().split()[:10]
-                keyword_pattern = '|'.join(keywords)
-                
-                rows = await conn.fetch("""
-                    SELECT 
-                        id, content, confidence_score, usage_count,
-                        metadata, domain_id, is_verified,
-                        -- Простая оценка релевантности
-                        (
-                            CASE WHEN is_verified THEN 1.0 ELSE 0.8 END *
-                            confidence_score *
-                            (1.0 + LEAST(usage_count / 100.0, 0.2))
-                        ) as relevance_score
-                    FROM knowledge_nodes
-                    WHERE is_verified = TRUE
-                    AND confidence_score >= $1
-                    AND (
-                        content ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' 
-                            FROM unnest(string_to_array($2, '|')) AS keyword])
-                        OR metadata::text ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' 
-                            FROM unnest(string_to_array($2, '|')) AS keyword])
-                    )
-                    ORDER BY relevance_score DESC
-                    LIMIT $3
-                """, min_confidence, keyword_pattern, limit * 2)  # Берем в 2 раза больше для реранкинга
+                # 1. Векторный поиск через pgvector (если есть embedding у запроса)
+                rows = []
+                try:
+                    from semantic_cache import get_embedding
+                    query_embedding = await get_embedding(query[:8000])
+                    if query_embedding and len(query_embedding) == 768:
+                        vector_rows = await conn.fetch("""
+                            SELECT id, content, confidence_score, usage_count,
+                                metadata, domain_id, is_verified,
+                                (1 - (embedding <=> $1::vector)) as relevance_score
+                            FROM knowledge_nodes
+                            WHERE embedding IS NOT NULL AND is_verified = TRUE AND confidence_score >= $2
+                            ORDER BY embedding <=> $1::vector
+                            LIMIT $3
+                        """, query_embedding, min_confidence, limit * 2)
+                        if vector_rows:
+                            rows = list(vector_rows)
+                except Exception as e:
+                    logger.debug("model_enhancer: pgvector search: %s", e)
+
+                # 2. При отсутствии результатов — поиск по ключевым словам
+                if not rows:
+                    keywords = query.lower().split()[:10]
+                    keyword_pattern = '|'.join(keywords)
+                    rows = await conn.fetch("""
+                        SELECT id, content, confidence_score, usage_count,
+                            metadata, domain_id, is_verified,
+                            (CASE WHEN is_verified THEN 1.0 ELSE 0.8 END * confidence_score
+                                * (1.0 + LEAST(COALESCE(usage_count, 0) / 100.0, 0.2))) as relevance_score
+                        FROM knowledge_nodes
+                        WHERE is_verified = TRUE AND confidence_score >= $1
+                        AND (content ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($2, '|')) AS keyword])
+                            OR metadata::text ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($2, '|')) AS keyword]))
+                        ORDER BY relevance_score DESC
+                        LIMIT $3
+                    """, min_confidence, keyword_pattern, limit * 2)
                 
                 # 3. Реранкинг (если включен)
                 if use_reranking and len(rows) > limit:
@@ -585,7 +592,7 @@ class ModelEnhancer:
             if task_type == "coding":
                 ensemble_models = ["qwen2.5-coder:32b", "qwen2.5:3b"]
             elif task_type == "reasoning":
-                ensemble_models = ["deepseek-r1-distill-llama:70b", "llama3.3:70b"]
+                ensemble_models = ["phi3.5:3.8b", "qwen2.5-coder:32b"]
             else:
                 ensemble_models = [model_name, "phi3.5:3.8b"]
             
@@ -610,7 +617,7 @@ async def main():
     # Пример 1: Reasoning с Self-Consistency
     result1 = await enhancer.enhance_response(
         "Реши задачу: У Маши было 5 яблок, она отдала 2. Сколько осталось?",
-        "deepseek-r1-distill-llama:70b",
+        "phi3.5:3.8b",
         enhancement_methods=["self_consistency", "rag", "cot"],
         task_type="reasoning"
     )

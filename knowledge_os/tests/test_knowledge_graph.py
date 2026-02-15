@@ -8,8 +8,10 @@ from knowledge_os.app.knowledge_graph import KnowledgeGraph, LinkType
 
 
 @pytest.mark.asyncio
-async def test_create_link(db_connection, test_domain_id):
-    """Test creating a knowledge link"""
+async def test_create_link(db_connection, test_domain_id, knowledge_nodes_id_is_uuid):
+    """Test creating a knowledge link (требует knowledge_nodes.id = UUID, knowledge_links — UUID)."""
+    if not knowledge_nodes_id_is_uuid:
+        pytest.skip("knowledge_nodes.id не UUID — knowledge_links ожидает UUID (см. init.sql vs бэкап БД)")
     graph = KnowledgeGraph()
     
     # Create two test knowledge nodes
@@ -38,15 +40,17 @@ async def test_create_link(db_connection, test_domain_id):
     # Verify link exists
     links = await graph.get_links(str(node1_id))
     assert len(links) > 0
-    assert links[0]['target_node_id'] == str(node2_id)
+    assert str(links[0]['target_node_id']) == str(node2_id)
     
     # Cleanup
     await db_connection.execute("DELETE FROM knowledge_nodes WHERE id IN ($1, $2)", node1_id, node2_id)
 
 
 @pytest.mark.asyncio
-async def test_get_related_nodes(db_connection, test_domain_id):
-    """Test getting related nodes"""
+async def test_get_related_nodes(db_connection, test_domain_id, knowledge_nodes_id_is_uuid):
+    """Test getting related nodes (требует knowledge_nodes.id = UUID)."""
+    if not knowledge_nodes_id_is_uuid:
+        pytest.skip("knowledge_nodes.id не UUID — knowledge_links ожидает UUID")
     graph = KnowledgeGraph()
     
     # Create knowledge nodes with links

@@ -14,6 +14,29 @@
 
 ## Почему может быть пусто
 
+### 0. Контейнеры оркестратора или Nightly Learner остановились и не перезапустились (Docker)
+
+**Причина (устранена 2026-02-08):** Задачи и обучение создают контейнеры **knowledge_os_orchestrator** и **knowledge_nightly**. Если контейнер упал (OOM, исключение, перезагрузка без полного `up -d`):
+
+- **Раньше:** скрипт самовосстановления при обнаружении «не запущенных» контейнеров делал `docker-compose restart`. Команда **restart** перезапускает только **уже работающие** контейнеры и **не поднимает** остановленные — поэтому упавший knowledge_nightly или knowledge_os_orchestrator так и оставались выключенными.
+- Контроль (проверка здоровья) был только у Victoria и Veronica; оркестратор и Nightly Learner в цикле восстановления явно не проверялись и не поднимались по имени.
+- Самовосстановление запускается при загрузке системы (launchd) и вручную; при падении контейнера в середине дня до следующего запуска скрипта никто перезапуск не выполнял.
+
+**Что сделано:**
+
+1. **scripts/system_auto_recovery.sh:** при наличии остановленных контейнеров Knowledge OS выполняется **`up -d`** (а не `restart`), чтобы поднять все сервисы, включая упавшие. Добавлена явная проверка: если **knowledge_nightly** или **knowledge_os_orchestrator** не в `docker ps`, выполняется `up -d knowledge_nightly` и `up -d knowledge_os_orchestrator`.
+2. **scripts/check_and_start_containers.sh:** после общего `up -d` добавлена явная проверка и подъём **knowledge_nightly** и **knowledge_os_orchestrator**, если они не запущены.
+3. **scripts/verify_mac_studio_self_recovery.sh:** уже содержал проверку этих контейнеров и подсказку `up -d`; теперь восстановление дублируется в основном цикле system_auto_recovery.
+
+**Рекомендация:** Один раз настроить периодический запуск самовосстановления (например, раз в час через launchd), чтобы упавшие контейнеры поднимались без ожидания перезагрузки. Либо запускать вручную после сбоя: `bash scripts/system_auto_recovery.sh` или `bash scripts/check_and_start_containers.sh`.
+
+**Проверка, что оркестратор и Nightly Learner работают:**
+
+```bash
+docker ps --format '{{.Names}}' | grep -E 'knowledge_nightly|knowledge_os_orchestrator'
+# Ожидаются две строки: knowledge_nightly, knowledge_os_orchestrator
+```
+
 ### 1. Cron не настроен
 
 Оркестратор и Nightly Learner запускаются **только по cron**. Если его не настраивали, они не запускаются.

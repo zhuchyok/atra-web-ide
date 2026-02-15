@@ -1,0 +1,71 @@
+{
+  "_comment": "Замеры холодного запуска и ответа по моделям Ollama (выгрузка → холодный запрос → тёплый). Использовать для таймаутов и планирования (OLLAMA_EXECUTOR_TIMEOUT, SERVICE_MONITOR_INITIAL_DELAY и т.д.). Обновить после повторного прогона scripts/measure_cold_start_all_models.py",
+  "measured_at": "2026-02-08",
+  "source": "scripts/measure_cold_start_all_models.py (Ollama, таймаут 15/30 мин)",
+  "models": [
+    {
+      "model": "qwen3-coder:30b",
+      "source": "ollama",
+      "deploy_estimate_sec": 1.55,
+      "warm_response_sec": 0.57,
+      "cold_total_sec": 2.12,
+      "recommended_timeout_sec": 65
+    },
+    {
+      "model": "qwq:32b",
+      "source": "ollama",
+      "deploy_estimate_sec": 43.25,
+      "warm_response_sec": 58.12,
+      "cold_total_sec": 101.37,
+      "recommended_timeout_sec": 165
+    },
+    {
+      "model": "qwen2.5-coder:32b",
+      "source": "ollama",
+      "deploy_estimate_sec": 0,
+      "warm_response_sec": 123.13,
+      "cold_total_sec": 119.08,
+      "recommended_timeout_sec": 180
+    },
+    {
+      "model": "glm-4.7-flash:q8_0",
+      "source": "ollama",
+      "deploy_estimate_sec": 0,
+      "warm_response_sec": 23.66,
+      "cold_total_sec": 16.47,
+      "recommended_timeout_sec": 80
+    },
+    {
+      "model": "llava:7b",
+      "source": "ollama",
+      "deploy_estimate_sec": 0.72,
+      "warm_response_sec": 0.44,
+      "cold_total_sec": 1.16,
+      "recommended_timeout_sec": 65
+    },
+    {
+      "model": "phi3.5:3.8b",
+      "source": "ollama",
+      "deploy_estimate_sec": 0,
+      "warm_response_sec": 224.72,
+      "cold_total_sec": 125.7,
+      "recommended_timeout_sec": 190
+    },
+    {
+      "model": "moondream:latest",
+      "source": "ollama",
+      "deploy_estimate_sec": 198.89,
+      "warm_response_sec": 0.94,
+      "cold_total_sec": 199.83,
+      "recommended_timeout_sec": 265
+    },
+    {
+      "model": "tinyllama:1.1b-chat",
+      "source": "ollama",
+      "deploy_estimate_sec": 3.76,
+      "warm_response_sec": 2.68,
+      "cold_total_sec": 6.44,
+      "recommended_timeout_sec": 70
+    }
+  ]
+}

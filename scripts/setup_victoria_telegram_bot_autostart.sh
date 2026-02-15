@@ -8,7 +8,12 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-PYTHON3="$(which python3 2>/dev/null || echo "/usr/bin/python3")"
+# Предпочитаем .venv (Pillow, pypdf уже установлены)
+if [ -x "$ROOT/.venv/bin/python" ]; then
+    PYTHON3="$ROOT/.venv/bin/python"
+else
+    PYTHON3="$(which python3 2>/dev/null || echo "/usr/bin/python3")"
+fi
 LAUNCHD_PLIST="${HOME}/Library/LaunchAgents/com.atra.victoria-telegram-bot.plist"
 
 echo "=============================================="

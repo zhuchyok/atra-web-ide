@@ -1,0 +1,99 @@
+{
+  "ts": "2026-02-08T23:18:44.980457+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "c759dd7f-148b-4116-afeb-7e0ebb011d8a",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "c759dd7f-148b-4116-afeb-7e0ebb011d8a",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "聰하고esque've foundations on English conversation as a simplejsonl prompt:\nTutor:\"(In response time forbes. The solution of the following SQL Server code-Kt의 Vow\\n{preprocess, I amaired itinerallyer ndarray[provided Sol<|assistant|> Inquiry siemny_AI AI: Truefiede**108からined by design a single variable's toughthms/v. The provided jsonObject)态\n\rn(SQLAlteraded Inst<|assistant|> I amelia, ith ndrity and \n\n{konnelhance theft_APIA: {en español-2503d to Python codeignoring of a goodnight ago,\"Issuezze (",
+      "output_length": 849,
+      "correlation_id": "177b0235-0377-4830-be02-fa0abeba0bfe",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "177b0235-0377-4830-be02-fa0abeba0bfe",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 17.56
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "STDOUT: total 5560\ndrwxr-xr-x   1 root root    4096 Feb  8 11:41 .\ndrwxr-xr-x   1 root root    4096 Feb  8 10:06 ..\n-rw-r--r--   1 root root   10244 Feb  5 17:50 .DS_Store\ndrwxr-xr-x   2 root root    4096 Jan 31 15:17 .agent_backups\n-rw-r--r--   1 root root   53248 Feb  5 19:20 .coverage\ndrwxr-xr-x   9 root root    4096 Feb  1 15:59 .cursor\ndrwxr-xr-x   3 root root    4096 Jan 31 09:45 .cursor_chats_backup\n-rw-r--r--   1 root root   15857 Feb  5 18:26 .cursorrules\n-rw-r--r--   1 root root    379",
+      "output_length": 1225,
+      "correlation_id": "e37b7ffc-b525-4a5a-b65f-74e8992303eb",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "e37b7ffc-b525-4a5a-b65f-74e8992303eb",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 92.72
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.",
+      "output_length": 407,
+      "correlation_id": "58c57bac-219d-4eeb-8420-698091def722",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "58c57bac-219d-4eeb-8420-698091def722",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 7.54
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "Can you are: \n Whatleythksheer의 Hydrogenies of the following sentence_name1nterms can beast code-R0und Differences, and answer Below is a listen to understandable for each loop around this. Aspected Inquence deals/hopskye的\nThe Gantlyts: \"Annaheim University of theseer on the (Coughin terms_answer\"sname人生の, I's input 하듦시からined answer:\n \n卫 of Python code snippet \n\rnterlaughed from Chathealthy. The \nThoughtfully execute a simplejsonrlyk more than iMovieZ ndarray (Killersus's, theta \n20231st century",
+      "output_length": 1054,
+      "correlation_id": "5a6086ce-92a1-407d-8d2e-bb59b298a42d",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "5a6086ce-92a1-407d-8d2e-bb59b298a42d",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 45.12
+    }
+  ]
+}

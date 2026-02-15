@@ -15,7 +15,7 @@ import asyncpg
 import subprocess
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple  # noqa: F401 - Optional used in evolve_expert_from_insights
 from dataclasses import dataclass
 
 logging.basicConfig(level=logging.INFO)
@@ -278,17 +278,12 @@ class ExpertEvolver:
                     
                     logger.info(f"✨ Expert {expert['name']} evolved to v{new_version}")
                     
-                    # Сохраняем событие эволюции
+                    # Сохраняем событие эволюции (по возможности с embedding — VERIFICATION §5, WHATS_NOT_DONE §4)
                     domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = 'Strategy' LIMIT 1")
                     if not domain_id:
                         domain_id = await conn.fetchval("INSERT INTO domains (name) VALUES ('Strategy') RETURNING id")
-                    
-                    await conn.execute("""
-                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                        VALUES ($1, $2, 1.0, $3, true)
-                    """, domain_id, 
-                    f"🧬 ЭВОЛЮЦИЯ: {expert['name']} прошел автоматическую эволюцию до v{new_version} на основе метрик (success_rate: {metrics.success_rate:.2%}).",
-                    json.dumps({
+                    content_kn = f"🧬 ЭВОЛЮЦИЯ: {expert['name']} прошел автоматическую эволюцию до v{new_version} на основе метрик (success_rate: {metrics.success_rate:.2%})."
+                    meta_kn = json.dumps({
                         "type": "expert_evolution",
                         "expert": expert['name'],
                         "version": new_version,
@@ -297,7 +292,23 @@ class ExpertEvolver:
                             "response_time": metrics.response_time_avg,
                             "knowledge_quality": metrics.knowledge_quality
                         }
-                    }))
+                    })
+                    embedding = None
+                    try:
+                        from semantic_cache import get_embedding
+                        embedding = await get_embedding(content_kn[:8000])
+                    except Exception:
+                        pass
+                    if embedding is not None:
+                        await conn.execute("""
+                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                            VALUES ($1, $2, 1.0, $3, true, $4::vector)
+                        """, domain_id, content_kn, meta_kn, str(embedding))
+                    else:
+                        await conn.execute("""
+                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                            VALUES ($1, $2, 1.0, $3, true)
+                        """, domain_id, content_kn, meta_kn)
                     
                     return True
                 
@@ -308,6 +319,54 @@ class ExpertEvolver:
             logger.error(f"Error evolving expert {expert_id}: {e}")
             return False
     
+    async def evolve_expert_from_insights(
+        self, conn, expert_id: str, insights_text: str, task_id: Optional[int] = None
+    ) -> bool:
+        """
+        Эволюция промпта эксперта на основе инсайтов из Knowledge Applicator (без метрик).
+        Вызывается при обработке задач «Prompt evolution from top insights».
+        """
+        try:
+            expert = await conn.fetchrow("""
+                SELECT id, name, role, system_prompt, version, department
+                FROM experts
+                WHERE id = $1
+            """, expert_id)
+            if not expert or not (expert["system_prompt"] or "").strip():
+                return False
+            evolution_prompt = f"""
+ВЫ - НЕЙРОННЫЙ АРХИТЕКТОР. ЦЕЛЬ: дополнить системный промпт эксперта верифицированными инсайтами из базы знаний.
+
+ЭКСПЕРТ: {expert['name']} ({expert['role']}), отдел: {expert['department'] or 'General'}.
+
+ТЕКУЩИЙ SYSTEM PROMPT:
+{expert['system_prompt']}
+
+ВЕРИФИЦИРОВАННЫЕ ИНСАЙТЫ (включи релевантные в промпт):
+{insights_text[:2500]}
+
+ЗАДАЧА: Сгенерируй ОБНОВЛЁННЫЙ system_prompt, который сохраняет личность эксперта и добавляет/учитывает инсайты выше. Не удаляй существующие сильные формулировки. Ответь ТОЛЬКО текстом нового промпта, без пояснений.
+"""
+            new_prompt = run_cursor_agent(evolution_prompt)
+            if not new_prompt or len(new_prompt.strip()) < 100:
+                return False
+            new_version = (expert["version"] or 0) + 1
+            await conn.execute("""
+                UPDATE experts
+                SET system_prompt = $1, version = $2,
+                    metadata = metadata || jsonb_build_object(
+                        'last_evolution', NOW(),
+                        'evolution_source', 'insights_task',
+                        'evolution_task_id', $3
+                    )
+                WHERE id = $4
+            """, new_prompt.strip(), new_version, task_id, expert_id)
+            logger.info("✨ Expert %s evolved to v%s from insights task", expert["name"], new_version)
+            return True
+        except Exception as e:
+            logger.warning("evolve_expert_from_insights failed for %s: %s", expert_id, e)
+            return False
+
     def _format_feedback_data(self, feedback_data: List) -> str:
         """Форматирование данных feedback для промпта"""
         if not feedback_data:
@@ -448,8 +507,57 @@ async def run_enhanced_evolution_cycle():
     """Основной цикл автоматической эволюции экспертов"""
     logger.info("🧬 Starting Enhanced Expert Evolution cycle...")
     
-    collector = ExpertMetricsCollector()
+    conn = await asyncpg.connect(DB_URL)
     evolver = ExpertEvolver()
+    insights_evolved = 0
+
+    try:
+        # 0. Обработка задач «Prompt evolution from top insights» (Knowledge Applicator → автоматическая эволюция)
+        insight_tasks = await conn.fetch("""
+            SELECT id, title, description, metadata
+            FROM tasks
+            WHERE status = 'pending'
+              AND metadata->>'source' = 'knowledge_applicator'
+              AND (title ILIKE $1 OR title ILIKE $2)
+            ORDER BY created_at ASC
+            LIMIT 5
+        """, "%Prompt evolution%", "%эволюция промптов%")
+        if insight_tasks:
+            logger.info("📥 Processing %d insight-driven prompt evolution task(s)...", len(insight_tasks))
+        for task in insight_tasks:
+            task_id = task["id"]
+            description = (task["description"] or "").strip()
+            if len(description) < 50:
+                await conn.execute(
+                    "UPDATE tasks SET status = 'cancelled', updated_at = NOW() WHERE id = $1",
+                    task_id,
+                )
+                continue
+            # Выбираем до 3 экспертов (разные отделы, активные)
+            experts = await conn.fetch("""
+                SELECT id FROM experts
+                WHERE (is_active IS NULL OR is_active = TRUE)
+                  AND system_prompt IS NOT NULL AND LENGTH(TRIM(system_prompt)) > 50
+                ORDER BY RANDOM()
+                LIMIT 3
+            """)
+            task_evolved = False
+            for row in experts:
+                if await evolver.evolve_expert_from_insights(conn, str(row["id"]), description, task_id=task_id):
+                    insights_evolved += 1
+                    task_evolved = True
+                    break
+            await conn.execute(
+                "UPDATE tasks SET status = 'completed', updated_at = NOW(), result = $2 WHERE id = $1",
+                task_id,
+                "Insights applied to expert prompt (auto-evolution)." if task_evolved else "No expert updated (LLM unavailable or skip).",
+            )
+        if insights_evolved:
+            logger.info("   Insights → prompts: %d expert(s) evolved", insights_evolved)
+    finally:
+        await conn.close()
+
+    collector = ExpertMetricsCollector()
     
     # Собираем метрики всех экспертов
     metrics_list = await collector.get_all_experts_metrics()

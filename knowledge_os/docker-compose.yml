@@ -2,6 +2,7 @@
 # Запуск: docker-compose -f knowledge_os/docker-compose.yml up -d
 # Контекст: корень репо (atra или atra-web-ide)
 # Сеть atra-network: скрипт start_victoria_docker.sh создаёт её при первом запуске (docker network create atra-network)
+# Учёт загрузки Mac Studio: docs/MAC_STUDIO_LOAD_AND_VICTORIA.md (память Docker, USE_ELK, async_mode, лимиты)
 
 networks:
   atra-network:
@@ -22,6 +23,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # При первом запуске (пустой volume) Postgres выполняет скрипты из docker-entrypoint-initdb.d — каноническая схема (knowledge_nodes.id UUID), затем apply_migrations достраивает таблицы
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-schema.sql
     networks:
       - atra-network
     healthcheck:
@@ -51,6 +54,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
@@ -58,6 +63,10 @@ services:
     restart: always
     networks:
       - atra-network
+    # Резерв памяти для Mac Studio: оставляет место для планирования Docker (лимит не задаём — пики при LLM)
+    # МОНСТР-ЛОГИКА: Выделяем по 8GB для Gateway и Worker для стабильной работы
+    mem_limit: 8g
+    mem_reservation: 4g
     environment:
       PYTHONPATH: /app
       VICTORIA_PORT: "8000"  # внутри контейнера 8000, снаружи 8010
@@ -66,35 +75,63 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
-      MLX_API_URL: http://host.docker.internal:11435
+      # MLX отключён — нет скачков памяти и крашей Python (docs/MLX_PYTHON_CRASH_CAUSE.md § «Как решить»). Вернуть: MLX_API_URL: http://host.docker.internal:11435
+      MLX_API_URL: ${MLX_API_URL:-disabled}
+      # Таймаут сканирования MLX/Ollama из контейнера (до host.docker.internal часто дольше 5 с)
+      MLX_SCAN_TIMEOUT: ${MLX_SCAN_TIMEOUT:-12}
+      OLLAMA_SCAN_TIMEOUT: ${OLLAMA_SCAN_TIMEOUT:-15}
       # 🔄 АВТОВЫБОР МОДЕЛЕЙ: При запуске сканируются Ollama (11434) и MLX (11435)
       # Выбираются самые мощные из каждого списка РАЗДЕЛЬНО:
       # - Ollama: для executor/planner (qwq:32b > qwen2.5-coder:32b > phi3.5:3.8b)
       # - MLX: для LocalAIRouter (command-r-plus:104b > deepseek-r1:70b > llama3.3:70b)
       # 
       # Для ЯВНОГО указания модели (должна существовать в Ollama!):
-      # VICTORIA_MODEL: qwen2.5-coder:32b
-      # VICTORIA_PLANNER_MODEL: phi3.5:3.8b
+      # phi3.5:3.8b - быстрая модель (3.8B) для простых задач и интерактива
+      # qwq:32b - reasoning модель (32B) для сложных задач (автоматически выбирается intelligent router)
       #
       # Пустые значения = автовыбор лучшей доступной модели из Ollama
       VICTORIA_MODEL: ${VICTORIA_MODEL:-}
       VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-}
       # 🐛 Debug mode: set to "true" to enable verbose logging
       VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
+      # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
+      OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
+      # Выгрузка моделей Ollama через 5 мин неактивности (docs/MODEL_UNLOADING_AND_MEMORY.md). 0 — сразу.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
+      UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-600}
+      # Таймаут вызова LLM для выбора стратегии (с); 30 — чтобы не уходить в fallback при холодной модели
+      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-30}
+      # Таймаут understand_goal в синхронном пути (с); при превышении используем goal как restated и продолжаем
+      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-90}
+      # Прогрев при старте: греем VICTORIA_PLANNER_MODEL + VICTORIA_MODEL (+ VICTORIA_WARMUP_EXTRA_MODELS через запятую)
+      # VICTORIA_WARMUP_BLOCK_STARTUP=true = ждать прогрева до приёма запросов (стабильный первый sync)
+      VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-false}
+      VICTORIA_WARMUP_EXTRA_MODELS: ${VICTORIA_WARMUP_EXTRA_MODELS:-qwen2.5-coder:32b,nomic-embed-text}
+      VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-90}
       VICTORIA_USE_LOCAL_ROUTER: "true"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      USE_ELK: "true"
+      USE_ELK: "false"
       ELASTICSEARCH_URL: http://atra-elasticsearch:9200
       USE_KNOWLEDGE_OS: "true"
       VICTORIA_USE_CACHE: "true"
+      # Redis: для RAG_CACHE_BACKEND=redis (масштабирование). По умолчанию кэш memory.
+      REDIS_URL: redis://knowledge_os_redis:6379/0
+      RAG_CACHE_BACKEND: redis
       # 🚀 Victoria Enhanced - включает все компоненты супер-корпорации
       USE_VICTORIA_ENHANCED: "true"
-      # Эксперты первыми: execution-задачи идут в Victoria Enhanced (85 экспертов), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
+      # Эксперты первыми: execution-задачи идут в Victoria Enhanced (86 экспертов в БД), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
       PREFER_EXPERTS_FIRST: ${PREFER_EXPERTS_FIRST:-true}
+      # План → исполнение: при плане от оркестратора вызывать экспертов по assignments и подставлять результаты в контекст (план «как я» п.12.2 п.1)
+      EXECUTE_ASSIGNMENTS_IN_RUN: ${EXECUTE_ASSIGNMENTS_IN_RUN:-true}
       # 🎯 Victoria Initiative - Event-Driven Architecture и мониторинг (без кавычек в значении)
-      ENABLE_EVENT_MONITORING: ${ENABLE_EVENT_MONITORING:-true}
+      # По умолчанию false — меньше памяти при старте, меньше OOM (VICTORIA_RESTARTS_CAUSE §2). Включить в .env при 10–14 GB Docker Memory.
+      ENABLE_EVENT_MONITORING: ${ENABLE_EVENT_MONITORING:-false}
       FILE_WATCHER_ENABLED: ${FILE_WATCHER_ENABLED:-true}
-      SERVICE_MONITOR_ENABLED: ${SERVICE_MONITOR_ENABLED:-true}
+      SERVICE_MONITOR_ENABLED: ${SERVICE_MONITOR_ENABLED:-false}
+      RAG_PRELOAD_TYPICAL_QUERIES: ${RAG_PRELOAD_TYPICAL_QUERIES:-false}
+      # Опционально: лёгкая MLX-классификация для запросов с category=general и 5–25 слов (docs/MLX_STRATEGY_LIGHT_AND_VITALITY.md)
+      VICTORIA_MLX_LIGHT_CLASSIFY: ${VICTORIA_MLX_LIGHT_CLASSIFY:-false}
       DEADLINE_TRACKER_ENABLED: ${DEADLINE_TRACKER_ENABLED:-true}
       SKILLS_WATCHER_ENABLED: ${SKILLS_WATCHER_ENABLED:-true}
       # 📊 OpenTelemetry для трассировки
@@ -111,6 +148,16 @@ services:
       AGENT_APPROVAL_REQUIRED: "false"  # true = отказ в записи в package.json, .env, Dockerfile и т.п.
       # Лимит шагов агента (сложные задачи — анализ, исправления; без этой переменной в контейнере мог остаться 80)
       VICTORIA_MAX_STEPS: ${VICTORIA_MAX_STEPS:-500}
+      # Логика мысли: выбор стратегии ответа (quick_answer / deep_analysis / need_clarification / decline_or_redirect), docs/PLAN_REASONING_LOGIC_VICTORIA.md
+      VICTORIA_STRATEGY_ENABLED: ${VICTORIA_STRATEGY_ENABLED:-true}
+      STRATEGY_CACHE_TTL_SEC: ${STRATEGY_CACHE_TTL_SEC:-120}
+      # Долгосрочная память по пользователю/проекту (Фаза 2)
+      LONG_TERM_MEMORY_ENABLED: ${LONG_TERM_MEMORY_ENABLED:-true}
+      LONG_TERM_MEMORY_TTL_DAYS: ${LONG_TERM_MEMORY_TTL_DAYS:-7}
+      LONG_TERM_MEMORY_MAX_THREADS: ${LONG_TERM_MEMORY_MAX_THREADS:-20}
+      # Рефлексия и пересмотр плана (Фаза 3, ReCAP): чекпоинты при провале шага, лимит пересмотров
+      VICTORIA_REFLECTION_ENABLED: ${VICTORIA_REFLECTION_ENABLED:-true}
+      VICTORIA_MAX_PLAN_REVISIONS: ${VICTORIA_MAX_PLAN_REVISIONS:-1}
       # Veronica: из контейнера — по имени сервиса (порт 8000 внутри сети)
       VERONICA_URL: ${VERONICA_URL:-http://veronica-agent:8000}
       # Canary: оркестрация V2 (A/B по проценту трафика)
@@ -125,6 +172,88 @@ services:
       # Подключаем knowledge_os для Victoria Enhanced
       - ../knowledge_os:/app/knowledge_os
     command: python -m src.agents.bridge.victoria_server
+
+  # Воркер для тяжелых задач (Heavy Worker) - 1 инстанс
+  expert-worker-heavy:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: expert-worker-heavy
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 10g
+        reservations:
+          memory: 6g
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app:/app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      REDIS_URL: redis://knowledge_os_redis:6379/0
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      # Тяжелая модель для кода и архитектуры
+      VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-qwen3-coder:30b}
+      ENABLE_COLLECTIVE_LEARNING: "true"
+      LEARNING_SYNC_INTERVAL: "300"
+      SMART_WORKER_MAX_CONCURRENT: "1"
+      WORKER_TYPE: "heavy"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../knowledge_os:/app/knowledge_os
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+
+  # Воркеры для легких задач (Light Workers) - 2 инстанса
+  expert-worker-light:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4g
+        reservations:
+          memory: 1g
+    networks:
+      - atra-network
+    environment:
+      PYTHONPATH: /app:/app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      REDIS_URL: redis://knowledge_os_redis:6379/0
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      # Легкая модель для классификации и простых ответов
+      VICTORIA_MODEL: ${VICTORIA_LIGHT_MODEL:-lfm2.5-thinking:1.2b}
+      ENABLE_COLLECTIVE_LEARNING: "true"
+      LEARNING_SYNC_INTERVAL: "300"
+      SMART_WORKER_MAX_CONCURRENT: "3"
+      WORKER_TYPE: "light"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../knowledge_os:/app/knowledge_os
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
 
   veronica-agent:
     depends_on:
@@ -251,13 +380,15 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Воркер: обрабатывает PENDING задачи (симуляции, разведка, обычные задачи)
+  # Воркер (дневной): обрабатывает PENDING задачи (симуляции, разведка, обычные задачи). LLM на хосте.
+  # mem_limit 10G — как у nightly, под Mac Studio M4 Max 128GB.
   knowledge_os_worker:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_worker
     restart: unless-stopped
+    mem_limit: 10g
     networks:
       - atra-network
     environment:
@@ -266,6 +397,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
       # Потолок: макс. задач «в работе»; адаптив снизит при перегрузке MLX/Ollama
@@ -289,12 +421,21 @@ services:
 
   # Nightly Learner: обучение экспертов, дебаты, гипотезы. Цикл каждые 24ч.
   # Записывает в knowledge_nodes, tasks — обновляет «БД: X ч назад» на дашборде.
+  # mem_limit (10G): максимум RAM для этого контейнера. Ограничивает потребление, чтобы при нехватке памяти
+  # ядро убивало именно контейнер (OOMKilled), а не другие процессы; 10G — под Mac Studio M4 Max 128GB.
+  # Если снова "Killed": dmesg | grep -i oom; docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
+  # OLLAMA_KEEP_ALIVE: 180 (3 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
   knowledge_nightly:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_nightly
     restart: unless-stopped
+    mem_limit: 10g
+    deploy:
+      resources:
+        limits:
+          memory: 10G
     networks:
       - atra-network
     environment:
@@ -302,6 +443,7 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
     volumes:
@@ -311,7 +453,7 @@ services:
       - "host.docker.internal:host-gateway"
     command: ["sh", "-c", "while true; do python -u nightly_learner.py; echo '✅ Цикл завершён. Следующий запуск через 24ч'; sleep 86400; done"]
 
-  # Knowledge OS REST API (порт 8002) — логирование чата в interaction_logs (Singularity 9.0)
+  # Knowledge OS REST API (порт 8002) — логирование чата в interaction_logs (Singularity 10.0)
   knowledge_rest:
     build:
       context: ..
@@ -352,11 +494,20 @@ services:
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      MLX_API_URL: http://host.docker.internal:11435
+      MAC_LLM_URL: http://host.docker.internal:11434
+      # Живой организм: при недоступности Ollama/MLX оркестратор шлёт POST сюда; на хосте запустить scripts/host_recovery_listener.py
+      RECOVERY_WEBHOOK_URL: ${RECOVERY_WEBHOOK_URL:-http://host.docker.internal:9099/recover}
+      ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
       # Phase 1.6: batch_group для задач одного domain (low/medium)
       BATCH_SMALL_TASKS_ENABLED: "true"
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["python", "enhanced_orchestrator.py", "--continuous", "--interval", "60", "--quick-poll", "30"]
 
   # Streamlit дашборд корпорации (зависимости в образе, код монтируется)
@@ -381,7 +532,7 @@ services:
     command: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
 
 volumes:
-  # Используем atra_knowledge_postgres_data (85 экспертов, 26k узлов) — данные atra/atra-web-ide
+  # Используем atra_knowledge_postgres_data (86 экспертов, 26k узлов) — данные atra/atra-web-ide
   # Если нужна пустая БД: заменить на postgres_data: {} и пересоздать контейнер
   postgres_data:
     external: true

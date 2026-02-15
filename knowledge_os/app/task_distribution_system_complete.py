@@ -13,6 +13,15 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
+def _json_serial(obj: Any) -> Any:
+    """Преобразовать UUID и другие не-JSON типы для json.dumps."""
+    if hasattr(obj, "hex"):  # UUID
+        return str(obj)
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
 # Резолвер имён — централизованно в expert_aliases
 try:
     from app.expert_aliases import resolve_expert_name_for_db, AGENT_NAME_TO_DB
@@ -203,7 +212,7 @@ class TaskDistributionSystem:
             {prompt}
             
             Структура организации:
-            {json.dumps(organizational_structure, ensure_ascii=False, indent=2)}
+            {json.dumps(organizational_structure, ensure_ascii=False, indent=2, default=_json_serial)}
             
             Верни JSON массив задач:
             [

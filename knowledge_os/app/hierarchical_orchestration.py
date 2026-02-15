@@ -4,14 +4,19 @@ Hierarchical Orchestration - Иерархическая оркестрация �
 """
 
 import os
+import re
 import asyncio
 import logging
+import uuid
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", os.getenv("OLLAMA_API_URL", "http://localhost:11434"))
+HIERARCHICAL_ORCH_MODEL = os.getenv("HIERARCHICAL_ORCH_MODEL", "qwen2.5:7b")
 
 
 class TaskStatus(Enum):
@@ -69,10 +74,17 @@ class HierarchicalOrchestrator:
     6. Inter-agent dependencies tracking
     """
     
-    def __init__(self, root_agent: str = "Виктория"):
+    def __init__(
+        self,
+        root_agent: str = "Виктория",
+        ollama_url: str = OLLAMA_URL,
+        model_name: str = HIERARCHICAL_ORCH_MODEL,
+    ):
         self.root_agent = root_agent
         self.state = OrchestrationState()
-        self.agents: Dict[str, Dict] = {}  # agent_name -> capabilities
+        self.agents: Dict[str, Dict] = {}
+        self.ollama_url = ollama_url.rstrip("/")
+        self.model_name = model_name
     
     async def orchestrate(
         self,
@@ -125,65 +137,154 @@ class HierarchicalOrchestrator:
         
         return self.state
     
+    async def _generate_response(self, prompt: str, max_tokens: int = 1024) -> str:
+        """Генерация ответа через Ollama (для декомпозиции целей)."""
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": self.model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"temperature": 0.3, "num_predict": max_tokens},
+                    },
+                )
+                if r.status_code == 200:
+                    return (r.json().get("response") or "").strip()
+        except Exception as e:
+            logger.debug("HierarchicalOrchestrator LLM request failed: %s", e)
+        return ""
+
+    def _parse_hierarchical_goals_from_response(self, text: str, user_intent: str) -> Optional[List[HierarchicalGoal]]:
+        """Парсинг ответа LLM в список HierarchicalGoal. Формат: 0. ... / 1.1. ... / 1.1.1. ..."""
+        goals: List[HierarchicalGoal] = []
+        by_key: Dict[str, HierarchicalGoal] = {}
+        # Строки вида "0. цель" или "1.1. цель" или "1.1.1. цель"
+        pattern = re.compile(r"^(\d+(?:\.\d+)*)\.\s*(.+)$", re.MULTILINE)
+        for m in pattern.finditer(text):
+            num_str, desc = m.group(1), m.group(2).strip()
+            if not desc or len(desc) > 500:
+                continue
+            parts = num_str.split(".")
+            level = len(parts) - 1  # 0 -> 0, 1.1 -> 1, 1.1.1 -> 2
+            if level > 2:
+                level = 2
+            goal_id = str(uuid.uuid4())
+            parent_id = None
+            if level == 1 and len(parts) >= 1:
+                parent_id = by_key.get("0")
+                if parent_id:
+                    parent_id = parent_id.goal_id
+            elif level == 2 and len(parts) >= 2:
+                parent_key = ".".join(parts[:-1])
+                parent_id = by_key.get(parent_key)
+                if parent_id:
+                    parent_id = parent_id.goal_id
+            g = HierarchicalGoal(
+                goal_id=goal_id,
+                description=desc,
+                level=level,
+                parent_id=parent_id,
+            )
+            goals.append(g)
+            by_key[num_str] = g
+            if parent_id and level >= 1:
+                for pg in goals:
+                    if pg.goal_id == parent_id:
+                        pg.children = pg.children or []
+                        pg.children.append(goal_id)
+                        break
+        if not goals:
+            return None
+        root = next((g for g in goals if g.level == 0), None)
+        if not root:
+            root = HierarchicalGoal(goal_id=str(uuid.uuid4()), description=user_intent, level=0)
+            goals.insert(0, root)
+        return goals
+
     async def _decompose_goals(self, user_intent: str) -> List[HierarchicalGoal]:
-        """Декомпозировать намерение на иерархические цели"""
-        import uuid
-        
-        # Строим промпт для декомпозиции
-        prompt = f"""Разбей следующее намерение на иерархические цели:
+        """Декомпозировать намерение на иерархические цели (через LLM с fallback на заглушку)."""
+        prompt = f"""Разбей следующее намерение на иерархические цели.
 
 НАМЕРЕНИЕ: {user_intent}
 
-Создай структуру целей:
-- Уровень 0 (root): Главная цель
-- Уровень 1 (department): Цели для отделов/групп экспертов
-- Уровень 2 (expert): Конкретные задачи для экспертов
+Структура:
+- Уровень 0 (root): одна главная цель
+- Уровень 1: цели для отделов (2-4 пункта)
+- Уровень 2: конкретные задачи для экспертов (по 1-2 на каждый пункт уровня 1)
 
-ФОРМАТ:
+Выведи только нумерованный список в формате:
 0. [Главная цель]
-   1.1. [Цель отдела 1]
-      1.1.1. [Задача эксперта 1]
-      1.1.2. [Задача эксперта 2]
-   1.2. [Цель отдела 2]
-      1.2.1. [Задача эксперта 3]
+1.1. [Цель отдела 1]
+1.1.1. [Задача эксперта 1]
+1.1.2. [Задача эксперта 2]
+1.2. [Цель отдела 2]
+1.2.1. [Задача эксперта 3]
 
 ИЕРАРХИЧЕСКИЕ ЦЕЛИ:"""
-        
-        # TODO: Генерация через модель
-        # Пока упрощенная структура
+        response = await self._generate_response(prompt, max_tokens=1024)
+        if response:
+            parsed = self._parse_hierarchical_goals_from_response(response, user_intent)
+            if parsed:
+                logger.info("HierarchicalOrchestrator: декомпозиция через модель, целей=%s", len(parsed))
+                return parsed
+        # Страховка 1: повтор с упрощённым промптом (плоский список 1. 2. 3.)
+        simple_prompt = f"""Перечисли 3-5 подзадач для: {user_intent}
+
+Только нумерованный список, по одной подзадаче на строку:
+1. [подзадача 1]
+2. [подзадача 2]
+3. [подзадача 3]
+СПИСОК:"""
+        retry_response = await self._generate_response(simple_prompt, max_tokens=512)
+        if retry_response:
+            subgoals = []
+            for m in re.finditer(r"^\s*\d+\.\s*(.+)$", retry_response, re.MULTILINE):
+                desc = m.group(1).strip()
+                if desc and len(desc) <= 500:
+                    subgoals.append(desc)
+            if subgoals:
+                root_goal = HierarchicalGoal(
+                    goal_id=str(uuid.uuid4()),
+                    description=user_intent,
+                    level=0,
+                )
+                dept_goals = [
+                    HierarchicalGoal(
+                        goal_id=str(uuid.uuid4()),
+                        description=s,
+                        level=1,
+                        parent_id=root_goal.goal_id,
+                    )
+                    for s in subgoals[:5]
+                ]
+                root_goal.children = [g.goal_id for g in dept_goals]
+                logger.info("HierarchicalOrchestrator: fallback упрощённый список, целей=%s", len(dept_goals) + 1)
+                return [root_goal] + dept_goals
+        # Страховка 2: эвристика по тексту намерения (разбивка по « и », « затем », запятым)
+        parts = re.split(r"\s+и\s+|\s+затем\s+|,\s*", user_intent.strip(), maxsplit=4)
+        parts = [p.strip() for p in parts if p.strip()][:5]
+        if len(parts) <= 1:
+            parts = [user_intent]
         root_goal = HierarchicalGoal(
             goal_id=str(uuid.uuid4()),
             description=user_intent,
-            level=0
+            level=0,
         )
-        
-        # Пример декомпозиции
         dept_goals = [
             HierarchicalGoal(
                 goal_id=str(uuid.uuid4()),
-                description=f"Подзадача {i+1}",
+                description=p,
                 level=1,
-                parent_id=root_goal.goal_id
+                parent_id=root_goal.goal_id,
             )
-            for i in range(3)
+            for p in parts
         ]
-        
         root_goal.children = [g.goal_id for g in dept_goals]
-        
-        expert_goals = []
-        for dept_goal in dept_goals:
-            expert_goals.extend([
-                HierarchicalGoal(
-                    goal_id=str(uuid.uuid4()),
-                    description=f"Экспертная задача {j+1}",
-                    level=2,
-                    parent_id=dept_goal.goal_id
-                )
-                for j in range(2)
-            ])
-            dept_goal.children = [g.goal_id for g in expert_goals[-2:]]
-        
-        return [root_goal] + dept_goals + expert_goals
+        logger.info("HierarchicalOrchestrator: fallback эвристика по тексту, целей=%s", len(dept_goals) + 1)
+        return [root_goal] + dept_goals
     
     async def _align_goals(self, goals: List[HierarchicalGoal]) -> List[HierarchicalGoal]:
         """Выровнять цели (goal alignment)"""

@@ -1,0 +1,45 @@
+{
+  "ts": "2026-02-08T22:00:43.956828+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "b1c2e859-a861-42a1-8870-b8202dcf5242",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "b1c2e859-a861-42a1-8870-b8202dcf5242",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я умею управлять командой, разрабатывать стратегии, решать сложные задачи и обеспечивать достижение целей корпорации ATRA. Также я постоянно развиваюсь, чтобы быть на шаг впереди конкурентов.",
+      "output_length": 191,
+      "correlation_id": "c985e278-beb1-40d8-8757-0c7e651749a4",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "c985e278-beb1-40d8-8757-0c7e651749a4",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 7.54
+    }
+  ]
+}

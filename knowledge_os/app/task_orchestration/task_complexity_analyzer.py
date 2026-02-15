@@ -58,6 +58,12 @@ class TaskComplexityAnalyzer:
         simple: one step, one expert. complex: multi-step, one expert. multi_dept: multiple experts.
         """
         tc = self.estimate_complexity(prompt, category)
+        
+        # МОНСТР-ЛОГИКА: Если файл гигантский, ВСЕГДА форсируем complex (декомпозицию)
+        if any(w in prompt.lower() for w in ["app.py", "dashboard", "3000 строк"]):
+            logger.info("🐉 [MONSTER ANALYZER] Обнаружен гигантский файл. Форсируем стратегию COMPLEX.")
+            return "complex"
+
         if tc.complexity_score >= 0.7 and (tc.requires_reasoning or tc.requires_coding):
             return "complex"
         if tc.complexity_score >= 0.5 and tc.task_type not in ("fast", "general"):

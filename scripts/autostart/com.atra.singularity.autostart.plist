@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.atra.singularity.autostart</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/bikos/Documents/atra-web-ide/scripts/autostart/start_singularity_10.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/bikos/Documents/atra-web-ide/logs/autostart_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/bikos/Documents/atra-web-ide/logs/autostart_stderr.log</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/bikos/Documents/atra-web-ide</string>
+</dict>
+</plist>

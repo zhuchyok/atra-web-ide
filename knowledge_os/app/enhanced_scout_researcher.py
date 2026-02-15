@@ -281,7 +281,7 @@ class EnhancedScoutResearcher:
 
         # Пробуем сначала MLX (более мощная модель)
         models_to_try = [
-            (MLX_API_URL, "deepseek-r1-distill-llama:70b", "MLX"),
+            (MLX_API_URL, "phi3.5:3.8b", "MLX"),
             (MLX_API_URL, "qwen2.5-coder:32b", "MLX"),
             (OLLAMA_URL, "glm-4.7-flash:q8_0", "Ollama"),
             (OLLAMA_URL, "phi3.5:3.8b", "Ollama"),

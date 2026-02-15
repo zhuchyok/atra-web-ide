@@ -1,5 +1,5 @@
 {
-  "_comment": "Единый источник. sync_employees_from_db.py подтягивает экспертов из БД.",
+  "_comment": "Единый источник для добавления новых: запись сюда, затем python scripts/sync_employees.py. Обратная синхронизация из БД: scripts/sync_employees_from_db.py.",
   "updated": "2026-02-03",
   "employees": [
     {

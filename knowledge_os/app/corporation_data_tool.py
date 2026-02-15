@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Схема БД корпорации (для контекста модели)
 DB_SCHEMA_CONTEXT = """
-Схема базы данных корпорации Singularity 9.0:
+Схема базы данных корпорации Singularity 10.0:
 
 1. experts (сотрудники/эксперты корпорации):
    - id (UUID), name (имя), role (роль), department (отдел)
@@ -143,21 +143,34 @@ async def _format_answer(question: str, sql_result: Dict[str, Any], llm_url: str
             if any(w in q for w in ["узл", "знани", "knowledge", "node"]):
                 return f"В базе знаний корпорации {value} узлов знаний."
             if any(w in q for w in ["задач", "task"]):
-                return f"В корпорации {value} задач."
+                # Сингулярность 10.0: Для статуса проекта добавляем контекст дашборда
+                is_status_project = "статус" in q and ("проект" in q or "задач" in q or "дашборд" in q)
+                answer = f"В корпорации {value} задач."
+                if is_status_project:
+                    answer += "\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE."
+                return answer
             return f"Результат: {value}"
     
     # Для таблиц — форматируем
+    q = question.lower()
+    is_status_project = "статус" in q and ("проект" in q or "задач" in q or "дашборд" in q)
+    
     if len(data) <= 10:
         lines = []
         for i, row in enumerate(data, 1):
             line = ", ".join(f"{k}: {v}" for k, v in row.items())
             lines.append(f"{i}. {line}")
-        return "Результаты:\n" + "\n".join(lines)
+        answer = "Результаты:\n" + "\n".join(lines)
     else:
-        return f"Найдено {len(data)} записей. Показаны первые 10:\n" + "\n".join(
+        answer = f"Найдено {len(data)} записей. Показаны первые 10:\n" + "\n".join(
             f"{i}. " + ", ".join(f"{k}: {v}" for k, v in row.items())
             for i, row in enumerate(data[:10], 1)
         )
+    
+    if is_status_project:
+        answer += "\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE."
+        
+    return answer
 
 
 async def query_corporation_data(question: str) -> Dict[str, Any]:
@@ -193,7 +206,7 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     
     # Пробуем MLX, потом Ollama
-    llm_urls = [mlx_url, ollama_url]
+    llm_urls = [url for url in [mlx_url, ollama_url] if url and url.lower() != "disabled"]
     
     sql = None
     for llm_url in llm_urls:
@@ -335,14 +348,36 @@ def is_data_question(question: str) -> bool:
     """
     Определяет, является ли вопрос запросом данных о корпорации.
     Используется для маршрутизации в Victoria.
+    Использует регулярные выражения для точного поиска слов (избегает ложных срабатываний типа 'отрефактори' -> 'кто').
     """
+    import re
     q = question.lower()
-    # Запрос о показателях Mac Studio (память, CPU, мониторинг)
+    
+    def has_word(text, words):
+        for w in words:
+            # Поиск слова с границами (начало строки, пробел, пунктуация)
+            if re.search(rf'\b{re.escape(w)}', text):
+                return True
+        return False
+
+    # ПРИОРИТЕТ 1: Глаголы действия всегда указывают на задачу, а не на вопрос о данных
+    action_verbs = [
+        'создай', 'создать', 'напиши', 'написать', 'сделай', 'сделать', 'удали', 'удалить', 
+        'исправь', 'исправить', 'отрефактори', 'отрефакторить', 
+        'добавь', 'добавить', 'запусти', 'запустить', 'проверь', 'проверить', 
+        'выполни', 'выполнить', 'поручи', 'поручить', 'прикажи', 'приказать'
+    ]
+    logger.info(f"DEBUG is_data_question: q='{q}' action_verbs_match={has_word(q, action_verbs)}")
+    if has_word(q, action_verbs):
+        return False
+
+    # ПРИОРИТЕТ 2: Запрос о показателях Mac Studio (память, CPU, мониторинг)
     if is_system_metrics_question(question):
         return True
-    # Если спрашивают про корпорацию — всегда через Text-to-SQL (БД), без исключений
-    corp_keywords = ["корпораци", "corporation", "компани", "команд", "отдел", "department"]
-    if any(kw in q for kw in corp_keywords):
+        
+    # ПРИОРИТЕТ 3: Если спрашивают про корпорацию — всегда через Text-to-SQL (БД)
+    corp_keywords = ["корпораци", "corporation", "компани", "отдел", "department"]
+    if has_word(q, corp_keywords):
         return True
 
     data_keywords = [
@@ -365,8 +400,14 @@ def is_data_question(question: str) -> bool:
         "бюджет", "budget", "рейтинг", "score",
         "лог", "log", "взаимодейств", "interaction",
     ]
-    has_data_kw = any(kw in q for kw in data_keywords)
-    has_entity_kw = any(kw in q for kw in entity_keywords)
+    
+    has_data_kw = has_word(q, data_keywords)
+    has_entity_kw = has_word(q, entity_keywords)
+    
+    # Дополнительная защита: если вопрос слишком длинный, это скорее всего сложная задача, а не простой запрос данных
+    if len(q) > 300:
+        return False
+        
     return has_data_kw and has_entity_kw
 
 

@@ -1,0 +1,9 @@
+model	source	size_category	measured_sec	request_timeout_sec	startup_buffer_sec	recommended_timeout_sec	status
+qwen3-coder:30b	ollama	medium	2.75	120	60	62.8	ok
+qwq:32b	ollama	medium	16.7	120	60	76.7	ok
+qwen2.5-coder:32b	ollama	medium	0.74	120	60	60.7	ok
+glm-4.7-flash:q8_0	ollama	medium	12.27	120	60	72.3	ok
+llava:7b	ollama	small	2.47	60	30	32.5	ok
+phi3.5:3.8b	ollama	small	0	60	30	30	error:TimeoutError
+moondream:latest	ollama	medium	1.22	120	60	61.2	ok
+tinyllama:1.1b-chat	ollama	small	0.93	60	30	30.9	ok

@@ -1,6 +1,6 @@
 # Команда экспертов ATRA
 
-**Полный список сотрудников:** единый источник — [`configs/experts/employees.json`](employees.json). После добавления нового сотрудника в JSON запустите **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и таблица в [employees.md](employees.md).
+**Полный список сотрудников:** единый источник — [`configs/experts/employees.json`](employees.json). После добавления нового сотрудника в JSON запустите **`python scripts/sync_employees.py`** — обновятся seed, KNOWN_EXPERT_NAMES и таблица в [employees.md](employees.md). Полная схема: источники, кэш, потребители и runbook — **[docs/EXPERT_CONNECTION_ARCHITECTURE.md](../../docs/EXPERT_CONNECTION_ARCHITECTURE.md)**.
 
 ## Основные роли
 
@@ -61,10 +61,11 @@
 
 Полный индекс ролей: `.cursor/README.md`. Роль **Оркестратор** — координация задач (приём, анализ сложности, декомпозиция, подбор экспертов, назначение исполнителей); в runtime реализуется Victoria / Enhanced Orchestrator.
 
-## Полный список сотрудников (58)
+## Полный список сотрудников
 
-Все сотрудники с ролями и отделами перечислены в **[`configs/experts/employees.md`](employees.md)**.  
-**При добавлении нового сотрудника** добавляйте его в `employees.md` с именем, ролью и отделом.
+**В БД (Docker/PostgreSQL, таблица `experts`):** 86 экспертов — источник истины для оркестратора, дашборда и Victoria.  
+**В репозитории:** [`configs/experts/employees.json`](employees.json) и **[`employees.md`](employees.md)** — для синхронизации в БД (`scripts/sync_employees.py`).  
+**При добавлении нового сотрудника:** добавьте в `employees.json`, выполните sync — в БД станет 87 и т.д.
 
 ## Использование в промптах
 

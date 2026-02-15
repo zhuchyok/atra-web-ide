@@ -237,16 +237,28 @@ async def recruit_expert(domain_name: str):
                     system_prompt=data.get("system_prompt", "")[:500],
                 )
 
-                # 7. Создаем приветственное знание
+                # 7. Создаем приветственное знание (по возможности с embedding — VERIFICATION §5)
                 welcome_msg = (
                     f"👋 ПРИВЕТСТВИЕ: Я {data['name']}, ваш новый эксперт в области {domain_name}. "
                     "Моя цель - довести наши компетенции в этой сфере до абсолютного максимума."
                 )
-                await conn.execute("""
-                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                    VALUES ($1, $2, 1.0, $3, TRUE)
-                """, domain_id, welcome_msg,
-                json.dumps({"type": "recruitment_event", "expert_name": data['name']}))
+                meta_kn = json.dumps({"type": "recruitment_event", "expert_name": data['name']})
+                embedding = None
+                try:
+                    from semantic_cache import get_embedding
+                    embedding = await get_embedding(welcome_msg[:8000])
+                except Exception:
+                    pass
+                if embedding is not None:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                        VALUES ($1, $2, 1.0, $3, TRUE, $4::vector)
+                    """, domain_id, welcome_msg, meta_kn, str(embedding))
+                else:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                        VALUES ($1, $2, 1.0, $3, TRUE)
+                    """, domain_id, welcome_msg, meta_kn)
 
                 # 8. Синхронизация employees.json (автоматически добавит нового эксперта)
                 if SYNC_TRIGGER_AVAILABLE and trigger_employees_sync:

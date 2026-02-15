@@ -1,0 +1,91 @@
+{
+  "ts": "2026-02-08T23:10:31.936427+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "875149ef-a99a-4fd4-8e11-9e471b34c39b",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "875149ef-a99a-4fd4-8e11-9e471b34c39b",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.0
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Проект находится в стадии завершения, с некоторыми незначительными проблемами, которые мы решаем. Планируем окончательно закрыть его к следующему месяцу.",
+      "output_length": 153,
+      "correlation_id": "989a9d48-8cc9-400f-a1d2-7c03bd8f9bb7",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "989a9d48-8cc9-400f-a1d2-7c03bd8f9bb7",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 27.59
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 55.66
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.",
+      "output_length": 407,
+      "correlation_id": "6c6da673-ecd7-46c5-9a06-c4fb5423ca4f",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "6c6da673-ecd7-46c5-9a06-c4fb5423ca4f",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 10.55
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "```python\nfrom datetime import date\nprint(date.today())\n```\nЭтот фрагмент кода на Python выводит текущую дату, используя модуль `datetime`.\n\nЕсли вам нужно записать данную дату в файл с использованием Python, вот пример:\n\n```python\nfrom datetime import date\nсейчас_дан = date.today()\n\nwith open('деньты.txt', 'w') as file:\n    file.write(f\"Текущая дата: {сейчас_дан}\")\n```\nЭтот код создаст текстовый файл с именем \"деньты.txt\" в текущем каталоге и запишет текущую дату в него.",
+      "output_length": 476,
+      "correlation_id": "77d92928-8ec0-40d5-bc0a-4a1098bf409c",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "77d92928-8ec0-40d5-bc0a-4a1098bf409c",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 15.06
+    }
+  ]
+}

@@ -137,8 +137,16 @@ class MLXServerSupervisor:
             logger.debug(f"⚠️ [SUPERVISOR] Health check failed: {e}")
             return False
     
+    def _is_mlx_disabled(self) -> bool:
+        """True, если MLX отключён (MLX_API_URL=disabled/empty) — не запускаем сервер в контейнере."""
+        url = os.getenv("MLX_API_URL", "").strip().lower()
+        return url in ("", "disabled", "false", "0")
+
     async def _start_server(self) -> bool:
         """Запуск сервера"""
+        if self._is_mlx_disabled():
+            logger.debug("⚠️ [SUPERVISOR] MLX отключён (MLX_API_URL), пропуск запуска")
+            return False
         if not self._should_restart():
             return False
         
@@ -318,8 +326,11 @@ class MLXServerSupervisor:
     async def ensure_server_running(self) -> bool:
         """
         Проверить доступность MLX API Server; если недоступен — запустить.
-        Вызывать при получении задачи, чтобы сразу поднять бэкенд перед цепочкой.
+        Вызывать при получении задачи. При MLX_API_URL=disabled сразу True (не пытаемся запустить).
         """
+        if self._is_mlx_disabled():
+            logger.debug("⚠️ [SUPERVISOR] MLX отключён, не запускаем")
+            return True
         if await self._check_health():
             logger.debug("✅ [SUPERVISOR] MLX API Server уже доступен")
             return True

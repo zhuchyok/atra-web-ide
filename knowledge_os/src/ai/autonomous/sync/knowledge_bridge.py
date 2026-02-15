@@ -168,13 +168,36 @@ class KnowledgeBridge:
                         )
                     if not domain_id:
                         return
+                    get_embedding_fn = None
+                    try:
+                        from semantic_cache import get_embedding as _ge
+                        get_embedding_fn = _ge
+                    except Exception:
+                        try:
+                            from app.semantic_cache import get_embedding as _ge
+                            get_embedding_fn = _ge
+                        except Exception:
+                            pass
                     for ins in insights:
                         content = f"{ins.get('title', '')}: {ins.get('recommendation', '')}. Data: {json.dumps(ins.get('data', {}))[:1000]}"
+                        content_trim = content[:5000]
                         metadata = json.dumps({"source": "knowledge_bridge", "type": ins.get("type", "")})
-                        await conn.execute("""
-                            INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
-                            VALUES ($1, $2, $3::jsonb, 0.85, 'ai_insights')
-                        """, domain_id, content[:5000], metadata)
+                        embedding = None
+                        if get_embedding_fn:
+                            try:
+                                embedding = await get_embedding_fn(content_trim[:8000])
+                            except Exception:
+                                pass
+                        if embedding is not None:
+                            await conn.execute("""
+                                INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref, embedding)
+                                VALUES ($1, $2, $3::jsonb, 0.85, 'ai_insights', $4::vector)
+                            """, domain_id, content_trim, metadata, str(embedding))
+                        else:
+                            await conn.execute("""
+                                INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
+                                VALUES ($1, $2, $3::jsonb, 0.85, 'ai_insights')
+                            """, domain_id, content_trim, metadata)
                     logger.info(f"✅ AI Insights written to knowledge_nodes: {len(insights)} rows")
                 finally:
                     await conn.close()

@@ -21,7 +21,8 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/kno
 _DB_EXPERTS_CACHE: Optional[List[Dict[str, Any]]] = None
 _DB_EXPERTS_TS = 0.0
 _DB_EXPERTS_LOCK = threading.Lock()
-_DB_EXPERTS_TTL = 60
+# TTL кэша экспертов из БД (сек). Переопределение: env EXPERT_SERVICES_DB_TTL (см. docs/EXPERT_CONNECTION_ARCHITECTURE.md).
+_DB_EXPERTS_TTL = int(os.getenv("EXPERT_SERVICES_DB_TTL", "60"))
 
 # Пути к employees.json: из knowledge_os/app/ → ../../configs/experts (atra-web-ide)
 # или из корня knowledge_os при запуске из контейнера

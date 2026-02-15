@@ -45,8 +45,61 @@ if VICTORIA_DEBUG:
 # Config - Mac Studio (локальная обработка). OLLAMA_BASE_URL используется Victoria/Veronica
 _is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
 _default_ollama = 'http://host.docker.internal:11434' if _is_docker else 'http://localhost:11434'
+def _valid_http_url(url: str) -> bool:
+    """True если url — валидный http(s) URL (не 'disabled' и не пустой)."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    return u.startswith("http://") or u.startswith("https://")
+
+
 OLLAMA_API_URL = os.getenv('OLLAMA_API_URL') or os.getenv('OLLAMA_BASE_URL') or os.getenv('SERVER_LLM_URL') or _default_ollama
-MLX_API_URL = os.getenv('MLX_API_URL') or os.getenv('MAC_LLM_URL') or ('http://host.docker.internal:11435' if _is_docker else 'http://localhost:11435')
+_raw_mlx = os.getenv('MLX_API_URL') or os.getenv('MAC_LLM_URL') or ('http://host.docker.internal:11435' if _is_docker else 'http://localhost:11435')
+MLX_API_URL = _raw_mlx if _valid_http_url(_raw_mlx) else None  # MLX_API_URL=disabled → None, только Ollama
+
+
+def _get_keep_alive(model_name: Optional[str] = None):
+    """
+    Ollama keep_alive из env или адаптивный расчет на основе веса модели (Singularity 10.0).
+    
+    Логика (рекомендация экспертов):
+    - Light (< 5GB): 3600с (1ч) — дешево держать, быстро отвечать.
+    - Medium (5-15GB): 600с (10м).
+    - Heavy (15-30GB): 300с (5м).
+    - Monster (> 30GB): 60с (1м) — агрессивная выгрузка для освобождения VRAM.
+    """
+    # 1. Проверяем явные настройки в env
+    raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
+    if raw:
+        try:
+            return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
+        except (ValueError, AttributeError):
+            return raw
+
+    # 2. Адаптивная логика если имя модели известно
+    if model_name:
+        try:
+            # Пытаемся получить размер из кэша сканера
+            from available_models_scanner import _scan_cache
+            if _scan_cache and "ollama_sizes" in _scan_cache:
+                size_bytes = _scan_cache["ollama_sizes"].get(model_name, 0)
+                if size_bytes > 0:
+                    size_gb = size_bytes / (1024**3)
+                    if size_gb > 30: return 60
+                    if size_gb > 15: return 300
+                    if size_gb > 5: return 600
+                    return 3600
+        except Exception:
+            pass
+
+        # Fallback на эвристику по имени
+        key = model_name.lower()
+        if "70b" in key or "104b" in key or "next" in key: return 60
+        if "32b" in key or "30b" in key or "qwq" in key: return 300
+        if "7b" in key or "8b" in key or "14b" in key: return 600
+        if "3b" in key or "1b" in key or "tiny" in key or "embedding" in key: return 3600
+
+    return 300  # Дефолт 5 мин
 # Обратная совместимость (legacy)
 MAC_LLM_URL = MLX_API_URL
 SERVER_LLM_URL = OLLAMA_API_URL
@@ -80,23 +133,25 @@ _cached_ollama_models: list = []
 _models_cache_time: float = 0
 _MODELS_CACHE_TTL = 120  # 2 минуты
 
-# Fallback модели (используются если scanner недоступен)
+# Fallback модели (используются если scanner недоступен).
+# MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
 MLX_MODELS_FALLBACK = {
-    "reasoning": "deepseek-r1-distill-llama:70b",
-    "coding": "qwen2.5-coder:32b",
-    "chat": "qwen2.5-coder:32b",
+    "reasoning": "phi3.5:3.8b",
+    "coding": "phi3.5:3.8b",
+    "chat": "phi3.5:3.8b",
     "fast": "phi3.5:3.8b",
-    "default": "qwen2.5-coder:32b"
+    "default": "phi3.5:3.8b",
 }
 
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": "qwq:32b",
+    "reasoning": "deepseek-r1:32b",
     "coding": "qwen2.5-coder:32b",
-    "chat": "glm-4.7-flash:q8_0",
-    "fast": "phi3.5:3.8b",
+    "chat": "deepseek-r1:32b",
+    "fast": "deepseek-r1:14b",
     "vision": "moondream",
     "vision_pdf": "llava:7b",
-    "default": "glm-4.7-flash:q8_0"
+    "default": "qwen2.5-coder:32b",
+    "vip": "deepseek-r1:32b"
 }
 
 # Для обратной совместимости
@@ -128,16 +183,16 @@ LOCAL_TASK_CATEGORIES = [
 class LocalAIRouter:
     def __init__(self):
         self.use_local = USE_LOCAL_LLM
-        import os
         is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-        # Используем URL из env (docker-compose), иначе в Docker — host.docker.internal, локально — localhost
-        # Раньше в Docker игнорировали OLLAMA_API_URL/MLX_API_URL → сканер и nodes могли указывать на разные хосты
-        ollama_url = OLLAMA_API_URL or OLLAMA_BASE_URL or ("http://host.docker.internal:11434" if is_docker else "http://localhost:11434")
+        # Используем URL из env (docker-compose). MLX_API_URL=disabled → только Ollama (не добавляем MLX node)
+        ollama_url = OLLAMA_API_URL or ("http://host.docker.internal:11434" if is_docker else "http://localhost:11434")
+        if not _valid_http_url(ollama_url):
+            ollama_url = "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
         mlx_url = MLX_API_URL or ("http://host.docker.internal:11435" if is_docker else "http://localhost:11435")
-        self.nodes = [
-            {"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 0, "routing_key": "mlx_studio"},
-            {"name": "Mac Studio (Ollama)", "url": ollama_url, "priority": 1, "routing_key": "ollama_studio"}
-        ]
+        self.nodes = []
+        if _valid_http_url(mlx_url):
+            self.nodes.append({"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 0, "routing_key": "mlx_studio"})
+        self.nodes.append({"name": "Mac Studio (Ollama)", "url": ollama_url, "priority": 1, "routing_key": "ollama_studio"})
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
         self._cache_ttl = 300  # 5 minutes
@@ -586,15 +641,29 @@ class LocalAIRouter:
             
         return False
 
-    async def run_local_llm(self, prompt: str, system_prompt: str = "", category: Optional[str] = None, images: Optional[list] = None, max_retries: int = 2, model: Optional[str] = None) -> Optional[tuple]:
+    async def run_local_llm(self, prompt: str, system_prompt: str = "", category: Optional[str] = None, images: Optional[list] = None, max_retries: int = 2, model: Optional[str] = None, model_hint: Optional[str] = None, is_vip: bool = False) -> Optional[tuple]:
         """
         Запускает локальную LLM модель.
         Приоритет: MLX API Server (HTTP) и Ollama — оба используются (балансировка).
         model: если задан — используем эту модель и перебираем узлы (MLX/Ollama) пока один не ответит.
+        model_hint: подсказка для выбора модели (для совместимости с ансамблем).
+        is_vip: если True, запрос идет через VIP-коридор (приоритет и лучшие модели).
         
         Returns:
             tuple: (response, routing_source)
         """
+        # VIP-коридор: форсируем категорию и приоритет
+        if is_vip:
+            category = "vip"
+            logger.info("🌟 [VIP ROUTE] Запрос через VIP-коридор (Иван/Совет)")
+
+        # Используем подсказку, если модель не задана явно
+        if model is None and model_hint:
+            model = model_hint
+
+        # МОНСТР-ЛОГИКА: Поддержка форсированного локального роутинга
+        if getattr(self, 'force_local', False):
+            logger.info("🚀 [MONSTER] Форсирован локальный роутинг для этого запроса.")
         logger.info("[ROUTER] ========== LocalAIRouter.run_local_llm() ==========")
         logger.info("[ROUTER] Input model: %s", model)
         logger.info("[ROUTER] Category: %s", category)
@@ -812,7 +881,7 @@ class LocalAIRouter:
             # 2. Если модель не задана или не совместима - выбираем для этого узла
             if not current_model:
                 # ВАЖНО: Для REASONING задач ВСЕГДА используем _select_model()
-                # Он гарантирует выбор мощной модели (qwq:32b / deepseek-r1:70b)
+                # Выбор модели по категории (scanner или fallback; MLX только лёгкие)
                 if category == "reasoning":
                     current_model = self._select_model(prompt, category, node_type=node_type)
                     logger.info(f"🎯 [REASONING] Узел: {node_type} | Модель: {current_model} (принудительный выбор для reasoning)")
@@ -873,6 +942,7 @@ class LocalAIRouter:
                     "messages": messages,
                     "stream": False
                 }
+                payload["keep_alive"] = _get_keep_alive(model)
             else:
                 # Для других сервисов используем /api/generate
                 node_url = f"{node['url']}/api/generate"
@@ -884,6 +954,7 @@ class LocalAIRouter:
                     "prompt": full_prompt,
                     "stream": False
                 }
+                payload["keep_alive"] = _get_keep_alive(model)
             if images:
                 payload["images"] = images
             
@@ -916,16 +987,83 @@ class LocalAIRouter:
                 try:
                     async with httpx.AsyncClient() as client:
                         request_start = time.time()
-                        # Чат с Викторией использует приоритет HIGH
                         headers = {"X-Request-Priority": "high"}
-                        # Таймаут запроса к узлу: по умолчанию 300 с, чтобы дождаться ответа под нагрузкой (воркер ждёт SMART_WORKER_LLM_TIMEOUT)
+                        # Таймаут по метрикам этой модели (load/processing с запасом); у каждой модели свои значения
                         _node_timeout = float(os.getenv("LOCAL_ROUTER_LLM_TIMEOUT", "300"))
-                        response = await client.post(
-                            node_url,
-                            json=payload,
-                            headers=headers,
-                            timeout=_node_timeout
-                        )
+                        
+                        # Увеличиваем таймаут для reasoning задач (Совет, стратегия)
+                        if category == "reasoning":
+                            _node_timeout = max(_node_timeout, 600.0)
+                            logger.info(f"🕒 [REASONING] Увеличен таймаут до {_node_timeout}с")
+
+                        # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг, увеличиваем таймаут до 10 минут
+                        if getattr(self, 'force_local', False):
+                            _node_timeout = 600.0
+                            logger.info("🚀 [MONSTER] Увеличен таймаут HTTP до 600с для форсированного локального роутинга.")
+                        
+                        try:
+                            from available_models_scanner import get_model_metrics
+                            from app.model_performance_probe import get_timeout_estimate_from_metrics_dict
+                            _source = "ollama" if node.get("routing_key") == "ollama_studio" else "mlx"
+                            _m = get_model_metrics(model, _source)
+                            if _m:
+                                _node_timeout = get_timeout_estimate_from_metrics_dict(
+                                    max_tokens=2048, metrics_dict=_m
+                                )
+                        except Exception:
+                            pass
+                        
+                        # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, используем стриминг для предотвращения ReadTimeout
+                        if getattr(self, 'force_local', False) or category in ("reasoning", "vip"):
+                            logger.info(f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Category: {category}]...")
+                            full_response = []
+                            
+                            # Включаем стриминг в полезной нагрузке
+                            payload["stream"] = True
+                            
+                            async with client.stream("POST", node_url, json=payload, headers=headers, timeout=httpx.Timeout(600.0, connect=30.0)) as response:
+                                if response.status_code == 200:
+                                    async for line in response.aiter_lines():
+                                        if not line: continue
+                                        try:
+                                            chunk = json.loads(line)
+                                            # Обработка разных форматов Ollama/MLX
+                                            if "message" in chunk:
+                                                content = chunk["message"].get("content", "")
+                                            elif "response" in chunk:
+                                                content = chunk.get("response", "")
+                                            else:
+                                                content = ""
+                                            
+                                            if content:
+                                                full_response.append(content)
+                                            
+                                            if chunk.get("done"): break
+                                        except Exception:
+                                            continue
+                                    
+                                    result = "".join(full_response)
+                                    # Создаем фиктивный объект ответа для совместимости с кодом ниже
+                                    class MockResponse:
+                                        def __init__(self, text, status_code):
+                                            self.text = text
+                                            self.status_code = status_code
+                                        def json(self):
+                                            return {"message": {"content": self.text}}
+                                    
+                                    response = MockResponse(result, 200)
+                                else:
+                                    # Если ошибка — считываем текст ошибки
+                                    error_text = await response.aread()
+                                    logger.error(f"Streaming error: {response.status_code}")
+                        else:
+                            # Обычный запрос для легких задач
+                            response = await client.post(
+                                node_url,
+                                json=payload,
+                                headers=headers,
+                                timeout=httpx.Timeout(_node_timeout, connect=30.0)
+                            )
                         latency_ms = (time.time() - request_start) * 1000
                         
                         # Load Balancing: обновляем метрики загрузки
@@ -1100,6 +1238,7 @@ class LocalAIRouter:
             "prompt": full_prompt,
             "stream": True
         }
+        payload["keep_alive"] = _get_keep_alive(model)
         if images:
             payload["images"] = images
         

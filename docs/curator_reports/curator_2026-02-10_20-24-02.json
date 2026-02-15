@@ -1,0 +1,27 @@
+{
+  "ts": "2026-02-10T20:24:09.543826+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Сейчас не могу подключиться к моделям (MLX API Server или Ollama). Проверьте: MLX API Server на порту 11435, Ollama на 11434. После запуска напишите снова — отвечу по существу.",
+      "output_length": 176,
+      "correlation_id": "8260a79e-4dd4-4618-bffe-4fcdd88f740c",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "8260a79e-4dd4-4618-bffe-4fcdd88f740c",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 7.54
+    }
+  ]
+}

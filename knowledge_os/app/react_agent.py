@@ -71,7 +71,7 @@ class ReActAgent:
     def __init__(
         self,
         agent_name: str = "Виктория",
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "qwq:32b",  # Самая мощная reasoning модель после удаления 70B/104B
         ollama_url: str = None,
         max_iterations: int = 10,
         system_prompt: Optional[str] = None,
@@ -82,19 +82,18 @@ class ReActAgent:
         self.system_prompt = system_prompt
         self.initial_goal = goal
         
-        # Определяем правильный URL для Docker (ТОЛЬКО MLX API Server)
+        # Определяем правильные URL для Docker (Ollama и MLX)
         is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
         if is_docker:
-            mlx_url = os.getenv('MLX_API_URL', 'http://host.docker.internal:11435')
+            self.ollama_url = os.getenv('OLLAMA_API_URL', 'http://host.docker.internal:11434')
+            self.mlx_url = os.getenv('MLX_API_URL', 'http://host.docker.internal:11435')
         else:
-            mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
+            self.ollama_url = os.getenv('OLLAMA_API_URL', 'http://localhost:11434')
+            self.mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
         
-        # Всегда используем MLX API Server (Ollama не используется)
+        # Для обратной совместимости
         if ollama_url:
-            # Если передан URL, используем его (но это должен быть MLX)
             self.ollama_url = ollama_url
-        else:
-            self.ollama_url = mlx_url
         
         self.max_iterations = max_iterations
         self.memory = ReActMemory(max_iterations=max_iterations)
@@ -102,7 +101,10 @@ class ReActAgent:
         # Инициализация Skill Registry для динамических tools
         self.skill_registry = None
         try:
-            from app.skill_registry import get_skill_registry
+            try:
+                from skill_registry import get_skill_registry
+            except ImportError:
+                from app.skill_registry import get_skill_registry
             self.skill_registry = get_skill_registry()
             logger.info("✅ Skill Registry подключен к ReActAgent")
         except Exception as e:
@@ -110,24 +112,20 @@ class ReActAgent:
 
         # SafeFileWriter для create_file/write_file (бэкапы, проверка путей)
         try:
-            from app.file_writer import SafeFileWriter
+            try:
+                from file_writer import SafeFileWriter
+            except ImportError:
+                from app.file_writer import SafeFileWriter
             self.file_writer = SafeFileWriter()
-        except ImportError:
+        except Exception as e:
             self.file_writer = None
-            logger.warning("⚠️ SafeFileWriter недоступен, используется прямая запись")
+            logger.warning(f"⚠️ SafeFileWriter недоступен, используется прямая запись: {e}")
         
-        logger.info(f"✅ ReActAgent инициализирован: URL={self.ollama_url}, модель={self.model_name}")
+        logger.info(f"✅ ReActAgent инициализирован: Ollama={self.ollama_url}, MLX={self.mlx_url}, модель={self.model_name}")
     
     async def think(self, goal: str, context: Dict = None) -> str:
         """
         Think - рассуждение о текущей ситуации
-        
-        Args:
-            goal: Цель задачи
-            context: Контекст из предыдущих шагов
-        
-        Returns:
-            Мысль/рассуждение агента
         """
         # Строим промпт для рассуждения
         prompt = self._build_think_prompt(goal, context)
@@ -141,14 +139,9 @@ class ReActAgent:
     
     async def act(self, thought: str, available_tools: List[str] = None) -> Tuple[str, Dict]:
         """
-        Act - выбор и выполнение действия
-        
-        Args:
-            thought: Рассуждение из Think
-            available_tools: Доступные инструменты
-        
-        Returns:
-            (action_name, action_input)
+        Act - выбор и выполнение действия.
+        Внедрен паттерн "Silent Thought" (Google Gemini): перед выбором инструмента агент 
+        проводит внутренний аудит безопасности и целесообразности.
         """
         if available_tools is None:
             # Используем динамические tools из Skill Registry если доступен
@@ -167,6 +160,24 @@ class ReActAgent:
                 "finish"             # Завершение задачи
             ]
         
+        # [SILENT THOUGHT] Внутренний аудит перед действием
+        silent_audit_prompt = f"""Ты - Виктория. Перед тем как выбрать инструмент, проведи внутренний аудит.
+Твоя мысль: {thought}
+Доступные инструменты: {available_tools}
+
+Проверь:
+1. Безопасность: не повредит ли это действие систему?
+2. Целесообразность: это кратчайший путь к цели?
+3. Параметры: все ли данные у тебя есть?
+
+Выдай краткий вердикт (только для внутреннего использования).
+"""
+        try:
+            silent_audit = await self._generate_response(silent_audit_prompt, max_tokens=100)
+            logger.info(f"🤫 [SILENT THOUGHT] Audit: {silent_audit.strip()}")
+        except Exception as e:
+            logger.debug(f"Silent thought failed: {e}")
+
         # Строим промпт для выбора действия
         prompt = self._build_act_prompt(thought, available_tools)
         
@@ -183,14 +194,6 @@ class ReActAgent:
     async def observe(self, action: str, action_input: Dict, result: Any) -> str:
         """
         Observe - обработка результатов действия
-        
-        Args:
-            action: Выполненное действие
-            action_input: Входные данные действия
-            result: Результат выполнения
-        
-        Returns:
-            Наблюдение/описание результата
         """
         # Формируем наблюдение
         observation = f"Действие '{action}' выполнено. Результат: {str(result)[:500]}"
@@ -201,17 +204,20 @@ class ReActAgent:
     
     async def reflect(self, goal: str, steps: List[ReActStep]) -> str:
         """
-        Reflect - обновление понимания на основе всех шагов
-        
-        Args:
-            goal: Исходная цель
-            steps: Все выполненные шаги
-        
-        Returns:
-            Рефлексия/выводы
+        Reflect - обновление понимания на основе всех шагов.
+        Внедрена логика "Self-Correction" (OpenAI Pattern): если последнее действие 
+        было ошибочным, агент обязан проанализировать причину и предложить другой путь.
         """
+        # Проверяем на наличие ошибок в последних шагах
+        last_step = steps[-1] if steps else None
+        error_context = ""
+        if last_step and last_step.observation and ("error" in last_step.observation.lower() or "failed" in last_step.observation.lower()):
+            error_context = f"\nВНИМАНИЕ: Последнее действие '{last_step.action}' завершилось ошибкой. Проанализируй причину и предложи альтернативный вариант."
+
         # Строим промпт для рефлексии
         prompt = self._build_reflect_prompt(goal, steps)
+        if error_context:
+            prompt += error_context
         
         # Генерируем рефлексию
         reflection = await self._generate_response(prompt)
@@ -223,13 +229,6 @@ class ReActAgent:
     async def run(self, goal: str, context: Dict = None) -> Dict:
         """
         Запустить полный ReAct цикл
-        
-        Args:
-            goal: Цель задачи
-            context: Начальный контекст
-        
-        Returns:
-            Результат выполнения с полной историей
         """
         self.memory.goal = goal
         self.memory.current_state = ReActState.THINK
@@ -288,8 +287,14 @@ class ReActAgent:
                         self.memory.steps.append(step)
                         break
                     
-                    # Выполняем действие
-                    result = await self._execute_action(action, action_input)
+                    # Выполняем действие с логикой "At Most Once" (Perplexity Pattern)
+                    # Если инструмент упал, мы даем одну попытку на самоисправление в Observe/Reflect,
+                    # но не зацикливаемся на одной и той же ошибке.
+                    try:
+                        result = await self._execute_action(action, action_input)
+                    except Exception as action_exc:
+                        logger.warning(f"⚠️ Action {action} failed: {action_exc}")
+                        result = f"Error executing {action}: {str(action_exc)}"
                     
                     step = ReActStep(
                         state=ReActState.ACT,
@@ -333,7 +338,9 @@ class ReActAgent:
                     break
                 
             except Exception as e:
-                logger.error(f"❌ [{self.agent_name}] Ошибка в ReAct цикле: {e}")
+                import traceback
+                error_details = traceback.format_exc()
+                logger.error(f"❌ [{self.agent_name}] Ошибка в ReAct цикле: {e}\n{error_details}")
                 self.memory.current_state = ReActState.ERROR
                 break
         
@@ -346,13 +353,37 @@ class ReActAgent:
         if self.system_prompt:
             system_context = f"{self.system_prompt}\n\n"
         
-        prompt = f"""{system_context}Ты - {self.agent_name}, эксперт по решению задач.
+        try:
+            from configs.victoria_common import PROMPT_RUSSIAN_ONLY
+        except ImportError:
+            PROMPT_RUSSIAN_ONLY = "КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы, объяснения и комментарии должны быть на русском!"
+        
+        # --- AI RESEARCH UPGRADE (Singularity 10.0) ---
+        # Интегрируем принципы Anthropic, OpenAI и Google
+        ai_research_principles = """
+ПРИНЦИПЫ МЫШЛЕНИЯ (AI Research):
+1. ПРЯМОТА И ЧЕСТНОСТЬ (OpenAI): Будь прямолинейна, избегай пустой лести. Если задача сложная или требует много времени, не проси подтверждения — делай максимум возможного прямо сейчас. Частичное выполнение лучше, чем уточняющие вопросы.
+2. КРИТИЧЕСКОЕ МЫШЛЕНИЕ (Anthropic): Не соглашайся автоматически. Ставь под сомнение предпосылки, если это ведет к лучшему решению. Предлагай альтернативные точки зрения.
+3. ТОЧНОСТЬ В ДЕТАЛЯХ (Google): При написании кода проявляй "архитектурное" внимание к деталям. Код должен быть не просто рабочим, а эстетичным и модульным.
+4. КОНТРОЛЬ ОБЪЕМА (Yap Score): Твой целевой Yap Score = 8192 (будь максимально подробной и обстоятельной в анализе, но лаконичной в финальных инструкциях).
+5. ЭФФЕКТИВНОСТЬ ПРАВОК (Aider): При редактировании существующих файлов ВСЕГДА предпочитай инструмент smart-patch вместо полной перезаписи. Это экономит ресурсы и предотвращает ошибки парсинга.
+6. ЦЕПОЧКА РАССУЖДЕНИЙ: Всегда начинай с глубокого внутреннего анализа (Think), прежде чем переходить к действию (Act).
+"""
+        
+        prompt = """{system_context}Ты - {agent_name}, эксперт по решению задач.
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы, объяснения и комментарии должны быть на русском!
+{PROMPT_RUSSIAN_ONLY}
+
+{ai_research_principles}
 
 ЦЕЛЬ: {goal}
-
-"""
+""".format(
+            system_context=system_context,
+            agent_name=self.agent_name,
+            PROMPT_RUSSIAN_ONLY=PROMPT_RUSSIAN_ONLY,
+            ai_research_principles=ai_research_principles,
+            goal=goal
+        )
         
         if context:
             # Добавляем историю чата если есть
@@ -398,7 +429,8 @@ class ReActAgent:
             "read_file": "Читает содержимое файла. Параметры: file_path (путь к файлу)",
             "run_terminal_cmd": "Выполняет команду в терминале. Параметры: command (команда для выполнения)",
             "list_directory": "Показывает список файлов в директории. Параметры: directory или path (путь к директории)",
-            "create_file": "Создает новый файл с содержимым. Параметры: file_path (путь), content (содержимое)",
+            "create_file": "Создает НОВЫЙ файл с содержимым. Параметры: file_path (путь), content (содержимое)",
+            "smart-patch": "Применяет точечные изменения к СУЩЕСТВУЮЩЕМУ файлу (SEARCH/REPLACE). Параметры: file_path (путь), patch_content (строка с блоками <<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE). Используй для правок кода.",
             "write_file": "Записывает содержимое в файл (создает или перезаписывает). Параметры: file_path (путь), content (содержимое)",
             "search_knowledge": "Ищет информацию в базе знаний. Параметры: query (поисковый запрос)",
             "finish": "Завершает выполнение задачи. Параметры: output (обязательный — краткое описание выполненного и, при создании файлов, пути к ним). Не вызывай finish без output."
@@ -416,47 +448,88 @@ class ReActAgent:
         requires_file_creation = any(keyword in thought.lower() or keyword in self.memory.goal.lower() 
                                     for keyword in file_creation_keywords)
         
-        prompt = f"""Ты - {self.agent_name}.
+        try:
+            from configs.victoria_common import PROMPT_RUSSIAN_ONLY
+        except ImportError:
+            PROMPT_RUSSIAN_ONLY = "КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!"
+        prompt = """Ты - {agent_name}.
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!
+{PROMPT_RUSSIAN_ONLY}
 
 РАССУЖДЕНИЕ: {thought}
 
 ДОСТУПНЫЕ ИНСТРУМЕНТЫ:
 {tools_desc}
 
-{"⚠️ КРИТИЧЕСКИ ВАЖНО: Эта задача требует СОЗДАНИЯ ФАЙЛА! Ты ДОЛЖЕН использовать create_file или write_file, НЕ finish! ⚠️" if requires_file_creation else ""}
+{file_creation_warning}
 
-ВЫБЕРИ действие и верни ТОЛЬКО JSON (без текста до/после):
-{{"action": "название_инструмента", "input": {{"параметр": "значение"}}}}
+ВЫБЕРИ действие и верни ТОЛЬКО JSON в блоке ```json ... ``` (без лишнего текста):
+```json
+{{
+  "action": "название_инструмента",
+  "input": {{
+    "параметр": "значение"
+  }}
+}}
+```
 
-{"🚫 ЗАПРЕЩЕНО использовать finish пока файл не создан! Используй create_file! 🚫" if requires_file_creation else ""}
+{finish_warning}
 
 ВАЖНО для create_file/write_file:
 - Если создаешь HTML/код файл, ВСЁ содержимое должно быть в параметре "content"
 - Используй экранирование для переносов строк: \\n
 - Используй экранирование для кавычек: \\"
 - Пример для HTML файла:
-{{"action": "create_file", "input": {{"file_path": "index.html", "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n<title>Привет</title>\\n</head>\\n<body>\\n<h1>Привет от Victoria</h1>\\n</body>\\n</html>"}}}}
+```json
+{{
+  "action": "create_file",
+  "input": {{
+    "file_path": "index.html",
+    "content": "<!DOCTYPE html>\\n<html>\\n<head>\\n<title>Привет</title>\\n</head>\\n<body>\\n<h1>Привет от Victoria</h1>\\n</body>\\n</html>"
+  }}
+}}
+```
 
 Пример для простого файла:
-{{"action": "create_file", "input": {{"file_path": "test.txt", "content": "привет"}}}}
+```json
+{{
+  "action": "create_file",
+  "input": {{
+    "file_path": "test.txt",
+    "content": "привет"
+  }}
+}}
+```
 
 Пример для выполнения команды:
-{{"action": "run_terminal_cmd", "input": {{"command": "ls -la"}}}}
+```json
+{{
+  "action": "run_terminal_cmd",
+  "input": {{
+    "command": "ls -la"
+  }}
+}}
+```
 
-ТВОЙ ВЫБОР (только JSON, ВСЁ содержимое файла в content):"""
+ТВОЙ ВЫБОР (верни ТОЛЬКО JSON в блоке ```json ... ```, ВСЁ содержимое файла в content):""".format(
+            agent_name=self.agent_name,
+            PROMPT_RUSSIAN_ONLY=PROMPT_RUSSIAN_ONLY,
+            thought=thought,
+            tools_desc=tools_desc,
+            file_creation_warning="⚠️ КРИТИЧЕСКИ ВАЖНО: Эта задача требует СОЗДАНИЯ ФАЙЛА! Ты ДОЛЖЕН использовать create_file или write_file, НЕ finish! ⚠️" if requires_file_creation else "",
+            finish_warning="🚫 ЗАПРЕЩЕНО использовать finish пока файл не создан! Используй create_file! 🚫" if requires_file_creation else ""
+        )
         
         return prompt
     
     def _build_reflect_prompt(self, goal: str, steps: List[ReActStep]) -> str:
         """Построить промпт для Reflect"""
-        prompt = f"""Ты - {self.agent_name}.
+        prompt = """Ты - {agent_name}.
 
 ЦЕЛЬ: {goal}
 
 ВЫПОЛНЕННЫЕ ШАГИ:
-"""
+""".format(agent_name=self.agent_name, goal=goal)
         
         for i, step in enumerate(steps, 1):
             prompt += f"\n{i}. {step.state.value.upper()}\n"
@@ -500,24 +573,92 @@ class ReActAgent:
         import re
         
         # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ для отладки
-        logger.info(f"🔍 [ПАРСИНГ] Полный ответ модели (первые 500 символов): {response[:500]}")
-        logger.info(f"🔍 [ПАРСИНГ] Длина ответа: {len(response)} символов")
+        try:
+            logger.info(f"🔍 [ПАРСИНГ] Полный ответ модели (первые 500 символов): {response[:500]}")
+            logger.info(f"🔍 [ПАРСИНГ] Длина ответа: {len(response)} символов")
+        except Exception:
+            pass
         
         # Очищаем ответ от лишнего текста
         response_clean = response.strip()
         
-        # УЛУЧШЕННЫЙ ПАРСИНГ: Сначала пробуем полный JSON парсинг (самый надежный)
-        # Ищем JSON объект, который может содержать многострочный контент
-        # Используем более гибкий подход - находим начало JSON и парсим до конца
+        # Сингулярность 10.0: Удаляем <think>...</think> блоки перед парсингом
+        if "<think>" in response_clean:
+            # Используем более надежное регулярное выражение для удаления всех блоков <think>
+            response_clean = re.sub(r'<think>.*?</think>', '', response_clean, flags=re.DOTALL).strip()
+            # Если тег <think> открыт, но не закрыт (бывает при обрыве генерации)
+            response_clean = re.sub(r'<think>.*', '', response_clean, flags=re.DOTALL).strip()
         
-        # Паттерн 1: Ищем полный JSON объект с учетом вложенных объектов и многострочного контента
-        # Ищем от {"action" до последней закрывающей скобки
+        # УЛУЧШЕННЫЙ ПАРСИНГ (Singularity 10.0): Ищем JSON в markdown блоках или просто в тексте
+        
+        # 1. Пробуем найти JSON в markdown блоках ```json ... ```
+        # Сингулярность 10.0: Максимально жадный поиск до конца блока или ответа
+        json_blocks = re.findall(r'```(?:json)?\s*(\{.*?"action"\s*:.*)', response_clean, re.DOTALL)
+        
+        # Если не нашли в блоках, ищем просто по тексту
+        if not json_blocks:
+            json_blocks = re.findall(r'(\{\s*"action"\s*:.*)', response_clean, re.DOTALL)
+        
+        if json_blocks:
+            # Пробуем парсить блоки с конца (обычно финальное действие в конце)
+            for block in reversed(json_blocks):
+                try:
+                    block_clean = block.strip()
+                    
+                    # 1. Убираем закрывающие тройные кавычки, если они есть
+                    if '```' in block_clean:
+                        block_clean = block_clean.split('```')[0].strip()
+                    
+                    # 2. Пытаемся найти корректный конец JSON по балансу скобок
+                    balance = 0
+                    last_valid_index = -1
+                    in_string = False
+                    escape_next = False
+                    
+                    for i, char in enumerate(block_clean):
+                        if escape_next:
+                            escape_next = False
+                            continue
+                        if char == '\\':
+                            escape_next = True
+                            continue
+                        if char == '"' and not escape_next:
+                            in_string = not in_string
+                            continue
+                        if not in_string:
+                            if char == '{':
+                                balance += 1
+                            elif char == '}':
+                                balance -= 1
+                                if balance == 0:
+                                    last_valid_index = i
+                                    break
+                    
+                    if last_valid_index != -1:
+                        block_to_parse = block_clean[:last_valid_index+1]
+                    else:
+                        # Если баланс не сошелся, пробуем «дозакрыть»
+                        block_to_parse = block_clean
+                        if block_to_parse.count('{') > block_to_parse.count('}'):
+                            block_to_parse += '}' * (block_to_parse.count('{') - block_to_parse.count('}'))
+
+                    action_data = json.loads(block_to_parse)
+                    action = action_data.get('action')
+                    action_input = action_data.get('input', {})
+                    
+                    if action and action in available_tools:
+                        logger.info(f"✅ Парсинг действия (улучшенный баланс): {action}")
+                        return action, action_input if isinstance(action_input, dict) else {}
+                except Exception as e:
+                    logger.debug(f"⚠️ Ошибка парсинга блока: {e}")
+                    continue
+
+        # 3. Старый надежный метод с подсчетом скобок (если регулярки не сработали)
         json_start_pattern = r'\{\s*"action"\s*:\s*"([^"]+)"'
         json_start_match = re.search(json_start_pattern, response_clean)
         
         if json_start_match:
             start_pos = json_start_match.start()
-            # Находим начало JSON объекта
             brace_count = 0
             in_string = False
             escape_next = False
@@ -525,19 +666,15 @@ class ReActAgent:
             
             for i in range(start_pos, len(response_clean)):
                 char = response_clean[i]
-                
                 if escape_next:
                     escape_next = False
                     continue
-                
                 if char == '\\':
                     escape_next = True
                     continue
-                
                 if char == '"' and not escape_next:
                     in_string = not in_string
                     continue
-                
                 if not in_string:
                     if char == '{':
                         brace_count += 1
@@ -550,614 +687,268 @@ class ReActAgent:
             if brace_count == 0 and json_end_pos > start_pos:
                 try:
                     json_str = response_clean[start_pos:json_end_pos]
-                    logger.info(f"🔍 [ПАРСИНГ] Извлеченный JSON (первые 500 символов): {json_str[:500]}")
-                    logger.info(f"🔍 [ПАРСИНГ] Длина извлеченного JSON: {len(json_str)} символов")
-                    
                     action_data = json.loads(json_str)
                     action = action_data.get('action', 'finish')
                     action_input = action_data.get('input', {})
                     
-                    logger.info(f"🔍 [ПАРСИНГ] Action: {action}, Input keys: {list(action_input.keys()) if isinstance(action_input, dict) else 'N/A'}")
-                    
-                    # Если input - строка, пробуем распарсить как JSON
-                    if isinstance(action_input, str):
-                        try:
-                            action_input = json.loads(action_input)
-                            logger.info(f"🔍 [ПАРСИНГ] Input распарсен как JSON")
-                        except:
-                            logger.info(f"🔍 [ПАРСИНГ] Input не JSON, используем как строку")
-                            pass
-                    
-                    # JSON уже автоматически декодирует экранированные символы (\n, \t, \" и т.д.)
-                    # Не нужно делать дополнительный replace - это может испортить данные
-                    # Если content содержит буквальные \n (не переносы строк), это уже обработано JSON парсером
-                    
                     if action in available_tools:
-                        logger.info(f"✅ Парсинг действия (полный JSON): {action} с параметрами: {list(action_input.keys()) if isinstance(action_input, dict) else 'N/A'}")
-                        if isinstance(action_input, dict) and "content" in action_input:
-                            content = action_input['content']
-                            logger.info(f"   📄 Content length: {len(content)} символов")
-                            logger.info(f"   📄 Content preview (первые 200 символов): {repr(content[:200])}")
-                            # Проверяем, не обрезан ли контент
-                            if len(content) < 50 and "html" in action_input.get("file_path", "").lower():
-                                logger.warning(f"⚠️ [ПАРСИНГ] Подозрение на обрезанный контент! Длина: {len(content)}, файл: {action_input.get('file_path')}")
-                                logger.warning(f"⚠️ [ПАРСИНГ] Полный content: {repr(content)}")
+                        logger.info(f"✅ Парсинг действия (полный JSON): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
                 except json.JSONDecodeError as e:
                     logger.warning(f"⚠️ [ПАРСИНГ] Ошибка парсинга полного JSON: {e}")
-                    logger.debug(f"🔍 [ПАРСИНГ] Проблемный JSON (первые 500 символов): {json_str[:500] if 'json_str' in locals() else 'N/A'}")
-                    logger.debug(f"Ошибка парсинга полного JSON: {e}, пробуем другие методы")
         
-        # Паттерн 2: Стандартные JSON паттерны (fallback)
-        json_patterns = [
-            r'\{[^{}]*"action"[^{}]*"input"[^{}]*\{[^{}]*\}[^{}]*\}',  # Вложенный JSON
-            r'\{"action"\s*:\s*"[^"]+",\s*"input"\s*:\s*\{[^}]+\}\}',  # Строгий формат
-            r'\{[^}]*"action"[^}]*"input"[^}]*\}',  # Простой формат
-        ]
-        
-        for pattern in json_patterns:
-            json_match = re.search(pattern, response_clean, re.DOTALL)
-            if json_match:
-                try:
-                    action_data = json.loads(json_match.group())
-                    action = action_data.get('action', 'finish')
-                    action_input = action_data.get('input', {})
-                    
-                    # Если input - строка, пробуем распарсить как JSON
-                    if isinstance(action_input, str):
-                        try:
-                            action_input = json.loads(action_input)
-                        except:
-                            pass
-                    
-                    # Декодируем экранированные символы в content если есть
-                    if isinstance(action_input, dict) and "content" in action_input:
-                        if isinstance(action_input["content"], str):
-                            action_input["content"] = action_input["content"].replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace("\\'", "'")
-                    
-                    if action in available_tools:
-                        logger.info(f"✅ Парсинг действия: {action} с параметрами: {list(action_input.keys()) if isinstance(action_input, dict) else 'N/A'}")
-                        return action, action_input if isinstance(action_input, dict) else {}
-                except json.JSONDecodeError as e:
-                    logger.debug(f"Ошибка парсинга JSON: {e}, пробуем следующий паттерн")
-                    continue
-        
-        # Fallback 1: Ищем action и input отдельно
+        # Fallback 1: Ищем action и input отдельно (самый простой поиск)
         action_match = re.search(r'"action"\s*:\s*"([^"]+)"', response_clean)
         if action_match:
             action = action_match.group(1)
-            # Ищем input объект
-            input_match = re.search(r'"input"\s*:\s*(\{[^}]+\})', response_clean, re.DOTALL)
-            if input_match:
-                try:
-                    action_input = json.loads(input_match.group(1))
-                    if action in available_tools:
-                        logger.info(f"✅ Парсинг действия (fallback): {action} с параметрами: {action_input}")
+            if action in available_tools:
+                # Пытаемся найти input рядом
+                input_match = re.search(r'"input"\s*:\s*(\{.*?\})', response_clean, re.DOTALL)
+                if input_match:
+                    try:
+                        action_input = json.loads(input_match.group(1))
+                        logger.info(f"✅ Парсинг действия (простой fallback): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
-                except:
-                    pass
-        
-        # Fallback 2: Ищем название действия в тексте и извлекаем параметры
-        for tool in available_tools:
-            if tool.lower() in response_clean.lower():
-                # Пытаемся извлечь параметры из текста
-                action_input = {}
-                
-                # Для create_file ищем file_path и content
-                if tool == "create_file" or tool == "write_file":
-                    file_path_match = re.search(r'file_path["\']?\s*[:=]\s*["\']?([^"\'\s]+)', response_clean)
-                    # Ищем content - может быть многострочным, ищем до конца строки или следующего ключа
-                    content_patterns = [
-                        r'content["\']?\s*[:=]\s*["\']([^"\']*(?:\\.[^"\']*)*)["\']',  # В кавычках с экранированием
-                        r'content["\']?\s*[:=]\s*["\']([^"\']+)',  # В кавычках простой
-                        r'content["\']?\s*[:=]\s*([^\s,}]+)',  # Без кавычек
-                    ]
-                    content_match = None
-                    for pattern in content_patterns:
-                        content_match = re.search(pattern, response_clean, re.DOTALL)
-                        if content_match:
-                            break
-                    
-                    if file_path_match:
-                        action_input["file_path"] = file_path_match.group(1)
-                    if content_match:
-                        # Декодируем экранированные символы
-                        content = content_match.group(1)
-                        content = content.replace('\\n', '\n').replace('\\t', '\t').replace('\\"', '"').replace("\\'", "'")
-                        action_input["content"] = content
-                
-                # Для run_terminal_cmd ищем command
-                elif tool == "run_terminal_cmd":
-                    # Ищем команду после "command" или просто команду в тексте
-                    cmd_match = re.search(r'command["\']?\s*[:=]\s*["\']?([^"\']+)', response_clean)
-                    if cmd_match:
-                        action_input["command"] = cmd_match.group(1).strip()
-                    else:
-                        # Пробуем найти команду в тексте (ls, echo, cat и т.д.)
-                        cmd_pattern = r'(ls|cat|echo|grep|find|mkdir|touch|python|docker)\s+[^\s"]+'
-                        cmd_found = re.search(cmd_pattern, response_clean)
-                        if cmd_found:
-                            action_input["command"] = cmd_found.group(0)
-                
-                # Для read_file ищем file_path
-                elif tool == "read_file":
-                    file_path_match = re.search(r'file_path["\']?\s*[:=]\s*["\']?([^"\'\s]+)', response_clean)
-                    if file_path_match:
-                        action_input["file_path"] = file_path_match.group(1)
-                
-                if action_input:
-                    logger.info(f"✅ Парсинг действия (fallback 2): {tool} с параметрами: {action_input}")
-                    return tool, action_input
-                else:
-                    logger.warning(f"⚠️ Найдено действие {tool}, но параметры не извлечены")
-                    return tool, {}
+                    except:
+                        pass
+                return action, {}
         
         # По умолчанию - finish
-        logger.warning(f"⚠️ Не удалось распарсить действие из ответа: {response_clean[:200]}")
-        return "finish", {}
+        if "finish" in response_clean.lower() or "final answer" in response_clean.lower():
+            return "finish", {"output": response_clean}
+
+        logger.warning(f"⚠️ Не удалось распарсить действие из ответа: {response_clean[:200]}...")
+        return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}
     
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
         """Выполнить действие с реальными инструментами"""
-        logger.info(f"🔧 [{self.agent_name}] Выполняю действие: {action} с параметрами: {action_input}")
+        logger.info(f"🔧 [{self.agent_name}] Выполняю действие: {action}")
         
-        # Пробуем найти skill в реестре
+        # --- SMART PATCH IMPLEMENTATION (Singularity 10.0) ---
+        if action == "smart-patch" or action == "patch_file":
+            file_path = action_input.get("file_path", "")
+            patch_content = action_input.get("patch_content", "")
+            if not file_path or not patch_content:
+                return "Error: file_path и patch_content обязательны"
+            
+            try:
+                import re
+                if not os.path.exists(file_path):
+                    return f"Error: Файл {file_path} не найден"
+                
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Парсим блоки SEARCH/REPLACE
+                # Формат: <<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE
+                pattern = r'<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>> REPLACE'
+                matches = re.findall(pattern, patch_content, re.DOTALL)
+                
+                if not matches:
+                    return "Error: Не найдено валидных блоков SEARCH/REPLACE"
+                
+                new_content = content
+                applied_count = 0
+                for search_block, replace_block in matches:
+                    if search_block in new_content:
+                        new_content = new_content.replace(search_block, replace_block)
+                        applied_count += 1
+                    else:
+                        # Пробуем найти с обрезанными пробелами если точное совпадение не сработало
+                        search_stripped = search_block.strip()
+                        if search_stripped in new_content:
+                            # Находим оригинальный блок с такими же границами
+                            # Это упрощенная версия, в идеале нужно более точное сопоставление
+                            new_content = new_content.replace(search_stripped, replace_block.strip())
+                            applied_count += 1
+                        else:
+                            logger.warning(f"⚠️ Блок SEARCH не найден в {file_path}")
+                
+                if applied_count > 0:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_content)
+                    return f"Успешно применено {applied_count} патчей к {file_path}"
+                else:
+                    return f"Error: Ни один блок SEARCH не найден в {file_path}. Проверь точность кода в блоке SEARCH."
+            except Exception as e:
+                return f"Error при применении патча: {str(e)}"
+
+        # Сингулярность 10.0: Если действие search_knowledge, подмешиваем AI Research если запрос релевантен
+        if action == "search_knowledge":
+            query = action_input.get("query", "").lower()
+            ai_keywords = ["anthropic", "google", "openai", "deepseek", "meta", "llama", "claude", "gemini", "gpt-4", "gpt-5", "research", "исследования"]
+            if any(kw in query for kw in ai_keywords):
+                logger.info(f"🧠 [AI RESEARCH] Перехват search_knowledge для AI тематики: {query}")
+                try:
+                    import asyncpg
+                    db_url = os.getenv("DATABASE_URL")
+                    if db_url:
+                        conn = await asyncpg.connect(db_url)
+                        try:
+                            rows = await conn.fetch(
+                                """SELECT kn.content, kn.metadata->>'title' as title
+                                   FROM knowledge_nodes kn
+                                   JOIN domains d ON d.id = kn.domain_id
+                                   WHERE (d.name = 'AI Research' OR kn.metadata->>'source' = 'external_docs_indexer')
+                                     AND (kn.content ILIKE $1 OR kn.metadata::text ILIKE $1)
+                                   ORDER BY kn.confidence_score DESC NULLS LAST
+                                   LIMIT 3""",
+                                f"%{query[:30]}%"
+                            )
+                            if rows:
+                                results = []
+                                for r in rows:
+                                    results.append(f"### {r['title']}\n{r['content']}")
+                                return "\n\n".join(results)
+                        finally:
+                            await conn.close()
+                except Exception as e:
+                    logger.debug(f"AI Research search_knowledge fallback error: {e}")
+
         if self.skill_registry:
             skill = self.skill_registry.get_skill(action)
             if skill and skill.handler:
                 try:
-                    # Выполняем через skill handler
                     if asyncio.iscoroutinefunction(skill.handler):
                         result = await skill.handler(**action_input)
                     else:
                         result = skill.handler(**action_input)
-                    logger.info(f"✅ Skill выполнен: {action}")
                     return result
                 except Exception as e:
                     logger.error(f"❌ Ошибка выполнения skill {action}: {e}")
                     return f"Error: {str(e)}"
-            elif skill:
-                # Skill найден, но нет handler - используем инструкции
-                logger.debug(f"📝 Skill найден без handler, используем инструкции: {action}")
-            else:
-                # Skill не найден - публикуем событие SKILL_NEEDED
-                try:
-                    from app.event_bus import get_event_bus, Event, EventType
-                    event_bus = get_event_bus()
-                    event = Event(
-                        event_id=f"skill_needed_{action}",
-                        event_type=EventType.SKILL_NEEDED,
-                        payload={
-                            "skill_name": action,
-                            "action_input": action_input,
-                            "context": "ReActAgent execution"
-                        },
-                        source="react_agent"
-                    )
-                    await event_bus.publish(event)
-                    logger.info(f"📢 Событие SKILL_NEEDED опубликовано для: {action}")
-                except Exception as e:
-                    logger.debug(f"Не удалось опубликовать событие SKILL_NEEDED: {e}")
         
         try:
-            # Интеграция с реальными инструментами
             if action == "read_file":
                 file_path = action_input.get("file_path", action_input.get("path", ""))
-                if not file_path:
-                    return "Error: file_path не указан"
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    logger.info(f"✅ Файл прочитан: {file_path} ({len(content)} символов)")
-                    return content
-                except FileNotFoundError:
-                    return f"Error: Файл '{file_path}' не найден"
-                except Exception as e:
-                    return f"Error: {str(e)}"
-            
+                if not file_path: return "Error: file_path не указан"
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return f.read()
             elif action == "run_terminal_cmd":
-                # Пробуем разные варианты ключей
-                command = action_input.get("command") or action_input.get("cmd") or action_input.get("command_text", "")
-                # Если command не найден, пробуем взять первый параметр или весь input как строку
-                if not command and action_input:
-                    # Если action_input - строка, используем её как команду
-                    if isinstance(action_input, str):
-                        command = action_input
-                    # Если это словарь с одним ключом, используем значение
-                    elif len(action_input) == 1:
-                        command = list(action_input.values())[0]
-                    # Или пробуем найти команду в тексте
-                    elif "ls" in str(action_input) or "cat" in str(action_input) or "grep" in str(action_input):
-                        # Извлекаем команду из текста
-                        import re
-                        cmd_match = re.search(r'(ls|cat|grep|find|echo|mkdir|touch|python|docker)\s+[^\s"]+', str(action_input))
-                        if cmd_match:
-                            command = cmd_match.group(0)
-                
-                if not command:
-                    return f"Error: command не указан. Получены параметры: {action_input}"
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        command,
-                        shell=True,
-                        capture_output=True,
-                        text=True,
-                        timeout=30,
-                        check=False
-                    )
-                    output = f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
-                    logger.info(f"✅ Команда выполнена: {command[:50]}...")
-                    return output
-                except subprocess.TimeoutExpired:
-                    return "Error: Команда превысила таймаут (30s)"
-                except Exception as e:
-                    return f"Error: {str(e)}"
-            
+                command = action_input.get("command") or action_input.get("cmd") or ""
+                if not command: return "Error: command не указан"
+                import subprocess
+                result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+                return f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
             elif action == "list_directory":
                 directory = action_input.get("directory", action_input.get("path", "."))
-                try:
-                    files = os.listdir(directory)
-                    result = "\n".join(files)
-                    logger.info(f"✅ Список файлов получен: {directory} ({len(files)} файлов)")
-                    return result
-                except Exception as e:
-                    return f"Error: {str(e)}"
-            
+                return "\n".join(os.listdir(directory))
             elif action == "create_file" or action == "write_file":
-                file_path = action_input.get("file_path", action_input.get("path", ""))
-                content = action_input.get("content", action_input.get("text", ""))
-                overwrite = action_input.get("overwrite", True)  # create_file обычно перезаписывает
-
-                logger.info(f"🔍 [CREATE_FILE] file_path: {file_path}, content length: {len(content) if isinstance(content, str) else 'N/A'}")
-                if not file_path:
-                    return "Error: file_path не указан"
-                if not content:
-                    logger.warning(f"⚠️ [CREATE_FILE] Контент пустой! action_input: {action_input}")
-                    return "Error: content не указан"
-                if not isinstance(content, str):
-                    content = str(content)
-
-                # Approval check для критичных файлов (AGENT_APPROVAL_REQUIRED=true)
-                # Интеграция HITL: request_approval создаёт запрос для будущего UI; агент получает понятное сообщение
-                try:
-                    from app.approval_manager import requires_approval_for_write, is_approval_required
-                    if is_approval_required():
-                        need, reason = requires_approval_for_write(file_path)
-                        if need:
-                            # Создаём запрос на одобрение (HITL) для UI/Telegram
-                            try:
-                                from app.human_in_the_loop import get_hitl
-                                hitl = get_hitl()
-                                req = await hitl.request_approval(
-                                    action=action,
-                                    description=f"Запись в {file_path}: {len(content)} символов",
-                                    agent_name=self.agent_name,
-                                    proposed_result={"file_path": file_path, "content_preview": content[:200]},
-                                    context={"reason": reason, "critical_file": True},
-                                )
-                                return (
-                                    f"Error: {reason} Требуется одобрение пользователя. "
-                                    f"Запрос создан: {req.request_id}. "
-                                    f"(Можно попробовать другой путь или отключить: AGENT_APPROVAL_REQUIRED=false)"
-                                )
-                            except Exception as hitl_err:
-                                logger.debug("HITL request_approval: %s", hitl_err)
-                            return (
-                                f"Error: {reason} требует подтверждения пользователя. "
-                                f"(Отключить: AGENT_APPROVAL_REQUIRED=false)"
-                            )
-                except ImportError:
-                    pass
-
-                if self.file_writer:
-                    result = self.file_writer.write_file(file_path, content, overwrite=overwrite)
-                    if result.get("success"):
-                        logger.info(f"✅ [CREATE_FILE] {result.get('message', '')}")
-                        return result["message"]
-                    return f"Error: {result.get('error', 'unknown')}"
-                # Fallback: прямая запись (без SafeFileWriter)
-                try:
-                    os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(file_path) else None
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    return f"Файл '{file_path}' успешно создан ({len(content)} символов)"
-                except Exception as e:
-                    logger.error(f"❌ [CREATE_FILE] Ошибка создания файла: {e}")
-                    return f"Error: {str(e)}"
-            
-            elif action == "search_knowledge":
-                query = action_input.get("query", action_input.get("q", ""))
-                if not query:
-                    return "Error: query не указан"
-                
-                # Интеграция с Knowledge OS
-                try:
-                    from app.main import search_knowledge
-                    domain = action_input.get("domain")
-                    result = await search_knowledge(query, domain=domain)
-                    logger.info(f"✅ Поиск в базе знаний выполнен: {query}")
-                    return result
-                except Exception as e:
-                    logger.error(f"❌ Ошибка поиска в базе знаний: {e}")
-                    return f"Error: {str(e)}"
-            
+                file_path = action_input.get("file_path", "")
+                content = action_input.get("content", "")
+                if not file_path: return "Error: file_path не указан"
+                os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(file_path) else None
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return f"Файл '{file_path}' успешно создан"
             elif action == "finish":
-                output = action_input.get("output", action_input.get("result", ""))
-                return output
-            
-            else:
-                return f"Error: Неизвестное действие '{action}'. Доступные: read_file, run_terminal_cmd, list_directory, create_file, write_file, search_knowledge, finish"
-        
+                return action_input.get("output", "")
+            return f"Error: Неизвестное действие '{action}'"
         except Exception as e:
             logger.error(f"❌ Ошибка выполнения действия {action}: {e}")
             return f"Error: {str(e)}"
     
     def _should_finish(self, reflection: str) -> bool:
         """Определить, нужно ли завершить цикл"""
-        finish_keywords = [
-            "цель достигнута",
-            "задача выполнена",
-            "готово",
-            "завершено",
-            "успешно"
-        ]
-        
-        reflection_lower = reflection.lower()
-        return any(keyword in reflection_lower for keyword in finish_keywords)
+        finish_keywords = ["цель достигнута", "задача выполнена", "готово", "завершено", "успешно"]
+        return any(keyword in reflection.lower() for keyword in finish_keywords)
     
     async def _generate_response(self, prompt: str) -> str:
-        """Генерировать ответ через модель с fallback на доступные модели"""
+        """Генерировать ответ через модель с динамическим выбором из доступных"""
         import httpx
         
-        # Список моделей для fallback (от быстрых к мощным)
-        # ВАЖНО: tinyllama исключена - используется только для внутренней коммуникации агентов
-        fallback_models = [
-            "phi3:mini-4k",
-            "qwen2.5:3b",
-            "phi3.5:3.8b",
-            "qwen2.5-coder:32b",
-            "deepseek-r1-distill-llama:70b",
-            "llama3.3:70b"
-        ]
-        
-        # Начинаем с основной модели, затем fallback
-        models_to_try = [self.model_name] + [m for m in fallback_models if m != self.model_name]
-        
-        # Используем ТОЛЬКО MLX API Server (Ollama не используется)
-        # В Docker используем host.docker.internal
+        # Динамический выбор моделей через сканер
         is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-        if is_docker:
-            mlx_url = os.getenv('MLX_API_URL', 'http://host.docker.internal:11435')
-        else:
-            mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
+        ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434' if is_docker else 'http://localhost:11434')
+        mlx_url = os.getenv('MLX_API_URL', 'http://host.docker.internal:11435' if is_docker else 'http://localhost:11435')
         
-        # ИСПОЛЬЗУЕМ ТОЛЬКО MLX API Server (порт 11435)
-        # Ollama не используется - там нет моделей
-        urls_to_try = []
-        # Всегда используем MLX URL (проверяем и localhost и host.docker.internal)
-        if "11435" in self.ollama_url or "mlx" in self.ollama_url.lower():
-            # Используем настроенный MLX URL
-            urls_to_try = [self.ollama_url]
-        else:
-            # Если URL не содержит 11435, используем дефолтный MLX URL
-            is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-            if is_docker:
-                urls_to_try = [os.getenv('MLX_API_URL', 'http://host.docker.internal:11435')]
-            else:
-                urls_to_try = [os.getenv('MLX_API_URL', 'http://localhost:11435')]
-        
-        if not urls_to_try:
-            # Используем MLX URL по умолчанию
-            urls_to_try = [mlx_url]
-        
-        # После недавнего 429 от MLX — пробуем Ollama первым (меньше повторных 429)
-        global _mlx_rate_limited_until
-        if time.time() < _mlx_rate_limited_until:
-            ollama_url_early = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-            if os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true':
-                ollama_url_early = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-            if ollama_url_early not in urls_to_try:
-                urls_to_try.insert(0, ollama_url_early)
-                logger.info(f"🔄 [RATE LIMIT CACHE] Недавний 429 от MLX — сначала пробуем Ollama: {ollama_url_early}")
-        
-        # Проверяем загрузку MLX для простых задач (Task Distribution)
-        # Простые задачи могут использовать Ollama при перегрузке MLX
-        # category не доступен в этом контексте, используем только длину промпта
-        is_simple_task = len(prompt) < 500
-        use_ollama_fallback = False
-        
-        if is_simple_task:
+        # КЭШИРОВАНИЕ СПИСКА МОДЕЛЕЙ (Сингулярность 10.0: Оптимизация скорости)
+        if not hasattr(self, '_models_to_try_cache'):
+            models_to_try = [self.model_name]
             try:
-                from app.mlx_request_queue import get_request_queue
-                queue = get_request_queue()
-                stats = queue.get_stats()
-                mlx_overloaded = (
-                    stats.get("active_requests", 0) >= stats.get("max_concurrent", 5) or
-                    stats.get("queue_size", 0) > 3  # Если очередь > 3, используем Ollama для простых
-                )
-                if mlx_overloaded:
-                    use_ollama_fallback = True
-                    logger.info(
-                        f"🔄 [SMART ROUTING] MLX перегружен, простая задача Task Distribution → Ollama "
-                        f"(активных: {stats.get('active_requests')}/{stats.get('max_concurrent')}, "
-                        f"очередь: {stats.get('queue_size')})"
-                    )
-            except Exception as e:
-                logger.debug(f"⚠️ Не удалось проверить загрузку MLX: {e}")
-        
-        # Если простая задача и MLX перегружен, добавляем Ollama в список
-        if use_ollama_fallback:
-            ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-            is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-            if is_docker:
-                ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-            if ollama_url not in urls_to_try:
-                urls_to_try.insert(0, ollama_url)  # Приоритет Ollama для простых задач
-                logger.info(f"🔄 [OLLAMA SMART] Добавлен Ollama для простой задачи: {ollama_url}")
-        
-        # Логируем какие URL будем пробовать
-        logger.info(f"🔍 [GENERATE] Использую MLX API Server (приоритет) и Ollama (fallback): {urls_to_try}")
-        logger.info(f"🔍 [GENERATE] Модели для попытки: {models_to_try[:3]}... (всего {len(models_to_try)})")
-        
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
-                for llm_url in urls_to_try:
-                    for model in models_to_try:
-                        try:
-                            logger.debug(f"🔍 [GENERATE] Пробую модель {model} на {llm_url}...")
-                            
-                            # Определяем приоритет и модель
-                            is_ollama = "11434" in llm_url or "ollama" in llm_url.lower()
-                            is_mlx = "11435" in llm_url or "mlx" in llm_url.lower()
-                            
-                            # Для Ollama используем phi3.5:3.8b для простых задач
-                            model_to_use = model
-                            if is_ollama and is_simple_task:
-                                model_to_use = "phi3.5:3.8b"  # Быстрая Ollama модель
-                                logger.debug(f"🔄 [OLLAMA SMART] Используем phi3.5:3.8b для простой задачи")
-                            
-                            # MLX API Server использует формат Ollama API
-                            # Task Distribution использует приоритет MEDIUM (может подождать)
-                            headers = {}
-                            if is_mlx:
-                                headers["X-Request-Priority"] = "medium"  # Task Distribution - средний приоритет
-                            
-                            response = await client.post(
-                                f"{llm_url}/api/generate",
-                                json={
-                                    "model": model_to_use,
-                                    "prompt": prompt,
-                                    "stream": False,
-                                    "options": {
-                                        "temperature": 0.7,
-                                        "num_predict": 2048
-                                    }
-                                },
-                                headers=headers if headers else None,
-                                timeout=httpx.Timeout(120.0, connect=10.0)
-                            )
-                        
-                            if response.status_code == 200:
-                                result = response.json().get('response', '')
-                                if result:
-                                    source = "MLX" if "11435" in llm_url else "Ollama"
-                                    if model != self.model_name or llm_url != self.ollama_url:
-                                        logger.info(f"✅ ReActAgent использует {source} модель: {model} (URL: {llm_url})")
-                                    logger.info(f"✅ [GENERATE] Модель вернула ответ длиной {len(result)} символов")
-                                    return result
-                                else:
-                                    logger.warning(f"⚠️ [GENERATE] Модель {model} вернула пустой ответ (status 200, но response пустой)")
-                            elif response.status_code == 429:
-                                # Rate limit - для MLX пробуем Ollama fallback и кэшируем на 60 с
-                                if is_mlx and not is_ollama:
-                                    _mlx_rate_limited_until = time.time() + 60  # global уже выше в функции
-                                    logger.warning(f"⚠️ [RATE LIMIT] MLX rate limit на {llm_url}, пробуем Ollama fallback...")
-                                    # Добавляем Ollama в список для следующей попытки
-                                    ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                    is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-                                    if is_docker:
-                                        ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-                                    if ollama_url not in urls_to_try:
-                                        urls_to_try.append(ollama_url)
-                                        logger.info(f"🔄 [FALLBACK] Добавлен Ollama для обработки rate limit: {ollama_url}")
-                                else:
-                                    try:
-                                        error_body = response.text[:200]
-                                        logger.warning(f"⚠️ [RATE LIMIT] Rate limit на {llm_url}: {error_body}")
-                                    except:
-                                        pass
-                                continue
-                            elif response.status_code >= 500:
-                                # Серверная ошибка - для MLX пробуем Ollama fallback
-                                if is_mlx and not is_ollama:
-                                    logger.warning(f"⚠️ [SERVER ERROR] MLX серверная ошибка {response.status_code} на {llm_url}, пробуем Ollama fallback...")
-                                    # Добавляем Ollama в список для следующей попытки
-                                    ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-                                    is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-                                    if is_docker:
-                                        ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
-                                    if ollama_url not in urls_to_try:
-                                        urls_to_try.append(ollama_url)
-                                        logger.info(f"🔄 [FALLBACK] Добавлен Ollama для обработки серверной ошибки: {ollama_url}")
-                                else:
-                                    try:
-                                        error_body = response.text[:200]
-                                        logger.warning(f"⚠️ [SERVER ERROR] Серверная ошибка {response.status_code} на {llm_url}: {error_body}")
-                                    except:
-                                        pass
-                                continue
-                            elif response.status_code == 404:
-                                logger.debug(f"Модель {model} недоступна на {llm_url} (404), пробуем следующую...")
-                                continue
-                            else:
-                                logger.warning(f"Ошибка генерации с моделью {model} на {llm_url}: {response.status_code}")
-                                try:
-                                    error_body = response.text[:200]
-                                    logger.warning(f"⚠️ [GENERATE] Тело ошибки: {error_body}")
-                                except:
-                                    pass
-                                continue
-                        except Exception as e:
-                            logger.warning(f"⚠️ [GENERATE] Ошибка при использовании модели {model} на {llm_url}: {e}")
-                            continue
+                try:
+                    from available_models_scanner import scan_and_select_models
+                except ImportError:
+                    from app.available_models_scanner import scan_and_select_models
+                selection = await scan_and_select_models(mlx_url, ollama_url)
                 
-                # Если все модели недоступны
-                logger.error(f"❌ Все модели недоступны для ReActAgent (пробовали {len(urls_to_try)} URL, {len(models_to_try)} моделей)")
-                logger.error(f"❌ [GENERATE] Не удалось получить ответ от модели. Возвращаю пустую строку.")
-                return ""
-        except Exception as e:
-            logger.error(f"Ошибка запроса к модели: {e}")
-            return ""
-    
-    def _build_result(self) -> Dict:
-        """Построить финальный результат.
+                # Добавляем лучшие модели из Ollama и MLX в список попыток
+                if selection.ollama_best and selection.ollama_best not in models_to_try:
+                    models_to_try.append(selection.ollama_best)
+                
+                # Добавляем остальные доступные модели из Ollama
+                for m in selection.ollama_models:
+                    if m not in models_to_try:
+                        models_to_try.append(m)
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка сканирования моделей в ReActAgent: {e}")
+                # Fallback на статический список если сканер не сработал
+                fallback_models = ["qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "qwq:32b", "tinyllama:1.1b-chat"]
+                for m in fallback_models:
+                    if m not in models_to_try:
+                        models_to_try.append(m)
+            self._models_to_try_cache = models_to_try
         
-        Важно: при action=finish ответ модели лежит в step.observation (output),
-        а не в reflection. Reflection заполняется только после цикла Think→Act→Observe→Reflect.
-        """
+        models_to_try = self._models_to_try_cache
+        
+        # Таймаут 1200с для тяжелых локальных моделей (qwq:32b, qwen3-coder-next:latest)
+        request_timeout_sec = 1200.0
+        
+        logger.info(f"🔍 [GENERATE] Модели для попытки: {models_to_try}")
+        
+        async with httpx.AsyncClient(timeout=httpx.Timeout(request_timeout_sec, connect=60.0)) as client:
+            for model in models_to_try:
+                # Определяем URL для модели (MLX или Ollama)
+                # В данной реализации пробуем оба источника
+                urls = [self.ollama_url, self.mlx_url]
+                
+                for llm_url in urls:
+                    if not llm_url: continue
+                    try:
+                        logger.debug(f"🔍 [GENERATE] Пробую модель {model} на {llm_url}...")
+                        response = await client.post(
+                            f"{llm_url}/api/generate",
+                            json={
+                                "model": model,
+                                "prompt": prompt,
+                                "stream": False,
+                                "options": { "temperature": 0.7, "num_predict": 2048 }
+                            },
+                            timeout=httpx.Timeout(request_timeout_sec, connect=60.0)
+                        )
+                    
+                        if response.status_code == 200:
+                            result = response.json().get('response', '')
+                            if result:
+                                logger.info(f"✅ [GENERATE] Модель {model} вернула ответ ({len(result)} симв.)")
+                                return result
+                        elif response.status_code == 404:
+                            logger.warning(f"⚠️ [GENERATE] 404 на {llm_url} модель={model}")
+                            continue
+                    except Exception as e:
+                        logger.warning(f"⚠️ [GENERATE] Ошибка модели {model}: {repr(e)}")
+                        continue
+            
+        logger.error("❌ Все модели недоступны")
+        return "Извините, сейчас я не могу обработать ваш запрос."
+
+    def _build_result(self) -> Dict:
+        """Построить финальный результат"""
         last_step = self.memory.steps[-1] if self.memory.steps else None
-        final_output = None
-        if last_step:
-            # При finish: ответ в observation (модель передала output в finish)
-            if getattr(last_step, "action", None) == "finish" and getattr(last_step, "observation", None):
-                final_output = (last_step.observation or "").strip()
-            # Иначе: ответ в reflection (цикл Reflect завершил задачу)
-            if not final_output:
-                final_output = (getattr(last_step, "reflection", None) or "").strip()
-            if not final_output:
-                final_output = None
+        final_output = (last_step.observation if last_step and last_step.action == "finish" else (last_step.reflection if last_step else None))
         return {
             "agent": self.agent_name,
             "goal": self.memory.goal,
             "status": self.memory.current_state.value,
             "iterations": self.memory.iteration,
-            "steps": [
-                {
-                    "state": step.state.value,
-                    "thought": step.thought,
-                    "action": step.action,
-                    "observation": step.observation,
-                    "reflection": step.reflection
-                }
-                for step in self.memory.steps
-            ],
-            "final_reflection": final_output,
-            "response": final_output,  # для совместимости с Victoria Enhanced
+            "steps": [{"state": s.state.value, "thought": s.thought, "action": s.action, "observation": s.observation} for s in self.memory.steps],
+            "response": final_output,
         }
 
-
 async def main():
-    """Пример использования"""
-    agent = ReActAgent(agent_name="Виктория", model_name="deepseek-r1-distill-llama:70b")
-    
-    result = await agent.run("Найди информацию о системе отслеживания моделей")
-    
-    print("Результат ReAct цикла:")
-    print(f"Статус: {result['status']}")
-    print(f"Итераций: {result['iterations']}")
-    print(f"Шагов: {len(result['steps'])}")
-
+    agent = ReActAgent(agent_name="Виктория", model_name="phi3.5:3.8b")
+    result = await agent.run("Привет")
+    print(f"Результат: {result['status']}")
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())

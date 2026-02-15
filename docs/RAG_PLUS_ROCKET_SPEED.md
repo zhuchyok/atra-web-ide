@@ -134,22 +134,55 @@
 | `RAG_CONTEXT_LIMIT` | 3 | Число чанков в контексте (меньше = быстрее) |
 | `RAG_SIMILARITY_THRESHOLD` | 0.6 | Минимальный similarity для чанка |
 | `RAG_CACHE_TTL_SEC` | 120 | TTL кэша контекста RAG (0 = отключить) |
+| `RAG_LATENCY_LOG` | false | Логировать каждый замер [RAG+_latency] (info) |
+| `RAG_LATENCY_EMBED_MS_MAX` | 300 | Порог «тормозит» для embed_ms (WARNING + slow_count) |
+| `RAG_LATENCY_PREPARE_MS_MAX` | 300 | Порог «тормозит» для prepare_ms |
+| `RAG_LATENCY_LLM_PLAN_MS_MAX` | 2000 | Порог «тормозит» для llm_plan_ms |
+| `RAG_RERANK_ENABLED` | false | Реранкинг: брать limit×2 кандидатов, score = similarity × бонус за длину, топ limit |
+| `RAG_PRELOAD_TYPICAL_QUERIES` | true | При старте в фоне заполнять кэш RAG типовыми запросами (при RAG_CACHE_TTL_SEC>0) |
 | `SEMANTIC_CACHE_THRESHOLD` | 0.92 | Порог для возврата ответа из кэша без LLM |
 | `OLLAMA_EMBED_URL` | http://localhost:11434/api/embeddings | Сервис эмбеддингов |
 | `OLLAMA_MODEL` | nomic-embed-text | Модель эмбеддингов |
 
 ---
 
-## Реализовано (уровень 1)
+## Реализовано (уровень 1 и частично 2)
 
 - **Victoria** (`src/agents/bridge/victoria_server.py`):
   - **Векторный RAG**: `_get_embedding_for_rag()` → один запрос к Ollama embeddings; `_get_knowledge_context()` при наличии эмбеддинга выполняет pgvector-поиск (LIMIT из `RAG_CONTEXT_LIMIT`, порог `RAG_SIMILARITY_THRESHOLD`), иначе fallback на ILIKE.
   - **Параллель**: `select_expert_for_task(goal)` и `_get_knowledge_context(goal)` вызываются через `asyncio.gather`, затем собирается промпт.
+  - **Сниппеты и топ-1**: `RAG_SNIPPET_CHARS` (500), `RAG_TOP1_FULL_MAX_CHARS` (2000) — для топ-1 по similarity в контекст передаётся полный фрагмент до лимита (MASTER_REFERENCE § узлы знаний).
 
-- Переменные: `OLLAMA_EMBED_URL`, `OLLAMA_EMBED_MODEL`, `RAG_CONTEXT_LIMIT`, `RAG_SIMILARITY_THRESHOLD` (см. таблицу выше).
+- **Индекс pgvector**: в `knowledge_os/db/init.sql` — IVFFlat на `knowledge_nodes(embedding)`; миграция `add_hnsw_index_knowledge_nodes.sql` — HNSW для ускорения (применить при росте данных: `psql $DATABASE_URL -f knowledge_os/db/migrations/add_hnsw_index_knowledge_nodes.sql`).
+
+- **Backend**: есть `unified_embedding_provider.py` — один эмбеддинг на запрос для RAG + semantic cache (в контуре чата/задач при использовании провайдера).
+
+- **Кэш контекста RAG (уровень 1):** в `_get_knowledge_context()` перед эмбеддингом и БД проверяется in-memory кэш по ключу `md5(goal.strip().lower())`. При попадании возвращается сохранённый контекст без вызова Ollama и БД. TTL: `RAG_CACHE_TTL_SEC` (по умолчанию 120 с, 0 = отключить). Макс. размер кэша 500 записей, вытеснение по самой старой записи. Реализовано 2026-02-08 (CHANGES §0.4o).
+
+- **Один эмбеддинг на запрос (уровень 2):** в точке входа (формирование промпта для эксперта) эмбеддинг вычисляется один раз (`_get_embedding_for_rag(goal)`), затем параллельно запускаются выбор эксперта и `_get_knowledge_context(goal, precomputed_embedding=...)`. В `_get_knowledge_context` добавлен опциональный параметр `precomputed_embedding`; при передаче векторный поиск выполняется без повторного вызова Ollama. Реализовано 2026-02-08 (CHANGES §0.4p).
+
+- **Метрики латентности (уровень 3):** в `plan()` замеряются и при `RAG_LATENCY_LOG=true` или `VICTORIA_DEBUG=true` логируются: **embed_ms** (время эмбеддинга), **prepare_ms** (параллель эксперт + RAG), **llm_plan_ms** (вызов planner.ask). Префикс лога `[RAG+_latency]`. Цель — анализ p99, целевой порог &lt; 200–300 ms до первого токена (при стриминге — при необходимости инструментировать executor). Реализовано 2026-02-08 (CHANGES §0.4q).
+
+- **Отслеживание и проверка «тормозит»:** последние значения **embed_ms**, **prepare_ms**, **llm_plan_ms** всегда обновляются в памяти; **GET /status** возвращает блок **rag_latency**: `last`, `slow_count`, `last_slow_at`, `thresholds_ms`. При превышении порогов (по умолчанию embed≤300, prepare≤300, llm_plan≤2000 ms) пишется **WARNING** `[RAG+_latency] SLOW ...` и увеличивается `slow_count`. Мониторинг может опрашивать `/status` и строить алерты по `slow_count` или по логам. Пороги задаются **RAG_LATENCY_EMBED_MS_MAX**, **RAG_LATENCY_PREPARE_MS_MAX**, **RAG_LATENCY_LLM_PLAN_MS_MAX**. **GET /metrics** отдаёт Prometheus-метрики (victoria_rag_embed_seconds, victoria_rag_prepare_seconds, victoria_rag_llm_plan_seconds, victoria_rag_slow_requests_total). Дашборд: **grafana/dashboards/victoria-rag-latency.json**. Victoria уже в Prometheus: job victoria-agent в **prometheus/prometheus.yml** и **infrastructure/monitoring/prometheus.yml** (metrics_path: /metrics). Реализовано 2026-02-08 (CHANGES §0.4r, §0.4s).
+
+- Переменные: `OLLAMA_EMBED_URL`, `OLLAMA_EMBED_MODEL`, `RAG_CONTEXT_LIMIT`, `RAG_SIMILARITY_THRESHOLD`, `RAG_SNIPPET_CHARS`, `RAG_TOP1_FULL_MAX_CHARS`, `RAG_CACHE_TTL_SEC`, `RAG_LATENCY_LOG` (см. таблицу и MASTER_REFERENCE).
+
+---
+
+## Что осталось (чтобы выйти на «ракетную скорость» полностью)
+
+| Уровень | Пункт | Что сделать | Приоритет |
+|---------|--------|-------------|-----------|
+| **1** | ~~Кэш контекста RAG~~ | **Сделано (2026-02-08):** в Victoria `_get_knowledge_context()` — in-memory кэш по `query_hash` (md5 goal.strip().lower()), TTL из `RAG_CACHE_TTL_SEC` (120 с, 0 = выкл), макс. 500 записей. При попадании не вызываем эмбеддинг и не ходим в БД. См. victoria_server.py, CHANGES §0.4o. | — |
+| **2** | HNSW индекс | Миграция в `apply_migrations.py`. Проверка: `knowledge_os/scripts/verify_hnsw_index.py` (выход 0 — индекс есть). При отсутствии — применить миграции. | Средний |
+| **2** | ~~Один эмбеддинг на запрос (Victoria)~~ | **Сделано (2026-02-08):** в точке входа (формирование промпта) эмбеддинг вычисляется один раз (`_get_embedding_for_rag(goal)`), передаётся в `_get_knowledge_context(goal, precomputed_embedding=...)`. Параллель: эксперт + RAG с этим эмбеддингом. Параметр `precomputed_embedding` в _get_knowledge_context опционален. См. victoria_server.py, CHANGES §0.4p. | — |
+| **2** | ~~Реранкинг по флагу~~ | **Сделано:** при **RAG_RERANK_ENABLED=true** Victoria берёт limit×2 кандидатов по вектору, реранжирует (similarity × бонус за длину 100–1000 символов), возвращает топ limit. По умолчанию выключено. | — |
+| **3** | ~~Батч эмбеддингов~~ | **Сделано:** Victoria _get_embeddings_batch(texts) — один POST с input: [t1, t2, ...] при поддержке API; иначе fallback на одиночные вызовы. Используется в предзагрузке типовых запросов. | — |
+| **3** | ~~Предзагрузка типовых запросов~~ | **Сделано:** при старте Victoria в фоне вызывается _preload_rag_cache() — заполнение кэша RAG для запросов «статус», «список файлов», «покажи файлы в текущей директории», «что ты умеешь». Включено при RAG_CACHE_TTL_SEC>0 и RAG_PRELOAD_TYPICAL_QUERIES=true (по умолчанию). | — |
+| **3** | ~~Метрики латентности~~ | **Сделано (2026-02-08):** в Victoria в `plan()` логируются embed_ms, prepare_ms (эксперт+RAG), llm_plan_ms. Включение: `RAG_LATENCY_LOG=true` или `VICTORIA_DEBUG=true`. Цель — p99 &lt; 200–300 ms (анализ по логам). См. victoria_server.py, CHANGES §0.4q. | — |
 
 ## Итог
 
 - **RAG+** = один эмбеддинг, один векторный запрос, кэш эмбеддингов и контекста, семантический кэш ответов.
 - **Ракетная скорость** = параллель (эксперт + RAG), минимум чанков, без реранкинга в горячем пути, индексы pgvector.
-- Дальше: кэш контекста RAG по query_hash (уровень 1), индексы pgvector и один эмбеддинг на запрос в одном месте (уровни 2–3).
+- **Уже есть:** векторный RAG в Victoria, параллель эксперт+RAG, сниппеты и топ-1 полный, IVFFlat, unified_embedding_provider в backend, **кэш контекста RAG** (RAG_CACHE_TTL_SEC), **один эмбеддинг на запрос** (precomputed_embedding), **метрики латентности** (RAG_LATENCY_LOG: embed_ms, prepare_ms, llm_plan_ms). HNSW применяется через apply_migrations. **Осталось:** опционально батч/предзагрузка; для p99 до первого токена — при необходимости инструментировать стриминг в executor.

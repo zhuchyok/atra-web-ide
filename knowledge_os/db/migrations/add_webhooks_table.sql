@@ -37,6 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_webhook_logs_success ON webhook_logs (success);
 CREATE INDEX IF NOT EXISTS idx_webhook_logs_created ON webhook_logs (created_at DESC);
 
 -- Триггер для updated_at
+DROP TRIGGER IF EXISTS update_webhooks_updated_at ON webhooks;
 CREATE TRIGGER update_webhooks_updated_at
     BEFORE UPDATE ON webhooks
     FOR EACH ROW

@@ -63,7 +63,7 @@ class SwarmIntelligence:
     def __init__(
         self,
         swarm_size: int = 16,  # Оптимальный размер по исследованиям
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         ollama_url: str = OLLAMA_URL,
         max_iterations: int = 20
     ):

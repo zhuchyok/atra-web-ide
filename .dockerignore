@@ -1,0 +1,65 @@
+# Контекст сборки victoria-agent (context: ..) — исключаем лишнее
+# Мировая практика: меньше контекста = быстрее build и стабильнее экспорт
+
+# Env и секреты
+.env
+.env.*
+!.env.example
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node (frontend не нужен агентам)
+node_modules/
+frontend/
+dist/
+.npm
+
+# IDE и ОС
+.DS_Store
+.idea/
+.vscode/
+.cursor/
+.cursor_chats_backup/
+
+# Логи и кэши
+logs/
+*.log
+backups/
+data/
+cache/
+tmp/
+
+# Git и CI
+.git/
+.github/
+.gitignore
+
+# Артефакты и отчёты (не конфиги)
+latency_benchmark.json
+quality_report.html
+*.backup
+
+# Rust target (собирается в builder, не из контекста)
+target/
+
+# Большие/учебные данные
+knowledge_os/ai_learning_data/
+
+# Тесты (в образ только runtime для агентов)
+tests/
+*.spec.js
+*.spec.ts
+test-results/

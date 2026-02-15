@@ -1,10 +1,12 @@
-# Grafana provisioning: Prometheus datasource (День 5)
+# Grafana provisioning: Prometheus (порядок важен — datasources до alerting)
 apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://atra-prometheus:9090
     isDefault: true
     editable: false
+    version: 1

@@ -1,0 +1,12 @@
+model	source	deploy_estimate_sec	warm_response_sec	cold_total_sec	request_timeout_sec	status
+coding	mlx	1.59	4.07	5.66	1800	ok
+fast	mlx	0.36	0.31	0.67	1800	ok
+tiny	mlx	0.27	0.11	0.38	1800	ok
+qwen_3b	mlx	0.54	0.41	0.95	1800	ok
+phi3_mini	mlx	0.35	0.39	0.74	1800	ok
+default	mlx	1.04	4.04	5.08	1800	ok
+qwen2.5-coder:32b	mlx	1.76	4.03	5.79	1800	ok
+phi3.5:3.8b	mlx	0.72	0.39	1.11	1800	ok
+phi3:mini-4k	mlx	0.87	0.34	1.21	1800	ok
+qwen2.5:3b	mlx	0.57	0.39	0.96	1800	ok
+tinyllama:1.1b-chat	mlx	0.32	0.08	0.4	1800	ok

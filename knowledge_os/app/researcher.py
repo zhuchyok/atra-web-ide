@@ -24,7 +24,7 @@ async def get_pool():
         max_size=5
     )
 
-async def process_with_local_model(prompt: str, node_url: str = "http://localhost:11434", model: str = "deepseek-r1-distill-llama:70b") -> str:  # MLX модель (Mac Studio)
+async def process_with_local_model(prompt: str, node_url: str = "http://localhost:11434", model: str = "phi3.5:3.8b") -> str:
     """Обработка запроса локальной моделью (без токенов)"""
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -114,7 +114,7 @@ async def perform_research():
                     analyzed_content = await process_with_local_model(
                         analysis_prompt,
                         node_url=available_node['url'],
-                        model="deepseek-r1-distill-llama:70b"  # MLX модель (Mac Studio)
+                        model="phi3.5:3.8b"
                     )
                     
                     if analyzed_content:
@@ -150,10 +150,22 @@ async def perform_research():
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 }
                 
-                await conn.execute("""
-                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                    VALUES ($1, $2, 0.85, $3, FALSE)
-                """, domain_id, content, json.dumps(metadata))
+                embedding = None
+                try:
+                    from semantic_cache import get_embedding
+                    embedding = await get_embedding(content[:8000])
+                except Exception:
+                    pass
+                if embedding is not None:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                        VALUES ($1, $2, 0.85, $3, FALSE, $4::vector)
+                    """, domain_id, content, json.dumps(metadata), str(embedding))
+                else:
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                        VALUES ($1, $2, 0.85, $3, FALSE)
+                    """, domain_id, content, json.dumps(metadata))
                 
                 print(f"✅ Research for {expert['name']} completed. {len(results)} insights added (0 токенов использовано!)")
                 

@@ -1,0 +1,45 @@
+{
+  "ts": "2026-02-13T08:42:30.781071+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. У меня всё отлично, готова к работе! Чем могу помочь?",
+      "output_length": 100,
+      "correlation_id": "1eba0a4b-2ef2-44c5-a3ad-88c2e8e082c1",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 0.02
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Результаты:\n1. количество_задач: 7058, количество_ожидающих_задач: 40, количество_выполняющихся_задач: 22, количество_завершенных_задач: 6978, количество_отмененных_задач: 0\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE.\n\n_Источник: `SELECT COUNT(*) AS количество_задач,\n       SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS количество_ожидающих_задач,\n       SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS ",
+      "output_length": 740,
+      "correlation_id": "4b968031-1fe5-4537-9624-d0e210616997",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "4b968031-1fe5-4537-9624-d0e210616997",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 22.61
+    }
+  ]
+}

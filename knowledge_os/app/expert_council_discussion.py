@@ -134,7 +134,7 @@ class ExpertCouncil:
                 response = await self.router.run_local_llm_async(
                     full_prompt,
                     category="reasoning",
-                    model="deepseek-r1-distill-llama:70b"
+                    model="phi3.5:3.8b"
                 )
                 if response:
                     return response
@@ -270,30 +270,34 @@ class ExpertCouncil:
             for hyp in hypotheses:
                 content = hyp.get('description', '')
                 domain_id = hyp.get('domain_id')
-                kn_id = await conn.fetchval("""
-                    INSERT INTO knowledge_nodes (
-                        content, 
-                        domain_id,
-                        confidence_score,
-                        metadata,
-                        created_at
-                    ) VALUES ($1, $2, $3, $4, $5)
-                    RETURNING id
-                """,
-                    content,
-                    domain_id,
-                    0.8,
-                    json.dumps({
-                        'type': 'hypothesis',
-                        'title': hyp.get('title'),
-                        'priority': hyp.get('priority', 'medium'),
-                        'expected_effect': hyp.get('expected_effect'),
-                        'components_needed': hyp.get('components_needed', []),
-                        'discussion_id': discussion_id,
-                        'source': 'expert_council'
-                    }),
-                    datetime.now(timezone.utc)
-                )
+                meta_kn = json.dumps({
+                    'type': 'hypothesis',
+                    'title': hyp.get('title'),
+                    'priority': hyp.get('priority', 'medium'),
+                    'expected_effect': hyp.get('expected_effect'),
+                    'components_needed': hyp.get('components_needed', []),
+                    'discussion_id': discussion_id,
+                    'source': 'expert_council'
+                })
+                created = datetime.now(timezone.utc)
+                embedding = None
+                try:
+                    from semantic_cache import get_embedding
+                    embedding = await get_embedding(content[:8000])
+                except Exception:
+                    pass
+                if embedding is not None:
+                    kn_id = await conn.fetchval("""
+                        INSERT INTO knowledge_nodes (content, domain_id, confidence_score, metadata, created_at, embedding)
+                        VALUES ($1, $2, 0.8, $3, $4, $5::vector)
+                        RETURNING id
+                    """, content, domain_id, meta_kn, created, str(embedding))
+                else:
+                    kn_id = await conn.fetchval("""
+                        INSERT INTO knowledge_nodes (content, domain_id, confidence_score, metadata, created_at)
+                        VALUES ($1, $2, 0.8, $3, $4)
+                        RETURNING id
+                    """, content, domain_id, meta_kn, created)
                 # Отправка гипотезы в дебаты для обсуждения экспертами
                 if kn_id and content:
                     try:

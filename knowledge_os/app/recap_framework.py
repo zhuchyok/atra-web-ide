@@ -14,6 +14,9 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 OLLAMA_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+# Фаза 3 плана «Логика мысли»: чекпоинты рефлексии и пересмотр плана
+VICTORIA_REFLECTION_ENABLED = os.getenv('VICTORIA_REFLECTION_ENABLED', 'true').lower() in ('1', 'true', 'yes')
+VICTORIA_MAX_PLAN_REVISIONS = max(0, min(3, int(os.getenv('VICTORIA_MAX_PLAN_REVISIONS', '1'))))
 
 
 class PlanningLevel(Enum):
@@ -58,11 +61,15 @@ class ReCAPFramework:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
-        ollama_url: str = OLLAMA_URL
+        model_name: str = "phi3.5:3.8b",
+        ollama_url: str = OLLAMA_URL,
+        reflection_enabled: bool = VICTORIA_REFLECTION_ENABLED,
+        max_plan_revisions: int = VICTORIA_MAX_PLAN_REVISIONS,
     ):
         self.model_name = model_name
         self.ollama_url = ollama_url
+        self.reflection_enabled = reflection_enabled
+        self.max_plan_revisions = max_plan_revisions
     
     async def solve(
         self,
@@ -80,23 +87,32 @@ class ReCAPFramework:
             Результат с планом и выполнением
         """
         logger.info(f"🚀 ReCAP: Начинаю решение задачи: {goal[:80]}")
-        
-        # 1. Plan-ahead decomposition
-        plan = await self._decompose_goal(goal, initial_context)
-        
-        # 2. Structured context re-injection и выполнение
-        results = await self._execute_plan(plan)
-        
-        # 3. Синтез финального результата
-        final_result = await self._synthesize_result(plan, results)
-        
-        return {
-            "goal": goal,
-            "plan": plan,
-            "results": results,
-            "final_result": final_result,
-            "method": "recap"
-        }
+        context = dict(initial_context) if initial_context else {}
+        revision_count = 0
+
+        while True:
+            # 1. Plan-ahead decomposition (при пересмотре — с контекстом предыдущей неудачи)
+            plan = await self._decompose_goal(goal, context if context else None)
+
+            # 2. Structured context re-injection и выполнение (с чекпоинтами рефлексии)
+            results, should_replan, failure_info = await self._execute_plan(plan, revision_count)
+
+            if should_replan and failure_info and revision_count < self.max_plan_revisions:
+                revision_count += 1
+                context["previous_plan_failure"] = failure_info
+                logger.info(f"🔄 ReCAP: пересмотр плана (попытка {revision_count}), причина: {failure_info.get('reason', '')[:100]}")
+                continue
+
+            # 3. Синтез финального результата
+            final_result = await self._synthesize_result(plan, results)
+            return {
+                "goal": goal,
+                "plan": plan,
+                "results": results,
+                "final_result": final_result,
+                "method": "recap",
+                "plan_revisions": revision_count,
+            }
     
     async def _decompose_goal(
         self,
@@ -141,41 +157,90 @@ class ReCAPFramework:
             low_level_steps=low_level_steps
         )
     
-    async def _execute_plan(self, plan: ReCAPPlan) -> Dict[int, Any]:
-        """Выполнить план с structured context re-injection"""
-        results = {}
-        context_history = []
-        
-        # Выполняем по уровням: high -> mid -> low
+    def _is_step_failed_or_empty(self, result: Any) -> bool:
+        """Фаза 3: считать шаг провальным при пустом результате или явной ошибке."""
+        if result is None:
+            return True
+        s = (str(result) or "").strip().lower()
+        if not s:
+            return True
+        for kw in ("ошибка", "error", "failed", "не удалось", "не получилось", "exception"):
+            if kw in s:
+                return True
+        return False
+
+    async def _should_revise_plan(
+        self, goal: str, plan_summary: str, step_description: str, step_result: Any
+    ) -> Tuple[bool, str]:
+        """Фаза 3: один вызов LLM — пересмотреть план? да/нет и причина. При ошибке — (False, '')."""
+        try:
+            import httpx
+            prompt = f"""Задача: {goal[:300]}
+План (кратко): {plan_summary[:400]}
+Шаг, который провалился или дал пустой результат: {step_description[:200]}
+Результат шага: {str(step_result)[:300]}
+
+Нужно ли пересмотреть план с учётом этого провала? Ответь строго одной строкой: ДА <причина> или НЕТ."""
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={"model": self.model_name, "prompt": prompt, "stream": False, "options": {"num_predict": 150}}
+                )
+                if r.status_code != 200:
+                    return False, ""
+                text = (r.json().get("response") or "").strip().upper()
+                if "ДА" in text[:10] or text.startswith("YES"):
+                    reason = text.replace("ДА", "").replace("YES", "").strip()[:200]
+                    return True, reason or "провал шага"
+                return False, ""
+        except Exception as e:
+            logger.debug("ReCAP _should_revise_plan: %s", e)
+            return False, ""
+
+    async def _execute_plan(
+        self, plan: ReCAPPlan, revision_count: int = 0
+    ) -> Tuple[Dict[int, Any], bool, Optional[Dict]]:
+        """Выполнить план с structured context re-injection. Возвращает (results, should_replan, failure_info)."""
+        results: Dict[int, Any] = {}
+        context_history: List[Dict] = []
+        plan_summary = "; ".join(s.description[:80] for s in plan.low_level_steps[:8])
+
         for hl_step in plan.high_level_steps:
-            # Собираем контекст для high-level шага
-            context = self._build_context(plan, hl_step, context_history)
-            
-            # Выполняем mid-level шаги этого high-level шага
+            context = self._build_context(plan, hl_step, context_history, results=results)
             mid_steps = [s for s in plan.mid_level_steps if s.step_id in hl_step.dependencies]
-            
+
             for ml_step in mid_steps:
-                # Реинъекция контекста
-                ml_context = self._build_context(plan, ml_step, context_history, parent_context=context)
-                
-                # Выполняем low-level шаги этого mid-level шага
+                ml_context = self._build_context(
+                    plan, ml_step, context_history, parent_context=context, results=results
+                )
                 low_steps = [s for s in plan.low_level_steps if s.step_id in ml_step.dependencies]
-                
+
                 for ll_step in low_steps:
-                    # Реинъекция контекста с учетом всей иерархии
                     ll_context = self._build_context(
                         plan, ll_step, context_history,
                         parent_context=ml_context,
-                        grandparent_context=context
+                        grandparent_context=context,
+                        results=results
                     )
-                    
-                    # Выполняем low-level шаг
                     result = await self._execute_step(ll_step, ll_context)
                     results[ll_step.step_id] = result
-                    ll_step.status = "completed"
                     ll_step.result = result
-                    
-                    # Сохраняем в историю контекста
+
+                    if self._is_step_failed_or_empty(result) and self.reflection_enabled and revision_count < self.max_plan_revisions:
+                        revise, reason = await self._should_revise_plan(
+                            plan.goal, plan_summary, ll_step.description, result
+                        )
+                        if revise:
+                            ll_step.status = "failed"
+                            failure_info = {
+                                "step_id": ll_step.step_id,
+                                "step_description": ll_step.description,
+                                "result": str(result)[:500],
+                                "reason": reason or "провал шага",
+                            }
+                            return results, True, failure_info
+
+                    ll_step.status = "completed"
                     context_history.append({
                         "step_id": ll_step.step_id,
                         "level": ll_step.level.value,
@@ -183,20 +248,18 @@ class ReCAPFramework:
                         "result": result,
                         "timestamp": datetime.now(timezone.utc)
                     })
-                
-                # Агрегируем результаты low-level для mid-level
+
                 ml_result = self._aggregate_results([results[s.step_id] for s in low_steps])
                 results[ml_step.step_id] = ml_result
                 ml_step.status = "completed"
                 ml_step.result = ml_result
-            
-            # Агрегируем результаты mid-level для high-level
+
             hl_result = self._aggregate_results([results[s.step_id] for s in mid_steps])
             results[hl_step.step_id] = hl_result
             hl_step.status = "completed"
             hl_step.result = hl_result
-        
-        return results
+
+        return results, False, None
     
     def _build_context(
         self,
@@ -204,9 +267,14 @@ class ReCAPFramework:
         step: PlanStep,
         context_history: List[Dict],
         parent_context: Optional[Dict] = None,
-        grandparent_context: Optional[Dict] = None
+        grandparent_context: Optional[Dict] = None,
+        results: Optional[Dict[int, Any]] = None
     ) -> Dict:
-        """Построить структурированный контекст с реинъекцией"""
+        """Построить структурированный контекст с реинъекцией.
+
+        Если передан results (словарь step_id -> результат), в блок dependencies
+        подставляются реальные результаты выполненных шагов; иначе — "pending".
+        """
         context = {
             "goal": plan.goal,
             "current_step": step.description,
@@ -225,12 +293,12 @@ class ReCAPFramework:
         relevant_history = context_history[-5:]  # Memory-efficient: только последние 5
         context["recent_history"] = relevant_history
         
-        # Добавляем зависимости
+        # Добавляем зависимости (реальные результаты из results, если есть)
         if step.dependencies:
             context["dependencies"] = [
                 {
                     "step_id": dep_id,
-                    "result": "pending"  # TODO: получать реальные результаты
+                    "result": results.get(dep_id, "pending") if results is not None else "pending"
                 }
                 for dep_id in step.dependencies
             ]
@@ -299,6 +367,9 @@ class ReCAPFramework:
 
 """
         if context:
+            prev = context.get("previous_plan_failure")
+            if isinstance(prev, dict):
+                prompt += f"ПРЕДЫДУЩАЯ ПОПЫТКА НЕ УДАЛАСЬ (учти при новом плане): шаг «{prev.get('step_description', '')[:150]}» — {prev.get('reason', 'провал')}. Избегай повторения.\n\n"
             prompt += f"КОНТЕКСТ: {context}\n\n"
         
         prompt += """Создай план из высокоуровневых шагов. Каждый шаг должен быть:
@@ -427,7 +498,7 @@ class ReCAPFramework:
 
 async def main():
     """Пример использования"""
-    framework = ReCAPFramework(model_name="deepseek-r1-distill-llama:70b")
+    framework = ReCAPFramework(model_name="phi3.5:3.8b")
     
     result = await framework.solve(
         "Создай систему мониторинга производительности для веб-приложения"

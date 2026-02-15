@@ -305,9 +305,15 @@ class SkillStateMachine:
         """Создать checkpoint (LangGraph pattern)"""
         checkpoint_id = f"{state.get('event', {}).get('event_id', 'unknown')}_{state.get('current_node', 'unknown')}_{datetime.now(timezone.utc).timestamp()}"
         
+        # МОНСТР-ЛОГИКА: Предотвращаем Circular reference (циклические ссылки) в checkpoints
+        # Копируем состояние, но удаляем из копии список checkpoints, чтобы не было рекурсии
+        state_copy = dict(state)
+        if "checkpoints" in state_copy:
+            state_copy.pop("checkpoints")
+            
         checkpoint = {
             "checkpoint_id": checkpoint_id,
-            "state": dict(state),
+            "state": state_copy,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
@@ -336,9 +342,31 @@ class SkillStateMachine:
             filename = f"{event_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
             filepath = os.path.join(self.config.persistence_path, filename)
             
+            # МОНСТР-ЛОГИКА: Глубокая очистка от циклических ссылок перед сохранением
+            def safe_serialize(obj, visited=None):
+                if visited is None:
+                    visited = set()
+                
+                obj_id = id(obj)
+                if obj_id in visited:
+                    return "<Circular Reference>"
+                
+                if isinstance(obj, dict):
+                    visited.add(obj_id)
+                    return {k: safe_serialize(v, visited) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    visited.add(obj_id)
+                    return [safe_serialize(i, visited) for i in obj]
+                elif isinstance(obj, (str, int, float, bool, type(None))):
+                    return obj
+                else:
+                    return str(obj)
+
+            safe_state = safe_serialize(state)
+            
             # Сохраняем состояние
             with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(state, f, indent=2, ensure_ascii=False, default=str)
+                json.dump(safe_state, f, indent=2, ensure_ascii=False)
             
             logger.debug(f"💾 Состояние сохранено: {filepath}")
         except Exception as e:

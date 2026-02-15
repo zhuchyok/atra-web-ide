@@ -34,6 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_metadata ON tasks USING GIN (metadata);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks (status, priority, created_at);
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_tasks_updated_at ON tasks;
 CREATE TRIGGER update_tasks_updated_at
     BEFORE UPDATE ON tasks
     FOR EACH ROW

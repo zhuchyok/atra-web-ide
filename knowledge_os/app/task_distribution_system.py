@@ -238,7 +238,7 @@ async def _collect_by_department_heads_enhanced(
             dept_head_agent = ReActAgent(
                 agent_name=dept_head['name'],
                 system_prompt=f"Вы {dept_head['name']}, Department Head отдела {department}",
-                model_name="deepseek-r1-distill-llama:70b"
+                model_name="phi3.5:3.8b"
             )
             
             synthesis_result = await dept_head_agent.run(goal=synthesis_prompt, context=None)

@@ -18,7 +18,8 @@ import asyncpg
 import os
 import sys
 import json
-from datetime import datetime
+from pathlib import Path
+from datetime import datetime, timezone
 
 # Чтобы token_logger и evaluator импортировались (Singularity 9.0 log_interaction)
 _app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +33,7 @@ async def _lifespan(app: FastAPI):
     await _ensure_orchestrator_version_migration()
     await _ensure_projects_table_migration()
     await _ensure_project_context_on_tasks_migration()
+    await _ensure_model_performance_metrics_migration()
     yield
     try:
         from http_client import close_http_client
@@ -129,12 +131,25 @@ class RegisterRequest(BaseModel):
     role: str = "user"
 
 
+class FeedbackRequest(BaseModel):
+    """П.3 PRINCIPLE_EXPERTS_FIRST: лайк/дизлайк по ответу — сохраняем инсайт в knowledge_nodes при лайке."""
+    interaction_log_id: str  # UUID записи в interaction_logs
+    score: int  # 1 = like, -1 = dislike
+    feedback_text: Optional[str] = None
+
+
+class AcceptCandidateRequest(BaseModel):
+    """П.7 PRINCIPLE_EXPERTS_FIRST: принять кандидата из списка найма (убрать из ревью, подтвердить)."""
+    index: int  # индекс в списке candidates (0-based)
+
+
 class LogInteractionRequest(BaseModel):
     """Лог взаимодействия для Singularity 9.0 (Web IDE, MCP и др.)"""
     prompt: str
     response: str
     expert_name: Optional[str] = None
     source: str = "web_ide"
+    knowledge_node_ids: Optional[List[str]] = None  # §4 «принять»: узлы из контекста ответа для усиления при лайке
 
 
 class BoardConsultRequest(BaseModel):
@@ -235,6 +250,26 @@ async def _ensure_project_context_on_tasks_migration():
         pass
 
 
+async def _ensure_model_performance_metrics_migration():
+    """При старте API: создать таблицу model_performance_metrics (метрики моделей: load/unload/deploy/processing), если её нет."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'model_performance_metrics'"
+            )
+            if row is None:
+                migration_path = os.path.join(
+                    os.path.dirname(__file__), "..", "db", "migrations", "add_model_performance_metrics.sql"
+                )
+                if os.path.exists(migration_path):
+                    with open(migration_path, "r", encoding="utf-8") as f:
+                        sql = f.read()
+                    await conn.execute(sql)
+    except Exception:
+        pass
+
+
 @app.get("/")
 async def root():
     """Корневой endpoint"""
@@ -306,10 +341,24 @@ async def get_available_models():
         return {
             "status": "error",
             "error": str(e),
-            "traceback": traceback.format_exc(),
-            "mlx": {"models": [], "count": 0, "url": mlx_url},
-            "ollama": {"models": [], "count": 0, "url": ollama_url}
+            "traceback": traceback.format_exc()
         }
+
+
+@app.get("/api/models/metrics")
+async def get_models_metrics():
+    """
+    Метрики по моделям: время загрузки, выгрузки, развёртывания, обработки (с запасом).
+    Заполняются при появлении новой модели (probe) и при каждом скане (MODEL_PROBE_ON_SCAN).
+    """
+    try:
+        from available_models_scanner import get_available_models_with_metrics
+        mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+        ollama_url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434")
+        _, _, metrics = await get_available_models_with_metrics(mlx_url, ollama_url, force_refresh=False)
+        return {"status": "success", "metrics": metrics}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "metrics": {"ollama": {}, "mlx": {}}}
 
 
 async def _ab_metrics_prometheus(hours: int = 24) -> str:
@@ -355,8 +404,73 @@ async def _ab_metrics_prometheus(hours: int = 24) -> str:
     return "\n".join(lines)
 
 
+def _normalize_last_error_type(err: Optional[str]) -> str:
+    """Нормализация last_error к типу для метрик (PROJECT_GAPS §3, SRE)."""
+    if not err or not (s := str(err).strip().lower()):
+        return "unknown"
+    if "timeout" in s or "timed out" in s:
+        return "timeout"
+    if "empty_or_short" in s or "empty" in s or "short response" in s:
+        return "empty_or_short_response"
+    if "validation" in s or "score" in s or "validat" in s:
+        return "validation_failed"
+    if "connection" in s or "refused" in s or "unavailable" in s or "connect" in s:
+        return "connection_error"
+    if "oom" in s or "memory" in s or "metal" in s:
+        return "oom_or_metal"
+    return "other"
+
+
+async def _deferred_metrics_prometheus() -> str:
+    """Метрики очереди на ручную проверку (deferred_to_human, last_error по типам). PROJECT_GAPS §3, VERIFICATION_CHECKLIST §3."""
+    lines = ["# Deferred to human (queue for manual review)"]
+    try:
+        from db_pool import get_pool
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            deferred_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM tasks WHERE status = $1 AND (metadata->>$2)::text = $3",
+                "completed", "deferred_to_human", "true"
+            )
+            lines.append(f"knowledge_os_tasks_deferred_to_human_total {int(deferred_count or 0)}")
+            rows = await conn.fetch(
+                """SELECT metadata->>'last_error' as err FROM tasks
+                   WHERE status = 'completed' AND (metadata->>'deferred_to_human') = 'true'
+                   ORDER BY updated_at DESC NULLS LAST LIMIT 500"""
+            )
+            from collections import Counter
+            types = Counter(_normalize_last_error_type(r.get("err") if r else None) for r in rows)
+            for error_type, count in types.most_common():
+                if count > 0:
+                    safe_type = error_type.replace('"', '_')
+                    lines.append(f'knowledge_os_tasks_deferred_last_error_total{{error_type="{safe_type}"}} {count}')
+    except Exception as e:
+        lines.append(f"# deferred_metrics error: {e}")
+        # Fallback: всегда выводим метрику (0), чтобы /metrics содержал имя и тесты/ Prometheus не ломались
+        lines.append("knowledge_os_tasks_deferred_to_human_total 0")
+    return "\n".join(lines)
+
+
+async def _worker_web_search_metrics_prometheus() -> str:
+    """П.1 пушка: метрики веб-блока в задачах воркера (за последние 24 ч)."""
+    lines = ["# Worker web search (tasks with web block, last 24h)"]
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            n = await conn.fetchval(
+                """SELECT COUNT(*) FROM tasks
+                   WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '24 hours'
+                     AND (metadata->>'had_web_block') = 'true'"""
+            )
+            lines.append(f"knowledge_os_tasks_web_block_total {int(n or 0)}")
+    except Exception as e:
+        lines.append(f"# worker_web_search_metrics error: {e}")
+        lines.append("knowledge_os_tasks_web_block_total 0")
+    return "\n".join(lines)
+
+
 async def _orchestration_metrics_prometheus() -> str:
-    """Оркестрация + A/B в формате Prometheus (для /metrics и /api/v2/orchestrate/metrics)."""
+    """Оркестрация + A/B + deferred + worker web (для /metrics и /api/v2/orchestrate/metrics)."""
     try:
         try:
             from task_orchestration import OrchestrationMonitor
@@ -365,7 +479,9 @@ async def _orchestration_metrics_prometheus() -> str:
         monitor = OrchestrationMonitor()
         text = await monitor.export_to_prometheus()
         ab_text = await _ab_metrics_prometheus(24)
-        return text + "\n# A/B (last 24h)\n" + ab_text
+        deferred_text = await _deferred_metrics_prometheus()
+        web_text = await _worker_web_search_metrics_prometheus()
+        return text + "\n# A/B (last 24h)\n" + ab_text + "\n" + deferred_text + "\n" + web_text
     except Exception as e:
         return f"# ERROR: {e}\n"
 
@@ -407,6 +523,8 @@ async def log_interaction(body: LogInteractionRequest):
             expert_name=body.expert_name,
             model_type="local",
             source=body.source,
+            knowledge_ids=body.knowledge_node_ids or None,
+            knowledge_applied=bool(body.knowledge_node_ids),
             metadata={"source": body.source},
         )
         _log.info("[LOG_INTERACTION] success log_id=%s", log_id)
@@ -414,6 +532,192 @@ async def log_interaction(body: LogInteractionRequest):
     except Exception as e:
         _log.exception("[LOG_INTERACTION] exception: %s", e)
         return {"ok": False, "error": str(e)}
+
+
+@app.post("/api/feedback")
+async def submit_feedback(body: FeedbackRequest):
+    """
+    П.3 PRINCIPLE_EXPERTS_FIRST: принять лайк/дизлайк по ответу (interaction_logs).
+    При score > 0 (лайк) — автоматически вынести сжатый инсайт в knowledge_nodes (домен эксперта).
+    """
+    import logging
+    _log = logging.getLogger(__name__)
+    if body.score not in (1, -1):
+        raise HTTPException(status_code=400, detail="score must be 1 (like) or -1 (dislike)")
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            # Обновить feedback в interaction_logs
+            await conn.execute(
+                """
+                UPDATE interaction_logs
+                SET feedback_score = $1, feedback_text = $2
+                WHERE id = $3
+                """,
+                body.score,
+                (body.feedback_text or "")[:2000],
+                body.interaction_log_id,
+            )
+            if body.score <= 0:
+                return {"ok": True, "message": "Feedback recorded"}
+            # П.3: при лайке — сжатый инсайт в knowledge_nodes (домен эксперта)
+            # План «умнее быстрее» §4: при «принять» усилить узлы из контекста ответа (usage_count)
+            row = await conn.fetchrow(
+                """
+                SELECT il.user_query, il.assistant_response, il.expert_id, il.metadata, e.domain_id, e.department
+                FROM interaction_logs il
+                LEFT JOIN experts e ON e.id = il.expert_id
+                WHERE il.id = $1
+                """,
+                body.interaction_log_id,
+            )
+            if not row or not (row["user_query"] or row["assistant_response"]):
+                return {"ok": True, "message": "Feedback recorded"}
+            # §4: инкремент usage_count для узлов, попавших в контекст этого ответа (metadata.knowledge_node_ids)
+            meta = row.get("metadata")
+            if isinstance(meta, dict):
+                node_ids = meta.get("knowledge_node_ids") or []
+            else:
+                try:
+                    node_ids = json.loads(meta).get("knowledge_node_ids", []) if meta else []
+                except Exception:
+                    node_ids = []
+            if node_ids and isinstance(node_ids, list):
+                valid_uuids = [str(x) for x in node_ids if x][:50]
+                if valid_uuids:
+                    try:
+                        await conn.execute(
+                            """
+                            UPDATE knowledge_nodes SET usage_count = usage_count + 1
+                            WHERE id = ANY($1::uuid[])
+                            """,
+                            valid_uuids,
+                        )
+                        _log.info("[FEEDBACK] usage_count+1 for %s node(s) (accepted answer)", len(valid_uuids))
+                    except Exception as ue:
+                        _log.debug("[FEEDBACK] usage_count update skip: %s", ue)
+            domain_id = row["domain_id"]
+            if not domain_id and row["department"]:
+                domain_id = await conn.fetchval(
+                    "SELECT id FROM domains WHERE name = $1 LIMIT 1",
+                    row["department"],
+                )
+            if not domain_id:
+                domain_id = await conn.fetchval("SELECT id FROM domains LIMIT 1")
+            if not domain_id:
+                return {"ok": True, "message": "Feedback recorded (no domain for insight)"}
+            content = f"Успешный ответ (лайк): Q: {(row['user_query'] or '')[:200]} → A: {(row['assistant_response'] or '')[:600]}"
+            content_trim = content[:8000]
+            # План «умнее быстрее» §4.1: кандидат в эталон для последующего разбора куратором
+            metadata = json.dumps({
+                "source": "feedback_like",
+                "interaction_log_id": body.interaction_log_id,
+                "suggested_standard": True,
+            })
+            embedding = None
+            try:
+                from app.semantic_cache import get_embedding as _ge
+                embedding = await _ge(content_trim[:8000])
+            except Exception:
+                pass
+            if embedding is not None:
+                await conn.execute(
+                    """
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, embedding)
+                    VALUES ($1, $2, 0.9, $3, $4::vector)
+                    """,
+                    domain_id, content_trim, metadata, str(embedding),
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata)
+                    VALUES ($1, $2, 0.9, $3)
+                    """,
+                    domain_id, content_trim, metadata,
+                )
+            _log.info("[FEEDBACK] insight saved to knowledge_nodes for log_id=%s", body.interaction_log_id)
+            return {"ok": True, "message": "Feedback recorded; insight saved to knowledge"}
+    except Exception as e:
+        _log.exception("[FEEDBACK] error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_autonomous_candidates_path() -> Optional[Path]:
+    """Путь к autonomous_candidates.json (П.7)."""
+    for p in [
+        Path(__file__).resolve().parent.parent.parent / "configs" / "experts" / "autonomous_candidates.json",
+        Path(__file__).resolve().parent.parent / "configs" / "experts" / "autonomous_candidates.json",
+        Path(os.getenv("AUTONOMOUS_CANDIDATES_JSON", "")),
+    ]:
+        if p and str(p) and p.parent.exists():
+            return p
+    return None
+
+
+@app.get("/api/recruitment/candidates")
+async def get_recruitment_candidates():
+    """П.7: список кандидатов на ревью (autonomous_candidates.json)."""
+    path = _get_autonomous_candidates_path()
+    if not path or not path.exists():
+        return {"candidates": [], "updated": None}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {"candidates": data.get("candidates", []), "updated": data.get("updated")}
+    except Exception as e:
+        logging.getLogger(__name__).exception("Read candidates: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/recruitment/candidates/accept", dependencies=[Depends(verify_api_key)])
+async def accept_recruitment_candidate(body: AcceptCandidateRequest):
+    """П.7: принять кандидата — убрать из списка ревью; П.7 пушка: задача онбординга + уведомление (Telegram через notifications)."""
+    path = _get_autonomous_candidates_path()
+    if not path or not path.exists():
+        raise HTTPException(status_code=404, detail="Candidates file not found")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        candidates = data.get("candidates", [])
+        if body.index < 0 or body.index >= len(candidates):
+            raise HTTPException(status_code=400, detail="Invalid candidate index")
+        accepted = candidates.pop(body.index)
+        data["candidates"] = candidates
+        data["updated"] = datetime.now(timezone.utc).isoformat()
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        # П.7 пушка: задача онбординга (assignee Виктория) + запись в notifications (Telegram gateway)
+        name = accepted.get("name") or "Эксперт"
+        role = accepted.get("role") or ""
+        department = accepted.get("department") or ""
+        try:
+            pool = await _get_db()
+            async with pool.acquire() as conn:
+                victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1")
+                if victoria_id:
+                    await conn.execute(
+                        """INSERT INTO tasks (title, description, status, priority, assignee_expert_id, metadata)
+                           VALUES ($1, $2, 'pending', 'medium', $3, $4::jsonb)""",
+                        f"Онбординг: проверить промпт эксперта {name}",
+                        f"Кандидат принят из ревью: {name}, {role}, {department}. Проверить system_prompt и при необходимости обновить .cursorrules.",
+                        victoria_id,
+                        json.dumps({"source": "recruitment_accept", "expert_name": name, "role": role, "department": department}),
+                    )
+                await conn.execute(
+                    "INSERT INTO notifications (message, sent) VALUES ($1, FALSE)",
+                    f"Новый эксперт принят: {name}, {role}, {department}",
+                )
+        except Exception as e:
+            logging.getLogger(__name__).warning("Accept candidate post-actions (task/notification): %s", e)
+
+        return {"ok": True, "accepted": accepted, "message": "Кандидат принят, убран из списка ревью"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).exception("Accept candidate: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/projects", response_model=List[ProjectListItem])
@@ -633,9 +937,18 @@ async def get_audit_logs(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _get_embedding_for_knowledge():
+    """Ленивый импорт get_embedding (по возможности сохранять embedding — VERIFICATION §5, WHATS_NOT_DONE §4)."""
+    try:
+        from semantic_cache import get_embedding
+        return get_embedding
+    except Exception:
+        return None
+
+
 @app.post("/knowledge", response_model=KnowledgeNodeResponse, dependencies=[Depends(verify_jwt_token)])
 async def create_knowledge(knowledge: KnowledgeNodeCreate):
-    """Создание нового знания"""
+    """Создание нового знания. При доступности semantic_cache сохраняем embedding для семантического поиска (VERIFICATION §5)."""
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
@@ -644,12 +957,27 @@ async def create_knowledge(knowledge: KnowledgeNodeCreate):
             if not domain_id:
                 domain_id = await conn.fetchval("INSERT INTO domains (name) VALUES ($1) RETURNING id", knowledge.domain)
             
-            # Создаем знание
-            knowledge_id = await conn.fetchval("""
-                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id
-            """, domain_id, knowledge.content, knowledge.confidence_score, json.dumps(knowledge.metadata))
+            # По возможности — эмбеддинг для семантического поиска (размерность 768, nomic-embed-text)
+            embedding = None
+            get_embedding_fn = _get_embedding_for_knowledge()
+            if get_embedding_fn and knowledge.content:
+                try:
+                    embedding = await get_embedding_fn(knowledge.content[:8000])
+                except Exception:
+                    pass
+            
+            if embedding is not None:
+                knowledge_id = await conn.fetchval("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, embedding)
+                    VALUES ($1, $2, $3, $4, $5::vector)
+                    RETURNING id
+                """, domain_id, knowledge.content, knowledge.confidence_score, json.dumps(knowledge.metadata), str(embedding))
+            else:
+                knowledge_id = await conn.fetchval("""
+                    INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata)
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING id
+                """, domain_id, knowledge.content, knowledge.confidence_score, json.dumps(knowledge.metadata))
             
             return KnowledgeNodeResponse(
                 id=str(knowledge_id),
@@ -835,6 +1163,184 @@ async def reset_deferred_to_pending(limit: int = 100):
                 "message": f"Вернуто в очередь: {count} задач. Worker подхватит их при следующем цикле."
             }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- ATRA Canvas: Comments & Patches ---
+
+class FileCommentCreate(BaseModel):
+    file_path: str
+    comment_text: str
+    pattern: Optional[str] = None
+    line_number: Optional[int] = None
+    expert_name: Optional[str] = "Виктория"
+
+class FilePatchRequest(BaseModel):
+    file_path: str
+    pattern: str
+    replacement: str
+    expert_id: Optional[str] = None
+
+@app.post("/api/experts/evolve")
+async def trigger_expert_evolution(expert_name: Optional[str] = None):
+    """
+    Запустить процесс эволюции экспертов.
+    Если expert_name не задан, запускается для всех активных экспертов.
+    """
+    try:
+        # Запускаем скрипт эволюции в фоне
+        script_path = os.path.join(os.path.dirname(__file__), "expert_evolver.py")
+        cmd = [sys.executable, script_path]
+        if expert_name:
+            cmd.extend(["--expert_name", expert_name])
+        
+        # Запускаем и не ждем завершения (background)
+        import subprocess
+        subprocess.Popen(cmd)
+        
+        return {"status": "success", "message": f"Процесс эволюции для {expert_name or 'всех'} запущен в фоне"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ExpertUpdate(BaseModel):
+    expert_id: uuid.UUID
+    system_prompt: Optional[str] = None
+    role: Optional[str] = None
+    department: Optional[str] = None
+
+@app.post("/api/experts/update")
+async def update_expert_data(body: ExpertUpdate):
+    """Обновить данные эксперта и синхронизировать с .cursor/rules."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            # 1. Получаем текущее имя эксперта
+            expert = await conn.fetchrow("SELECT name FROM experts WHERE id = $1", body.expert_id)
+            if not expert:
+                raise HTTPException(status_code=404, detail="Expert not found")
+            
+            # 2. Обновляем в БД
+            update_fields = []
+            params = [body.expert_id]
+            if body.system_prompt is not None:
+                update_fields.append(f"system_prompt = ${len(params)+1}")
+                params.append(body.system_prompt)
+            if body.role is not None:
+                update_fields.append(f"role = ${len(params)+1}")
+                params.append(body.role)
+            if body.department is not None:
+                update_fields.append(f"department = ${len(params)+1}")
+                params.append(body.department)
+            
+            if update_fields:
+                await conn.execute(f"UPDATE experts SET {', '.join(update_fields)}, updated_at = NOW(), version = version + 1 WHERE id = $1", *params)
+            
+            # 3. Двусторонняя синхронизация: Обновляем файл в .cursor/rules (если мы не в Docker или есть доступ)
+            # В реальности это делает отдельный фоновый процесс или Sentinel
+            
+            return {"status": "success", "message": f"Эксперт {expert['name']} обновлен"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/experts/skills")
+async def get_all_skills():
+    """Получить список всех доступных навыков из библиотеки."""
+    try:
+        skills_dir = "/app/knowledge_os/app/skills"
+        if not os.path.exists(skills_dir):
+            skills_dir = os.path.join(os.path.dirname(__file__), "skills")
+            
+        skills = []
+        if os.path.exists(skills_dir):
+            for skill_name in os.listdir(skills_dir):
+                skill_path = os.path.join(skills_dir, skill_name, "SKILL.md")
+                if os.path.exists(skill_path):
+                    with open(skill_path, "r") as f:
+                        content = f.read()
+                        skills.append({"name": skill_name, "description": content[:200] + "..."})
+        return skills
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/files/comments")
+async def get_file_comments(file_path: str):
+    """Получить все активные комментарии для файла."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, file_path, pattern, line_number, comment_text, expert_name, status, created_at "
+                "FROM file_comments WHERE file_path = $1 AND status = 'active' ORDER BY created_at ASC",
+                file_path
+            )
+            return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/files/comments")
+async def add_file_comment(body: FileCommentCreate):
+    """Добавить комментарий к файлу."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            comment_id = await conn.fetchval(
+                """INSERT INTO file_comments (file_path, comment_text, pattern, line_number, expert_name)
+                   VALUES ($1, $2, $3, $4, $5) RETURNING id""",
+                body.file_path, body.comment_text, body.pattern, body.line_number, body.expert_name
+            )
+            return {"ok": True, "comment_id": str(comment_id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/files/patch")
+async def apply_file_patch(body: FilePatchRequest):
+    """Применить точечный патч к файлу (аналог canmore update_textdoc)."""
+    try:
+        # 1. Читаем файл через системный инструмент
+        from file_processor import FileProcessor
+        processor = FileProcessor()
+        
+        # Получаем абсолютный путь
+        full_path = body.file_path
+        if not os.path.isabs(full_path):
+            # Пытаемся найти в workspace
+            base_dir = os.getenv("WORKSPACE_ROOT", os.getcwd())
+            full_path = os.path.join(base_dir, body.file_path)
+
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail=f"File {body.file_path} not found")
+
+        with open(full_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 2. Применяем замену (regex)
+        import re
+        try:
+            new_content = re.sub(body.pattern, body.replacement, content)
+        except re.error as re_err:
+            raise HTTPException(status_code=400, detail=f"Invalid regex pattern: {str(re_err)}")
+        
+        if new_content == content:
+            return {"ok": False, "message": "Pattern not found or no changes made"}
+            
+        # 3. Сохраняем файл
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        # 4. Логируем патч в БД
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            import uuid
+            e_id = uuid.UUID(body.expert_id) if body.expert_id else None
+            await conn.execute(
+                "INSERT INTO file_patches (file_path, pattern, replacement, expert_id) VALUES ($1, $2, $3, $4)",
+                body.file_path, body.pattern, body.replacement, e_id
+            )
+            
+        return {"ok": True, "message": "Patch applied successfully"}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -1,7 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# Настройка автозапуска MLX API Server через launchd
+# Настройка автозапуска MLX API Server через launchd (с wrapper — перезапуск при падении)
 # Запускать на Mac Studio: bash scripts/setup_mlx_autostart.sh
+# См. docs/MLX_PYTHON_CRASH_CAUSE.md — при краше Python перезапускает start_mlx_server.sh
 # =============================================================================
 
 set -e
@@ -10,11 +11,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "=============================================="
-echo "🚀 Настройка автозапуска MLX API Server"
+echo "🚀 Настройка автозапуска MLX API Server (wrapper)"
 echo "=============================================="
 echo ""
 
-# 1. Создание launchd plist для MLX API Server
+# 1. Создание launchd plist для MLX API Server (через wrapper — автоперезапуск при падении)
 echo "[1/3] Создание launchd plist для MLX API Server..."
 LAUNCHD_MLX="${HOME}/Library/LaunchAgents/com.atra.mlx-api-server.plist"
 
@@ -28,7 +29,7 @@ cat > "$LAUNCHD_MLX" << EOF
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${ROOT}/scripts/start_mlx_api_server.sh</string>
+        <string>${ROOT}/scripts/start_mlx_server.sh</string>
     </array>
     <key>WorkingDirectory</key>
     <string>${ROOT}</string>

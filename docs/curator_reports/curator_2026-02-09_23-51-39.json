@@ -1,0 +1,99 @@
+{
+  "ts": "2026-02-09T23:53:32.154129+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 5,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "db48358d-4230-482a-977a-7a0437f82b27",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "db48358d-4230-482a-977a-7a0437f82b27",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Сейчас не могу подключиться к моделям (MLX API Server или Ollama). Проверьте: MLX API Server на порту 11435, Ollama на 11434. После запуска напишите снова — отвечу по существу.",
+      "output_length": 176,
+      "correlation_id": "3d860ea4-73cc-4a42-ae39-80a559344311",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "3d860ea4-73cc-4a42-ae39-80a559344311",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 7.53
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "success",
+      "error": null,
+      "output_preview": "STDOUT: total 5560\ndrwxr-xr-x   1 root root    4096 Feb  9 23:36 .\ndrwxr-xr-x   1 root root    4096 Feb  9 23:34 ..\n-rw-r--r--   1 root root   10244 Feb  5 17:50 .DS_Store\ndrwxr-xr-x   2 root root    4096 Jan 31 15:17 .agent_backups\n-rw-r--r--   1 root root   53248 Feb  5 19:20 .coverage\ndrwxr-xr-x   9 root root    4096 Feb  1 15:59 .cursor\ndrwxr-xr-x   3 root root    4096 Jan 31 09:45 .cursor_chats_backup\n-rw-r--r--   1 root root   15857 Feb  5 18:26 .cursorrules\n-rw-r--r--   1 root root    379",
+      "output_length": 1225,
+      "correlation_id": "719db6e5-5347-443d-a245-7a161514d11b",
+      "execution_trace": {
+        "task_type": "veronica",
+        "use_enhanced": true,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "phi3.5:3.8b",
+        "correlation_id": "719db6e5-5347-443d-a245-7a161514d11b",
+        "goal_preview": "покажи список файлов в корне проекта"
+      },
+      "elapsed_seconds": 90.3
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я Виктория, Team Lead Atra Core. Умею:\n• Отвечать на вопросы и вести чат (в т.ч. с экспертами и RAG по базе знаний)\n• Составлять планы и выполнять задачи: код, файлы, команды в терминале\n• Показывать список файлов, читать и анализировать проект\n• Делегировать простые запросы в Veronica, сложные — оркестрировать с командой\nРежимы: быстрый ответ на простые вопросы или полный цикл (ReAct) для сложных задач.",
+      "output_length": 407,
+      "correlation_id": "4b1ee5d4-37ce-46ad-906d-3707c78a9601",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "4b1ee5d4-37ce-46ad-906d-3707c78a9601",
+        "goal_preview": "что ты умеешь?"
+      },
+      "elapsed_seconds": 7.54
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "success",
+      "error": null,
+      "output_preview": "Сейчас не могу подключиться к моделям (MLX API Server или Ollama). Проверьте: MLX API Server на порту 11435, Ollama на 11434. После запуска напишите снова — отвечу по существу.",
+      "output_length": 176,
+      "correlation_id": "fccc6000-f828-445c-9d4f-a28cd3199495",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "fccc6000-f828-445c-9d4f-a28cd3199495",
+        "goal_preview": "напиши одну строку кода на Python: вывод текущей даты"
+      },
+      "elapsed_seconds": 7.54
+    }
+  ]
+}

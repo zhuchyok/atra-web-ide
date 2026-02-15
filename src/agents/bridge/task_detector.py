@@ -39,6 +39,28 @@ DEPARTMENT_HEADS_KEYWORDS = [
     "сравни", "обобщи", "систематизируй",
 ]
 
+# Запросы куратора, которые должны идти в Enhanced (RAG/эталоны), не в Veronica
+CURATOR_STANDARD_KEYWORDS = [
+    "статус проекта", "какой статус", "дашборд", "что умеешь", "что ты умеешь",
+    "status project", "project status", "dashboard", "what can you do",
+]
+def is_curator_standard_goal(goal: str) -> bool:
+    """
+    Запрос из списка кураторских эталонов: статус проекта, что умеешь, дашборд.
+    Такие запросы не должны делегироваться в Veronica — только Enhanced (simple + RAG).
+    """
+    if not (goal or "").strip():
+        return False
+    g = (goal or "").lower().strip()
+    if any(kw in g for kw in CURATOR_STANDARD_KEYWORDS):
+        return True
+    # «какой статус проекта?», «статус по проекту»
+    if "статус" in g and ("проект" in g or "дашборд" in g):
+        return True
+    if "что" in g and "умеешь" in g:
+        return True
+    return False
+
 
 def _is_simple_veronica_request(goal: str) -> bool:
     """
@@ -68,6 +90,10 @@ def detect_task_type(goal: str, context: str = "") -> str:
         return "simple_chat"
     goal_lower = goal.lower().strip()
     prefer_experts_first = os.getenv("PREFER_EXPERTS_FIRST", "true").lower() in ("true", "1", "yes")
+
+    # Кураторские эталоны (статус проекта, что умеешь, дашборд) — всегда Enhanced (RAG/эталоны)
+    if is_curator_standard_goal(goal):
+        return "enhanced"
 
     # Простые одношаговые запросы → Veronica (реальная роль: руки)
     if _is_simple_veronica_request(goal):

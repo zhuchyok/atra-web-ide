@@ -1,5 +1,5 @@
 # ATRA Web IDE - Docker Compose
-# Браузерная оболочка для Singularity 9.0
+# Браузерная оболочка для Singularity 10.0
 #
 # Запуск: docker-compose up -d
 # Открыть: http://localhost:3000
@@ -34,11 +34,14 @@ services:
       - VICTORIA_URL=http://victoria-agent:8000  # Используем общий контейнер Victoria из knowledge_os
       - PROJECT_NAME=atra-web-ide  # Контекст проекта для агентов
       - OLLAMA_URL=http://host.docker.internal:11434
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-300}
       - MLX_API_URL=http://host.docker.internal:11435  # MLX API Server на хосте (из контейнера — через host.docker.internal)
       - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       - REDIS_URL=redis://knowledge_os_redis:6379  # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
-      - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 9.0)
+      - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 10.0)
       - WORKSPACE_ROOT=/workspace
+      # Таймаут ожидания Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
+      - VICTORIA_TIMEOUT=${VICTORIA_TIMEOUT:-900}
       # RAG-light оптимизации (Фаза 3, день 3–4)
       - EMBEDDING_BATCH_ENABLED=true
       - EMBEDDING_BATCH_SIZE=10
@@ -75,6 +78,12 @@ services:
       - --web.enable-lifecycle
     ports:
       - "9091:9090"   # 9091 на хосте (9090 занят другим Prometheus)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     networks:
       atra-network:
         aliases:
@@ -85,8 +94,11 @@ services:
   # Grafana - дашборды (День 5). Порт 3002 (3000=frontend, 3001=Knowledge OS Grafana)
   # ============================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.3
     container_name: atra-web-ide-grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro

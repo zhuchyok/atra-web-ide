@@ -11,6 +11,13 @@ scrape_configs:
           service: "chat-backend"
           env: "development"
 
+  # Victoria Agent: RAG+ латентность (victoria_rag_*). Сервис в knowledge_os/docker-compose, сеть atra-network.
+  - job_name: "victoria-agent"
+    static_configs:
+      - targets: ["victoria-agent:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]

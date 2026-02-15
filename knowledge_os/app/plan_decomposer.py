@@ -276,30 +276,101 @@ class PlanDecomposer:
     
     async def check_for_missing_info(self, subplan_id: str) -> Optional[List[str]]:
         """
-        Проверяет подплан на недостающую информацию
+        Проверяет подплан на недостающую информацию через LLM.
         
         Args:
             subplan_id: ID подплана
         
         Returns:
-            Optional[List[str]]: Список question_ids (если нужны уточнения), или None
+            Optional[List[str]]: Список вопросов для уточнения, или None если уточнений не нужно
         """
-        # TODO: Использовать LLM для анализа подплана и генерации вопросов
-        logger.debug(f"❓ [DECOMPOSER] Проверка подплана {subplan_id} на недостающую информацию (не реализовано)")
+        if not self.session_manager:
+            return None
+        try:
+            conn = self.session_manager._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT markdown_body FROM strategy_plans WHERE id = ?", (subplan_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if not row or not row[0]:
+                return None
+            subplan_md = row[0]
+        except Exception as e:
+            logger.debug("❓ [DECOMPOSER] Не удалось загрузить подплан %s: %s", subplan_id, e)
+            return None
+        if not run_smart_agent_async:
+            return None
+        prompt = f"""Проанализируй подплан и определи, какой информации не хватает для его выполнения.
+
+ПОДПЛАН (Markdown):
+{subplan_md[:4000]}
+
+Верни ТОЛЬКО JSON-массив строк — список вопросов для уточнения (0–5 вопросов). Если информации достаточно, верни пустой массив [].
+Пример: ["Какой таймфрейм использовать?", "Есть ли ограничения по риску?"]
+Без пояснений, только JSON."""
+        try:
+            out = await run_smart_agent_async(prompt, expert_name="Виктория", category="reasoning")
+            if not out or not out.strip():
+                return None
+            import json
+            raw = out.strip()
+            if "```" in raw:
+                raw = raw.split("```")[1].replace("json", "").strip()
+            questions = json.loads(raw)
+            if isinstance(questions, list) and all(isinstance(q, str) for q in questions) and questions:
+                logger.debug("❓ [DECOMPOSER] Подплан %s: сгенерировано %s вопросов", subplan_id, len(questions))
+                return questions
+        except Exception as e:
+            logger.debug("❓ [DECOMPOSER] LLM проверка подплана: %s", e)
         return None
     
     async def refine_subplan(self, subplan_id: str, answers: Dict[str, str]) -> str:
         """
-        Уточняет подплан на основе ответов пользователя
+        Уточняет подплан на основе ответов пользователя через LLM и сохраняет в БД.
         
         Args:
             subplan_id: ID подплана
             answers: Словарь {question_id: answer}
         
         Returns:
-            str: Обновленный subplan_id
+            str: subplan_id (тот же, план обновлён в БД)
         """
-        # TODO: Реализовать уточнение подплана
-        logger.debug(f"📝 [DECOMPOSER] Уточнение подплана {subplan_id} (не реализовано)")
+        if not self.session_manager or not answers:
+            return subplan_id
+        try:
+            conn = self.session_manager._get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT markdown_body FROM strategy_plans WHERE id = ?", (subplan_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if not row or not row[0]:
+                return subplan_id
+            subplan_md = row[0]
+        except Exception as e:
+            logger.debug("📝 [DECOMPOSER] Не удалось загрузить подплан %s: %s", subplan_id, e)
+            return subplan_id
+        answers_text = "\n".join(f"- {k}: {v}" for k, v in answers.items())
+        if not run_smart_agent_async:
+            return subplan_id
+        prompt = f"""Обнови подплан с учётом ответов пользователя. Сохрани структуру Markdown, добавь уточнения в нужные места.
+
+ТЕКУЩИЙ ПОДПЛАН:
+{subplan_md[:4000]}
+
+ОТВЕТЫ ПОЛЬЗОВАТЕЛЯ:
+{answers_text}
+
+Верни ТОЛЬКО обновлённый подплан в Markdown, без пояснений."""
+        try:
+            new_md = await run_smart_agent_async(prompt, expert_name="Виктория", category="strategy")
+            if new_md and len(new_md.strip()) > 50:
+                conn = self.session_manager._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE strategy_plans SET markdown_body = ? WHERE id = ?", (new_md.strip(), subplan_id))
+                conn.commit()
+                conn.close()
+                logger.info("📝 [DECOMPOSER] Подплан %s уточнён по ответам", subplan_id)
+        except Exception as e:
+            logger.debug("📝 [DECOMPOSER] Уточнение подплана: %s", e)
         return subplan_id
 

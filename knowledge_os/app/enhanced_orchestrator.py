@@ -13,8 +13,14 @@ import subprocess
 import sys
 import time
 import traceback
-from datetime import datetime, timedelta
-from typing import Dict, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional, Tuple
+
+try:
+    import httpx
+    HTTPX_AVAILABLE = True
+except ImportError:
+    HTTPX_AVAILABLE = False
 
 # Third-party imports with fallback
 try:
@@ -98,6 +104,63 @@ CANONICAL_DOMAINS = {
 def _canonical_domain(name: str) -> str:
     """Возвращает каноническое имя домена."""
     return CANONICAL_DOMAINS.get(name, name)
+
+
+# --- Живой организм: мониторинг Ollama/MLX и запрос восстановления на хосте ---
+LLM_HEALTH_TIMEOUT = float(os.getenv("ORCHESTRATOR_LLM_HEALTH_TIMEOUT", "5.0"))
+RECOVERY_WEBHOOK_URL = os.getenv("RECOVERY_WEBHOOK_URL", "").strip()  # POST при недоступности Ollama/MLX
+
+
+async def check_llm_services_health() -> Tuple[bool, bool]:
+    """
+    Проверка доступности Ollama и MLX (живой организм: оркестратор следит за серверами).
+    Возвращает (ollama_ok, mlx_ok).
+    """
+    ollama_url = (os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or "http://host.docker.internal:11434").rstrip("/")
+    mlx_url = (os.getenv("MLX_API_URL") or "http://host.docker.internal:11435").rstrip("/")
+    ollama_ok, mlx_ok = False, False
+    if not HTTPX_AVAILABLE:
+        return ollama_ok, mlx_ok
+    timeout = httpx.Timeout(LLM_HEALTH_TIMEOUT)
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            # Ollama: GET /api/tags
+            try:
+                r = await client.get(f"{ollama_url}/api/tags")
+                ollama_ok = r.status_code == 200
+            except Exception:  # pylint: disable=broad-except
+                pass
+            # MLX: GET /v1/models или /api/tags
+            try:
+                r = await client.get(f"{mlx_url}/v1/models")
+                mlx_ok = r.status_code == 200
+            except Exception:  # pylint: disable=broad-except
+                try:
+                    r = await client.get(f"{mlx_url}/api/tags")
+                    mlx_ok = r.status_code == 200
+                except Exception:  # pylint: disable=broad-except
+                    pass
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug("LLM health check failed: %s", e)
+    return ollama_ok, mlx_ok
+
+
+async def trigger_recovery_webhook(ollama_down: bool, mlx_down: bool) -> None:
+    """Уведомить хост о необходимости восстановления Ollama/MLX (живой организм)."""
+    if not RECOVERY_WEBHOOK_URL or not HTTPX_AVAILABLE:
+        return
+    try:
+        payload = {
+            "ollama": not ollama_down,
+            "mlx": not mlx_down,
+            "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(RECOVERY_WEBHOOK_URL, json=payload)
+            if r.status_code >= 400:
+                logger.warning("Recovery webhook returned %s", r.status_code)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.debug("Recovery webhook failed: %s", e)
 
 
 async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
@@ -566,13 +629,26 @@ async def rebalance_workload(conn):
 
 async def run_enhanced_orchestration_cycle():
     """Запуск цикла Enhanced Orchestrator с обновлением знаний корпорации"""
-    # Обновляем знания корпорации перед каждым циклом
-    try:
-        from corporation_knowledge_system import update_all_agents_knowledge
-        await update_all_agents_knowledge()
-        logger.info("✅ Знания корпорации обновлены перед циклом оркестрации")
-    except Exception as e:
-        logger.debug(f"Не удалось обновить знания корпорации: {e}")
+    # Живой организм: проверка Ollama/MLX перед циклом; при недоступности — не грузим эмбеддинги (избегаем OOM) и запрашиваем восстановление
+    ollama_ok, mlx_ok = await check_llm_services_health()
+    if not ollama_ok:
+        logger.warning(
+            "[ENHANCED_ORCHESTRATOR] Ollama недоступен — пропускаю обновление знаний корпорации (избегаем OOM), запрашиваю восстановление"
+        )
+        await trigger_recovery_webhook(ollama_down=True, mlx_down=not mlx_ok)
+    if not mlx_ok:
+        logger.warning("[ENHANCED_ORCHESTRATOR] MLX недоступен — запрашиваю восстановление")
+        if ollama_ok:
+            await trigger_recovery_webhook(ollama_down=False, mlx_down=True)
+
+    # Обновляем знания корпорации только если Ollama доступен (иначе множество get_embedding → таймауты и риск OOM)
+    if ollama_ok:
+        try:
+            from corporation_knowledge_system import update_all_agents_knowledge
+            await update_all_agents_knowledge()
+            logger.info("✅ Знания корпорации обновлены перед циклом оркестрации")
+        except Exception as e:
+            logger.debug("Не удалось обновить знания корпорации: %s", e)
     
     """Основной цикл улучшенного Orchestrator"""
     if not ASYNCPG_AVAILABLE:
@@ -718,6 +794,41 @@ async def run_enhanced_orchestration_cycle():
                     struct = await _decompose_via_victoria(goal)
                     if struct and struct.get('subtasks'):
                         subtasks = struct['subtasks']
+                        
+                        # --- PLAN MODE: Одобрение плана для сложных задач ---
+                        if len(subtasks) >= 3 or (task.get('metadata') or {}).get('complex'):
+                            from human_in_the_loop import get_hitl
+                            hitl = get_hitl()
+                            
+                            # [AUTONOMOUS IMPLEMENTATION PROTOCOL]
+                            # Если уверенность выше 0.95, пропускаем HITL и помечаем как авто-одобрено
+                            confidence = struct.get('confidence', 0.0)
+                            if confidence >= 0.95:
+                                logger.info(f"🚀 [AUTO-IMPL] Высокая уверенность ({confidence:.2f}) для задачи {task['id']}. Авто-одобрение.")
+                                await conn.execute("""
+                                    UPDATE tasks 
+                                    SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"plan_status": "auto_approved", "auto_impl": true}'::jsonb
+                                    WHERE id = $1
+                                """, task['id'])
+                            else:
+                                approval_req = await hitl.request_approval(
+                                    action="plan_approval",
+                                    description=f"Одобрение плана для задачи: {task['title']}",
+                                    agent_name="Виктория",
+                                    proposed_result=struct,
+                                    context={"task_id": str(task['id']), "subtasks_count": len(subtasks)}
+                                )
+                                # Если требуется одобрение и оно еще не получено (pending), пропускаем выполнение в этом цикле
+                                if await hitl.check_approval_required("plan_approval"):
+                                    logger.info(f"⏳ Task {task['id']} is waiting for plan approval.")
+                                    await conn.execute("""
+                                        UPDATE tasks 
+                                        SET status = 'pending', 
+                                            metadata = COALESCE(metadata, '{}'::jsonb) || '{"plan_status": "pending_approval"}'::jsonb
+                                        WHERE id = $1
+                                    """, task['id'])
+                                    continue
+
                         for st in subtasks[:5]:  # max 5 subtasks
                             st_desc = st.get('subtask', st.get('description', ''))
                             st_dept = st.get('department', 'General')
@@ -793,6 +904,112 @@ async def run_enhanced_orchestration_cycle():
                 except Exception as e:
                     logger.debug("Phase 1.6 (batch grouping) failed: %s", e)
             logger.info("[ENHANCED_ORCHESTRATOR] phase=1.6 duration_ms=%.0f result=%s batch_grouped", (time.time() - t16) * 1000, batch_grouped)
+
+            # --- ФАЗА 1.8: ПРЕДВАРИТЕЛЬНЫЙ АУДИТ ПЛАНА (RED TEAM CRITIC) ---
+            # Паттерн OpenAI o1/o3: эксперт-критик ищет ошибки до начала выполнения
+            t18 = time.time()
+            critique_count = 0
+            complex_tasks = await conn.fetch("""
+                SELECT id, title, description, metadata 
+                FROM tasks 
+                WHERE status = 'pending' 
+                AND (metadata->>'decomposed' = 'true' OR priority = 'urgent')
+                AND (metadata->>'critique_passed') IS NULL
+                LIMIT 5
+            """)
+            
+            for task in complex_tasks:
+                try:
+                    # [ADAPTIVE PRUNING] Обрезаем контекст для критика
+                    from isolated_context import IsolatedContext
+                    temp_ctx = IsolatedContext(agent_name="Critic", project_context="Orchestration")
+                    # Добавляем описание задачи как базовую память
+                    temp_ctx.add_memory("user", task['description'])
+                    temp_ctx.prune_context(task['title'], max_chars=2000)
+                    
+                    # Получаем подзадачи для аудита
+                    subtasks = await conn.fetch("SELECT title, description FROM tasks WHERE parent_task_id = $1", task['id'])
+                    plan_summary = f"Задача: {task['title']}\n"
+                    plan_summary += "\n".join([f"- {st['title']}" for st in subtasks])
+                    
+                    critic_prompt = f"""Ты - Red Team Critic в корпорации ATRA. Проведи аудит плана.
+ПЛАН:
+{plan_summary}
+
+Найди:
+1. Логические дыры (пропущенные шаги).
+2. Риски безопасности или стабильности.
+3. Ошибки в зависимостях.
+
+Выдай вердикт: ОДОБРЕНО или КРИТИКА (с описанием правок).
+"""
+                    critic_verdict = await run_smart_agent_async(
+                        critic_prompt, 
+                        expert_name="Red Team Critic",
+                        category="reasoning"
+                    )
+                    
+                    # [AUTONOMOUS IMPLEMENTATION PROTOCOL]
+                    # Если критик ОДОБРИЛ и уверенность высокая, помечаем как готовое к исполнению
+                    is_approved = critic_verdict and "ОДОБРЕНО" in critic_verdict
+                    
+                    if critic_verdict and "КРИТИКА" in critic_verdict:
+                        logger.warning(f"🚨 [CRITIC] План задачи {task['id']} отклонен: {critic_verdict[:200]}...")
+                        await conn.execute("""
+                            UPDATE tasks 
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb,
+                                status = 'pending'
+                            WHERE id = $1
+                        """, task['id'], json.dumps({"critique_failed": True, "critic_feedback": critic_verdict}))
+                    else:
+                        # Если авто-одобрено или критик сказал ОДОБРЕНО
+                        await conn.execute("""
+                            UPDATE tasks 
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"critique_passed": true, "ready_for_execution": true}'::jsonb
+                            WHERE id = $1
+                        """, task['id'])
+                        critique_count += 1
+                        if is_approved:
+                            logger.info(f"✅ [AUTO-IMPL] План задачи {task['id']} прошел аудит и запущен в работу.")
+                except Exception as e:
+                    logger.debug(f"Critic phase failed for task {task['id']}: {e}")
+            
+            logger.info("[ENHANCED_ORCHESTRATOR] phase=1.8 duration_ms=%.0f result=%s audited", (time.time() - t18) * 1000, critique_count)
+
+            # --- ФАЗА 1.9: ИНТЕЛЛЕКТУАЛЬНЫЙ ОПТИМИЗАТОР ОЧЕРЕДИ (EXECUTION OPTIMIZER) ---
+            # Паттерн OpenAI GPT-5: строим граф зависимостей и запускаем независимые задачи параллельно
+            t19 = time.time()
+            optimized_count = 0
+            pending_tasks = await conn.fetch("""
+                SELECT id, title, parent_task_id, metadata 
+                FROM tasks 
+                WHERE status = 'pending' 
+                AND assignee_expert_id IS NOT NULL
+                AND (metadata->>'critique_passed' = 'true' OR metadata->>'decomposed' IS NULL)
+                LIMIT 20
+            """)
+            
+            if pending_tasks:
+                # Группируем по родительской задаче
+                groups = {}
+                for t in pending_tasks:
+                    pid = str(t['parent_task_id']) if t['parent_task_id'] else "root"
+                    if pid not in groups: groups[pid] = []
+                    groups[pid].append(t)
+                
+                for pid, tasks in groups.items():
+                    # Для каждой группы определяем, что можно запустить сейчас
+                    # (В нашей упрощенной схеме: если нет явных зависимостей в metadata, можно всё параллельно)
+                    for t in tasks:
+                        # Если задача не имеет зависимостей (или они выполнены), помечаем как ready_for_execution
+                        await conn.execute("""
+                            UPDATE tasks 
+                            SET metadata = COALESCE(metadata, '{}'::jsonb) || '{"ready_for_execution": true}'::jsonb
+                            WHERE id = $1
+                        """, t['id'])
+                        optimized_count += 1
+            
+            logger.info("[ENHANCED_ORCHESTRATOR] phase=1.9 duration_ms=%.0f result=%s optimized", (time.time() - t19) * 1000, optimized_count)
 
             # --- ФАЗА 2: НАЗНАЧЕНИЕ ЗАДАЧ БЕЗ ИСПОЛНИТЕЛЯ ---
             t2 = time.time()
@@ -884,12 +1101,26 @@ async def run_enhanced_orchestration_cycle():
                     """
                     hypothesis = await run_cursor_agent(link_prompt)
                     if hypothesis:
-                        kn_id = await conn.fetchval("""
-                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, 0.95, $3, true)
-                            RETURNING id
-                        """, node['domain_id'], f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}",
-                        json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]}))
+                        content_kn = f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}"
+                        meta_kn = json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]})
+                        embedding = None
+                        try:
+                            from semantic_cache import get_embedding
+                            embedding = await get_embedding(content_kn[:8000])
+                        except Exception:
+                            pass
+                        if embedding is not None:
+                            kn_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                                VALUES ($1, $2, 0.95, $3, true, $4::vector)
+                                RETURNING id
+                            """, node['domain_id'], content_kn, meta_kn, str(embedding))
+                        else:
+                            kn_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                                VALUES ($1, $2, 0.95, $3, true)
+                                RETURNING id
+                            """, node['domain_id'], content_kn, meta_kn)
                         if rd:
                             await rd.xadd("knowledge_stream", {"type": "synthetic_link", "content": hypothesis})
                         # Отправка гипотезы в дебаты для обсуждения экспертами
@@ -1158,40 +1389,77 @@ async def run_enhanced_orchestration_cycle():
             raise
 
 
+async def _health_monitor_loop(interval_seconds: int = 300):
+    """
+    Фоновый цикл живого организма: периодически проверяем Ollama/MLX и при недоступности
+    запрашиваем восстановление на хосте (RECOVERY_WEBHOOK_URL).
+    """
+    if not RECOVERY_WEBHOOK_URL:
+        return
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            ollama_ok, mlx_ok = await check_llm_services_health()
+            if not ollama_ok or not mlx_ok:
+                logger.warning(
+                    "[ENHANCED_ORCHESTRATOR] Health monitor: ollama=%s mlx=%s — запрос восстановления",
+                    ollama_ok, mlx_ok,
+                )
+                await trigger_recovery_webhook(ollama_down=not ollama_ok, mlx_down=not mlx_ok)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.debug("Health monitor error: %s", e)
+
+
 async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 30):
     """
     Бесконечный цикл: оркестратор «все время слушает» — периодически запускает цикл оркестрации.
     После каждого цикла спит interval_seconds; если есть нераспределённые задачи — следующий цикл
     через quick_poll_seconds (реагируем быстрее при появлении работы).
+    Живой организм: запускается фоновый монитор Ollama/MLX с запросом восстановления при сбое.
     """
     logger.info(
         "[ENHANCED_ORCHESTRATOR] continuous mode: interval=%ss, quick_poll=%ss",
         interval_seconds,
         quick_poll_seconds,
     )
-    while True:
-        try:
-            await run_enhanced_orchestration_cycle()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error("[ENHANCED_ORCHESTRATOR] cycle error: %s", e)
-            logger.error(traceback.format_exc())
-        # Решаем, сколько спать: если есть нераспределённые задачи — короткий сон
-        sleep_sec = interval_seconds
-        if ASYNCPG_AVAILABLE and interval_seconds > quick_poll_seconds:
+    health_monitor_interval = int(os.getenv("ORCHESTRATOR_HEALTH_MONITOR_INTERVAL", "300"))
+    health_task = None
+    if RECOVERY_WEBHOOK_URL:
+        health_task = asyncio.create_task(_health_monitor_loop(interval_seconds=health_monitor_interval))
+        logger.info("[ENHANCED_ORCHESTRATOR] Health monitor started (interval=%ss, webhook=%s)", health_monitor_interval, RECOVERY_WEBHOOK_URL[:50] + "..." if len(RECOVERY_WEBHOOK_URL) > 50 else RECOVERY_WEBHOOK_URL)
+    try:
+        while True:
             try:
-                conn = await asyncpg.connect(DB_URL)
-                try:
-                    unassigned = await conn.fetchval(
-                        "SELECT COUNT(*) FROM tasks WHERE assignee_expert_id IS NULL AND status = 'pending'"
-                    )
-                    if unassigned and unassigned > 0:
-                        sleep_sec = quick_poll_seconds
-                        logger.info("[ENHANCED_ORCHESTRATOR] %s unassigned tasks, next cycle in %ss", unassigned, sleep_sec)
-                finally:
-                    await conn.close()
+                await run_enhanced_orchestration_cycle()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.debug("Quick poll failed: %s, using full interval", e)
-        await asyncio.sleep(sleep_sec)
+                logger.error("[ENHANCED_ORCHESTRATOR] cycle error: %s", e)
+                logger.error(traceback.format_exc())
+            # Решаем, сколько спать: если есть нераспределённые задачи — короткий сон
+            sleep_sec = interval_seconds
+            if ASYNCPG_AVAILABLE and interval_seconds > quick_poll_seconds:
+                try:
+                    conn = await asyncpg.connect(DB_URL)
+                    try:
+                        unassigned = await conn.fetchval(
+                            "SELECT COUNT(*) FROM tasks WHERE assignee_expert_id IS NULL AND status = 'pending'"
+                        )
+                        if unassigned and unassigned > 0:
+                            sleep_sec = quick_poll_seconds
+                            logger.info("[ENHANCED_ORCHESTRATOR] %s unassigned tasks, next cycle in %ss", unassigned, sleep_sec)
+                    finally:
+                        await conn.close()
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.debug("Quick poll failed: %s, using full interval", e)
+            await asyncio.sleep(sleep_sec)
+    finally:
+        if health_task and not health_task.done():
+            health_task.cancel()
+            try:
+                await health_task
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == '__main__':

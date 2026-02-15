@@ -16,6 +16,7 @@
 ## Документация
 
 ### Mac Studio
+- [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md) — характеристики, загрузка, настройки Victoria/Backend под Mac Studio
 - `docs/mac-studio/MAC_STUDIO_*.md` — модели, миграция, setup
 - `docs/mac-studio/MLX_*.md`, `OLLAMA_NEEDED_ANALYSIS.md`
 - `docs/mac-studio/SSH_ENABLE_MAC_STUDIO.md` — включение SSH на Mac Studio

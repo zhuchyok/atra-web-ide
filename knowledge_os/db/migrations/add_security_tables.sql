@@ -53,6 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_revoked_tokens_hash ON revoked_tokens (token_hash
 CREATE INDEX IF NOT EXISTS idx_revoked_tokens_user ON revoked_tokens (user_id);
 
 -- Триггеры
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW

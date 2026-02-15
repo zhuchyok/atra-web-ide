@@ -43,20 +43,20 @@ class AdvancedEnsemble:
     
     def __init__(self):
         self.models = [
-            "command-r-plus:104b",
-            "deepseek-r1-distill-llama:70b",
-            "llama3.3:70b",
+            "qwen2.5-coder:32b",
+            "phi3.5:3.8b",
+            "qwq:32b",
             "qwen2.5-coder:32b",
             "phi3.5:3.8b"
         ]
         
         self.model_performance: Dict[str, Dict[str, ModelPerformance]] = defaultdict(dict)
         self.model_specialization: Dict[str, List[str]] = {
-            "reasoning": ["deepseek-r1-distill-llama:70b", "command-r-plus:104b"],
-            "planning": ["llama3.3:70b", "command-r-plus:104b"],
-            "coding": ["qwen2.5-coder:32b", "llama3.3:70b"],
+            "reasoning": ["qwq:32b", "phi3.5:3.8b"],
+            "planning": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+            "coding": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
             "fast": ["phi3.5:3.8b", "qwen2.5:3b"],
-            "complex": ["command-r-plus:104b", "llama3.3:70b"]
+            "complex": ["qwen2.5-coder:32b", "phi3.5:3.8b"]
         }
     
     def _classify_task(self, goal: str) -> str:

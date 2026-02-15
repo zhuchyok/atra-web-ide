@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     # Victoria Agent (общий для всех проектов)
     victoria_url: str = os.getenv("VICTORIA_URL", "http://localhost:8010")  # Общий порт для всех проектов
     victoria_mcp_url: str = os.getenv("VICTORIA_MCP_URL", "http://localhost:8012")
-    # Тяжёлые модели могут долго запускаться + обработка локальными моделями; 180 сек мало
-    victoria_timeout: float = float(os.getenv("VICTORIA_TIMEOUT", "600.0"))
+    # Таймаут ожидания ответа Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
+    victoria_timeout: float = float(os.getenv("VICTORIA_TIMEOUT", "900.0"))
     
     # Ollama / MLX API Server (разные порты: Ollama 11434, MLX 11435)
     ollama_url: str = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
@@ -77,9 +77,12 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
     rate_limit_per_hour: int = int(os.getenv("RATE_LIMIT_PER_HOUR", "1000"))
 
-    # Ограничение одновременных запросов к Victoria (снижение 500 при нагрузке)
+    # Ограничение одновременных запросов к Victoria (снижение 500 при нагрузке).
+    # На Mac Studio рекомендуется 10–20, чтобы не перегружать Ollama/MLX (см. docs/MAC_STUDIO_LOAD_AND_VICTORIA.md).
     max_concurrent_victoria: int = int(os.getenv("MAX_CONCURRENT_VICTORIA", "50"))
     victoria_concurrent_wait_sec: float = float(os.getenv("VICTORIA_CONCURRENT_WAIT_SEC", "45.0"))
+    # Лимит шагов Victoria для чата (чтобы не упираться в 500 и не ждать долго на локальных моделях)
+    victoria_max_steps_chat: int = int(os.getenv("VICTORIA_MAX_STEPS_CHAT", "50"))
     
     # Security
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")

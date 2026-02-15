@@ -26,6 +26,15 @@ except ImportError:
 
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 
+# Уведомления: Telegram и Email (опционально)
+EARLY_WARNING_TELEGRAM_TOKEN = os.getenv('EARLY_WARNING_TELEGRAM_BOT_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN')
+EARLY_WARNING_TELEGRAM_CHAT_ID = os.getenv('EARLY_WARNING_TELEGRAM_CHAT_ID')
+EARLY_WARNING_EMAIL_TO = os.getenv('EARLY_WARNING_EMAIL_TO')
+SMTP_HOST = os.getenv('SMTP_HOST', 'localhost')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '25'))
+SMTP_USER = os.getenv('SMTP_USER')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+
 class WarningSeverity(Enum):
     """Уровень серьезности предупреждения"""
     CRITICAL = "critical"  # Требует немедленного внимания
@@ -395,7 +404,51 @@ class EarlyWarningSystem:
         except Exception as e:
             logger.error(f"❌ [EARLY WARNING] Ошибка сохранения предупреждения: {e}")
             return False
-    
+
+    async def _send_telegram_alert(self, text: str) -> bool:
+        """Отправка в Telegram при заданных EARLY_WARNING_TELEGRAM_BOT_TOKEN и EARLY_WARNING_TELEGRAM_CHAT_ID."""
+        if not EARLY_WARNING_TELEGRAM_TOKEN or not EARLY_WARNING_TELEGRAM_CHAT_ID:
+            return False
+        try:
+            import httpx
+            url = f"https://api.telegram.org/bot{EARLY_WARNING_TELEGRAM_TOKEN}/sendMessage"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.post(url, json={"chat_id": EARLY_WARNING_TELEGRAM_CHAT_ID, "text": text[:4000]})
+            if r.is_success:
+                logger.info("✅ [EARLY WARNING] Уведомление отправлено в Telegram")
+                return True
+            logger.warning("⚠️ [EARLY WARNING] Telegram: %s %s", r.status_code, r.text[:200])
+            return False
+        except Exception as e:
+            logger.debug("EARLY WARNING Telegram: %s", e)
+            return False
+
+    async def _send_email_alert(self, subject: str, body: str) -> bool:
+        """Отправка по Email при заданном EARLY_WARNING_EMAIL_TO (SMTP_HOST/PORT/USER/PASSWORD опционально)."""
+        if not EARLY_WARNING_EMAIL_TO:
+            return False
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            msg = MIMEMultipart()
+            msg["Subject"] = subject
+            msg["From"] = SMTP_USER or "early-warning@localhost"
+            msg["To"] = EARLY_WARNING_EMAIL_TO
+            msg.attach(MIMEText(body, "plain", "utf-8"))
+            def _send():
+                with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
+                    if SMTP_USER and SMTP_PASSWORD:
+                        s.starttls()
+                        s.login(SMTP_USER, SMTP_PASSWORD)
+                    s.sendmail(msg["From"], [EARLY_WARNING_EMAIL_TO], msg.as_string())
+            await asyncio.get_event_loop().run_in_executor(None, _send)
+            logger.info("✅ [EARLY WARNING] Уведомление отправлено по Email")
+            return True
+        except Exception as e:
+            logger.debug("EARLY WARNING Email: %s", e)
+            return False
+
     async def escalate_critical_warnings(self) -> List[EarlyWarning]:
         """
         Эскалирует критичные предупреждения (отправка человеку).
@@ -410,11 +463,15 @@ class EarlyWarningSystem:
                 if w.severity == WarningSeverity.CRITICAL
             ]
             
-            # Здесь можно добавить отправку в Telegram, email, etc.
             for warning in critical_warnings:
                 logger.critical(f"🚨 [CRITICAL] {warning.description}")
-                # TODO: Интеграция с Telegram/Email для уведомлений
-            
+
+            # Отправка уведомлений в Telegram и/или Email при настройке env
+            if critical_warnings:
+                text = "🚨 Early Warning: " + "; ".join(w.description[:200] for w in critical_warnings[:5])
+                await self._send_telegram_alert(text)
+                await self._send_email_alert("Early Warning: критичные предупреждения", text)
+
             return critical_warnings
             
         except Exception as e:

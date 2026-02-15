@@ -1,5 +1,7 @@
 #!/bin/bash
 # Скачивание дампа базы знаний с сервера 46
+# Безопасность: пароль не хранить в репо. Использовать SSH-ключи (рекомендуется)
+# или задать SERVER_46_PASS в .env (файл .env не коммитить). См. PROJECT_GAPS_ANALYSIS §4, VERIFICATION_CHECKLIST §5.
 
 set -e
 
@@ -10,35 +12,51 @@ echo "📥 Скачивание дампа базы знаний с сервер
 echo "   Время: $(date)"
 echo ""
 
-# Настройки
+# Настройки (пароль только из окружения, не дефолт в репо)
 SERVER_46_HOST="${SERVER_46_HOST:-46.149.66.170}"
 SERVER_46_USER="${SERVER_46_USER:-root}"
 SERVER_46_SSH_PORT="${SERVER_46_SSH_PORT:-22}"
-SERVER_46_PASS="${SERVER_46_PASS:-tT@B43Td21w?NB}"
+SERVER_46_PASS="${SERVER_46_PASS:-}"
 
-# Проверяем наличие sshpass
-if ! command -v sshpass &> /dev/null; then
-    echo "⚠️  sshpass не установлен. Устанавливаю через brew..."
-    if command -v brew &> /dev/null; then
-        brew install hudochenkov/sshpass/sshpass 2>/dev/null || {
-            echo "❌ Не удалось установить sshpass"
-            echo "   Установите вручную: brew install hudochenkov/sshpass/sshpass"
-            exit 1
-        }
+# SSH: предпочитаем ключи; при необходимости — sshpass только если SERVER_46_PASS задан в .env
+USE_SSHPASS=0
+if [ -n "$SERVER_46_PASS" ]; then
+    if command -v sshpass &> /dev/null; then
+        USE_SSHPASS=1
     else
-        echo "❌ brew не найден. Установите sshpass вручную"
+        echo "⚠️  SERVER_46_PASS задан, но sshpass не установлен."
+        echo "   Установите: brew install hudochenkov/sshpass/sshpass"
+        echo "   Или настройте SSH-ключ: ssh-copy-id $SERVER_46_USER@$SERVER_46_HOST"
         exit 1
     fi
 fi
 
-# Проверяем SSH доступ
+ssh_cmd() {
+    if [ "$USE_SSHPASS" = 1 ]; then
+        sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "$@"
+    else
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "$@"
+    fi
+}
+
+scp_cmd() {
+    if [ "$USE_SSHPASS" = 1 ]; then
+        sshpass -p "$SERVER_46_PASS" scp -o StrictHostKeyChecking=no -P "$SERVER_46_SSH_PORT" "$@"
+    else
+        scp -o StrictHostKeyChecking=no -o BatchMode=yes -P "$SERVER_46_SSH_PORT" "$@"
+    fi
+}
+
+# Проверяем SSH доступ (сначала по ключу)
 echo "🔍 Проверка доступа к серверу 46..."
-if ! sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "echo 'OK'" 2>/dev/null; then
+if ! ssh_cmd "echo 'OK'" 2>/dev/null; then
     echo "❌ Не удалось подключиться к серверу 46"
     echo ""
-    echo "Проверьте:"
-    echo "  1. Доступность сервера: ping $SERVER_46_HOST"
-    echo "  2. Переменные окружения: SERVER_46_HOST, SERVER_46_USER, SERVER_46_PASS"
+    echo "Рекомендуется: настроить SSH-ключ (пароль в репо не хранить):"
+    echo "   ssh-copy-id -p $SERVER_46_SSH_PORT $SERVER_46_USER@$SERVER_46_HOST"
+    echo ""
+    echo "Либо задать SERVER_46_PASS в .env (файл .env не коммитить)."
+    echo "Проверьте: ping $SERVER_46_HOST; переменные: SERVER_46_HOST, SERVER_46_USER"
     exit 1
 fi
 
@@ -53,7 +71,7 @@ mkdir -p "$DUMP_DIR"
 echo "💾 Создание дампа на сервере 46..."
 
 # Ищем правильный путь и контейнер
-DUMP_PATH=$(sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
+DUMP_PATH=$(ssh_cmd "
     # Пробуем разные пути
     for path in /root/atra /root/knowledge_os /opt/atra /home/root/atra; do
         if [ -d \"\$path\" ]; then
@@ -69,14 +87,14 @@ echo "   Найден путь: $DUMP_PATH"
 
 # Ищем контейнер PostgreSQL
 echo "   Поиск контейнера PostgreSQL..."
-PG_CONTAINER=$(sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
+PG_CONTAINER=$(ssh_cmd "
     docker ps --format '{{.Names}}' | grep -iE 'postgres|pg|db|knowledge' | head -1
 " | head -1)
 
 if [ -z "$PG_CONTAINER" ]; then
     echo "⚠️  Контейнер не найден, пробуем все варианты..."
     # Пробуем подключиться напрямую к PostgreSQL (если не в Docker)
-    PG_AVAILABLE=$(sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
+    PG_AVAILABLE=$(ssh_cmd "
         which psql > /dev/null 2>&1 && echo 'yes' || echo 'no'
     ")
     if [ "$PG_AVAILABLE" = "yes" ]; then
@@ -91,7 +109,7 @@ else
 fi
 
 # Создаем дамп (или пересоздаём, если пустой < 1MB)
-sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
+ssh_cmd "
     cd $DUMP_PATH 2>/dev/null || cd ~
     DUMP_FILE=\"knowledge_os_dump.sql\"
     NEED_DUMP=1
@@ -133,7 +151,7 @@ sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_
 }
 
 # Получаем путь к дампу
-REMOTE_DUMP_PATH=$(sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "
+REMOTE_DUMP_PATH=$(ssh_cmd "
     cd $DUMP_PATH 2>/dev/null || cd ~
     if [ -f knowledge_os_dump.sql ]; then
         echo \"\$PWD/knowledge_os_dump.sql\"
@@ -148,7 +166,7 @@ DUMP_FILE="$DUMP_DIR/knowledge_os_dump.sql"
 if [ -z "$REMOTE_DUMP_PATH" ]; then
     # Пробуем стандартные пути
     for remote_path in "$DUMP_PATH/knowledge_os_dump.sql" "/root/atra/knowledge_os_dump.sql" "~/knowledge_os_dump.sql"; do
-        if sshpass -p "$SERVER_46_PASS" ssh -o StrictHostKeyChecking=no -p "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST" "test -f $remote_path" 2>/dev/null; then
+        if ssh_cmd "test -f $remote_path" 2>/dev/null; then
             REMOTE_DUMP_PATH="$remote_path"
             break
         fi
@@ -161,7 +179,7 @@ if [ -z "$REMOTE_DUMP_PATH" ]; then
 fi
 
 echo "   Удаленный путь: $REMOTE_DUMP_PATH"
-sshpass -p "$SERVER_46_PASS" scp -o StrictHostKeyChecking=no -P "$SERVER_46_SSH_PORT" "$SERVER_46_USER@$SERVER_46_HOST:$REMOTE_DUMP_PATH" "$DUMP_FILE"
+scp_cmd "$SERVER_46_USER@$SERVER_46_HOST:$REMOTE_DUMP_PATH" "$DUMP_FILE"
 
 if [ -f "$DUMP_FILE" ]; then
     echo "✅ Дамп скачан: $DUMP_FILE"

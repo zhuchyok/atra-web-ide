@@ -1,0 +1,50 @@
+# Алерт: очередь на ручную проверку (deferred_to_human) > 10
+# PROJECT_GAPS §3, CHANGES_FROM_OTHER_CHATS §0.4a
+# Требует: Prometheus скрапит knowledge_rest:8002/metrics (добавить в prometheus.yml при необходимости)
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: knowledge_os_alerts
+    folder: Web IDE
+    interval: 60s
+    rules:
+      - uid: deferred-to-human-high
+        title: Deferred to human queue high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: knowledge_os_tasks_deferred_to_human_total > 10
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              refId: C
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        dashboardUid: knowledge_os-tasks
+        panelId: 1
+        annotations:
+          summary: "Очередь на ручную проверку превысила 10 задач"
+          description: "knowledge_os_tasks_deferred_to_human_total > 10 более 5 минут. Проверьте дашборд Knowledge OS — задачи и last_error."

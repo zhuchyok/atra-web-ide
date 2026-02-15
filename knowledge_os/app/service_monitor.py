@@ -6,6 +6,7 @@ Service Monitor - Мониторинг сервисов (Docker, HTTP, проц�
 
 import asyncio
 import logging
+import os
 import httpx
 import subprocess
 from typing import Dict, List, Optional, Any, Set
@@ -77,21 +78,27 @@ class ServiceMonitor:
             self.add_service(service)
         
         logger.info(f"✅ Service Monitor инициализирован: {len(self.services)} сервисов")
+
+    def is_running(self) -> bool:
+        """Соответствует контракту FileWatcher/других мониторов для тестов и API."""
+        return self.running
     
     def _get_default_services(self) -> List[Service]:
-        """Получить список сервисов по умолчанию для мониторинга"""
+        """Получить список сервисов по умолчанию для мониторинга.
+        В контейнере Victoria слушает порт 8000 (VICTORIA_PORT); снаружи 8010. Иначе сам себя помечает как down и сыпет события."""
+        victoria_port = int(os.getenv("VICTORIA_PORT", "8010"))
         return [
             Service(
                 name="Victoria Agent",
                 service_type="http",
-                endpoint="http://localhost:8010",
-                port=8010,
+                endpoint=f"http://127.0.0.1:{victoria_port}",
+                port=victoria_port,
                 health_check_path="/health"
             ),
             Service(
                 name="Veronica Agent",
                 service_type="http",
-                endpoint="http://localhost:8011",
+                endpoint="http://veronica-agent:8000" if victoria_port == 8000 else os.getenv("VERONICA_MONITOR_URL", "http://localhost:8011"),
                 port=8011,
                 health_check_path="/health"
             ),
@@ -188,9 +195,10 @@ class ServiceMonitor:
                 else:
                     return ServiceStatus.DOWN
         except httpx.TimeoutException:
-            logger.warning(f"⏱️ Таймаут проверки {service.name}")
+            logger.warning(f"⏱️ Таймаут проверки {service.name} ({url})")
             return ServiceStatus.DOWN
-        except httpx.ConnectError:
+        except httpx.ConnectError as e:
+            logger.warning(f"🔌 {service.name} недоступен (ConnectError): {url} — {e!r}")
             return ServiceStatus.DOWN
         except Exception as e:
             logger.error(f"❌ Ошибка проверки HTTP сервиса {service.name}: {e}")
@@ -319,8 +327,16 @@ class ServiceMonitor:
             await self._publish_status_change(service, old_status, new_status)
     
     async def _monitoring_loop(self):
-        """Основной цикл мониторинга"""
+        """Основной цикл мониторинга. Задержка перед первым проходом: Victoria (HTTP + skills + DB) + запас на развёртывание и загрузку моделей при первом запросе."""
         logger.info("🔄 Запуск цикла мониторинга сервисов")
+        # По умолчанию 50 с: старт Victoria 25–40 с + запас на холодную БД и первый запрос (Ollama/MLX могут подгружать модель)
+        raw = os.getenv("SERVICE_MONITOR_INITIAL_DELAY", "50").strip()
+        try:
+            initial_delay = max(25, min(120, int(raw)))
+        except ValueError:
+            initial_delay = 50
+        logger.info("⏳ Ожидание %s с перед первым проходом проверки сервисов", initial_delay)
+        await asyncio.sleep(initial_delay)
         
         while self.running:
             try:

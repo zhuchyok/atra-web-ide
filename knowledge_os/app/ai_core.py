@@ -323,12 +323,15 @@ async def _run_cloud_agent_async(prompt: str):
         except Exception as e:
             logger.debug(f"⚠️ [MLX] Ошибка при использовании MLX: {e}, пробуем Ollama")
         
-        # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
+            # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
         logger.warning("⚠️ cursor-agent not found, using direct Ollama API")
         try:
             import aiohttp
-            # Таймаут запроса к Ollama: по умолчанию 300 с, чтобы дождаться ответа (совпадает с LOCAL_ROUTER_LLM_TIMEOUT)
-            _ollama_timeout = float(os.getenv("LOCAL_ROUTER_LLM_TIMEOUT", os.getenv("SMART_WORKER_LLM_TIMEOUT", "300")))
+            # Таймаут запроса к Ollama: по умолчанию 600 с (Сингулярность 10.0: увеличено для тяжелых моделей)
+            _ollama_timeout = float(os.getenv("LOCAL_ROUTER_LLM_TIMEOUT", os.getenv("SMART_WORKER_LLM_TIMEOUT", "600")))
+            if "Совет" in prompt or "стратег" in prompt or "анализ" in prompt or "coding" in str(category):
+                _ollama_timeout = max(_ollama_timeout, 1200.0)
+                logger.info(f"🕒 [AI_CORE] Увеличен таймаут Ollama до {_ollama_timeout}с для тяжелой задачи")
             # В Docker localhost недоступен — используем OLLAMA_BASE_URL/host.docker.internal
             _ollama_base = os.getenv('OLLAMA_BASE_URL') or os.getenv('OLLAMA_API_URL') or os.getenv('SERVER_LLM_URL')
             if not _ollama_base:
@@ -340,11 +343,11 @@ async def _run_cloud_agent_async(prompt: str):
                 for ollama_url in ollama_urls:
                     try:
                         # Mac Studio: доступны лучшие модели
-                        # MLX модели (Mac Studio): qwen2.5-coder:32b, deepseek-r1-distill-llama:70b
+                        # Локальные модели (70b удалены)
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
                         if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
                             # Mac Studio - лучшие модели
-                            models_to_try = ["deepseek-r1-distill-llama:70b", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
+                            models_to_try = ["qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)
                             models_to_try = ["phi3:latest", "phi3", "phi4:latest", "phi4", "tinyllama", "gemma:2b"]
@@ -411,71 +414,51 @@ async def _run_cloud_agent_async(prompt: str):
     except Exception as exc:
         return f"❌ Ошибка связи с облаком: {exc}"
 
-async def _get_knowledge_context(query: str) -> str:
-    """Retrieve relevant knowledge nodes (RAG) - знания корпорации, adaptive_learning_logs, примеры успешных решений (Singularity 10.0)."""
-    try:
-        embedding = await get_embedding(query)
-        if not embedding: return ""
-        pool = await _get_db_pool()
-        if not pool: return ""
-        # Параллельно: знания, lessons, примеры успешных решений (похожие completed задачи)
-        async with pool.acquire() as conn1, pool.acquire() as conn2, pool.acquire() as conn3:
-            rows, lessons_rows, success_rows = await asyncio.gather(
-                conn1.fetch("""
+    async def _get_knowledge_context(self, query: str) -> str:
+        """Retrieve relevant knowledge nodes (RAG) - знания корпорации + AI Research (Singularity 10.0)."""
+        try:
+            embedding = await get_embedding(query)
+            if not embedding: return ""
+            pool = await _get_db_pool()
+            if not pool: return ""
+            
+            async with pool.acquire() as conn:
+                # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
+                rows = await conn.fetch("""
                     SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
                     FROM knowledge_nodes
                     WHERE embedding IS NOT NULL
+                    AND (
+                        domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
+                        OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
+                        OR metadata->>'source' = 'external_docs_indexer'
+                        OR source_ref = 'autonomous_worker'
+                    )
                     AND confidence_score >= 0.3
-                    ORDER BY similarity DESC LIMIT 5
-                """, embedding),
-                conn2.fetch("""
-                    SELECT learned_insight, impact_score, learning_type
-                    FROM adaptive_learning_logs
-                    WHERE impact_score > 0.7
-                    ORDER BY impact_score DESC
-                    LIMIT 3
-                """),
-                conn3.fetch("""
-                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL
-                    AND source_ref = 'autonomous_worker'
-                    AND confidence_score >= 0.8
-                    ORDER BY similarity DESC LIMIT 2
+                    ORDER BY similarity DESC LIMIT 8
                 """, embedding)
-            )
-        if not rows and not lessons_rows and not success_rows: return ""
-        context = "\n📚 [KNOWLEDGE CONTEXT]:\n"
-        # Примеры успешных решений (похожие цели → примеры в промпт)
-        for row in success_rows:
-            if row['similarity'] >= 0.55:
-                meta = row['metadata'] or {}
-                expert = meta.get('expert', 'Эксперт')
-                context += f"\n[ПРИМЕР УСПЕШНОГО РЕШЕНИЯ] (релевантность: {row['similarity']:.2f}, эксперт: {expert}):\n"
-                content_preview = (row['content'] or "")[:1200]
-                if len((row['content'] or "")) > 1200:
-                    content_preview += "\n[... обрезано ...]"
-                context += f"{content_preview}\n"
-        for row in rows:
-            if row['similarity'] >= 0.6:  # Понизили порог для лучшего покрытия
-                metadata = row['metadata'] or {}
-                source = metadata.get('source', 'unknown')
-                knowledge_type = metadata.get('type', 'general')
                 
-                # Добавляем информацию о типе знания
-                if source == 'corporation_knowledge_system':
-                    context += f"\n[КОРПОРАЦИЯ: {knowledge_type}] (релевантность: {row['similarity']:.2f}):\n"
-                else:
-                    context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
-                context += f"{row['content']}\n"
-        if lessons_rows:
-            context += "\n[LESSONS LEARNED (adaptive_learning)]:\n"
-            for r in lessons_rows:
-                context += f"- {r['learned_insight']}\n"
-        return context
-    except Exception as exc:
-        logger.error("Knowledge retrieval error: %s", exc)
-        return ""
+                if not rows: return ""
+                
+                context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                for row in rows:
+                    if row['similarity'] >= 0.55: # Понизили порог для лучшего охвата AI Research
+                        meta = row['metadata'] or {}
+                        source = meta.get('source', 'unknown')
+                        file_path = meta.get('file_path', 'N/A')
+                        
+                        if source == 'external_docs_indexer':
+                            context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                        elif meta.get('type') == 'corporate_system':
+                            context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
+                        else:
+                            context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
+                        
+                        context += f"{row['content'][:1200]}\n"
+                return context
+        except Exception as exc:
+            logger.error(f"Knowledge retrieval error: {exc}")
+            return ""
 
 async def run_smart_agent_async(
     prompt: str,
@@ -488,12 +471,49 @@ async def run_smart_agent_async(
     local_router=None,
 ):
     """
-    Hybrid Intelligence Orchestrator.
+    Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 10.0).
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
+    Critial tasks are cross-verified by lfm2.5-thinking.
     """
     import time
     start_time = time.time()
     request_id = f"{expert_name}_{int(time.time())}"
+
+    # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
+    async def _verify_and_refine(initial_prompt: str, initial_response: str, depth: int = 0) -> str:
+        """Кросс-верификация ответа быстрой моделью-критиком (lfm2.5-thinking)."""
+        if depth >= 1: # Ограничиваем рекурсию одной попыткой исправления
+            return initial_response
+            
+        logger.info(f"🧠 [ENSEMBLE] Запуск верификации для {expert_name} (глубина {depth})")
+        
+        verify_prompt = f"""Ты - AI-аудитор. Проверь ответ на наличие критических ошибок, галлюцинаций или нарушения логики.
+ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {initial_prompt}
+ОТВЕТ ДЛЯ ПРОВЕРКИ: {initial_response}
+
+Если всё верно, напиши 'OK'. Если есть ошибка, опиши её кратко и предложи исправление."""
+        
+        # Используем lfm2.5-thinking как самого быстрого и логичного критика
+        try:
+            if router:
+                # Сингулярность 10.0: Увеличиваем таймаут для критика до 600с
+                verify_result = await router.run_local_llm(verify_prompt, category="general", model_hint="lfm2.5-thinking", timeout=600.0)
+                verify_text = verify_result[0] if isinstance(verify_result, tuple) else verify_result
+                
+                if verify_text and "OK" not in verify_text.upper()[:10]:
+                    logger.warning(f"⚠️ [ENSEMBLE] Критик нашел ошибку: {verify_text[:100]}...")
+                    
+                    refine_prompt = f"""Основная модель выдала ответ с ошибкой. Исправь его, учитывая замечания критика.
+ЗАМЕЧАНИЯ КРИТИКА: {verify_text}
+ИСХОДНЫЙ ЗАПРОС: {initial_prompt}
+ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ:"""
+                    
+                    refined_result = await router.run_local_llm(refine_prompt, category="coding")
+                    return refined_result[0] if isinstance(refined_result, tuple) else refined_result
+            return initial_response
+        except Exception as e:
+            logger.error(f"❌ [ENSEMBLE] Ошибка верификации: {e}")
+            return initial_response
     
     # 0. Anomaly Detection: проверка запроса на аномалии
     try:
@@ -550,7 +570,40 @@ async def run_smart_agent_async(
     local_breaker = get_circuit_breaker("local_models", failure_threshold=3, recovery_timeout=30) if get_circuit_breaker else None
     cloud_breaker = get_circuit_breaker("cloud", failure_threshold=3, recovery_timeout=30) if get_circuit_breaker else None
     
+    # 1.1. RAG: Поиск знаний в базе (учимся у коллег)
+    kb_context = ""
+    
+    # МОНСТР-ЛОГИКА: Скелетное чтение для гигантских файлов
+    if "app.py" in prompt or "dashboard" in prompt:
+        try:
+            from app.file_utils import get_file_skeleton
+            file_path = "knowledge_os/dashboard/app.py"
+            skeleton = get_file_skeleton(file_path)
+            kb_context = f"\n### СТРУКТУРА ФАЙЛА (СКЕЛЕТ):\n{skeleton}\n---\n"
+            logger.info(f"🐉 [MONSTER] Подмешан скелет файла {file_path} для экономии памяти")
+            # Обрезаем основной промпт, если там был весь файл
+            if len(prompt) > 5000:
+                prompt = prompt[:1000] + "... [весь файл заменен скелетом для стабильности] ..."
+        except Exception as fe:
+            logger.debug(f"⚠️ [MONSTER] Ошибка создания скелета: {fe}")
+
+    try:
+        from app.model_enhancer import EnhancedRAGEngine
+        rag_engine = EnhancedRAGEngine()
+        # Ищем релевантные знания (включая результаты работы других экспертов)
+        contexts = await rag_engine.retrieve_enhanced_context(prompt, limit=3)
+        if contexts:
+            kb_context = "\n### ЗНАНИЯ ОТ КОЛЛЕГ (ИЗ БАЗЫ ЗНАНИЙ):\n"
+            for i, ctx in enumerate(contexts, 1):
+                kb_context += f"Инсайт {i}: {ctx['content']}\n---\n"
+            logger.info(f"📚 [RAG] Найдено {len(contexts)} инсайтов для эксперта {expert_name}")
+    except Exception as re:
+        logger.debug(f"⚠️ [RAG] Ошибка поиска знаний: {re}")
+
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
+    # Подмешиваем знания коллег в промпт
+    if kb_context:
+        user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
     
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
     is_strategy_request = False
@@ -559,6 +612,14 @@ async def run_smart_agent_async(
             temp_orch = QueryOrchestrator()
             query_type = temp_orch.classify_query(user_part)
             is_strategy_request = query_type == QueryType.STRATEGY
+            
+            if category == "orchestrator_assignment":
+                logger.info("[ORCHESTRATOR_ASSIGNMENT] Пропуск итеративного планирования для подзадачи.")
+                # МОНСТР-ЛОГИКА: Для подзадач форсируем локальный роутинг
+                if router:
+                    router.force_local = True
+                    logger.info("[ORCHESTRATOR_ASSIGNMENT] Форсирован локальный роутинг для подзадачи.")
+                is_strategy_request = False # Принудительно отключаем стратегию для подзадач
         except Exception:
             pass
     
@@ -661,13 +722,13 @@ async def run_smart_agent_async(
     _coding_keywords = ["код", "программируй", "рефакторинг", "тест", "аудит", "проверь", "напиши", "создай", "реализуй", "добавь", "исправь", "функци", "класс", "модуль", "api", "endpoint"]
     is_coding_task = any(kw in user_part.lower() for kw in _coding_keywords)
 
-    # 1.6. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 9.0)
+    # 1.6. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 10.0)
     style_profile = None
     style_modifier = ""
     user_identifier = session_id or "default_user"  # Используем session_id как user_identifier или дефолт
     style_similarity_score = 0.0
     
-    # 1.7. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 9.0)
+    # 1.7. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 10.0)
     emotion_result = None
     emotion_modifier = ""
     
@@ -854,6 +915,10 @@ async def run_smart_agent_async(
                     return local_resp
             
             if local_resp:
+                # --- MODEL ENSEMBLE ACTIVATION ---
+                if is_coding_task or is_critical:
+                    local_resp = await _verify_and_refine(user_part, local_resp)
+
                 # Сохраняем метрики результата для ML-обучения
                 quality_metrics = None
                 if qa:
@@ -884,7 +949,7 @@ async def run_smart_agent_async(
                 tokens_saved = estimated_cloud_tokens - estimated_local_tokens
                 logger.info(f"✅ [AUDIT PASSED] Code approved by Victoria. 💰 Tokens saved: ~{tokens_saved}")
                 
-                # Tacit Knowledge: вычисляем style_similarity_score (Singularity 9.0)
+                # Tacit Knowledge: вычисляем style_similarity_score (Singularity 10.0)
                 if TacitKnowledgeMiner and style_profile and local_resp:
                     try:
                         miner = TacitKnowledgeMiner()
@@ -961,7 +1026,7 @@ async def run_smart_agent_async(
                             }
                         )
                 
-                # Логируем style_similarity_score и emotion в metadata (Singularity 9.0)
+                # Логируем style_similarity_score и emotion в metadata (Singularity 10.0)
                 metadata_dict = {}
                 if TacitKnowledgeMiner and style_similarity_score > 0:
                     metadata_dict["style_similarity"] = style_similarity_score
@@ -1080,7 +1145,7 @@ async def run_smart_agent_async(
         )
         
         if use_parallel:
-            logger.info("⚡ [PARALLEL] Параллельная обработка: локальные модели и облако")
+            logger.info("⚡ [PARALLEL] Параллельная обработка: локальные модели (облако отключено)")
             parallel_processor = get_parallel_processor(max_concurrent=3)
             
             # Создаем источники для параллельной обработки
@@ -1106,26 +1171,16 @@ async def run_smart_agent_async(
                 name="local",
                 handler=try_local,
                 priority=1,
-                timeout=300.0  # Увеличено до 300s для reasoning (20B+ моделей)
+                timeout=600.0  # Увеличено до 600s для тяжелых моделей
             ))
             
-            # Облако (приоритет 2 - медленнее, но качественнее)
-            async def try_cloud():
-                try:
-                    if cloud_breaker:
-                        return await cloud_breaker.call(_run_cloud_agent_async, prompt)
-                    else:
-                        return await _run_cloud_agent_async(prompt)
-                except Exception as e:
-                    logger.debug(f"Cloud failed in parallel: {e}")
-                    return None
-            
-            sources.append(RequestSource(
-                name="cloud",
-                handler=try_cloud,
-                priority=2,
-                timeout=300.0  # Увеличено до 300s для reasoning задач
-            ))
+            # Облако отключено пользователем для обучения локальной системы
+            # sources.append(RequestSource(
+            #     name="cloud",
+            #     handler=try_cloud,
+            #     priority=2,
+            #     timeout=300.0
+            # ))
             
             # Параллельно обрабатываем источники
             response_source_name, response = await parallel_processor.process_parallel_sources(sources)
@@ -1142,9 +1197,9 @@ async def run_smart_agent_async(
                     local_result = await router.run_local_llm(prompt, category=category, images=images)
                     local_resp, routing_source = local_result if isinstance(local_result, tuple) else (local_result, None)
                 else:
-                    logger.warning("⚠️ [FALLBACK] Local router unavailable, using cloud")
-                    local_resp = await _run_cloud_agent_async(prompt)
-                    routing_source = "cloud_fallback"
+                    logger.warning("⚠️ [STRICT LOCAL] Local router unavailable, cloud fallback is DISABLED")
+                    local_resp = None
+                    routing_source = "failed_local_only"
         else:
             # Обычный локальный маршрут (без параллельной обработки)
             if router:
@@ -1152,10 +1207,10 @@ async def run_smart_agent_async(
                 local_result = await router.run_local_llm(prompt, category=category, images=images)
                 local_resp, routing_source = local_result if isinstance(local_result, tuple) else (local_result, None)
             else:
-                # Fallback на облако, если локальный роутер недоступен
-                logger.warning("⚠️ [FALLBACK] Local router unavailable, using cloud")
-                local_resp = await _run_cloud_agent_async(prompt)
-                routing_source = "cloud_fallback"
+                # Fallback на облако отключен
+                logger.warning("⚠️ [STRICT LOCAL] Local router unavailable, cloud fallback is DISABLED")
+                local_resp = None
+                routing_source = "failed_local_only"
         
         # Safety check for direct local responses
         if local_resp and SafetyChecker:
@@ -1164,8 +1219,12 @@ async def run_smart_agent_async(
                 logger.warning("🛡️ [SAFETY CHECK] Local response failed, using cloud")
                 local_resp = None
         
-        if local_resp:
-            # Estimate savings for direct local usage
+            if local_resp:
+                # --- MODEL ENSEMBLE ACTIVATION ---
+                if is_coding_task or is_critical:
+                    local_resp = await _verify_and_refine(prompt, local_resp)
+
+                # Estimate savings for direct local usage
             estimated_cloud_tokens = len(prompt) // 4 + len(local_resp) // 4
             logger.info(f"💰 [TOKEN SAVINGS] Used local model, saved ~{estimated_cloud_tokens} tokens")
             # Save to cache with routing info and quality metrics
@@ -1291,7 +1350,7 @@ async def run_smart_agent_async(
         full_prompt = (knowledge_context + "\n" + prompt) if knowledge_context else prompt
     
     # Умное сокращение контекста перед отправкой в облако (агрессивное сжатие)
-    # Predictive Compression: проверяем предсжатый контекст (Singularity 9.0)
+    # Predictive Compression: проверяем предсжатый контекст (Singularity 10.0)
     compressed_prompt = full_prompt
     latency_before_compression = time.time()
     latency_reduction = 0.0
@@ -1436,7 +1495,7 @@ async def run_smart_agent_async(
                     logger.debug("get_cache_info: %s", e)
             
             # Логируем использование токенов (fire and forget - не блокирует ответ)
-            # Формируем metadata для логирования (Singularity 9.0 - Predictive Compression)
+            # Формируем metadata для логирования (Singularity 10.0 - Predictive Compression)
             metadata_for_logging = {}
             if latency_reduction > 0:
                 metadata_for_logging["latency_reduction"] = latency_reduction

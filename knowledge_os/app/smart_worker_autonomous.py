@@ -3,12 +3,114 @@ import asyncio
 import os
 import json
 import sys
+import time
 import logging
 from datetime import datetime
 from functools import partial
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger(__name__)
+
+# Маппинг role/department → папки скиллов (П.2 PRINCIPLE_EXPERTS_FIRST). Ключи — подстроки для role/department (lower).
+ROLE_DEPARTMENT_TO_SKILLS = {
+    "backend": ["backend-development", "code-review"],
+    "qa": ["qa-regression", "webapp-testing"],
+    "frontend": ["frontend-design", "webapp-testing"],
+    "python": ["python-development", "code-documentation"],
+    "devops": ["observability", "disaster-recovery"],
+    "ml": ["llm-application-dev", "model-ensemble"],
+    "documentation": ["code-documentation", "doc-coauthoring"],
+    "general": ["ask-questions-if-underspecified", "code-review"],
+}
+
+
+def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int = 2000) -> str:
+    """Читает первые max_chars_per_skill символов из SKILL.md для каждой папки. Sync — вызывать через run_in_executor."""
+    skills_dir = os.path.join(os.path.dirname(__file__), "skills")
+    parts = []
+    for folder in skill_folders[:3]:  # П.2 пушка: до 3 скиллов
+        path = os.path.join(skills_dir, folder, "SKILL.md")
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = f.read()
+            # Пропускаем YAML frontmatter, берём инструкции
+            if "---" in raw:
+                parts_fm = raw.split("---", 2)
+                text = parts_fm[2].strip() if len(parts_fm) >= 3 else raw
+            else:
+                text = raw
+            snippet = text[:max_chars_per_skill]
+            if len(text) > max_chars_per_skill:
+                snippet += "\n..."
+            parts.append(f"[{folder}]\n{snippet}")
+        except Exception as e:
+            logger.debug("Skill read failed %s: %s", path, e)
+    if not parts:
+        return ""
+    return "\n\n📋 ИНСТРУКЦИИ ИЗ СКИЛЛОВ (используй при решении):\n" + "\n\n---\n\n".join(parts)
+
+
+def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
+    """Читает из SKILL.md description из frontmatter или имя папки. Sync."""
+    path = os.path.join(skills_dir, folder, "SKILL.md")
+    if not os.path.isfile(path):
+        return folder.replace("-", " ")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = f.read(1500)
+        if "---" in raw and "description:" in raw.lower():
+            for line in raw.split("\n"):
+                if line.strip().lower().startswith("description:"):
+                    return line.split(":", 1)[1].strip().strip('"') + " " + folder.replace("-", " ")
+        return folder.replace("-", " ")
+    except Exception:
+        return folder.replace("-", " ")
+
+
+def _select_skills_by_relevance_sync(task_title: str, task_description: str, max_skills: int = 3) -> List[str]:
+    """П.2 пушка: по ключевым словам задачи выбирает до max_skills скиллов (по совпадению с именем/description). Sync."""
+    skills_dir = os.path.join(os.path.dirname(__file__), "skills")
+    if not os.path.isdir(skills_dir):
+        return []
+    task_text = f"{task_title} {task_description}".lower()
+    task_words = set(_ for _ in task_text.replace("-", " ").split() if len(_) > 1)
+    scored = []
+    for folder in os.listdir(skills_dir):
+        if not os.path.isdir(os.path.join(skills_dir, folder)) or folder.startswith("."):
+            continue
+        desc = _get_skill_description_sync(skills_dir, folder).lower()
+        desc_words = set(_ for _ in desc.replace("-", " ").split() if len(_) > 1)
+        overlap = len(task_words & desc_words)
+        if overlap > 0 or folder.replace("-", " ") in task_text:
+            scored.append((overlap + (2 if folder.replace("-", " ") in task_text else 0), folder))
+    scored.sort(key=lambda x: -x[0])
+    return [f for _, f in scored[:max_skills]]
+
+
+# Маркеры запроса актуальных данных — при наличии вызываем веб-поиск (П.1 PRINCIPLE_EXPERTS_FIRST)
+_WEB_MARKERS = (
+    "актуальн", "последн", "2025", "best practices", "свежий", "текущ", "новейш",
+    "latest", "recent", "best practice", "как сейчас", "сейчас принято",
+)
+
+
+def _task_needs_web_search(title: str, description: str) -> bool:
+    """Проверяет, нужен ли веб-поиск по маркерам актуальности в задаче."""
+    combined = f"{title} {description}".lower()
+    return any(m in combined for m in _WEB_MARKERS)
+
+
+def _web_search_sync(query: str, max_results: int = 3) -> List[str]:
+    """П.6: единый веб-поиск через web_search_fallback (DuckDuckGo → в будущем Ollama)."""
+    try:
+        from app.web_search_fallback import web_search_sync as _search
+        results = _search(query, max_results=max_results)
+        return [r.get("snippet", "")[:400] for r in results if r.get("snippet")]
+    except Exception as e:
+        logger.debug("Web search failed: %s", e)
+        return []
 
 # Добавляем путь к модулям
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -348,6 +450,73 @@ async def process_task(pool, task):
                     import traceback
                     traceback.print_exc()
 
+            # 🌟 ExpeL-style: подтягиваем релевантные знания по домену эксперта (recall at inference)
+            relevant_knowledge_block = ""
+            try:
+                async with pool.acquire() as conn_k:
+                    domain_id = await conn_k.fetchval(
+                        "SELECT id FROM domains WHERE name = $1",
+                        expert_config.get('department') or 'General'
+                    )
+                    if not domain_id:
+                        domain_id = await conn_k.fetchval("SELECT id FROM domains LIMIT 1")
+                    if domain_id:
+                        rows = await conn_k.fetch("""
+                            SELECT content FROM knowledge_nodes
+                            WHERE domain_id = $1
+                              AND (is_verified = true OR confidence_score > 0.75)
+                              AND LENGTH(content) > 20
+                            ORDER BY confidence_score DESC, created_at DESC
+                            LIMIT 5
+                        """, domain_id)
+                        if rows:
+                            parts = [f"- {r['content'][:400].strip()}{'...' if len(r['content']) > 400 else ''}" for r in rows]
+                            relevant_knowledge_block = "\n\n📚 RELEVANT KNOWLEDGE (use when solving):\n" + "\n".join(parts)
+            except Exception as e:
+                logger.debug("Relevant knowledge fetch failed: %s", e)
+
+            # П.2 PRINCIPLE_EXPERTS_FIRST: инструкции из скиллов по role/department + по релевантности к задаче (до 3)
+            skills_block = ""
+            try:
+                loop = asyncio.get_event_loop()
+                role_lower = (expert_config.get("role") or "").lower()
+                dept_lower = (expert_config.get("department") or "").lower()
+                skill_folders = []
+                for key, folders in ROLE_DEPARTMENT_TO_SKILLS.items():
+                    if key in role_lower or key in dept_lower:
+                        skill_folders.extend(f for f in folders if f not in skill_folders)
+                # П.2 пушка: добавить до 3 скиллов по релевантности к title/description
+                task_relevant = await loop.run_in_executor(
+                    None, partial(_select_skills_by_relevance_sync, task["title"], task_description, 3)
+                )
+                for f in task_relevant:
+                    if f not in skill_folders:
+                        skill_folders.append(f)
+                skill_folders = skill_folders[:3]
+                if skill_folders:
+                    skills_block = await loop.run_in_executor(
+                        None, partial(_read_skill_snippets_sync, skill_folders, 2000)
+                    )
+            except Exception as e:
+                logger.debug("Skills block failed: %s", e)
+
+            # П.1 PRINCIPLE_EXPERTS_FIRST: веб-поиск при маркерах актуальности (sync DDGS в run_in_executor, таймаут 10 с)
+            web_block = ""
+            if _task_needs_web_search(task["title"], task_description):
+                try:
+                    loop = asyncio.get_event_loop()
+                    query = f"{task['title']} {task_description}"[:200]
+                    snippets = await asyncio.wait_for(
+                        loop.run_in_executor(None, partial(_web_search_sync, query, 3)),
+                        timeout=10.0,
+                    )
+                    if snippets:
+                        web_block = "\n\n🔍 АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ВЕБ-ПОИСКА:\n" + "\n".join(f"- {s}" for s in snippets[:3])
+                except asyncio.TimeoutError:
+                    logger.debug("Web search timeout for task %s", task_id)
+                except Exception as e:
+                    logger.debug("Web search failed: %s", e)
+
             # 🌟 СПЕЦИАЛЬНАЯ ОБРАБОТКА: Симуляция бизнес-идеи (дашборд)
             if task_metadata.get('source') == 'dashboard_simulator':
                 sim_id = task_metadata.get('simulation_id')
@@ -385,6 +554,9 @@ async def process_task(pool, task):
 
 Role: {expert_config['role']}
 Dept: {expert_config['department']}
+{relevant_knowledge_block}
+{skills_block}
+{web_block}
 
 TASK: {task['title']}
 
@@ -426,6 +598,7 @@ DESC: {task_description}
     
     # Причина последнего сбоя (таймаут/исключение) — сохраняем в last_error и передаём в Совет при эскалации
     _last_failure_reason = None
+    t_start = time.perf_counter()
     # Выполняем обработку вне транзакции (может быть долгой)
     try:
         try:
@@ -501,14 +674,15 @@ DESC: {task_description}
                 except:
                     pass
                 
-                # Записываем попытку
+                # Записываем попытку (латентность от начала обработки до получения ответа)
+                latency_ms = int((time.perf_counter() - t_start) * 1000)
                 await tracker.record_attempt(
                     task_id=task_id,
                     model=used_model,
                     category='autonomous_worker',
                     success=True,
                     response_length=len(report),
-                    latency_ms=0,  # TODO: добавить измерение времени
+                    latency_ms=latency_ms,
                     quality_score=quality_score
                 )
                 
@@ -625,12 +799,14 @@ DESC: {task_description}
                         except:
                             pass
                         
+                        latency_ms_fail = int((time.perf_counter() - t_start) * 1000)
                         await tracker.record_attempt(
                             task_id=task_id,
                             model=used_model,
                             category='autonomous_worker',
                             success=False,
                             response_length=len(report) if report else 0,
+                            latency_ms=latency_ms_fail,
                             quality_score=0.0
                         )
                         
@@ -738,9 +914,14 @@ DESC: {task_description}
                 logger.debug(f"Validation skip for task {task_id}: {e}")
     
             # Сохраняем результат в отдельной транзакции (только если НЕ ошибка)
+            # П.1 пушка: метрика «задача получила веб-блок» — пишем в metadata для /metrics
+            meta_web = json.dumps({"had_web_block": True}) if web_block else "{}"
             async with pool.acquire() as conn:
                 async with conn.transaction():
-                    await conn.execute("UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW() WHERE id = $1", task_id, report)
+                    await conn.execute(
+                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb WHERE id = $1",
+                        task_id, report, meta_web,
+                    )
                     logger.info("Task %s marked completed in DB (updated_at=NOW()).", task_id)
                     
                     # Сохраняем в knowledge_nodes с embedding (для RAG/search) — знания внедряются в систему

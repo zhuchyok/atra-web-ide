@@ -4,6 +4,7 @@ Isolated Context Heaps - Изолированные контексты для а
 """
 
 import os
+import re
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
@@ -82,6 +83,53 @@ class IsolatedContext:
         """Обновить метаданные"""
         self.metadata[key] = value
         self.last_accessed = datetime.now(timezone.utc)
+
+    def prune_context(self, task_description: str, max_chars: int = 4000):
+        """
+        [ADAPTIVE PRUNING] Адаптивная обрезка контекста (Anthropic Pattern).
+        Оставляет только те сообщения из памяти, которые релевантны текущей задаче.
+        """
+        if not self.memory or len(str(self.memory)) <= max_chars:
+            return
+
+        logger.info(f"✂️ [PRUNING] Обрезка контекста для задачи: '{task_description[:50]}...'")
+        
+        # Извлекаем ключевые слова из задачи
+        keywords = set(re.findall(r'\w{4,}', task_description.lower()))
+        
+        # Оцениваем релевантность каждого сообщения
+        scored_memory = []
+        for msg in self.memory:
+            content = msg.get("content", "").lower()
+            score = sum(1 for kw in keywords if kw in content)
+            # Бонус за свежесть (последние сообщения важнее)
+            # Бонус за роль (ответы ассистента часто важнее)
+            scored_memory.append((score, msg))
+        
+        # Сортируем по релевантности (score) и сохраняем хронологию для топ-сообщений
+        # Но для простоты: берем последние 3 сообщения ВСЕГДА + топ релевантных
+        keep_always = self.memory[-3:]
+        others = self.memory[:-3]
+        
+        # Сортируем остальных по score
+        scored_others = sorted([(sum(1 for kw in keywords if kw in m.get("content", "").lower()), m) for m in others], 
+                               key=lambda x: x[0], reverse=True)
+        
+        pruned = []
+        current_len = len(str(keep_always))
+        
+        for score, msg in scored_others:
+            msg_len = len(str(msg))
+            if current_len + msg_len < max_chars:
+                pruned.append(msg)
+                current_len += msg_len
+            else:
+                break
+        
+        # Объединяем и восстанавливаем хронологию
+        final_memory = pruned + keep_always
+        self.memory = sorted(final_memory, key=lambda x: x.get("timestamp", ""))
+        logger.info(f"✅ [PRUNING] Контекст обрезан: {len(final_memory)} сообщений оставлено")
 
 
 class ContextManager:
@@ -163,6 +211,12 @@ class ContextManager:
         else:
             # Очистить все
             self.contexts = {}
+            logger.debug("🗑️ Очищены все контексты")
+
+    def prune_all_contexts(self, task_description: str, max_chars: int = 4000):
+        """Обрезать все активные контексты для текущей задачи"""
+        for context in self.contexts.values():
+            context.prune_context(task_description, max_chars)
             logger.debug("🗑️ Удалены все контексты")
     
     def get_all_contexts(

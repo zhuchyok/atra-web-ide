@@ -32,6 +32,8 @@ class AtraBaseAgent(ABC):
         self.tools: Dict[str, Any] = {}
         # История выполненных команд для предотвращения циклов
         self.executed_commands_hash: List[str] = []
+        # Временно заблокированные инструменты (цикл): tool_name -> step до которого блок
+        self._blocked_tools: Dict[str, int] = {}
         # Долгосрочные знания о проекте, которые не стираются между run()
         self.project_knowledge: Dict[str, Any] = {
             "files_found": [],
@@ -47,8 +49,12 @@ class AtraBaseAgent(ABC):
     async def plan(self, goal: str) -> List[str]:
         pass
 
+    def _get_blocked_tools_for_step(self, step_number: int) -> List[str]:
+        return [t for t, until in self._blocked_tools.items() if until >= step_number]
+
     @abstractmethod
-    async def step(self, prompt: str) -> Union[AgentAction, AgentFinish, Dict[str, Any]]:
+    async def step(self, prompt: str, step_number: int = 1, blocked_tools: Optional[List[str]] = None) -> Union[AgentAction, AgentFinish, Dict[str, Any]]:
+        """step_number — номер шага в run(), передаётся для логов при таймауте. blocked_tools — исключить из выбора модели."""
         pass
 
     def _get_context_summary(self) -> str:
@@ -64,7 +70,8 @@ class AtraBaseAgent(ABC):
 
     async def run(self, goal: str, max_steps: int = 500) -> str:
         logger.info(f"\n🚀 ЗАДАЧА: {goal}")
-        
+        self._blocked_tools.clear()
+
         # Мы не стираем память полностью, а добавляем контекст знаний
         knowledge_context = self._get_context_summary()
         self.memory = [{"role": "system", "content": f"Ты уже знаешь следующее о проекте: {knowledge_context}"}]
@@ -76,7 +83,7 @@ class AtraBaseAgent(ABC):
             steps_taken += 1
             logger.info(f"\n--- ШАГ {steps_taken} ---")
             
-            result = await self.step(current_input)
+            result = await self.step(current_input, step_number=steps_taken, blocked_tools=self._get_blocked_tools_for_step(steps_taken))
             
             # Если возникла ошибка в step (не JSON и т.д.)
             if isinstance(result, dict) and "error" in result:
@@ -104,13 +111,18 @@ class AtraBaseAgent(ABC):
                 # Генерируем хэш команды для проверки на циклы
                 cmd_hash = f"{result.tool}:{json.dumps(result.tool_input, sort_keys=True)}"
                 if self.executed_commands_hash.count(cmd_hash) >= 2:
-                    error_msg = f"ОСТАНОВКА: Ты повторяешь команду {result.tool} уже 3-й раз с теми же аргументами. СМЕНИ СТРАТЕГИЮ! Проверь правильность имен таблиц и файлов."
-                    logger.warning(f"⚠️ {error_msg}")
-                    self.memory.append({"role": "user", "content": error_msg})
-                    current_input = error_msg
-                    self.executed_commands_hash.append(cmd_hash) # Фиксируем для истории
+                    block_until = steps_taken + 5
+                    self._blocked_tools[result.tool] = block_until
+                    logger.warning(
+                        "⚠️ ОСТАНОВКА: Ты повторяешь команду %s уже 3-й раз с теми же аргументами. СМЕНИ СТРАТЕГИЮ!",
+                        result.tool,
+                    )
+                    logger.warning("🔒 Блокируем %s до шага %s. Принудительное завершение.", result.tool, block_until)
+                    return "Обнаружен цикл повторяющихся действий. Задача не может быть выполнена текущими средствами. Смени стратегию или используй другой инструмент (read_file, finish и т.д.)."
+                if result.tool in self._blocked_tools and steps_taken <= self._blocked_tools[result.tool]:
+                    self.memory.append({"role": "user", "content": f"Инструмент {result.tool} заблокирован. Выбери другой или finish."})
+                    current_input = self.memory[-1]["content"]
                     continue
-                
                 self.executed_commands_hash.append(cmd_hash)
                 print(f"🛠  Инструмент: {result.tool}")
                 print(f"📝 Аргументы: {json.dumps(result.tool_input, indent=2, ensure_ascii=False)}")
@@ -134,4 +146,4 @@ class AtraBaseAgent(ABC):
                     self.memory.append({"role": "user", "content": error_msg})
                     current_input = f"Ошибка: инструмента {result.tool} не существует. Используй только доступные инструменты."
             
-        return f"Превышен лимит шагов ({max_steps})."
+        return f"Превышен лимит шагов ({max_steps}). Упростите запрос или разбейте задачу на части."

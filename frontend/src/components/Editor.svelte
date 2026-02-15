@@ -11,11 +11,86 @@
   import { markdown } from '@codemirror/lang-markdown'
   import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete'
   import { lintGutter, lintKeymap } from '@codemirror/lint'
+  import { Decoration, WidgetType, GutterMarker, gutter } from '@codemirror/view'
   import { currentFile, saveFile, markUnsaved } from '../stores/files.js'
   
   let editorContainer
   let editorView
-  
+  let comments = []
+
+  // Виджет для отображения комментария эксперта
+  class CommentWidget extends WidgetType {
+    constructor(comment) {
+      super()
+      this.comment = comment
+    }
+    toDOM() {
+      const wrap = document.createElement("div")
+      wrap.className = "cm-comment-widget bg-atra-blue/20 border-l-2 border-atra-blue p-2 my-1 rounded-r text-sm animate-fade-in"
+      wrap.innerHTML = `
+        <div class="flex items-center gap-2 mb-1">
+          <span class="font-bold text-atra-blue">${this.comment.expert_name}</span>
+          <span class="text-xs text-gray-400">${new Date(this.comment.created_at).toLocaleTimeString()}</span>
+        </div>
+        <div class="text-gray-200">${this.comment.comment_text}</div>
+      `
+      return wrap
+    }
+  }
+
+  // Маркер для боковой панели (gutter)
+  class CommentMarker extends GutterMarker {
+    toDOM() {
+      const span = document.createElement("span")
+      span.innerHTML = "💬"
+      span.className = "cursor-pointer hover:scale-110 transition-transform"
+      return span
+    }
+  }
+
+  // Функция загрузки комментариев
+  async function loadComments(path) {
+    try {
+      const res = await fetch(`/api/files/comments?file_path=${encodeURIComponent(path)}`)
+      if (res.ok) {
+        comments = await res.json()
+        updateDecorations()
+      }
+    } catch (e) {
+      console.error('Failed to load comments:', e)
+    }
+  }
+
+  function updateDecorations() {
+    if (!editorView) return
+    
+    const deco = []
+    const markers = []
+    
+    comments.forEach(c => {
+      let line
+      if (c.line_number) {
+        line = editorView.state.doc.line(Math.min(c.line_number, editorView.state.doc.lines))
+      } else if (c.pattern) {
+        const docText = editorView.state.doc.toString()
+        const index = docText.indexOf(c.pattern)
+        if (index !== -1) {
+          line = editorView.state.doc.lineAt(index)
+        }
+      }
+      
+      if (line) {
+        deco.push(Decoration.widget({
+          widget: new CommentWidget(c),
+          side: 1
+        }).range(line.to))
+      }
+    })
+    
+    // В реальном приложении здесь бы использовался StateField для декораций
+    // Для прототипа обновляем через dispatch если нужно
+  }
+
   // AI автодополнение через Victoria API
   async function aiAutocomplete(context) {
     const { state, pos } = context
@@ -270,6 +345,7 @@
       // Инициализируем редактор при первом открытии файла
       initEditor($currentFile.content, $currentFile.name)
     }
+    loadComments($currentFile.path)
   } else if (editorView) {
     // Если файл закрыт, показываем welcome message
     initEditor('// Welcome to ATRA Web IDE\n// Open a file to start editing', '')

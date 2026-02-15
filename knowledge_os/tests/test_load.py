@@ -2,15 +2,18 @@
 Load testing for Knowledge OS
 """
 
+import uuid
 import pytest
 import asyncio
-from knowledge_os.app.knowledge_graph import KnowledgeGraph
+from knowledge_os.app.knowledge_graph import KnowledgeGraph, LinkType
 from knowledge_os.app.performance_optimizer import QueryCache
 
 
 @pytest.mark.asyncio
-async def test_load_create_many_links(db_connection, test_domain_id):
-    """Load test: Create many knowledge links"""
+async def test_load_create_many_links(db_connection, test_domain_id, knowledge_nodes_id_is_uuid):
+    """Load test: Create many knowledge links (требует knowledge_nodes.id = UUID)."""
+    if not knowledge_nodes_id_is_uuid:
+        pytest.skip("knowledge_nodes.id не UUID — knowledge_links ожидают UUID")
     graph = KnowledgeGraph()
     
     # Create 100 knowledge nodes

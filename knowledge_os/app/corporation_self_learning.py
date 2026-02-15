@@ -1,7 +1,3 @@
-"""
-Система самообучения корпорации на основе ошибок и метрик
-Движение к Singularity 10.0 - полностью автономная самоулучшающаяся система
-"""
 import asyncio
 import asyncpg
 import logging
@@ -12,14 +8,6 @@ import json
 logger = logging.getLogger(__name__)
 
 class CorporationSelfLearning:
-    """
-    Система самообучения корпорации:
-    - Анализирует ошибки и неудачи
-    - Отслеживает метрики производительности
-    - Автоматически улучшает параметры
-    - Движется к Singularity 10.0
-    """
-    
     def __init__(self, db_url: str):
         self.db_url = db_url
         self._pool = None
@@ -37,11 +25,9 @@ class CorporationSelfLearning:
         return self._pool
     
     async def analyze_errors(self, hours: int = 24) -> Dict:
-        """Анализ ошибок за последние N часов"""
         try:
             pool = await self.get_pool()
             async with pool.acquire() as conn:
-                # Анализ неудачных задач
                 failed_tasks = await conn.fetch("""
                     SELECT 
                         COUNT(*) as total_failed,
@@ -52,7 +38,6 @@ class CorporationSelfLearning:
                     AND updated_at > NOW() - INTERVAL '%s hours'
                 """ % hours)
                 
-                # Анализ ошибок в логах производительности моделей
                 model_failures = await conn.fetch("""
                     SELECT 
                         model_name,
@@ -63,15 +48,16 @@ class CorporationSelfLearning:
                     AND created_at > NOW() - INTERVAL '%s hours'
                     GROUP BY model_name
                     ORDER BY failure_count DESC
+                    LIMIT 10
                 """ % hours)
                 
-                # Анализ паттернов ошибок
                 error_patterns = await conn.fetch("""
                     SELECT 
                         metadata->>'last_error' as error_type,
                         COUNT(*) as count
                     FROM tasks
                     WHERE metadata->>'last_error' IS NOT NULL
+                    AND status = 'failed'
                     AND updated_at > NOW() - INTERVAL '%s hours'
                     GROUP BY metadata->>'last_error'
                     ORDER BY count DESC
@@ -89,11 +75,9 @@ class CorporationSelfLearning:
             return {}
     
     async def analyze_performance_metrics(self, hours: int = 24) -> Dict:
-        """Анализ метрик производительности"""
         try:
             pool = await self.get_pool()
             async with pool.acquire() as conn:
-                # Метрики моделей
                 model_metrics = await conn.fetch("""
                     SELECT 
                         model_name,
@@ -107,7 +91,6 @@ class CorporationSelfLearning:
                     GROUP BY model_name
                 """ % hours)
                 
-                # Метрики задач
                 task_metrics = await conn.fetch("""
                     SELECT 
                         status,
@@ -118,7 +101,6 @@ class CorporationSelfLearning:
                     GROUP BY status
                 """ % hours)
                 
-                # Метрики экспертов
                 expert_metrics = await conn.fetch("""
                     SELECT 
                         e.name as expert_name,
@@ -145,15 +127,11 @@ class CorporationSelfLearning:
             return {}
     
     async def generate_improvements(self, error_analysis: Dict, performance_analysis: Dict) -> List[Dict]:
-        """Генерация улучшений на основе анализа"""
         improvements = []
-        
-        # 1. Улучшения на основе ошибок моделей
         if error_analysis.get('model_failures'):
             for model_failure in error_analysis['model_failures']:
                 model_name = model_failure['model_name']
                 failure_count = model_failure['failure_count']
-                
                 if failure_count > 10:
                     improvements.append({
                         'type': 'model_downgrade',
@@ -162,14 +140,11 @@ class CorporationSelfLearning:
                         'action': 'Использовать более простую модель для этого типа задач',
                         'priority': 'high'
                     })
-        
-        # 2. Улучшения на основе метрик производительности
         if performance_analysis.get('model_metrics'):
             for model_metric in performance_analysis['model_metrics']:
                 model_name = model_metric['model_name']
                 success_rate = model_metric['success_rate']
                 avg_quality = model_metric['avg_quality']
-                
                 if success_rate < 0.7:
                     improvements.append({
                         'type': 'model_optimization',
@@ -178,7 +153,6 @@ class CorporationSelfLearning:
                         'action': 'Улучшить выбор задач для этой модели',
                         'priority': 'medium'
                     })
-                
                 if avg_quality < 0.6:
                     improvements.append({
                         'type': 'quality_improvement',
@@ -187,94 +161,89 @@ class CorporationSelfLearning:
                         'action': 'Переключиться на более мощную модель для сложных задач',
                         'priority': 'high'
                     })
-        
-        # 3. Улучшения на основе паттернов ошибок
         if error_analysis.get('error_patterns'):
-            for pattern in error_analysis['error_patterns'][:3]:  # Топ-3 паттерна
+            for pattern in error_analysis['error_patterns'][:3]:
                 error_type = pattern['error_type']
                 count = pattern['count']
-                
                 if count > 5:
                     improvements.append({
                         'type': 'error_pattern_fix',
-                        'pattern': error_type[:100],  # Первые 100 символов
+                        'pattern': error_type[:100],
                         'reason': f'Повторяющаяся ошибка: {count} раз',
                         'action': 'Добавить специальную обработку для этого типа ошибок',
                         'priority': 'high'
                     })
-        
         return improvements
     
     async def apply_improvements(self, improvements: List[Dict]) -> Dict:
-        """Применение улучшений"""
         applied = []
         failed = []
-        
+        try:
+            pool = await self.get_pool()
+            async with pool.acquire() as conn:
+                res = await conn.execute("""
+                    UPDATE tasks 
+                    SET status = 'pending', 
+                        metadata = metadata - 'last_error' 
+                    WHERE status = 'in_progress' 
+                    AND (metadata->>'last_error' = 'timeout' OR updated_at < NOW() - INTERVAL '30 minutes');
+                """)
+                if res != "UPDATE 0":
+                    logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
+        except Exception as e:
+            logger.error(f"❌ [SELF-HEALING] Ошибка при автоочистке: {e}")
         for improvement in improvements:
             try:
                 if improvement['type'] == 'model_downgrade':
-                    # Обновляем иерархию моделей
                     logger.info(f"🔄 [LEARNING] Применяем улучшение: {improvement['action']}")
-                    # Здесь можно обновить MODEL_HIERARCHY в intelligent_model_router
                     applied.append(improvement)
-                
                 elif improvement['type'] == 'model_optimization':
-                    # Обновляем способности модели
                     logger.info(f"🔧 [LEARNING] Оптимизируем модель: {improvement['model']}")
                     applied.append(improvement)
-                
                 elif improvement['type'] == 'error_pattern_fix':
-                    # Сохраняем паттерн для обработки
                     logger.info(f"🛠️ [LEARNING] Исправляем паттерн ошибок: {improvement['pattern']}")
                     applied.append(improvement)
+                elif improvement['type'] == 'quality_improvement':
+                    logger.info(f"📈 [LEARNING] Повышаем качество для модели: {improvement['model']}")
+                    applied.append(improvement)
                 
-                self._improvements_applied += 1
-                
+                if improvement in applied:
+                    self._improvements_applied += 1
             except Exception as e:
                 logger.error(f"Error applying improvement: {e}")
                 failed.append(improvement)
-        
-        return {
-            'applied': applied,
-            'failed': failed,
-            'total': len(improvements)
-        }
+        return {'applied': applied, 'failed': failed, 'total': len(improvements)}
     
     async def run_learning_cycle(self):
-        """Запуск цикла обучения"""
         self._learning_cycles += 1
         logger.info(f"🔄 [SELF-LEARNING] Запуск цикла обучения #{self._learning_cycles}")
-        
         try:
-            # 1. Анализ ошибок
             error_analysis = await self.analyze_errors(hours=24)
             logger.info(f"📊 [LEARNING] Проанализировано ошибок: {len(error_analysis.get('error_patterns', []))}")
-            
-            # 2. Анализ метрик
             performance_analysis = await self.analyze_performance_metrics(hours=24)
             logger.info(f"📈 [LEARNING] Проанализировано моделей: {len(performance_analysis.get('model_metrics', []))}")
-            
-            # 3. Генерация улучшений
             improvements = await self.generate_improvements(error_analysis, performance_analysis)
             logger.info(f"💡 [LEARNING] Сгенерировано улучшений: {len(improvements)}")
             
-            # 4. Применение улучшений
             if improvements:
                 result = await self.apply_improvements(improvements)
                 logger.info(f"✅ [LEARNING] Применено улучшений: {len(result['applied'])}/{result['total']}")
-            
-            # 5. Сохранение результатов
+                # Добавляем детализацию по типам (Singularity 10.0)
+                types_count = {}
+                for imp in result['applied']:
+                    t = imp['type']
+                    types_count[t] = types_count.get(t, 0) + 1
+                if types_count:
+                    logger.info(f"📊 [LEARNING] Детализация: {', '.join([f'{k}: {v}' for k, v in types_count.items()])}")
+            else:
+                await self.apply_improvements([])
+                
             await self.save_learning_results(error_analysis, performance_analysis, improvements)
-            
             logger.info(f"✅ [SELF-LEARNING] Цикл обучения #{self._learning_cycles} завершен")
-            
         except Exception as e:
             logger.error(f"❌ [SELF-LEARNING] Ошибка в цикле обучения: {e}")
-            import traceback
-            traceback.print_exc()
     
     async def save_learning_results(self, error_analysis: Dict, performance_analysis: Dict, improvements: List[Dict]):
-        """Сохранить результаты обучения"""
         try:
             pool = await self.get_pool()
             async with pool.acquire() as conn:
@@ -287,35 +256,25 @@ class CorporationSelfLearning:
                         applied_count,
                         created_at
                     ) VALUES ($1, $2, $3, $4, $5, NOW())
-                """, 
-                    self._learning_cycles,
-                    json.dumps(error_analysis),
-                    json.dumps(performance_analysis),
-                    json.dumps(improvements),
-                    self._improvements_applied
-                )
+                """, self._learning_cycles, json.dumps(error_analysis), json.dumps(performance_analysis), json.dumps(improvements), self._improvements_applied)
         except Exception as e:
             logger.debug(f"Error saving learning results: {e}")
     
     async def start_continuous_learning(self, interval_hours: int = 6):
-        """Запуск непрерывного обучения"""
         logger.info(f"🚀 [SELF-LEARNING] Запуск непрерывного обучения (интервал: {interval_hours} часов)")
-        
         while True:
             try:
                 await self.run_learning_cycle()
                 await asyncio.sleep(interval_hours * 3600)
             except Exception as e:
                 logger.error(f"❌ [SELF-LEARNING] Ошибка в непрерывном обучении: {e}")
-                await asyncio.sleep(3600)  # Повтор через час при ошибке
+                await asyncio.sleep(3600)
 
-# Singleton
 _learning_instance = None
-
 def get_corporation_learner(db_url: str = None) -> CorporationSelfLearning:
     global _learning_instance
     if _learning_instance is None:
         import os
-        db_url = db_url or os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+        db_url = db_url or os.getenv('DATABASE_URL', 'postgresql://admin:secret@knowledge_postgres:5432/knowledge_os')
         _learning_instance = CorporationSelfLearning(db_url)
     return _learning_instance

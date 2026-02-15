@@ -1,0 +1,49 @@
+{
+  "title": "Knowledge OS — задачи и ручная проверка",
+  "uid": "knowledge_os-tasks",
+  "version": 1,
+  "description": "Метрики очереди на ручную проверку (deferred_to_human) и типы last_error. Алерт: при knowledge_os_tasks_deferred_to_human_total > 10 создать алерт в UI (Edit panel → Alert).",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Задачи на ручную проверку (deferred_to_human)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "knowledge_os_tasks_deferred_to_human_total",
+          "legendFormat": "deferred_to_human",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 10, "color": "yellow" },
+              { "value": 20, "color": "red" }
+            ]
+          }
+        }
+      },
+      "description": "Рекомендуемый алерт: when value > 10 for 5m. Создать в Grafana: Edit panel → Alert → Create alert rule."
+    },
+    {
+      "id": 2,
+      "title": "Last error по типам (deferred)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "knowledge_os_tasks_deferred_last_error_total",
+          "legendFormat": "{{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Разбивка по error_type: timeout, empty_or_short_response, validation_failed, connection_error, oom_or_metal, other."
+    }
+  ],
+  "schemaVersion": 38
+}

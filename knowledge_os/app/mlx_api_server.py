@@ -91,7 +91,7 @@ _queue_wait_timeout = None  # задаётся через _max_queue_wait_timeou
 _request_lock = threading.Lock()
 _request_times = defaultdict(list)  # Для rate limiting
 _rate_limit_window = int(os.getenv("MLX_RATE_LIMIT_WINDOW", "90"))  # секунд (увеличено окно — реже упираемся в лимит)
-_rate_limit_max = int(os.getenv("MLX_RATE_LIMIT_MAX", "150"))  # макс запросов в окне (увеличено — меньше 429)
+_rate_limit_max = int(os.getenv("MLX_RATE_LIMIT_MAX", "500"))  # макс запросов в окне (увеличено — меньше 429)
 
 # Очередь запросов с приоритетами
 try:
@@ -112,35 +112,28 @@ _memory_critical_threshold = float(os.getenv("MLX_MEMORY_CRITICAL_PERCENT", "95"
 _last_memory_check = 0
 _memory_check_interval = 10  # секунд
 
-# Максимум моделей в кэше одновременно (остальные выгружаются по LRU) — снижает пиковое потребление RAM
-# Одна большая модель (70b) ~40–50GB, 32b ~20GB; при 2 моделях в кэше пик существенно ниже
-_max_cached_models = int(os.getenv("MLX_MAX_CACHED_MODELS", "2"))
+# Максимум моделей в кэше одновременно (остальные выгружаются по LRU) — снижает пиковое потребление RAM и Metal OOM
+# Рекомендация после крашей Python (mlx::core::gpu::check_error): 1 модель в кэше — меньше нагрузка на GPU
+_max_cached_models = int(os.getenv("MLX_MAX_CACHED_MODELS", "1"))
 # Интервал фоновой очистки кэша по LRU (секунды); 0 = отключить
 _cache_cleanup_interval_sec = int(os.getenv("MLX_CACHE_CLEANUP_INTERVAL_SEC", "600"))
 
 # Модели для предзагрузки при старте (можно изменить через MLX_PRELOAD_MODELS)
-# По умолчанию только "fast" (~2.5GB), чтобы не держать 32b (~20GB) в памяти постоянно
-# Пустое значение = без предзагрузки; "default,fast" = как раньше (больше RAM)
+# По умолчанию только "fast" (~2.5GB). Тяжёлые 70B/104B удалены из-за Apple Silicon Metal limits
+_HEAVY_KEYS_NO_PRELOAD = {"reasoning"}  # Теперь reasoning не привязан к 70B, но всё равно в blacklist
 _preload_models_env = os.getenv("MLX_PRELOAD_MODELS", "fast")
-_preload_models = [m.strip() for m in _preload_models_env.split(",") if m.strip()]
+_preload_models = [m.strip() for m in _preload_models_env.split(",") if m.strip() and m.strip() not in _HEAVY_KEYS_NO_PRELOAD]
 
 # Конфигурация моделей (пути к MLX моделям)
 # Используем реальные имена директорий из ~/mlx-models/
 MLX_BASE = os.path.expanduser("~/mlx-models")
+# 70B/104B и 32B убраны из MLX (Metal/память). См. docs/MLX_PYTHON_CRASH_CAUSE.md
 MODEL_PATHS = {
-    # Категории (для обратной совместимости)
-    "reasoning": os.path.join(MLX_BASE, "deepseek-r1-distill-llama-70b"),
-    "coding": os.path.join(MLX_BASE, "qwen2.5-coder-32b"),
     "fast": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
+    "default": os.path.join(MLX_BASE, "phi3.5-mini-4k"),  # алиас fast
     "tiny": os.path.join(MLX_BASE, "tinyllama-1.1b-chat"),
     "qwen_3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
-    "default": os.path.join(MLX_BASE, "qwen2.5-coder-32b"),
-    # Модели из PLAN.md (Ollama имена → реальные директории)
-    "command-r-plus:104b": os.path.join(MLX_BASE, "command-r-plus"),
-    "deepseek-r1-distill-llama:70b": os.path.join(MLX_BASE, "deepseek-r1-distill-llama-70b"),
-    "llama3.3:70b": os.path.join(MLX_BASE, "llama3.3-70b"),
-    "qwen2.5-coder:32b": os.path.join(MLX_BASE, "qwen2.5-coder-32b"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
     "phi3:mini-4k": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "qwen2.5:3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
@@ -151,50 +144,44 @@ MODEL_PATHS = {
 # По умолчанию используем ~/mlx-models/ (найденные модели)
 MLX_MODELS_DIR = os.getenv('MLX_MODELS_DIR', os.path.expanduser("~/mlx-models"))
 
-# Mapping категорий к моделям
-CATEGORY_TO_MODEL = {
-    "reasoning": "reasoning",
-    "coding": "coding",
-    "code": "coding",
+# Mapping категорий к моделям. 70B/104B и 32B убраны из MLX (Metal/память) — только fast/tiny. См. MLX_PYTHON_CRASH_CAUSE, MLX_STRATEGY_LIGHT_AND_VITALITY
+_CATEGORY_TO_MODEL_FULL = {
+    "reasoning": "fast",
+    "coding": "fast",
+    "code": "fast",
     "fast": "fast",
     "tiny": "tiny",
-    "default": "default"
+    "default": "fast",
 }
+# MLX_ONLY_LIGHT=true (по умолчанию): все категории → fast. Даже при false 32B не грузим — _CATEGORY_TO_MODEL_FULL уже без coding/default→32b
+_MLX_ONLY_LIGHT = os.getenv("MLX_ONLY_LIGHT", "true").lower() == "true"
+if _MLX_ONLY_LIGHT:
+    CATEGORY_TO_MODEL = {"reasoning": "fast", "coding": "fast", "code": "fast", "fast": "fast", "tiny": "tiny", "default": "fast"}
+    _preload_models = ["fast"] if _preload_models else []  # при only_light предзагружаем только лёгкую
+else:
+    CATEGORY_TO_MODEL = _CATEGORY_TO_MODEL_FULL
 
-# Маппинг категорий на реальные модели для предзагрузки
+# Маппинг категорий на реальные модели для предзагрузки. 32B убран — только fast (см. MLX_PYTHON_CRASH_CAUSE)
 PRELOAD_MODEL_MAP = {
-    "default": "qwen2.5-coder:32b",  # Основная модель по умолчанию
-    "fast": "phi3.5:3.8b",  # Быстрая модель для общих задач
-    # "tiny": "tinyllama:1.1b-chat",  # Исключена - только для внутренней коммуникации агентов
-    "coding": "qwen2.5-coder:32b",  # Для кодинга
+    "default": "phi3.5:3.8b",
+    "fast": "phi3.5:3.8b",
+    "coding": "phi3.5:3.8b",
 }
 
-# Маппинг имен моделей из PLAN.md (Ollama формат) в MLX ключи
+# Маппинг имён моделей (Ollama-формат) в MLX; 70B/104B и 32B убраны — только лёгкие
 OLLAMA_TO_MLX_MAP = {
-    "command-r-plus:104b": "command-r-plus:104b",
-    "deepseek-r1-distill-llama:70b": "deepseek-r1-distill-llama:70b",
-    "llama3.3:70b": "llama3.3:70b",
-    "qwen2.5-coder:32b": "qwen2.5-coder:32b",
     "phi3.5:3.8b": "phi3.5:3.8b",
     "phi3:mini-4k": "phi3:mini-4k",
     "qwen2.5:3b": "qwen2.5:3b",
     "tinyllama:1.1b-chat": "tinyllama:1.1b-chat",
 }
 
-# Оценки времени по моделям: загрузка (сек), инференс (сек на 1k токенов), запас (сек).
-# Таймаут запроса = load_sec + (max_tokens/1000 * inference_sec_per_1k) + margin_sec.
-# Для неизвестной модели — fallback по размеру (104b/70b/32b/3b/1b) или default.
+# Оценки времени по моделям (только лёгкие в MLX). Fallback по размеру в имени — в _get_estimates_for_model.
 MODEL_TIME_ESTIMATES = {
-    "default": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
-    "command-r-plus:104b": {"load_sec": 180, "inference_sec_per_1k": 180, "margin_sec": 120},
-    "deepseek-r1-distill-llama:70b": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
-    "llama3.3:70b": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
-    "reasoning": {"load_sec": 120, "inference_sec_per_1k": 120, "margin_sec": 120},
-    "qwen2.5-coder:32b": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
-    "coding": {"load_sec": 60, "inference_sec_per_1k": 40, "margin_sec": 60},
+    "default": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
+    "fast": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
     "phi3.5:3.8b": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
     "phi3:mini-4k": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
-    "fast": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
     "qwen2.5:3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
     "qwen_3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
     "tinyllama:1.1b-chat": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20},
@@ -206,7 +193,7 @@ def _get_estimates_for_model(model_key: str) -> dict:
     """Возвращает оценку времени для модели (exact или по размеру 104b/70b/32b/3b/1b)."""
     if model_key in MODEL_TIME_ESTIMATES:
         return MODEL_TIME_ESTIMATES[model_key].copy()
-    # Fallback по размеру из имени (например llama3.3:70b уже есть, но на случай новых 70b)
+    # Fallback по размеру из имени (70b/104b удалены из приоритетов, см. MLX_PYTHON_CRASH_CAUSE)
     key_lower = model_key.lower()
     if "104b" in key_lower or "104" in key_lower:
         return {"load_sec": 180, "inference_sec_per_1k": 180, "margin_sec": 120}
@@ -1217,6 +1204,7 @@ async def health_check():
             "status": status,
             "service": "MLX API Server",
             "version": "2.0.0",
+            "total_models": len(MODEL_PATHS),
             "models_cached": len(_models_cache),
             "cached_models": [
                 {
@@ -1231,7 +1219,6 @@ async def health_check():
             ],
             "active_model_requests": dict(_active_model_requests),
             "loading_models": list(_loading_models),
-            "total_models": len(MODEL_PATHS),
             "active_requests": _active_requests,
             "max_concurrent": _max_concurrent_requests,
             "memory": {

@@ -1,0 +1,154 @@
+# Прогон основного pytest-набора Knowledge OS (чеклист §2, PROJECT_GAPS_ANALYSIS)
+# Запуск: push в main, pull_request. Тесты без БД — всегда; с БД — при наличии Postgres и миграций.
+# Покрытие: порог 8% (замер 2026-02-11: полный unit-run knowledge_os ~12%; поднято с 5% до 8%). См. WHATS_NOT_DONE §3.
+name: Pytest Knowledge OS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Линтер (ruff) по изменённым путям — PROJECT_GAPS §3 «линтер по путям»
+  lint:
+    name: lint (ruff, changed paths)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed .py files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before || 'HEAD~1' }}"
+          fi
+          git diff --name-only "$BASE" ${{ github.sha }} -- backend/ knowledge_os/app/ knowledge_os/tests/ src/ | grep -E '\.py$' || true > changed_py.txt
+          echo "count=$(wc -l < changed_py.txt | tr -d ' ')" >> $GITHUB_OUTPUT
+
+      - name: Set up Python
+        if: steps.changed.outputs.count != '0'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        if: steps.changed.outputs.count != '0'
+        run: pip install ruff
+
+      - name: Run ruff check (changed files only)
+        if: steps.changed.outputs.count != '0'
+        run: cat changed_py.txt | xargs -r ruff check
+
+      - name: Run ruff check (no changed .py — skip)
+        if: steps.changed.outputs.count == '0'
+        run: echo "No .py files changed in backend/ knowledge_os/ src/ — skip ruff."
+  # Тесты без БД: json_fast, http_client (8 тестов) — ловят регрессии в горячих путях
+  pytest-no-db:
+    name: pytest (json_fast, http_client)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (knowledge_os)
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-asyncio orjson httpx
+          pip install -r knowledge_os/requirements.txt
+
+      - name: Run pytest (no DB) with coverage
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          COVERAGE_FAIL_UNDER: "8"
+        run: |
+          python -m pytest knowledge_os/tests/test_json_fast_http_client.py -v --tb=short \
+            --cov=knowledge_os.app --cov-report=xml --cov-report=term-missing --no-cov-on-fail \
+            --cov-fail-under=${COVERAGE_FAIL_UNDER:-5}
+
+      - name: Upload coverage (no DB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-no-db
+          path: coverage.xml
+
+  # Тесты с БД: rest_api, victoria_chat_and_request — требуют Postgres и миграции
+  pytest-with-db:
+    name: pytest (rest_api, victoria_chat)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: knowledge_os
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (knowledge_os)
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-asyncio orjson httpx
+          pip install -r knowledge_os/requirements.txt
+
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U admin -d knowledge_os && break
+            sleep 2
+          done
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Init schema (experts, domains, tasks, knowledge_nodes)
+        env:
+          PGPASSWORD: secret
+        run: |
+          psql -h localhost -p 5432 -U admin -d knowledge_os -f knowledge_os/db/init.sql
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python knowledge_os/scripts/apply_migrations.py
+
+      - name: Run pytest (with DB) with coverage
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          PYTHONPATH: ${{ github.workspace }}
+          COVERAGE_FAIL_UNDER: "8"
+        run: |
+          python -m pytest knowledge_os/tests/test_rest_api.py knowledge_os/tests/test_victoria_chat_and_request.py \
+            knowledge_os/tests/test_knowledge_graph.py knowledge_os/tests/test_load.py knowledge_os/tests/test_e2e.py -v --tb=short \
+            --cov=knowledge_os.app --cov-report=xml --cov-report=term-missing --no-cov-on-fail \
+            --cov-fail-under=${COVERAGE_FAIL_UNDER:-5}
+
+      - name: Upload coverage (with DB)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-with-db
+          path: coverage.xml

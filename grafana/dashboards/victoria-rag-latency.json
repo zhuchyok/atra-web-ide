@@ -1,0 +1,42 @@
+{
+  "title": "Victoria RAG+ Latency",
+  "uid": "victoria-rag-latency",
+  "version": 1,
+  "description": "Метрики латентности RAG+ в Victoria (embed, prepare, llm_plan). Источник: GET /metrics Victoria. Job victoria-agent уже добавлен в prometheus/prometheus.yml и infrastructure/monitoring/prometheus.yml (metrics_path: /metrics).",
+  "panels": [
+    {
+      "id": 1,
+      "title": "RAG+ embed (s)",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "targets": [{"expr": "victoria_rag_embed_seconds", "legendFormat": "embed", "refId": "A"}],
+      "description": "Время эмбеддинга (последний запрос). Порог: RAG_LATENCY_EMBED_MS_MAX (300 ms)."
+    },
+    {
+      "id": 2,
+      "title": "RAG+ prepare (s)",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0},
+      "targets": [{"expr": "victoria_rag_prepare_seconds", "legendFormat": "prepare", "refId": "A"}],
+      "description": "Время эксперт + контекст RAG (последний запрос). Порог: RAG_LATENCY_PREPARE_MS_MAX (300 ms)."
+    },
+    {
+      "id": 3,
+      "title": "RAG+ llm_plan (s)",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+      "targets": [{"expr": "victoria_rag_llm_plan_seconds", "legendFormat": "llm_plan", "refId": "A"}],
+      "description": "Время вызова LLM для плана (последний запрос). Порог: RAG_LATENCY_LLM_PLAN_MS_MAX (2000 ms)."
+    },
+    {
+      "id": 4,
+      "title": "RAG+ slow requests (total)",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 6},
+      "targets": [{"expr": "victoria_rag_slow_requests_total", "legendFormat": "slow_count", "refId": "A"}],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 1, "color": "yellow"}, {"value": 10, "color": "red"}]}}},
+      "description": "Число запросов, превысивших пороги. Алерт: при росте или value > 0 за 5m."
+    }
+  ],
+  "schemaVersion": 38
+}

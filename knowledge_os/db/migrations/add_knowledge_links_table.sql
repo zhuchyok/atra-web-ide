@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_links_source_type
     ON knowledge_links (source_node_id, link_type);
 
 -- Триггер для обновления updated_at
+DROP TRIGGER IF EXISTS update_knowledge_links_updated_at ON knowledge_links;
 CREATE TRIGGER update_knowledge_links_updated_at
     BEFORE UPDATE ON knowledge_links
     FOR EACH ROW
@@ -76,6 +77,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Триггер для автоматического создания обратных связей
+DROP TRIGGER IF EXISTS create_bidirectional_link_trigger ON knowledge_links;
 CREATE TRIGGER create_bidirectional_link_trigger
     AFTER INSERT ON knowledge_links
     FOR EACH ROW

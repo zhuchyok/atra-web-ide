@@ -9,11 +9,11 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # Victoria Agent (имя сервиса в docker-compose: victoria-agent, порт внутри сети: 8000)
+  # Victoria Agent: RAG+ латентность (victoria_rag_embed_seconds, victoria_rag_slow_requests_total и др.)
   - job_name: 'victoria-agent'
     static_configs:
       - targets: ['victoria-agent:8000']
-    metrics_path: '/health'
+    metrics_path: '/metrics'
     scrape_interval: 30s
 
   # Veronica Agent

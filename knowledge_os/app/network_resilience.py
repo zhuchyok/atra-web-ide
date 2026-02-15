@@ -148,9 +148,11 @@ async def safe_http_request(
     Returns:
         Response объект или None если не удалось выполнить запрос
     """
-    await _network_resilience.ensure_internet_check()
+    is_local = url.startswith(("http://localhost", "http://127.0.0.1", "http://host.docker.internal"))
+    if not is_local:
+        await _network_resilience.ensure_internet_check()
     
-    if not _network_resilience.is_internet_available() and not url.startswith(("http://localhost", "http://127.0.0.1", "http://host.docker.internal")):
+    if not _network_resilience.is_internet_available() and not is_local:
         logger.warning(f"⚠️ Интернет недоступен, пропускаем запрос к {url}")
         return None
     

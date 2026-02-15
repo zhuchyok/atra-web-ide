@@ -1,0 +1,79 @@
+    async def sse_generator():
+        emotion_data = {"emotion": "calm", "confidence": 1.0}
+        if EMOTION_DETECTOR_AVAILABLE and EmotionDetector:
+            try:
+                detector = EmotionDetector()
+                res = detector.detect_emotion(body.goal)
+                emotion_data = {"emotion": res.detected_emotion, "confidence": round(res.confidence, 2)}
+            except Exception as e:
+                logger.debug("Emotion detection failed: %s", e)
+
+        yield f"data: {json.dumps({'type': 'start', 'expert': 'Виктория', 'emotion': emotion_data})}\n\n"
+
+        use_enhanced = body.use_enhanced
+        if use_enhanced is None:
+            use_enhanced = os.getenv("USE_VICTORIA_EN_ENABLED", "false").lower() == "true"
+
+        is_simple = is_simple_message(body.goal)
+        is_fast_track = is_fast_track_message(body.goal)
+        
+        # [VIP ROUTE] Проверка на VIP-запрос (Иван/Совет)
+        is_vip = any(word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"])
+        
+        # [FAST TRACK] Проверка на вопросы об обучении и способностях
+        is_info_query = any(word in (body.goal or "").lower() for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"])
+        
+        # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
+        if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
+            if is_vip:
+                yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'VIP-коридор', 'content': 'Обнаружен VIP-запрос. Использую лучшие модели DeepSeek-R1.'})}\n\n"
+            elif is_info_query:
+                yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Инфо-запрос', 'content': 'Отвечаю на вопрос о системе...'})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Быстрый ответ', 'content': 'Простой запрос, отвечаю через локальную модель.'})}\n\n"
+            
+            ideal_model = _select_model_for_chat(body.goal)
+            
+            # Сингулярность 10.0: Подтягиваем знания AI Research даже для простых запросов
+            ai_research_context = ""
+            try:
+                from app.victoria_enhanced import VictoriaEnhanced
+                temp_enhanced = VictoriaEnhanced()
+                ai_research_context = await temp_enhanced._get_ai_research_context(body.goal)
+            except Exception as e:
+                logger.debug("AI Research context fetch failed for stream: %s", e)
+
+            prompt_for_gen = body.goal
+            if ai_research_context:
+                prompt_for_gen = f"{ai_research_context}\n\nЗапрос: {body.goal}"
+                
+            content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
+            if content:
+                words = content.split()
+                for i in range(0, len(words), 5):
+                    chunk = " ".join(words[i:i+5]) + " "
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                    await asyncio.sleep(0.05)
+                yield f"data: {json.dumps({'type': 'end'})}\n\n"
+        else:
+            yield f"data: {json.dumps({'type': 'progress', 'step': 1, 'total': 3, 'status': 'analysis'})}\n\n"
+            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ задачи', 'content': 'Запускаю экспертную цепочку Victoria Enhanced...', 'correlation_id': correlation_id})}\n\n"
+            
+            try:
+                result = await run_task(body, request, async_mode=False)
+                if isinstance(result, TaskResponse):
+                    content = result.output
+                    if content:
+                        words = content.split()
+                        for i in range(0, len(words), 5):
+                            chunk = " ".join(words[i:i+5]) + " "
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+                            await asyncio.sleep(0.02)
+                elif isinstance(result, JSONResponse):
+                    data = json.loads(result.body)
+                    yield f"data: {json.dumps({'type': 'error', 'content': data.get('message', 'Ошибка')})}\n\n"
+            except Exception as e:
+                logger.error("Stream expert path error: %s", e, exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'end'})}\n\n"

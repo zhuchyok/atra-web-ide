@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import itertools
 import json
 import logging
 import sys
@@ -78,17 +79,23 @@ async def test_parameters(
         Метрики бектеста с указанными параметрами
     """
     try:
-        # TODO: Передать параметры в AdvancedBacktest
-        # Пока используем стандартный бектест
         backtest = AdvancedBacktest(
             initial_balance=10000.0,
             risk_per_trade=2.0,
             leverage=2.0
         )
-        
         backtest.btc_df = btc_df
         backtest.eth_df = eth_df
         backtest.sol_df = sol_df
+        # Передаём параметры в кэш символа (AdvancedBacktest использует get_symbol_params(symbol))
+        if hasattr(backtest, '_symbol_params_cache'):
+            backtest._symbol_params_cache[symbol] = {
+                "optimal_rsi_oversold": params.get("optimal_rsi_oversold", params.get("rsi_oversold", 25)),
+                "optimal_rsi_overbought": params.get("optimal_rsi_overbought", params.get("rsi_overbought", 75)),
+                "ai_score_threshold": params.get("ai_score_threshold", 5.0),
+                "min_confidence": params.get("min_confidence", 65),
+                "filter_mode": params.get("filter_mode", "soft"),
+            }
         
         await backtest.run_backtest(df, days=days)
         
@@ -146,23 +153,55 @@ async def optimize_symbol_parameters(
     
     logger.info("🔍 Оптимизация параметров для %s...", symbol)
     
-    # TODO: Реализовать grid search по PARAMETER_GRID
-    # Пока возвращаем базовые параметры
-    base_params = {
-        "optimal_rsi_oversold": 25,
-        "optimal_rsi_overbought": 75,
-        "ai_score_threshold": 5.0,
-        "position_size_multiplier": 1.0,
-        "min_confidence": 65,
-        "filter_mode": "soft"
+    # Grid search по PARAMETER_GRID (ограниченное число комбинаций)
+    param_map = {
+        "rsi_oversold": "optimal_rsi_oversold",
+        "rsi_overbought": "optimal_rsi_overbought",
+        "ai_score_threshold": "ai_score_threshold",
+        "position_size_multiplier": "position_size_multiplier",
+        "min_confidence": "min_confidence",
     }
-    
-    result = await test_parameters(symbol, df, btc_df, eth_df, sol_df, base_params, days=days)
+    keys = list(PARAMETER_GRID.keys())
+    value_lists = [PARAMETER_GRID[k] for k in keys]
+    combinations = list(itertools.product(*value_lists))[:12]
+    best_score = -1.0
+    best_params: Dict[str, Any] = {}
+    best_result: Dict[str, Any] = {}
+    for combo_values in combinations:
+        combo = {
+            "optimal_rsi_oversold": 25,
+            "optimal_rsi_overbought": 75,
+            "ai_score_threshold": 5.0,
+            "position_size_multiplier": 1.0,
+            "min_confidence": 65,
+            "filter_mode": "soft",
+        }
+        for key, val in zip(keys, combo_values):
+            combo[param_map.get(key, key)] = val
+        result = await test_parameters(symbol, df, btc_df, eth_df, sol_df, combo, days=days)
+        score = result.get("score", 0.0)
+        if score > best_score and "error" not in result:
+            best_score = score
+            best_params = result.get("params", combo)
+            best_result = result
+    if best_params:
+        base_params = best_params
+        result = best_result
+    else:
+        base_params = {
+            "optimal_rsi_oversold": 25,
+            "optimal_rsi_overbought": 75,
+            "ai_score_threshold": 5.0,
+            "position_size_multiplier": 1.0,
+            "min_confidence": 65,
+            "filter_mode": "soft",
+        }
+        result = await test_parameters(symbol, df, btc_df, eth_df, sol_df, base_params, days=days)
     
     return {
         "symbol": symbol,
         "optimal_params": base_params,
-        "test_results": result
+        "test_results": result,
     }
 
 

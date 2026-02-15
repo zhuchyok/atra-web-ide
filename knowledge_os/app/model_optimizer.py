@@ -35,33 +35,33 @@ class ModelOptimizer:
     # Оптимальные настройки для каждой модели
     MODEL_CONFIGS = {
         "command-r-plus:104b": ModelOptimizationConfig(
-            model_name="command-r-plus:104b",
-            prompt_cache_enabled=True,  # Критично для больших моделей
-            batch_size=1,  # Большие модели - по одному
-            max_tokens=4096,  # Больше токенов для enterprise задач
-            temperature=0.6,  # Ниже для точности
+            model_name="qwen2.5-coder:32b",  # 104b удалён, алиас на 32b
+            prompt_cache_enabled=True,
+            batch_size=1,
+            max_tokens=4096,
+            temperature=0.6,
             top_p=0.95,
             top_k=50,
             repetition_penalty=1.15,
             streaming=True,
             use_memory_mapping=True,
-            quantization_level="Q6"  # Баланс качества/скорости
+            quantization_level="Q6"
         ),
         "deepseek-r1-distill-llama:70b": ModelOptimizationConfig(
-            model_name="deepseek-r1-distill-llama:70b",
+            model_name="phi3.5:3.8b",  # 70b удалён
             prompt_cache_enabled=True,
             batch_size=1,
-            max_tokens=4096,  # Reasoning требует больше токенов
-            temperature=0.5,  # Низкая для reasoning
+            max_tokens=4096,
+            temperature=0.5,
             top_p=0.9,
             top_k=40,
-            repetition_penalty=1.2,  # Выше для reasoning
+            repetition_penalty=1.2,
             streaming=True,
             use_memory_mapping=True,
             quantization_level="Q6"
         ),
         "llama3.3:70b": ModelOptimizationConfig(
-            model_name="llama3.3:70b",
+            model_name="phi3.5:3.8b",  # 70b удалён
             prompt_cache_enabled=True,
             batch_size=1,
             max_tokens=4096,
@@ -255,13 +255,13 @@ class ModelOptimizer:
                 "low": ["qwen2.5:3b", "phi3.5:3.8b"],
                 "medium": ["qwen2.5-coder:32b"],
                 "high": ["qwen2.5-coder:32b"],
-                "very_high": ["qwen2.5-coder:32b", "llama3.3:70b"]
+                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"]
             },
             "reasoning": {
                 "low": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "medium": ["deepseek-r1-distill-llama:70b"],
-                "high": ["deepseek-r1-distill-llama:70b", "llama3.3:70b"],
-                "very_high": ["command-r-plus:104b", "deepseek-r1-distill-llama:70b"]
+                "medium": ["qwq:32b", "phi3.5:3.8b"],
+                "high": ["qwq:32b", "phi3.5:3.8b"],
+                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"]
             },
             "fast": {
                 "low": ["tinyllama:1.1b-chat", "phi3:mini-4k"],
@@ -272,8 +272,8 @@ class ModelOptimizer:
             "general": {
                 "low": ["tinyllama:1.1b-chat", "phi3:mini-4k"],
                 "medium": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "high": ["qwen2.5-coder:32b", "llama3.3:70b"],
-                "very_high": ["llama3.3:70b", "command-r-plus:104b"]
+                "high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"]
             }
         }
         

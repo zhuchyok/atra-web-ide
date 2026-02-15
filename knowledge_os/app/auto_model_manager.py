@@ -42,7 +42,7 @@ class AutoModelManager:
             TimeOfDay.MORNING: {
                 "priority_models": ["qwen2.5-coder:32b"],  # MLX модель (Mac Studio) - Coding утром
                 "fallback_models": ["phi3.5:3.8b"],  # Ollama модель (Mac Studio)
-                "unload_models": ["deepseek-r1-distill-llama:70b"]  # MLX модель (Mac Studio) - Reasoning не нужны утром
+                "unload_models": ["qwen2.5-coder:32b"]
             },
             TimeOfDay.AFTERNOON: {
                 "priority_models": ["qwen2.5-coder:32b", "phi3.5:3.8b"],  # MLX + Ollama модели (Mac Studio)
@@ -50,14 +50,14 @@ class AutoModelManager:
                 "unload_models": []
             },
             TimeOfDay.EVENING: {
-                "priority_models": ["deepseek-r1-distill-llama:70b", "qwen2.5-coder:32b"],  # MLX модели (Mac Studio) - Reasoning вечером
+                "priority_models": ["phi3.5:3.8b", "qwen2.5-coder:32b"],
                 "fallback_models": ["phi3:mini-4k-instruct-q4_k_m"],
                 "unload_models": []
             },
             TimeOfDay.NIGHT: {
                 "priority_models": ["tinyllama:1.1b-chat-v1.0-q4_0"],  # Только легкие модели ночью
                 "fallback_models": [],
-                "unload_models": ["qwen2.5-coder:32b", "deepseek-r1-distill-llama:70b"]  # MLX модели (Mac Studio)
+                "unload_models": ["qwen2.5-coder:32b"]
             }
         }
         

@@ -18,7 +18,7 @@ class RequestSource:
     name: str
     handler: Callable
     priority: int  # 1 = highest, 3 = lowest
-    timeout: float = 300.0  # Увеличено до 300s для reasoning задач
+    timeout: float = 600.0  # Увеличено до 600s для тяжелых локальных моделей и Mac Studio под нагрузкой
 
 class ParallelRequestProcessor:
     """

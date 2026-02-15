@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 class FileChangeHandler(FileSystemEventHandler):
     """Обработчик изменений файлов"""
     
-    def __init__(self, event_bus, watched_paths: Set[str], file_extensions: Optional[List[str]] = None):
+    def __init__(self, event_bus, watched_paths: Set[str], file_extensions: Optional[List[str]] = None, loop: Optional[asyncio.AbstractEventLoop] = None):
         self.event_bus = event_bus
         self.watched_paths = watched_paths
         self.file_extensions = file_extensions or []
+        self._loop = loop  # для вызова publish из потока watchdog через run_coroutine_threadsafe
         self.ignored_patterns = {'.git', '__pycache__', '.pyc', '.pytest_cache', 'node_modules', '.venv'}
         logger.info(f"📁 File Watcher инициализирован: {len(watched_paths)} путей, расширения: {file_extensions}")
     
@@ -65,9 +66,16 @@ class FileChangeHandler(FileSystemEventHandler):
                 source="file_watcher"
             )
             
-            # Публикуем асинхронно
-            asyncio.create_task(self.event_bus.publish(event))
-            logger.debug(f"📢 Событие {event_type.value} для файла: {src_path}")
+            # Публикуем в event loop (из потока watchdog может не быть running loop — используем переданный loop)
+            if self._loop and self._loop.is_running():
+                asyncio.run_coroutine_threadsafe(self.event_bus.publish(event), self._loop)
+                logger.debug(f"📢 Событие {event_type.value} для файла: {src_path}")
+            else:
+                try:
+                    asyncio.create_task(self.event_bus.publish(event))
+                    logger.debug(f"📢 Событие {event_type.value} для файла: {src_path}")
+                except RuntimeError:
+                    logger.debug("Нет running event loop для публикации (вызов из другого потока)")
         except Exception as e:
             logger.error(f"❌ Ошибка публикации события для {src_path}: {e}")
     
@@ -145,11 +153,12 @@ class FileWatcher:
             return
         
         try:
-            # Создаем обработчик
+            loop = asyncio.get_running_loop()
             self.handler = FileChangeHandler(
                 self.event_bus,
                 self.watched_paths,
-                self.file_extensions
+                self.file_extensions,
+                loop=loop
             )
             
             # Регистрируем наблюдателей для каждого пути

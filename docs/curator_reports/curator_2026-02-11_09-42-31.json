@@ -1,0 +1,45 @@
+{
+  "ts": "2026-02-11T09:42:38.629740+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "507b16f4-fef1-4ca6-a350-5384cc8eeedd",
+      "execution_trace": {
+        "task_type": "simple_chat",
+        "use_enhanced": false,
+        "routed_to": "agent_run",
+        "delegated_to": null,
+        "method": "qwen2.5-coder:32b",
+        "correlation_id": "507b16f4-fef1-4ca6-a350-5384cc8eeedd",
+        "goal_preview": "привет"
+      },
+      "elapsed_seconds": 0.01
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Статус проекта смотрите в дашборде (Corporation Dashboard, порт 8501) и в списке задач (список задач Knowledge OS). Опираюсь на факты из MASTER_REFERENCE и задач, не придумываю сроки.",
+      "output_length": 183,
+      "correlation_id": "729325af-205c-48e4-8b2b-c4affc8dd655",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "729325af-205c-48e4-8b2b-c4affc8dd655",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 7.54
+    }
+  ]
+}

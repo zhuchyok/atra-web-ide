@@ -33,7 +33,7 @@ class StrategyAgent(AtraBaseAgent):
         logger.info(f"⚙️ StrategyAgent updating {param_name} to {value}")
         return f"Successfully updated {param_name} to {value} (simulated)"
 
-    async def step(self, prompt: str):
+    async def step(self, prompt: str, step_number: int = 1):
         # Аналогично AuditAgent, но с другим контекстом
         return await self.executor.ask(prompt)
 

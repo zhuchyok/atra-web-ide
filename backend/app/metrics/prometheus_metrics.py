@@ -137,6 +137,40 @@ ERROR_COUNTER = Counter(
     ["error_type", "component"],
 )
 
+# === Telegram Bot метрики ===
+
+TELEGRAM_BOT_STATUS = Gauge(
+    "telegram_bot_online",
+    "Telegram bot online status (1 = online, 0 = offline)",
+)
+
+TELEGRAM_BOT_MESSAGES = Counter(
+    "telegram_bot_messages_total",
+    "Total messages processed by Telegram bot",
+)
+
+TELEGRAM_BOT_ERRORS = Counter(
+    "telegram_bot_errors_total",
+    "Total errors in Telegram bot",
+)
+
+TELEGRAM_BOT_HEARTBEAT_AGE = Gauge(
+    "telegram_bot_heartbeat_age_seconds",
+    "Seconds since last Telegram bot heartbeat",
+)
+
+# П.4 PRINCIPLE_EXPERTS_FIRST: метрика «ответил эксперт» vs fallback
+CHAT_EXPERT_ANSWER_TOTAL = Counter(
+    "chat_expert_answer_total",
+    "Chat responses from designated expert path (Victoria or expert_name)",
+    ["source"],  # victoria | fallback_llm | direct | template
+)
+CHAT_FALLBACK_TOTAL = Counter(
+    "chat_fallback_total",
+    "Chat responses without expert (generic model path)",
+    [],
+)
+
 
 class MetricsCollector:
     """Коллектор метрик с контекстными менеджерами и декораторами."""

@@ -23,8 +23,8 @@ async def run_local_llm(prompt: str, category: str = "reasoning"):
     """
     Запуск локальной LLM модели через LocalAIRouter
     Использует актуальные модели с Mac Studio:
-    - MLX: qwen2.5-coder:32b (coding), deepseek-r1-distill-llama:70b (reasoning), command-r-plus:104b (complex/enterprise)
-    - Ollama: command-r-plus:104b (coding/reasoning fallback), phi3.5:3.8b (fast)
+    - MLX: qwen2.5-coder:32b (coding), phi3.5:3.8b (reasoning/fast)
+    - Ollama: qwen2.5-coder:32b / qwq:32b (coding/reasoning), phi3.5:3.8b (fast)
     """
     if not LOCAL_ROUTER_AVAILABLE or not LocalAIRouter:
         print("⚠️ LocalAIRouter недоступен")
@@ -33,8 +33,8 @@ async def run_local_llm(prompt: str, category: str = "reasoning"):
     try:
         router = LocalAIRouter()
         # Используем category для выбора оптимальной модели
-        # reasoning → deepseek-r1-distill-llama:70b (MLX) или command-r-plus:104b (Ollama)
-        # coding → qwen2.5-coder:32b (MLX) или command-r-plus:104b (Ollama)
+        # reasoning → qwq:32b / phi3.5:3.8b
+        # coding → qwen2.5-coder:32b
         result = await router.run_local_llm(prompt, category=category)
         
         if isinstance(result, tuple):
@@ -99,12 +99,26 @@ async def run_orchestration_cycle():
                     # Используем LocalAIRouter с category="reasoning" для выбора оптимальной модели
                     hypothesis = await run_local_llm(link_prompt, category="reasoning")
                     if hypothesis:
-                        kn_id = await conn.fetchval("""
-                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, 0.95, $3, true)
-                            RETURNING id
-                        """, node['domain_id'], f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}", 
-                        json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]}))
+                        content_kn = f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}"
+                        meta_kn = json.dumps({"source": "cross_domain_linker", "parents": [str(node['id'])]})
+                        embedding = None
+                        try:
+                            from semantic_cache import get_embedding
+                            embedding = await get_embedding(content_kn[:8000])
+                        except Exception:
+                            pass
+                        if embedding is not None:
+                            kn_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
+                                VALUES ($1, $2, 0.95, $3, true, $4::vector)
+                                RETURNING id
+                            """, node['domain_id'], content_kn, meta_kn, str(embedding))
+                        else:
+                            kn_id = await conn.fetchval("""
+                                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                                VALUES ($1, $2, 0.95, $3, true)
+                                RETURNING id
+                            """, node['domain_id'], content_kn, meta_kn)
                         
                         # Публикация в Redis Stream для мгновенной реакции других агентов
                         await rd.xadd("knowledge_stream", {"type": "synthetic_link", "content": hypothesis})
@@ -136,8 +150,11 @@ async def run_orchestration_cycle():
             expert_count = await conn.fetchval("SELECT count(*) FROM experts WHERE department = $1", desert['name'])
             if expert_count == 0:
                 print(f"🕵️ [ORCHESTRATOR] Автономный рекрутинг: Domain '{desert['name']}' не имеет экспертов")
-                # TODO: Реализовать автономный рекрутинг через LocalAIRouter вместо subprocess
-                # Пока пропускаем, чтобы не использовать старый путь
+                try:
+                    from expert_generator import recruit_expert
+                    await recruit_expert(desert['name'])
+                except Exception as rec_err:
+                    print(f"⚠️ [ORCHESTRATOR] Рекрутинг не выполнен: {rec_err}")
 
             curiosity_task = f"Проведи глубокое исследование новых технологий и трендов 2026 в области {desert['name']}. Найди 3 прорывных инсайта."
             

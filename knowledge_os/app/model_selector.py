@@ -37,6 +37,7 @@ async def check_model_available(model_name: str, mlx_url: str = None, timeout: f
         else:
             mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
     
+    global _models_cache
     # Проверяем кэш сначала
     current_time = time.time()
     if _models_cache["data"] and (current_time - _models_cache["timestamp"]) < _MODELS_CACHE_TTL:

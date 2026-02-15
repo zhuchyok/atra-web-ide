@@ -66,33 +66,21 @@ class IntelligentModelRouter:
         
         # Базовые способности моделей (обновляются на основе реальных данных)
         self._base_capabilities = {
-            'phi3.5:3.8b': ModelCapability(
-                model_name='phi3.5:3.8b',
-                task_types=['fast', 'general', 'simple_query'],
-                avg_quality=0.7,
-                avg_latency_ms=500,
-                success_rate=0.85,
-                cost_per_token=0.1,
+            'qwen3-coder-next:latest': ModelCapability(
+                model_name='qwen3-coder-next:latest',
+                task_types=['coding', 'complex_coding', 'planning', 'architecture'],
+                avg_quality=0.98,
+                avg_latency_ms=5000,
+                success_rate=0.99,
+                cost_per_token=1.0,
                 max_context=128000,
-                reasoning_capability=0.6,
-                coding_capability=0.65,
-                speed_capability=0.9
-            ),
-            'glm-4.7-flash:q8_0': ModelCapability(  # Ollama модель (Mac Studio)
-                model_name='glm-4.7-flash:q8_0',
-                task_types=['coding', 'reasoning', 'general'],
-                avg_quality=0.85,
-                avg_latency_ms=1200,
-                success_rate=0.92,
-                cost_per_token=0.3,
-                max_context=198000,
-                reasoning_capability=0.85,
-                coding_capability=0.9,
-                speed_capability=0.7
+                reasoning_capability=0.98,
+                coding_capability=0.99,
+                speed_capability=0.2
             ),
             'qwen2.5-coder:32b': ModelCapability(
                 model_name='qwen2.5-coder:32b',
-                task_types=['coding', 'complex_coding'],
+                task_types=['coding', 'complex_coding', 'general'],
                 avg_quality=0.9,
                 avg_latency_ms=2000,
                 success_rate=0.95,
@@ -102,130 +90,164 @@ class IntelligentModelRouter:
                 coding_capability=0.95,
                 speed_capability=0.5
             ),
-            'deepseek-r1-distill-llama:70b': ModelCapability(
-                model_name='deepseek-r1-distill-llama:70b',
-                task_types=['reasoning', 'complex_reasoning', 'planning'],
+            'qwq:32b': ModelCapability(
+                model_name='qwq:32b',
+                task_types=['reasoning', 'complex_reasoning', 'logic'],
                 avg_quality=0.95,
-                avg_latency_ms=3000,
-                success_rate=0.98,
-                cost_per_token=0.8,
+                avg_latency_ms=4000,
+                success_rate=0.97,
+                cost_per_token=0.7,
                 max_context=128000,
-                reasoning_capability=0.98,
+                reasoning_capability=0.99,
                 coding_capability=0.8,
                 speed_capability=0.3
+            ),
+            'glm-4.7-flash:q8_0': ModelCapability(
+                model_name='glm-4.7-flash:q8_0',
+                task_types=['coding', 'reasoning', 'general', 'fast'],
+                avg_quality=0.85,
+                avg_latency_ms=1200,
+                success_rate=0.92,
+                cost_per_token=0.3,
+                max_context=198000,
+                reasoning_capability=0.85,
+                coding_capability=0.9,
+                speed_capability=0.7
+            ),
+            'tinyllama:1.1b-chat': ModelCapability(
+                model_name='tinyllama:1.1b-chat',
+                task_types=['fast', 'simple_query'],
+                avg_quality=0.5,
+                avg_latency_ms=300,
+                success_rate=0.8,
+                cost_per_token=0.05,
+                max_context=2048,
+                reasoning_capability=0.3,
+                coding_capability=0.2,
+                speed_capability=0.95
             )
         }
-    
+
     async def get_pool(self):
-        if not ASYNCPG_AVAILABLE or asyncpg is None:
-            return None
-        if self._pool is None:
-            self._pool = await asyncpg.create_pool(
-                self.db_url,
-                min_size=1,
-                max_size=3,
-                max_inactive_connection_lifetime=300
-            )
+        """Получить пул соединений с БД (мировая практика: переиспользование соединений)"""
+        if self._pool is None and ASYNCPG_AVAILABLE:
+            try:
+                self._pool = await asyncpg.create_pool(self.db_url)
+            except Exception as e:
+                logger.warning(f"Не удалось создать пул БД для роутера: {e}")
         return self._pool
-    
+
     def estimate_task_complexity(self, prompt: str, category: str = None) -> TaskComplexity:
         """
-        Оценка сложности задачи на основе мировых практик
-        Использует анализ промпта и категории
+        Оценивает сложность задачи на основе промпта и категории.
         """
-        prompt_lower = prompt.lower()
-        prompt_length = len(prompt)
+        prompt_lower = (prompt or "").lower()
         
-        # Признаки сложности
-        reasoning_indicators = ['подумай', 'логика', 'рассужд', 'анализ', 'стратегия', 'планир', 'архитектура']
-        coding_indicators = ['код', 'программируй', 'функция', 'класс', 'алгоритм', 'реализуй', 'напиши код']
-        creativity_indicators = ['создай', 'придумай', 'дизайн', 'креатив', 'инновац']
+        # 1. Определяем тип задачи
+        task_type = category or 'general'
+        if not category:
+            if any(kw in prompt_lower for kw in ['код', 'функци', 'python', 'скрипт', 'refactor', 'рефактор']):
+                task_type = 'coding'
+            elif any(kw in prompt_lower for kw in ['анализ', 'исследуй', 'подумай', 'логика', 'reason']):
+                task_type = 'reasoning'
+            elif len(prompt_lower) < 100:
+                task_type = 'fast'
         
-        requires_reasoning = any(ind in prompt_lower for ind in reasoning_indicators)
-        requires_coding = any(ind in prompt_lower for ind in coding_indicators)
-        requires_creativity = any(ind in prompt_lower for ind in creativity_indicators)
+        # 2. Оценка сложности (0-1)
+        complexity = 0.3  # Базовая сложность
         
-        # Оценка сложности (0-1)
-        complexity_score = 0.0
-        
-        # Базовая сложность по длине
-        if prompt_length < 100:
-            complexity_score += 0.1
-        elif prompt_length < 500:
-            complexity_score += 0.3
-        elif prompt_length < 1000:
-            complexity_score += 0.5
-        else:
-            complexity_score += 0.7
-        
-        # Reasoning добавляет сложности
-        if requires_reasoning:
-            complexity_score += 0.3
-        if requires_coding:
-            complexity_score += 0.2
-        if requires_creativity:
-            complexity_score += 0.2
-        
-        # Категория влияет на сложность
-        if category == 'reasoning':
-            complexity_score = max(complexity_score, 0.7)
-        elif category == 'coding':
-            complexity_score = max(complexity_score, 0.6)
-        elif category == 'fast':
-            complexity_score = min(complexity_score, 0.4)
-        
-        complexity_score = min(complexity_score, 1.0)
-        
-        # Определяем тип задачи
-        if requires_coding:
-            task_type = 'coding'
-        elif requires_reasoning:
-            task_type = 'reasoning'
-        elif category == 'fast' or prompt_length < 300:
-            task_type = 'fast'
-        else:
-            task_type = 'general'
+        # Учитываем длину промпта
+        if len(prompt_lower) > 2000:
+            complexity += 0.4
+        elif len(prompt_lower) > 500:
+            complexity += 0.2
+            
+        # Учитываем ключевые слова сложности
+        if any(kw in prompt_lower for kw in ['сложн', 'архитектур', 'оптимизироват', 'переписат']):
+            complexity += 0.2
+            
+        # 3. Флаги требований
+        requires_reasoning = task_type == 'reasoning' or complexity > 0.6
+        requires_coding = task_type == 'coding'
+        requires_creativity = 'креатив' in prompt_lower or 'стиль' in prompt_lower
         
         return TaskComplexity(
-            complexity_score=complexity_score,
+            complexity_score=min(complexity, 1.0),
             requires_reasoning=requires_reasoning,
             requires_coding=requires_coding,
             requires_creativity=requires_creativity,
-            estimated_tokens=prompt_length // 4,  # Примерная оценка токенов
+            estimated_tokens=len(prompt_lower) // 4,
             task_type=task_type
         )
-    
+
+    def _generate_dynamic_capability(self, model_name: str) -> ModelCapability:
+        """Динамическая генерация способностей для неизвестной модели на основе её имени"""
+        name_lower = model_name.lower()
+        
+        # Определяем тип по ключевым словам
+        task_types = ['general']
+        reasoning = 0.5
+        coding = 0.5
+        quality = 0.7
+        
+        if 'coder' in name_lower or 'code' in name_lower:
+            task_types.extend(['coding', 'complex_coding'])
+            coding = 0.9
+            quality = 0.85
+        if 'reason' in name_lower or 'qwq' in name_lower or 'thought' in name_lower:
+            task_types.extend(['reasoning', 'complex_reasoning', 'logic'])
+            reasoning = 0.9
+            quality = 0.9
+        if 'vision' in name_lower or 'llava' in name_lower or 'moondream' in name_lower:
+            task_types.append('vision')
+            
+        # Оценка качества по размеру (если есть в названии)
+        if '70b' in name_lower or '104b' in name_lower or 'next' in name_lower:
+            quality = max(quality, 0.95)
+        elif '32b' in name_lower or '30b' in name_lower:
+            quality = max(quality, 0.85)
+            
+        return ModelCapability(
+            model_name=model_name,
+            task_types=task_types,
+            avg_quality=quality,
+            avg_latency_ms=2000,
+            success_rate=0.9,
+            cost_per_token=0.5,
+            max_context=32768,
+            reasoning_capability=reasoning,
+            coding_capability=coding,
+            speed_capability=0.5
+        )
+
     async def get_model_capabilities(self, model_name: str) -> Optional[ModelCapability]:
-        """Получить актуальные способности модели на основе реальных данных"""
-        # Проверяем кэш
+        """Получить актуальные способности модели на основе реальных данных или динамически сгенерировать"""
+        # 1. Проверяем кэш
         if model_name in self._model_capabilities_cache:
             cached = self._model_capabilities_cache[model_name]
             if (datetime.now() - cached['timestamp']).seconds < self._cache_ttl:
                 return cached['capability']
         
-        # Получаем из БД (только если asyncpg доступен)
+        # 2. Пытаемся получить из БД
         try:
             pool = await self.get_pool()
-            if pool is None:
-                raise RuntimeError("asyncpg not available")
-            async with pool.acquire() as conn:
-                stats = await conn.fetchrow("""
-                    SELECT 
-                        model_name,
-                        AVG(quality_score) as avg_quality,
-                        AVG(latency_ms) as avg_latency,
-                        COUNT(*) FILTER (WHERE success = true)::float / COUNT(*) as success_rate,
-                        COUNT(*) as total_attempts
-                    FROM model_performance_log
-                    WHERE model_name = $1
-                    AND created_at > NOW() - INTERVAL '7 days'
-                    GROUP BY model_name
-                """, model_name)
-                
-                if stats and stats['total_attempts'] > 10:
-                    # Обновляем базовые способности реальными данными
-                    base = self._base_capabilities.get(model_name)
-                    if base:
+            if pool:
+                async with pool.acquire() as conn:
+                    stats = await conn.fetchrow("""
+                        SELECT 
+                            model_name,
+                            AVG(quality_score) as avg_quality,
+                            AVG(latency_ms) as avg_latency,
+                            COUNT(*) FILTER (WHERE success = true)::float / COUNT(*) as success_rate,
+                            COUNT(*) as total_attempts
+                        FROM model_performance_log
+                        WHERE model_name = $1
+                        AND created_at > NOW() - INTERVAL '7 days'
+                        GROUP BY model_name
+                    """, model_name)
+                    
+                    if stats and stats['total_attempts'] > 10:
+                        base = self._base_capabilities.get(model_name) or self._generate_dynamic_capability(model_name)
                         updated = ModelCapability(
                             model_name=model_name,
                             task_types=base.task_types,
@@ -238,17 +260,15 @@ class IntelligentModelRouter:
                             coding_capability=base.coding_capability,
                             speed_capability=base.speed_capability
                         )
-                        # Кэшируем
-                        self._model_capabilities_cache[model_name] = {
-                            'capability': updated,
-                            'timestamp': datetime.now()
-                        }
+                        self._model_capabilities_cache[model_name] = {'capability': updated, 'timestamp': datetime.now()}
                         return updated
-        except Exception as e:
-            logger.debug(f"Error getting model capabilities: {e}")
-        
-        # Возвращаем базовые способности
-        return self._base_capabilities.get(model_name)
+        except Exception:
+            pass
+            
+        # 3. Если нет в БД, берем из базовых или генерируем
+        cap = self._base_capabilities.get(model_name) or self._generate_dynamic_capability(model_name)
+        self._model_capabilities_cache[model_name] = {'capability': cap, 'timestamp': datetime.now()}
+        return cap
     
     def calculate_model_task_fit(
         self,
@@ -425,7 +445,7 @@ class IntelligentModelRouter:
             }
         
         if not model_scores:
-            return None, 0.0
+            return None, TaskCategory('general'), 0.0
         
         # 5. Выбираем модель с лучшим score
         best_model = max(model_scores.items(), key=lambda x: x[1]['score'])

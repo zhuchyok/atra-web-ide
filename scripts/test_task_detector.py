@@ -11,15 +11,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.agents.bridge.task_detector import detect_task_type, should_use_enhanced
 
+# При PREFER_EXPERTS_FIRST=true (по умолчанию): «напиши/сделай» → enhanced (эксперты), не Veronica. См. VERONICA_REAL_ROLE, task_detector.
 test_cases = [
     ("привет", "simple_chat"),
     ("здравствуй, как дела?", "simple_chat"),
-    ("напиши функцию сортировки", "veronica"),
-    ("сделай проверку кода", "veronica"),
+    ("напиши функцию сортировки", "enhanced"),
+    ("сделай проверку кода", "enhanced"),
     ("проанализируй данные продаж", "department_heads"),
     ("разработай стратегию", "department_heads"),
     ("разработай архитектуру системы", "enhanced"),
     ("покажи файлы в frontend", "veronica"),
+    ("покажи список файлов в корне проекта", "veronica"),
 ]
 
 def main():

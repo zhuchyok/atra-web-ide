@@ -6,6 +6,7 @@
 1. Lessons learned → guidance
 2. Ретроспективы → база знаний
 3. Новые знания → эволюция промптов
+4. Код-релевантные уроки/инсайты → задачи «Внедрить в код»
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ def main():
     logger.info("  ✅ Guidance обновлен: %s", "Да" if results.get("guidance_updated") else "Нет")
     logger.info("  ✅ База знаний обновлена: %s", "Да" if results.get("knowledge_base_updated") else "Нет")
     logger.info("  ✅ Промпты эволюционированы: %s", "Да" if results.get("prompts_evolved") else "Нет")
+    logger.info("  ✅ Задачи «Внедрить в код» созданы: %s", "Да" if results.get("code_tasks_created") else "Нет")
     logger.info("")
     
     if all(results.values()):
@@ -46,8 +48,8 @@ def main():
     # Не все применены — часто это нормально (нет данных в adaptive_learning_logs / interaction_logs)
     applied = sum(1 for v in results.values() if v)
     logger.info(
-        "ℹ️ Применено %d из 3 компонентов. Остальные ждут данных: "
-        "adaptive_learning_logs (impact>0.5) → guidance, interaction_logs (feedback_text) → knowledge_nodes.",
+        "ℹ️ Применено %d из 4 компонентов. Остальные ждут данных: "
+        "adaptive_learning_logs → guidance; interaction_logs → knowledge_nodes; код-релевантные уроки → code tasks.",
         applied
     )
     # Возвращаем 0 — скрипт отработал; 1 только при реальных ошибках (по практикам CI/CD)

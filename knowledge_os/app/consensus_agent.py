@@ -49,7 +49,7 @@ class ConsensusAgent:
     
     def __init__(
         self,
-        model_name: str = "deepseek-r1-distill-llama:70b",
+        model_name: str = "phi3.5:3.8b",
         ollama_url: str = OLLAMA_URL,
         quorum_threshold: float = 0.67,  # 67% для консенсуса
         max_iterations: int = 5
@@ -355,6 +355,27 @@ class ConsensusAgent:
         union = len(words1 | words2)
         
         return intersection / union if union > 0 else 0.0
+
+    @staticmethod
+    def _confidence_from_response_length(response: str) -> float:
+        """
+        Оценка уверенности по длине ответа (эвристика).
+        Пустой/очень короткий ответ — низкая уверенность, развёрнутый — выше.
+        """
+        if not response or not response.strip():
+            return 0.0
+        n = len(response.strip())
+        if n < 20:
+            return 0.25
+        if n < 100:
+            return 0.4
+        if n < 300:
+            return 0.55
+        if n < 600:
+            return 0.7
+        if n < 1200:
+            return 0.82
+        return min(0.95, 0.82 + (n - 1200) / 8000)
     
     async def _generate_agent_response(self, agent_name: str, prompt: str) -> Dict:
         """Генерировать ответ агента"""
@@ -377,9 +398,10 @@ class ConsensusAgent:
                 
                 if response.status_code == 200:
                     result = response.json().get('response', '')
+                    confidence = self._confidence_from_response_length(result)
                     return {
                         "response": result,
-                        "confidence": 0.7,  # TODO: реальная уверенность
+                        "confidence": confidence,
                         "reasoning": None
                     }
                 else:
