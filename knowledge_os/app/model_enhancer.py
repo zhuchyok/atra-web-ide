@@ -218,18 +218,36 @@ class SpeculativeDecodingEngine:
         
         async with httpx.AsyncClient(timeout=60.0) as client:
             # 1. Draft модель генерирует быстрый черновик
-            draft_resp = await client.post(
-                f"{self.ollama_url}/api/generate",
-                json={
-                    "model": draft_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.8,  # Выше для разнообразия
-                        "num_predict": num_draft_tokens
+            # Singularity 10.0: Спекулятивная связка MLX (Draft) + Ollama (Target)
+            logger.info(f"🚀 [SPECULATIVE] Запуск связки: Draft={draft_model} (MLX) -> Target={target_model} (Ollama)")
+            
+            # Пробуем получить черновик из MLX (он быстрее на Apple Silicon)
+            mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+            try:
+                draft_resp = await client.post(
+                    f"{mlx_url}/api/generate",
+                    json={
+                        "model": draft_model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": { "num_predict": num_draft_tokens }
+                    },
+                    timeout=5.0
+                )
+            except:
+                draft_resp = None
+
+            if not draft_resp or draft_resp.status_code != 200:
+                # Fallback на локальный Ollama для draft
+                draft_resp = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": draft_model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": { "num_predict": num_draft_tokens }
                     }
-                }
-            )
+                )
             
             if draft_resp.status_code != 200:
                 # Fallback на обычную генерацию

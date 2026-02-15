@@ -75,12 +75,14 @@ class VeronicaScout:
         except Exception as e:
             logger.error(f"❌ [SCOUT] Ошибка сохранения в БД: {e}")
 
-async def start_scout_daemon(interval_hours: int = 12):
-    """Запуск разведчика как фонового демона."""
+async def start_scout_daemon(interval_hours: int = 6):
+    """Запуск разведчика как фонового демона (Slow Mode)."""
     scout = VeronicaScout()
     while True:
+        # [SLOW MODE] Работаем порциями, чтобы не перегружать Mac Studio
+        logger.info(f"🐢 [SCOUT] Запуск цикла разведки в фоновом режиме (не спеша)...")
         await scout.run_scouting_cycle()
-        logger.info(f"💤 [SCOUT] Сон на {interval_hours} часов...")
+        logger.info(f"💤 [SCOUT] Сон на {interval_hours} часов до следующего цикла...")
         await asyncio.sleep(interval_hours * 3600)
 
 if __name__ == "__main__":

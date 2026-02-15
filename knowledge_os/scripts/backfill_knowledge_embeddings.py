@@ -31,6 +31,9 @@ def _setup_path():
     app_dir = os.path.join(repo, "app")
     if app_dir not in sys.path:
         sys.path.insert(0, app_dir)
+    # Добавляем путь для контейнера
+    if os.path.exists("/app/knowledge_os"):
+        sys.path.insert(0, "/app/knowledge_os")
 
 
 async def run(limit: int = 100) -> int:

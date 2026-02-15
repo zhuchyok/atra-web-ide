@@ -49,7 +49,7 @@ SIMPLE_PATTERNS = [
 # Паттерны для мгновенного ответа (Fast Track), игнорируя USE_VICTORIA_ENHANCED
 FAST_TRACK_PATTERNS = [
     "привет", "hello", "hi", "здравствуй", "добрый день", "добрый вечер",
-    "как дела", "как ты", "кто ты", "спасибо", "thanks", "пока", "bye",
+    "как дела", "как ты", "кто ты", "что ты умеешь", "спасибо", "thanks", "пока", "bye",
     "ping", "pong", "тест", "test"
 ]
 
@@ -2657,6 +2657,7 @@ async def _run_task_background(
         strategy_result = await _select_strategy(agent, goal, session_summary or None)
         if strategy_result.get("strategy") == "need_clarification":
             questions = await _generate_clarification_questions(agent, goal, goal)
+            clarification_text = "Victoria уточняет: " + ("; ".join(questions) if questions else "Нужно уточнение.")
             knowledge = {
                 "needs_clarification": True,
                 "clarification_questions": questions,
@@ -2664,10 +2665,10 @@ async def _run_task_background(
             }
             _inject_strategy_into_knowledge(knowledge, strategy_result)
             if redis_manager:
-                await redis_manager.update_task_status(task_id, "completed", result="", metadata={"knowledge": knowledge, "stage": "clarification"})
+                await redis_manager.update_task_status(task_id, "completed", result=clarification_text, metadata={"knowledge": knowledge, "stage": "clarification"})
             else:
                 store["status"] = "completed"
-                store["output"] = ""
+                store["output"] = clarification_text
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
             return
@@ -2714,11 +2715,13 @@ async def _run_task_background(
                 agent, goal, last_tasks_context=last_tasks_context or None
             )
             if understanding.get("needs_clarification"):
+                questions = understanding.get("clarification_questions") or []
+                clarification_text = "Victoria уточняет: " + ("; ".join(questions) if questions else "Нужно уточнение.")
                 store["status"] = "completed"
-                store["output"] = ""
+                store["output"] = clarification_text
                 store["knowledge"] = {
                     "needs_clarification": True,
-                    "clarification_questions": understanding.get("clarification_questions") or [],
+                    "clarification_questions": questions,
                 }
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
                 return
@@ -3326,6 +3329,9 @@ async def run_task(
             goal_lower = goal.lower().strip()
             if any(p in goal_lower for p in ["привет", "здравствуй", "hello", "hi"]):
                 content = "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
+                source = "static_fallback"
+            elif "что ты умеешь" in goal_lower:
+                content = "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?"
                 source = "static_fallback"
 
         if content:

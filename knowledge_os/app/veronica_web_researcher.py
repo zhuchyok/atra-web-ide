@@ -46,13 +46,20 @@ class VeronicaWebResearcher:
             {"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 2}
         ]
     
-    async def web_search(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+    async def web_search(self, query: str, max_results: int = 5, timeout: Optional[float] = None) -> List[Dict[str, Any]]:
         """
         Веб-поиск через единый модуль web_search_fallback (П.6: DuckDuckGo → Ollama).
         Sync I/O выполняется в run_in_executor, чтобы не блокировать event loop.
         """
         try:
-            from app.web_search_fallback import web_search_sync
+            try:
+                from app.web_search_fallback import web_search_sync
+            except ImportError:
+                from web_search_fallback import web_search_sync
+            
+            # Если таймаут задан, временно меняем его в модуле (через env или напрямую если возможно)
+            # Но web_search_sync сам имеет внутренние таймауты.
+            
             import asyncio
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
@@ -69,7 +76,8 @@ class VeronicaWebResearcher:
         self, 
         prompt: str, 
         web_results: Optional[List[Dict]] = None,
-        category: str = "research"
+        category: str = "research",
+        timeout: float = 120.0
     ) -> str:
         """
         Обработка запроса локальной моделью (без токенов).
@@ -95,6 +103,8 @@ class VeronicaWebResearcher:
             "research": "phi3.5:3.8b",
             "coding": "qwen2.5-coder:32b",  # MLX модель (Mac Studio)
             "fast": "phi3.5:3.8b",  # Ollama модель
+            "vip": "deepseek-r1:32b", # VIP модель для Совета
+            "reasoning": "deepseek-r1:32b",
             "default": "qwen2.5-coder:32b"  # MLX модель (Mac Studio)
         }
         model = model_map.get(category, model_map["default"])
@@ -102,7 +112,7 @@ class VeronicaWebResearcher:
         try:
             logger.info(f"🤖 [VERONICA] Обработка через {healthy_node['name']} (модель: {model})")
             
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     f"{healthy_node['url']}/api/generate",
                     json={
@@ -186,7 +196,8 @@ class VeronicaWebResearcher:
         self, 
         query: str, 
         category: str = "research",
-        use_web: bool = True
+        use_web: bool = True,
+        timeout: float = 120.0
     ) -> Dict[str, Any]:
         """
         Полный цикл: веб-поиск + анализ локальной моделью (без токенов).
@@ -196,7 +207,9 @@ class VeronicaWebResearcher:
         # Шаг 1: Веб-поиск (если нужен)
         web_results = []
         if use_web:
-            web_results = await self.web_search(query, max_results=5)
+            # Для тяжелых задач увеличиваем таймаут поиска
+            search_timeout = 30.0 if category in ("reasoning", "vip") else 15.0
+            web_results = await self.web_search(query, max_results=5, timeout=search_timeout)
         
         # Шаг 2: Анализ локальной моделью
         analysis_prompt = f"""
@@ -206,10 +219,14 @@ class VeronicaWebResearcher:
         ЗАПРОС: {query}
         """
         
+        # Для тяжелых задач увеличиваем таймаут генерации
+        model_timeout = 300.0 if category in ("reasoning", "vip") else timeout
+        
         answer = await self.process_with_local_model(
             analysis_prompt,
             web_results=web_results if web_results else None,
-            category=category
+            category=category,
+            timeout=model_timeout
         )
         
         return {

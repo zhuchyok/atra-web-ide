@@ -430,7 +430,7 @@ async def run_board_meeting():
                 print("⚠️ ai_core не доступен, используем run_cursor_agent как fallback")
                 directive = run_cursor_agent(board_prompt)
             
-            if directive:
+            if directive and len(directive) > 20 and "Ошибка" not in directive and "❌" not in directive:
                 # 4. Парсинг структуры
                 structured_decision = parse_directive_structure(directive)
                 
@@ -532,6 +532,8 @@ async def run_board_meeting():
                         
                 except Exception as e:
                     print(f"⚠️ Не удалось опубликовать Markdown отчет: {e}")
+            else:
+                print("❌ Директива не получена или содержит ошибку. Сохранение пропущено.")
     
     except Exception as e:
         print(f"❌ Board meeting error: {e}")

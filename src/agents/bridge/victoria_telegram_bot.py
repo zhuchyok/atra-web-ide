@@ -16,6 +16,7 @@ import httpx
 import base64
 import io
 import time
+import fcntl
 from typing import Optional, List, Any, Dict, Set
 from datetime import datetime, timezone
 from pydantic import BaseModel
@@ -423,7 +424,15 @@ async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", cha
                         rec = sr.json()
                         st = rec.get("status", "")
                         if st == "completed":
-                            return rec.get("output") or "Задача выполнена"
+                            output = rec.get("output")
+                            if not output:
+                                # Проверяем на уточняющие вопросы
+                                knowledge = rec.get("knowledge") or {}
+                                qs = knowledge.get("clarification_questions") or rec.get("clarification_questions")
+                                if qs:
+                                    return "Victoria уточняет: " + ("; ".join(qs) if isinstance(qs, list) else str(qs))
+                                return "Задача выполнена"
+                            return output
                         if st == "failed":
                             return rec.get("error") or "Ошибка выполнения"
                 except Exception:
@@ -790,6 +799,17 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
 
 async def telegram_bridge():
     """Главный цикл Telegram бота"""
+    # Защита от двойного запуска на уровне Python (file locking)
+    lock_file_path = os.path.join(os.path.dirname(__file__), "../../../.victoria_bot.lock")
+    lock_file = open(lock_file_path, 'w')
+    try:
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_file.write(str(os.getpid()))
+        lock_file.flush()
+    except (IOError, OSError):
+        logger.error("❌ Другой экземпляр бота уже запущен (lock file занят). Выход.")
+        sys.exit(0)
+
     if not TELEGRAM_BOT_TOKEN:
         logger.error("❌ TELEGRAM_BOT_TOKEN не установлен! Бот не может работать.")
         return
@@ -831,6 +851,9 @@ async def telegram_bridge():
     
     while True:
         try:
+            # Обновляем пульс в начале каждого цикла ожидания обновлений
+            update_heartbeat()
+            
             offset, updates = await get_telegram_updates(offset)
             
             for update in updates:

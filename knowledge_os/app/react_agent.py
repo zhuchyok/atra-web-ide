@@ -110,6 +110,18 @@ class ReActAgent:
         except Exception as e:
             logger.warning(f"⚠️ Skill Registry недоступен: {e}")
 
+        # Инициализация Sandbox Manager
+        try:
+            try:
+                from sandbox_manager import get_sandbox_manager
+            except ImportError:
+                from app.sandbox_manager import get_sandbox_manager
+            self.sandbox_manager = get_sandbox_manager()
+            logger.info("✅ SandboxManager подключен к ReActAgent")
+        except Exception as e:
+            self.sandbox_manager = None
+            logger.warning(f"⚠️ SandboxManager недоступен: {e}")
+
         # SafeFileWriter для create_file/write_file (бэкапы, проверка путей)
         try:
             try:
@@ -827,6 +839,16 @@ class ReActAgent:
             elif action == "run_terminal_cmd":
                 command = action_input.get("command") or action_input.get("cmd") or ""
                 if not command: return "Error: command не указан"
+                
+                # Если доступен SandboxManager, выполняем в песочнице
+                if self.sandbox_manager:
+                    logger.info(f"🧪 [SANDBOX] Перенаправление команды в песочницу {self.agent_name}")
+                    sb_result = await self.sandbox_manager.run_in_sandbox(self.agent_name, command)
+                    if "error" in sb_result:
+                        return f"Sandbox Error: {sb_result['error']}"
+                    return f"STDOUT: {sb_result.get('output', '')}\nEXIT CODE: {sb_result.get('exit_code', 0)}"
+                
+                # Fallback на локальное выполнение (если Docker недоступен)
                 import subprocess
                 result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
                 return f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"

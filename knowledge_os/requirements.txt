@@ -68,3 +68,6 @@ Pillow>=10.0.0
 
 # Веб-поиск: Veronica, researcher, scout (duckduckgo_search — без API-ключа)
 duckduckgo-search>=6.0.0
+
+# Docker SDK для Песочниц
+docker>=7.0.0

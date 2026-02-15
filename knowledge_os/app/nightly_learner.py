@@ -249,6 +249,8 @@ async def run_expert_council(conn, knowledge_id, content, original_expert_id):
     """
     _log_step(f"[NIGHTLY] Enhanced Expert Council (Red Team) starting for knowledge_id={knowledge_id}")
     try:
+        import gc
+        gc.collect()
         # 1. Выбираем автора и оппонентов
         author = await conn.fetchrow("SELECT name, role FROM experts WHERE id = $1", original_expert_id)
         opponents = await conn.fetch("""
@@ -374,6 +376,9 @@ async def nightly_learning_cycle():
         print(f"📚 Найдено экспертов для обучения: {total_experts}")
         
         for idx, expert in enumerate(experts):
+            if idx % 10 == 0:
+                import gc
+                gc.collect()
             _log_step(f"[NIGHTLY] Expert {idx + 1}/{total_experts}: {expert.get('name', '?')}")
             expert_name = expert['name']
             expert_role = expert['role']
@@ -596,6 +601,8 @@ async def nightly_learning_cycle():
         # --- ФАЗА 11: APPLY ALL KNOWLEDGE (SINGULARITY 10.0) ---
         _log_step("🧠 Applying knowledge (lessons → guidance, retrospectives → knowledge_nodes, insights → tasks)...")
         try:
+            import gc
+            gc.collect()
             from pathlib import Path
             _app_dir = Path(__file__).resolve().parent
             _ko_root = _app_dir.parent
@@ -613,6 +620,8 @@ async def nightly_learning_cycle():
         # --- ФАЗА 12: DASHBOARD DAILY IMPROVEMENT (SINGULARITY 10.0) ---
         _log_step("📊 Running dashboard improvement cycle...")
         try:
+            import gc
+            gc.collect()
             from dashboard_daily_improver import run_dashboard_improvement_cycle
             dash_result = await run_dashboard_improvement_cycle()
             if dash_result.get("tasks_created", 0) > 0:

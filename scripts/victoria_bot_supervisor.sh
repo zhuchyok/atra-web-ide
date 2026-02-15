@@ -49,7 +49,18 @@ start_bot() {
 
 check_bot() {
     # 1. Проверка процесса по имени модуля
-    PID=$(pgrep -f "$BOT_MODULE" | head -n 1)
+    PIDS=$(pgrep -f "$BOT_MODULE")
+    
+    # Если процессов несколько - это аномалия, убиваем все кроме, возможно, последнего, 
+    # но надежнее убить все и дать супервизору запустить один чистый
+    COUNT=$(echo "$PIDS" | wc -w)
+    if [ "$COUNT" -gt 1 ]; then
+        log "⚠️ Обнаружено несколько процессов бота ($COUNT). Очистка..."
+        pkill -9 -f "$BOT_MODULE"
+        return 1
+    fi
+
+    PID=$(echo "$PIDS" | head -n 1)
     if [ -z "$PID" ]; then
         log "⚠️ Процесс бота не найден!"
         return 1
@@ -67,14 +78,15 @@ check_bot() {
 
     if [ "$STATUS" == "error" ]; then
         log "❌ Health Check вернул ERROR"
+        pkill -9 -f "$BOT_MODULE"
         return 1
     fi
 
     if [ -n "$AGE" ]; then
         # Если пульса нет более 5 минут — считаем зависшим
         if (( $(echo "$AGE > 300" | bc -l) )); then
-            log "❌ Пульс бота устарел ($AGE сек), возможно зависание"
-            kill -9 "$PID"
+            log "❌ Пульс бота устарел ($AGE сек), возможно зависание. Очистка всех копий..."
+            pkill -9 -f "$BOT_MODULE"
             return 1
         fi
     fi

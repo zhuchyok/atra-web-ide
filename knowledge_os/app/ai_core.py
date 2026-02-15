@@ -415,8 +415,20 @@ async def _run_cloud_agent_async(prompt: str):
         return f"❌ Ошибка связи с облаком: {exc}"
 
     async def _get_knowledge_context(self, query: str) -> str:
-        """Retrieve relevant knowledge nodes (RAG) - знания корпорации + AI Research (Singularity 10.0)."""
+        """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 10.0)."""
         try:
+            # 1. Пробуем новый GraphRAG (Singularity 10.0)
+            try:
+                from app.graphrag.graphrag_service import get_graphrag_service
+                graphrag = get_graphrag_service()
+                graph_context = await graphrag.retrieve_graph_context(query)
+                if graph_context:
+                    logger.info("🌐 [GRAPHRAG] Использован глобальный контекст и логические цепочки")
+                    return graph_context
+            except Exception as ge:
+                logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
+
+            # 2. Fallback на стандартный векторный RAG
             embedding = await get_embedding(query)
             if not embedding: return ""
             pool = await _get_db_pool()
@@ -469,6 +481,7 @@ async def run_smart_agent_async(
     images: Optional[list] = None,
     session_id: Optional[str] = None,
     local_router=None,
+    is_vip: bool = False,
 ):
     """
     Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 10.0).
@@ -1084,6 +1097,10 @@ async def run_smart_agent_async(
         "последние", "2025", "2024", "сегодня", "недавно", "latest", "recent"
     ])
     
+    # Для VIP/Reasoning задач (Совет) веб-поиск теперь разрешен, но с защитой от таймаутов
+    if (is_vip or category in ("reasoning", "vip")) and needs_web_search:
+        logger.info("🏛️ [BOARD WEB] Включен веб-поиск для стратегической задачи")
+    
     use_local_route = bool(router and (images or router.should_use_local(prompt, category)) or needs_web_search)
     if use_local_route:
         logger.info("🏠 [ROUTE] Выбран локальный маршрут (Ollama/MLX): images=%s, should_use_local=%s, needs_web=%s",
@@ -1099,7 +1116,8 @@ async def run_smart_agent_async(
             result = await veronica.research_and_analyze(
                 user_part,
                 category=category or "research",
-                use_web=True
+                use_web=True,
+                timeout=600.0 if (is_vip or category in ("reasoning", "vip")) else 120.0
             )
             
             if result and result.get('analysis'):
@@ -1204,7 +1222,7 @@ async def run_smart_agent_async(
             # Обычный локальный маршрут (без параллельной обработки)
             if router:
                 logger.info("🏠 [LOCAL ROUTE] %s", expert_name)
-                local_result = await router.run_local_llm(prompt, category=category, images=images)
+                local_result = await router.run_local_llm(prompt, category=category, images=images, is_vip=is_vip)
                 local_resp, routing_source = local_result if isinstance(local_result, tuple) else (local_result, None)
             else:
                 # Fallback на облако отключен

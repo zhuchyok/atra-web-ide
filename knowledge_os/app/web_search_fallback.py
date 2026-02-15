@@ -22,8 +22,8 @@ OLLAMA_WEB_SEARCH_URL = "https://ollama.com/api/web_search"
 
 # Конфиг: порядок провайдеров (через запятую), таймауты в секундах, макс ретраев на провайдера
 WEB_SEARCH_PROVIDERS = (os.getenv("WEB_SEARCH_PROVIDERS") or "duckduckgo,ollama").strip().lower().split(",")
-WEB_SEARCH_TIMEOUT_DUCKDUCKGO = float(os.getenv("WEB_SEARCH_TIMEOUT_DUCKDUCKGO", "10"))
-WEB_SEARCH_TIMEOUT_OLLAMA = float(os.getenv("WEB_SEARCH_TIMEOUT_OLLAMA", "15"))
+WEB_SEARCH_TIMEOUT_DUCKDUCKGO = float(os.getenv("WEB_SEARCH_TIMEOUT_DUCKDUCKGO", "30"))
+WEB_SEARCH_TIMEOUT_OLLAMA = float(os.getenv("WEB_SEARCH_TIMEOUT_OLLAMA", "45"))
 WEB_SEARCH_MAX_RETRIES = int(os.getenv("WEB_SEARCH_MAX_RETRIES", "2"))
 
 
