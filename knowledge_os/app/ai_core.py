@@ -151,6 +151,19 @@ try:
 except ImportError:
     EmotionDetector = None  # type: ignore
 
+try:
+    from architecture_profiler import profile_function  # type: ignore
+except ImportError:
+    def profile_function(module_name: str):
+        def decorator(func):
+            return func
+        return decorator
+
+try:
+    from traffic_mirror import get_traffic_mirror  # type: ignore
+except ImportError:
+    get_traffic_mirror = None
+
 logger = logging.getLogger(__name__)
 
 # Retry config for transient LLM failures (503, timeout, connection)
@@ -416,6 +429,14 @@ async def _run_cloud_agent_async(prompt: str):
 
     async def _get_knowledge_context(self, query: str) -> str:
         """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 10.0)."""
+        return await self._get_knowledge_context_impl(query)
+
+    @profile_function("ai_core")
+    async def _get_knowledge_context_impl(self, query: str) -> str:
+        """Implementation of knowledge retrieval."""
+        if get_traffic_mirror:
+            tm = get_traffic_mirror()
+            await tm.mirror_request("ai_core", "_get_knowledge_context", query)
         try:
             # 1. Пробуем новый GraphRAG (Singularity 10.0)
             try:
@@ -488,6 +509,22 @@ async def run_smart_agent_async(
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
     Critial tasks are cross-verified by lfm2.5-thinking.
     """
+    return await run_smart_agent_async_impl(
+        prompt, expert_name, category, require_cot, is_critical, images, session_id, local_router, is_vip
+    )
+
+@profile_function("ai_core")
+async def run_smart_agent_async_impl(
+    prompt: str,
+    expert_name: str = "Виктория",
+    category: Optional[str] = None,
+    require_cot: bool = False,
+    is_critical: bool = False,
+    images: Optional[list] = None,
+    session_id: Optional[str] = None,
+    local_router=None,
+    is_vip: bool = False,
+):
     import time
     start_time = time.time()
     request_id = f"{expert_name}_{int(time.time())}"

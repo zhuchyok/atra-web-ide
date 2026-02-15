@@ -297,6 +297,57 @@ class ServiceMonitor:
     
     async def _try_restart_mlx_server(self):
         """Попытка перезапуска MLX Server через Supervisor"""
+        # ... existing code ...
+
+    async def promote_mutation(self, module_name: str, mutation_path: str):
+        """[SINGULARITY 10.0] Atomically promote a mutated code version to production."""
+        target_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", f"{module_name}.py")
+        backup_path = target_path + ".bak"
+        
+        logger.info(f"🚀 [HOT-SWAP] Promoting mutation for {module_name}...")
+        
+        try:
+            # 1. Create backup
+            if os.path.exists(target_path):
+                import shutil
+                shutil.copy2(target_path, backup_path)
+            
+            # 2. Atomic swap
+            os.replace(mutation_path, target_path)
+            
+            # 3. Restart relevant services
+            # For ai_core, we might need to restart the main agent process
+            # In Docker, this could be a container restart
+            logger.info(f"✅ [HOT-SWAP] Successfully promoted {module_name}. Restarting services...")
+            
+            # Trigger event for other components to react
+            event = Event(
+                event_id=f"hot_swap_{module_name}_{int(time.time())}",
+                event_type=EventType.SERVICE_UP, # Use UP to trigger re-init
+                payload={
+                    "type": "hot_swap",
+                    "module": module_name,
+                    "status": "completed"
+                },
+                source="service_monitor"
+            )
+            await self.event_bus.publish(event)
+            
+        except Exception as e:
+            logger.error(f"❌ [HOT-SWAP] Promotion failed for {module_name}: {e}")
+            await self.rollback_mutation(module_name)
+
+    async def rollback_mutation(self, module_name: str):
+        """Rollback to the previous version from backup."""
+        target_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", f"{module_name}.py")
+        backup_path = target_path + ".bak"
+        
+        if os.path.exists(backup_path):
+            logger.warning(f"🔄 [ROLLBACK] Rolling back {module_name} to backup...")
+            os.replace(backup_path, target_path)
+            logger.info(f"✅ [ROLLBACK] Successfully rolled back {module_name}.")
+        else:
+            logger.error(f"❌ [ROLLBACK] No backup found for {module_name}!")
         try:
             from app.mlx_server_supervisor import get_mlx_supervisor
             
