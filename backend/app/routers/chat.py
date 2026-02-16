@@ -1,5 +1,5 @@
 """
-Chat Router - SSE стриминг для AI чата (Singularity 10.0 Unified)
+Chat Router - SSE стриминг для AI чата (Singularity 14.0 Unified)
 Прокси-роутер, передающий все запросы в Victoria Agent.
 """
 from fastapi import APIRouter, Depends, HTTPException
@@ -87,7 +87,7 @@ async def stream_message(
     message: ChatMessage,
     victoria: VictoriaClient = Depends(get_victoria_client)
 ):
-    """SSE стриминг ответа (Singularity 10.0 Unified) — прокси к Victoria /stream"""
+    """SSE стриминг ответа (Singularity 14.0 Unified) — прокси к Victoria /stream"""
     acquired = await acquire_victoria_slot()
     if not acquired:
         return JSONResponse(

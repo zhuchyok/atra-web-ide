@@ -1,5 +1,5 @@
 # ATRA Web IDE - Docker Compose
-# Браузерная оболочка для Singularity 10.0
+# Браузерная оболочка для Singularity 14.0
 #
 # Запуск: docker-compose up -d
 # Открыть: http://localhost:3000

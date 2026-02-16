@@ -468,7 +468,7 @@ log ""
     fi
     log ""
 
-    # 11. Проверка и перезапуск Telegram бота (Singularity 10.0)
+    # 11. Проверка и перезапуск Telegram бота (Singularity 14.0)
     log "[11/11] Проверка Telegram бота..."
     if pgrep -f "src.agents.bridge.victoria_telegram_bot" > /dev/null; then
         log "✅ Telegram бот: работает"

@@ -58,7 +58,7 @@ async def process_task(task_data: dict):
             
             await redis_manager.update_task_status(task_id, "in_progress", metadata={"expert": expert_name})
             
-            # 2. Выполняем через AI Core или ReAct Agent (Singularity 10.0)
+            # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
             if task_data.get("metadata", {}).get("complex") or expert_name == "Виктория":
                 logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
                 try:
@@ -67,7 +67,7 @@ async def process_task(task_data: dict):
                     # Сингулярность 10.0: Передаем цель в метод run()
                     report = await agent.run(goal=description)
                     
-                    # Проверка на пустой результат (Singularity 10.0: Anti-Loop)
+                    # Проверка на пустой результат (Singularity 14.0: Anti-Loop)
                     if isinstance(report, dict):
                         report_text = report.get("response") or report.get("result") or ""
                         # Если агент вернул finish без текста, но задача не выполнена (нет созданных файлов в логах шагов)
@@ -159,7 +159,7 @@ async def worker_loop():
     except Exception:
         pass # Группа уже существует
 
-    # Запускаем систему самообучения корпорации (Singularity 10.0)
+    # Запускаем систему самообучения корпорации (Singularity 14.0)
     try:
         from corporation_self_learning import get_corporation_learner
         learner = get_corporation_learner()

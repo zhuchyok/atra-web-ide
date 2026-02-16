@@ -1,6 +1,6 @@
 """
 ATRA Web IDE - FastAPI Backend (Улучшенная версия)
-Браузерная оболочка для Singularity 10.0
+Браузерная оболочка для Singularity 14.0
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -189,7 +189,7 @@ async def lifespan(app: FastAPI):
 # FastAPI приложение
 app = FastAPI(
     title=settings.app_name,
-    description="Браузерная оболочка для ИИ-корпорации Singularity 10.0",
+    description="Браузерная оболочка для ИИ-корпорации Singularity 14.0",
     version=settings.api_version,
     lifespan=lifespan,
     docs_url="/docs",

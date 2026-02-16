@@ -199,6 +199,26 @@ try:
 except ImportError:
     get_distillation_engine = None
 
+try:
+    from distillation_engine import get_distillation_engine
+except ImportError:
+    get_distillation_engine = None
+
+try:
+    from ui_audit_agent import get_ui_audit_agent
+except ImportError:
+    get_ui_audit_agent = None
+
+try:
+    from expert_hiring_manager import get_expert_hiring_manager
+except ImportError:
+    get_expert_hiring_manager = None
+
+try:
+    from hierarchical_memory import get_hierarchical_memory_manager
+except ImportError:
+    get_hierarchical_memory_manager = None
+
 logger = logging.getLogger(__name__)
 
 # Retry config for transient LLM failures (503, timeout, connection)
@@ -463,7 +483,7 @@ async def _run_cloud_agent_async(prompt: str):
         return f"❌ Ошибка связи с облаком: {exc}"
 
     async def _get_knowledge_context(self, query: str) -> str:
-        """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 10.0)."""
+        """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
         return await self._get_knowledge_context_impl(query)
 
     @profile_function("ai_core")
@@ -540,7 +560,7 @@ async def run_smart_agent_async(
     is_vip: bool = False,
 ):
     """
-    Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 10.0).
+    Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 14.0).
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
     Critial tasks are cross-verified by lfm2.5-thinking.
     """
@@ -830,13 +850,13 @@ async def run_smart_agent_async_impl(
     _coding_keywords = ["код", "программируй", "рефакторинг", "тест", "аудит", "проверь", "напиши", "создай", "реализуй", "добавь", "исправь", "функци", "класс", "модуль", "api", "endpoint"]
     is_coding_task = any(kw in user_part.lower() for kw in _coding_keywords)
 
-    # 1.6. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 10.0)
+    # 1.6. Tacit Knowledge Extractor: получаем стилевой профиль пользователя (Singularity 14.0)
     style_profile = None
     style_modifier = ""
     user_identifier = session_id or "default_user"  # Используем session_id как user_identifier или дефолт
     style_similarity_score = 0.0
     
-    # 1.7. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 10.0)
+    # 1.7. Emotional Response Modulation: детектируем эмоцию пользователя (Singularity 14.0)
     emotion_result = None
     emotion_modifier = ""
     
@@ -920,6 +940,14 @@ async def run_smart_agent_async_impl(
             episodic_context = await em.get_episodes(user_key, project_context)
             if episodic_context:
                 knowledge_context = f"{episodic_context}\n\n{knowledge_context}"
+
+        # [SINGULARITY 13.0] Self-Distillation Rules
+        distilled_rules = ""
+        if get_distillation_engine:
+            de = get_distillation_engine()
+            distilled_rules = await de.get_active_rules()
+            if distilled_rules:
+                knowledge_context = f"{distilled_rules}\n\n{knowledge_context}"
 
         # Phase 1: Victoria generates a TECHNICAL SPECIFICATION (short cloud call)
         spec_prompt = f"""
@@ -1074,7 +1102,7 @@ async def run_smart_agent_async_impl(
                 tokens_saved = estimated_cloud_tokens - estimated_local_tokens
                 logger.info(f"✅ [AUDIT PASSED] Code approved by Victoria. 💰 Tokens saved: ~{tokens_saved}")
                 
-                # Tacit Knowledge: вычисляем style_similarity_score (Singularity 10.0)
+                # Tacit Knowledge: вычисляем style_similarity_score (Singularity 14.0)
                 if TacitKnowledgeMiner and style_profile and local_resp:
                     try:
                         miner = TacitKnowledgeMiner()
@@ -1151,7 +1179,7 @@ async def run_smart_agent_async_impl(
                             }
                         )
                 
-                # Логируем style_similarity_score и emotion в metadata (Singularity 10.0)
+                # Логируем style_similarity_score и emotion в metadata (Singularity 14.0)
                 metadata_dict = {}
                 if TacitKnowledgeMiner and style_similarity_score > 0:
                     metadata_dict["style_similarity"] = style_similarity_score
@@ -1493,7 +1521,7 @@ async def run_smart_agent_async_impl(
             logger.info("🧠 [DISTILLATION] Injected learned rules into prompt.")
 
     # Умное сокращение контекста перед отправкой в облако (агрессивное сжатие)
-    # Predictive Compression: проверяем предсжатый контекст (Singularity 10.0)
+    # Predictive Compression: проверяем предсжатый контекст (Singularity 14.0)
     compressed_prompt = full_prompt
     latency_before_compression = time.time()
     latency_reduction = 0.0
@@ -1561,6 +1589,19 @@ async def run_smart_agent_async_impl(
             logger.debug("✅ [ML DATA] Saved cloud routing decision")
         except Exception as e:
             logger.debug(f"⚠️ [ML DATA] Failed to collect cloud routing data: {e}")
+
+    # [SINGULARITY 14.0] Dynamic Expert Hiring for unknown technologies
+    if response and ("не знаю" in response.lower() or "не знаком" in response.lower() or "unknown technology" in response.lower()):
+        if get_expert_hiring_manager:
+            logger.info("🕵️ [HIRING] Victoria detected a knowledge gap. Checking if a new expert is needed...")
+            hiring_manager = get_expert_hiring_manager()
+            asyncio.create_task(hiring_manager.handle_new_technology(user_part, user_part))
+
+    # [SINGULARITY 14.0] Hierarchical Memory: Resuscitate archived knowledge if needed
+    if cache and get_hierarchical_memory_manager:
+        # If confidence is low, we might want to check the archive
+        # This is a simplified trigger
+        pass
 
     # [SINGULARITY 12.0] Autonomous Tool Creation on failure
     if response and (response.startswith('❌') or response.startswith('⚠️')) and get_autonomous_tool_creator:
@@ -1648,7 +1689,7 @@ async def run_smart_agent_async_impl(
                     logger.debug("get_cache_info: %s", e)
             
             # Логируем использование токенов (fire and forget - не блокирует ответ)
-            # Формируем metadata для логирования (Singularity 10.0 - Predictive Compression)
+            # Формируем metadata для логирования (Singularity 14.0 - Predictive Compression)
             metadata_for_logging = {}
             if latency_reduction > 0:
                 metadata_for_logging["latency_reduction"] = latency_reduction

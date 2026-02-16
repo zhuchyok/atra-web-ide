@@ -824,7 +824,10 @@ async def nightly_learning_cycle():
         # --- ФАЗА 18: SELF-DISTILLATION (SINGULARITY 13.0) ---
         _log_step("🧠 Running Recursive Self-Distillation cycle...")
         try:
-            from distillation_engine import get_distillation_engine
+            try:
+                from distillation_engine import get_distillation_engine
+            except ImportError:
+                from app.distillation_engine import get_distillation_engine
             engine = get_distillation_engine()
             success = await engine.run_cycle()
             if success:

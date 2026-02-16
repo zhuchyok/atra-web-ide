@@ -3151,7 +3151,7 @@ async def _generate_via_mlx_or_ollama(
 @app.post("/stream")
 async def run_task_stream(body: TaskRequest, request: Request):
     """
-    SSE стриминг ответа (Singularity 10.0 Unified).
+    SSE стриминг ответа (Singularity 14.0 Unified).
     Цепочка выбора: Fast Path (MLX/Ollama) → Expert Path (Victoria Enhanced).
     """
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())

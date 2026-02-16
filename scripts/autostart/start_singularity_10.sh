@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# --- ATRA Singularity 10.0 Autostart Script ---
+# --- ATRA Singularity 14.0 Autostart Script ---
 # Этот скрипт запускает всю инфраструктуру микросервисов.
 
 PROJECT_ROOT="/Users/bikos/Documents/atra-web-ide"
 cd "$PROJECT_ROOT"
 
-echo "🚀 Запуск Singularity 10.0..."
+echo "🚀 Запуск Singularity 14.0..."
 
 # 1. Проверка и запуск Docker
 if ! docker info > /dev/null 2>&1; then

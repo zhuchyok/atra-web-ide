@@ -165,7 +165,7 @@ class VictoriaClient:
         mode: str = "agent",
     ) -> AsyncGenerator[str, None]:
         """
-        Стриминг ответа от Victoria (Singularity 10.0 Unified).
+        Стриминг ответа от Victoria (Singularity 14.0 Unified).
         Вызывает эндпоинт /stream на сервере Victoria.
         """
         from app.config import get_settings
