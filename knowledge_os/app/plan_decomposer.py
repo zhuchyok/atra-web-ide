@@ -7,6 +7,11 @@ import logging
 import re
 from typing import Dict, List, Optional, Any
 
+try:
+    from mcts_planner import get_mcts_planner
+except ImportError:
+    get_mcts_planner = None
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -177,6 +182,14 @@ class PlanDecomposer:
             # Формируем промпт для декомпозиции раздела
             decomposition_prompt = self._build_decomposition_prompt(section_title, section_content, role_hint)
             
+            # [SINGULARITY 12.0] MCTS Plan Optimization for complex sections
+            if get_mcts_planner and (len(section_content) > 500 or "архитектур" in section_content.lower()):
+                logger.info(f"🌳 [MCTS] Optimizing section: {section_title}")
+                mcts = get_mcts_planner()
+                optimized_steps = await mcts.plan(section_title, section_content)
+                if optimized_steps:
+                    decomposition_prompt += f"\n\nИСПОЛЬЗУЙ ЭТИ ОПТИМИЗИРОВАННЫЕ ШАГИ (MCTS):\n" + "\n".join(optimized_steps)
+
             # Генерируем подплан через LLM
             subplan_markdown = ""
             if run_smart_agent_async:

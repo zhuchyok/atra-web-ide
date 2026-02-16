@@ -69,5 +69,10 @@ Pillow>=10.0.0
 # Веб-поиск: Veronica, researcher, scout (duckduckgo_search — без API-ключа)
 duckduckgo-search>=6.0.0
 
+# Browser Automation: Victoria Operator (browser-use + playwright)
+browser-use>=0.1.0
+playwright>=1.49.0
+langchain-openai>=0.2.0
+
 # Docker SDK для Песочниц
 docker>=7.0.0

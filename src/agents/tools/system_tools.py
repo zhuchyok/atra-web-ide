@@ -238,3 +238,34 @@ class WebTools:
             return "Error: 'duckduckgo-search' library not found. Please run 'pip install duckduckgo-search'."
         except Exception as e:
             return f"Web Search Error: {str(e)}"
+
+    @staticmethod
+    async def browser_action(goal: str) -> str:
+        """
+        Автономное управление браузером для проверки UI/UX и выполнения действий.
+        """
+        try:
+            # Пытаемся импортировать из knowledge_os/app
+            try:
+                from app.browser_operator import get_browser_operator
+            except ImportError:
+                try:
+                    from knowledge_os.app.browser_operator import get_browser_operator
+                except ImportError:
+                    # Если мы в контейнере, путь может быть другим
+                    sys.path.append("/app/knowledge_os/app")
+                    from browser_operator import get_browser_operator
+            
+            operator = get_browser_operator()
+            logger.info(f"🤖 [BROWSER ACTION] Starting: {goal}")
+            result = await operator.execute_task(goal)
+            
+            if result["status"] == "success":
+                output = f"✅ Browser Task Success!\nOutput: {result['output']}"
+                if result.get("screenshot"):
+                    output += f"\n[Screenshot Captured: {len(result['screenshot'])} bytes]"
+                return output
+            else:
+                return f"❌ Browser Task Failed: {result.get('message', 'Unknown error')}"
+        except Exception as e:
+            return f"Browser Error: {str(e)}"

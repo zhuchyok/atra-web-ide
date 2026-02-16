@@ -38,6 +38,12 @@ try:
 except ImportError:
     get_sandbox_manager = None
 
+try:
+    from graph_optimizer import run_optimization_cycle
+except ImportError:
+    async def run_optimization_cycle():
+        return None
+
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
@@ -68,6 +74,10 @@ class MetaArchitect:
 
     async def self_evolution_cycle(self):
         """[SINGULARITY 10.0] Analyze performance hot spots and generate architectural mutations."""
+        # Run graph optimization as part of evolution
+        logger.info("🔧 [EVOLUTION] Starting Graph Optimization (Pruning & Caching)...")
+        await run_optimization_cycle()
+
         if not get_profiler:
             logger.error("ArchitectureProfiler not available.")
             return
@@ -161,6 +171,15 @@ class MetaArchitect:
             
             logger.info(f"🧬 [MUTATION] Created mutated version: {mutation_path}")
             
+            # [SINGULARITY 10.0+] Автоматический деплой в Shadow для A/B тестирования
+            try:
+                from traffic_mirror import get_traffic_mirror
+                tm = get_traffic_mirror()
+                await tm.register_shadow(spot['module_name'], mutation_path)
+                logger.info(f"🛡️ [SHADOW] Mutation {mutation_id} deployed for A/B testing.")
+            except Exception as e:
+                logger.error(f"Failed to deploy shadow mutation: {e}")
+
             # Log to knowledge nodes
             conn = await asyncpg.connect(self.db_url)
             node_content = f"🧬 ARCHITECTURAL MUTATION: {spot['module_name']}.{spot['function_name']} -> {hypothesis['mutation_hypothesis']}"
@@ -217,8 +236,16 @@ class MetaArchitect:
                     await conn.close()
                     
                     # Trigger Hot-Swap (in a real system, we'd call ServiceMonitor)
-                    # For now, we log the intent
-                    logger.info(f"🔄 [HOT-SWAP] Promoting mutation to {original_module}.py")
+                    try:
+                        from service_monitor import promote_mutation
+                        success = await promote_mutation(original_module, spot['function_name'])
+                        if success:
+                            logger.info(f"🔄 [HOT-SWAP] Successfully promoted mutation to {original_module}.py")
+                        else:
+                            logger.warning(f"⚠️ [HOT-SWAP] Promotion failed for {original_module}")
+                    except Exception as e:
+                        logger.error(f"Failed to trigger hot-swap: {e}")
+                        logger.info(f"🔄 [HOT-SWAP] Promoting mutation to {original_module}.py")
         if not ASYNCPG_AVAILABLE:
             logger.error("❌ asyncpg is not installed. Repair cycle aborted.")
             return "Error: asyncpg missing"

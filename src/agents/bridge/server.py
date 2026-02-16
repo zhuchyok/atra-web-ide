@@ -131,6 +131,7 @@ class VeronicaAgent(BaseAgent):
         self.add_tool("web_search", WebTools.web_search)
         self.add_tool("grep_search", SystemTools.grep_search)
         self.add_tool("apply_patch", SystemTools.apply_patch)
+        self.add_tool("browser_action", WebTools.browser_action)
 
     async def plan(self, goal: str):
         plan_prompt = f"""ТЫ — ТЕХНИЧЕСКИЙ ДИРЕКТОР ATRA. Составь СТРОГИЙ пошаговый план.

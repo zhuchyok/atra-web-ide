@@ -152,6 +152,15 @@ class VictoriaEventHandlers:
 
     async def handle_event(self, event: Event) -> Dict[str, Any]:
         """Общий диспетчер событий"""
+        # [SINGULARITY 12.0] Route to Autonomous Sentinel
+        try:
+            from app.autonomous_sentinel import get_autonomous_sentinel
+            sentinel = get_autonomous_sentinel()
+            if not sentinel.is_running:
+                asyncio.create_task(sentinel.start())
+        except ImportError:
+            pass
+
         if event.event_type == EventType.FILE_CREATED:
             return await self.handle_file_created(event)
         elif event.event_type == EventType.PERFORMANCE_DEGRADED:

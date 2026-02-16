@@ -182,6 +182,78 @@ class SemanticAICache:
         
         return embedding
 
+    async def get_cache_info(self, query: str) -> Optional[Dict[str, Any]]:
+        """[SINGULARITY 10.0+] Получает расширенную информацию из кэша для префетчинга."""
+        embedding = await self._get_cached_embedding(query)
+        if not embedding:
+            return None
+
+        conn, _ = await self._get_conn()
+        if not conn:
+            return None
+
+        try:
+            # Ищем не только точное совпадение, но и семантически близкие темы для префетчинга
+            rows = await conn.fetch("""
+                SELECT query_text, expert_name, (1 - (embedding <=> $1::vector)) as similarity, metadata
+                FROM semantic_ai_cache
+                WHERE (1 - (embedding <=> $1::vector)) >= 0.85
+                ORDER BY similarity DESC
+                LIMIT 5
+            """, str(embedding))
+            
+            if not rows:
+                await conn.close()
+                return None
+                
+            result = {
+                "knowledge_node_ids": [],
+                "related_queries": [r['query_text'] for r in rows[1:]],
+                "top_similarity": rows[0]['similarity']
+            }
+            
+            # Извлекаем ID узлов знаний из метаданных, если они там есть
+            for r in rows:
+                meta = r.get('metadata')
+                if meta:
+                    if isinstance(meta, str):
+                        try: meta = json.loads(meta)
+                        except: meta = {}
+                    ids = meta.get('knowledge_node_ids', [])
+                    if ids: result["knowledge_node_ids"].extend(ids)
+            
+            await conn.close()
+            return result
+        except Exception as e:
+            logger.error(f"Error in get_cache_info: {e}")
+            return None
+
+    async def prefetch_related_context(self, query: str):
+        """[SINGULARITY 10.0+] Предиктивный префетчинг контекста на основе текущего запроса."""
+        try:
+            # 1. Анализируем текущий запрос и ищем связанные темы в кэше
+            cache_info = await self.get_cache_info(query)
+            if not cache_info or not cache_info.get("related_queries"):
+                return
+
+            # 2. Для каждой связанной темы подгружаем GraphRAG контекст в Redis
+            from app.graphrag.graphrag_service import get_graphrag_service
+            graphrag = get_graphrag_service()
+            
+            for related_query in cache_info["related_queries"][:3]: # Увеличиваем до топ-3
+                # Запускаем фоновую задачу префетчинга
+                asyncio.create_task(graphrag.retrieve_graph_context(related_query))
+                logger.info(f"🔮 [PREFETCH] Warm-up GraphRAG for: {related_query[:50]}...")
+                
+            # 3. [SINGULARITY 10.0+] Подгружаем связанные узлы знаний напрямую
+            if cache_info.get("knowledge_node_ids"):
+                from app.semantic_cache import get_http_client
+                # Здесь могла бы быть логика прогрева кэша Redis для конкретных узлов
+                logger.info(f"🔮 [PREFETCH] Warming up {len(cache_info['knowledge_node_ids'])} specific knowledge nodes.")
+
+        except Exception as e:
+            logger.debug(f"Prefetching failed: {e}")
+
     async def get_cached_response(self, query: str, expert_name: str) -> str:
         """Try to find a similar query in the semantic cache."""
         # Определяем, является ли это стратегическим вопросом

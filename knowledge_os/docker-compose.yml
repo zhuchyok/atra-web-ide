@@ -158,6 +158,11 @@ services:
       # Рефлексия и пересмотр плана (Фаза 3, ReCAP): чекпоинты при провале шага, лимит пересмотров
       VICTORIA_REFLECTION_ENABLED: ${VICTORIA_REFLECTION_ENABLED:-true}
       VICTORIA_MAX_PLAN_REVISIONS: ${VICTORIA_MAX_PLAN_REVISIONS:-1}
+      # Telegram Bot для отчетов и алертов
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      EARLY_WARNING_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      EARLY_WARNING_TELEGRAM_CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
       # Veronica: из контейнера — по имени сервиса (порт 8000 внутри сети)
       VERONICA_URL: ${VERONICA_URL:-http://veronica-agent:8000}
       # Canary: оркестрация V2 (A/B по проценту трафика)
@@ -169,8 +174,11 @@ services:
       - ../data:/app/data
       - ../logs:/app/logs
       - ../src:/app/src
-      # Подключаем knowledge_os для Victoria Enhanced
       - ../knowledge_os:/app/knowledge_os
+      # Мульти-проектный доступ
+      - ../../dev/setki-21:/workspace/setki-21
+      - ../../dev/atra:/workspace/atra
+      - ..:/workspace/atra-web-ide
     command: python -m src.agents.bridge.victoria_server
 
   # Воркер для тяжелых задач (Heavy Worker) - 1 инстанс
@@ -290,14 +298,22 @@ services:
       # Для явного указания: VERONICA_MODEL=qwen2.5-coder:32b
       VERONICA_MODEL: ${VERONICA_MODEL:-}
       VERONICA_PLANNER_MODEL: ${VERONICA_PLANNER_MODEL:-}
+    # [SINGULARITY 10.0+] Browser-Use / Playwright
+    PLAYWRIGHT_BROWSERS_PATH: /app/pw-browsers
+    BROWSER_USE_HEADLESS: ${BROWSER_USE_HEADLESS:-true}
+    # Victoria Operator: Veronica acts as eyes and hands
+    VICTORIA_OPERATOR_ENABLED: "true"
     ports:
       - "8011:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
       - ../src:/app/src
-      # Подключаем knowledge_os для Veronica Enhanced
       - ../knowledge_os:/app/knowledge_os
+      # Мульти-проектный доступ
+      - ../../dev/setki-21:/workspace/setki-21
+      - ../../dev/atra:/workspace/atra
+      - ..:/workspace/atra-web-ide
     command: python -m src.agents.bridge.server
 
   prometheus:

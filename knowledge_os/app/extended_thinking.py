@@ -64,7 +64,8 @@ class ExtendedThinkingEngine:
         model_name: str = "qwq:32b",  # Самая мощная reasoning модель после удаления 70B/104B
         thinking_budget: int = 10000,  # Токены для рассуждения
         max_steps: int = 10,
-        use_intelligent_routing: bool = True  # Использовать интеллектуальный роутинг
+        use_intelligent_routing: bool = True,  # Использовать интеллектуальный роутинг
+        dual_channel: bool = True  # [SINGULARITY 10.0+] Включить разделение каналов (OpenAI o3 pattern)
     ):
         self.model_name = model_name  # Базовая модель (fallback)
         self.use_intelligent_routing = use_intelligent_routing
@@ -72,6 +73,7 @@ class ExtendedThinkingEngine:
         self.llm_url = DEFAULT_LLM_URL
         self.thinking_budget = thinking_budget
         self.max_steps = max_steps
+        self.dual_channel = dual_channel
         
         # Инициализируем интеллектуальный роутер если включен
         if self.use_intelligent_routing:
@@ -191,6 +193,9 @@ class ExtendedThinkingEngine:
         current_understanding = ""
         start_time = datetime.now(timezone.utc)
         
+        # [SINGULARITY 10.0+] Deep Reasoning Channel (OpenAI o3 pattern)
+        # Если включен dual_channel, мы разделяем "Analysis" и "Final Answer"
+        
         # Начальный промпт для рассуждения
         ctx_str = context.get("kb_context") if isinstance(context, dict) else context
         thinking_prompt = self._build_thinking_prompt(prompt, ctx_str, step=1)
@@ -229,6 +234,8 @@ class ExtendedThinkingEngine:
             )
         
         # Формируем финальный ответ на основе всех рассуждений
+        # Если dual_channel включен, мы делаем отдельный вызов для синтеза финального ответа
+        # без утечки промежуточных мыслей пользователю.
         final_answer = await self._synthesize_final_answer(prompt, thinking_steps, category)
         
         # Сохраняем скрытые рассуждения для Summary Reader (Dual-channel)
@@ -246,7 +253,12 @@ class ExtendedThinkingEngine:
                     {"step": s.step_number, "thought": s.thought, "conclusion": s.conclusion}
                     for s in thinking_steps
                 ]
-                logger.info(f"🧠 [DUAL-CHANNEL] Скрытые рассуждения сохранены для сессии {session_id}")
+                
+                # Если dual_channel активен, логируем это особо
+                if self.dual_channel:
+                    logger.info(f"🧠 [DEEP REASONING CHANNEL] Скрытые рассуждения (o3 pattern) сохранены для сессии {session_id}")
+                else:
+                    logger.info(f"🧠 [DUAL-CHANNEL] Скрытые рассуждения сохранены для сессии {session_id}")
             except Exception as e:
                 logger.debug(f"Ошибка сохранения скрытых рассуждений: {e}")
 

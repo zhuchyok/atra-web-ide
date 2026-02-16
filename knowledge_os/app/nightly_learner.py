@@ -821,6 +821,19 @@ async def nightly_learning_cycle():
         except Exception as e:
             logger.debug("Phase 17 (tasks cleanup) failed: %s", e)
 
+        # --- ФАЗА 18: SELF-DISTILLATION (SINGULARITY 13.0) ---
+        _log_step("🧠 Running Recursive Self-Distillation cycle...")
+        try:
+            from distillation_engine import get_distillation_engine
+            engine = get_distillation_engine()
+            success = await engine.run_cycle()
+            if success:
+                print("✅ Phase 18: Self-Distillation cycle completed successfully")
+            else:
+                print("ℹ️ Phase 18: Self-Distillation cycle skipped (no new data)")
+        except Exception as e:
+            print(f"⚠️ Self-Distillation error: {e}")
+
         await pool.release(conn)
         await pool.close()
         _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")

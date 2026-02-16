@@ -32,8 +32,10 @@ services:
       - "8080:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - .:/app/project
-      - workspace_data:/workspace
+      - .:/workspace/atra-web-ide
+      - /Users/bikos/Documents/dev/setki-21:/workspace/setki-21
+      - /Users/bikos/Documents/dev/atra:/workspace/atra
+      - workspace_data:/workspace/data
       - ./data:/app/data:ro  # Частые запросы для RAG prefetch (Фаза 3)
     environment:
       - VICTORIA_URL=http://victoria-agent:8000  # Используем общий контейнер Victoria из knowledge_os
@@ -44,8 +46,8 @@ services:
       - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       - REDIS_URL=redis://knowledge_os_redis:6379  # Redis из knowledge_os (контейнер knowledge_os_redis; atra — отдельный проект)
       - KNOWLEDGE_OS_API_URL=http://knowledge_rest:8002  # Логирование чата в interaction_logs (Singularity 10.0)
-      - WORKSPACE_ROOT=/workspace
-      - PYTHONPATH=/app:/app/project:/app/project/knowledge_os/app
+      - WORKSPACE_ROOT=/workspace/atra-web-ide
+      - PYTHONPATH=/app:/workspace/atra-web-ide:/workspace/atra-web-ide/knowledge_os/app
       # Таймаут ожидания Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
       - VICTORIA_TIMEOUT=${VICTORIA_TIMEOUT:-900}
       # RAG-light оптимизации (Фаза 3, день 3–4)

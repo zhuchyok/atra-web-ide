@@ -181,16 +181,30 @@ class VeronicaWebResearcher:
     async def control_browser(self, task: str, start_url: Optional[str] = None) -> Dict[str, Any]:
         """
         [Perplexity Pattern] Интерактивное управление браузером (клики, формы).
-        Работает в скрытых вкладках. Требует Playwright/Selenium в будущем.
+        Использует BrowserOperator (browser-use + playwright).
         """
         logger.info(f"🤖 [BROWSER CONTROL] Выполнение задачи: {task}")
-        # Пока возвращаем заглушку, готовую к интеграции с Playwright воркером
-        return {
-            "action": "browser_interaction",
-            "task": task,
-            "status": "planned",
-            "note": "Требуется Playwright воркер для выполнения действий"
-        }
+        try:
+            try:
+                from app.browser_operator import get_browser_operator
+            except ImportError:
+                from browser_operator import get_browser_operator
+            
+            operator = get_browser_operator()
+            
+            # Если задан стартовый URL, добавляем его в задачу
+            full_task = task
+            if start_url:
+                full_task = f"Go to {start_url} and then: {task}"
+            
+            result = await operator.execute_task(full_task)
+            return result
+        except Exception as e:
+            logger.error(f"❌ [BROWSER CONTROL] Ошибка: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
 
     async def research_and_analyze(
         self, 

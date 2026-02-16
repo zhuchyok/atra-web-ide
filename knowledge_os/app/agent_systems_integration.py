@@ -136,12 +136,15 @@ class AgentSystemsIntegration:
                     if is_injection:
                         logger.warning(f"⚠️ [AGENT SYSTEMS] Обнаружена инъекция от агента {agent_id}")
             
-            # 4. Проверка ранних предупреждений (раз в час)
-            if self.early_warning and datetime.now(timezone.utc).minute == 0:
+            # 4. Проверка ранних предупреждений (раз в час или принудительно)
+            if self.early_warning:
+                # Проверяем все предупреждения
                 warnings = await self.early_warning.check_all_warnings()
                 if warnings:
                     for warning in warnings:
                         await self.early_warning.save_warning(warning)
+                    # Эскалируем критичные (отправка в Telegram)
+                    await self.early_warning.escalate_critical_warnings()
             
             # 5. Обновление рейтинга для менторства
             if self.mentor_system:

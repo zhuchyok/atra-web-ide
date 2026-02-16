@@ -164,6 +164,41 @@ try:
 except ImportError:
     get_traffic_mirror = None
 
+try:
+    from personality_manager import get_personality_manager
+except ImportError:
+    get_personality_manager = None
+
+try:
+    from episodic_memory import get_episodic_memory_manager
+except ImportError:
+    get_episodic_memory_manager = None
+
+try:
+    from multi_agent_debate import get_multi_agent_debate
+except ImportError:
+    get_multi_agent_debate = None
+
+try:
+    from autonomous_tool_creator import get_autonomous_tool_creator
+except ImportError:
+    get_autonomous_tool_creator = None
+
+try:
+    from mcts_planner import get_mcts_planner
+except ImportError:
+    get_mcts_planner = None
+
+try:
+    from autonomous_sentinel import get_autonomous_sentinel
+except ImportError:
+    get_autonomous_sentinel = None
+
+try:
+    from distillation_engine import get_distillation_engine
+except ImportError:
+    get_distillation_engine = None
+
 logger = logging.getLogger(__name__)
 
 # Retry config for transient LLM failures (503, timeout, connection)
@@ -567,6 +602,15 @@ async def run_smart_agent_async_impl(
     
     # 0. Anomaly Detection: проверка запроса на аномалии
     try:
+        # [SINGULARITY 10.0+] Multi-Agent Debate for critical tasks
+        if is_critical and get_multi_agent_debate:
+            logger.info("⚖️ [CRITICAL] Starting Multi-Agent Debate for critical task...")
+            debate = get_multi_agent_debate()
+            debate_result = await debate.run_debate(prompt)
+            if debate_result and debate_result.final_decision:
+                logger.info("✅ [DEBATE COMPLETE] Critical decision reached.")
+                return debate_result.final_decision
+
         from anomaly_detector import get_anomaly_detector
         anomaly_detector = get_anomaly_detector()
         should_block, alert = await anomaly_detector.analyze_request(
@@ -598,7 +642,21 @@ async def run_smart_agent_async_impl(
     
     # 1. Initialization (кэш в той же БД, что дашборд/SLA — DATABASE_URL)
     cache = SemanticAICache(db_url=os.getenv("DATABASE_URL")) if SemanticAICache else None
-    # Воркер передаёт роутер явно (local_router) или через _current_router. Явная передача убирает гонку при параллельных задачах.
+    
+    # [SINGULARITY 10.0+] Параллельная проверка кэша, роутинга и контекста
+    async def get_cache_and_context():
+        # Запускаем параллельно: проверку кэша и получение контекста знаний
+        tasks = []
+        if cache and not images:
+            tasks.append(cache.get_cached_response(user_part, expert_name))
+        else:
+            tasks.append(asyncio.sleep(0, result=None))
+            
+        tasks.append(self._get_knowledge_context(user_part))
+        
+        return await asyncio.gather(*tasks)
+
+    # Воркер передаёт роутер явно (local_router) или через _current_router.
     import sys
     _mod = sys.modules.get(__name__)
     _router_preferred = local_router if local_router is not None else getattr(_mod, '_current_router', None)
@@ -819,29 +877,32 @@ async def run_smart_agent_async_impl(
             logger.debug(f"⚠️ [TACIT KNOWLEDGE] Error loading style profile: {e}")
             style_profile = None
 
-    # 2. Cache Check (улучшенный) - через circuit breaker
-    if cache and not images:
+    # 2. Cache & Context Check (улучшенный) - через asyncio.gather
+    cached_response, knowledge_context = None, ""
+    if not images:
         try:
-            if db_breaker:
-                cached = await db_breaker.call(cache.get_cached_response, user_part, expert_name)
-            else:
-                cached = await cache.get_cached_response(user_part, expert_name)
+            # Параллельно проверяем кэш и получаем контекст знаний
+            cache_task = cache.get_cached_response(user_part, expert_name) if cache else asyncio.sleep(0, result=None)
+            context_task = self._get_knowledge_context(user_part)
             
-            if cached:
+            cached_response, knowledge_context = await asyncio.gather(cache_task, context_task)
+            
+            if cached_response:
                 logger.info("🚀 [CACHE HIT] %s", expert_name)
+                
+                # [SINGULARITY 10.0+] Предиктивный префетчинг для следующих шагов
+                if cache:
+                    asyncio.create_task(cache.prefetch_related_context(user_part))
                 
                 # Предсказательное кэширование: пред-генерируем ответы на вероятные запросы
                 if PredictiveCache:
                     pred_cache = PredictiveCache(cache)
                     await pred_cache.predict_and_cache(user_part, expert_name)
-                
-                return cached
-        except CircuitBreakerOpenError as e:
-            logger.warning(f"⚠️ [CIRCUIT BREAKER] Cache недоступен: {e}")
-            # Продолжаем без кэша
+                return cached_response
         except Exception as e:
-            logger.debug(f"Cache check failed: {e}")
-            # Продолжаем без кэша
+            logger.debug(f"Parallel cache/context check failed: {e}")
+    else:
+        knowledge_context = await self._get_knowledge_context(user_part)
 
     # 3. Hybrid Strategy: Manager-Worker Pattern
     # If the task is coding or audit, we use Victoria to plan and Local to execute
@@ -852,6 +913,14 @@ async def run_smart_agent_async_impl(
     if is_coding_task and not is_critical:
         logger.info("👩‍💼 [ORCHESTRATOR MODE] Victoria is planning for Local Worker...")
         
+        # [SINGULARITY 10.0+] Episodic Memory (User preferences)
+        episodic_context = ""
+        if get_episodic_memory_manager:
+            em = get_episodic_memory_manager()
+            episodic_context = await em.get_episodes(user_key, project_context)
+            if episodic_context:
+                knowledge_context = f"{episodic_context}\n\n{knowledge_context}"
+
         # Phase 1: Victoria generates a TECHNICAL SPECIFICATION (short cloud call)
         spec_prompt = f"""
         Вы - Виктория, Team Lead. Составьте краткое ТЕХНИЧЕСКОЕ ЗАДАНИЕ (ТЗ) для младшего разработчика 
@@ -862,6 +931,12 @@ async def run_smart_agent_async_impl(
         
         ЗАПРОС: {user_part}
         """
+        
+        # [SINGULARITY 10.0+] Personality Adaptation (Anthropic pattern)
+        if get_personality_manager:
+            pm = get_personality_manager()
+            spec_prompt = pm.adapt_prompt(user_part, spec_prompt)
+            
         spec = await _run_cloud_agent_async(spec_prompt)
         
         if spec and not spec.startswith(('❌', '⚠️')):
@@ -1404,6 +1479,19 @@ async def run_smart_agent_async_impl(
         # Старый путь: просто объединяем промпт с контекстом
         full_prompt = (knowledge_context + "\n" + prompt) if knowledge_context else prompt
     
+    # [SINGULARITY 10.0+] Personality Adaptation (Anthropic pattern)
+    if get_personality_manager:
+        pm = get_personality_manager()
+        full_prompt = pm.adapt_prompt(user_part, full_prompt)
+        
+    # [SINGULARITY 13.0] Recursive Self-Distillation: Inject learned rules
+    if get_distillation_engine:
+        de = get_distillation_engine()
+        learned_rules = await de.get_active_rules(limit=3)
+        if learned_rules:
+            full_prompt = f"{full_prompt}\n\n{learned_rules}"
+            logger.info("🧠 [DISTILLATION] Injected learned rules into prompt.")
+
     # Умное сокращение контекста перед отправкой в облако (агрессивное сжатие)
     # Predictive Compression: проверяем предсжатый контекст (Singularity 10.0)
     compressed_prompt = full_prompt
@@ -1473,6 +1561,16 @@ async def run_smart_agent_async_impl(
             logger.debug("✅ [ML DATA] Saved cloud routing decision")
         except Exception as e:
             logger.debug(f"⚠️ [ML DATA] Failed to collect cloud routing data: {e}")
+
+    # [SINGULARITY 12.0] Autonomous Tool Creation on failure
+    if response and (response.startswith('❌') or response.startswith('⚠️')) and get_autonomous_tool_creator:
+        logger.info("🛠️ [TOOL CREATOR] Attempting to create a missing tool to fix the failure...")
+        creator = get_autonomous_tool_creator()
+        success = await creator.create_tool_on_the_fly(response, user_part)
+        if success:
+            logger.info("✅ [TOOL CREATOR] New tool created. Retrying task...")
+            # Retry once with the new tool
+            response = await _run_cloud_agent_async(compressed_prompt)
 
     # Offline fallback
     if response and (response.startswith('❌') or response.startswith('⚠️')) and router:
@@ -1584,6 +1682,17 @@ async def run_smart_agent_async_impl(
             )
     except Exception as e:
         logger.debug(f"Metrics collection failed: {e}")
+
+    # [SINGULARITY 10.0+] Save to Episodic Memory if important patterns detected
+    if get_episodic_memory_manager and user_identifier and response and not response.startswith(('⚠️', '❌')):
+        # Simple heuristic: if user gives specific style instructions or repeats a preference
+        em = get_episodic_memory_manager()
+        # project_context comes from outer scope or defaults
+        p_ctx = locals().get('project_context') or os.getenv("MAIN_PROJECT", "atra-web-ide")
+        if any(kw in user_part.lower() for kw in ["всегда", "никогда", "предпочитаю", "мне нравится", "используй только"]):
+            asyncio.create_task(em.save_episode(user_identifier, p_ctx, "preference", user_part))
+        elif "почему" in user_part.lower() and len(response) > 500:
+            asyncio.create_task(em.save_episode(user_identifier, p_ctx, "decision", f"Detailed explanation for: {user_part[:50]}..."))
 
     return response
 

@@ -279,15 +279,86 @@ def render_singularity_metrics():
 
 def render_projects():
     """📁 Реестр Проектов."""
-    st.subheader("📁 Активные Проекты")
+    st.subheader("📁 Реестр Проектов")
     try:
-        projects = fetch_data("SELECT slug, name, workspace_path, is_active FROM projects ORDER BY created_at DESC")
+        # Явно импортируем pandas для безопасности внутри функции
+        import pandas as pd
+        from database_service import run_query
+        
+        projects = fetch_data("SELECT id, slug, name, workspace_path, is_active FROM projects ORDER BY created_at DESC")
+        
         if projects:
-            st.dataframe(pd.DataFrame(projects), use_container_width=True)
+            # Разделяем на системные и обычные проекты для визуальной защиты
+            df = pd.DataFrame(projects)
+            
+            # Настройка редактируемой таблицы
+            edited_df = st.data_editor(
+                df,
+                column_config={
+                    "id": None,  # Скрываем ID
+                    "is_active": st.column_config.CheckboxColumn(
+                        "Активен",
+                        help="Активировать проект для агентов. Системные проекты (atra-web-ide) защищены от отключения.",
+                        default=True,
+                    ),
+                    "slug": st.column_config.TextColumn("Slug (ID)", disabled=True),
+                    "name": st.column_config.TextColumn("Название проекта"),
+                    "workspace_path": st.column_config.TextColumn("Путь к файлам")
+                },
+                disabled=["slug"], # Запрещаем менять slug
+                hide_index=True,
+                use_container_width=True,
+                key="projects_editor_v2"
+            )
+            
+            # Кнопка сохранения
+            if st.button("💾 Сохранить изменения в проектах", key="save_projects_btn"):
+                for _, row in edited_df.iterrows():
+                    is_active = row['is_active']
+                    # Защита системного проекта: всегда активен
+                    if row['slug'] == 'atra-web-ide':
+                        is_active = True
+                        
+                    run_query(
+                        "UPDATE projects SET name = %s, workspace_path = %s, is_active = %s WHERE id = %s",
+                        (row['name'], row['workspace_path'], is_active, row['id'])
+                    )
+                st.success("Настройки проектов обновлены! (Системные проекты защищены)")
+                st.rerun()
         else:
             st.info("Проекты не зарегистрированы.")
+            
+        # Форма добавления нового проекта
+        st.markdown("---")
+        with st.expander("➕ Добавить новый проект", expanded=False):
+            with st.form("add_project_form_v2", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_slug = st.text_input("Slug (ID)", placeholder="my-project")
+                    new_name = st.text_input("Название", placeholder="My Project Name")
+                with col2:
+                    new_path = st.text_input("Путь к файлам", value="/workspace/")
+                
+                submit = st.form_submit_button("🚀 Создать проект", use_container_width=True)
+                
+                if submit:
+                    if not new_slug or not new_name:
+                        st.error("Заполните Slug и Название!")
+                    else:
+                        success = run_query(
+                            "INSERT INTO projects (slug, name, workspace_path, is_active) VALUES (%s, %s, %s, true)",
+                            (new_slug, new_name, new_path)
+                        )
+                        if success:
+                            st.success(f"Проект {new_name} успешно создан!")
+                            st.rerun()
+                        else:
+                            st.error("Ошибка при создании. Возможно, такой slug уже существует.")
+                        
     except Exception as e:
-        st.error(f"Ошибка загрузки проектов: {e}")
+        st.error(f"Ошибка управления проектами: {e}")
+        import traceback
+        st.code(traceback.format_exc())
 
 def render_agent_logs():
     """🤖 Логи Агента."""
