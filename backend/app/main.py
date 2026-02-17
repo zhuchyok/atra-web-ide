@@ -245,7 +245,7 @@ async def root():
     return {
         "name": settings.app_name,
         "version": settings.api_version,
-        "singularity": "9.0",
+        "singularity": "14.0",
         "status": "running",
         "endpoints": {
             "chat": "/api/chat",

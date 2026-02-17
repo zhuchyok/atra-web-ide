@@ -224,7 +224,9 @@ class VictoriaClient:
         
         try:
             result = await self._retry_request(_make_request)
-            return {"status": "healthy", **result}
+            # Принимаем как 'healthy', так и 'ok' (Victoria может вернуть разное)
+            status = "healthy" if result.get("status") in ("healthy", "ok") else "unhealthy"
+            return {"status": status, "victoria": result}
         except httpx.HTTPError as e:
             return {"status": "unhealthy", "error": str(e)}
 

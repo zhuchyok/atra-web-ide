@@ -6,7 +6,7 @@ Provides semantic caching for AI agent responses using PostgreSQL vector storage
 import asyncio
 import logging
 import os
-from typing import Optional
+from typing import Optional, Any
 
 # Third-party imports with fallbacks
 try:
@@ -182,7 +182,7 @@ class SemanticAICache:
         
         return embedding
 
-    async def get_cache_info(self, query: str) -> Optional[Dict[str, Any]]:
+    async def get_cache_info(self, query: str) -> Optional[dict[str, Any]]:
         """[SINGULARITY 10.0+] Получает расширенную информацию из кэша для префетчинга."""
         embedding = await self._get_cached_embedding(query)
         if not embedding:

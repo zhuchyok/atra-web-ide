@@ -9,6 +9,7 @@ import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from ai_core import FactExtractor, ContextSwapper
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,12 @@ class MultiAgentDebate:
         history = []
         current_context = context or ""
         
+        # [SINGULARITY 14.2] FactExtractor for long contexts
+        extractor = FactExtractor()
+        if len(current_context) > 4000:
+            logger.info("✂️ [DEBATE] Context too long, extracting facts...")
+            current_context = await extractor.extract_facts(current_context, context_description="Debate initial context")
+
         for r in range(1, rounds + 1):
             logger.info(f"🔄 [DEBATE] Round {r}/{rounds}")
             round_responses = []
@@ -69,7 +76,14 @@ class MultiAgentDebate:
                 round_responses.append(f"[{p.name}]: {opinion}")
             
             # Update context for next round
-            current_context += "\n\n" + "\n".join(round_responses)
+            new_round_text = "\n\n" + "\n".join(round_responses)
+            if len(current_context) + len(new_round_text) > 8000:
+                logger.info(f"🔄 [DEBATE] Round {r} context too long, summarizing history...")
+                # Сжимаем историю раунда перед добавлением в контекст
+                round_summary = await extractor.extract_facts(new_round_text, context_description=f"Debate round {r} summary")
+                current_context += f"\n\n### ROUND {r} SUMMARY:\n{round_summary}"
+            else:
+                current_context += new_round_text
 
         # Final synthesis by Victoria (Team Lead)
         final_decision = await self._synthesize_decision(topic, history)
@@ -119,11 +133,18 @@ Refine your own position to reach the best possible solution.
             return "Failed to provide opinion."
 
     async def _synthesize_decision(self, topic: str, history: List[Dict]) -> str:
+        # [SINGULARITY 14.2] Hierarchical synthesis for debate
         history_text = "\n".join([f"{h['expert']}: {h['opinion']}" for h in history])
+        
+        if len(history_text) > 5000:
+            logger.info("🧬 [DEBATE] Synthesis context too long, using FactExtractor...")
+            extractor = FactExtractor()
+            history_text = await extractor.extract_facts(history_text, context_description="Full debate history")
+
         synthesis_prompt = f"""
 You are Victoria, Team Lead. You have listened to a debate between experts on the topic: {topic}
 
-EXPERT OPINIONS:
+EXPERT OPINIONS (SUMMARIZED):
 {history_text}
 
 Based on the debate, provide the FINAL AUTHORITATIVE DECISION and implementation plan. 

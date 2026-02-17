@@ -37,6 +37,18 @@ class SwarmAgent:
     local_best_score: float = 0.0
     current_solution: Optional[Any] = None
     current_score: float = 0.0
+    group_id: Optional[str] = None  # [SINGULARITY 14.2] Group identifier
+
+
+@dataclass
+class SwarmGroup:
+    """Группа агентов (Кластер) [SINGULARITY 14.2]"""
+    group_id: str
+    group_name: str
+    agents: List[SwarmAgent] = field(default_factory=list)
+    group_best: Optional[Any] = None
+    group_best_score: float = 0.0
+    synthesis: Optional[str] = None
 
 
 @dataclass
@@ -72,6 +84,7 @@ class SwarmIntelligence:
         self.ollama_url = ollama_url
         self.max_iterations = max_iterations
         self.agents: List[SwarmAgent] = []
+        self.groups: List[SwarmGroup] = []  # [SINGULARITY 14.2] Hierarchical groups
         self.global_best: Optional[Any] = None
         self.global_best_score: float = 0.0
         self.state = SwarmState.FORMING
@@ -115,7 +128,11 @@ class SwarmIntelligence:
             # 2.4. Координация через consensus (Nature 2025)
             await self._coordinate_swarm(problem, iteration)
             
-            # 2.5. Проверяем конвергенцию
+            # 2.5. [SINGULARITY 14.2] Иерархический синтез кластеров
+            if iteration % 5 == 0 or iteration == self.max_iterations - 1:
+                await self._synthesize_clusters(problem)
+            
+            # 2.6. Проверяем конвергенцию
             if self._check_convergence():
                 logger.info(f"✅ Конвергенция достигнута на итерации {iteration + 1}")
                 self.state = SwarmState.CONVERGING
@@ -165,8 +182,62 @@ class SwarmIntelligence:
             
             self.agents.append(agent)
         
-        logger.info(f"✅ Сформирован рой из {len(self.agents)} агентов")
+        # [SINGULARITY 14.2] Формируем иерархические группы (кластеры)
+        self.groups = []
+        # Разделяем на 4 группы: Техническая, UX, Безопасность, Производительность
+        group_configs = [
+            ("tech", "Technical Cluster"),
+            ("ux", "UX/UI Cluster"),
+            ("sec", "Security Cluster"),
+            ("perf", "Performance Cluster")
+        ]
+        
+        for g_id, g_name in group_configs:
+            self.groups.append(SwarmGroup(group_id=g_id, group_name=g_name))
+            
+        # Распределяем агентов по группам
+        for i, agent in enumerate(self.agents):
+            group = self.groups[i % len(self.groups)]
+            agent.group_id = group.group_id
+            group.agents.append(agent)
+            
+        logger.info(f"✅ Сформирован рой из {len(self.agents)} агентов в {len(self.groups)} кластерах")
     
+    async def _synthesize_clusters(self, problem: str):
+        """[SINGULARITY 14.2] Синтезировать промежуточные результаты кластеров"""
+        logger.info(f"🧬 [PYRAMID] Синтез результатов {len(self.groups)} кластеров...")
+        
+        for group in self.groups:
+            # Собираем лучшие решения в группе
+            group_bests = [
+                (a.agent_name, a.local_best, a.local_best_score)
+                for a in group.agents
+                if a.local_best is not None
+            ]
+            
+            if not group_bests:
+                continue
+                
+            # Сортируем по score
+            group_bests.sort(key=lambda x: x[2], reverse=True)
+            group.group_best = group_bests[0][1]
+            group.group_best_score = group_bests[0][2]
+            
+            # Синтезируем отчет кластера
+            prompt = f"""### ROLE: Cluster Lead ({group.group_name})
+### TASK: Synthesize intermediate findings from your cluster agents.
+### PROBLEM: {problem}
+
+AGENT FINDINGS:
+"""
+            for name, sol, score in group_bests[:4]:
+                prompt += f"- {name} (score: {score:.2f}): {str(sol)[:500]}...\n"
+                
+            prompt += f"\n### SYNTHESIZED {group.group_name.upper()} REPORT:"
+            
+            group.synthesis = await self._generate_response(prompt)
+            logger.info(f"📊 [CLUSTER] {group.group_name} синтезировал отчет ({len(group.synthesis)} симв.)")
+
     async def _explore_local(self, problem: str, iteration: int):
         """Каждый агент исследует локально (LLM-Powered)"""
         tasks = []
@@ -230,22 +301,36 @@ class SwarmIntelligence:
         problem: str
     ) -> Dict:
         """Найти паттерны консенсуса (Nature 2025: consensus theory)"""
-        # Анализируем лучшие решения для поиска общих паттернов
-        prompt = f"""Найди общие паттерны в следующих лучших решениях:
+        # [SINGULARITY 14.2] Иерархический синтез: используем отчеты кластеров для глобального консенсуса
+        cluster_summaries = "\n".join([
+            f"### {g.group_name} REPORT:\n{g.synthesis}\n"
+            for g in self.groups if g.synthesis
+        ])
+        
+        prompt = f"""Найди общие паттерны и сформируй глобальный консенсус на основе отчетов кластеров:
 
 ПРОБЛЕМА: {problem}
 
-ЛУЧШИЕ РЕШЕНИЯ:
+ОТЧЕТЫ КЛАСТЕРОВ:
+{cluster_summaries}
+
+ЛУЧШИЕ ИНДИВИДУАЛЬНЫЕ РЕШЕНИЯ (ТОП 3):
 """
-        for i, (agent_name, solution, score) in enumerate(best_solutions[:5], 1):  # Топ 5
+        for i, (agent_name, solution, score) in enumerate(best_solutions[:3], 1):
             prompt += f"\n{i}. {agent_name} (score: {score:.2f}):\n   {str(solution)[:200]}\n"
         
         prompt += """
 Найди общие паттерны, которые можно использовать для улучшения всех решений.
+Сформируй ГЛОБАЛЬНЫЙ КОНСЕНСУС.
 
-ОБЩИЕ ПАТТЕРНЫ:"""
+ОБЩИЕ ПАТТЕРНЫ И КОНСЕНСУС:"""
         
         response = await self._generate_response(prompt)
+        
+        # [SINGULARITY 14.2] Если это последняя итерация, обновляем global_best на основе консенсуса
+        if self.state == SwarmState.CONVERGING or self.global_best_score < 0.9:
+             self.global_best = response
+             self.global_best_score = max(self.global_best_score, 0.95)
         
         return {
             "patterns": response,

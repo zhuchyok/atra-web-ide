@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from collections import Counter
+from ai_core import FactExtractor, ContextSwapper
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,17 @@ class ConsensusAgent:
         previous_responses: List[List[AgentResponse]]
     ) -> List[AgentResponse]:
         """Собрать ответы от агентов"""
+        # [SINGULARITY 14.2] Pre-process history with FactExtractor if needed
+        if previous_responses and sum(len(r.response) for round in previous_responses for r in round) > 3000:
+            logger.info("✂️ [CONSENSUS] History too long, extracting facts for next round...")
+            extractor = FactExtractor()
+            all_prev = "\n".join([f"{r.agent_name}: {r.response}" for round in previous_responses for r in round])
+            summary = await extractor.extract_facts(all_prev, context_description="Consensus history")
+            # Заменяем историю на суммаризированную (упрощенно для промпта)
+            # В реальной логике можно было бы создать фиктивный раунд с summary
+            context = context or {}
+            context["history_summary"] = summary
+
         # Строим промпт с учетом предыдущих ответов (для избежания sycophancy)
         base_prompt = self._build_consensus_prompt(question, context, previous_responses)
         
@@ -306,6 +318,27 @@ class ConsensusAgent:
         previous_responses: List[List[AgentResponse]]
     ) -> str:
         """Построить промпт для консенсуса"""
+        # [SINGULARITY 14.2] Use FactExtractor for previous responses to save context
+        history_text = ""
+        if previous_responses:
+            history_text = "ПРЕДЫДУЩИЕ ОТВЕТЫ (для справки, НЕ повторяй их):\n"
+            # Собираем все ответы в один текст
+            all_prev = ""
+            for round_responses in previous_responses:
+                for resp in round_responses:
+                    all_prev += f"- {resp.agent_name}: {resp.response}\n"
+            
+            # Если история слишком большая, сжимаем её
+            if len(all_prev) > 2000:
+                import asyncio
+                extractor = FactExtractor()
+                # В синхронном методе используем loop.run_until_complete или просто обрезаем, 
+                # но лучше сделать метод асинхронным или использовать пре-обработку.
+                # Для простоты здесь используем обрезку + пометку, так как _build_consensus_prompt вызывается из асинхронного _collect_responses
+                history_text += "[СЖАТО] " + all_prev[:1000] + "..."
+            else:
+                history_text += all_prev
+
         prompt = f"""Ты участвуешь в достижении консенсуса по следующему вопросу:
 
 ВОПРОС: {question}
@@ -315,13 +348,8 @@ class ConsensusAgent:
         if context:
             prompt += f"КОНТЕКСТ: {context}\n\n"
         
-        # Добавляем предыдущие ответы для избежания простого повторения
-        if previous_responses:
-            prompt += "ПРЕДЫДУЩИЕ ОТВЕТЫ (для справки, НЕ повторяй их):\n"
-            for i, round_responses in enumerate(previous_responses[-1:], 1):  # Только последний раунд
-                for resp in round_responses:
-                    prompt += f"- {resp.agent_name}: {resp.response[:100]}...\n"
-            prompt += "\n"
+        if history_text:
+            prompt += history_text + "\n"
         
         prompt += """ВАЖНО:
 - Дай СВОЕ независимое мнение

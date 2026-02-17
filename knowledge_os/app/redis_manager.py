@@ -49,7 +49,9 @@ class RedisManager:
         try:
             client = await self.get_client()
             val = json.dumps(value)
-            await client.set(f"cache:{key}", val, ex=ttl)
+            # Приведение ttl к int для предотвращения ошибок Redis (ex must be int)
+            ttl_int = int(float(ttl)) if ttl is not None else 3600
+            await client.set(f"cache:{key}", val, ex=ttl_int)
         except Exception as e:
             logger.warning(f"⚠️ [REDIS] Ошибка записи в кэш {key}: {e}")
 

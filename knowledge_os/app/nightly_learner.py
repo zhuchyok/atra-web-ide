@@ -10,6 +10,7 @@ import time
 import random
 from typing import Optional
 from resource_manager import acquire_resource_lock
+from memory_guard import should_pause_heavy_task
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +381,15 @@ async def nightly_learning_cycle():
                 import gc
                 gc.collect()
             _log_step(f"[NIGHTLY] Expert {idx + 1}/{total_experts}: {expert.get('name', '?')}")
+            
+            # [SINGULARITY 14.3] Memory Guard
+            if should_pause_heavy_task():
+                _log_step("⏳ [MEMORY GUARD] High RAM usage. Pausing nightly learner for 60s...")
+                await asyncio.sleep(60)
+                if should_pause_heavy_task():
+                    _log_step("⏭️ [MEMORY GUARD] Still high RAM. Skipping this expert to prevent OOM.")
+                    continue
+
             expert_name = expert['name']
             expert_role = expert['role']
             last_learned = expert.get('last_learned_at')

@@ -24,15 +24,24 @@
   let isResizingRight = false
   let isResizingPreview = false
   
-  onMount(async () => {
+    onMount(async () => {
     // Проверка статуса Victoria и MLX
     async function checkStatus() {
       try {
         const response = await fetch('/api/chat/status')
         if (response.ok) {
           const data = await response.json()
-          // Статус Victoria
-          victoriaStatus = data.victoria?.status || 'unknown'
+          console.log('Status data:', data);
+          // Статус Victoria: проверяем все возможные варианты ответа
+          // 1. data.status === 'ok' (прямой ответ от бэкенда)
+          // 2. data.victoria.status === 'ok' (вложенный ответ)
+          const status = data.status || data.victoria?.status || 'unknown';
+          
+          if (status === 'healthy' || status === 'online' || status === 'ok') {
+            victoriaStatus = 'healthy';
+          } else {
+            victoriaStatus = status;
+          }
           // Статус MLX (fallback)
           mlxStatus = data.mlx?.status || 'unknown'
         }

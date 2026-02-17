@@ -62,8 +62,8 @@ class ExtendedThinkingEngine:
     def __init__(
         self,
         model_name: str = "qwq:32b",  # Самая мощная reasoning модель после удаления 70B/104B
-        thinking_budget: int = 10000,  # Токены для рассуждения
-        max_steps: int = 10,
+        thinking_budget: int = 15000,  # [SINGULARITY 14.1] Увеличен бюджет до 15к
+        max_steps: int = 12,  # [SINGULARITY 14.1] Увеличено кол-во шагов
         use_intelligent_routing: bool = True,  # Использовать интеллектуальный роутинг
         dual_channel: bool = True  # [SINGULARITY 10.0+] Включить разделение каналов (OpenAI o3 pattern)
     ):
@@ -152,6 +152,8 @@ class ExtendedThinkingEngine:
         
         try:
             mlx_url = os.getenv('MLX_API_URL', 'http://localhost:11435')
+            if not mlx_url.startswith(('http://', 'https://')):
+                mlx_url = f"http://{mlx_url}"
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{mlx_url}/api/tags")
                 if response.status_code == 200:
@@ -369,16 +371,31 @@ class ExtendedThinkingEngine:
         self,
         prompt: str,
         thinking_steps: List[ThinkingStep],
-        category: Optional[str] = None
+        category: Optional[str] = None,
+        incremental: bool = False  # [SINGULARITY 14.2]
     ) -> str:
         """Сформировать финальный ответ на основе всех шагов"""
+        # [SINGULARITY 14.2] Incremental Assembly for long reports
+        if incremental or len(thinking_steps) > 8:
+            return await self._synthesize_incremental(prompt, thinking_steps, category)
+
         if thinking_steps and thinking_steps[-1].conclusion:
+            # [SINGULARITY 14.1] Проверка на полноту вывода
+            last_step = thinking_steps[-1].thought
+            if len(last_step) > 950:  # Близко к max_tokens=1000
+                logger.warning("⚠️ Последний шаг рассуждения может быть неполным (лимит токенов).")
             return thinking_steps[-1].conclusion
         
         # Если нет явного вывода, просим модель суммировать
         steps_text = "\n".join([f"Шаг {s.step_number}: {s.thought}" for s in thinking_steps])
         
+        # [SINGULARITY 14.1] Ограничение длины контекста для синтеза
+        if len(steps_text) > 15000:
+            logger.warning("⚠️ Слишком много рассуждений для синтеза, сокращаю контекст.")
+            steps_text = steps_text[:7000] + "\n... [truncated] ...\n" + steps_text[-7000:]
+
         synthesis_prompt = f"""На основе твоих рассуждений, дай финальный ответ на задачу.
+Если рассуждения обрываются, постарайся логически завершить их.
 
 ЗАДАЧА: {prompt}
 
@@ -387,8 +404,60 @@ class ExtendedThinkingEngine:
 
 ФИНАЛЬНЫЙ ОТВЕТ:"""
         
-        return await self._generate_response(synthesis_prompt, max_tokens=2000, category=category)
+        return await self._generate_response(synthesis_prompt, max_tokens=3000, category=category)
     
+    async def _synthesize_incremental(
+        self,
+        prompt: str,
+        thinking_steps: List[ThinkingStep],
+        category: Optional[str] = None
+    ) -> str:
+        """[SINGULARITY 14.2] Incremental Assembly of the final report"""
+        logger.info(f"🧱 [INCREMENTAL] Assembling final answer from {len(thinking_steps)} steps...")
+        
+        from task_orchestration.task_decomposer import TaskDecomposer
+        decomposer = TaskDecomposer()
+        
+        # 1. Decompose the goal into sections
+        sections = await decomposer.decompose_task_async(prompt)
+        if not sections or len(sections) < 2:
+            # Fallback if decomposition fails
+            sections = ["Introduction", "Analysis", "Findings", "Conclusion"]
+        else:
+            sections = [s.title for s in sections]
+
+        final_report = ""
+        accumulated_facts = ""
+        
+        # 2. Extract facts from all thinking steps first (Map phase)
+        from ai_core import FactExtractor
+        extractor = FactExtractor()
+        all_thoughts = "\n".join([f"Step {s.step_number}: {s.thought}" for s in thinking_steps])
+        global_facts = await extractor.extract_facts(all_thoughts, context_description="Global thinking steps")
+
+        # 3. Generate each section (Reduce phase)
+        for i, section in enumerate(sections):
+            logger.info(f"📝 [SECTION] Generating section {i+1}/{len(sections)}: {section}")
+            
+            section_prompt = f"""### ROLE: Technical Writer
+### TASK: Generate the '{section}' part of the final report.
+### GOAL: {prompt}
+### GLOBAL FACTS:
+{global_facts}
+
+### PREVIOUS SECTIONS:
+{final_report[-2000:] if final_report else "None"}
+
+### SECTION TO GENERATE: {section}
+### FORMAT: Professional, detailed, Markdown.
+
+{section.upper()}:"""
+            
+            section_content = await self._generate_response(section_prompt, max_tokens=1500, category=category)
+            final_report += f"\n\n## {section}\n{section_content}"
+            
+        return final_report
+
     def _calculate_confidence(self, thinking_steps: List[ThinkingStep]) -> float:
         """Рассчитать уверенность в ответе"""
         if not thinking_steps:
@@ -483,6 +552,8 @@ class ExtendedThinkingEngine:
 
         # Список URL для попыток (сначала MLX, затем Ollama)
         urls_to_try = [self.llm_url]
+        if not urls_to_try[0].startswith(('http://', 'https://')):
+            urls_to_try[0] = f"http://{urls_to_try[0]}"
         
         # Добавляем Ollama как fallback
         ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')

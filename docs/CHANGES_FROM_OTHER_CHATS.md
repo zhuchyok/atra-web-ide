@@ -4,6 +4,14 @@
 
 ---
 
+## 0.4fk. Singularity 14.1: Resilient Intelligence (2026-02-14)
+- **Выполнено:**
+    - (1) **Proactive Task Decomposition:** В `TaskDecomposer` внедрена логика распознавания «Deep Analysis» задач. Теперь они автоматически разбиваются на 3 фазы (Сбор данных, Анализ, Отчет), предотвращая «захлебывание» модели на длинных отчетах.
+    - (2) **Dynamic Memory Scaling:** Лимит памяти для `victoria-agent` увеличен до 12GB. Это обеспечивает стабильную работу при генерации планов 10k+ символов и одновременном вызове нескольких экспертов.
+    - (3) **Extended Thinking Resilience:** В `ExtendedThinkingEngine` увеличен бюджет токенов до 15k и внедрена защита от переполнения контекста при финальном синтезе ответа.
+    - (4) **Frontend Status Fix:** Исправлена логика парсинга JSON-статуса в `App.svelte`, устранив ложное отображение «Offline» при работающем бэкенде.
+- **Итог:** Система стала устойчивой к сверхдлинным аналитическим запросам, обеспечивая непрерывность мыслительного процесса без крашей контейнеров.
+
 ## 0.4fj. Singularity 10.0: Высокопроизводительный инференс (2026-02-14)
 - **Выполнено:**
     - (1) **Continuous Batching:** Движок в `mlx_api_server.py` для одновременной генерации нескольких ответов.
@@ -1908,6 +1916,44 @@
      - Синхронизация путей: Честный маппинг `/workspace/[slug]` между Mac Studio и Docker для всех проектов.
 - **Файлы:** `knowledge_os/app/sandbox_manager.py`, `knowledge_os/app/architecture_profiler.py`, `knowledge_os/app/traffic_mirror.py`, `knowledge_os/app/graphrag/*`, `knowledge_os/dashboard/tabs/system_tab.py`, `docker-compose.yml`.
 - **Итог:** Корпорация получила инструменты для бесконечного самосовершенствования и безопасного масштабирования на неограниченное количество проектов.
+
+---
+
+## 20. Singularity 14.3: Survival Intelligence (2026-02-14)
+
+- **Цель:** Предотвращение технического паралича и обеспечение выживаемости системы при критических сбоях (OOM, ошибки кода).
+- **Реализация:**
+  1. **Pre-flight Code Validation:**
+     - `CodeValidator`: Проверка синтаксиса и импортов (`ast.parse`) перед записью `.py` файлов. Предотвращает `NameError` и `SyntaxError`.
+  2. **External System Watchdog:**
+     - `system_watchdog.sh`: Независимый монитор пульса (HTTP health checks). Выполняет Hard Reset контейнеров при зависании.
+  3. **Memory Guard:**
+     - `MemoryGuard`: Мониторинг RAM и адаптивная пауза тяжелых задач (Nightly Learner) для предотвращения OOMKilled на Mac Studio.
+  4. **War Room Auto-Trigger:**
+     - Интеграция `trigger_war_room_if_needed` в глобальный обработчик ошибок бэкенда. Автоматический созыв экспертов при 500-х ошибках.
+  5. **Telegram Fix:**
+     - Унификация и исправление переменных окружения для Telegram во всех Docker-сервисах.
+- **Файлы:** `knowledge_os/app/code_validator.py`, `knowledge_os/app/memory_guard.py`, `scripts/system_watchdog.sh`, `backend/app/middleware/error_handler.py`, `knowledge_os/docker-compose.yml`.
+- **Итог:** Система перешла на архитектуру выживания, минимизирующую время простоя даже при ошибках в коде агентов.
+
+---
+
+## 21. Singularity 15.0: Cognitive Breakthrough & Hierarchical Intelligence (2026-02-14)
+
+- **Цель:** Решение проблемы «захлебывания» моделей на сверхсложных задачах (синтез отчетов от 86 экспертов) и достижение качества «гигантов» (OpenAI/Anthropic) через иерархическую обработку данных.
+- **Реализация:**
+  1. **Fact Extraction (MapReduce Pattern):**
+     - `FactExtractor`: Автономный модуль для сжатия RAG-контекста и отчетов агентов до набора атомарных фактов. Используется в `ai_core.py` при превышении лимита в 3000 символов.
+  2. **Hierarchical Swarm (Pyramid Synthesis):**
+     - `swarm_intelligence.py`: Агенты разделены на кластеры (Technical, UX/UI, Security, Performance). Каждый кластер формирует промежуточный синтез, который затем объединяется в глобальный консенсус.
+  3. **Incremental Assembly:**
+     - `extended_thinking.py`: Финальный отчет собирается по секциям (Intro -> Analysis -> Conclusion). Каждая секция генерируется с учетом накопленных фактов, что гарантирует полноту и отсутствие обрывов.
+  4. **Memory Guard (Context Swapper):**
+     - `ContextSwapper`: Использует Redis для хранения полных цепочек рассуждений, оставляя в контексте LLM только «магистральные» пути знаний.
+  5. **Telegram Bot Fix:**
+     - Исправлена логика `try_one_url_async`: теперь бот ищет результат в полях `output`, `result` и `response`, что критично для сложных ReAct-задач.
+- **Файлы:** `knowledge_os/app/ai_core.py`, `knowledge_os/app/swarm_intelligence.py`, `knowledge_os/app/extended_thinking.py`, `src/agents/bridge/victoria_telegram_bot.py`.
+- **Итог:** Корпорация научилась обрабатывать задачи любого объема, не теряя нить рассуждения и не обрывая отчеты на середине.
 
 ---
 

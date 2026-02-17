@@ -369,11 +369,11 @@ class EnhancedRAGEngine:
                                 * (1.0 + LEAST(COALESCE(usage_count, 0) / 100.0, 0.2))) as relevance_score
                         FROM knowledge_nodes
                         WHERE is_verified = TRUE AND confidence_score >= $1
-                        AND (content ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($2, '|')) AS keyword])
-                            OR metadata::text ILIKE ANY(ARRAY[SELECT '%' || keyword || '%' FROM unnest(string_to_array($2, '|')) AS keyword]))
+                        AND (content ILIKE ANY($2)
+                            OR metadata::text ILIKE ANY($2))
                         ORDER BY relevance_score DESC
                         LIMIT $3
-                    """, min_confidence, keyword_pattern, limit * 2)
+                    """, min_confidence, [f"%{k}%" for k in keywords], limit * 2)
                 
                 # 3. Реранкинг (если включен)
                 if use_reranking and len(rows) > limit:

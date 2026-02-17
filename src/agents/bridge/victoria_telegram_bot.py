@@ -424,14 +424,15 @@ async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", cha
                         rec = sr.json()
                         st = rec.get("status", "")
                         if st == "completed":
-                            output = rec.get("output")
+                            # [SINGULARITY 15.0] Пытаемся найти результат в разных полях (output, result, response)
+                            output = rec.get("output") or rec.get("result") or rec.get("response")
                             if not output:
                                 # Проверяем на уточняющие вопросы
                                 knowledge = rec.get("knowledge") or {}
                                 qs = knowledge.get("clarification_questions") or rec.get("clarification_questions")
                                 if qs:
                                     return "Victoria уточняет: " + ("; ".join(qs) if isinstance(qs, list) else str(qs))
-                                return "Задача выполнена"
+                                return "Задача выполнена, но отчет пуст. Проверьте логи."
                             return output
                         if st == "failed":
                             return rec.get("error") or "Ошибка выполнения"

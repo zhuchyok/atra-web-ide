@@ -16,6 +16,7 @@ services:
     restart: always
     command: ["postgres", "-c", "max_connections=300"]  # 200 было мало при воркере+дашборд+Victoria+rest+оркестраторы (эксперты: docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
     environment:
+      TZ: Europe/Moscow
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: knowledge_os
@@ -63,11 +64,11 @@ services:
     restart: always
     networks:
       - atra-network
-    # Резерв памяти для Mac Studio: оставляет место для планирования Docker (лимит не задаём — пики при LLM)
-    # МОНСТР-ЛОГИКА: Выделяем по 8GB для Gateway и Worker для стабильной работы
-    mem_limit: 8g
-    mem_reservation: 4g
+    # [SINGULARITY 14.1] Increased memory for heavy reasoning tasks
+    mem_limit: 16g
+    mem_reservation: 8g
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app
       VICTORIA_PORT: "8000"  # внутри контейнера 8000, снаружи 8010
       ATRA_ENV: prod
@@ -160,6 +161,8 @@ services:
       VICTORIA_MAX_PLAN_REVISIONS: ${VICTORIA_MAX_PLAN_REVISIONS:-1}
       # Telegram Bot для отчетов и алертов
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
       EARLY_WARNING_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       EARLY_WARNING_TELEGRAM_CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
       TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
@@ -202,6 +205,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
@@ -243,6 +247,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
@@ -275,6 +280,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app
       ATRA_ENV: prod
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
@@ -298,11 +304,11 @@ services:
       # Для явного указания: VERONICA_MODEL=qwen2.5-coder:32b
       VERONICA_MODEL: ${VERONICA_MODEL:-}
       VERONICA_PLANNER_MODEL: ${VERONICA_PLANNER_MODEL:-}
-    # [SINGULARITY 10.0+] Browser-Use / Playwright
-    PLAYWRIGHT_BROWSERS_PATH: /app/pw-browsers
-    BROWSER_USE_HEADLESS: ${BROWSER_USE_HEADLESS:-true}
-    # Victoria Operator: Veronica acts as eyes and hands
-    VICTORIA_OPERATOR_ENABLED: "true"
+      # [SINGULARITY 14.0] Browser-Use / Playwright
+      PLAYWRIGHT_BROWSERS_PATH: /app/pw-browsers
+      BROWSER_USE_HEADLESS: ${BROWSER_USE_HEADLESS:-true}
+      # Victoria Operator: Veronica acts as eyes and hands
+      VICTORIA_OPERATOR_ENABLED: "true"
     ports:
       - "8011:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -408,6 +414,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -455,6 +462,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
@@ -462,6 +470,12 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      EARLY_WARNING_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      EARLY_WARNING_TELEGRAM_CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app
@@ -481,6 +495,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -507,6 +522,7 @@ services:
     networks:
       - atra-network
     environment:
+      TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
@@ -514,6 +530,13 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
+      # Telegram Notifications
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      EARLY_WARNING_TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      EARLY_WARNING_TELEGRAM_CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
       # Живой организм: при недоступности Ollama/MLX оркестратор шлёт POST сюда; на хосте запустить scripts/host_recovery_listener.py
       RECOVERY_WEBHOOK_URL: ${RECOVERY_WEBHOOK_URL:-http://host.docker.internal:9099/recover}
       ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
@@ -538,6 +561,7 @@ services:
     ports:
       - "8501:8501"
     environment:
+      TZ: Europe/Moscow
       # Если дашборд в Docker, а PostgreSQL на хосте: postgresql://admin:secret@host.docker.internal:5432/knowledge_os
       DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os}
       # Чтобы singularity_9_ab_tester и evaluator загружались в контейнере

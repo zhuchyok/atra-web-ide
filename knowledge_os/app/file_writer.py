@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from app.code_validator import CodeValidator
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +55,21 @@ class SafeFileWriter:
 
             if target_path.exists() and not overwrite:
                 return {"error": "Файл существует. Используйте overwrite=True"}
+
+            # [SINGULARITY 14.3] Pre-flight Validation
+            if CodeValidator.is_python_file(filepath):
+                validation = CodeValidator.validate_python(content, filename=filepath)
+                if not validation.get("success"):
+                    error_msg = f"ОШИБКА ВАЛИДАЦИИ КОДА: {validation.get('error')}"
+                    if validation.get("line"):
+                        error_msg += f" (строка {validation.get('line')})"
+                    logger.error(f"SafeFileWriter: {error_msg} в {filepath}")
+                    return {
+                        "error": error_msg,
+                        "validation_failed": True,
+                        "type": validation.get("type"),
+                        "line": validation.get("line")
+                    }
 
             backup_info = None
             if target_path.exists() and self.backup_enabled:

@@ -169,6 +169,32 @@ try:
 except ImportError:
     get_personality_manager = None
 
+class ContextSwapper:
+    """
+    [SINGULARITY 14.2] Memory Guard (Redis Context Swapping).
+    Swaps full contexts to Redis and replaces them with summaries to save tokens.
+    """
+    def __init__(self, redis_mgr=None, max_tokens: int = 8000):
+        from redis_manager import redis_manager
+        self.redis = redis_mgr or redis_manager
+        self.max_tokens = max_tokens
+        self.extractor = FactExtractor()
+
+    async def swap_if_needed(self, context: str, key: str) -> str:
+        """Swaps context if it exceeds token limit."""
+        if not context or len(context) < self.max_tokens:
+            return context
+            
+        logger.info(f"🔄 [SWAPPER] Context too long ({len(context)}), swapping to Redis: {key}")
+        
+        # 1. Store full context in Redis
+        await self.redis.set_cache(f"swap:{key}", context, ttl=1800)
+        
+        # 2. Extract facts for active context
+        summary = await self.extractor.extract_facts(context, context_description=f"Swapped context: {key}")
+        
+        return f"[CONTEXT SWAPPED TO REDIS: {key}]\nSUMMARY:\n{summary}"
+
 try:
     from episodic_memory import get_episodic_memory_manager
 except ImportError:
@@ -199,10 +225,50 @@ try:
 except ImportError:
     get_distillation_engine = None
 
-try:
-    from distillation_engine import get_distillation_engine
-except ImportError:
-    get_distillation_engine = None
+class FactExtractor:
+    """
+    [SINGULARITY 14.2] Fact Extraction Layer (MapReduce Pattern).
+    Extracts key facts from long texts to prevent context overflow.
+    """
+    def __init__(self, model_name: str = "phi3.5:3.8b"):
+        self.model_name = model_name
+        self.ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+        if os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true':
+            self.ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://host.docker.internal:11434')
+
+    async def extract_facts(self, text: str, context_description: str = "general") -> str:
+        """Extracts structured facts from text using a fast model."""
+        if not text or len(text) < 100:
+            return text
+
+        import httpx
+        prompt = f"""### ROLE: AI Secretary / Fact Extractor
+### TASK: Extract key facts, metrics, and findings from the text below.
+### CONTEXT: {context_description}
+### FORMAT: Bullet points, concise, no fluff.
+
+TEXT TO ANALYZE:
+{text[:10000]}
+
+FACTS:"""
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={
+                        "model": self.model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"temperature": 0.1}
+                    }
+                )
+                if response.status_code == 200:
+                    return response.json().get('response', text)
+        except Exception as e:
+            logging.getLogger(__name__).warning(f"⚠️ [FactExtractor] Error: {e}")
+        
+        return text
 
 try:
     from ui_audit_agent import get_ui_audit_agent
@@ -722,8 +788,18 @@ async def run_smart_agent_async_impl(
         contexts = await rag_engine.retrieve_enhanced_context(prompt, limit=3)
         if contexts:
             kb_context = "\n### ЗНАНИЯ ОТ КОЛЛЕГ (ИЗ БАЗЫ ЗНАНИЙ):\n"
-            for i, ctx in enumerate(contexts, 1):
-                kb_context += f"Инсайт {i}: {ctx['content']}\n---\n"
+            
+            # [SINGULARITY 14.2] Fact Extraction for long contexts
+            total_context_len = sum(len(ctx['content']) for ctx in contexts)
+            if total_context_len > 3000:
+                logger.info(f"✂️ [FACT EXTRACTOR] Context too long ({total_context_len}), extracting facts...")
+                extractor = FactExtractor()
+                full_text = "\n".join([ctx['content'] for ctx in contexts])
+                kb_context += await extractor.extract_facts(full_text, context_description=f"Expert: {expert_name}")
+            else:
+                for i, ctx in enumerate(contexts, 1):
+                    kb_context += f"Инсайт {i}: {ctx['content']}\n---\n"
+            
             logger.info(f"📚 [RAG] Найдено {len(contexts)} инсайтов для эксперта {expert_name}")
     except Exception as re:
         logger.debug(f"⚠️ [RAG] Ошибка поиска знаний: {re}")
@@ -731,6 +807,9 @@ async def run_smart_agent_async_impl(
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
     # Подмешиваем знания коллег в промпт
     if kb_context:
+        # [SINGULARITY 14.2] Use ContextSwapper for kb_context
+        swapper = ContextSwapper()
+        kb_context = await swapper.swap_if_needed(kb_context, f"kb_context_{request_id}")
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
     
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
