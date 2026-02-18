@@ -1,6 +1,11 @@
 # Единый справочник проекта ATRA Web IDE (Master Reference)
 
-**«Библия» проекта** — это **этот документ + связка документов**, на которые он ссылается. Когда говорят **«библия»**, имеется в виду: изучить **docs/MASTER_REFERENCE.md** и при необходимости связанные документы (PROJECT_ARCHITECTURE_AND_GUIDE, ARCHITECTURE_FULL, CURRENT_STATE_WORKER_AND_LLM, WORKER_THROUGHPUT, OLLAMA_MLX, VERIFICATION_CHECKLIST, CHANGES_FROM_OTHER_CHATS, DASHBOARDS_AND_AGENTS_FULL_PICTURE, план верификации в .cursor/plans и др.). Закреплено в **.cursorrules** (раздел «Библия проекта»).
+**«Библия» проекта** — это **этот документ + связка документов**, на которые он ссылается. Когда говорят **«библия»**, имеется в виду: изучить **docs/MASTER_REFERENCE.md** и при необходимости связанные документы:
+- **docs/COGNITIVE_CODE.md** (Когнитивный кодекс: стандарты критического мышления).
+- **PROJECT_ARCHITECTURE_AND_GUIDE**, **ARCHITECTURE_FULL**, **CURRENT_STATE_WORKER_AND_LLM**.
+- **CHANGES_FROM_OTHER_CHATS.md** (Лог изменений).
+- **VERIFICATION_CHECKLIST**, **DASHBOARDS_AND_AGENTS_FULL_PICTURE**.
+Закреплено в **.cursorrules** (раздел «Библия проекта»).
 
 **Назначение:** при любых вопросах по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
 
