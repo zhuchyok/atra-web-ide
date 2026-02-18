@@ -182,9 +182,36 @@ services:
       - ../../dev/setki-21:/workspace/setki-21
       - ../../dev/atra:/workspace/atra
       - ..:/workspace/atra-web-ide
+      # Глобальные правила и Библия (Единый источник истины)
+      - ../.cursorrules:/workspace/global/.cursorrules:ro
+      - ../.cursor/rules:/workspace/global/.cursor/rules:ro
+      - ../docs/MASTER_REFERENCE.md:/workspace/global/docs/MASTER_REFERENCE.md:ro
     command: python -m src.agents.bridge.victoria_server
 
   # Воркер для тяжелых задач (Heavy Worker) - 1 инстанс
+  # Open WebUI: профессиональный интерфейс для Виктории и облачных моделей
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: always
+    ports:
+      - "3005:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Europe/Moscow
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OPENAI_API_BASE_URL=http://victoria-agent:8000/v1
+      - OPENAI_API_KEY=atra-secret
+      - WEBUI_SECRET_KEY=atra-webui-secret-2026
+      - ENABLE_SIGNUP=false
+      - DEFAULT_MODELS=Victoria
+    volumes:
+      - open-webui-data:/app/backend/data
+      - /Users/bikos/Documents/atra-web-ide/docs:/workspace/global_docs:ro
+    networks:
+      - atra-network
+
   expert-worker-heavy:
     depends_on:
       victoria-agent:
@@ -320,6 +347,10 @@ services:
       - ../../dev/setki-21:/workspace/setki-21
       - ../../dev/atra:/workspace/atra
       - ..:/workspace/atra-web-ide
+      # Глобальные правила и Библия (Единый источник истины)
+      - ../.cursorrules:/workspace/global/.cursorrules:ro
+      - ../.cursor/rules:/workspace/global/.cursor/rules:ro
+      - ../docs/MASTER_REFERENCE.md:/workspace/global/docs/MASTER_REFERENCE.md:ro
     command: python -m src.agents.bridge.server
 
   prometheus:
@@ -575,6 +606,7 @@ services:
     command: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
 
 volumes:
+  open-webui-data:
   # Используем atra_knowledge_postgres_data (86 экспертов, 26k узлов) — данные atra/atra-web-ide
   # Если нужна пустая БД: заменить на postgres_data: {} и пересоздать контейнер
   postgres_data:
