@@ -35,6 +35,7 @@ async def _lifespan(app: FastAPI):
     await _ensure_projects_table_migration()
     await _ensure_project_context_on_tasks_migration()
     await _ensure_model_performance_metrics_migration()
+    await _ensure_expert_mutations_migration()
     yield
     try:
         from http_client import close_http_client
@@ -262,6 +263,26 @@ async def _ensure_model_performance_metrics_migration():
             if row is None:
                 migration_path = os.path.join(
                     os.path.dirname(__file__), "..", "db", "migrations", "add_model_performance_metrics.sql"
+                )
+                if os.path.exists(migration_path):
+                    with open(migration_path, "r", encoding="utf-8") as f:
+                        sql = f.read()
+                    await conn.execute(sql)
+    except Exception:
+        pass
+
+
+async def _ensure_expert_mutations_migration():
+    """При старте API: создать таблицу expert_mutations (Shadow Prompt Evolution), если её нет."""
+    try:
+        pool = await _get_db()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'expert_mutations'"
+            )
+            if row is None:
+                migration_path = os.path.join(
+                    os.path.dirname(__file__), "..", "db", "migrations", "20260220_add_expert_mutations.sql"
                 )
                 if os.path.exists(migration_path):
                     with open(migration_path, "r", encoding="utf-8") as f:
