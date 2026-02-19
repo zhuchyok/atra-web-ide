@@ -34,6 +34,12 @@ except ImportError:
     get_profiler = None
 
 try:
+    from graphrag.graphrag_service import get_graphrag_service
+except ImportError:
+    def get_graphrag_service():
+        return None
+
+try:
     from sandbox_manager import get_sandbox_manager
 except ImportError:
     get_sandbox_manager = None
@@ -92,6 +98,15 @@ class MetaArchitect:
         for spot in hot_spots:
             logger.info(f"🚀 [EVOLUTION] Analyzing hot spot: {spot['module_name']}.{spot['function_name']} (Avg: {spot['avg_time']:.2f}ms)")
             
+            # 0. Retrieve GraphRAG Context
+            graph_context = ""
+            graphrag_service = get_graphrag_service()
+            if graphrag_service:
+                query = f"module {spot['module_name']} function {spot['function_name']}"
+                graph_context = await graphrag_service.retrieve_graph_context(query)
+                if graph_context:
+                    logger.info(f"🌐 [EVOLUTION] GraphRAG context retrieved for {spot['function_name']}")
+
             # 1. Generate Mutation Hypothesis
             hypothesis_prompt = f"""
 ВЫ - ГЛАВНЫЙ АРХИТЕКТОР (CTO) SINGULARITY 10.0.
@@ -102,16 +117,20 @@ class MetaArchitect:
 КОЛИЧЕСТВО ВЫЗОВОВ: {spot['call_count']}
 ОШИБОК: {spot['failure_count']}
 
+{graph_context}
+
 ЗАДАЧА: 
 1. Проанализируйте, почему эта функция может быть медленной.
-2. Предложите архитектурную мутацию (например, внедрение кэширования, асинхронности, изменение алгоритма или перенос логики).
-3. Опишите ожидаемый результат.
+2. Используя данные GraphRAG выше (если есть), оцените зависимости: какие другие функции вызывают эту? От чего зависит эта функция? Как изменение этой функции повлияет на логические связи в системе?
+3. Предложите архитектурную мутацию (например, внедрение кэширования, асинхронности, изменение алгоритма или перенос логики).
+4. Опишите ожидаемый результат.
 
 ВЕРНИТЕ ОТВЕТ В JSON:
 {{
     "analysis": "...",
     "mutation_hypothesis": "...",
-    "expected_improvement_percent": 20
+    "expected_improvement_percent": 20,
+    "dependency_impact": "..."
 }}
 """
             hypothesis_json = await run_smart_agent_async(
@@ -145,6 +164,8 @@ class MetaArchitect:
 ФАЙЛ: {module_path}
 ГИПОТЕЗА МУТАЦИИ: {hypothesis['mutation_hypothesis']}
 
+{graph_context}
+
 ТЕКУЩИЙ КОД:
 ```python
 {original_code}
@@ -152,6 +173,7 @@ class MetaArchitect:
 
 ВЕРНИТЕ ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД ФАЙЛА. 
 Используйте только валидный Python. Не обрезайте код.
+Учитывайте зависимости и логические связи, указанные в контексте GraphRAG (если есть).
 """
             mutated_code = await run_smart_agent_async(
                 mutation_prompt,
