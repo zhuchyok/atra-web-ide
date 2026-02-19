@@ -170,6 +170,11 @@ except ImportError:
     ShadowExecutionManager = None
 
 try:
+    from shadow_evaluator import ShadowEvaluator
+except ImportError:
+    ShadowEvaluator = None
+
+try:
     from personality_manager import get_personality_manager
 except ImportError:
     get_personality_manager = None
@@ -1902,10 +1907,18 @@ async def _trigger_shadow_execution(
                 shadow_response = await run_shadow()
                 
                 if shadow_response:
-                    # 3. Send both to Evaluator (Task 3 placeholder)
-                    logger.info(f"⚖️ [SHADOW] Sending results for mutation {mutation_id} to evaluator (Placeholder)")
-                    # TODO: Implement ShadowEvaluator in Task 3
-                    # await evaluator.evaluate(mutation_id, production_response, shadow_response)
+                    # 3. Send both to Evaluator
+                    if ShadowEvaluator:
+                        logger.info(f"⚖️ [SHADOW] Evaluating mutation {mutation_id}...")
+                        evaluator = ShadowEvaluator(db_url=os.getenv("DATABASE_URL"))
+                        asyncio.create_task(evaluator.evaluate_and_update(
+                            mutation_id=mutation_id,
+                            query=prompt,
+                            prod_resp=production_response,
+                            shadow_resp=shadow_response
+                        ))
+                    else:
+                        logger.warning(f"⚠️ [SHADOW] ShadowEvaluator not found, skipping evaluation for {mutation_id}")
                     
     except Exception as e:
         logger.error(f"⚠️ [SHADOW] Trigger error: {e}")
