@@ -847,6 +847,18 @@ async def nightly_learning_cycle():
         except Exception as e:
             print(f"⚠️ Self-Distillation error: {e}")
 
+        # --- ФАЗА 19: PROMOTION ENGINE (SHADOW PROMPT EVOLUTION) ---
+        _log_step("🚀 Running Shadow Prompt Promotion cycle...")
+        try:
+            try:
+                from promotion_engine import check_and_promote_mutations
+            except ImportError:
+                from app.promotion_engine import check_and_promote_mutations
+            await check_and_promote_mutations()
+            print("✅ Phase 19: Shadow Prompt Promotion cycle completed.")
+        except Exception as e:
+            print(f"⚠️ Shadow Prompt Promotion error: {e}")
+
         await pool.release(conn)
         await pool.close()
         _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")
