@@ -850,11 +850,8 @@ async def nightly_learning_cycle():
         # --- ФАЗА 19: PROMOTION ENGINE (SHADOW PROMPT EVOLUTION) ---
         _log_step("🚀 Running Shadow Prompt Promotion cycle...")
         try:
-            try:
-                from promotion_engine import check_and_promote_mutations
-            except ImportError:
-                from app.promotion_engine import check_and_promote_mutations
-            await check_and_promote_mutations()
+            from promotion_engine import run_promotion_cycle
+            await run_promotion_cycle()
             print("✅ Phase 19: Shadow Prompt Promotion cycle completed.")
         except Exception as e:
             print(f"⚠️ Shadow Prompt Promotion error: {e}")
