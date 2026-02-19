@@ -20,7 +20,7 @@ def format_msk(dt):
 
 def render_data_tab():
     """Вкладка Интеллект (RAG) и Качество Знаний."""
-    tabs = st.tabs(["📚 AI Research KB", "📊 Целостность", "🧠 Карта Разума", "🔍 Ревизия", "🤝 Синтез Знаний", "🎨 Canvas"])
+    tabs = st.tabs(["📚 AI Research KB", "📊 Целостность", "🧠 Карта Разума", "🔍 Ревизия", "🤝 Синтез Знаний", "⚔️ Prompt Battle"])
     
     with tabs[0]:
         render_ai_research_kb()
@@ -33,40 +33,109 @@ def render_data_tab():
     with tabs[4]:
         render_synthesis_hub()
     with tabs[5]:
-        render_canvas_mode()
+        render_prompt_battle()
 
-def render_canvas_mode():
-    """🎨 Canvas Mode для Web IDE (Интерактивные артефакты)."""
-    st.subheader("🎨 Canvas Mode: Интерактивные Артефакты")
-    st.markdown("Визуализация и редактирование кода, документации и схем в реальном времени.")
+def render_prompt_battle():
+    """⚔️ Prompt Battle interface for Shadow Prompt Evolution."""
+    st.subheader("⚔️ Prompt Battle: Shadow Evolution")
+    st.markdown("Сражение между текущим промптом (Production) и мутировавшим (Shadow).")
+
+    # 1. Fetch active mutations
+    mutations = fetch_data("""
+        SELECT m.id, m.expert_id, e.name as expert_name, e.system_prompt as prod_prompt,
+               m.mutated_prompt, m.win_count, m.loss_count, m.draw_count, m.total_tests,
+               m.status, m.base_version
+        FROM expert_mutations m
+        JOIN experts e ON m.expert_id = e.id
+        WHERE m.status = 'shadow'
+        ORDER BY m.updated_at DESC
+    """)
+
+    if not mutations:
+        st.info("Нет активных мутаций в режиме Shadow Testing.")
+        return
+
+    # 2. Display list of experts in shadow testing
+    expert_names = sorted(list(set([m['expert_name'] for m in mutations])))
+    selected_expert_name = st.selectbox("Выберите эксперта для аудита", expert_names)
     
-    col_chat, col_canvas = st.columns([1, 1])
+    selected_mutation = next((m for m in mutations if m['expert_name'] == selected_expert_name), None)
     
-    with col_chat:
-        st.markdown("### 💬 Чат с Викторией")
-        st.info("Здесь отображается стратегический диалог.")
-        st.text_area("Ваша команда", placeholder="Например: 'Улучши алгоритм RAG'...", height=100)
-        st.button("Отправить")
-        
-    with col_canvas:
-        st.markdown("### 🖼️ Артефакт: `rag_optimizer.py`")
-        # Имитация Canvas
-        st.code("""
-def optimize_rag(query, nodes):
-    # [CANARY] Новая логика фильтрации
-    filtered = [n for n in nodes if n.score > 0.85]
-    return filtered
-        """, language="python")
-        
+    if selected_mutation:
+        # 3. Show Win/Loss/Draw stats and Win Rate
+        total = selected_mutation['total_tests']
+        wins = selected_mutation['win_count']
+        losses = selected_mutation['loss_count']
+        draws = selected_mutation['draw_count']
+        win_rate = (wins / total * 100) if total > 0 else 0
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Win Rate", f"{win_rate:.1f}%")
+        col2.metric("Wins", wins)
+        col3.metric("Losses", losses)
+        col4.metric("Total Tests", total)
+
         st.markdown("---")
-        st.markdown("**🛠️ Быстрые действия:**")
-        c1, c2, c3 = st.columns(3)
-        if c1.button("🧪 Тест (Анна)"):
-            st.toast("Анна запускает тесты в Песочнице...")
-        if c2.button("🛡️ Секьюрити (Максим)"):
-            st.toast("Максим проверяет код...")
-        if c3.button("💾 В базу (Елена)"):
-            st.toast("Елена обновляет документацию...")
+
+        # 4. Side-by-side comparison
+        st.markdown("### Сравнение промптов")
+        c_prod, c_shadow = st.columns(2)
+        
+        with c_prod:
+            st.markdown("**🛡️ Production (Base)**")
+            st.code(selected_mutation['prod_prompt'], language="markdown")
+            
+        with c_shadow:
+            st.markdown("**⚡ Shadow (Mutation)**")
+            st.code(selected_mutation['mutated_prompt'], language="markdown")
+
+        # 5. Action buttons
+        st.markdown("### Действия")
+        act_col1, act_col2, _ = st.columns([1, 1, 2])
+        
+        if act_col1.button("🚀 Promote Now", help="Сделать этот промпт основным (Hot-Swap)", type="primary"):
+            if run_query("""
+                UPDATE experts SET system_prompt = %s, version = COALESCE(version, 0) + 1 WHERE id = %s
+            """, (selected_mutation['mutated_prompt'], selected_mutation['expert_id'])):
+                run_query("UPDATE expert_mutations SET status = 'promoted' WHERE id = %s", (selected_mutation['id'],))
+                run_query("UPDATE expert_mutations SET status = 'archived' WHERE expert_id = %s AND id != %s AND status = 'shadow'", 
+                          (selected_mutation['expert_id'], selected_mutation['id']))
+                st.success(f"Промпт эксперта {selected_expert_name} успешно обновлен!")
+                st.rerun()
+
+        if act_col2.button("❌ Reject Mutation", help="Архивировать мутацию"):
+            if run_query("UPDATE expert_mutations SET status = 'rejected' WHERE id = %s", (selected_mutation['id'],)):
+                st.warning("Мутация отклонена.")
+                st.rerun()
+
+        st.markdown("---")
+
+        # 6. Recent Battles section
+        st.markdown("### 📜 Последние битвы (Evaluations)")
+        # Fetch last 5 evaluations from interaction_logs where shadow execution was triggered
+        # We look for shadow_verdict in metadata
+        recent_battles = fetch_data("""
+            SELECT created_at, user_query, assistant_response, metadata
+            FROM interaction_logs
+            WHERE expert_id = %s 
+            AND metadata->>'shadow_execution' = 'true'
+            ORDER BY created_at DESC
+            LIMIT 5
+        """, (selected_mutation['expert_id'],))
+
+        if recent_battles:
+            for battle in recent_battles:
+                meta = battle['metadata'] if isinstance(battle['metadata'], dict) else json.loads(battle['metadata'] or '{}')
+                verdict = meta.get('shadow_verdict', 'N/A')
+                reason = meta.get('shadow_reason', 'No reason provided')
+                
+                with st.expander(f"Битва {format_msk(battle['created_at'])} | Вердикт: {verdict}"):
+                    st.markdown(f"**Запрос:** {battle['user_query']}")
+                    st.markdown(f"**Причина вердикта:** {reason}")
+                    st.markdown("**Ответ Shadow:**")
+                    st.info(meta.get('shadow_response', 'N/A'))
+        else:
+            st.info("История битв для этого эксперта пока пуста.")
 
 def render_synthesis_hub():
     """🤝 Хаб Синтеза Знаний (Knowledge Synthesis Hub)."""
