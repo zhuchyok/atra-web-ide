@@ -34,6 +34,11 @@ except ImportError:
     get_profiler = None
 
 try:
+    from safety_verifier import SafetyVerifier
+except ImportError:
+    SafetyVerifier = None
+
+try:
     from graphrag.graphrag_service import get_graphrag_service
 except ImportError:
     def get_graphrag_service():
@@ -300,27 +305,53 @@ class MetaArchitect:
             if "```python" in mutated_code:
                 mutated_code = mutated_code.split("```python")[1].split("```")[0].strip()
             
-            # 2.5 Safety Verification via GraphRAG
-            safety_report = await self.verify_mutation_safety(spot['module_name'], spot['function_name'], mutated_code)
-            if safety_report['score'] < 0.7:
-                logger.warning(f"🛑 [SAFETY VIOLATION] Mutation for {spot['function_name']} rejected. Score: {safety_report['score']}. Risks: {safety_report['risks']}")
+            # 2.5 Safety Verification via GraphRAG (Impact Analysis)
+            if SafetyVerifier:
+                verifier = SafetyVerifier(self.db_url)
+                safety_report = await verifier.verify_mutation(spot['module_name'], spot['function_name'], mutated_code)
                 
-                # Log Safety Violation to knowledge nodes
-                conn = await asyncpg.connect(self.db_url)
-                node_content = f"🛑 SAFETY VIOLATION: Mutation of {spot['module_name']}.{spot['function_name']} rejected."
-                node_meta = json.dumps({
-                    "type": "safety_violation",
-                    "module": spot['module_name'],
-                    "function": spot['function_name'],
-                    "safety_report": safety_report,
-                    "hypothesis": hypothesis
-                })
-                await conn.execute("""
-                    INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
-                    VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, true, 1.0, $2)
-                """, node_content, node_meta)
-                await conn.close()
-                continue
+                if safety_report['safety_score'] < 80:
+                    logger.warning(f"🛑 [SAFETY VIOLATION] Mutation for {spot['function_name']} rejected. Score: {safety_report['safety_score']}. Risks: {safety_report['risks']}")
+                    
+                    # Log Safety Violation to knowledge nodes
+                    conn = await asyncpg.connect(self.db_url)
+                    node_content = f"🛑 SAFETY VIOLATION: Mutation of {spot['module_name']}.{spot['function_name']} rejected."
+                    node_meta = json.dumps({
+                        "type": "safety_violation",
+                        "module": spot['module_name'],
+                        "function": spot['function_name'],
+                        "safety_report": safety_report,
+                        "hypothesis": hypothesis,
+                        "status": "failed_safety_check"
+                    })
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
+                        VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, true, 1.0, $2)
+                    """, node_content, node_meta)
+                    await conn.close()
+                    continue
+            else:
+                # Fallback to old safety check if SafetyVerifier not available
+                safety_report = await self.verify_mutation_safety(spot['module_name'], spot['function_name'], mutated_code)
+                if safety_report['score'] < 0.7:
+                    logger.warning(f"🛑 [SAFETY VIOLATION] Mutation for {spot['function_name']} rejected. Score: {safety_report['score']}. Risks: {safety_report['risks']}")
+                    
+                    # Log Safety Violation to knowledge nodes
+                    conn = await asyncpg.connect(self.db_url)
+                    node_content = f"🛑 SAFETY VIOLATION: Mutation of {spot['module_name']}.{spot['function_name']} rejected."
+                    node_meta = json.dumps({
+                        "type": "safety_violation",
+                        "module": spot['module_name'],
+                        "function": spot['function_name'],
+                        "safety_report": safety_report,
+                        "hypothesis": hypothesis
+                    })
+                    await conn.execute("""
+                        INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
+                        VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, true, 1.0, $2)
+                    """, node_content, node_meta)
+                    await conn.close()
+                    continue
 
             # 3. Save as Mutation for Shadow Execution
             mutation_id = f"mut_{spot['module_name']}_{int(time.time())}"
