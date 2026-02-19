@@ -7,6 +7,15 @@ import argparse
 from datetime import datetime
 from typing import Optional
 
+# [SINGULARITY 10.0+] GraphRAG Integration
+try:
+    from graphrag.graphrag_service import get_graphrag_service
+except ImportError:
+    try:
+        from app.graphrag.graphrag_service import get_graphrag_service
+    except ImportError:
+        get_graphrag_service = None
+
 DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
 
 def run_cursor_agent(prompt: str):
@@ -21,9 +30,28 @@ def run_cursor_agent(prompt: str):
         print(f"Evolution Agent error: {e}")
         return None
 
+async def run_local_mutation_agent(prompt: str, model: str = "qwen2.5-coder:32b"):
+    """
+    [SINGULARITY 14.0] Mutation generation using local model.
+    """
+    try:
+        from local_router import LocalAIRouter
+        router = LocalAIRouter()
+        # Используем reasoning категорию для качественной мутации
+        result = await router.run_local_llm(prompt, category="reasoning", model_hint=model)
+        if isinstance(result, tuple):
+            return result[0]
+        return result
+    except Exception as e:
+        print(f"Local Mutation Agent error: {e}")
+        return run_cursor_agent(prompt) # Fallback to cloud
+
 async def evolve_experts(expert_name: Optional[str] = None):
-    print(f"[{datetime.now()}] 🧬 NEURAL EXPERT EVOLUTION v2.2 (Autonomous Skill Allocation) starting...")
+    print(f"[{datetime.now()}] 🧬 NEURAL EXPERT EVOLUTION v2.3 (GraphRAG Enriched) starting...")
     conn = await asyncpg.connect(DB_URL)
+    
+    # GraphRAG Service
+    graphrag = get_graphrag_service() if get_graphrag_service else None
     
     # 0. Получаем список доступных скиллов
     skills_dir = "/app/knowledge_os/app/skills"
@@ -62,13 +90,25 @@ async def evolve_experts(expert_name: Optional[str] = None):
         
         logs_text = "\n".join([f"Q: {f['user_query']}\nA: {f['assistant_response']}\nScore: {f['feedback_score']}\nError: {f['error']}" for f in feedback])
 
-        # Генетическая мутация + Автономный подбор скиллов
+        # [SINGULARITY 10.0+] GraphRAG Context
+        graph_context = ""
+        if graphrag:
+            print(f"🌐 Fetching GraphRAG context for {exp['name']}...")
+            try:
+                graph_context = await graphrag.retrieve_graph_context(f"Expert {exp['name']} roles and interactions in {exp['role']}")
+            except Exception as ge:
+                print(f"🌐 GraphRAG error: {ge}")
+
+        # Генетическая мутация + Автономный подбор скиллов + GraphRAG
         evolution_prompt = f"""
-        ВЫ - ГЛАВНЫЙ АРХИТЕКТОР ТАЛАНТОВ (УРОВЕНЬ 5). 
-        ЦЕЛЬ: Провести автономную оптимизацию личности и навыков эксперта.
+        ВЫ - ГЛАВНЫЙ АРХИТЕКТОР ТАЛАНТОВ (УРОВЕНЬ 6). 
+        ЦЕЛЬ: Провести автономную оптимизацию личности и навыков эксперта на основе его положения в графе знаний.
         
         ЭКСПЕРТ: {exp['name']} ({exp['role']})
         ТЕКУЩИЙ ПРОМПТ: {exp['system_prompt']}
+        
+        ГЛОБАЛЬНЫЙ КОНТЕКСТ (GraphRAG):
+        {graph_context if graph_context else "Связи в графе знаний не обнаружены."}
         
         ДОСТУПНЫЕ НАВЫКИ В БИБЛИОТЕКЕ:
         {', '.join(available_skills)}
@@ -78,18 +118,20 @@ async def evolve_experts(expert_name: Optional[str] = None):
         
         ЗАДАЧА: 
         1. Проанализируйте ошибки и слабые места.
-        2. Если эксперту не хватает конкретного навыка из библиотеки (например, Self-Verification при галлюцинациях), УКАЖИТЕ ЕГО.
-        3. Сгенерируйте обновленный системный промпт, интегрировав нужные навыки и исправив ошибки.
+        2. Изучите положение эксперта в графе знаний (GraphRAG). Улучшите его роль, учитывая как он взаимодействует с другими экспертами и сущностями.
+        3. Если эксперту не хватает конкретного навыка из библиотеки (например, Self-Verification при галлюцинациях), УКАЖИТЕ ЕГО.
+        4. Сгенерируйте обновленный системный промпт, интегрировав нужные навыки, исправив ошибки и оптимизировав роль под структуру графа знаний.
         
         ОТВЕТЬТЕ В JSON:
         {{
             "new_prompt": "полный текст нового промпта",
             "assigned_skills": ["skill1", "skill2"],
-            "reasoning": "почему приняты эти решения"
+            "reasoning": "почему приняты эти решения, включая влияние GraphRAG контекста"
         }}
         """
         
-        result_json = run_cursor_agent(evolution_prompt)
+        # [SINGULARITY 14.0] Use local model for mutation
+        result_json = await run_local_mutation_agent(evolution_prompt)
         try:
             if result_json:
                 # Очистка JSON от markdown
