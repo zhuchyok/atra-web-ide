@@ -40,6 +40,11 @@ except ImportError:
         return None
 
 try:
+    from graphrag.code_analyzer import CodeAnalyzer
+except ImportError:
+    CodeAnalyzer = None
+
+try:
     from sandbox_manager import get_sandbox_manager
 except ImportError:
     get_sandbox_manager = None
@@ -77,6 +82,117 @@ class MetaArchitect:
     async def self_repair_cycle(self):
         """Analyze repair tasks and attempt to fix the code."""
         # ... existing code ...
+
+    async def verify_mutation_safety(self, module_name: str, function_name: str, mutated_code: str) -> Dict[str, Any]:
+        """
+        [SINGULARITY 10.0+] Safety Verification via GraphRAG (Impact Analysis).
+        Verifies if the mutation is safe to deploy in shadow mode.
+        """
+        logger.info(f"🛡️ [SAFETY] Verifying mutation safety for {module_name}.{function_name}...")
+        
+        # 1. Analyze mutated code for signature changes
+        if not CodeAnalyzer:
+            logger.error("CodeAnalyzer not available for safety verification.")
+            return {"score": 0.5, "risks": ["CodeAnalyzer missing"]}
+
+        try:
+            # We need to find the function in the mutated code
+            import ast
+            tree = ast.parse(mutated_code)
+            mutated_function = None
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    # Handle both top-level functions and methods (if function_name is Class.method)
+                    current_name = node.name
+                    # Simple check for now, could be improved to match full name
+                    if current_name == function_name or ('.' in function_name and function_name.split('.')[-1] == current_name):
+                        mutated_function = node
+                        break
+            
+            if not mutated_function:
+                return {"score": 0.0, "risks": [f"Function {function_name} not found in mutated code"]}
+
+            # Check signature (arguments)
+            # This is a simplified check. A robust one would compare arg names, defaults, etc.
+            mutated_args = [arg.arg for arg in mutated_function.args.args]
+            
+            # 2. Use GraphRAG to find callers
+            graphrag_service = get_graphrag_service()
+            callers = []
+            if graphrag_service:
+                # Find nodes that call this function
+                conn = await asyncpg.connect(self.db_url)
+                # Find the node for this function
+                func_node_id = await conn.fetchval("""
+                    SELECT id FROM knowledge_nodes 
+                    WHERE (metadata->>'file_path' LIKE $1 OR metadata->>'file_path' LIKE $2)
+                    AND content LIKE $3
+                    LIMIT 1
+                """, f"%{module_name}.py", f"%{module_name}%", f"%def {function_name}%")
+                
+                if func_node_id:
+                    caller_nodes = await conn.fetch("""
+                        SELECT kn.content, kn.metadata->>'file_path' as file_path
+                        FROM knowledge_links kl
+                        JOIN knowledge_nodes kn ON kl.source_node_id = kn.id
+                        WHERE kl.target_node_id = $1 AND kl.link_type = 'calls'
+                    """, func_node_id)
+                    callers = [dict(c) for c in caller_nodes]
+                await conn.close()
+
+            # 3. Safety Audit via Local Model
+            audit_prompt = f"""
+ВЫ - ЭКСПЕРТ ПО БЕЗОПАСНОСТИ И КАЧЕСТВУ КОДА (QA/SRE).
+ЗАДАЧА: Провести аудит безопасности архитектурной мутации.
+
+МОДУЛЬ: {module_name}
+ФУНКЦИЯ: {function_name}
+АРГУМЕНТЫ В МУТАЦИИ: {mutated_args}
+
+СПИСОК ЗАВИСИМЫХ ВЫЗОВОВ (CALLERS) ИЗ GRAPHRAG:
+{json.dumps(callers, indent=2) if callers else "No callers found in graph."}
+
+КОД МУТАЦИИ:
+```python
+{mutated_code}
+```
+
+ПРАВИЛА АУДИТА:
+1. Если сигнатура функции изменилась (новые обязательные аргументы, удаление аргументов), а вызывающие функции не обновлены - это КРИТИЧЕСКИЙ РИСК (Score < 0.3).
+2. Если в коде есть потенциальные race conditions, утечки памяти или бесконечные циклы - это ВЫСОКИЙ РИСК (Score < 0.5).
+3. Если мутация меняет логику возвращаемого значения так, что это сломает вызывающих - это СРЕДНИЙ РИСК (Score < 0.7).
+4. Если мутация только оптимизирует производительность без изменения интерфейса - это БЕЗОПАСНО (Score > 0.8).
+
+ВЕРНИТЕ ОТВЕТ В JSON:
+{{
+    "safety_score": 0.0 to 1.0,
+    "risks": ["риск 1", "риск 2"],
+    "recommendation": "abort" или "proceed"
+}}
+"""
+            audit_json = await run_smart_agent_async(
+                audit_prompt,
+                expert_name="Виктория",
+                category="safety_audit",
+                model="qwen2.5-coder:32b"
+            )
+
+            try:
+                if "```json" in audit_json:
+                    audit_json = audit_json.split("```json")[1].split("```")[0].strip()
+                audit_result = json.loads(audit_json)
+                return {
+                    "score": audit_result.get("safety_score", 0.0),
+                    "risks": audit_result.get("risks", ["Unknown risk"]),
+                    "recommendation": audit_result.get("recommendation", "abort")
+                }
+            except Exception as e:
+                logger.error(f"Failed to parse safety audit JSON: {e}")
+                return {"score": 0.0, "risks": [f"Audit parsing error: {e}"]}
+
+        except Exception as e:
+            logger.error(f"Safety verification failed: {e}")
+            return {"score": 0.0, "risks": [str(e)]}
 
     async def self_evolution_cycle(self):
         """[SINGULARITY 10.0] Analyze performance hot spots and generate architectural mutations."""
@@ -184,6 +300,28 @@ class MetaArchitect:
             if "```python" in mutated_code:
                 mutated_code = mutated_code.split("```python")[1].split("```")[0].strip()
             
+            # 2.5 Safety Verification via GraphRAG
+            safety_report = await self.verify_mutation_safety(spot['module_name'], spot['function_name'], mutated_code)
+            if safety_report['score'] < 0.7:
+                logger.warning(f"🛑 [SAFETY VIOLATION] Mutation for {spot['function_name']} rejected. Score: {safety_report['score']}. Risks: {safety_report['risks']}")
+                
+                # Log Safety Violation to knowledge nodes
+                conn = await asyncpg.connect(self.db_url)
+                node_content = f"🛑 SAFETY VIOLATION: Mutation of {spot['module_name']}.{spot['function_name']} rejected."
+                node_meta = json.dumps({
+                    "type": "safety_violation",
+                    "module": spot['module_name'],
+                    "function": spot['function_name'],
+                    "safety_report": safety_report,
+                    "hypothesis": hypothesis
+                })
+                await conn.execute("""
+                    INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
+                    VALUES ((SELECT id FROM domains WHERE name = 'Architecture' LIMIT 1), $1, true, 1.0, $2)
+                """, node_content, node_meta)
+                await conn.close()
+                continue
+
             # 3. Save as Mutation for Shadow Execution
             mutation_id = f"mut_{spot['module_name']}_{int(time.time())}"
             mutation_path = os.path.join(WORKSPACE_ROOT, "knowledge_os", "app", f"{spot['module_name']}_v2.py")
