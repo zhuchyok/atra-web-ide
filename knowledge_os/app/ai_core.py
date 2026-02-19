@@ -165,6 +165,11 @@ except ImportError:
     get_traffic_mirror = None
 
 try:
+    from shadow_execution_manager import ShadowExecutionManager
+except ImportError:
+    ShadowExecutionManager = None
+
+try:
     from personality_manager import get_personality_manager
 except ImportError:
     get_personality_manager = None
@@ -649,6 +654,9 @@ async def run_smart_agent_async_impl(
     import time
     start_time = time.time()
     request_id = f"{expert_name}_{int(time.time())}"
+    # Единый user_key/project_context для всех путей (в т.ч. вызов из execute_assignments без session_id)
+    user_key = session_id or "orchestrator"
+    project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")
 
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
     async def _verify_and_refine(initial_prompt: str, initial_response: str, depth: int = 0) -> str:
@@ -1011,7 +1019,6 @@ async def run_smart_agent_async_impl(
     
     if is_coding_task and not is_critical:
         logger.info("👩‍💼 [ORCHESTRATOR MODE] Victoria is planning for Local Worker...")
-        
         # [SINGULARITY 10.0+] Episodic Memory (User preferences)
         episodic_context = ""
         if get_episodic_memory_manager:
@@ -1814,7 +1821,94 @@ async def run_smart_agent_async_impl(
         elif "почему" in user_part.lower() and len(response) > 500:
             asyncio.create_task(em.save_episode(user_identifier, p_ctx, "decision", f"Detailed explanation for: {user_part[:50]}..."))
 
+    # [SINGULARITY 14.0] Shadow Prompt Evolution: Trigger shadow execution if mutations exist
+    if response and not response.startswith(('⚠️', '❌')):
+        asyncio.create_task(_trigger_shadow_execution(
+            prompt=user_part,
+            expert_name=expert_name,
+            production_response=response,
+            request_id=request_id,
+            category=category
+        ))
+
     return response
+
+async def _trigger_shadow_execution(
+    prompt: str,
+    expert_name: str,
+    production_response: str,
+    request_id: str,
+    category: Optional[str] = None
+):
+    """
+    [SINGULARITY 14.0] Shadow Execution Trigger.
+    Checks for active shadow mutations and runs them in the background.
+    """
+    if not ShadowExecutionManager:
+        return
+
+    try:
+        pool = await _get_db_pool()
+        if not pool:
+            return
+
+        # 1. Check for active shadow mutations for this expert
+        async with pool.acquire() as conn:
+            expert_id = await _get_expert_id(expert_name)
+            if not expert_id:
+                return
+
+            mutations = await conn.fetch("""
+                SELECT id, mutated_prompt 
+                FROM expert_mutations 
+                WHERE expert_id = $1 AND status = 'shadow'
+                LIMIT 5
+            """, expert_id)
+
+            if not mutations:
+                return
+
+            logger.info(f"👻 [SHADOW] Found {len(mutations)} shadow mutations for {expert_name}")
+
+            # 2. Run shadow versions
+            for mut in mutations:
+                mutation_id = mut['id']
+                mutated_prompt_template = mut['mutated_prompt']
+                
+                # Construct the full prompt with the mutated template
+                # Note: This assumes the mutated_prompt in DB is a template or we just use it as is
+                # for now we'll treat it as a replacement for the system/expert part if possible
+                # but a simpler approach for Task 2 is to just run the prompt through the mutated version
+                
+                shadow_prompt = f"{mutated_prompt_template}\n\nUSER REQUEST: {prompt}"
+                
+                # We use _run_cloud_agent_async or router.run_local_llm for shadow
+                # For now, let's use the same routing logic as the main request if possible, 
+                # or just a default local model to save costs.
+                
+                async def run_shadow():
+                    try:
+                        # Use local router for shadow execution to save tokens
+                        if LocalAIRouter:
+                            router = LocalAIRouter()
+                            res = await router.run_local_llm(shadow_prompt, category=category or "general")
+                            return res[0] if isinstance(res, tuple) else res
+                        else:
+                            return await _run_cloud_agent_async(shadow_prompt)
+                    except Exception as e:
+                        logger.error(f"❌ [SHADOW] Execution failed for mutation {mutation_id}: {e}")
+                        return None
+
+                shadow_response = await run_shadow()
+                
+                if shadow_response:
+                    # 3. Send both to Evaluator (Task 3 placeholder)
+                    logger.info(f"⚖️ [SHADOW] Sending results for mutation {mutation_id} to evaluator (Placeholder)")
+                    # TODO: Implement ShadowEvaluator in Task 3
+                    # await evaluator.evaluate(mutation_id, production_response, shadow_response)
+                    
+    except Exception as e:
+        logger.error(f"⚠️ [SHADOW] Trigger error: {e}")
 
 async def _get_expert_id(name: str) -> str:
     """Helper to get expert UUID from DB."""
