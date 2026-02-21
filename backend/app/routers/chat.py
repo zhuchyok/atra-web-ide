@@ -2,10 +2,10 @@
 Chat Router - SSE стриминг для AI чата (Singularity 14.0 Unified)
 Прокси-роутер, передающий все запросы в Victoria Agent.
 """
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List, Dict
 import json
 import logging
 import uuid
@@ -14,7 +14,7 @@ from app.services.victoria import VictoriaClient, get_victoria_client
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 from app.services.conversation_context import get_conversation_context_manager
 from app.services.concurrency_limiter import acquire_victoria_slot, release_victoria_slot, with_victoria_slot
-from app.metrics.prometheus_metrics import metrics as prometheus_metrics, CHAT_EXPERT_ANSWER_TOTAL
+from app.metrics.prometheus_metrics import metrics as prometheus_metrics, CHAT_EXPERT_ANSWER_TOTAL, ASK_VICTORIA_TOTAL
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,6 +34,14 @@ class ChatResponse(BaseModel):
     content: str
     expert_name: Optional[str] = None
     model: Optional[str] = None
+
+
+class AskVictoriaRequest(BaseModel):
+    """Запрос для инструмента ask_victoria (Singularity 15.0)"""
+    goal: str = Field(..., min_length=1, max_length=50000)
+    project_context: Optional[str] = Field(default="atra-web-ide", max_length=128)
+    user_key: Optional[str] = Field(default=None, max_length=256, description="Stable user id e.g. openwebui-{user_id} for LTM")
+    chat_history: Optional[List[Dict[str, str]]] = Field(default=None, description="History as [{user, assistant}, ...] for Victoria context")
 
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
@@ -144,6 +152,89 @@ async def stream_message(
             "X-Accel-Buffering": "no",
         }
     )
+
+@router.post("/ask-victoria")
+async def ask_victoria(
+    body: AskVictoriaRequest,
+    victoria: VictoriaClient = Depends(get_victoria_client),
+    format: Optional[str] = Query(None, description="Response format: json for JSON body"),
+):
+    """
+    Singularity 15.0: единая точка делегирования в Victoria.
+    Для Open WebUI: вызов этого endpoint как инструмента ask_victoria.
+    Возвращает текст ответа или сообщение о недоступности Victoria.
+    ?format=json — ответ в виде JSON: { "status": "success"|"error", "result": "..." }.
+    """
+    goal_stripped = (body.goal or "").strip()
+    if not goal_stripped:
+        if format == "json":
+            return JSONResponse(status_code=422, content={"status": "error", "result": "goal is required and cannot be empty"})
+        return PlainTextResponse("goal is required and cannot be empty", status_code=422)
+
+    acquired = await acquire_victoria_slot()
+    if not acquired:
+        ASK_VICTORIA_TOTAL.labels(status="busy").inc()
+        if format == "json":
+            return JSONResponse(status_code=503, content={"status": "error", "result": "Too many requests; try again later."}, headers={"Retry-After": "60"})
+        return PlainTextResponse("Too many requests; try again later.", status_code=503, headers={"Retry-After": "60"})
+
+    session_id = body.user_key or str(uuid.uuid4())
+
+    def _user_facing_error(err: str) -> str:
+        """Короткое сообщение для пользователя/LLM без утечки внутренних деталей."""
+        if not err:
+            return "Victoria временно недоступна; попробуйте через минуту."
+        e = err.lower()
+        if "task lost" in e or "restarted" in e:
+            return "Задача потеряна (Victoria могла перезапуститься). Пожалуйста, повторите запрос."
+        if "timeout" in e or "timed out" in e:
+            return "Victoria не успела ответить (таймаут). Задача сложная или сервер перегружен — попробуйте через минуту или упростите запрос."
+        if "connect" in e or "refused" in e or "name or service not known" in e:
+            return "Victoria недоступна (нет связи с сервисом). Убедитесь, что Victoria запущена (порт 8010 / victoria-agent)."
+        if "503" in e or "502" in e or "500" in e:
+            return "Victoria временно перегружена или вернула ошибку; попробуйте через минуту."
+        return "Victoria временно недоступна; попробуйте через минуту."
+
+    try:
+        result = await victoria.run(
+            prompt=goal_stripped,
+            project_context=(body.project_context or "atra-web-ide").strip(),
+            session_id=session_id,
+            chat_history=body.chat_history,
+            use_enhanced=True,
+        )
+        if result.get("status") == "error":
+            ASK_VICTORIA_TOTAL.labels(status="error").inc()
+            err_detail = result.get("error") or ""
+            msg = _user_facing_error(err_detail)
+            logger.warning("ask_victoria Victoria returned error: %s", err_detail[:200] if err_detail else "no detail")
+            if format == "json":
+                return JSONResponse(status_code=503, content={"status": "error", "result": msg})
+            return PlainTextResponse(msg, status_code=503)
+        content = result.get("result", "") or result.get("response", "") or ""
+        if not isinstance(content, str):
+            content = str(content)
+        clarification = result.get("clarification_questions")
+        if clarification:
+            if isinstance(clarification, list):
+                lines = [f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q) for q in clarification]
+                content = "\n".join(lines) + ("\n\n" + content if content else "")
+            else:
+                content = str(clarification) + ("\n\n" + content if content else "")
+        ASK_VICTORIA_TOTAL.labels(status="success").inc()
+        if format == "json":
+            return JSONResponse(content={"status": "success", "result": content})
+        return PlainTextResponse(content)
+    except Exception as e:
+        logger.warning("ask_victoria error: %s", e)
+        ASK_VICTORIA_TOTAL.labels(status="error").inc()
+        msg = _user_facing_error(str(e))
+        if format == "json":
+            return JSONResponse(status_code=503, content={"status": "error", "result": msg})
+        return PlainTextResponse(msg, status_code=503)
+    finally:
+        release_victoria_slot()
+
 
 @router.get("/status")
 async def chat_status(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict:

@@ -148,6 +148,7 @@ async def _set_bot_commands() -> bool:
         {"command": "help", "description": "Справка по командам"},
         {"command": "status", "description": "Статус Victoria"},
         {"command": "health", "description": "Проверка здоровья"},
+        {"command": "audit", "description": "Запустить аудит системы"},
         {"command": "project", "description": "Проект: /project atra-web-ide"},
         {"command": "models", "description": "Доступные модели MLX/Ollama"},
         {"command": "clear", "description": "Очистить историю чата"},
@@ -319,26 +320,27 @@ async def process_pdf(pdf_bytes: bytes) -> Optional[str]:
     return None
 
 
-async def send_to_victoria_with_media(goal: str, images_base64: Optional[List[str]] = None, pdf_text: Optional[str] = None, project_context: str = "atra-web-ide", chat_id: Optional[str] = None) -> Optional[str]:
-    """Отправка задачи Victoria с медиа"""
+async def send_to_victoria_with_media(goal: str, images_base64: Optional[List[str]] = None, pdf_text: Optional[str] = None, project_context: str = "atra-web-ide", chat_id: Optional[str] = None, session_id: Optional[str] = None) -> Optional[str]:
+    """Отправка задачи Victoria с медиа. session_id для LTM (например telegram-{user_id})."""
     # Формируем goal с медиа
     media_context = ""
-    
+
     if images_base64:
         media_context += f"\n\n[Прикреплено {len(images_base64)} изображение(й). Используй moondream для анализа скриншотов.]"
-    
+
     if pdf_text:
         # Ограничиваем длину текста PDF (чтобы не перегружать контекст)
         pdf_preview = pdf_text[:2000] + "..." if len(pdf_text) > 2000 else pdf_text
         media_context += f"\n\n[Прикреплен PDF документ. Содержимое:\n{pdf_preview}]"
-    
+
     enhanced_goal = goal + media_context
-    
-    return await send_to_victoria(enhanced_goal, project_context, chat_id, images_base64=images_base64)
+
+    return await send_to_victoria(enhanced_goal, project_context, chat_id, images_base64=images_base64, session_id=session_id)
 
 
-async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", chat_id: Optional[str] = None, chat_history: Optional[List[dict]] = None, images_base64: Optional[List[str]] = None) -> Optional[str]:
-    """Отправка задачи Victoria через API с автоматическим fallback и индикацией прогресса"""
+async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", chat_id: Optional[str] = None, chat_history: Optional[List[dict]] = None, images_base64: Optional[List[str]] = None, session_id: Optional[str] = None) -> Optional[str]:
+    """Отправка задачи Victoria через API с автоматическим fallback и индикацией прогресса. session_id для LTM (например telegram-{user_id})."""
+    session_id = session_id or (f"telegram-{chat_id}" if chat_id else None)
     # Обновляем пульс при активном взаимодействии
     update_heartbeat()
     logger.info(f"📤 Отправка в Victoria ({VICTORIA_URL}): {goal[:100]}...")
@@ -378,6 +380,8 @@ async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", cha
                     "project_context": project_context,
                     "max_steps": max_steps,
                 }
+                if session_id:
+                    payload["session_id"] = session_id
                 if chat_history:
                     payload["chat_history"] = [{"user": h.get("user", ""), "assistant": h.get("assistant", "")} for h in chat_history]
                 if images_base64:
@@ -455,6 +459,8 @@ async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", cha
                 "project_context": project_context,
                 "max_steps": max_steps,
             }
+            if session_id:
+                payload["session_id"] = session_id
             if chat_history:
                 payload["chat_history"] = [{"user": h.get("user", ""), "assistant": h.get("assistant", "")} for h in chat_history]
             if images_base64:
@@ -562,7 +568,7 @@ async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_
     
     session = _get_session(chat_id)
     project_context = session.get("project_context", "atra-web-ide")
-    result = await send_to_victoria_with_media(text, images_base64, pdf_text, project_context, chat_id)
+    result = await send_to_victoria_with_media(text, images_base64, pdf_text, project_context, chat_id, session_id=f"telegram-{user_id}")
     
     if result:
         if len(result) > 4000:
@@ -660,6 +666,23 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
         except Exception as e:
             logger.warning("Ошибка /health: %s", e)
             await send_telegram_message(chat_id, "❌ Victoria недоступна (сервер не отвечает)")
+        return
+
+    if text_lower == "/audit":
+        await send_telegram_message(chat_id, "🔍 Запускаю полный аудит системы ATRA... Это может занять 1-2 минуты.")
+        try:
+            # Отправляем задачу Victoria на запуск AuditAgent
+            audit_goal = "Запусти AuditAgent и выполни полный аудит системы. Верни подробный отчет о найденных аномалиях и выполненных исправлениях."
+            session = _get_session(chat_id)
+            project_context = session.get("project_context", "atra-web-ide")
+            result = await send_to_victoria(audit_goal, project_context, chat_id, session_id=f"telegram-{user_id}")
+            if result:
+                await send_telegram_message(chat_id, f"📋 **ОТЧЕТ ОБ АУДИТЕ:**\n\n{result}")
+            else:
+                await send_telegram_message(chat_id, "❌ Не удалось получить отчет об аудите.")
+        except Exception as e:
+            logger.exception("Ошибка при запуске /audit: %s", e)
+            await send_telegram_message(chat_id, f"❌ Ошибка при запуске аудита: {e}")
         return
 
     if text_lower.startswith("/project "):
@@ -765,7 +788,7 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
         goal = text[8:].strip(", ").strip()
 
     try:
-        result = await send_to_victoria(goal, project_context, chat_id, session.get("chat_history"))
+        result = await send_to_victoria(goal, project_context, chat_id, session.get("chat_history"), session_id=f"telegram-{user_id}")
     except Exception as e:
         logger.exception("Ошибка при обращении к Victoria: %s", e)
         await send_telegram_message(

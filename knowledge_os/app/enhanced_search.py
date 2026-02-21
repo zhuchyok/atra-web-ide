@@ -311,12 +311,29 @@ async def enhanced_search_knowledge(
     
     if use_cache:
         try:
+            # План «ракетная скорость» п.2.2: многоуровневый кэш (In-memory + Redis)
+            import hashlib
+            query_hash = hashlib.md5(f"{mode.value}:{query}:{domain or 'global'}".encode()).hexdigest()
+            
+            # 1. In-memory cache (самый быстрый)
+            if not hasattr(enhanced_search_knowledge, "_mem_cache"):
+                enhanced_search_knowledge._mem_cache = {}
+            
+            if query_hash in enhanced_search_knowledge._mem_cache:
+                cached_entry = enhanced_search_knowledge._mem_cache[query_hash]
+                if (datetime.now() - cached_entry['ts']).total_seconds() < 300: # 5 минут in-memory
+                    print(f"🚀 [MEM CACHE HIT] {mode.value} search: {query}")
+                    return cached_entry['data']
+
+            # 2. Redis cache
             rd = redis.from_url(REDIS_URL, decode_responses=True)
             cache_key = f"search:{mode.value}:{query}:{domain or 'global'}"
             cached_data = await rd.get(cache_key)
             if cached_data:
                 data = json.loads(cached_data)
-                print(f"⚡ [CACHE HIT] {mode.value} search: {query}")
+                print(f"⚡ [REDIS CACHE HIT] {mode.value} search: {query}")
+                # Обновляем in-memory кэш
+                enhanced_search_knowledge._mem_cache[query_hash] = {'data': data, 'ts': datetime.now()}
                 return data
         except Exception:
             pass

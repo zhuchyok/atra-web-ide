@@ -499,11 +499,8 @@ async def run_board_meeting():
                     os.makedirs(reports_dir, exist_ok=True)
                     
                     date_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
-                    filename = f"DIRECTIVE_{date_str}.md"
-                    filepath = os.path.join(reports_dir, filename)
-                    
                     md_content = f"""# 🏛 СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА ДИРЕКТОРОВ
-**Дата:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} UTC
+**Дата:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} MSK
 **Статус:** ДЕЙСТВУЕТ (24 часа)
 
 ## 📊 КОНТЕКСТ ЗАСЕДАНИЯ

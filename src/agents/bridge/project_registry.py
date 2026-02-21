@@ -8,7 +8,8 @@ from typing import Dict, List, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
-# Fallback при недоступности БД или пустой таблице (безопасный маппинг, не пользовательский ввод)
+# Fallback при недоступности БД или пустой таблице (безопасный маппинг, не пользовательский ввод).
+# Новые проекты добавлять сюда и в миграцию add_projects_table.sql (seed).
 DEFAULT_PROJECT_CONFIGS: Dict[str, Dict[str, Any]] = {
     "atra-web-ide": {
         "name": "ATRA Web IDE",
@@ -19,6 +20,11 @@ DEFAULT_PROJECT_CONFIGS: Dict[str, Dict[str, Any]] = {
         "name": "ATRA Trading System",
         "description": "Торговая система с ИИ-агентами",
         "workspace": "/workspace/atra",
+    },
+    "setki-21": {
+        "name": "Сетки 21",
+        "description": "Проект Сетки 21 — корпорация ведёт",
+        "workspace": "/workspace/setki-21",
     },
 }
 
@@ -59,7 +65,7 @@ async def load_projects_registry(database_url: str | None = None) -> Tuple[List[
                 await conn.close()
         except Exception as e:
             logger.debug("Project registry: DB load failed, using fallback: %s", e)
-    allowed_env = os.getenv("ALLOWED_PROJECTS", "atra-web-ide,atra").strip().split(",")
+    allowed_env = os.getenv("ALLOWED_PROJECTS", "atra-web-ide,atra,setki-21").strip().split(",")
     allowed_env = [s.strip() for s in allowed_env if s.strip()]
     configs = {k: v for k, v in DEFAULT_PROJECT_CONFIGS.items() if k in allowed_env}
     for slug in allowed_env:

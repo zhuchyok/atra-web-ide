@@ -558,71 +558,77 @@ async def _run_cloud_agent_async(prompt: str):
     except Exception as exc:
         return f"❌ Ошибка связи с облаком: {exc}"
 
-    async def _get_knowledge_context(self, query: str) -> str:
-        """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
-        return await self._get_knowledge_context_impl(query)
+async def _get_knowledge_context(query: str) -> str:
+    """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
+    return await _get_knowledge_context_impl(query)
 
-    @profile_function("ai_core")
-    async def _get_knowledge_context_impl(self, query: str) -> str:
-        """Implementation of knowledge retrieval."""
-        if get_traffic_mirror:
-            tm = get_traffic_mirror()
-            await tm.mirror_request("ai_core", "_get_knowledge_context", query)
+@profile_function("ai_core")
+async def _get_knowledge_context_impl(query: str) -> str:
+    """Implementation of knowledge retrieval."""
+    if get_traffic_mirror:
+        tm = get_traffic_mirror()
+        await tm.mirror_request("ai_core", "_get_knowledge_context", query)
+    try:
+        # 1. Пробуем новый GraphRAG (Singularity 10.0)
         try:
-            # 1. Пробуем новый GraphRAG (Singularity 10.0)
-            try:
-                from app.graphrag.graphrag_service import get_graphrag_service
-                graphrag = get_graphrag_service()
-                graph_context = await graphrag.retrieve_graph_context(query)
-                if graph_context:
-                    logger.info("🌐 [GRAPHRAG] Использован глобальный контекст и логические цепочки")
-                    return graph_context
-            except Exception as ge:
-                logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
+            from app.graphrag.graphrag_service import get_graphrag_service
+            graphrag = get_graphrag_service()
+            graph_context = await graphrag.retrieve_graph_context(query)
+            if graph_context:
+                logger.info("🌐 [GRAPHRAG] Использован глобальный контекст и логические цепочки")
+                return graph_context
+        except Exception as ge:
+            logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
 
-            # 2. Fallback на стандартный векторный RAG
-            embedding = await get_embedding(query)
-            if not embedding: return ""
-            pool = await _get_db_pool()
-            if not pool: return ""
+        # 2. Fallback на стандартный векторный RAG
+        embedding = await get_embedding(query)
+        if not embedding: return ""
+        pool = await _get_db_pool()
+        if not pool: return ""
+        
+        async with pool.acquire() as conn:
+            # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
+            rows = await conn.fetch("""
+                SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                FROM knowledge_nodes
+                WHERE embedding IS NOT NULL
+                AND (
+                    domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
+                    OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
+                    OR metadata->>'source' = 'external_docs_indexer'
+                    OR source_ref = 'autonomous_worker'
+                )
+                AND confidence_score >= 0.3
+                ORDER BY similarity DESC LIMIT 8
+            """, str(embedding))
             
-            async with pool.acquire() as conn:
-                # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
-                rows = await conn.fetch("""
-                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL
-                    AND (
-                        domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
-                        OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
-                        OR metadata->>'source' = 'external_docs_indexer'
-                        OR source_ref = 'autonomous_worker'
-                    )
-                    AND confidence_score >= 0.3
-                    ORDER BY similarity DESC LIMIT 8
-                """, embedding)
-                
-                if not rows: return ""
-                
-                context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
-                for row in rows:
-                    if row['similarity'] >= 0.55: # Понизили порог для лучшего охвата AI Research
-                        meta = row['metadata'] or {}
-                        source = meta.get('source', 'unknown')
-                        file_path = meta.get('file_path', 'N/A')
-                        
-                        if source == 'external_docs_indexer':
-                            context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
-                        elif meta.get('type') == 'corporate_system':
-                            context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
-                        else:
-                            context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
-                        
-                        context += f"{row['content'][:1200]}\n"
-                return context
-        except Exception as exc:
-            logger.error(f"Knowledge retrieval error: {exc}")
-            return ""
+            if not rows: return ""
+            
+            context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+            for row in rows:
+                if row['similarity'] >= 0.55: # Понизили порог для лучшего охвата AI Research
+                    meta = row['metadata'] or {}
+                    if isinstance(meta, str):
+                        try:
+                            meta = json.loads(meta)
+                        except:
+                            meta = {}
+                    
+                    source = meta.get('source', 'unknown')
+                    file_path = meta.get('file_path', 'N/A')
+                    
+                    if source == 'external_docs_indexer':
+                        context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                    elif meta.get('type') == 'corporate_system':
+                        context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
+                    else:
+                        context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
+                    
+                    context += f"{row['content'][:1200]}\n"
+            return context
+    except Exception as exc:
+        logger.error(f"Knowledge retrieval error: {exc}")
+        return ""
 
 async def run_smart_agent_async(
     prompt: str,
@@ -662,6 +668,57 @@ async def run_smart_agent_async_impl(
     # Единый user_key/project_context для всех путей (в т.ч. вызов из execute_assignments без session_id)
     user_key = session_id or "orchestrator"
     project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")
+    user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
+
+    # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
+    meta_wisdom_context = ""
+    mentorship_context = ""
+    experience_context = ""
+    constitution_context = ""
+    try:
+        # 0. Digital Constitution
+        from digital_constitution import get_constitution_context
+        constitution_context = get_constitution_context()
+        
+        pool = await _get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                # 1. Meta-Strategies
+                meta_nodes = await conn.fetch("""
+                    SELECT content FROM knowledge_nodes 
+                    WHERE metadata->>'type' = 'meta_wisdom' 
+                    AND is_verified = TRUE
+                    ORDER BY created_at DESC LIMIT 3
+                """)
+                if meta_nodes:
+                    meta_wisdom_context = "\n### 🏛 CORPORATE META-STRATEGIES (WISDOM):\n"
+                    for node in meta_nodes:
+                        meta_wisdom_context += f"- {node['content']}\n"
+                    logger.info(f"🏛 [WISDOM INJECTION] Injected {len(meta_nodes)} meta-strategies")
+                
+                # 2. Mentorship Notes for current expert
+                mentorship_nodes = await conn.fetch("""
+                    SELECT content FROM knowledge_nodes 
+                    WHERE metadata->>'type' = 'mentorship_note' 
+                    AND metadata->>'target_expert' = $1
+                    ORDER BY created_at DESC LIMIT 2
+                """, expert_name)
+                if mentorship_nodes:
+                    mentorship_context = f"\n### 🎓 MENTORSHIP FEEDBACK FOR {expert_name}:\n"
+                    for node in mentorship_nodes:
+                        mentorship_context += f"- {node['content']}\n"
+                    logger.info(f"🎓 [MENTORSHIP INJECTION] Injected {len(mentorship_nodes)} notes for {expert_name}")
+
+                # 3. [SINGULARITY 20.0] Voice of Experience: Predictive Warnings
+                try:
+                    from experience_retriever import get_experience_context
+                    experience_context = await get_experience_context(user_part, expert_name)
+                    if experience_context:
+                        logger.info(f"🧠 [VOICE OF EXPERIENCE] Injected proactive warnings for {expert_name}")
+                except Exception as ee:
+                    logger.debug(f"⚠️ [VOICE OF EXPERIENCE] Error: {ee}")
+    except Exception as we:
+        logger.debug(f"⚠️ [WISDOM/MENTORSHIP INJECTION] Error: {we}")
 
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
     async def _verify_and_refine(initial_prompt: str, initial_response: str, depth: int = 0) -> str:
@@ -681,7 +738,7 @@ async def run_smart_agent_async_impl(
         try:
             if router:
                 # Сингулярность 10.0: Увеличиваем таймаут для критика до 600с
-                verify_result = await router.run_local_llm(verify_prompt, category="general", model_hint="lfm2.5-thinking", timeout=600.0)
+                verify_result = await router.run_local_llm(verify_prompt, category="general", model_hint="lfm2.5-thinking:1.2b")
                 verify_text = verify_result[0] if isinstance(verify_result, tuple) else verify_result
                 
                 if verify_text and "OK" not in verify_text.upper()[:10]:
@@ -701,6 +758,14 @@ async def run_smart_agent_async_impl(
     
     # 0. Anomaly Detection: проверка запроса на аномалии
     try:
+        # [SINGULARITY 20.0] Collective Brainstorming for complex design tasks
+        user_part_lower = user_part.lower()
+        if ("brainstorm" in user_part_lower or "обсуди" in user_part_lower or "спроектируй" in user_part_lower) and not session_id:
+            logger.info("🧠 [BRAINSTORMING] Triggering Collective Brainstorming session...")
+            from collective_brainstorming import run_brainstorming
+            result = await run_brainstorming(user_part, knowledge_context)
+            return f"✅ Коллективное обсуждение завершено.\n\n### 🏛 Финальный дизайн\n{result['design']}\n\n### 📋 План реализации\n{result['plan']}\n\nПолный лог обсуждения сохранен в docs/plans/."
+
         # [SINGULARITY 10.0+] Multi-Agent Debate for critical tasks
         if is_critical and get_multi_agent_debate:
             logger.info("⚖️ [CRITICAL] Starting Multi-Agent Debate for critical task...")
@@ -751,9 +816,16 @@ async def run_smart_agent_async_impl(
         else:
             tasks.append(asyncio.sleep(0, result=None))
             
-        tasks.append(self._get_knowledge_context(user_part))
+        tasks.append(_get_knowledge_context(user_part))
         
         return await asyncio.gather(*tasks)
+
+    # 1.1. Проверка кэша и контекста (Singularity 10.0+)
+    cached_response, kb_context_rag = await get_cache_and_context()
+    
+    if cached_response:
+        logger.info(f"🎯 [CACHE HIT] Found similar query for expert {expert_name}")
+        return cached_response
 
     # Воркер передаёт роутер явно (local_router) или через _current_router.
     import sys
@@ -817,12 +889,12 @@ async def run_smart_agent_async_impl(
     except Exception as re:
         logger.debug(f"⚠️ [RAG] Ошибка поиска знаний: {re}")
 
-    user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
     # Подмешиваем знания коллег в промпт
-    if kb_context:
+    if kb_context or meta_wisdom_context or mentorship_context or experience_context or constitution_context:
         # [SINGULARITY 14.2] Use ContextSwapper for kb_context
         swapper = ContextSwapper()
-        kb_context = await swapper.swap_if_needed(kb_context, f"kb_context_{request_id}")
+        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
+        kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
     
     # Проверка на запрос стратегии: автоматический запуск Discovery → MASTER_PLAN → декомпозиция
@@ -990,31 +1062,20 @@ async def run_smart_agent_async_impl(
             style_profile = None
 
     # 2. Cache & Context Check (улучшенный) - через asyncio.gather
-    cached_response, knowledge_context = None, ""
-    if not images:
-        try:
-            # Параллельно проверяем кэш и получаем контекст знаний
-            cache_task = cache.get_cached_response(user_part, expert_name) if cache else asyncio.sleep(0, result=None)
-            context_task = self._get_knowledge_context(user_part)
-            
-            cached_response, knowledge_context = await asyncio.gather(cache_task, context_task)
-            
-            if cached_response:
-                logger.info("🚀 [CACHE HIT] %s", expert_name)
-                
-                # [SINGULARITY 10.0+] Предиктивный префетчинг для следующих шагов
-                if cache:
-                    asyncio.create_task(cache.prefetch_related_context(user_part))
-                
-                # Предсказательное кэширование: пред-генерируем ответы на вероятные запросы
-                if PredictiveCache:
-                    pred_cache = PredictiveCache(cache)
-                    await pred_cache.predict_and_cache(user_part, expert_name)
-                return cached_response
-        except Exception as e:
-            logger.debug(f"Parallel cache/context check failed: {e}")
-    else:
-        knowledge_context = await self._get_knowledge_context(user_part)
+    # [SINGULARITY 14.2] Используем результаты из 1.1 (get_cache_and_context)
+    # Переменные cached_response и kb_context_rag уже получены выше.
+    knowledge_context = kb_context_rag or ""
+    
+    if cached_response:
+        # Предиктивный префетчинг для следующих шагов
+        if cache:
+            asyncio.create_task(cache.prefetch_related_context(user_part))
+        
+        # Предсказательное кэширование: пред-генерируем ответы на вероятные запросы
+        if PredictiveCache:
+            pred_cache = PredictiveCache(cache)
+            asyncio.create_task(pred_cache.predict_and_cache(user_part, expert_name))
+        return cached_response
 
     # 3. Hybrid Strategy: Manager-Worker Pattern
     # If the task is coding or audit, we use Victoria to plan and Local to execute
@@ -1171,22 +1232,41 @@ async def run_smart_agent_async_impl(
                     )
                 
                 # Phase 3: Victoria validates the result (Short audit)
-                # Аудит отключён для стабильности — каждая задача теперь завершается быстрее
-                # Включить обратно: USE_VICTORIA_AUDIT=true
+                # [SINGULARITY 20.0] Mandatory Audit for Critical or High-Level Tasks
+                is_critical_domain = any(kw in str(category).lower() or kw in expert_name.lower() for kw in ["backend", "database", "security", "infrastructure", "architecture"])
+                force_audit = os.getenv('ENFORCE_ARCHITECTURE_AUDIT', 'true').lower() == 'true'
+                
                 use_audit = os.getenv('USE_VICTORIA_AUDIT', 'false').lower() in ('true', '1', 'yes')
+                
+                # Если задача критическая и включен принудительный аудит, игнорируем USE_VICTORIA_AUDIT=false
+                should_run_audit = use_audit or (force_audit and (is_critical or is_critical_domain))
+                
                 audit_result = "APPROVED"  # По умолчанию считаем результат одобренным
-                if use_audit:
+                if should_run_audit:
+                    logger.info(f"🏛️ [ARCHITECTURAL OVERSIGHT] Victoria is auditing {expert_name}'s work...")
                     audit_prompt = f"""
-                    Вы - Виктория, Team Lead. Проверьте код, написанный разработчиком. 
-                    Если в коде есть критические ошибки, напишите ПЛАН ИСПРАВЛЕНИЯ. 
-                    Если код отличный, напишите 'APPROVED'.
+                    Вы - ВИКТОРИЯ, Главный Архитектор Корпорации (Level 20 Wisdom). 
+                    Проверьте код/решение, написанное экспертом {expert_name}. 
                     
-                    КОД РАЗРАБОТЧИКА:
+                    КРИТЕРИИ ПРОВЕРКИ:
+                    1. Соответствие корпоративным стандартам (SOP).
+                    2. Безопасность и отсутствие уязвимостей.
+                    3. Масштабируемость и чистота кода.
+                    
+                    Если в коде есть критические ошибки или архитектурные нарушения, напишите ПЛАН ИСПРАВЛЕНИЯ. 
+                    Если решение отличное и соответствует стандартам, напишите только одно слово: 'APPROVED'.
+                    
+                    РЕЗУЛЬТАТ ЭКСПЕРТА:
                     {local_resp}
                     """
                     audit_result = await _run_cloud_agent_async(audit_prompt)
+                    
+                    if audit_result and "APPROVED" not in audit_result.upper():
+                        logger.warning(f"⚠️ [AUDIT REJECTED] Victoria found issues in {expert_name}'s work.")
+                    else:
+                        logger.info(f"✅ [AUDIT APPROVED] Victoria approved {expert_name}'s work.")
                 
-            if audit_result and "APPROVED" in audit_result:
+            if audit_result and "APPROVED" in audit_result.upper():
                 # Estimate token savings (local execution vs full cloud)
                 estimated_cloud_tokens = len(user_part) // 4 + len(local_resp) // 4
                 estimated_local_tokens = len(spec) // 4 + len(audit_result) // 4  # Only planning + audit

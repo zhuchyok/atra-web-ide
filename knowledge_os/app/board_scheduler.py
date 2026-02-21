@@ -4,15 +4,16 @@ import sys
 import logging
 from datetime import datetime, timezone, timedelta
 
-# Add paths
+# Add paths (в Docker: PYTHONPATH=/app/knowledge_os/app уже задан в compose)
 sys.path.insert(0, '/app')
 sys.path.insert(0, '/app/knowledge_os/app')
 
 from strategic_board import run_board_meeting
 
-# Setup logging to both stdout and a file
-log_file = '/app/logs/board_scheduler.log'
-os.makedirs('/app/logs', exist_ok=True)
+# Setup logging: в Docker при монтировании :ro /app/logs недоступен — пишем в /tmp
+log_dir = "/app/logs" if os.access("/app", os.W_OK) else "/tmp"
+log_file = os.path.join(log_dir, "board_scheduler.log")
+os.makedirs(log_dir, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,

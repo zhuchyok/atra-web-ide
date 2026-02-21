@@ -144,14 +144,14 @@ MLX_MODELS_FALLBACK = {
 }
 
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": "deepseek-r1:32b",
-    "coding": "qwen2.5-coder:32b",
+    "reasoning": "qwen3-coder:30b",
+    "coding": "qwen3-coder:30b",
     "chat": "deepseek-r1:32b",
     "fast": "deepseek-r1:14b",
     "vision": "moondream",
     "vision_pdf": "llava:7b",
-    "default": "qwen2.5-coder:32b",
-    "vip": "deepseek-r1:32b"
+    "default": "qwen3-coder:30b",
+    "vip": "qwen3-coder:30b"
 }
 
 # Для обратной совместимости
@@ -1013,9 +1013,10 @@ class LocalAIRouter:
                         except Exception:
                             pass
                         
-                        # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, используем стриминг для предотвращения ReadTimeout
-                        if getattr(self, 'force_local', False) or category in ("reasoning", "vip"):
-                            logger.info(f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Category: {category}]...")
+                        # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, или используется тяжелая модель, используем стриминг для предотвращения ReadTimeout
+                        is_heavy_model = any(heavy in str(model).lower() for heavy in ["32b", "30b", "70b", "104b", "qwq"])
+                        if getattr(self, 'force_local', False) or category in ("reasoning", "vip") or is_heavy_model:
+                            logger.info(f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]...")
                             full_response = []
                             
                             # Включаем стриминг в полезной нагрузке

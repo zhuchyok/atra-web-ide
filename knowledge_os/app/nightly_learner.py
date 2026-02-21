@@ -856,6 +856,39 @@ async def nightly_learning_cycle():
         except Exception as e:
             print(f"⚠️ Shadow Prompt Promotion error: {e}")
 
+        # --- ФАЗА 20: WISDOM SYNTHESIS (SINGULARITY 20.0) ---
+        _log_step("🏛️ Running Wisdom Synthesis (Meta-Strategies & Tacit Knowledge)...")
+        try:
+            # 0. Self-Healing Infrastructure
+            try:
+                from self_healing_tunnels import check_and_heal_tunnels
+                await check_and_heal_tunnels()
+            except Exception as she:
+                print(f"⚠️ Self-Healing error: {she}")
+
+            # 1. Update Style Profiles (Tacit Knowledge)
+            from tacit_knowledge_miner import update_style_profiles
+            await update_style_profiles()
+            
+            # 2. Mentorship Audit
+            from mentorship_engine import run_mentorship_cycle
+            await run_mentorship_cycle()
+
+            # 3. SOP Generation
+            from sop_generator import run_sop_cycle
+            await run_sop_cycle()
+
+            # 4. Adversarial Red Teaming (SOP & Knowledge verification)
+            from adversarial_critic import run_adversarial_cycle
+            await run_adversarial_cycle(limit=10)
+
+            # 5. Synthesize Meta-Wisdom
+            from meta_synthesizer import synthesize_wisdom
+            await synthesize_wisdom()
+            print("✅ Phase 20: Wisdom Synthesis completed.")
+        except Exception as e:
+            print(f"⚠️ Wisdom Synthesis error: {e}")
+
         await pool.release(conn)
         await pool.close()
         _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")

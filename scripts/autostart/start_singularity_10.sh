@@ -41,7 +41,8 @@ docker-compose up -d
 echo "✅ Все системы запущены!"
 echo "👉 Дашборд: http://localhost:8501"
 echo "👉 Web IDE: http://localhost:3000"
-echo "👉 API: http://localhost:8010"
+echo "👉 Victoria API: http://localhost:8010"
+echo "👉 Open WebUI (Singularity 15.0): http://localhost:3005"
 
 # Логирование запуска
 mkdir -p logs

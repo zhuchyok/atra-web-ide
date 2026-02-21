@@ -1324,7 +1324,13 @@ JSON:"""
         t_prepare_ms = 0.0
         if USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE:
             _t0 = time.perf_counter()
-            precomputed_embedding = await self._get_embedding_for_rag(goal)
+            # План «как я» п.1.1: используем уже вычисленный эмбеддинг если есть
+            if hasattr(self, "_last_query_embedding") and self._last_query_embedding:
+                precomputed_embedding = self._last_query_embedding
+            else:
+                precomputed_embedding = await self._get_embedding_for_rag(goal)
+                self._last_query_embedding = precomputed_embedding
+            
             t_embed_ms = (time.perf_counter() - _t0) * 1000
             _t1 = time.perf_counter()
             expert_fut = self.select_expert_for_task(goal, use_multiple=is_complex)
@@ -2210,38 +2216,56 @@ _UNDERSTAND_GOAL_CACHE_TTL = 300.0
 _UNDERSTAND_GOAL_CACHE_MAX = 200
 
 
-async def _understand_goal_with_clarification(
-    agent: "VictoriaAgent", goal: str, *, last_tasks_context: Optional[str] = None
-) -> dict:
-    """
-    Понимание цели с проверкой неоднозначности.
-    last_tasks_context: план «умнее быстрее» §2.1 — контекст последних завершённых задач при «как вчера»/«повтори».
-    Возвращает dict с restated, category, first_step и при необходимости needs_clarification + clarification_questions.
-    """
-    key = hashlib.md5((goal + "|" + (last_tasks_context or "")).encode()).hexdigest()
-    now = time.time()
-    if redis_manager:
-        cached = await redis_manager.get_cache(f"understand_goal:{key}")
-        if cached: return cached
-    elif key in _understand_goal_cache and _understand_goal_cache[key][1] > now:
-        return _understand_goal_cache[key][0]
-    _t_ug = time.monotonic()
-    understood = await agent.understand_goal(goal, last_tasks_context=last_tasks_context)
-    logger.info("🕒 [SYNC] agent.understand_goal() took %.2fs", time.monotonic() - _t_ug)
-    _r = understood.get("restated") or goal
-    restated = (_r if isinstance(_r, str) else str(_r) or goal).strip()
-    _c = understood.get("category") or "multi_step"
-    category = (_c if isinstance(_c, str) else str(_c)).strip().lower()
-    _f = understood.get("first_step") or ""
-    first_step = (_f if isinstance(_f, str) else str(_f)).strip()
-    if _check_ambiguity(goal, category, restated):
-        _t_clar = time.monotonic()
-        questions = await _generate_clarification_questions(agent, goal, restated)
-        logger.info("🕒 [SYNC] _generate_clarification_questions took %.2fs", time.monotonic() - _t_clar)
+    async def _understand_goal_with_clarification(
+        self, goal: str, *, last_tasks_context: Optional[str] = None
+    ) -> dict:
+        """
+        Понимание цели с проверкой неоднозначности.
+        last_tasks_context: план «умнее быстрее» §2.1 — контекст последних завершённых задач при «как вчера»/«повтори».
+        Возвращает dict с restated, category, first_step и при необходимости needs_clarification + clarification_questions.
+        """
+        key = hashlib.md5((goal + "|" + (last_tasks_context or "")).encode()).hexdigest()
+        now = time.time()
+        if redis_manager:
+            cached = await redis_manager.get_cache(f"understand_goal:{key}")
+            if cached: return cached
+        elif key in _understand_goal_cache and _understand_goal_cache[key][1] > now:
+            return _understand_goal_cache[key][0]
+        
+        # План «как я» п.1.1: вычисляем эмбеддинг один раз для всей цепочки (LTM + RAG)
+        self._last_query_embedding = await self._get_embedding_for_rag(goal)
+        
+        _t_ug = time.monotonic()
+        understood = await self.understand_goal(goal, last_tasks_context=last_tasks_context)
+        logger.info("🕒 [SYNC] agent.understand_goal() took %.2fs", time.monotonic() - _t_ug)
+        _r = understood.get("restated") or goal
+        restated = (_r if isinstance(_r, str) else str(_r) or goal).strip()
+        _c = understood.get("category") or "multi_step"
+        category = (_c if isinstance(_c, str) else str(_c)).strip().lower()
+        _f = understood.get("first_step") or ""
+        first_step = (_f if isinstance(_f, str) else str(_f)).strip()
+        if _check_ambiguity(goal, category, restated):
+            _t_clar = time.monotonic()
+            questions = await _generate_clarification_questions(self, goal, restated)
+            logger.info("🕒 [SYNC] _generate_clarification_questions took %.2fs", time.monotonic() - _t_clar)
+            result = {
+                "needs_clarification": True,
+                "clarification_questions": questions,
+                "original_goal": goal,
+                "restated": restated,
+                "category": category,
+                "first_step": first_step[:200],
+            }
+            if redis_manager:
+                await redis_manager.set_cache(f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL)
+            else:
+                _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
+                while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
+                    k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
+                    del _understand_goal_cache[k_old]
+            return result
         result = {
-            "needs_clarification": True,
-            "clarification_questions": questions,
-            "original_goal": goal,
+            "needs_clarification": False,
             "restated": restated,
             "category": category,
             "first_step": first_step[:200],
@@ -2254,20 +2278,6 @@ async def _understand_goal_with_clarification(
                 k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
                 del _understand_goal_cache[k_old]
         return result
-    result = {
-        "needs_clarification": False,
-        "restated": restated,
-        "category": category,
-        "first_step": first_step[:200],
-    }
-    if redis_manager:
-        await redis_manager.set_cache(f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL)
-    else:
-        _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
-        while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
-            k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
-            del _understand_goal_cache[k_old]
-    return result
 
 
 async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Optional[str]:
@@ -2450,7 +2460,17 @@ async def _get_long_term_memory_context(session_id: str, project_context: str, l
             try:
                 from app.long_term_memory import get_long_term_memory_manager
                 mgr = get_long_term_memory_manager()
-                ctx = await mgr.get_recent_threads(user_key, project_context, limit=limit, max_chars=600)
+                
+        # План «как я» п.1.1: семантический поиск по LTM при наличии эмбеддинга
+        embedding = None
+        if hasattr(self, "_last_query_embedding") and self._last_query_embedding:
+            embedding = self._last_query_embedding
+        
+        if embedding:
+            ctx = await mgr.get_relevant_threads(embedding, project_context, user_key=user_key, limit=limit, max_chars=600)
+        else:
+            ctx = await mgr.get_recent_threads(user_key, project_context, limit=limit, max_chars=600)
+                
                 return (ctx or "").strip()
             except ImportError:
                 continue
@@ -2459,7 +2479,7 @@ async def _get_long_term_memory_context(session_id: str, project_context: str, l
     return ""
 
 
-async def _save_long_term_memory(session_id: str, project_context: str, goal: str, output: str) -> None:
+async def _save_long_term_memory(agent: "VictoriaAgent", session_id: str, project_context: str, goal: str, output: str) -> None:
     """Сохранить краткое резюме обмена в долгосрочную память (Фаза 2). При ошибке — тихо пропуск."""
     if not LONG_TERM_MEMORY_ENABLED or not project_context:
         return
@@ -2483,7 +2503,13 @@ async def _save_long_term_memory(session_id: str, project_context: str, goal: st
             try:
                 from app.long_term_memory import get_long_term_memory_manager
                 mgr = get_long_term_memory_manager()
-                await mgr.save_thread(user_key, project_context, goal_summary, outcome_summary)
+                
+                # План «как я» п.1.2: сохранение с эмбеддингом для семантического поиска в будущем
+                embedding = None
+                if hasattr(agent, "_last_query_embedding") and agent._last_query_embedding:
+                    embedding = agent._last_query_embedding
+                
+                await mgr.save_thread(user_key, project_context, goal_summary, outcome_summary, embedding=embedding)
                 return
             except ImportError:
                 continue
@@ -3886,6 +3912,264 @@ async def plan_only(request: PlanRequest):
         logger.exception("Ошибка формирования плана")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatCompletionRequest(BaseModel):
+    model: str
+    messages: List[ChatMessage]
+    stream: Optional[bool] = False
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = None
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: ChatCompletionRequest, req: Request):
+    """OpenAI-совместимый эндпоинт для Open WebUI, Chatbox и др. (поддерживает стриминг)"""
+    correlation_id = str(uuid.uuid4())
+    logger.info(f"🔗 [OPENAI-API] Request received. Model: {request.model}, Stream: {request.stream}")
+    
+    # Извлекаем последнее сообщение пользователя как цель (goal)
+    user_messages = [m for m in request.messages if m.role == "user"]
+    if not user_messages:
+        raise HTTPException(status_code=400, detail="No user messages found")
+    
+    goal = user_messages[-1].content
+    
+    # Формируем историю чата для Виктории
+    chat_history = []
+    for m in request.messages[:-1]:
+        if m.role == "user":
+            chat_history.append({"user": m.content, "assistant": ""})
+        elif m.role == "assistant":
+            if chat_history and not chat_history[-1]["assistant"]:
+                chat_history[-1]["assistant"] = m.content
+            else:
+                chat_history.append({"user": "", "assistant": m.content})
+
+    # Создаем объект запроса, совместимый с нашим run_task
+    task_req = TaskRequest(
+        goal=goal,
+        project_context=os.getenv("MAIN_PROJECT", "atra-web-ide"),
+        session_id=f"openai-{correlation_id[:8]}",
+        chat_history=chat_history,
+        async_mode=False, # Open WebUI ожидает синхронный ответ или стрим
+        use_enhanced=True # Всегда используем Enhanced для OpenAI API (Open WebUI)
+    )
+    
+    # [SINGULARITY 15.0] Интеграция LongTermMemory
+    memory_context = ""
+    try:
+        from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+        ltm = get_long_term_memory_manager()
+        # Ищем последние 5 обменов для этого пользователя/проекта
+        memory_context = await ltm.get_recent_threads(
+            user_key=f"openai-{correlation_id[:8]}", 
+            project_context=task_req.project_context,
+            limit=5
+        )
+        if memory_context:
+            logger.info(f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars")
+            # Подмешиваем память в goal, чтобы Victoria её увидела
+            goal = f"РАНЕЕ ОБСУЖДАЛОСЬ:\n{memory_context}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
+            task_req.goal = goal
+    except Exception as e:
+        logger.error(f"❌ [OPENAI-API] Memory error: {e}")
+
+    # --- РЕАЛИЗАЦИЯ СТРИМИНГА (OPENAI COMPATIBLE) ---
+    if request.stream:
+        async def openai_stream_generator():
+            full_response_content = ""
+            try:
+                # 1. Сначала шлем пустой чанк для инициализации роли
+                initial_chunk = {
+                    "id": f"chatcmpl-{correlation_id}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
+                }
+                yield f"data: {json.dumps(initial_chunk)}\n\n"
+                await asyncio.sleep(0.01)
+                
+                # 2. Выполняем задачу в фоне; каждые 15с шлём keep-alive (Singularity 15.0 — против TransferEncodingError)
+                run_task_coro = run_task(task_req, req, async_mode=False)
+                task = asyncio.create_task(run_task_coro)
+                heartbeat_sec = int(os.getenv("VICTORIA_STREAM_HEARTBEAT_SEC", "15"))
+                while not task.done():
+                    done, _ = await asyncio.wait([task], timeout=heartbeat_sec)
+                    if not done:
+                        hb_chunk = {
+                            "id": f"chatcmpl-{correlation_id}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": request.model,
+                            "choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": None}]
+                        }
+                        yield f"data: {json.dumps(hb_chunk)}\n\n"
+                try:
+                    result = task.result()
+                except Exception as run_err:
+                    logger.exception("[OPENAI-STREAM] run_task failed: %s", run_err)
+                    result = None
+                    full_response_content = f"[Ошибка Victoria]: {str(run_err)}"
+                
+                # Извлекаем контент
+                if result is None:
+                    pass  # full_response_content уже задан выше
+                elif isinstance(result, JSONResponse):
+                    body_data = json.loads(result.body.decode())
+                    if "clarification_questions" in body_data:
+                        questions = body_data["clarification_questions"]
+                        full_response_content = "🤔 Мне нужно уточнить несколько деталей, чтобы выполнить задачу максимально точно:\n\n"
+                        for i, q in enumerate(questions, 1):
+                            full_response_content += f"{i}. {q}\n"
+                    else:
+                        full_response_content = body_data.get("output", str(body_data))
+                elif isinstance(result, TaskResponse):
+                    full_response_content = result.output if result.output is not None else ""
+                elif hasattr(result, 'output'):
+                    full_response_content = result.output if result.output is not None else ""
+                else:
+                    full_response_content = str(result) if result is not None else ""
+                
+                # 3. Стримим контент частями
+                if full_response_content:
+                    # Разбиваем на мелкие части для плавности
+                    chunk_size = 20
+                    for i in range(0, len(full_response_content), chunk_size):
+                        part = full_response_content[i:i+chunk_size]
+                        chunk = {
+                            "id": f"chatcmpl-{correlation_id}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": request.model,
+                            "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}]
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                        await asyncio.sleep(0.01)
+                
+                # 4. Финальный чанк по протоколу OpenAI
+                final_chunk = {
+                    "id": f"chatcmpl-{correlation_id}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+                
+                # Сохраняем в память (фоном)
+                try:
+                    from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+                    ltm = get_long_term_memory_manager()
+                    await ltm.save_thread(
+                        user_key=f"openai-{correlation_id[:8]}",
+                        project_context=task_req.project_context,
+                        goal_summary=user_messages[-1].content[:200],
+                        outcome_summary=(full_response_content or "")[:200]
+                    )
+                except: pass
+
+            except Exception as e:
+                logger.error(f"❌ [OPENAI-STREAM] Error: {e}")
+                error_msg = f"\n[Ошибка стриминга]: {str(e)}"
+                err_chunk = {
+                    "id": f"chatcmpl-{correlation_id}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": request.model,
+                    "choices": [{"index": 0, "delta": {"content": error_msg}, "finish_reason": "stop"}]
+                }
+                yield f"data: {json.dumps(err_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            openai_stream_generator(), 
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Transfer-Encoding": "chunked",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    # --- ОБЫЧНЫЙ СИНХРОННЫЙ ОТВЕТ ---
+    try:
+        # Вызываем нашу основную логику (принудительно async_mode=False)
+        result = await run_task(task_req, req, async_mode=False)
+        
+        # Если вернулся JSONResponse (например, 202), извлекаем реальный результат
+        if isinstance(result, JSONResponse):
+            body_data = json.loads(result.body.decode())
+            if "clarification_questions" in body_data:
+                questions = body_data["clarification_questions"]
+                output_text = "🤔 Мне нужно уточнить несколько деталей:\n\n"
+                for i, q in enumerate(questions, 1):
+                    output_text += f"{i}. {q}\n"
+            else:
+                output_text = body_data.get("output", body_data.get("message", str(body_data)))
+        elif isinstance(result, TaskResponse):
+            output_text = result.output
+        elif hasattr(result, 'output'):
+            output_text = result.output
+        else:
+            output_text = str(result)
+
+        # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
+        try:
+            from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+            ltm = get_long_term_memory_manager()
+            # Сохраняем краткую версию (первые 200 символов)
+            await ltm.save_thread(
+                user_key=f"openai-{correlation_id[:8]}",
+                project_context=task_req.project_context,
+                goal_summary=user_messages[-1].content[:200],
+                outcome_summary=output_text[:200]
+            )
+        except Exception as e:
+            logger.debug(f"Memory save failed: {e}")
+        
+        # Формируем ответ в формате OpenAI
+        response_data = {
+            "id": f"chatcmpl-{correlation_id}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": request.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": output_text
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0
+            }
+        }
+        return JSONResponse(content=response_data)
+    except Exception as e:
+        logger.error(f"❌ [OPENAI-API] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/v1/models")
+async def list_models():
+    """Список моделей для OpenAI-совместимых клиентов."""
+    return {
+        "object": "list",
+        "data": [
+            {"id": "Victoria", "object": "model", "created": int(time.time()), "owned_by": "atra"},
+            {"id": "Victoria-Enhanced", "object": "model", "created": int(time.time()), "owned_by": "atra"}
+        ]
+    }
 
 @app.get("/status")
 async def get_status():

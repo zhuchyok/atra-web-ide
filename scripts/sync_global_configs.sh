@@ -7,13 +7,14 @@ MAIN_PROJECT_PATH="/Users/bikos/Documents/atra-web-ide"
 BIBLE_REL_PATH="docs/MASTER_REFERENCE.md"
 CURSORRULES_REL_PATH=".cursorrules"
 
-# Список проектов для синхронизации
-PROJECTS=(
-    "/Users/bikos/Documents/dev/setki-21"
-    "/Users/bikos/Documents/dev/atra"
-)
+# Список проектов для автоматической синхронизации (авто-поиск в /Users/bikos/Documents/dev)
+DEV_DIR="/Users/bikos/Documents/dev"
+PROJECTS=($(find "$DEV_DIR" -maxdepth 1 -mindepth 1 -type d))
+PROJECTS+=("/Users/bikos/Documents/atra-web-ide") # Добавляем сам корень если нужно
 
 echo "🚀 Запуск глобальной синхронизации ATRA Core..."
+echo "🔍 Найдено проектов в dev/: ${#PROJECTS[@]}"
+
 
 # Функция создания симлинка
 sync_file() {

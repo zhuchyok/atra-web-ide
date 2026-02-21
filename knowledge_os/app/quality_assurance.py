@@ -174,22 +174,31 @@ class QualityAssurance:
     async def _check_relevance(self, response: str, query: str) -> float:
         """Проверка релевантности ответа запросу"""
         # Простая эвристика: проверка ключевых слов
-        query_words = set(query.lower().split())
-        response_words = set(response.lower().split())
+        # Очищаем от стоп-слов и пунктуации для более точного сравнения
+        import re
+        def clean_text(text):
+            text = text.lower()
+            text = re.sub(r'[^\w\s]', ' ', text)
+            words = set(text.split())
+            # Убираем короткие слова (менее 3 символов)
+            return {w for w in words if len(w) > 2}
+
+        query_words = clean_text(query)
+        response_words = clean_text(response)
+        
+        if not query_words:
+            return 1.0
         
         # Пересечение ключевых слов
         common_words = query_words.intersection(response_words)
-        
-        if len(query_words) == 0:
-            return 1.0
-        
         relevance_ratio = len(common_words) / len(query_words)
         
-        # Если меньше 30% общих слов, возможно нерелевантно
-        if relevance_ratio < 0.3:
+        # Порог релевантности снижен, так как технические ответы могут использовать другие термины
+        # Но при этом используем более высокий множитель для совпадений
+        if relevance_ratio < 0.15:
             return 0.5
         
-        return min(1.0, relevance_ratio * 1.5)  # Нормализуем до 1.0
+        return min(1.0, relevance_ratio * 2.5)  # Более агрессивный множитель
     
     async def validate_vision_response(
         self,

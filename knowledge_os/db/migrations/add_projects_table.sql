@@ -31,9 +31,10 @@ CREATE TRIGGER update_projects_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Seed: default projects (idempotent)
+-- Seed: default projects (idempotent). Добавлять новые проекты сюда — при применении миграций они появятся в реестре.
 INSERT INTO projects (slug, name, description, workspace_path, is_active)
 VALUES
     ('atra-web-ide', 'ATRA Web IDE', 'Браузерная оболочка для ИИ-корпорации', '/workspace/atra-web-ide', true),
-    ('atra', 'ATRA Trading System', 'Торговая система с ИИ-агентами', '/workspace/atra', true)
+    ('atra', 'ATRA Trading System', 'Торговая система с ИИ-агентами', '/workspace/atra', true),
+    ('setki-21', 'Сетки 21', 'Проект Сетки 21 — корпорация ведёт', '/workspace/setki-21', true)
 ON CONFLICT (slug) DO NOTHING;

@@ -3,6 +3,7 @@
 Collects function-level metrics for core modules to identify optimization hot spots.
 """
 
+import inspect
 import time
 import asyncio
 import logging
@@ -140,7 +141,7 @@ def profile_function(module_name: str):
                 except RuntimeError:
                     pass # Not in event loop
             
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
     return decorator

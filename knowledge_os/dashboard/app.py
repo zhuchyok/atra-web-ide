@@ -452,7 +452,9 @@ def main():
             update_status = "неизвестно"
             status_color = "#8b949e"
     
-    current_time = datetime.now(timezone.utc).strftime('%H:%M:%S')
+    # Настройка времени: используем московское время (UTC+3)
+    moscow_tz = timezone(timedelta(hours=3))
+    current_time = datetime.now(moscow_tz).strftime('%H:%M:%S')
 
     with col_header1:
         st.title("🏢 ATRA Corporation 10.0")
@@ -461,7 +463,7 @@ def main():
             <div class="dash-header-line" style="display: flex; align-items: center; gap: 12px; margin-top: 2px; flex-wrap: wrap;">
                 <span style="color: var(--dash-text-muted); font-size: var(--dash-text-sm);">{_section}</span>
                 <span style="color: var(--dash-border);">|</span>
-                <span style="color: var(--dash-text-muted); font-size: var(--dash-text-sm);">🕐 {current_time} UTC</span>
+                <span style="color: var(--dash-text-muted); font-size: var(--dash-text-sm);">🕐 {current_time} MSK</span>
                 <span style="color: {status_color}; font-size: var(--dash-text-xs); font-weight: 600;">{status_emoji} {update_status}</span>
                 <span style="display: inline-block; width: 6px; height: 6px; background: {status_color}; border-radius: 50%; animation: pulse 2s infinite;"></span>
             </div>
@@ -529,6 +531,7 @@ def main():
 
         _sections = [
             "🏠 Обзор (Pulse)", 
+            "🏛️ Wisdom & Mentorship",
             "🛠️ Задачи и SLA", 
             "🎯 Стратегия и ROI", 
             "🧠 Интеллект (RAG)", 
@@ -663,7 +666,7 @@ def main():
                                     <div style="font-size: 11px; color: #8b949e;">{r.get('domain', 'N/A')} · <strong style="color: {color};">{similarity_pct:.1f}%</strong></div>
                                     <div style="font-size: 13px; color: #c9d1d9; margin-top: 4px;">{content_preview}</div>
                                 </div>
-                            """, unsafe_allow_html=True)
+                                """, unsafe_allow_html=True)
                     else:
                         st.markdown("""
                             <div class="empty-state">
@@ -712,6 +715,11 @@ def main():
                     st.caption("📚 База мудрости пуста")
             except: pass
 
+        st.stop()
+
+    elif "Wisdom" in st.session_state.get("dashboard_section", ""):
+        from tabs.wisdom_tab import render_wisdom_tab
+        render_wisdom_tab()
         st.stop()
 
     # Раздел «Задачи»: только 2 подвкладки (ленивая загрузка по DASHBOARD_OPTIMIZATION_PLAN)

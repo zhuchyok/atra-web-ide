@@ -171,6 +171,13 @@ CHAT_FALLBACK_TOTAL = Counter(
     [],
 )
 
+# Singularity 15.0: ask_victoria tool (Open WebUI → Victoria)
+ASK_VICTORIA_TOTAL = Counter(
+    "ask_victoria_total",
+    "Total ask_victoria API calls (delegation to Victoria)",
+    ["status"],  # success | error | busy
+)
+
 
 class MetricsCollector:
     """Коллектор метрик с контекстными менеджерами и декораторами."""

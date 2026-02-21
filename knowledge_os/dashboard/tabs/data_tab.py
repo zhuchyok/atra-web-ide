@@ -20,7 +20,7 @@ def format_msk(dt):
 
 def render_data_tab():
     """Вкладка Интеллект (RAG) и Качество Знаний."""
-    tabs = st.tabs(["📚 AI Research KB", "📊 Целостность", "🧠 Карта Разума", "🔍 Ревизия", "🤝 Синтез Знаний", "⚔️ Prompt Battle"])
+    tabs = st.tabs(["📚 AI Research KB", "📊 Целостность", "🧠 Карта Разума", "🔍 Ревизия", "🤝 Синтез Знаний", "⚔️ Prompt Battle", "🧬 Code Mutations"])
     
     with tabs[0]:
         render_ai_research_kb()
@@ -34,6 +34,143 @@ def render_data_tab():
         render_synthesis_hub()
     with tabs[5]:
         render_prompt_battle()
+    with tabs[6]:
+        render_code_mutations()
+
+def render_code_mutations():
+    """🧬 Code Mutations (MetaArchitect) interface for Shadow Execution."""
+    st.subheader("🧬 Code Mutations: MetaArchitect")
+    st.markdown("Мониторинг и управление архитектурными мутациями кода в режиме Shadow Testing.")
+
+    # 1. Fetch active code mutations from knowledge_nodes
+    mutations = fetch_data("""
+        SELECT id, content, metadata, created_at
+        FROM knowledge_nodes
+        WHERE metadata->>'type' = 'architecture_mutation'
+        AND (metadata->>'status' IS NULL OR metadata->>'status' != 'promoted')
+        ORDER BY created_at DESC
+    """)
+
+    if not mutations:
+        st.info("Нет активных архитектурных мутаций в режиме Shadow Testing.")
+        return
+
+    # 2. Display list of modules in shadow testing
+    mutation_list = []
+    for m in mutations:
+        meta = m['metadata'] if isinstance(m['metadata'], dict) else json.loads(m['metadata'] or '{}')
+        mutation_list.append({
+            'id': m['id'],
+            'module': meta.get('module', 'Unknown'),
+            'function': meta.get('function', 'Unknown'),
+            'hypothesis': meta.get('hypothesis', {}).get('mutation_hypothesis', 'N/A'),
+            'safety_score': meta.get('safety_report', {}).get('score', 0.0) if 'safety_report' in meta else meta.get('safety_score', 0.0),
+            'risks': meta.get('safety_report', {}).get('risks', []) if 'safety_report' in meta else meta.get('risks', []),
+            'mutation_path': meta.get('mutation_path', ''),
+            'created_at': m['created_at']
+        })
+
+    module_names = sorted(list(set([m['module'] for m in mutation_list])))
+    selected_module = st.selectbox("Выберите модуль для аудита", module_names)
+    
+    selected_mutation = next((m for m in mutation_list if m['module'] == selected_module), None)
+    
+    if selected_mutation:
+        # 3. Show Safety Score and Risk Factors
+        score = selected_mutation['safety_score']
+        risks = selected_mutation['risks']
+        
+        col1, col2 = st.columns(2)
+        score_color = "normal" if score > 0.7 else "inverse"
+        col1.metric("Safety Score", f"{score*100:.1f}%", delta_color=score_color)
+        
+        with col2:
+            st.markdown("**Risk Factors:**")
+            if risks:
+                for risk in risks:
+                    st.warning(f"⚠️ {risk}")
+            else:
+                st.success("✅ No critical risks identified")
+
+        st.markdown("---")
+
+        # 4. Side-by-side code diff (Original vs. Mutated)
+        st.markdown("### Сравнение кода (Original vs Mutated)")
+        
+        # Try to read original code
+        original_code = "N/A"
+        mutated_code = "N/A"
+        
+        module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app", f"{selected_mutation['module']}.py")
+        mutation_path = selected_mutation['mutation_path']
+        
+        try:
+            if os.path.exists(module_path):
+                with open(module_path, 'r') as f:
+                    original_code = f.read()
+            if os.path.exists(mutation_path):
+                with open(mutation_path, 'r') as f:
+                    mutated_code = f.read()
+        except Exception as e:
+            st.error(f"Ошибка чтения файлов: {e}")
+
+        c_orig, c_mut = st.columns(2)
+        with c_orig:
+            st.markdown("**🛡️ Original (Production)**")
+            st.code(original_code, language="python")
+        with c_mut:
+            st.markdown("**⚡ Mutated (Shadow)**")
+            st.code(mutated_code, language="python")
+
+        # 5. Action buttons
+        st.markdown("### Действия")
+        act_col1, act_col2, _ = st.columns([1, 1, 2])
+        
+        from database_service import run_query
+
+        if act_col1.button("🚀 Promote Code", help="Заменить основной файл мутировавшим (Hot-Swap)", type="primary"):
+            try:
+                # In a real system, we would call MetaArchitect.promote_mutation
+                # For now, we simulate the file swap and update the node status
+                if os.path.exists(mutation_path):
+                    import shutil
+                    shutil.copy2(mutation_path, module_path)
+                    
+                    # Update metadata in knowledge_nodes
+                    new_meta = fetch_data("SELECT metadata FROM knowledge_nodes WHERE id = %s", (selected_mutation['id'],))[0]['metadata']
+                    if isinstance(new_meta, str): new_meta = json.loads(new_meta)
+                    new_meta['status'] = 'promoted'
+                    new_meta['promoted_at'] = datetime.now(timezone.utc).isoformat()
+                    
+                    run_query("UPDATE knowledge_nodes SET metadata = %s WHERE id = %s", (json.dumps(new_meta), selected_mutation['id']))
+                    st.success(f"Код модуля {selected_module} успешно обновлен!")
+                    st.rerun()
+                else:
+                    st.error("Файл мутации не найден.")
+            except Exception as e:
+                st.error(f"Ошибка при продвижении кода: {e}")
+
+        if act_col2.button("❌ Reject Code", help="Удалить мутацию и остановить Shadow Testing"):
+            try:
+                # Update metadata in knowledge_nodes
+                new_meta = fetch_data("SELECT metadata FROM knowledge_nodes WHERE id = %s", (selected_mutation['id'],))[0]['metadata']
+                if isinstance(new_meta, str): new_meta = json.loads(new_meta)
+                new_meta['status'] = 'rejected'
+                
+                run_query("UPDATE knowledge_nodes SET metadata = %s WHERE id = %s", (json.dumps(new_meta), selected_mutation['id']))
+                
+                # Optionally delete the mutation file
+                if os.path.exists(mutation_path):
+                    os.remove(mutation_path)
+                    
+                st.warning("Мутация отклонена и удалена.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ошибка при отклонении кода: {e}")
+
+        st.markdown("---")
+        st.markdown(f"**Гипотеза мутации:** {selected_mutation['hypothesis']}")
+        st.caption(f"Создано: {format_msk(selected_mutation['created_at'])} | ID: {selected_mutation['id']}")
 
 def render_prompt_battle():
     """⚔️ Prompt Battle interface for Shadow Prompt Evolution."""

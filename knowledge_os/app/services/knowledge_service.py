@@ -20,15 +20,31 @@ class KnowledgeService:
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
 
-    async def _get_knowledge_context(self, query: str) -> str:
+    async def _get_knowledge_context(self, query: str, limit: int = 7) -> str:
         """Retrieve relevant knowledge nodes (RAG) - знания корпорации + AI Research (Singularity 10.0)."""
         try:
+            # План «умнее быстрее» §1.1: Кэш контекста RAG (уровень 1)
+            import hashlib
+            query_hash = hashlib.md5(query.strip().lower().encode()).hexdigest()
+            
+            # Попытка получить из Redis если доступен
+            try:
+                from app.redis_manager import get_redis_manager
+                rd = get_redis_manager()
+                if rd:
+                    cached = await rd.get_cache(f"rag_ctx:{query_hash}")
+                    if cached:
+                        logger.debug(f"⚡ [RAG CACHE HIT] {query[:50]}...")
+                        return cached
+            except Exception:
+                pass
+
             embedding = await get_embedding(query)
             if not embedding: return ""
             pool = await get_pool()
             
             async with pool.acquire() as conn:
-                # Поиск по двум основным доменам: корпоративные знания и AI Research
+                # Поиск по основным доменам с приоритетом недавних и часто используемых
                 rows = await conn.fetch("""
                     SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
                     FROM knowledge_nodes
@@ -36,15 +52,18 @@ class KnowledgeService:
                     AND (
                         domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
                         OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
+                        OR domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1)
                         OR metadata->>'source' = 'external_docs_indexer'
+                        OR metadata->>'source' = 'indexing_daemon'
                     )
                     AND confidence_score >= 0.3
-                    ORDER BY similarity DESC LIMIT 7
-                """, embedding)
+                    ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
+                    LIMIT $2
+                """, embedding, limit)
                 
                 if not rows: return ""
                 
-                context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                context = "\n📚 [KNOWLEDGE CONTEXT]:\n"
                 for row in rows:
                     if row['similarity'] >= 0.6:
                         meta = row['metadata'] or {}
@@ -53,10 +72,20 @@ class KnowledgeService:
                         
                         if source == 'external_docs_indexer':
                             context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                        elif source == 'indexing_daemon':
+                            context += f"\n[PROJECT FILE: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
                         else:
                             context += f"\n[КОРПОРАЦИЯ] (релевантность: {row['similarity']:.2f}):\n"
                         
                         context += f"{row['content'][:1000]}\n"
+                
+                # Сохраняем в кэш на 5 минут
+                try:
+                    if rd:
+                        await rd.set_cache(f"rag_ctx:{query_hash}", context, ttl=300)
+                except Exception:
+                    pass
+                    
                 return context
         except Exception as exc:
             logger.error(f"Knowledge retrieval error: {exc}")

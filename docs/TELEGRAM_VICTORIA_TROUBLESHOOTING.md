@@ -1,6 +1,37 @@
 # Victoria в Telegram — диагностика «не доступна»
 
-## Быстрая проверка
+## Отчёты и уведомления не приходят
+
+**С февраля 2026** отчёты и уведомления в Telegram отправляет сервис **telegram-notifications** в Docker (Knowledge OS).
+
+1. **Проверьте, что сервис запущен:**
+   ```bash
+   docker ps | grep telegram-notifications
+   ```
+   Если контейнера нет: `docker-compose -f knowledge_os/docker-compose.yml up -d telegram-notifications`
+
+2. **Проверьте переменные в .env (или в docker-compose):**
+   - `TELEGRAM_BOT_TOKEN` (или `TG_TOKEN`) — токен бота, который будет слать сообщения.
+   - `TELEGRAM_USER_ID` (или `CHAT_ID`) — **ваш** Telegram user id (для личного чата = chat_id). Узнать: написать @userinfobot в Telegram.
+
+   Если не заданы или заданы неверно — воркер в логах пишет предупреждение и ничего не шлёт.
+
+3. **Что шлёт воркер:**
+   - Записи из таблицы `notifications` (каждые 60 с): новые эксперты, события дебатов, онбординг и т.д.
+   - Ежедневный отчёт в **8:00** и еженедельный (понедельник **9:00**) — если включено `TELEGRAM_REPORTS_ENABLED=true`.
+
+4. **Логи воркера:**
+   ```bash
+   docker logs telegram-notifications --tail 50
+   ```
+
+Раньше уведомления из БД отправлял только процесс `telegram_gateway` (getUpdates + check_notifications), а отчёты — скрипт `singularity_autonomous`; они не были сервисами в Docker, поэтому по умолчанию ничего не приходило. Теперь один контейнер **telegram-notifications** делает и то, и другое.
+
+**Важно:** для получения отчётов и уведомлений в личку задайте в `.env` **свой** `TELEGRAM_USER_ID` (узнать: @userinfobot). В docker-compose по умолчанию подставлен пример 556251171 — замените на свой ID и перезапустите: `docker-compose -f knowledge_os/docker-compose.yml up -d telegram-notifications`.
+
+---
+
+## Быстрая проверка (чат с Victoria)
 
 ### 1. Бот запущен?
 ```bash

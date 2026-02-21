@@ -77,4 +77,18 @@ async def metrics_summary():
         summary["chat_expert_answer_total"] = "see /metrics"
         summary["chat_fallback_total"] = "see /metrics"
 
+    try:
+        from app.metrics.prometheus_metrics import ASK_VICTORIA_TOTAL
+        ask_v_metrics = getattr(ASK_VICTORIA_TOTAL, "_metrics", {}) or {}
+        summary["ask_victoria_total"] = {}
+        for _labels, child in ask_v_metrics.items():
+            v = getattr(child, "_value", None)
+            cnt = (v.get() if hasattr(v, "get") else 0) or 0
+            key = _labels[0] if isinstance(_labels, (list, tuple)) and _labels else str(_labels)
+            summary["ask_victoria_total"][key] = cnt
+        if not summary["ask_victoria_total"]:
+            summary["ask_victoria_total"] = {"success": 0, "error": 0, "busy": 0}
+    except Exception:
+        summary["ask_victoria_total"] = "see /metrics"
+
     return summary

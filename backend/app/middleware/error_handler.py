@@ -17,16 +17,11 @@ logger = logging.getLogger(__name__)
 async def trigger_war_room_async(error_msg: str):
     """Фоновый вызов War Room, чтобы не блокировать ответ пользователю"""
     try:
-        # Пытаемся импортировать из knowledge_os
-        import sys
-        ko_path = os.getenv("KNOWLEDGE_OS_PATH", "/app/knowledge_os")
-        if ko_path not in sys.path:
-            sys.path.append(ko_path)
-            
-        from app.war_room import trigger_war_room_if_needed
+        # war_room живёт в knowledge_os/app; PYTHONPATH уже содержит .../knowledge_os/app
+        from war_room import trigger_war_room_if_needed
         await trigger_war_room_if_needed(error_msg, severity="critical")
     except Exception as e:
-        logger.error(f"Failed to trigger War Room: {e}")
+        logger.error(f"Failed to trigger War Room: %s", e, exc_info=True)
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:

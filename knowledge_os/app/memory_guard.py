@@ -2,39 +2,49 @@
 MemoryGuard — защита от OOM (Out of Memory).
 [SINGULARITY 14.3] Мониторинг RAM и предотвращение падения контейнеров.
 """
-import psutil
 import logging
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
+
 class MemoryGuard:
     """Система контроля памяти для предотвращения OOMKilled."""
-    
+
     def __init__(self, threshold_percent: float = 90.0):
-        self.threshold_percent = float(os.getenv("MEMORY_GUARD_THRESHOLD", threshold_percent))
-        logger.info(f"MemoryGuard: порог срабатывания {self.threshold_percent}%")
+        self.threshold_percent = float(os.getenv("MEMORY_GUARD_THRESHOLD", str(threshold_percent)))
+        if PSUTIL_AVAILABLE:
+            logger.info("MemoryGuard: порог срабатывания %s%%", self.threshold_percent)
+        else:
+            logger.debug("MemoryGuard: psutil не установлен, проверка памяти отключена")
 
     def check_memory(self) -> Dict[str, Any]:
         """
         Проверяет текущее состояние памяти.
-        
+
         Returns:
             Dict с метриками и флагом is_safe.
         """
+        if not PSUTIL_AVAILABLE:
+            return {"percent": 0.0, "available_gb": 0.0, "total_gb": 0.0, "is_safe": True, "threshold": self.threshold_percent}
         mem = psutil.virtual_memory()
         is_safe = mem.percent < self.threshold_percent
-        
         if not is_safe:
-            logger.warning(f"🚨 [MEMORY GUARD] Критический уровень памяти: {mem.percent}% (Порог: {self.threshold_percent}%)")
-            
+            logger.warning("MemoryGuard: критический уровень памяти: %s%% (порог: %s%%)", mem.percent, self.threshold_percent)
         return {
             "percent": mem.percent,
             "available_gb": mem.available / (1024**3),
             "total_gb": mem.total / (1024**3),
             "is_safe": is_safe,
-            "threshold": self.threshold_percent
+            "threshold": self.threshold_percent,
         }
 
     @staticmethod

@@ -4,6 +4,133 @@
 
 ---
 
+## 0.5a. Singularity 20.0: The Wisdom Era (20/10) (2026-02-19)
+- **Сделано:** 
+    1. **Collective Brainstorming**: Реализован модуль `collective_brainstorming.py` для автономного проектирования сложных фич через диалог экспертов (Игорь, Анна, Елена) под руководством Виктории. Интегрирован в `ai_core.py` (триггеры: brainstorm, обсуди, спроектируй).
+    2. **Mentorship Engine**: Создан `mentorship_engine.py` для автоматического аудита выполненных задач. Виктория генерирует персональные советы (Mentorship Notes), которые сохраняются в KB и внедряются в контекст экспертов.
+    3. **SOP Generator**: Реализован `sop_generator.py` для автоматического создания Standard Operating Procedures на основе успешных задач (8/10+). Инструкции сохраняются в `docs/SOP/`.
+    4. **Adversarial Red Teaming**: Обновлен `adversarial_critic.py` для верификации новых SOP и инсайтов через стресс-тест. Интегрирован в `nightly_learner.py`.
+    5. **Wisdom Injection**: В `ai_core.py` внедрена инъекция мета-стратегий и советов ментора прямо в системные промпты перед вызовом LLM.
+    6. **Wisdom Dashboard**: В дашборд добавлена вкладка `Wisdom & Mentorship` для мониторинга среднего балла аудита, количества SOP и плотности мудрости.
+- **Итог:** Система перешла от простого выполнения задач к накоплению мудрости и самообучению через внутреннюю обратную связь. Mac Studio работает как автономный «Живой Организм».
+
+---
+
+## 0.4fw. Бэкенд ask_victoria: async_mode вместо sync /run (причина 503 и обрывов) (2026-02-19)
+- **Причина (docs/VICTORIA_RESTARTS_CAUSE §4):** Бэкенд вызывал Victoria через **sync** POST /run и держал соединение до 900 с. Один воркер Uvicorn в Victoria блокировался на время задачи; при долгом ответе соединение обрывалось («Server disconnected without sending a response», «All connection attempts failed») или Victoria перезапускалась.
+- **Сделано:** В **backend/app/services/victoria.py** метод **run()** переведён на **async_mode**: POST /run?async_mode=true (короткий таймаут 120 с на 202), затем опрос GET /run/status/{task_id} каждые 8 с до completed/failed (общий таймаут 900 с). Задача выполняется в фоне в Victoria, воркер не блокируется, /health и опрос статуса остаются отвечающими.
+- **Итог:** Запросы ask_victoria (чат, Open WebUI) стабильнее; меньше обрывов и 503 из-за блокировки воркера. При необходимости увеличить общий таймаут: VICTORIA_TIMEOUT в .env.
+
+---
+
+## 0.4fz. Victoria: NameError user_key в execute_assignments (MONSTER) (2026-02)
+- **Проблема:** В логах Victoria при делегировании экспертам (execute_assignments): `NameError: name 'user_key' is not defined` для нескольких экспертов (Константин, Василий, Тимофей и др.). run_smart_agent_async вызывается без session_id; в ai_core user_key и project_context задавались только внутри блока `if is_coding_task and not is_critical`, при других путях (оркестраторские подзадачи) переменная не определялась.
+- **Сделано:** В **knowledge_os/app/ai_core.py** в начале run_smart_agent_async_impl добавлено определение `user_key = session_id or "orchestrator"` и `project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")`, чтобы они были заданы при любом пути выполнения (в т.ч. вызов из execute_assignments).
+- **Итог:** Ошибки «Ошибка выполнения для &lt;эксперт&gt;: user_key is not defined» при делегировании из Victoria должны исчезнуть. Пересборка образа агентов (Victoria) для применения: `docker compose -f knowledge_os/docker-compose.yml build victoria-agent && docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent`.
+
+---
+
+## 0.4fy. ask_victoria 503 при опросе статуса: ретраи GET /run/status и 404 (2026-02)
+- **Проблема:** Во время опроса GET /run/status Victoria перезапускалась или теряла связь → «All connection attempts failed» → 503. RestartCount контейнера victoria-agent высокий (десятки рестартов).
+- **Сделано:** (1) В **backend/app/services/victoria.py** в цикле опроса: при ConnectError/TimeoutException/RemoteProtocolError — до 5 ретраев с паузой 12 с перед возвратом 503. (2) При 404 от Victoria (task_id не найден, типично после рестарта) — возврат ошибки «Task lost (Victoria may have restarted). Please retry your request.» (3) В **VICTORIA_RESTARTS_CAUSE.md** добавлен §4.2: разбор причин и рекомендации.
+- **Итог:** Краткие рестарты Victoria (30–60 с) бэкенд переживает без немедленного 503; при потере задачи — понятное сообщение. Для устойчивости важно снижать рестарты Victoria (см. VICTORIA_RESTARTS_CAUSE §1–3, §2 OOM). После правок — пересборка образа backend.
+
+---
+
+## 0.4fx. ask_victoria v1.1: chat_history, response_format; бэкенд принимает контекст (2026-02)
+- **Сделано:** (1) **Инструмент** `configs/openwebui_ask_victoria_tool.py`: добавлены параметры `__messages__` (контекст чата от Open WebUI) и `response_format` ("text" | "json"). `__messages__` конвертируются в формат Victoria (user/assistant) и передаются как `chat_history` (последние 15 пар). При `response_format="json"` запрос к бэкенду идёт с `?format=json`. (2) **Бэкенд** `backend/app/routers/chat.py`: в `AskVictoriaRequest` добавлено поле `chat_history` (опционально); передаётся в `victoria.run(chat_history=...)`. (3) **Документация:** `docs/ASK_VICTORIA_OPENWEBUI_IMPROVEMENTS.md` — внедрённые улучшения и отложенные (стриминг SSE, __files__, структурированные ошибки, язык, телеметрия).
+- **Итог:** Виктория получает историю диалога при вызове из Open WebUI; модель может запрашивать ответ в JSON. После правок бэкенда нужна **пересборка образа** и перезапуск контейнера backend; в Open WebUI — переимпорт инструмента и обновление системного промпта.
+
+---
+
+## 0.4fv. Open WebUI: модель не вызывала ask_victoria из-за старого «источника» (2026-02-19)
+- **Проблема:** В контексте появлялся «источник id=1» с текстом «Victoria временно недоступна (server busy)» — результат **прошлого** вызова инструмента. Модель (qwq:32b) воспринимала это как текущее состояние и не вызывала ask_victoria при новом запросе пользователя.
+- **Причина:** Инструмент при 503/ошибке возвращал сообщение без указания «это прошлая попытка»; в системном промпте не было правила «при новом запросе всегда вызывать инструмент снова».
+- **Сделано:** (1) **SINGULARITY_15_GOLDEN_PERSONA.md:** добавлено правило: сообщение о недоступности в источнике относится к прошлому вызову; для текущего запроса сначала вызвать ask_victoria, отказ только если текущий вызов вернул ошибку. (2) **openwebui_ask_victoria_tool.py:** все ответы «недоступна» заменены на формулировку «…for this attempt. On the user's next request, call ask_victoria again».
+- **Итог:** Модель при новом запросе должна снова вызывать ask_victoria; «источник» с прошлой ошибкой не считается причиной пропускать вызов. Обновить системный промпт в Open WebUI из SINGULARITY_15_GOLDEN_PERSONA.md и переимпортировать инструмент при необходимости.
+
+---
+
+## 0.4fu. Отчёты и уведомления в Telegram не приходили — воркер в Docker (2026-02-19)
+- **Проблема:** Пользователь не получал в Telegram ни отчётов, ни уведомлений (новые эксперты, дебаты, онбординг и т.д.).
+- **Причина:** Уведомления из таблицы `notifications` отправляет только код в `telegram_gateway.check_notifications()`, который вызывается из цикла `telegram_bridge()`. Отчёты (ежедневный 8:00, еженедельный понедельник 9:00) генерирует Report Generator внутри `singularity_autonomous`. Ни telegram_gateway, ни singularity_autonomous не были сервисами в docker-compose — их нужно было запускать вручную, поэтому по умолчанию ничего не отправлялось.
+- **Сделано:** (1) Добавлен **knowledge_os/app/telegram_notifications_worker.py**: раз в 60 с отправляет записи из `notifications` (WHERE sent = FALSE) в Telegram; при включённом TELEGRAM_REPORTS_ENABLED запускает цикл Report Generator (ежедневно 8:00, еженедельно понедельник 9:00). (2) В **knowledge_os/docker-compose.yml** добавлен сервис **telegram-notifications** (образ agents, команда `python -u telegram_notifications_worker.py`), с переменными TELEGRAM_BOT_TOKEN/TG_TOKEN и TELEGRAM_USER_ID/CHAT_ID. (3) В **docs/TELEGRAM_VICTORIA_TROUBLESHOOTING.md** добавлен раздел «Отчёты и уведомления не приходят»: проверка контейнера, .env (TELEGRAM_USER_ID, токен), логи.
+- **Итог:** После `docker compose -f knowledge_os/docker-compose.yml up -d telegram-notifications` и при заданных в .env `TELEGRAM_BOT_TOKEN` и `TELEGRAM_USER_ID` (ваш Telegram user id от @userinfobot) уведомления из БД и отчёты начнут приходить в Telegram. Если переменные не заданы — воркер пишет предупреждение в лог.
+
+---
+
+## 0.4ft. Обучение (Nightly Learner) снова работает (2026-02-19)
+- **Проблема:** Контейнер knowledge_nightly падал при старте: `ModuleNotFoundError: No module named 'psutil'` (memory_guard импортирует psutil). Цикл обучения не выполнялся, в логах только traceback и «Цикл завершён» от shell.
+- **Сделано:** (1) В корневой **requirements.txt** добавлен `psutil>=5.9.0` (образ агентов при пересборке получит psutil). (2) В **knowledge_os/app/memory_guard.py** импорт psutil сделан опциональным: при отсутствии модуля проверка памяти отключена, `check_memory()` возвращает `is_safe=True`, Nightly Learner стартует без падения.
+- **Итог:** После перезапуска контейнера (`docker restart knowledge_nightly`) обучение запускается; при следующей пересборке образа agents psutil будет в образе и MemoryGuard будет работать полностью.
+
+---
+
+## 0.4fs. Стратегическая директива Совета Директоров и планировщик (2026-02-19)
+- **Вопрос:** «СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА (ОТ 17.02 15:24) — работает? два дня ничего не делали».
+- **Проверено:** Директива 17.02 15:24 есть в БД (knowledge_nodes type=board_directive, board_decisions source=nightly). Дашборд 8501 → Стратегия → «Решения Совета» читает из knowledge_nodes — блок отображается. Новые директивы создаёт только run_board_meeting(); скрипт board_scheduler.py (каждые 6 ч) не был в docker-compose, поэтому автоматических заседаний не было.
+- **Сделано:** В knowledge_os/docker-compose.yml добавлен сервис **board-scheduler** (образ agents, python board_scheduler.py). В board_scheduler.py при недоступности /app/logs (volume :ro) лог пишется в /tmp/board_scheduler.log.
+- **Итог:** После `docker compose up -d board-scheduler` каждые 6 ч будет создаваться новая директива; она появится на дашборде во вкладке «Решения Совета».
+
+---
+
+## 0.4fr. Tactical War Room (Экстренное реагирование) снова в работе (2026-02-19)
+- **Проблема:** War Room не срабатывал ~2 дня — в дашборде «Активных сессий в War Room нет», при 500 бэкенд не созывал экспертов.
+- **Причины:** (1) В бэкенде импорт был `from app.war_room` (backend app), тогда как модуль лежит в `knowledge_os/app/war_room.py`; PYTHONPATH уже содержит `.../knowledge_os/app`, нужен импорт `from war_room import ...`. (2) В таблице `expert_discussions` не было колонки `metadata`, которую использует War Room для session_id, log, severity — INSERT падал.
+- **Выполнено:** (1) `backend/app/middleware/error_handler.py`: вызов War Room через `from war_room import trigger_war_room_if_needed`, логирование с exc_info при ошибке. (2) Миграция `knowledge_os/db/migrations/add_expert_discussions_metadata.sql`: добавлена колонка `metadata JSONB`, индекс GIN; миграция применена к БД.
+- **Итог:** При любой необработанной 500 бэкенд фоново вызывает War Room; сессия пишется в `expert_discussions`, дашборд (вкладка «🚨 War Room») показывает сессии. Если при деплое миграция не применялась — выполнить `add_expert_discussions_metadata.sql`.
+
+---
+
+## 0.4fq. ask_victoria 503: понятные сообщения и диагностика (2026-02-14)
+- **Проблема:** При 503 от бэкенда («Victoria временно недоступна») пользователь и модель не понимали причину (таймаут, нет связи, перегрузка).
+- **Выполнено:** (1) Backend `POST /api/chat/ask-victoria`: при 503 в теле ответа возвращается краткая причина — таймаут / нет связи с Victoria / перегрузка (функция `_user_facing_error` по тексту исключения или `result.error`). (2) Скрипт `scripts/test_ask_victoria_chain.sh`: проверка цепочки (GET /health, POST ask-victoria с простой целью), переменные BACKEND_URL, ASK_TIMEOUT. (3) Runbook OPENWEBUI_SINGULARITY_15_RUNBOOK.md: в таблицу проблем добавлена строка про 503 и запуск диагностики; добавлен подраздел «Диагностика цепочки Backend → Victoria».
+- **Итог:** После рестарта бэкенда при 503 в чате Open WebUI будет видно «Victoria не успела ответить (таймаут)» или «Victoria недоступна (нет связи)»; для проверки — `./scripts/test_ask_victoria_chain.sh`.
+
+---
+
+## 0.4fp. Реестр проектов: setki-21 и автоматизация (2026-02-19)
+- **Выполнено:** (1) Добавлен **setki-21** в сидер миграции `knowledge_os/db/migrations/add_projects_table.sql` (INSERT ... ON CONFLICT DO NOTHING). (2) В `src/agents/bridge/project_registry.py`: setki-21 добавлен в `DEFAULT_PROJECT_CONFIGS` и в дефолт `ALLOWED_PROJECTS`. (3) В БД выполнена вставка setki-21 (через `docker exec knowledge_postgres psql`), Victoria перезапущена. (4) В **docs/NEW_PROJECT_MINIMAL_STEPS.md** добавлен §0 «Автоматизация»: при добавлении нового проекта править миграцию (сидер) и project_registry (DEFAULT_PROJECT_CONFIGS + ALLOWED_PROJECTS), чтобы не забыть при следующих деплоях.
+- **Итог:** setki-21 в реестре; запросы «проанализируй проект сетки 21» принимаются с project_context=setki-21. Новые проекты — добавлять в миграцию и в реестр по чеклисту §0.
+
+---
+
+## 0.4fp. setki-21 в реестре проектов и автоматизация (2026-02-19)
+- **Сделано:** (1) setki-21 добавлен в сидер миграции `knowledge_os/db/migrations/add_projects_table.sql` (INSERT ... ON CONFLICT DO NOTHING). (2) В `src/agents/bridge/project_registry.py`: setki-21 в `DEFAULT_PROJECT_CONFIGS`, в дефолт `ALLOWED_PROJECTS` добавлен setki-21. (3) Регистрация в текущей БД выполнена (docker exec knowledge_postgres psql ... INSERT). (4) Victoria и Veronica перезапущены. (5) docs/PROJECT_SETKI_21_SETUP.md обновлён: указано, что проект уже в сидере, ручная регистрация не нужна при новых деплоях.
+- **Итог:** Запросы с project_context=setki-21 принимаются. Новые проекты по-прежнему добавлять в миграцию и DEFAULT_PROJECT_CONFIGS (см. NEW_PROJECT_MINIMAL_STEPS.md §0).
+
+---
+
+## 0.4fo. Open WebUI: «Victoria недоступна» — ретраи и поведение модели (2026-02-19)
+- **Проблема:** Модель в Open WebUI после разового таймаута/сбоя считала Victoria «недоступной» и предлагала Code Interpreter вместо повторного вызова ask_victoria; пользователь писал «у Victoria есть доступ, поставь задачу», но модель не вызывала инструмент снова.
+- **Выполнено:** (1) Инструмент `configs/openwebui_ask_victoria_tool.py`: ретрай (2 попытки, пауза 3 с) при ConnectError/TimeoutException; сообщения «ask the user to try again» / «simplify the request» вместо общей «unavailable». (2) Системный промпт (SYSTEM_PROMPT_AND_TOOL.txt, SINGULARITY_15_GOLDEN_PERSONA.md): при ответе «недоступна» или «слишком долго» — предлагать повторить через минуту; не предлагать Code Interpreter вместо анализа проекта; если пользователь говорит «у Victoria есть доступ» или «поставь задачу» — снова вызвать ask_victoria с той же целью. (3) Runbook: обновлена строка в таблице «Victoria is temporarily unavailable» (ретраи, промпт, проверка из контейнера).
+- **Итог:** Разовые сбои не приводят к отказу от Victoria; модель повторно вызывает инструмент по просьбе пользователя и не подменяет задачу другим инструментом.
+
+---
+
+## 0.4fn. Open WebUI → ask_victoria → Victoria: инструмент и runbook (2026-02-14)
+- **Выполнено:** (1) Python-инструмент для Open WebUI: `configs/openwebui_ask_victoria_tool.py` — класс Tools с методом ask_victoria, Valves (VICTORIA_URL, USE_BACKEND_PROXY, ASK_VICTORIA_TIMEOUT); вызов Victoria `/run` или бэкенда `/api/chat/ask-victoria`. (2) Runbook: `docs/OPENWEBUI_SINGULARITY_15_RUNBOOK.md` — поднять бэкенд и Victoria, задать системный промпт из SINGULARITY_15_GOLDEN_PERSONA.md, добавить инструмент, пройти сценарий проверки. (3) Обновлён docs/OPENWEBUI_RAG_SETUP.md: ссылка на Python-инструмент и runbook. (4) Доделано: монтирование `configs` в open-webui (`knowledge_os/docker-compose.yml`: `../configs:/workspace/configs:ro`); скрипты `scripts/start_singularity_15_openwebui.sh` (запуск одной командой, опция `--with-backend`) и `scripts/verify_singularity_15_openwebui.sh` (проверка Victoria, Open WebUI, бэкенда, ask-victoria); runbook дополнен §0 «Запуск одной командой» и путём в контейнере к инструменту.
+- **Итог:** Сценарий описан; запуск одной командой; проверка скриптом. Дополнительно: стек поднят и проверен; автозапуск — Open WebUI в check_and_start_containers.sh, setup_singularity_15_autostart.sh (launchd), runbook §6 — чтобы всё поднималось автоматически.
+
+---
+
+## 0.4fm. Аудит Singularity 15.0 экспертами (Игорь, Анна, Сергей, Елена) (2026-02-14)
+- **Выполнено:** (1) Backend: валидация goal (пустой/пробелы → 422), семафор Victoria для ask-victoria (503 + Retry-After при перегрузке). (2) Victoria stream: защита от output=None (full_response_content всегда строка, outcome_summary с or ""). (3) Скрипт: DEFAULT_URL не перезатирает VICTORIA_URL. (4) Метрика ASK_VICTORIA_TOTAL (success/error/busy), блок в /metrics/summary. (5) Тест test_ask_victoria_empty_goal_422. См. docs/EXPERT_AUDIT_SINGULARITY_15.md.
+
+---
+
+## 0.4fl. Singularity 15.0: Unified Consciousness Bridge (2026-02-14)
+- **Выполнено:**
+    - (1) **Open WebUI Tool:** Скрипт `scripts/openwebui_ask_victoria.py` — вызов Victoria `/run` из CLI или кода (goal, project_context, user_key, timeout 600s). Сообщение «Victoria is temporarily unavailable» при недоступности.
+    - (2) **Backend:** `POST /api/chat/ask-victoria` (goal, project_context, user_key) — прокси к Victoria с use_enhanced=True. В VictoriaClient добавлен параметр use_enhanced.
+    - (3) **Golden Persona:** Документ `docs/SINGULARITY_15_GOLDEN_PERSONA.md` — системный промпт для внешних моделей в Open WebUI: делегирование только через ask_victoria, запрет симуляции экспертов, уточнения — спрашивать пользователя.
+    - (4) **Heartbeat в стриминге:** В `victoria_server.py` при стриминге OpenAI-совместимого ответа задача выполняется в фоне; каждые 15с (VICTORIA_STREAM_HEARTBEAT_SEC) отправляется keep-alive чанк для предотвращения TransferEncodingError.
+    - (5) **Telegram LTM:** В `victoria_telegram_bot.py` в запрос к Victoria добавлен session_id (telegram-{user_id} или telegram-{chat_id}) для единой долгосрочной памяти; вызов send_to_victoria с session_id=f"telegram-{user_id}".
+    - (6) **RAG и контекст:** Документ `docs/OPENWEBUI_RAG_SETUP.md` — настройка Documents в Open WebUI (MASTER_REFERENCE, COGNITIVE_CODE, знания гигантов), Golden Persona, ask_victoria, project_context, LTM.
+- **Итог:** Единая точка входа в корпорацию для любых моделей в Open WebUI; стабильный стрим при долгих ответах; память по пользователю в Telegram и при ask_victoria.
+
+---
+
 ## 0.4fk. Singularity 14.1: Resilient Intelligence (2026-02-14)
 - **Выполнено:**
     - (1) **Proactive Task Decomposition:** В `TaskDecomposer` внедрена логика распознавания «Deep Analysis» задач. Теперь они автоматически разбиваются на 3 фазы (Сбор данных, Анализ, Отчет), предотвращая «захлебывание» модели на длинных отчетах.

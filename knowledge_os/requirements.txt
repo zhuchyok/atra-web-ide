@@ -76,3 +76,6 @@ langchain-openai>=0.2.0
 
 # Docker SDK для Песочниц
 docker>=7.0.0
+
+# Redis для кэша и очередей
+redis>=5.0.1

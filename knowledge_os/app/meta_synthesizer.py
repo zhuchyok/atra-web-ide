@@ -25,10 +25,10 @@ async def synthesize_wisdom():
     
     # 1. Получаем 50 самых свежих и верифицированных узлов знаний
     nodes = await conn.fetch("""
-        SELECT content, d.name as domain 
+        SELECT k.content, d.name as domain 
         FROM knowledge_nodes k JOIN domains d ON k.domain_id = d.id
-        WHERE is_verified = TRUE AND created_at > NOW() - INTERVAL '30 days'
-        ORDER BY confidence_score DESC LIMIT 50
+        WHERE k.is_verified = TRUE AND k.created_at > NOW() - INTERVAL '30 days'
+        ORDER BY k.confidence_score DESC LIMIT 50
     """)
     
     if not nodes:
@@ -53,11 +53,15 @@ async def synthesize_wisdom():
     ВЕРНИ ТОЛЬКО ТЕКСТ СТРАТЕГИИ.
     """
     
-    wisdom = run_cursor_agent(synthesis_prompt)
+    from ai_core import run_smart_agent_async
+    wisdom = await run_smart_agent_async(synthesis_prompt, expert_name="Виктория", category="reasoning")
     
     if wisdom:
         # Сохраняем Мета-Знание (по возможности с embedding — VERIFICATION §5)
         domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = 'Strategy'")
+        if not domain_id:
+            domain_id = await conn.fetchval("INSERT INTO domains (name) VALUES ('Strategy') RETURNING id")
+            
         content_kn = f"🏛 META-STRATEGY: {wisdom}"
         meta_kn = json.dumps({"type": "meta_wisdom", "nodes_count": len(nodes)})
         embedding = None

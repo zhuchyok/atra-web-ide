@@ -24,20 +24,23 @@ class VictoriaClient:
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = base_url or settings.victoria_url
         self.timeout = httpx.Timeout(
-            settings.victoria_timeout,
-            connect=10.0
+            connect=10.0,
+            read=float(settings.victoria_timeout),
+            write=float(settings.victoria_timeout),
+            pool=float(settings.victoria_timeout),
         )
         self.max_retries = 3
-        self.retry_delay = 1.0
-    
+        # 5s base: даёт Victoria время отойти после перезапуска/прогрева (задержки 5s, 10s)
+        self.retry_delay = 5.0
+
     async def _retry_request(self, func, *args, **kwargs):
         """Повторная попытка запроса с экспоненциальной задержкой"""
         last_error = None
-        
+
         for attempt in range(self.max_retries):
             try:
                 return await func(*args, **kwargs)
-            except (httpx.HTTPError, httpx.TimeoutException) as e:
+            except (httpx.HTTPError, httpx.TimeoutException, httpx.RequestError) as e:
                 last_error = e
                 if attempt < self.max_retries - 1:
                     delay = self.retry_delay * (2 ** attempt)
@@ -83,6 +86,7 @@ class VictoriaClient:
         session_id: Optional[str] = None,
         chat_history: Optional[list] = None,
         correlation_id: Optional[str] = None,
+        use_enhanced: Optional[bool] = None,
     ) -> dict:
         """
         Выполнить задачу через Victoria
@@ -102,57 +106,110 @@ class VictoriaClient:
         from app.config import get_settings
         settings = get_settings()
         max_steps = getattr(settings, "victoria_max_steps_chat", 50)
+        # async_mode: не держим один sync-запрос 10+ минут — воркер Victoria не блокируется (VICTORIA_RESTARTS_CAUSE §4)
+        poll_interval = 8.0
+        poll_read_timeout = 30.0
+        total_poll_timeout = float(getattr(settings, "victoria_timeout", 900))
+
         async def _make_request():
-            logger.info("[VICTORIA_CYCLE] client POST /run goal_preview=%s timeout=%s max_steps=%s",
+            logger.info("[VICTORIA_CYCLE] client POST /run?async_mode=true goal_preview=%s timeout=%s max_steps=%s",
                         (prompt or "")[:80], self.timeout, max_steps)
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                payload = {
-                    "goal": prompt,  # Victoria expects 'goal', not 'prompt'
-                    "max_steps": max_steps,  # VICTORIA_MAX_STEPS_CHAT (50) — меньше «превышен лимит 500» на локальных моделях
-                    "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),  # Контекст проекта
-                }
-                if session_id:
-                    payload["session_id"] = session_id
-                if chat_history:
-                    payload["chat_history"] = chat_history[-30:]  # Последние 30 пар
-                req_kw = {"json": payload}
-                if correlation_id:
-                    req_kw["headers"] = {"X-Correlation-ID": correlation_id}
-                    logger.info("[VICTORIA_CYCLE] correlation_id=%s", correlation_id[:8])
-                response = await client.post(f"{self.base_url}/run", **req_kw)
+            payload = {
+                "goal": prompt,
+                "max_steps": max_steps,
+                "project_context": project_context or os.getenv("PROJECT_NAME", "atra-web-ide"),
+            }
+            if session_id:
+                payload["session_id"] = session_id
+            if chat_history:
+                payload["chat_history"] = chat_history[-30:]
+            if use_enhanced is not None:
+                payload["use_enhanced"] = use_enhanced
+            req_kw = {"json": payload}
+            if correlation_id:
+                req_kw["headers"] = {"X-Correlation-ID": correlation_id}
+                logger.info("[VICTORIA_CYCLE] correlation_id=%s", correlation_id[:8])
+
+            # Короткий таймаут на первый запрос: ждём только 202 (или 200 sync)
+            post_timeout = httpx.Timeout(connect=10.0, read=120.0, write=120.0, pool=120.0)
+            async with httpx.AsyncClient(timeout=post_timeout) as client:
+                response = await client.post(f"{self.base_url}/run?async_mode=true", **req_kw)
                 response.raise_for_status()
                 data = response.json()
-                logger.info("[VICTORIA_CYCLE] client response status=%s output_len=%s",
-                            data.get("status"), len(data.get("output") or data.get("result") or ""))
+
+            if response.status_code == 200:
+                # Sync-ответ (обратная совместимость)
+                logger.info("[VICTORIA_CYCLE] client sync response status=%s", data.get("status"))
                 return data
-        
+
+            task_id = data.get("task_id")
+            if not task_id:
+                raise httpx.HTTPStatusError("No task_id in 202 response", request=response.request, response=response)
+            logger.info("[VICTORIA_CYCLE] client 202 task_id=%s polling /run/status/%s", task_id, task_id)
+
+            status_url = f"{self.base_url}/run/status/{task_id}"
+            poll_timeout = httpx.Timeout(connect=10.0, read=poll_read_timeout, write=poll_read_timeout, pool=poll_read_timeout)
+            deadline = asyncio.get_event_loop().time() + total_poll_timeout
+            poll_connect_retries = 5
+            poll_connect_retry_delay = 12.0
+            async with httpx.AsyncClient(timeout=poll_timeout) as client:
+                while True:
+                    if asyncio.get_event_loop().time() >= deadline:
+                        raise httpx.TimeoutException(f"Polling /run/status/{task_id} exceeded {total_poll_timeout}s")
+                    last_poll_err = None
+                    for poll_attempt in range(poll_connect_retries):
+                        try:
+                            r = await client.get(status_url)
+                            if r.status_code == 404:
+                                return {
+                                    "status": "error",
+                                    "error": "Task lost (Victoria may have restarted). Please retry your request.",
+                                    "output": "",
+                                    "result": None,
+                                }
+                            r.raise_for_status()
+                            st = r.json()
+                            status_val = (st.get("status") or "").lower()
+                            if status_val == "completed":
+                                out = st.get("output") or st.get("result") or ""
+                                logger.info("[VICTORIA_CYCLE] client poll completed output_len=%s", len(out))
+                                return {"status": "success", "output": out, "result": out, "response": out}
+                            if status_val == "failed":
+                                err = st.get("error") or "Task failed"
+                                logger.warning("[VICTORIA_CYCLE] client poll failed error=%s", err[:200])
+                                return {"status": "error", "error": err, "output": "", "result": None}
+                            break
+                        except (httpx.ConnectError, httpx.TimeoutException, httpx.RemoteProtocolError) as e:
+                            last_poll_err = e
+                            if poll_attempt < poll_connect_retries - 1:
+                                logger.warning(
+                                    "[VICTORIA_CYCLE] poll GET %s (attempt %s/%s): %s, retry in %ss",
+                                    task_id[:8], poll_attempt + 1, poll_connect_retries, e, poll_connect_retry_delay,
+                                )
+                                await asyncio.sleep(poll_connect_retry_delay)
+                            else:
+                                raise
+                    await asyncio.sleep(poll_interval)
+
         try:
             data = await self._retry_request(_make_request)
-            # Map Victoria response to expected format
-            # Victoria может вернуть output в разных форматах
             output = data.get("output", "")
             if not output and "result" in data:
                 output = data.get("result", "")
             if not output and "response" in data:
                 output = data.get("response", "")
-            
-            logger.info(f"Victoria response: status={data.get('status')}, output_length={len(output) if output else 0}")
-            
+            logger.info("Victoria response: status=%s, output_length=%s", data.get("status"), len(output) if output else 0)
             return {
                 "status": data.get("status", "success"),
+                "error": data.get("error"),
                 "result": output,
                 "response": output,
                 "raw": data,
-                "clarification_questions": data.get("clarification_questions"),  # для needs_clarification
+                "clarification_questions": data.get("clarification_questions"),
             }
         except httpx.HTTPError as e:
             logger.error("[VICTORIA_CYCLE] client error: %s", e)
-            logger.error(f"Victoria error: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "result": None
-            }
+            return {"status": "error", "error": str(e), "result": None}
     
     async def run_stream(
         self,

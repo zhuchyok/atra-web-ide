@@ -1,0 +1,47 @@
+{
+  "name": "ask_victoria",
+  "description": "Delegate a task to Victoria (Team Lead ATRA). Use this for any execution: code, files, analysis, experts. Do not simulate experts yourself.",
+  "url": "http://atra-web-ide-backend:8080/api/chat/ask-victoria",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "parameters": {
+    "goal": {
+      "type": "string",
+      "description": "The task or question for Victoria (required)"
+    },
+    "project_context": {
+      "type": "string",
+      "description": "Project: atra-web-ide, setki-21, or atra",
+      "default": "atra-web-ide"
+    },
+    "user_key": {
+      "type": "string",
+      "description": "Stable user id for memory, e.g. openwebui-{user_id}"
+    }
+  },
+  "openai_function": {
+    "name": "ask_victoria",
+    "description": "Delegate a task to Victoria (Team Lead ATRA). Use for any execution: code, files, analysis. Do not simulate experts yourself.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "description": "The task or question for Victoria"
+        },
+        "project_context": {
+          "type": "string",
+          "description": "Project: atra-web-ide, setki-21, or atra",
+          "default": "atra-web-ide"
+        },
+        "user_key": {
+          "type": "string",
+          "description": "Stable user id for memory, e.g. openwebui-{user_id}"
+        }
+      },
+      "required": ["goal"]
+    }
+  }
+}

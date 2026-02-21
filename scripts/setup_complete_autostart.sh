@@ -236,7 +236,7 @@ fi
 echo ""
 echo "🔄 После перезагрузки Mac Studio или MacBook:"
 echo "   1. Docker Desktop запустится автоматически"
-echo "   2. Все Docker контейнеры запустятся автоматически"
+echo "   2. Все Docker контейнеры запустятся автоматически (в т.ч. Victoria, Open WebUI :3005)"
 echo "   3. Ollama запустится автоматически (если настроен)"
 echo "   4. Victoria MCP Server запустится автоматически (если настроен)"
 echo "   5. Self-Check System запустится автоматически (НОВОЕ) ✅"

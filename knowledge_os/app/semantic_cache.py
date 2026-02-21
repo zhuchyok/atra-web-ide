@@ -55,21 +55,39 @@ async def get_embedding(text: str) -> Optional[list]:
     """
     Get embedding from Ollama. Uses shared HTTP client (connection reuse).
     При недоступности общего клиента — fallback на разовый AsyncClient (resilience).
+    Внедрена логика повторных попыток (retries) для стабильности на Mac Studio.
     """
-    client = None
-    if get_http_client:
+    max_retries = 3
+    for attempt in range(max_retries):
+        client = None
+        if get_http_client:
+            try:
+                client = await get_http_client()
+            except Exception as exc:
+                logger.debug("Shared HTTP client unavailable, attempt %d: %s", attempt + 1, exc)
+        
         try:
-            client = await get_http_client()
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.debug("Shared HTTP client unavailable, using fallback: %s", exc)
-    if client is None:
-        async with httpx.AsyncClient() as fallback_client:
-            return await _do_embed_request(fallback_client, text)
-    try:
-        return await _do_embed_request(client, text)
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.error("Embedding error (Ollama): %s", exc)
-        return None
+            if client is None:
+                async with httpx.AsyncClient() as fallback_client:
+                    res = await _do_embed_request(fallback_client, text)
+            else:
+                res = await _do_embed_request(client, text)
+            
+            if res:
+                return res
+            
+            # Если вернулось None (например, 503), пробуем еще раз
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+                
+        except Exception as exc:
+            if attempt < max_retries - 1:
+                logger.warning("Embedding attempt %d failed: %s. Retrying...", attempt + 1, exc)
+                await asyncio.sleep(2 ** attempt)
+            else:
+                logger.error("Embedding error after %d attempts (Ollama): %s", max_retries, exc)
+    
+    return None
 
 
 async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[list]:
@@ -78,7 +96,7 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
         response = await client.post(
             OLLAMA_EMBED_URL,
             json={"model": OLLAMA_MODEL, "prompt": text},
-            timeout=10.0
+            timeout=30.0  # Увеличено с 10.0 до 30.0 для стабильности на Mac Studio
         )
         if response.status_code == 503:
             logger.warning("Ollama embeddings service unavailable (503). Skipping embedding.")

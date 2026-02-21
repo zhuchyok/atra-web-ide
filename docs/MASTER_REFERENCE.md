@@ -9,7 +9,13 @@
 
 **Назначение:** при любых вопросах по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
 
-**Обновлено:** 2026-02-14
+**Обновлено:** 2026-02-19
+
+Последние изменения (2026-02-19): **Singularity 20.0: The Wisdom Era (20/10).** (1) Внедрена `Collective Brainstorming` — автономный процесс проектирования сложных фич через диалог экспертов (Игорь, Анна, Елена) под руководством Виктории. (2) Реализован `Mentorship Engine` — автоматический аудит выполненных задач с генерацией персональных советов (Mentorship Notes) для экспертов. (3) Внедрен `SOP Generator` — автоматическое создание Standard Operating Procedures на основе успешных задач (8/10+). (4) Интегрирован `Adversarial Red Teaming` для верификации новых SOP и инсайтов через стресс-тест «Критиком». (5) Реализована `Wisdom Injection` в `ai_core.py` — инъекция мета-стратегий и советов ментора прямо в системные промпты. (6) В Дашборд добавлена вкладка `Wisdom & Mentorship` для мониторинга эволюции интеллекта.
+
+Последние изменения (2026-02-14): **Аудит Singularity 15.0:** валидация goal (422), семафор для ask-victoria (503 + Retry-After), защита стрима от output=None, метрика ASK_VICTORIA_TOTAL и блок в /metrics/summary, фикс DEFAULT_URL в скрипте. См. CHANGES §0.4fm, docs/EXPERT_AUDIT_SINGULARITY_15.md.
+
+Последние изменения (2026-02-14): **Singularity 15.0: Unified Consciousness Bridge.** (1) Инструмент ask_victoria для Open WebUI: скрипт scripts/openwebui_ask_victoria.py и endpoint POST /api/chat/ask-victoria. (2) Golden Persona (docs/SINGULARITY_15_GOLDEN_PERSONA.md) — системный промпт для внешних моделей: делегирование только через ask_victoria. (3) Heartbeat в стриминге Victoria (каждые 15с) против TransferEncodingError. (4) Telegram передаёт session_id для LTM. (5) docs/OPENWEBUI_RAG_SETUP.md — настройка RAG и контекста. См. CHANGES §0.4fl.
 
 Последние изменения (2026-02-14): **Singularity 14.3: Survival Intelligence (14.3/10).** (1) Внедрена `Pre-flight Code Validation` — автоматическая проверка синтаксиса и критических импортов (ast/importlib) перед записью любых `.py` файлов. (2) Создан `External System Watchdog` (scripts/system_watchdog.sh) — независимый монитор пульса системы с механизмом Hard Reset контейнеров при параличе. (3) Реализован `MemoryGuard` (knowledge_os/app/memory_guard.py) — защита от OOM через мониторинг RAM и адаптивную паузу тяжелых задач (Nightly Learner). (4) Интегрирован `War Room Auto-Trigger` в глобальный обработчик ошибок бэкенда — автоматический созыв экспертов при любых 500-х ошибках. (5) Исправлена конфигурация Telegram-уведомлений во всех Docker-сервисах.
 
@@ -620,7 +626,14 @@
 
 ---
 
-## 10. Последние исправления (2026-02-14)
+## 10. Последние исправления (2026-02-21)
+- **Singularity 20.0 — The Wisdom Era (Giant-Inspired Evolution):**
+  - **Digital Constitution (Constitutional AI):** Внедрен свод фундаментальных правил (`digital_constitution.py`), вдохновленный Anthropic. Виктория теперь обязана проверять свои решения на соответствие безопасности, масштабируемости и этике.
+  - **Voice of Experience (Predictive Self-Correction):** Система проактивно предупреждает экспертов о возможных ошибках (`experience_retriever.py`), анализируя похожие провалы в прошлом и заметки ментора.
+  - **Meta-Wisdom Synthesis:** Автоматический цикл синтеза глобальных стратегий (`meta_synthesizer.py`) на основе 50 последних верифицированных инсайтов.
+  - **Self-Healing Infrastructure:** Автономный менеджер туннелей (`self_healing_tunnels.py`), который автоматически восстанавливает VNC и Frontend соединения при обнаружении обрывов.
+  - **Collective Brainstorming (Sovereign Level):** Многоагентная система проектирования сложных фич, интегрирующая лучшие практики Google, OpenAI и Meta в локальное ядро.
+  - **Wisdom Dashboard:** Визуализация накопленной мудрости, реестр SOP и статус соблюдения Цифровой Конституции.
 - **Singularity 15.0 — Cognitive Breakthrough:**
   - **Fact Extraction Layer (MapReduce):** Внедрена система автоматического извлечения фактов (`FactExtractor`) для сжатия гигантских контекстов и RAG-результатов. Это предотвращает «захлебывание» моделей при синтезе сложных отчетов.
   - **Hierarchical Swarm Intelligence:** Группировка 86 экспертов в специализированные кластеры (Tech, UX, Sec, Perf) с многоуровневым синтезом (Pyramid Synthesis) по методике Nature 2025.

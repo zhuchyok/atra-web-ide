@@ -96,7 +96,58 @@ ENABLE_EVENT_MONITORING: "false"
 
 ---
 
-## 5. Стабильность при нагрузке: что сделано (2026-02-09)
+## 4.2. 503 «All connection attempts failed» при опросе /run/status (2026-02)
+
+**Симптом:** Open WebUI или тест `test_ask_victoria_chain.sh`: POST ask-victoria → 202, затем через 1–2 мин ответ 503 с текстом «Victoria недоступна (нет связи)» или в логах бэкенда `client error: All connection attempts failed`. Иногда один запрос проходит (200), следующий — 503.
+
+**Разбор причин:**
+1. **RestartCount Victoria высокий** — у контейнера `victoria-agent` много рестартов (десятки). Каждый рестарт = 30–60 с недоступности; store задач в памяти Victoria при рестарте теряется.
+2. **Во время опроса Victoria уходит в рестарт** — бэкенд держит цикл GET /run/status каждые 8 с; если в этот момент контейнер Victoria перезапускается (OOM, краш, политика restart), следующий GET даёт ConnectError → исключение в `run()` → 503.
+3. **Сеть:** бэкенд и Victoria в одной сети (atra-network), имя `victoria-agent` резолвится; проблема не в DNS, а в недоступности процесса во время рестарта.
+
+**Что сделано (бэкенд):**
+- В **backend/app/services/victoria.py** в цикле опроса GET /run/status добавлены **ретраи при сбоях соединения**: при `ConnectError`, `TimeoutException`, `RemoteProtocolError` — до 5 попыток с паузой 12 с перед тем как вернуть 503. Краткий рестарт Victoria (30–60 с) может «переживаться» без немедленного 503.
+- При ответе Victoria **404** на GET /run/status (задача не найдена — типично после рестарта, store в памяти потерян) бэкенд возвращает понятную ошибку: «Task lost (Victoria may have restarted). Please retry your request.»
+
+**Рекомендации:**
+- Снизить частоту рестартов Victoria: см. §1–3 (USE_ELK=false, память Docker, при необходимости RAG_PRELOAD/SERVICE_MONITOR в false), §2 (OOM).
+- После деплоя правок бэкенда — пересобрать образ и перезапустить контейнер backend.
+
+---
+
+## 4.3. NameError user_key при делегировании экспертам (MONSTER) (2026-02)
+
+**Симптом:** В логах Victoria при выполнении плана с делегированием: `❌ [MONSTER] Ошибка выполнения для &lt;Имя&gt;: EXCEPTION: NameError: name 'user_key' is not defined`. Повторяется для нескольких экспертов (Константин, Василий, Тимофей, Андрей, Татьяна и др.).
+
+**Причина:** В **ai_core.run_smart_agent_async_impl** переменные `user_key` и `project_context` задавались только внутри блока `if is_coding_task and not is_critical`. При вызове из **execute_assignments** (category=orchestrator_assignment) подзадачи часто не попадают в этот блок (нет ключевых слов кодинга в формулировке), при этом episodic memory (get_episodes) вызывается только в этом блоке — но в других путях мог использоваться user_key, либо блок выполнялся в ином порядке. Фактически при части сценариев user_key не определялся до использования.
+
+**Исправление:** В начале run_smart_agent_async_impl заданы значения по умолчанию: `user_key = session_id or "orchestrator"`, `project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")`. Таким образом, при вызове из execute_assignments без session_id используется user_key="orchestrator", ошибка не возникает.
+
+**Итог:** После обновления кода в knowledge_os и пересборки образа victoria-agent ошибки MONSTER из-за user_key должны исчезнуть.
+
+---
+
+## 4.4. OOM (Out of Memory) при старте или тяжелых задачах (2026-02)
+
+**Симптомы:** `RestartCount` растет, в `docker events` ошибка `container oom` (exitCode 137), хотя `docker inspect` может показывать `OOMKilled=false`.
+
+**Причина:** Контейнер `victoria-agent` потребляет 6+ ГБ в простое и может скачкообразно расти при инициализации ReAct или делегировании. Если лимит в Docker Desktop (например, 12 ГБ) ниже лимита в `docker-compose.yml` (16 ГБ), Docker убивает процесс.
+
+**Решение:** 
+1. Сняты жесткие лимиты `mem_limit` в `knowledge_os/docker-compose.yml` (пусть Docker Desktop сам управляет ресурсами).
+2. Отключен прогрев тяжелых моделей при старте (`VICTORIA_WARMUP_EXTRA_MODELS=""`), что снижает пиковую нагрузку на CPU/RAM при запуске.
+
+---
+
+## 5. Улучшения в цепочке Backend -> Victoria (2026-02)
+
+- **Polling Retries:** В `backend/app/services/victoria.py` добавлен внутренний цикл ретраев (5 попыток по 12 сек) для `GET /run/status`. Это позволяет пережить кратковременный рестарт Victoria без падения всего запроса.
+- **404 Handling:** Если Victoria вернула 404 при опросе статуса (задача потеряна из-за рестарта), бэкенд возвращает четкую ошибку: "Задача потеряна (Victoria могла перезапуститься)".
+- **Timeout Fix:** Исправлен конструктор `httpx.Timeout` (требует явного указания всех 4 параметров или одного дефолта).
+
+---
+
+## 6. Стабильность при нагрузке: что сделано (2026-02-09)
 
 **Проблема:** при небольшой нагрузке Victoria вылетает или перестаёт отвечать (connection reset, пустой ответ).
 

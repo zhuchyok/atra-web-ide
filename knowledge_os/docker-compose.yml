@@ -65,8 +65,8 @@ services:
     networks:
       - atra-network
     # [SINGULARITY 14.1] Increased memory for heavy reasoning tasks
-    mem_limit: 16g
-    mem_reservation: 8g
+    # mem_limit: 16g
+    # mem_reservation: 8g
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app
@@ -107,9 +107,11 @@ services:
       UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-90}
       # Прогрев при старте: греем VICTORIA_PLANNER_MODEL + VICTORIA_MODEL (+ VICTORIA_WARMUP_EXTRA_MODELS через запятую)
       # VICTORIA_WARMUP_BLOCK_STARTUP=true = ждать прогрева до приёма запросов (стабильный первый sync)
-      VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-false}
-      VICTORIA_WARMUP_EXTRA_MODELS: ${VICTORIA_WARMUP_EXTRA_MODELS:-qwen2.5-coder:32b,nomic-embed-text}
-      VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-90}
+      # VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-false}
+      # VICTORIA_WARMUP_EXTRA_MODELS: ${VICTORIA_WARMUP_EXTRA_MODELS:-qwen2.5-coder:32b,nomic-embed-text}
+      # VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-90}
+      VICTORIA_WARMUP_BLOCK_STARTUP: "false"
+      VICTORIA_WARMUP_EXTRA_MODELS: ""
       VICTORIA_USE_LOCAL_ROUTER: "true"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       USE_ELK: "false"
@@ -206,9 +208,15 @@ services:
       - WEBUI_SECRET_KEY=atra-webui-secret-2026
       - ENABLE_SIGNUP=false
       - DEFAULT_MODELS=Victoria
+      - ENV=dev
+      - WEBUI_ADMIN_EMAIL=${OPENWEBUI_ADMIN_EMAIL:-admin@atra.local}
+      - WEBUI_ADMIN_PASSWORD=${OPENWEBUI_ADMIN_PASSWORD:-atra-admin-2026}
+      - AIOHTTP_CLIENT_TIMEOUT=800
+      - AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA=800
     volumes:
       - open-webui-data:/app/backend/data
       - /Users/bikos/Documents/atra-web-ide/docs:/workspace/global_docs:ro
+      - ../configs:/workspace/configs:ro
     networks:
       - atra-network
 
@@ -579,6 +587,59 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: ["python", "enhanced_orchestrator.py", "--continuous", "--interval", "60", "--quick-poll", "30"]
+
+  # Отправка уведомлений и отчётов в Telegram: таблица notifications → Telegram; ежедневный отчёт 8:00, еженедельный понедельник 9:00
+  telegram-notifications:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: telegram-notifications
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
+      CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
+      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
+      TELEGRAM_NOTIFICATION_INTERVAL_SEC: ${TELEGRAM_NOTIFICATION_INTERVAL_SEC:-3600}
+      TELEGRAM_REPORTS_ENABLED: ${TELEGRAM_REPORTS_ENABLED:-true}
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "telegram_notifications_worker.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Планировщик заседаний Совета Директоров: run_board_meeting() каждые 6 ч → директива в board_decisions и knowledge_nodes (дашборд «Решения Совета»)
+  board-scheduler:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: board-scheduler
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      SERVER_LLM_URL: http://host.docker.internal:11434
+    volumes:
+      - ..:/app:ro
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "board_scheduler.py"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
 
   # Streamlit дашборд корпорации (зависимости в образе, код монтируется)
   corporation-dashboard:

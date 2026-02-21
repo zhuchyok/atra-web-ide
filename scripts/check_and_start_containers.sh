@@ -48,6 +48,13 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
     echo ""
     
+    # Singularity 15.0: Open WebUI (ask_victoria → Victoria) — поднимаем вместе с Victoria
+    if ! docker ps --format "{{.Names}}" | grep -q "^open-webui$"; then
+        echo "   🚀 Запуск Open WebUI (Singularity 15.0)..."
+        docker-compose -f knowledge_os/docker-compose.yml up -d db redis victoria-agent open-webui 2>&1 | grep -v "level=warning" || true
+        echo "   ⏳ Ожидание Victoria (10 сек)..."
+        sleep 10
+    fi
     # Явная проверка Victoria — если контейнер не запущен, поднимаем его первым
     if ! docker ps --format "{{.Names}}" | grep -q "^victoria-agent$"; then
         echo "   ⚠️  Victoria (victoria-agent) не запущена!"
@@ -124,6 +131,7 @@ check_service "Victoria (8010)" "http://localhost:8010/health" && { SERVICES_OK=
 check_service "Veronica (8011)" "http://localhost:8011/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VERONICA_OK=1; }
 check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1))
 check_service "Knowledge OS (8000)" "http://localhost:8000/health" && SERVICES_OK=$((SERVICES_OK + 1))
+check_service "Open WebUI (3005)" "http://localhost:3005" || true
 
 # 5. Автоперезапуск Victoria/Veronica при сбое; проверка трёх уровней Victoria
 echo ""
@@ -182,4 +190,5 @@ echo "   - Victoria: http://localhost:8010"
 echo "   - Veronica: http://localhost:8011"
 echo "   - Ollama/MLX: http://localhost:11434"
 echo "   - Knowledge OS: http://localhost:8000"
+echo "   - Open WebUI (Singularity 15.0): http://localhost:3005"
 echo ""

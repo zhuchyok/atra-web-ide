@@ -30,12 +30,12 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 
 # Приоритет для OLLAMA (порт 11434) - по мощности
 OLLAMA_BEST_FIRST: List[str] = [
+    "qwen3-coder:30b",          # 30B Main Engineer (New Gen)
     "deepseek-r1:32b",          # 32B Reasoning (Board/VIP)
-    "qwen2.5-coder:32b",        # 32B Main Engineer
+    "qwen2.5-coder:32b",        # 32B Previous Gen Engineer
     "qwq:32b",                  # 32B Logic
     "deepseek-r1:14b",          # 14B Fast Reasoning
     "glm-4.7-flash:q8_0",       # 31B Fast Reasoning
-    "qwen3-coder:30b",          # 30B Previous Gen
     "llava:7b",                 # Vision 7B
     "moondream:latest",         # Vision small
     "tinyllama:1.1b-chat",      # Tiny fallback
@@ -50,14 +50,14 @@ MLX_BEST_FIRST: List[str] = [
 
 # Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
-    "fast": ["deepseek-r1:14b", "qwen2.5-coder:32b", "tinyllama:1.1b-chat"],
-    "default": ["qwen2.5-coder:32b", "deepseek-r1:32b", "qwq:32b"],
-    "general": ["qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "deepseek-r1:14b"],
-    "coding": ["qwen2.5-coder:32b", "qwq:32b", "qwen3-coder:30b"],
-    "reasoning": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:q8_0"],
-    "complex": ["deepseek-r1:32b", "qwen2.5-coder:32b", "qwq:32b"],
+    "fast": ["deepseek-r1:14b", "qwen3-coder:30b", "tinyllama:1.1b-chat"],
+    "default": ["qwen3-coder:30b", "deepseek-r1:32b", "qwq:32b"],
+    "general": ["qwen3-coder:30b", "glm-4.7-flash:q8_0", "deepseek-r1:14b"],
+    "coding": ["qwen3-coder:30b", "qwq:32b", "qwen2.5-coder:32b"],
+    "reasoning": ["deepseek-r1:32b", "qwen3-coder:30b", "qwq:32b"],
+    "complex": ["deepseek-r1:32b", "qwen3-coder:30b", "qwq:32b"],
     "vision": ["moondream:latest", "llava:7b"],
-    "vip": ["deepseek-r1:32b", "qwen2.5-coder:32b"],
+    "vip": ["deepseek-r1:32b", "qwen3-coder:30b"],
 }
 
 # Приоритеты моделей MLX — только лёгкие (32b убран: ~35 ГБ процесс, Metal/память)

@@ -75,6 +75,15 @@ base_dir_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 WORKSPACE_ROOT = os.getenv('WORKSPACE_ROOT', base_dir_path)
 
 
+try:
+    from traffic_mirror import get_traffic_mirror
+except ImportError:
+    try:
+        from app.traffic_mirror import get_traffic_mirror
+    except ImportError:
+        def get_traffic_mirror():
+            return None
+
 class MetaArchitect:
     """
     Autonomous Meta-Architect Agent (Singularity v3.0).
@@ -105,11 +114,11 @@ class MetaArchitect:
             import ast
             tree = ast.parse(mutated_code)
             mutated_function = None
+            logger.debug(f"AST: Searching for {function_name} in mutated code...")
             for node in ast.walk(tree):
                 if isinstance(node, ast.FunctionDef):
-                    # Handle both top-level functions and methods (if function_name is Class.method)
                     current_name = node.name
-                    # Simple check for now, could be improved to match full name
+                    logger.debug(f"AST: Found function {current_name}")
                     if current_name == function_name or ('.' in function_name and function_name.split('.')[-1] == current_name):
                         mutated_function = node
                         break
@@ -364,10 +373,12 @@ class MetaArchitect:
             
             # [SINGULARITY 10.0+] Автоматический деплой в Shadow для A/B тестирования
             try:
-                from traffic_mirror import get_traffic_mirror
                 tm = get_traffic_mirror()
-                await tm.register_shadow(spot['module_name'], mutation_path)
-                logger.info(f"🛡️ [SHADOW] Mutation {mutation_id} deployed for A/B testing.")
+                if tm:
+                    await tm.register_shadow(spot['module_name'], mutation_path)
+                    logger.info(f"🛡️ [SHADOW] Mutation {mutation_id} deployed for A/B testing.")
+                else:
+                    logger.warning("TrafficMirror not available for shadow deployment.")
             except Exception as e:
                 logger.error(f"Failed to deploy shadow mutation: {e}")
 
