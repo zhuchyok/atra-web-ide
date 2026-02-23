@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "rust_core/scout",
+    "rust_core/gateway",
+]
+resolver = "2"
