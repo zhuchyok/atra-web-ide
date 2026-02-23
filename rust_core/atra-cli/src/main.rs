@@ -6,6 +6,7 @@ use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+use ignore::WalkBuilder;
 
 #[derive(Parser)]
 #[command(name = "atra")]
@@ -109,6 +110,53 @@ fn apply_patches(file_path: &str, patches: &[PatchBlock]) -> Result<(), Box<dyn 
     Ok(())
 }
 
+fn gather_context(message: &str) -> String {
+    let mut context = String::new();
+    let mut included_files = Vec::new();
+
+    // Find all words starting with @
+    for word in message.split_whitespace() {
+        if word.starts_with('@') {
+            let file_ref = &word[1..];
+            let path = Path::new(file_ref);
+
+            if path.exists() && path.is_file() {
+                if let Ok(content) = fs::read_to_string(path) {
+                    context.push_str(&format!("FILE: {}\n---\n{}\n---\n\n", file_ref, content));
+                    included_files.push(file_ref);
+                }
+            } else {
+                // If not a direct path, try searching with ignore crate (respecting .gitignore)
+                let mut found = false;
+                for result in WalkBuilder::new(".").build() {
+                    if let Ok(entry) = result {
+                        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                            if entry.path().to_string_lossy().ends_with(file_ref) {
+                                if let Ok(content) = fs::read_to_string(entry.path()) {
+                                    let path_str = entry.path().to_string_lossy().to_string();
+                                    context.push_str(&format!("FILE: {}\n---\n{}\n---\n\n", path_str, content));
+                                    included_files.push(path_str.leak()); // leak for simplicity in this CLI
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if !found {
+                    println!("{} Warning: File not found: {}", "⚠".yellow(), file_ref);
+                }
+            }
+        }
+    }
+
+    for file in included_files {
+        println!("{} Included context from: {}", "📎".cyan(), file);
+    }
+
+    context
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
@@ -142,11 +190,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Chat { message } => {
+            let context = gather_context(message);
+            let full_message = if context.is_empty() {
+                message.clone()
+            } else {
+                format!("{}\n{}", context, message)
+            };
+
             let client = reqwest::Client::new();
             let project_context = env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
 
             let request = ChatRequest {
-                message: message.clone(),
+                message: full_message,
                 project_context,
             };
 
