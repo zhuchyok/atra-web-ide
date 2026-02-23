@@ -1,3 +1,32 @@
-fn main() {
-    println!("Hello, world!");
+use axum::{
+    routing::{get, post},
+    Router,
+    response::IntoResponse,
+    Json,
+};
+use std::net::SocketAddr;
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/v1/chat/completions", post(proxy_chat));
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8081));
+    println!("🚀 Rust API Gateway listening on {}", addr);
+    
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+
+async fn health_check() -> &'static str {
+    "OK"
+}
+
+async fn proxy_chat(Json(payload): Json<serde_json::Value>) -> impl IntoResponse {
+    println!("Incoming request to /v1/chat/completions");
+    // For now, just echo back the payload
+    Json(payload)
 }
