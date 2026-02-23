@@ -3,6 +3,9 @@ use colored::*;
 use dotenv::dotenv;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fs;
+use std::io::{self, Write};
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(name = "atra")]
@@ -21,6 +24,13 @@ enum Commands {
         /// The message to send
         message: String,
     },
+    /// Applies SEARCH/REPLACE blocks to a file
+    Apply {
+        /// Path to the file to patch
+        file_path: String,
+        /// The patch string containing SEARCH/REPLACE blocks
+        patch: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,6 +42,71 @@ struct ChatRequest {
 #[derive(Serialize, Deserialize, Debug)]
 struct ChatResponse {
     response: String,
+}
+
+#[derive(Debug)]
+struct PatchBlock {
+    search: String,
+    replace: String,
+}
+
+fn parse_patch_blocks(text: &str) -> Vec<PatchBlock> {
+    let mut blocks = Vec::new();
+    let mut current_pos = 0;
+
+    while let Some(rel_search_start) = text[current_pos..].find("<<<<<<< SEARCH") {
+        let search_start = current_pos + rel_search_start + 14; // skip "<<<<<<< SEARCH"
+        if let Some(rel_search_end) = text[search_start..].find("=======") {
+            let search_end = search_start + rel_search_end;
+            let search_content = text[search_start..search_end].trim_matches('\n');
+
+            let replace_start = search_end + 7; // skip "======="
+            if let Some(rel_replace_end) = text[replace_start..].find(">>>>>>> REPLACE") {
+                let replace_end = replace_start + rel_replace_end;
+                let replace_content = text[replace_start..replace_end].trim_matches('\n');
+
+                blocks.push(PatchBlock {
+                    search: search_content.to_string(),
+                    replace: replace_content.to_string(),
+                });
+                current_pos = replace_end + 15; // skip ">>>>>>> REPLACE"
+            } else {
+                current_pos = search_end + 7;
+            }
+        } else {
+            current_pos = search_start;
+        }
+    }
+    blocks
+}
+
+fn apply_patches(file_path: &str, patches: &[PatchBlock]) -> Result<(), Box<dyn std::error::Error>> {
+    let path = Path::new(file_path);
+    if !path.exists() {
+        return Err(format!("File not found: {}", file_path).into());
+    }
+
+    let mut content = fs::read_to_string(path)?;
+    let mut applied_count = 0;
+
+    for patch in patches {
+        if patch.search.is_empty() {
+            continue;
+        }
+
+        if let Some(pos) = content.find(&patch.search) {
+            content.replace_range(pos..pos + patch.search.len(), &patch.replace);
+            applied_count += 1;
+        } else {
+            println!("{} SEARCH block not found in {}:", "⚠".yellow(), file_path);
+            println!("---\n{}\n---", patch.search.dimmed());
+            return Err(format!("SEARCH block not found in {}", file_path).into());
+        }
+    }
+
+    fs::write(path, content)?;
+    println!("{} Applied {} patches to {}", "✔".green(), applied_count, file_path);
+    Ok(())
 }
 
 #[tokio::main]
@@ -47,7 +122,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Health => {
             println!("{}", "Checking system health...".cyan());
 
-            // Check Gateway
             let client = reqwest::Client::new();
             match client.get(format!("{}/health", gateway_url)).send().await {
                 Ok(res) if res.status().is_success() => {
@@ -58,7 +132,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // Check Victoria
             match client.get(format!("{}/health", victoria_url)).send().await {
                 Ok(res) if res.status().is_success() => {
                     println!("{} Victoria ({}): {}", "✔".green(), victoria_url, "Connected".green());
@@ -89,6 +162,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let chat_res: ChatResponse = res.json().await?;
                     println!("\n{}", "Victoria:".bright_magenta().bold());
                     println!("{}", chat_res.response);
+
+                    let patches = parse_patch_blocks(&chat_res.response);
+                    if !patches.is_empty() {
+                        println!("\n{}", "Detected smart-patch blocks. Apply them?".yellow().bold());
+                        print!("Enter file path (or leave empty to skip): ");
+                        io::stdout().flush()?;
+                        
+                        let mut input = String::new();
+                        io::stdin().read_line(&mut input)?;
+                        let file_path = input.trim();
+
+                        if !file_path.is_empty() {
+                            if let Err(e) = apply_patches(file_path, &patches) {
+                                println!("{} Error applying patches: {}", "✘".red(), e);
+                            }
+                        }
+                    }
                 }
                 Ok(res) => {
                     let status = res.status();
@@ -99,6 +189,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("{} Connection error: {}", "✘".red(), e);
                 }
             }
+        }
+        Commands::Apply { file_path, patch } => {
+            let patches = parse_patch_blocks(patch);
+            if patches.is_empty() {
+                println!("{} No SEARCH/REPLACE blocks found in the patch string.", "✘".red());
+                return Ok(());
+            }
+            apply_patches(file_path, &patches)?;
         }
     }
 
