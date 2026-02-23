@@ -5,9 +5,11 @@ use axum::{
     Json,
 };
 use std::net::SocketAddr;
+use tracing_subscriber;
 
 #[tokio::main]
 async fn main() {
+    // Initialize logging
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
@@ -26,7 +28,7 @@ async fn health_check() -> &'static str {
 }
 
 async fn proxy_chat(Json(payload): Json<serde_json::Value>) -> impl IntoResponse {
-    println!("Incoming request to /v1/chat/completions");
-    // For now, just echo back the payload
+    println!("📡 Received chat request: {:?}", payload);
+    // TODO: Implement routing logic to MLX/Ollama
     Json(payload)
 }
