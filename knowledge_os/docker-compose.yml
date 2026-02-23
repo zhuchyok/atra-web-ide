@@ -76,29 +76,16 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
-      # MLX отключён — нет скачков памяти и крашей Python (docs/MLX_PYTHON_CRASH_CAUSE.md § «Как решить»). Вернуть: MLX_API_URL: http://host.docker.internal:11435
-      MLX_API_URL: ${MLX_API_URL:-disabled}
-      # Таймаут сканирования MLX/Ollama из контейнера (до host.docker.internal часто дольше 5 с)
-      MLX_SCAN_TIMEOUT: ${MLX_SCAN_TIMEOUT:-12}
-      OLLAMA_SCAN_TIMEOUT: ${OLLAMA_SCAN_TIMEOUT:-15}
-      # 🔄 АВТОВЫБОР МОДЕЛЕЙ: При запуске сканируются Ollama (11434) и MLX (11435)
-      # Выбираются самые мощные из каждого списка РАЗДЕЛЬНО:
-      # - Ollama: для executor/planner (qwq:32b > qwen2.5-coder:32b > phi3.5:3.8b)
-      # - MLX: для LocalAIRouter (command-r-plus:104b > deepseek-r1:70b > llama3.3:70b)
-      # 
-      # Для ЯВНОГО указания модели (должна существовать в Ollama!):
-      # phi3.5:3.8b - быстрая модель (3.8B) для простых задач и интерактива
-      # qwq:32b - reasoning модель (32B) для сложных задач (автоматически выбирается intelligent router)
-      #
-      # Пустые значения = автовыбор лучшей доступной модели из Ollama
-      VICTORIA_MODEL: ${VICTORIA_MODEL:-}
-      VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-}
+      # MLX API Server: используем нашу новую обученную модель
+      MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
+      VICTORIA_MODEL: "victoria-wisdom-30b"
+      VICTORIA_PLANNER_MODEL: "victoria-wisdom-30b"
       # 🐛 Debug mode: set to "true" to enable verbose logging
       VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
       # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
       OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
       # Выгрузка моделей Ollama через 5 мин неактивности (docs/MODEL_UNLOADING_AND_MEMORY.md). 0 — сразу.
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
       UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-600}
       # Таймаут вызова LLM для выбора стратегии (с); 30 — чтобы не уходить в fallback при холодной модели
@@ -193,7 +180,7 @@ services:
   # Воркер для тяжелых задач (Heavy Worker) - 1 инстанс
   # Open WebUI: профессиональный интерфейс для Виктории и облачных моделей
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:v0.8.5
     container_name: open-webui
     restart: always
     ports:
@@ -245,9 +232,9 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       # Тяжелая модель для кода и архитектуры
-      VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-qwen3-coder:30b}
+      VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-victoria-wisdom-30b}
       ENABLE_COLLECTIVE_LEARNING: "true"
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "1"
@@ -287,7 +274,7 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       # Легкая модель для классификации и простых ответов
       VICTORIA_MODEL: ${VICTORIA_LIGHT_MODEL:-lfm2.5-thinking:1.2b}
       ENABLE_COLLECTIVE_LEARNING: "true"
@@ -459,7 +446,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
       # Потолок: макс. задач «в работе»; адаптив снизит при перегрузке MLX/Ollama
@@ -486,7 +473,7 @@ services:
   # mem_limit (10G): максимум RAM для этого контейнера. Ограничивает потребление, чтобы при нехватке памяти
   # ядро убивало именно контейнер (OOMKilled), а не другие процессы; 10G — под Mac Studio M4 Max 128GB.
   # Если снова "Killed": dmesg | grep -i oom; docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
-  # OLLAMA_KEEP_ALIVE: 180 (3 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
+  # OLLAMA_KEEP_ALIVE: 60 (1 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
   knowledge_nightly:
     build:
       context: ..
@@ -506,7 +493,7 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
@@ -566,7 +553,7 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-180}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
       # Telegram Notifications
@@ -605,7 +592,7 @@ services:
       TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
       TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
-      TELEGRAM_NOTIFICATION_INTERVAL_SEC: ${TELEGRAM_NOTIFICATION_INTERVAL_SEC:-3600}
+      TELEGRAM_NOTIFICATION_INTERVAL_SEC: ${TELEGRAM_NOTIFICATION_INTERVAL_SEC:-60}
       TELEGRAM_REPORTS_ENABLED: ${TELEGRAM_REPORTS_ENABLED:-true}
     volumes:
       - ../knowledge_os:/app/knowledge_os

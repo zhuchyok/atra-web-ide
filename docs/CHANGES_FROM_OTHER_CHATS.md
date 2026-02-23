@@ -2084,6 +2084,51 @@
 
 ---
 
+## 22. Strategy Persistence Fix: Session Data Recovery (2026-02-23)
+
+- **Цель:** Устранение критической ошибки `no such table: strategy_sessions`, препятствующей сохранению контекста и планов в Strategy Session Manager.
+- **Реализация:**
+  1. **Database Schema Update:**
+     - В `knowledge_os/src/database/db.py` (метод `_init_tables`) добавлены определения таблиц `strategy_sessions`, `strategy_questions` и `strategy_plans`.
+     - Добавлены индексы для оптимизации поиска по `session_id`.
+  2. **Direct Database Repair:**
+     - Выполнен скрипт прямой инициализации таблиц в `trading.db` для немедленного восстановления работоспособности без перезапуска всех сервисов.
+  3. **Verification:**
+     - Проведена успешная проверка через `test_session_manager.py`: создание сессии, добавление вопросов и получение данных из БД теперь работают корректно.
+- **Файлы:** `knowledge_os/src/database/db.py`, `knowledge_os/app/strategy_session_manager.py`, `trading.db`.
+- **Итог:** Восстановлена «память» стратегических сессий. Теперь планы и обсуждения экспертов сохраняются между запросами, обеспечивая преемственность рассуждений.
+
+---
+
+## 23. SEO & Performance Turbo: Green Zone Optimization (2026-02-23)
+
+- **Цель:** Вывод проекта «Сетки 21» в зеленую зону Lighthouse по показателям SEO, Performance и Accessibility.
+- **Реализация:**
+  1. **Dynamic SEO (AggregateOffer):**
+     - В `Calculator.vue` внедрена микроразметка `AggregateOffer` через `useHead`. Теперь поисковики видят диапазон цен (800–5500 ₽) и доступность товара в Чебоксарах и Новочебоксарске.
+  2. **Performance (GPU Acceleration):**
+     - Для всех декоративных элементов с сильным блюром (`blur-[120px]`) на главной и страницах товаров добавлены CSS-свойства `will-change: filter` и `transform: translateZ(0)`. Это переносит отрисовку на GPU, устраняя «лаги» при скролле на мобильных устройствах.
+  3. **Accessibility & Core Web Vitals:**
+     - Декоративным числовым индикаторам (01, 02, 03) добавлен атрибут `aria-hidden="true"`, чтобы не путать скринридеры.
+     - Проверены и расширены списки `keywords` для всех продуктовых страниц для лучшего ранжирования по низкочастотным запросам.
+- **Файлы:** `components/Calculator.vue`, `pages/index.vue`, `pages/vstavnye/index.vue`, `pages/remont/index.vue`, `pages/antikoshka/index.vue`, `pages/antimoshka/index.vue`, `pages/antipyl/index.vue`, `pages/ultravyu/index.vue`.
+- **Итог:** Сайт стал технически совершенным для поисковых роботов и максимально плавным для пользователей.
+
+---
+
+## 24. Open WebUI Update: v0.8.5 (2026-02-23)
+
+- **Цель:** Обновление интерфейса Open WebUI до версии v0.8.5 для получения исправлений безопасности и новых функций (Voice dictation shortcut, Model access fix).
+- **Реализация:**
+  1. **Backup:** Создан полный бэкап `/app/backend/data` (963MB) в `backups/open-webui_v0.8.4_*`.
+  2. **Update:** В `knowledge_os/docker-compose.yml` образ изменен с `main` на `v0.8.5`.
+  3. **Migration:** Автоматически применены миграции Alembic (SQLite).
+  4. **Verification:** Проверен статус `/health` (200 OK), целостность `webui.db` сохранена.
+- **Файлы:** `knowledge_os/docker-compose.yml`, `backups/open-webui_v0.8.4_*`.
+- **Итог:** Система обновлена до актуальной версии без потери данных и настроек.
+
+---
+
 ## 14. Документы для углубления
 
 | Тема | Документ |
