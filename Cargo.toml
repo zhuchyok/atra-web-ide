@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "rust_core/scout",
-    "rust_core/gateway", "rust_core/knowledge_engine",
+    "rust_core/gateway", "rust_core/knowledge_engine", "rust_core/atra-cli",
 ]
 resolver = "2"
