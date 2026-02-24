@@ -1,0 +1,518 @@
+#compdef atra
+
+autoload -U is-at-least
+
+_atra() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'--generate=[Generate shell completions]:GENERATOR:(bash elvish fish powershell zsh)' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_atra_commands" \
+"*::: :->atra" \
+&& ret=0
+    case $state in
+    (atra)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:atra-command-$line[1]:"
+        case $line[1] in
+            (health)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(chat)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+':message -- The message to send:_default' \
+&& ret=0
+;;
+(plan)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+':goal -- The goal to plan for:_default' \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(cleanup)
+_arguments "${_arguments_options[@]}" : \
+'--tables=[Tables to clean (comma-separated)]:TABLES:_default' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'--dry-run[Dry run mode (default\: true)]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(describe)
+_arguments "${_arguments_options[@]}" : \
+'--prompt=[Optional prompt for description]:PROMPT:_default' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+':image_path -- Path to the image file:_files' \
+&& ret=0
+;;
+(apply)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file_path -- Path to the file to patch:_files' \
+':patch -- The patch string containing SEARCH/REPLACE blocks:_default' \
+&& ret=0
+;;
+(git)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_atra__git_commands" \
+"*::: :->git" \
+&& ret=0
+
+    case $state in
+    (git)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:atra-git-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(diff)
+_arguments "${_arguments_options[@]}" : \
+'-p+[]:PATH:_default' \
+'--path=[]:PATH:_default' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(log)
+_arguments "${_arguments_options[@]}" : \
+'-n+[]:N:_default' \
+'--n=[]:N:_default' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(branch)
+_arguments "${_arguments_options[@]}" : \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(commit)
+_arguments "${_arguments_options[@]}" : \
+'-m+[Commit message]:MESSAGE:_default' \
+'--message=[Commit message]:MESSAGE:_default' \
+'*-p+[Paths to add (default\: all)]:PATHS:_default' \
+'*--paths=[Paths to add (default\: all)]:PATHS:_default' \
+'-c+[Config file path]:CONFIG:_files' \
+'--config=[Config file path]:CONFIG:_files' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_atra__git__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:atra-git-help-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(diff)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(log)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(branch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(commit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_atra__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:atra-help-command-$line[1]:"
+        case $line[1] in
+            (health)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(chat)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(plan)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(cleanup)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(describe)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(apply)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(git)
+_arguments "${_arguments_options[@]}" : \
+":: :_atra__help__git_commands" \
+"*::: :->git" \
+&& ret=0
+
+    case $state in
+    (git)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:atra-help-git-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(diff)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(log)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(branch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(commit)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_atra_commands] )) ||
+_atra_commands() {
+    local commands; commands=(
+'health:Checks connection to Rust API Gateway and Victoria' \
+'chat:Sends a message to Victoria through the Gateway' \
+'plan:Requests a plan from Victoria' \
+'status:Shows system metrics and health' \
+'cleanup:Triggers data retention cleanup' \
+'describe:Describes an image using Vision' \
+'apply:Applies SEARCH/REPLACE blocks to a file' \
+'git:Git\: status, diff, log, branch, commit (via Gateway)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'atra commands' commands "$@"
+}
+(( $+functions[_atra__apply_commands] )) ||
+_atra__apply_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra apply commands' commands "$@"
+}
+(( $+functions[_atra__chat_commands] )) ||
+_atra__chat_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra chat commands' commands "$@"
+}
+(( $+functions[_atra__cleanup_commands] )) ||
+_atra__cleanup_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra cleanup commands' commands "$@"
+}
+(( $+functions[_atra__describe_commands] )) ||
+_atra__describe_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra describe commands' commands "$@"
+}
+(( $+functions[_atra__git_commands] )) ||
+_atra__git_commands() {
+    local commands; commands=(
+'status:Show working tree status' \
+'diff:Show diff (optional path)' \
+'log:Show commit log' \
+'branch:Show current branch and list' \
+'commit:Commit staged or all changes' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'atra git commands' commands "$@"
+}
+(( $+functions[_atra__git__branch_commands] )) ||
+_atra__git__branch_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git branch commands' commands "$@"
+}
+(( $+functions[_atra__git__commit_commands] )) ||
+_atra__git__commit_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git commit commands' commands "$@"
+}
+(( $+functions[_atra__git__diff_commands] )) ||
+_atra__git__diff_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git diff commands' commands "$@"
+}
+(( $+functions[_atra__git__help_commands] )) ||
+_atra__git__help_commands() {
+    local commands; commands=(
+'status:Show working tree status' \
+'diff:Show diff (optional path)' \
+'log:Show commit log' \
+'branch:Show current branch and list' \
+'commit:Commit staged or all changes' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'atra git help commands' commands "$@"
+}
+(( $+functions[_atra__git__help__branch_commands] )) ||
+_atra__git__help__branch_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help branch commands' commands "$@"
+}
+(( $+functions[_atra__git__help__commit_commands] )) ||
+_atra__git__help__commit_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help commit commands' commands "$@"
+}
+(( $+functions[_atra__git__help__diff_commands] )) ||
+_atra__git__help__diff_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help diff commands' commands "$@"
+}
+(( $+functions[_atra__git__help__help_commands] )) ||
+_atra__git__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help help commands' commands "$@"
+}
+(( $+functions[_atra__git__help__log_commands] )) ||
+_atra__git__help__log_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help log commands' commands "$@"
+}
+(( $+functions[_atra__git__help__status_commands] )) ||
+_atra__git__help__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git help status commands' commands "$@"
+}
+(( $+functions[_atra__git__log_commands] )) ||
+_atra__git__log_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git log commands' commands "$@"
+}
+(( $+functions[_atra__git__status_commands] )) ||
+_atra__git__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra git status commands' commands "$@"
+}
+(( $+functions[_atra__health_commands] )) ||
+_atra__health_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra health commands' commands "$@"
+}
+(( $+functions[_atra__help_commands] )) ||
+_atra__help_commands() {
+    local commands; commands=(
+'health:Checks connection to Rust API Gateway and Victoria' \
+'chat:Sends a message to Victoria through the Gateway' \
+'plan:Requests a plan from Victoria' \
+'status:Shows system metrics and health' \
+'cleanup:Triggers data retention cleanup' \
+'describe:Describes an image using Vision' \
+'apply:Applies SEARCH/REPLACE blocks to a file' \
+'git:Git\: status, diff, log, branch, commit (via Gateway)' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'atra help commands' commands "$@"
+}
+(( $+functions[_atra__help__apply_commands] )) ||
+_atra__help__apply_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help apply commands' commands "$@"
+}
+(( $+functions[_atra__help__chat_commands] )) ||
+_atra__help__chat_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help chat commands' commands "$@"
+}
+(( $+functions[_atra__help__cleanup_commands] )) ||
+_atra__help__cleanup_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help cleanup commands' commands "$@"
+}
+(( $+functions[_atra__help__describe_commands] )) ||
+_atra__help__describe_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help describe commands' commands "$@"
+}
+(( $+functions[_atra__help__git_commands] )) ||
+_atra__help__git_commands() {
+    local commands; commands=(
+'status:Show working tree status' \
+'diff:Show diff (optional path)' \
+'log:Show commit log' \
+'branch:Show current branch and list' \
+'commit:Commit staged or all changes' \
+    )
+    _describe -t commands 'atra help git commands' commands "$@"
+}
+(( $+functions[_atra__help__git__branch_commands] )) ||
+_atra__help__git__branch_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help git branch commands' commands "$@"
+}
+(( $+functions[_atra__help__git__commit_commands] )) ||
+_atra__help__git__commit_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help git commit commands' commands "$@"
+}
+(( $+functions[_atra__help__git__diff_commands] )) ||
+_atra__help__git__diff_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help git diff commands' commands "$@"
+}
+(( $+functions[_atra__help__git__log_commands] )) ||
+_atra__help__git__log_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help git log commands' commands "$@"
+}
+(( $+functions[_atra__help__git__status_commands] )) ||
+_atra__help__git__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help git status commands' commands "$@"
+}
+(( $+functions[_atra__help__health_commands] )) ||
+_atra__help__health_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help health commands' commands "$@"
+}
+(( $+functions[_atra__help__help_commands] )) ||
+_atra__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help help commands' commands "$@"
+}
+(( $+functions[_atra__help__plan_commands] )) ||
+_atra__help__plan_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help plan commands' commands "$@"
+}
+(( $+functions[_atra__help__status_commands] )) ||
+_atra__help__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra help status commands' commands "$@"
+}
+(( $+functions[_atra__plan_commands] )) ||
+_atra__plan_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra plan commands' commands "$@"
+}
+(( $+functions[_atra__status_commands] )) ||
+_atra__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'atra status commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_atra" ]; then
+    _atra "$@"
+else
+    compdef _atra atra
+fi

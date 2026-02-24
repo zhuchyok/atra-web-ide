@@ -1,0 +1,82 @@
+# Pre-commit hooks configuration
+# Based on FastAPI and Element Plus best practices
+# See https://pre-commit.com for more information
+
+repos:
+  # Built-in pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=5000']  # Block files > 5MB (except model files)
+        exclude: ^(fused_model|training_data|knowledge_os/ai_learning_data)/
+      - id: check-toml
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom YAML tags
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: \.(md|lock)$
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+
+  # Python: Ruff (linting + formatting)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.1
+    hooks:
+      # Linter (replaces flake8, isort, pyupgrade)
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(backend|knowledge_os|src)/.*\.py$
+      # Formatter (replaces black)
+      - id: ruff-format
+        files: ^(backend|knowledge_os|src)/.*\.py$
+
+  # Python: Type checking (mypy) - only for critical paths
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        args: [--ignore-missing-imports, --check-untyped-defs]
+        files: ^(backend/app|src/agents)/.*\.py$
+        additional_dependencies: [pydantic, fastapi]
+
+  # Rust: Format check (rustfmt)
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+        args: ['--manifest-path', 'Cargo.toml', '--all', '--']
+      - id: clippy
+        args: ['--manifest-path', 'Cargo.toml', '--all-targets', '--', '-D', 'warnings']
+
+  # JavaScript/TypeScript: Prettier
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: \.(js|ts|jsx|tsx|json|css|scss|md|yml|yaml)$
+        exclude: ^(node_modules|dist|target|\.venv|fused_model|training_data)/
+
+  # Security: Check for secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: ^(fused_model|training_data|\.secrets\.baseline)$
+
+# Global excludes
+exclude: |
+  (?x)^(
+    fused_model/.*|
+    training_data/.*|
+    knowledge_os/ai_learning_data/.*|
+    .*\.lock$|
+    .*\.log$|
+    node_modules/.*|
+    target/.*|
+    dist/.*|
+    \.venv/.*
+  )$

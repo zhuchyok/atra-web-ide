@@ -1,0 +1,22 @@
+{
+  "name": "atra-web-ide-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ATRA Web IDE - Browser-based IDE for AI Corporation",
+  "scripts": {
+    "commit": "cz",
+    "prepare": "husky || echo 'Husky not installed yet'"
+  },
+  "config": {
+    "commitizen": {
+      "path": "node_modules/cz-git"
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "commitizen": "^4.3.0",
+    "cz-git": "^1.11.0",
+    "husky": "^9.0.0"
+  }
+}
