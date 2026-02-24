@@ -27,6 +27,7 @@ os.environ['PYTHONPATH'] = f"{scripts_path}:{knowledge_os_root}:{knowledge_os_pa
 ```
 
 ### Цель изменений:
+
 - Разрешить импорт `from scripts.test_task_distribution_trace import test_task_distribution`
 - Добавить корень проекта в пути поиска модулей
 
@@ -43,31 +44,38 @@ os.environ['PYTHONPATH'] = f"{scripts_path}:{knowledge_os_root}:{knowledge_os_pa
 ## ⚠️ ПРОБЛЕМЫ И РИСКИ
 
 ### 1. **Дублирование путей**
+
 ```python
 # scripts_path = /Users/bikos/Documents/atra-web-ide
 # knowledge_os_root = /Users/bikos/Documents/atra-web-ide/knowledge_os
 # knowledge_os_path = /Users/bikos/Documents/atra-web-ide/knowledge_os/app
 ```
+
 **Проблема:** `scripts_path` уже содержит `knowledge_os_root` и `knowledge_os_path` как подпути.
 
-**Риск:** 
+**Риск:**
+
 - Дублирование в `sys.path` (не критично, но неэффективно)
 - Возможные конфликты имен модулей
 
 ### 2. **Порядок путей**
+
 Текущий порядок:
+
 1. `scripts_path` (корень проекта)
-2. `knowledge_os_root` 
+2. `knowledge_os_root`
 3. `knowledge_os_path`
 
 **Проблема:** Если в корне проекта есть модуль с тем же именем, что и в `knowledge_os`, он будет найден первым.
 
 ### 3. **Отсутствие проверок**
+
 - Нет проверки существования путей
 - Нет проверки дубликатов в `sys.path`
 - Нет обработки ошибок
 
 ### 4. **Хардкод путей**
+
 Пути вычисляются каждый раз при импорте, но не кэшируются.
 
 ---
@@ -75,6 +83,7 @@ os.environ['PYTHONPATH'] = f"{scripts_path}:{knowledge_os_root}:{knowledge_os_pa
 ## 🌍 ЛУЧШИЕ МИРОВЫЕ ПРАКТИКИ
 
 ### 1. **PEP 420 - Implicit Namespace Packages** (Python 3.3+)
+
 **Рекомендация:** Использовать структуру пакетов вместо манипуляций с `sys.path`
 
 ```
@@ -92,6 +101,7 @@ atra-web-ide/
 ```
 
 ### 2. **PEP 517/518 - pyproject.toml**
+
 **Рекомендация:** Использовать `pyproject.toml` для управления зависимостями и путями
 
 ```toml
@@ -104,6 +114,7 @@ packages = ["scripts", "knowledge_os.app"]
 ```
 
 ### 3. **Python Packaging Best Practices**
+
 **Рекомендация:** Установка проекта в editable mode
 
 ```bash
@@ -111,9 +122,11 @@ pip install -e .
 ```
 
 ### 4. **Pathlib вместо строк**
+
 **Рекомендация:** Использовать `Path` объекты везде, где возможно
 
 ### 5. **Централизованное управление путями**
+
 **Рекомендация:** Создать утилиту для управления путями
 
 ---
@@ -146,13 +159,13 @@ def setup_paths():
         str(_KNOWLEDGE_OS_ROOT),      # knowledge_os
         str(_KNOWLEDGE_OS_APP),       # knowledge_os/app
     ]
-    
+
     # Добавляем в sys.path только если еще нет
     for path in paths_to_add:
         path_str = str(Path(path).resolve())
         if path_str not in sys.path:
             sys.path.insert(0, path_str)
-    
+
     # Обновляем PYTHONPATH для дочерних процессов
     existing_pythonpath = os.environ.get('PYTHONPATH', '')
     new_paths = [p for p in paths_to_add if p not in existing_pythonpath.split(os.pathsep)]
@@ -168,6 +181,7 @@ async def check_mlx_server():
 ```
 
 **Преимущества:**
+
 - ✅ Проверка существования путей
 - ✅ Дедупликация в `sys.path`
 - ✅ Использование `Path.resolve()` для нормализации
@@ -176,6 +190,7 @@ async def check_mlx_server():
 ### Вариант 2: Использование pyproject.toml (Рекомендуется)
 
 **Создать `pyproject.toml`:**
+
 ```toml
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -195,11 +210,13 @@ include = ["scripts*", "knowledge_os*", "src*", "backend*"]
 ```
 
 **Установка:**
+
 ```bash
 pip install -e .
 ```
 
 **Использование:**
+
 ```python
 # Теперь можно импортировать напрямую
 from scripts.test_task_distribution_trace import test_task_distribution
@@ -209,6 +226,7 @@ from knowledge_os.app.victoria_enhanced import VictoriaEnhanced
 ### Вариант 3: Централизованная утилита (Для больших проектов)
 
 **Создать `scripts/utils/path_setup.py`:**
+
 ```python
 """Централизованное управление путями проекта"""
 from pathlib import Path
@@ -236,12 +254,12 @@ def setup_project_paths():
         get_knowledge_os_root(),
         get_knowledge_os_app(),
     ]
-    
+
     for path in paths:
         path_str = str(path.resolve())
         if path_str not in sys.path:
             sys.path.insert(0, path_str)
-    
+
     # Обновляем PYTHONPATH
     existing = os.environ.get('PYTHONPATH', '').split(os.pathsep)
     new_paths = [str(p.resolve()) for p in paths if str(p.resolve()) not in existing]
@@ -250,6 +268,7 @@ def setup_project_paths():
 ```
 
 **Использование:**
+
 ```python
 from scripts.utils.path_setup import setup_project_paths, get_project_root
 setup_project_paths()
@@ -262,12 +281,14 @@ setup_project_paths()
 ### Немедленные улучшения (Быстрые):
 
 1. **Добавить проверки существования путей:**
+
 ```python
 if not _PROJECT_ROOT.exists():
     raise RuntimeError(f"Корень проекта не найден: {_PROJECT_ROOT}")
 ```
 
 2. **Использовать `os.pathsep` вместо `:`:**
+
 ```python
 # Вместо:
 os.environ['PYTHONPATH'] = f"{path1}:{path2}:..."
@@ -277,6 +298,7 @@ os.environ['PYTHONPATH'] = os.pathsep.join([path1, path2, ...])
 ```
 
 3. **Дедупликация в sys.path:**
+
 ```python
 if path_str not in sys.path:
     sys.path.insert(0, path_str)
@@ -311,6 +333,7 @@ if path_str not in sys.path:
 **Текущее решение:** ⚠️ **Работает, но можно улучшить**
 
 **Оценка:**
+
 - ✅ Функциональность: 8/10
 - ⚠️ Безопасность: 6/10 (нет проверок)
 - ⚠️ Поддерживаемость: 7/10 (дублирование)

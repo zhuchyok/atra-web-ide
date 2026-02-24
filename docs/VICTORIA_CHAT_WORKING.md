@@ -10,6 +10,7 @@
 ### 1. Запустить Ollama или MLX API Server (хотя бы один)
 
 **Ollama (порт 11434):**
+
 ```bash
 # Если установлен через brew:
 brew services start ollama
@@ -20,6 +21,7 @@ ollama pull phi3.5:3.8b
 ```
 
 **MLX API Server (порт 11435):**
+
 ```bash
 cd ~/Documents/atra-web-ide
 bash scripts/start_mlx_api_server.sh
@@ -94,11 +96,11 @@ Victoria: ...
 
 ## Порты
 
-| Сервис           | Порт  | Назначение                          |
-|------------------|-------|-------------------------------------|
-| Victoria         | 8010  | Чат и /run                          |
-| Ollama           | 11434 | LLM (fallback для simple-метода)   |
-| MLX API Server   | 11435 | LLM (приоритет для simple-метода)  |
+| Сервис         | Порт  | Назначение                        |
+| -------------- | ----- | --------------------------------- |
+| Victoria       | 8010  | Чат и /run                        |
+| Ollama         | 11434 | LLM (fallback для simple-метода)  |
+| MLX API Server | 11435 | LLM (приоритет для simple-метода) |
 
 Из контейнера Victoria обращается к хосту по `host.docker.internal:11434` и `host.docker.internal:11435`.
 

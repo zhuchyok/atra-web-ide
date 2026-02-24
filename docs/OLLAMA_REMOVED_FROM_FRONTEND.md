@@ -10,10 +10,12 @@
 ### Frontend (`frontend/src/App.svelte`)
 
 **Было:**
+
 - Проверял статус Ollama
 - Показывал "AI: Ollama (Fallback)" или "AI: Ollama (Victoria Offline)"
 
 **Стало:**
+
 - Проверяет только Victoria и MLX
 - Показывает "Victoria: Online" или "AI: MLX (Victoria Offline)"
 
@@ -24,25 +26,32 @@
 ### 1. Убрана проверка Ollama
 
 **Было:**
+
 ```javascript
-if (data.victoria?.status === 'unhealthy' && data.ollama?.status === 'healthy') {
-  victoriaStatus = 'fallback'
+if (
+  data.victoria?.status === "unhealthy" &&
+  data.ollama?.status === "healthy"
+) {
+  victoriaStatus = "fallback";
 }
 ```
 
 **Стало:**
+
 ```javascript
-victoriaStatus = data.victoria?.status || 'unknown'
-mlxStatus = data.mlx?.status || 'unknown'
+victoriaStatus = data.victoria?.status || "unknown";
+mlxStatus = data.mlx?.status || "unknown";
 ```
 
 ### 2. Обновлено отображение статуса
 
 **Было:**
+
 - "AI: Ollama (Fallback)"
 - "AI: Ollama (Victoria Offline)"
 
 **Стало:**
+
 - "Victoria: Online" (если Victoria доступна)
 - "AI: MLX (Victoria Offline)" (если Victoria недоступна, но MLX доступен)
 - "Victoria: Offline" (если оба недоступны)
@@ -73,4 +82,4 @@ mlxStatus = data.mlx?.status || 'unknown'
 
 ---
 
-*Изменения применены: 26.01.2026*
+_Изменения применены: 26.01.2026_

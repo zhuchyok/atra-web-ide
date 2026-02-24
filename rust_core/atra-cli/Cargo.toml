@@ -3,13 +3,28 @@ name = "atra-cli"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "atra"
+path = "src/main.rs"
+
+[[bin]]
+name = "atra-cli"
+path = "src/main.rs"
+
 [dependencies]
-clap = { version = "4.4", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# Workspace dependencies
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dotenv = { workspace = true }
+
+# Project-specific dependencies
+clap = { version = "4.4", features = ["derive", "color"] }
+clap_complete = "4.4"
 colored = "2.0"
-dotenv = "0.15"
 ignore = "0.4"
 glob = "0.3"
+base64 = "0.22.1"
+urlencoding = "2.1"
+toml = "0.8"

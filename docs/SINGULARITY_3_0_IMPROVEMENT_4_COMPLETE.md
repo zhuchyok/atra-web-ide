@@ -13,6 +13,7 @@
 **Файл:** `knowledge_os/app/enhanced_immunity.py`
 
 **Функции:**
+
 - ✅ Идентификация слабых знаний:
   - Низкий confidence_score (< 0.5)
   - Не прошли adversarial testing (survived = false)
@@ -22,6 +23,7 @@
 - ✅ Автоматическое удаление очень слабых знаний (< 0.3 confidence)
 
 **Процесс исправления:**
+
 1. Находит слабые знания
 2. Получает примеры успешных знаний из того же домена
 3. Регенерирует знание с улучшением
@@ -33,12 +35,14 @@
 ### **2. Adversarial Testing с автоисправлением**
 
 **Функции:**
+
 - ✅ Стресс-тесты знаний на устойчивость
 - ✅ Автоматическое исправление уничтоженных знаний
 - ✅ Использование предложенных исправлений от критиков
 - ✅ Повышение confidence_score после исправления
 
 **Процесс:**
+
 1. Находит знания для тестирования (is_verified = TRUE)
 2. Проводит adversarial атаку
 3. Если знание не выдержало - использует suggested_fix
@@ -50,6 +54,7 @@
 ### **3. Очистка устаревших знаний**
 
 **Функции:**
+
 - ✅ Автоматическое удаление устаревших знаний:
   - Не использовались > 60 дней
   - Очень низкий confidence (< 0.3) и старые (> 30 дней)
@@ -57,6 +62,7 @@
 - ✅ Защита важных знаний (is_verified, cross_domain_linker)
 
 **Критерии удаления:**
+
 - `usage_count = 0` AND `created_at < NOW() - 60 days`
 - `confidence_score < 0.3` AND `created_at < NOW() - 30 days`
 - `metadata->>'outdated' = 'true'`
@@ -66,6 +72,7 @@
 ### **4. Интеграция с существующими системами**
 
 **Интеграция:**
+
 - ✅ Использует `enhanced_search.get_embedding` для новых эмбеддингов
 - ✅ Работает с `adversarial_critic.py` (расширяет функциональность)
 - ✅ Совместим с `knowledge_cleaner.py` (дополняет очистку)
@@ -123,7 +130,7 @@ for node in weak_nodes:
 # 1. Тестирование
 for node in verified_nodes:
     result = adversarial_attack(node)
-    
+
     # 2. Если не выдержало - исправляем
     if not result['survived']:
         fixed = result['suggested_fix']
@@ -146,8 +153,9 @@ delete(outdated)
 ### **Запросы для анализа:**
 
 **Статистика исправлений:**
+
 ```sql
-SELECT 
+SELECT
     count(*) FILTER (WHERE metadata->>'auto_fixed' = 'true') as auto_fixed_count,
     count(*) FILTER (WHERE metadata->>'needs_manual_review' = 'true') as needs_review_count,
     avg(confidence_score) FILTER (WHERE metadata->>'auto_fixed' = 'true') as avg_fixed_confidence
@@ -156,8 +164,9 @@ WHERE created_at > NOW() - INTERVAL '7 days';
 ```
 
 **Эффективность исправлений:**
+
 ```sql
-SELECT 
+SELECT
     metadata->>'fix_reason' as fix_reason,
     count(*) as count,
     avg(confidence_score) as avg_confidence_after
@@ -186,18 +195,21 @@ knowledge_os/
 ## ✅ РЕЗУЛЬТАТЫ
 
 ### **До улучшения:**
+
 - ❌ Adversarial testing только выявляет проблемы
 - ❌ Нет автоматического исправления
 - ❌ Слабые знания остаются в базе
 - ❌ Нет регенерации знаний
 
 ### **После улучшения:**
+
 - ✅ Автоматическое исправление слабых знаний
 - ✅ Регенерация знаний с улучшением
 - ✅ Автоматическое удаление устаревших знаний
 - ✅ Интеграция adversarial testing с автоисправлением
 
 ### **Ожидаемый эффект:**
+
 - **Качество знаний:** +35%
 - **Средний confidence_score:** +20%
 - **Количество слабых знаний:** -60%
@@ -217,4 +229,3 @@ knowledge_os/
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14  
 **Версия:** Singularity 3.4
-

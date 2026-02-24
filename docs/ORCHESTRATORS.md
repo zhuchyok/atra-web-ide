@@ -74,13 +74,13 @@
 
 ## Итого
 
-| Оркестратор | Роль | Запуск |
-|-------------|------|--------|
-| **Victoria** | Чат, запросы, план, делегирование | Сервис (порт 8010) |
-| **Enhanced Orchestrator** | Фон по tasks, назначение эксперту, Smart Worker | Cron / вручную |
-| **Streaming Orchestrator** | События Redis, гипотезы → задачи | Отдельный процесс |
-| **orchestrator.py** | Базовый цикл, LocalAIRouter | Вручную |
-| **SwarmOrchestrator** | Консенсус экспертов | Внутри Enhanced |
-| **HierarchicalOrchestrator** | Иерархия, Victoria корень | Внутри Victoria Enhanced |
-| **QueryOrchestrator** | Один запрос: роль, контекст | В ai_core |
-| **ParallelOrchestrator** | Параллельные подзадачи | По вызову |
+| Оркестратор                  | Роль                                            | Запуск                   |
+| ---------------------------- | ----------------------------------------------- | ------------------------ |
+| **Victoria**                 | Чат, запросы, план, делегирование               | Сервис (порт 8010)       |
+| **Enhanced Orchestrator**    | Фон по tasks, назначение эксперту, Smart Worker | Cron / вручную           |
+| **Streaming Orchestrator**   | События Redis, гипотезы → задачи                | Отдельный процесс        |
+| **orchestrator.py**          | Базовый цикл, LocalAIRouter                     | Вручную                  |
+| **SwarmOrchestrator**        | Консенсус экспертов                             | Внутри Enhanced          |
+| **HierarchicalOrchestrator** | Иерархия, Victoria корень                       | Внутри Victoria Enhanced |
+| **QueryOrchestrator**        | Один запрос: роль, контекст                     | В ai_core                |
+| **ParallelOrchestrator**     | Параллельные подзадачи                          | По вызову                |

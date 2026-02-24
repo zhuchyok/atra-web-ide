@@ -10,16 +10,19 @@
 ### 1. **Reasoning (Сложные задачи)**
 
 #### Приоритет 1: Production модель
+
 - ⚠️ `deepseek-r1-distill-llama-70b` (55GB)
   - **Статус:** Ожидается установка
   - **Назначение:** Самый мощный для reasoning задач
   - **Форматы:** `deepseek-r1-distill-llama-70b:instruct-q6_k`, `deepseek-r1-distill-llama-70b:q6_k`
 
 #### Приоритет 2: Альтернативы
+
 - ⚠️ `llama3.3:70b` (35GB)
 - ⚠️ `llama3.3-70b-instruct` (35GB)
 
 #### Fallback (работает сейчас)
+
 - ✅ `deepseek-r1:7b` (4.7GB) - **УСТАНОВЛЕН**
 
 ---
@@ -27,12 +30,14 @@
 ### 2. **Coding (Разработка)**
 
 #### Приоритет 1: Production модель
+
 - ⚠️ `qwen2.5-coder-32b` (35GB)
   - **Статус:** Ожидается установка
   - **Назначение:** Самый мощный для кодирования
   - **Форматы:** `qwen2.5-coder-32b-instruct`, `qwen2.5-coder-32b-instruct:q8_0`
 
 #### Fallback (работают сейчас)
+
 - ✅ `qwen2.5-coder:7b` (4.7GB) - **УСТАНОВЛЕН**
 - ✅ `qwen2.5-coder:3b` (1.9GB) - **УСТАНОВЛЕН**
 
@@ -41,6 +46,7 @@
 ### 3. **Fast (Быстрые задачи)**
 
 #### Приоритет 1: Production модели
+
 - ⚠️ `phi3.5-mini-4k` (2GB)
   - **Статус:** Ожидается установка
   - **Форматы:** `phi3.5-mini-4k-instruct`, `phi3.5-mini-4k-instruct:q4_k_m`
@@ -49,6 +55,7 @@
   - **Статус:** Ожидается установка
 
 #### Fallback (работает сейчас)
+
 - ✅ `phi4:latest` (9.1GB) - **УСТАНОВЛЕН**
 
 ---
@@ -56,6 +63,7 @@
 ### 4. **Tiny (Очень быстрые)**
 
 #### Приоритет 1: Production модели
+
 - ⚠️ `tinyllama:1.1b-chat-v1.0-q4_0` (0.7GB)
   - **Статус:** Ожидается установка
   - **Форматы:** `tinyllama:1.1b-chat`
@@ -65,6 +73,7 @@
   - **Форматы:** `qwen2.5-3b-instruct:q4_k_m`
 
 #### Fallback (работает сейчас)
+
 - ✅ `qwen2.5-coder:3b` (1.9GB) - **УСТАНОВЛЕН**
 
 ---
@@ -72,12 +81,14 @@
 ### 5. **Large (Очень сложные задачи)**
 
 #### Приоритет 1: Production модель
+
 - ⚠️ `command-r-plus` (65GB)
   - **Статус:** Ожидается установка
   - **Назначение:** Очень мощная модель для сложных задач
   - **Форматы:** `command-r-plus:q4_k_m`
 
 #### Альтернативы
+
 - ⚠️ `llama3.3:70b` (35GB)
 - ⚠️ `qwen2.5-coder-32b` (35GB)
 
@@ -130,12 +141,14 @@ ollama pull command-r-plus:q4_k_m                          # 65GB
 ## ✅ ТЕКУЩИЙ СТАТУС
 
 ### Установлены и работают:
+
 - ✅ `deepseek-r1:7b` (4.7GB) - Reasoning fallback
 - ✅ `qwen2.5-coder:7b` (4.7GB) - Coding fallback
 - ✅ `qwen2.5-coder:3b` (1.9GB) - Tiny fallback
 - ✅ `phi4:latest` (9.1GB) - Fast fallback
 
 ### Ожидаются (production):
+
 - ⚠️ `deepseek-r1-distill-llama-70b` (55GB) - Reasoning
 - ⚠️ `qwen2.5-coder-32b` (35GB) - Coding
 - ⚠️ `phi3.5-mini-4k` (2GB) - Fast
@@ -158,5 +171,4 @@ ollama pull command-r-plus:q4_k_m                          # 65GB
 
 ---
 
-*Конфигурация обновлена командой экспертов ATRA - 2025-01-21*
-
+_Конфигурация обновлена командой экспертов ATRA - 2025-01-21_

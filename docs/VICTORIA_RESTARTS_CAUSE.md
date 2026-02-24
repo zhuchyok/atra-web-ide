@@ -13,6 +13,7 @@
 **Причина:** Service Monitor (запущен внутри контейнера Victoria) проверяет здоровье по URL из списка по умолчанию. Для «Victoria Agent» был задан **endpoint=http://localhost:8010**. Внутри контейнера Victoria слушает порт **8000** (снаружи маппинг 8010→8000). Проверка localhost:8010 изнутри контейнера не доходит до процесса → ConnectError → статус DOWN.
 
 **Исправление:**
+
 - В **service_monitor.py** для «Victoria Agent» endpoint берётся как `http://127.0.0.1:{VICTORIA_PORT}`. В контейнере задано `VICTORIA_PORT=8000` → проверка идёт на localhost:8000, сам себя Victoria видит как UP.
 - Перед первым проходом цикла мониторинга — задержка по умолчанию **50 с** (**SERVICE_MONITOR_INITIAL_DELAY**, диапазон 25–120): время на подъём HTTP Victoria (25–40 с), развёртывание, запас на загрузку моделей при первом запросе. **У каждой модели своё время** (1–4B — секунды, 70B/104B — минуты); при тяжёлых моделях увеличивать задержку (см. [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md)).
 - При DOWN по HTTP добавлено логирование причины: **ConnectError** или таймаут, с URL — в логах видно, почему сервис помечен как down (`🔌 Victoria Agent недоступен (ConnectError): ...`).
@@ -30,6 +31,7 @@
 **Вероятная причина:** **OOM Kill (exit code 137)**. При старте Victoria загружает много компонентов (51 skill, ReAct, Event Bus, File Watcher, Service Monitor, RAG preload с эмбеддингами). Пик потребления памяти — в момент старта; при нехватке памяти Docker/ядро убивает процесс (SIGKILL → 137).
 
 **Что делать:**
+
 1. **Проверить:** `docker inspect victoria-agent --format '{{.State.OOMKilled}}'` после падения (до следующего рестарта можно смотреть последний контейнер в истории).
 2. **Увеличить память для Docker** (Docker Desktop → Settings → Resources → Memory) или снять/увеличить лимит для контейнера. На **Mac Studio** рекомендуется 10–14 GB для Docker при 64–128 GB RAM хоста (см. [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md)).
 3. **Снизить нагрузку при старте:** отключить часть мониторинга или предзагрузку RAG на время проверки:
@@ -38,11 +40,13 @@
 4. См. также **ORCHESTRATOR_137_AND_OLLAMA.md** (OOM, причины 137) и **LIVING_ORGANISM_PREVENTION.md**.
 
 **Режим лёгкого старта (если контейнер в цикле рестартов):** задать в `knowledge_os/docker-compose.yml` для сервиса `victoria-agent` в `environment:`:
+
 ```yaml
 RAG_PRELOAD_TYPICAL_QUERIES: "false"
 SERVICE_MONITOR_ENABLED: "false"
 ENABLE_EVENT_MONITORING: "false"
 ```
+
 Затем `docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent --force-recreate`. После стабилизации можно вернуть `true` и перезапустить.
 
 ---
@@ -54,6 +58,7 @@ ENABLE_EVENT_MONITORING: "false"
 **Причина:** При **USE_ELK=true** в контейнере Victoria при старте к логгеру подключается ELK handler. Во время инициализации (до запуска Uvicorn event loop) любой вызов `logger.info()` вызывает `emit()` → `asyncio.create_task()` → нет running loop → падение процесса. Docker перезапускает контейнер по политике restart.
 
 **Исправление:**
+
 1. **В docker-compose** для `victoria-agent` задать **USE_ELK: "false"** (или не задавать USE_ELK в .env). Затем: `docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent --force-recreate`.
 2. В коде **knowledge_os/app/elk_handler.py** при flush по размеру буфера вызывать `create_task` только если есть running loop: `get_running_loop()` в try, при RuntimeError — не падать (буфер отправится позже). После этого при необходимости можно снова включить USE_ELK.
 
@@ -66,10 +71,12 @@ ENABLE_EVENT_MONITORING: "false"
 **Симптом:** POST /run (sync) — таймаут 90+ с или пустое тело (connection reset, http_code 000). GET /run/status/{task_id} при async_mode — тоже пустой ответ или connection reset.
 
 **Возможные причины:**
+
 1. **Долгая задача блокирует event loop** — один воркер Uvicorn занят выполнением задачи (LLM, инструменты), запросы на /health или /run/status не обрабатываются вовремя или обрываются.
 2. **Перезапуск контейнера** во время выполнения — при первом тяжёлом запросе контейнер падает (OOM, исключение), все соединения обрываются.
 
 **Что делать:**
+
 - Для **задач 3 и 4** (список файлов, «что умеешь») использовать **async_mode**: `POST /run?async_mode=true` → 202 + task_id, затем опрос `GET /run/status/{task_id}`. Скрипт: `bash scripts/run_victoria_tasks_3_and_4_async.sh`.
 - Убедиться, что Victoria стабильна перед прогоном: `/health` 200, контейнер не в цикле рестартов (см. §1–3). При нестабильности — устранить причину (USE_ELK=false, память, мониторинг).
 - Если опрос статуса всё равно не возвращает ответ — выполнение задачи может блокировать процесс; в перспективе вынести выполнение в отдельный воркер/процесс.
@@ -81,14 +88,16 @@ ENABLE_EVENT_MONITORING: "false"
 **Симптом:** POST /run?async_mode=true возвращает 202 и task_id, но GET /run/status/{task_id} долго показывает status=running и за время опроса не переходит в completed.
 
 **Причина (пошагово):**
+
 1. **Код записи в store корректен** — в `_run_task_background` при завершении выставляется `store["status"] = "completed"` (или "failed" в except); done_callback при исключении тоже выставляет failed. Бага с «не пишется completed» нет.
 2. **Задача реально выполняется дольше окна опроса.** Цепочка: маршрутизация (task_type) → либо делегирование в Veronica (таймаут 90 с, DELEGATE_VERONICA_TIMEOUT), либо Victoria Enhanced, либо `agent.run()`. В `agent.run()` — несколько вызовов LLM: understand_goal, plan, затем шаги (каждый шаг — один запрос к Ollama/MLX). **У каждой модели своё время** (см. [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md)): один вызов 30–300+ с для тяжёлых моделей; одна задача = 3–10+ вызовов → минуты.
 3. **«Список файлов»** сначала идёт в Veronica (простой запрос); если Veronica недоступна или таймаут — fallback в agent.run(). **«Что умеешь»** идёт в enhanced/agent.run. Оба могут упереться в долгие вызовы локальной модели.
 
 **Что сделано:**
+
 - В **run_victoria_tasks_3_and_4_async.sh** окно опроса увеличено до **60 опросов по 10 с** (до 600 с на задачу); в выводе опроса выводится **stage** (queued / delegate_veronica / enhanced_solve / agent_run), чтобы видеть, на каком этапе задача.
 - Скрипт **scripts/measure_ollama_response_time.sh** — замер времени одного запроса к Ollama (и при наличии MLX): даёт ориентир, сколько занимает один вызов LLM на вашей машине.
-- Рекомендация: для тяжёлых моделей (32B+) смотреть MODEL_TIMING_REFERENCE и при необходимости увеличивать число опросов или интервал в скрипте (например 90*10 с).
+- Рекомендация: для тяжёлых моделей (32B+) смотреть MODEL_TIMING_REFERENCE и при необходимости увеличивать число опросов или интервал в скрипте (например 90\*10 с).
 
 **Проверка:** запустить `bash scripts/measure_ollama_response_time.sh`, затем `bash scripts/run_victoria_tasks_3_and_4_async.sh`; в логах смотреть stage — если долго agent_run, задача ждёт ответов модели.
 
@@ -101,15 +110,18 @@ ENABLE_EVENT_MONITORING: "false"
 **Симптом:** Open WebUI или тест `test_ask_victoria_chain.sh`: POST ask-victoria → 202, затем через 1–2 мин ответ 503 с текстом «Victoria недоступна (нет связи)» или в логах бэкенда `client error: All connection attempts failed`. Иногда один запрос проходит (200), следующий — 503.
 
 **Разбор причин:**
+
 1. **RestartCount Victoria высокий** — у контейнера `victoria-agent` много рестартов (десятки). Каждый рестарт = 30–60 с недоступности; store задач в памяти Victoria при рестарте теряется.
 2. **Во время опроса Victoria уходит в рестарт** — бэкенд держит цикл GET /run/status каждые 8 с; если в этот момент контейнер Victoria перезапускается (OOM, краш, политика restart), следующий GET даёт ConnectError → исключение в `run()` → 503.
 3. **Сеть:** бэкенд и Victoria в одной сети (atra-network), имя `victoria-agent` резолвится; проблема не в DNS, а в недоступности процесса во время рестарта.
 
 **Что сделано (бэкенд):**
+
 - В **backend/app/services/victoria.py** в цикле опроса GET /run/status добавлены **ретраи при сбоях соединения**: при `ConnectError`, `TimeoutException`, `RemoteProtocolError` — до 5 попыток с паузой 12 с перед тем как вернуть 503. Краткий рестарт Victoria (30–60 с) может «переживаться» без немедленного 503.
 - При ответе Victoria **404** на GET /run/status (задача не найдена — типично после рестарта, store в памяти потерян) бэкенд возвращает понятную ошибку: «Task lost (Victoria may have restarted). Please retry your request.»
 
 **Рекомендации:**
+
 - Снизить частоту рестартов Victoria: см. §1–3 (USE_ELK=false, память Docker, при необходимости RAG_PRELOAD/SERVICE_MONITOR в false), §2 (OOM).
 - После деплоя правок бэкенда — пересобрать образ и перезапустить контейнер backend.
 
@@ -133,7 +145,8 @@ ENABLE_EVENT_MONITORING: "false"
 
 **Причина:** Контейнер `victoria-agent` потребляет 6+ ГБ в простое и может скачкообразно расти при инициализации ReAct или делегировании. Если лимит в Docker Desktop (например, 12 ГБ) ниже лимита в `docker-compose.yml` (16 ГБ), Docker убивает процесс.
 
-**Решение:** 
+**Решение:**
+
 1. Сняты жесткие лимиты `mem_limit` в `knowledge_os/docker-compose.yml` (пусть Docker Desktop сам управляет ресурсами).
 2. Отключен прогрев тяжелых моделей при старте (`VICTORIA_WARMUP_EXTRA_MODELS=""`), что снижает пиковую нагрузку на CPU/RAM при запуске.
 
@@ -168,6 +181,7 @@ ENABLE_EVENT_MONITORING: "false"
    - USE_ELK=false в окружении контейнера (см. §3).
    - Достаточно памяти для Docker (рекомендуется 4GB+ для Victoria + Ollama/MLX); при OOM — см. §2.
    - Для длинных задач — только async_mode; не полагаться на долгий sync /run без таймаута на клиенте.
+
 - **Mac Studio:** учёт характеристик и загрузки — [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md) (память Docker, MAX_CONCURRENT_VICTORIA, async_mode).
 
 5. **Lifespan: зависание после «Database pool создан» (2026-02-08)**
@@ -187,6 +201,7 @@ ENABLE_EVENT_MONITORING: "false"
 **Симптом:** Приложение «Python» неожиданно завершает работу (диалог macOS или процесс Cursor/IDE). Часто при активной работе с Victoria (редактирование victoria_enhanced.py, прогон куратора, агенты).
 
 **Вероятная причина:** Давление памяти на хосте. Одновременно работают:
+
 - **Ollama** — несколько процессов, суммарно 25–35+ ГБ при загруженных моделях;
 - **Docker** — контейнеры (Victoria, Veronica и др.) — 10–15 ГБ;
 - **Python** — 5–7 ГБ (IDE, агенты, скрипты).
@@ -194,6 +209,7 @@ ENABLE_EVENT_MONITORING: "false"
 При 128 ГБ RAM использование под 104 ГБ и своп 2–3 ГБ ядро может убивать процессы (OOM → exit 137) или Python падает при нехватке выделения.
 
 **Что делать:**
+
 1. **Проверить память:** Мониторинг системы (Activity Monitor) — вкладка «Память». Обратить внимание на «Используемая память», «Своп», процессы ollama и Python.
 2. **Выгрузить неиспользуемые модели Ollama:** `ollama list` → для редко используемых моделей не держать в памяти (после теста вызвать keep_alive=0 или перезапустить Ollama). Это освобождает десятки ГБ.
 3. **Перед тяжёлыми прогонами куратора** по возможности закрыть лишние приложения и не загружать тяжёлые модели Ollama без необходимости.
@@ -206,9 +222,9 @@ ENABLE_EVENT_MONITORING: "false"
 ## 7. Ссылки
 
 - Замер времени одного ответа модели: `scripts/measure_ollama_response_time.sh`
-- Замер **каждой** модели: `scripts/measure_all_ollama_models.sh` (Ollama) → tmp/ollama_model_timings.*; `scripts/measure_all_models_ollama_mlx.py` (Ollama + MLX, таймауты по размеру + буфер на запуск) → tmp/model_timings_ollama_mlx.*
+- Замер **каждой** модели: `scripts/measure_all_ollama_models.sh` (Ollama) → tmp/ollama_model_timings._; `scripts/measure_all_models_ollama_mlx.py` (Ollama + MLX, таймауты по размеру + буфер на запуск) → tmp/model_timings_ollama_mlx._
 - Время по моделям (загрузка, один вызов): [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md)
-- Service Monitor (внутри Victoria): `knowledge_os/app/service_monitor.py` (_get_default_services, VICTORIA_PORT)
+- Service Monitor (внутри Victoria): `knowledge_os/app/service_monitor.py` (\_get_default_services, VICTORIA_PORT)
 - Обработчик SERVICE_DOWN: `knowledge_os/app/victoria_event_handlers.py` (handle_service_down, skip self)
 - Оркестратор 137 и OOM: [ORCHESTRATOR_137_AND_OLLAMA.md](ORCHESTRATOR_137_AND_OLLAMA.md)
 - Чеклист: VERIFICATION_CHECKLIST_OPTIMIZATIONS §3, §5

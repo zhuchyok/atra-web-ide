@@ -6,8 +6,8 @@
 
 ## Прогон тестов (результат)
 
-| Компонент | Команда | Результат |
-|-----------|---------|-----------|
+| Компонент                                       | Команда                                                                                                       | Результат     |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------- |
 | Knowledge OS (json_fast, http_client, rest_api) | `cd knowledge_os && .venv/bin/python -m pytest tests/test_json_fast_http_client.py tests/test_rest_api.py -v` | **14 passed** |
 
 Backend-тесты (RAG, plan_cache, metrics и др.) выполняются в CI (`.github/workflows/quality-validation.yml`) при PR и по расписанию; локально: `cd backend && pip install -r requirements.txt pytest pytest-asyncio && python -m pytest app/tests/ -v`.
@@ -36,4 +36,4 @@ Backend-тесты (RAG, plan_cache, metrics и др.) выполняются в
 
 ---
 
-*Релиз выполнен с учётом рекомендаций Backend (Игорь), QA (Анна), SRE (Елена).*
+_Релиз выполнен с учётом рекомендаций Backend (Игорь), QA (Анна), SRE (Елена)._

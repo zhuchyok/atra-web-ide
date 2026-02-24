@@ -19,14 +19,14 @@
 2. **Ollama** — быстро, без загрузки Python-модели
 3. **Fallback** (sentence-transformers) — медленно, только если Ollama недоступна
 
-*Раньше fallback вызывался до Ollama, из‑за чего P95 уходил в 5+ сек.*
+_Раньше fallback вызывался до Ollama, из‑за чего P95 уходил в 5+ сек._
 
 ## Результаты бенчмарка
 
-| Конфигурация | P50 | P95 | Avg embedding |
-|--------------|-----|-----|---------------|
-| Ollama + `EMBEDDING_FALLBACK_ENABLED=false` | 78 ms | **112 ms** ✅ | 41 ms |
-| Fallback sentence-transformers | 75 ms | 5622 ms ❌ | 594 ms |
+| Конфигурация                                | P50   | P95           | Avg embedding |
+| ------------------------------------------- | ----- | ------------- | ------------- |
+| Ollama + `EMBEDDING_FALLBACK_ENABLED=false` | 78 ms | **112 ms** ✅ | 41 ms         |
+| Fallback sentence-transformers              | 75 ms | 5622 ms ❌    | 594 ms        |
 
 **При Ollama:** P95 < 300ms достигается. Fallback — только при недоступности Ollama.
 
@@ -39,18 +39,21 @@
 ## Рекомендации
 
 1. **Запустить Ollama для эмбеддингов:**
+
    ```bash
    ollama pull nomic-embed-text
    curl -s http://localhost:11434/api/tags
    ```
 
 2. **MLX для LLM (Ask fallback):** при недоступности RAG ответа используется MLX → Ollama. MLX на Apple Silicon обычно быстрее.
+
    ```bash
    # MLX API Server (порт 11435)
    scripts/start_mlx_api_server.sh
    ```
 
 3. **Отключить fallback** (если Ollama доступна) — для стабильного P95 < 300ms:
+
    ```bash
    export EMBEDDING_FALLBACK_ENABLED=false
    # или в .env
@@ -97,6 +100,7 @@ python scripts/create_latency_dashboard.py
 ## Дополнительные оптимизации (Ollama + MLX)
 
 1. **pgvector HNSW индекс** — ускорение векторного поиска:
+
    ```bash
    # Через Python (рекомендуется)
    PYTHONPATH=backend:. python scripts/apply_hnsw_index.py

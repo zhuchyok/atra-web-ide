@@ -11,14 +11,14 @@
 - **Логи [VICTORIA_CYCLE]:** добавлены в:
   - `src/agents/bridge/victoria_server.py` — приём POST /run, 202, фоновая задача (start/completed/failed), GET /run/status, sync 200.
   - `backend/app/services/victoria.py` — клиент: отправка POST /run и ответ.
-  - `knowledge_os/app/extended_thinking.py` — вход в _generate_response (выбор модели, LLM).
+  - `knowledge_os/app/extended_thinking.py` — вход в \_generate_response (выбор модели, LLM).
 
 ## Режимы
 
-| Режим | Описание |
-|-------|----------|
+| Режим     | Описание                                                                                         |
+| --------- | ------------------------------------------------------------------------------------------------ |
 | **async** | POST /run?async_mode=true → 202 + task_id → опрос GET /run/status/{task_id} до completed/failed. |
-| **sync** | POST /run без async_mode → ожидание 200 с телом (output). |
+| **sync**  | POST /run без async_mode → ожидание 200 с телом (output).                                        |
 
 ## Запуск
 

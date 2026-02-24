@@ -5,11 +5,13 @@
 ## Быстрый старт
 
 1. **Проверить готовность** (venv, импорты, БД):
+
    ```bash
    bash scripts/check_ready.sh
    ```
 
 2. **Запустить всё один раз** (venv при необходимости + один цикл Nightly Learner + один цикл Enhanced Orchestrator):
+
    ```bash
    bash scripts/run_everything.sh
    ```
@@ -22,6 +24,7 @@
 ## Настройка вручную
 
 - **Создать venv и установить зависимости:**
+
   ```bash
   bash scripts/setup_knowledge_os_venv.sh
   ```

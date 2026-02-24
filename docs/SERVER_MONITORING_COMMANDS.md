@@ -3,6 +3,7 @@
 ## 🚀 Запуск мониторинга на сервере:
 
 ### 1. **Быстрый мониторинг:**
+
 ```bash
 # Перейти в директорию проекта
 cd ~/atra
@@ -12,12 +13,14 @@ cd ~/atra
 ```
 
 ### 2. **Прямой запуск Python мониторинга:**
+
 ```bash
 cd ~/atra
 python3 terminal_monitor.py
 ```
 
 ### 3. **Мониторинг логов в реальном времени:**
+
 ```bash
 # Основные логи
 tail -f system_improved.log
@@ -30,6 +33,7 @@ tail -f system_improved.log | grep -E "(ERROR|WARNING|INFO)"
 ```
 
 ### 4. **Проверка статуса системы:**
+
 ```bash
 # Процессы
 ps aux | grep main.py
@@ -45,6 +49,7 @@ free -h
 ```
 
 ### 5. **Мониторинг через systemd (если используется):**
+
 ```bash
 # Статус сервиса
 sudo systemctl status atra
@@ -57,6 +62,7 @@ sudo journalctl -u atra --since "1 hour ago"
 ```
 
 ### 6. **Мониторинг через PM2 (если используется):**
+
 ```bash
 # Статус процессов
 pm2 list
@@ -69,6 +75,7 @@ pm2 monit
 ```
 
 ### 7. **Комбинированный мониторинг:**
+
 ```bash
 # Создать скрипт полного мониторинга
 cat > monitor_server.sh << 'EOF'
@@ -97,6 +104,7 @@ chmod +x monitor_server.sh
 ```
 
 ### 8. **Мониторинг в фоновом режиме:**
+
 ```bash
 # Запустить мониторинг в фоне
 nohup python3 terminal_monitor.py > monitoring.log 2>&1 &
@@ -109,6 +117,7 @@ tail -f monitoring.log
 ```
 
 ### 9. **Удаленный мониторинг:**
+
 ```bash
 # Если сервер удаленный, подключиться по SSH
 ssh user@server_ip
@@ -119,6 +128,7 @@ cd ~/atra
 ```
 
 ### 10. **Мониторинг через tmux (рекомендуется):**
+
 ```bash
 # Создать сессию tmux
 tmux new-session -d -s monitoring
@@ -140,16 +150,19 @@ tmux attach -t monitoring
 ## 🎯 **Рекомендуемая последовательность:**
 
 1. **Подключиться к серверу:**
+
    ```bash
    ssh user@server_ip
    ```
 
 2. **Перейти в директорию проекта:**
+
    ```bash
    cd ~/atra
    ```
 
 3. **Запустить мониторинг:**
+
    ```bash
    ./start_monitoring.sh
    ```

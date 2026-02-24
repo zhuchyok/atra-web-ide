@@ -7,6 +7,7 @@
 ## Почему так вышло (по мнению экспертов)
 
 ### 1. Много сервисов к одной БД
+
 - **atra-web-ide backend** — pool max 10
 - **Victoria Agent** — pool max 5 + прямые connect (corporation_data_tool, department_heads)
 - **Veronica Agent** — pool max 5
@@ -22,16 +23,19 @@
 - **Плюс:** прямые `asyncpg.connect()` без пула — corporation_data_tool, task_distribution, department_heads и др.
 
 ### 2. Прямые connect вместо пула
+
 - `corporation_data_tool` — каждый Text-to-SQL = новое подключение
 - `task_distribution_system_complete` — connect на каждый вызов
 - `department_heads_system` — connect на каждый вызов
 - `debate_processor`, `collective_memory` и др. — аналогично
 
 ### 3. Streamlit
+
 - При каждом rerun/refresh Streamlit открывает новые соединения
 - `_quick_db_check()` закрывает соединение, но до этого успевает создаться ещё одно
 
 ### 4. «idle in transaction»
+
 - Одно из подключений зависло в транзакции — соединение не освобождено
 
 ## Рекомендации

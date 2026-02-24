@@ -3,6 +3,7 @@
 ## ✅ **Выполнено (только что)**
 
 ### 1. Инфраструктура
+
 - [x] ValidationPipeline — пайплайн валидации на тестовых запросах
 - [x] RAG-light интеграция с реранкингом
 - [x] CI/CD workflow для GitHub Actions
@@ -13,6 +14,7 @@
 - [x] Expert Services — интеграция услуг сотрудников в промпты
 
 ### 2. Скрипты
+
 - [x] `run_quality_pipeline.sh` — полный цикл валидации
 - [x] `evaluate_rag_quality.py` — оценка с --output
 - [x] `check_quality_thresholds.py` — проверка порогов
@@ -26,11 +28,13 @@
 - [x] `augment_validation_set.py` — расширение validation set
 
 ### 3. Автоматизация
+
 - [x] Cron установлен (ежедневно 03:00)
 - [x] `install_quality_cron.sh` — автоматическая установка
 - [x] `.env.quality.example` — конфиг алертов
 
 ### 4. Первый запуск
+
 - [x] Пайплайн выполнен: 15 запросов обработаны
 - [x] Отчёт: `backend/validation_report.json`
 - [x] Дашборд: `quality_dashboard.html`
@@ -40,6 +44,7 @@
 ## 📊 **Результаты первого цикла**
 
 **Метрики (на пустой БЗ, как ожидалось):**
+
 - Faithfulness: **2.2%** ❌ (цель: >80%)
 - Relevance: **32.2%** ❌ (цель: >85%)
 - Coherence: **80.0%** ✅ (цель: >70%)
@@ -53,6 +58,7 @@
 ## 🚀 **Что делать прямо сейчас (Quick Wins)**
 
 ### Шаг 1: Наполнить БЗ seed-данными (5 минут)
+
 ```bash
 # Добавляем 15 эталонных ответов в knowledge_nodes
 cd /Users/bikos/Documents/atra-web-ide
@@ -63,6 +69,7 @@ python3 scripts/seed_validation_answers.py
 ```
 
 ### Шаг 2: Настроить алерты (2 минуты)
+
 ```bash
 # 1. Скопируйте и отредактируйте конфиг
 cp .env.quality.example .env.quality
@@ -77,6 +84,7 @@ python3 scripts/send_quality_alert.py backend/validation_report.json --telegram
 ```
 
 ### Шаг 3: Открыть дашборд (30 секунд)
+
 ```bash
 # Вариант 1: Прямо в браузере
 open quality_dashboard.html
@@ -87,6 +95,7 @@ python3 -m http.server 8000
 ```
 
 ### Шаг 4: Собрать реальные запросы (1 минута)
+
 ```bash
 # Из логов за неделю
 python3 scripts/collect_real_queries.py --days 7 --limit 50
@@ -101,28 +110,31 @@ python3 scripts/augment_validation_set.py --add 10
 
 После `seed_validation_answers.py` + повторный `run_quality_pipeline.sh`:
 
-| Метрика | Было | Станет | Статус |
-|---------|------|--------|--------|
-| **Faithfulness** | 2.2% | **~85%** | ✅ |
-| **Relevance** | 32.2% | **~80%** | ✅ |
-| **Coherence** | 80.0% | **~85%** | ✅ |
+| Метрика          | Было  | Станет   | Статус |
+| ---------------- | ----- | -------- | ------ |
+| **Faithfulness** | 2.2%  | **~85%** | ✅     |
+| **Relevance**    | 32.2% | **~80%** | ✅     |
+| **Coherence**    | 80.0% | **~85%** | ✅     |
 
 ---
 
 ## 🎯 **План на 24 часа**
 
 ### Сегодня (0-2 часа)
+
 - [x] Первый запуск пайплайна
 - [ ] Наполнить БЗ seed-данными → `seed_validation_answers.py`
 - [ ] Повторный запуск → проверка улучшения
 - [ ] Настроить Telegram алерты
 
 ### Завтра утром (автоматически в 03:00)
+
 - Cron запустит пайплайн
 - Отчёт в `logs/quality_pipeline.log`
 - HTML дашборд обновится
 
 ### Через неделю
+
 - 7 ежедневных отчётов
 - График динамики метрик
 - Обратная связь от пользователей (если включена)
@@ -133,6 +145,7 @@ python3 scripts/augment_validation_set.py --add 10
 ## 📱 **Мониторинг**
 
 ### API endpoints (после запуска backend)
+
 ```bash
 # История за 7 дней
 curl http://localhost:8080/api/quality/metrics/history?days=7 | jq
@@ -142,10 +155,12 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
 ```
 
 ### Дашборд
+
 - **Файл:** `quality_dashboard.html`
 - **API Swagger:** http://localhost:8080/docs → `/api/quality/*`
 
 ### Логи
+
 - **Пайплайн:** `logs/quality_pipeline.log` (когда cron запустится)
 - **Backend:** `logs/backend.log`
 
@@ -154,12 +169,14 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
 ## 🔧 **Настройка (если нужно)**
 
 ### Изменить пороги
+
 ```bash
 # В evaluate_rag_quality.py или run_quality_pipeline.sh:
 --threshold faithfulness:0.8,relevance:0.85,coherence:0.8
 ```
 
 ### Включить реранкинг
+
 ```bash
 # В backend/.env или export:
 export RERANKING_ENABLED=true
@@ -167,6 +184,7 @@ export RERANKING_ENABLED=true
 ```
 
 ### Расписание cron (изменить время)
+
 ```bash
 crontab -e
 # Измените: 0 3 * * * → 0 6 * * * (запуск в 06:00)
@@ -177,12 +195,14 @@ crontab -e
 ## 💡 **Следующие шаги (опционально)**
 
 ### 1. Добавить в validation set реальные запросы из production
+
 ```bash
 python3 scripts/collect_real_queries.py --days 30
 python3 scripts/augment_validation_set.py --add 20
 ```
 
 ### 2. Настроить A/B тесты улучшений
+
 ```python
 # В backend/app/services/quality_ab_test.py уже готово
 # Интеграция в RAG:
@@ -192,6 +212,7 @@ variant = ab_test.assign_variant(user_id, "reranking_method")
 ```
 
 ### 3. Добавить LLM-as-Judge для точной оценки
+
 ```python
 # В RAGEvaluator добавить вызов GPT-4/Claude для оценки:
 # "Rate this answer (1-10): query='...', answer='...', context='...'"
@@ -202,6 +223,7 @@ variant = ab_test.assign_variant(user_id, "reranking_method")
 ## ✅ **Готово к запуску!**
 
 Прямо сейчас:
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 python3 scripts/seed_validation_answers.py  # Наполнить БЗ

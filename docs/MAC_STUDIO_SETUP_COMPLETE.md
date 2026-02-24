@@ -10,15 +10,18 @@
 ### 1. ✅ Docker-инфраструктура
 
 #### MLX API Server:
+
 - ✅ `infrastructure/docker/mlx-api-server/Dockerfile`
 - ✅ `infrastructure/docker/mlx-api-server/requirements_mlx.txt`
 - ✅ `knowledge_os/app/mlx_api_server.py` (FastAPI сервер)
 
 #### Агенты:
+
 - ✅ `infrastructure/docker/agents/Dockerfile`
 - ✅ Готов для Victoria и Veronica агентов
 
 #### Главный Docker Compose:
+
 - ✅ `docker-compose.yml` - полная инфраструктура:
   - MLX API Server (порт 11434)
   - Knowledge OS Database (порт 5432)
@@ -58,27 +61,32 @@
 ## 📋 СЛЕДУЮЩИЕ ШАГИ
 
 ### 1. Установите модели (если ещё не установлены):
+
 ```bash
 ./scripts/install_models_mac_studio.sh
 ```
 
 ### 2. Настройте .env:
+
 ```bash
 cp .env.example.mac-studio .env
 # Отредактируйте .env и заполните значения
 ```
 
 ### 3. Запустите инфраструктуру:
+
 ```bash
 ./scripts/start_mac_studio_full.sh
 ```
 
 ### 4. Мигрируйте данные с сервера:
+
 ```bash
 python3 scripts/migration/migrate_to_mac_studio.py
 ```
 
 ### 5. Проверьте всё:
+
 ```bash
 ./scripts/check_all_services.sh
 ```
@@ -88,17 +96,20 @@ python3 scripts/migration/migrate_to_mac_studio.py
 ## 🔍 ПРОВЕРКА
 
 ### Health Checks:
+
 - MLX API Server: `curl http://localhost:11434/`
 - Knowledge OS API: `curl http://localhost:8000/`
 - Prometheus: `curl http://localhost:9090/-/healthy`
 - Grafana: `curl http://localhost:3000/api/health`
 
 ### Статус контейнеров:
+
 ```bash
 docker-compose ps
 ```
 
 ### Логи:
+
 ```bash
 docker-compose logs -f [service_name]
 ```
@@ -137,6 +148,7 @@ Mac Studio M4 Max (128GB/2TB)
 ## ✅ ВСЕ КОМПОНЕНТЫ КОНТРОЛИРУЕМЫ ЧЕРЕЗ DOCKER
 
 Каждый компонент:
+
 - ✅ Изолирован в Docker контейнере
 - ✅ Имеет health checks
 - ✅ Автоматически перезапускается при сбоях
@@ -150,6 +162,7 @@ Mac Studio M4 Max (128GB/2TB)
 Вся инфраструктура готова к использованию. Все компоненты контролируемы через Docker.
 
 **Команда экспертов ATRA выполнила:**
+
 - ✅ Виктория (Team Lead) - координация и планирование
 - ✅ Игорь (Backend) - создание Dockerfile и серверов
 - ✅ Сергей (DevOps) - настройка Docker Compose и инфраструктуры
@@ -160,5 +173,4 @@ Mac Studio M4 Max (128GB/2TB)
 
 ---
 
-*Создано командой экспертов ATRA - 2025-01-XX*
-
+_Создано командой экспертов ATRA - 2025-01-XX_

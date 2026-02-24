@@ -33,13 +33,13 @@
 
 Проверено по VERIFICATION_CHECKLIST_OPTIMIZATIONS §3 и MASTER_REFERENCE. Возможные причины:
 
-| Причина | Симптом / как проверить | Что делать |
-|--------|--------------------------|------------|
-| **Демон не запущен** | На порту 11434 никто не слушает; в процессах только `ollama-mcp` (MCP), не `ollama serve`. | Запустить: `ollama serve` от пользователя с моделями (предпочтительно; иначе `brew services start ollama` может запустить от другого пользователя → models: []). |
-| **Запущен от другого пользователя** | Ollama отвечает, но `models: []` или 404 `model not found`. Модели лежат в `~/.ollama/` у текущего пользователя. | `brew services stop ollama`; запускать `ollama serve` из терминала **под пользователем, у которого есть модели** (проверка: `ps aux \| grep ollama` — USER = владелец `~/.ollama/models/`). |
-| **Sleep/wake Mac** | После сна ноутбука/станции Ollama перестаёт отвечать или отдаёт 500. Metal-контекст может инвалидироваться. | **system_auto_recovery.sh** уже проверяет Ollama (блок 4.5) и перезапускает при отсутствии ответа. Запускать recovery по расписанию (launchd каждые 300 с) или вручную после wake. |
-| **Конкуренция за Metal с MLX** | Оба (Ollama 11434 и MLX 11435) используют Metal на одном Mac. В логах: «Reentrancy avoided», «compiler is no longer active», MTLCompilerService. | Снизить параллелизм: меньше **SMART_WORKER_MAX_CONCURRENT**; или временно отключить MLX и гнать только через Ollama. |
-| **Metal OOM / failed to allocate context** | Ollama 500: «llama runner process has terminated», «failed to allocate context». Нехватка GPU-памяти при тяжёлых моделях или смене модели под нагрузкой. | Перезапуск: `pkill -f ollama`; через 2–3 с `ollama serve`. Уменьшить нагрузку (меньше одновременных запросов). Логи: `~/.ollama/logs/server.log`. |
+| Причина                                    | Симптом / как проверить                                                                                                                                  | Что делать                                                                                                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Демон не запущен**                       | На порту 11434 никто не слушает; в процессах только `ollama-mcp` (MCP), не `ollama serve`.                                                               | Запустить: `ollama serve` от пользователя с моделями (предпочтительно; иначе `brew services start ollama` может запустить от другого пользователя → models: []).                            |
+| **Запущен от другого пользователя**        | Ollama отвечает, но `models: []` или 404 `model not found`. Модели лежат в `~/.ollama/` у текущего пользователя.                                         | `brew services stop ollama`; запускать `ollama serve` из терминала **под пользователем, у которого есть модели** (проверка: `ps aux \| grep ollama` — USER = владелец `~/.ollama/models/`). |
+| **Sleep/wake Mac**                         | После сна ноутбука/станции Ollama перестаёт отвечать или отдаёт 500. Metal-контекст может инвалидироваться.                                              | **system_auto_recovery.sh** уже проверяет Ollama (блок 4.5) и перезапускает при отсутствии ответа. Запускать recovery по расписанию (launchd каждые 300 с) или вручную после wake.          |
+| **Конкуренция за Metal с MLX**             | Оба (Ollama 11434 и MLX 11435) используют Metal на одном Mac. В логах: «Reentrancy avoided», «compiler is no longer active», MTLCompilerService.         | Снизить параллелизм: меньше **SMART_WORKER_MAX_CONCURRENT**; или временно отключить MLX и гнать только через Ollama.                                                                        |
+| **Metal OOM / failed to allocate context** | Ollama 500: «llama runner process has terminated», «failed to allocate context». Нехватка GPU-памяти при тяжёлых моделях или смене модели под нагрузкой. | Перезапуск: `pkill -f ollama`; через 2–3 с `ollama serve`. Уменьшить нагрузку (меньше одновременных запросов). Логи: `~/.ollama/logs/server.log`.                                           |
 
 **Итог:** если «Ollama падает» — сначала проверить, запущен ли вообще демон и от того ли пользователя; затем смотреть логи и при повторениях после sleep/wake или под нагрузкой — перезапуск через system_auto_recovery или вручную и снижение конкуренции с MLX.
 
@@ -81,20 +81,26 @@
 ## 6. Что сделать на хосте
 
 1. **Запустить слушатель восстановления** (чтобы оркестратор мог запросить перезапуск Ollama/MLX по webhook):
+
    ```bash
    python3 scripts/host_recovery_listener.py
    ```
+
    Или в фоне: `nohup python3 scripts/host_recovery_listener.py >> /tmp/host_recovery_listener.log 2>&1 &`  
    По умолчанию слушает порт 9099; в docker-compose оркестратору уже задан `RECOVERY_WEBHOOK_URL=http://host.docker.internal:9099/recover`.
 
 2. **Запустить Ollama API** (порт 11434):
+
    ```bash
    ollama serve
    ```
+
    или, если установлен через Homebrew:
+
    ```bash
    brew services start ollama
    ```
+
    После этого запросы из контейнера к `http://host.docker.internal:11434` начнут доходить; эмбеддинги и обнаружение моделей Ollama заработают.
 
 3. **При повторяющемся 137 (OOM):**

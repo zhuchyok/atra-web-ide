@@ -2,10 +2,10 @@
 
 ## Сводка источников
 
-| Источник | Узлов | Доступ |
-|----------|-------|--------|
+| Источник       | Узлов  | Доступ                                       |
+| -------------- | ------ | -------------------------------------------- |
 | **Mac Studio** | тысячи | Экспорт локально на Mac Studio, затем импорт |
-| **Архив** | 131 | `restore_knowledge_from_archive.sql` |
+| **Архив**      | 131    | `restore_knowledge_from_archive.sql`         |
 
 > ⚠️ Server 46 — данных нет, не использовать.
 
@@ -20,6 +20,7 @@
 ### Перенос с Mac Studio
 
 **1. На Mac Studio** (где запущен postgres с тысячами узлов):
+
 ```bash
 cd /path/to/atra-web-ide  # или atra
 bash scripts/export_knowledge_from_mac_studio.sh
@@ -27,11 +28,13 @@ bash scripts/export_knowledge_from_mac_studio.sh
 ```
 
 **2. Копирование на локальную машину:**
+
 ```bash
 scp user@mac-studio-ip:/path/to/knowledge_nodes_export.json ./
 ```
 
 **3. На локальной машине** (где единая база):
+
 ```bash
 # Вариант A: JSON (рекомендуется — совместим при разной схеме)
 # На Mac Studio: python3 scripts/export_knowledge_portable.py
@@ -67,6 +70,7 @@ python3 scripts/migrate_knowledge_from_source_db.py
 ```
 
 **Если старая БД в другом томе Docker:**
+
 1. Запустить временный Postgres со старым томом:  
    `docker run -d -v ИМЯ_СТАРОГО_ТОМА:/var/lib/postgresql/data -p 5433:5432 -e POSTGRES_* pgvector/pgvector:pg16`
 2. `SOURCE_DATABASE_URL=postgresql://admin:secret@localhost:5433/knowledge_os`
@@ -82,6 +86,7 @@ python3 scripts/migrate_knowledge_from_source_db.py
 Миграция делалась с MacBook. Там могут остаться дампы или volumes.
 
 **Запустить на MacBook** (где Cursor и миграция):
+
 ```bash
 cd ~/Documents/atra-web-ide
 bash scripts/search_knowledge_on_macbook.sh
@@ -90,6 +95,7 @@ bash scripts/search_knowledge_on_macbook.sh
 Скрипт ищет: `~/migration/server2/*.sql`, Docker volumes, бэкапы.
 
 **Если MacBook в сети** — с Mac Studio можно попробовать:
+
 ```bash
 MACBOOK_IP=192.168.1.XX  # IP MacBook
 scp scripts/search_knowledge_on_macbook.sh bikos@$MACBOOK_IP:~/Documents/atra-web-ide/scripts/

@@ -39,11 +39,11 @@
 
 ## Конфигурация
 
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| `MOONDREAM_STATION_URL` | `http://localhost:2020` | URL Moondream Station (MLX) |
-| `MULTIMODAL_VISION_ENABLED` | `true` | Включить обработку изображений |
-| `MULTIMODAL_VISION_TIMEOUT` | `60.0` | Таймаут Vision-запроса (сек) |
+| Переменная                  | По умолчанию            | Описание                       |
+| --------------------------- | ----------------------- | ------------------------------ |
+| `MOONDREAM_STATION_URL`     | `http://localhost:2020` | URL Moondream Station (MLX)    |
+| `MULTIMODAL_VISION_ENABLED` | `true`                  | Включить обработку изображений |
+| `MULTIMODAL_VISION_TIMEOUT` | `60.0`                  | Таймаут Vision-запроса (сек)   |
 
 Ollama URL берётся из `OLLAMA_URL` (общий с чатом).
 

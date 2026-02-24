@@ -7,25 +7,27 @@
 
 ## Текущая база данных
 
-| Параметр | Значение |
-|----------|----------|
-| **Тип БД** | PostgreSQL 16 (pgvector/pgvector:pg16) |
-| **Расширение** | pgvector |
-| **Основная таблица** | `knowledge_nodes` |
+| Параметр              | Значение                                   |
+| --------------------- | ------------------------------------------ |
+| **Тип БД**            | PostgreSQL 16 (pgvector/pgvector:pg16)     |
+| **Расширение**        | pgvector                                   |
+| **Основная таблица**  | `knowledge_nodes`                          |
 | **Векторный столбец** | `embedding vector(768)` (nomic-embed-text) |
-| **Индексы** | IVFFlat (из init.sql) + HNSW (migration) |
+| **Индексы**           | IVFFlat (из init.sql) + HNSW (migration)   |
 
 ---
 
 ## Где находятся конфигурации
 
 ### 1. Подключение к БД
+
 - **Единый источник:** переменная окружения `DATABASE_URL`
 - **Фолбек:** `postgresql://admin:secret@localhost:5432/knowledge_os`
 - **В Docker:** `postgresql://admin:secret@knowledge_postgres:5432/knowledge_os`
 - **Модулей `knowledge_os/db/database.py` нет** — используется `asyncpg` напрямую в каждом модуле
 
 ### 2. Файлы
+
 ```
 knowledge_os/db/init.sql                    # Схема БД, IVFFlat индекс
 knowledge_os/db/migrations/
@@ -36,6 +38,7 @@ docker-compose.yml                          # Backend → knowledge_postgres
 ```
 
 ### 3. Контейнер PostgreSQL
+
 - **Имя:** `knowledge_postgres`
 - **Образ:** `pgvector/pgvector:pg16`
 - **Сеть:** atra-network
@@ -54,12 +57,12 @@ SELECT * FROM pg_extension WHERE extname = 'vector';
 SELECT tablename, schemaname FROM pg_tables WHERE tablename = 'knowledge_nodes';
 
 -- Индексы
-SELECT indexname, indexdef 
-FROM pg_indexes 
+SELECT indexname, indexdef
+FROM pg_indexes
 WHERE tablename = 'knowledge_nodes';
 
 -- Размер и количество строк
-SELECT 
+SELECT
     pg_size_pretty(pg_total_relation_size('knowledge_nodes')) as total_size,
     COUNT(*) as row_count
 FROM knowledge_nodes;
@@ -78,6 +81,7 @@ WITH (m = 16, ef_construction = 64);
 ```
 
 **Применить через скрипт:**
+
 ```bash
 DATABASE_URL=postgresql://admin:secret@localhost:5432/knowledge_os python scripts/apply_hnsw_index.py
 # или в Docker:
@@ -96,21 +100,21 @@ import asyncpg
 async def check():
     url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
     conn = await asyncpg.connect(url)
-    
+
     ext = await conn.fetchval(
         "SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'vector')"
     )
     print(f"pgvector: {'✅' if ext else '❌'}")
-    
+
     idx = await conn.fetchval("""
-        SELECT indexname FROM pg_indexes 
+        SELECT indexname FROM pg_indexes
         WHERE tablename = 'knowledge_nodes' AND indexdef LIKE '%hnsw%'
     """)
     print(f"HNSW: {'✅' if idx else '❌'}")
-    
+
     n = await conn.fetchval("SELECT COUNT(*) FROM knowledge_nodes")
     print(f"Узлов: {n}")
-    
+
     await conn.close()
 
 asyncio.run(check())
@@ -120,10 +124,10 @@ asyncio.run(check())
 
 ## Бэкапы
 
-| Действие | Команда |
-|----------|---------|
-| Создание дампа | `docker exec knowledge_postgres pg_dump -U admin -d knowledge_os > backup.sql` |
-| Восстановление | `docker exec -i knowledge_postgres psql -U admin -d knowledge_os < backup.sql` |
+| Действие        | Команда                                                                              |
+| --------------- | ------------------------------------------------------------------------------------ |
+| Создание дампа  | `docker exec knowledge_postgres pg_dump -U admin -d knowledge_os > backup.sql`       |
+| Восстановление  | `docker exec -i knowledge_postgres psql -U admin -d knowledge_os < backup.sql`       |
 | Импорт из дампа | `bash scripts/migrate_from_dump.sh` (если дамп в `~/migration/server2/` или проекте) |
 
 ---

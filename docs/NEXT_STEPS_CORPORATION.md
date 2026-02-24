@@ -36,6 +36,7 @@
 **Проверено (2026-02-08):** полный прогон 23-16-02 — 5/5 success (в т.ч. «список файлов» 92.7 с); backend 37 тестов — passed.
 
 **При «продолжай» дальше:**
+
 - Периодически запускать полный прогон: `./scripts/run_curator_scheduled.sh` (или `./scripts/run_curator.sh --file scripts/curator_tasks.txt --async --max-wait 600`); разбирать отчёт по CURATOR_RUNBOOK и CURATOR_CHECKLIST; при необходимости — `curator_compare_to_standard.py --report ... --standard ...` и запрос с `verbose: true` для пошаговых шагов.
 - При сбоях «список файлов» — см. **curator_reports/CURATOR_LIST_FILES_FAILURES.md** → «При следующих сбоях».
 - По желанию при масштабировании: RAG Redis (§2).

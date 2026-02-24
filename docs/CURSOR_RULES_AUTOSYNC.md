@@ -5,6 +5,7 @@
 ## 🎯 Что синхронизируется
 
 При любых изменениях в `configs/experts/employees.json`:
+
 - ➕ **Найм** — создается новый файл
 - 🔄 **Изменение** — обновляется существующий файл
 - ➖ **Увольнение** — удаляется файл
@@ -13,13 +14,16 @@
 ## 🚀 Варианты использования
 
 ### 1. Ручной запуск
+
 ```bash
 # Синхронизация по требованию
 python scripts/sync_cursor_rules.py
 ```
 
 ### 2. Git Hook (автоматически при commit)
+
 При изменении `employees.json` автоматически:
+
 1. Запускается `sync_cursor_rules.py`
 2. Обновляются файлы в `.cursor/rules/`
 3. Изменения добавляются в коммит
@@ -30,7 +34,9 @@ python scripts/sync_cursor_rules.py
 ```
 
 ### 3. Database Trigger (real-time)
+
 При изменениях в таблице `experts`:
+
 1. Триггер логирует изменение в `experts_changelog`
 2. Worker `cursor_rules_autosync.py` обнаруживает изменение
 3. Автоматически запускается синхронизация
@@ -43,13 +49,14 @@ python knowledge_os/app/cursor_rules_autosync.py
 ```
 
 ### 4. Добавить в docker-compose.yml
+
 ```yaml
 cursor-rules-sync:
   build: .
   command: python knowledge_os/app/cursor_rules_autosync.py
   environment:
     - DATABASE_URL=${DATABASE_URL}
-    - AUTO_COMMIT_CURSOR_RULES=false  # true для auto-commit
+    - AUTO_COMMIT_CURSOR_RULES=false # true для auto-commit
   volumes:
     - ./.cursor:/app/.cursor
   restart: unless-stopped
@@ -58,12 +65,13 @@ cursor-rules-sync:
 ## 📊 Мониторинг изменений
 
 ### Посмотреть недавние изменения
+
 ```sql
 -- Последние изменения экспертов
 SELECT * FROM expert_changes_summary;
 
 -- Детали за последнюю неделю
-SELECT 
+SELECT
     event_type,
     expert_name,
     expert_role,
@@ -75,6 +83,7 @@ ORDER BY changed_at DESC;
 ```
 
 ### Проверить pending синхронизации
+
 ```sql
 SELECT * FROM get_pending_expert_changes();
 ```
@@ -82,6 +91,7 @@ SELECT * FROM get_pending_expert_changes();
 ## 🔧 Конфигурация
 
 ### Переменные окружения
+
 ```bash
 # .env
 DATABASE_URL=postgresql://...
@@ -89,6 +99,7 @@ AUTO_COMMIT_CURSOR_RULES=false  # Автоматический git commit
 ```
 
 ### Настройки worker
+
 ```python
 # knowledge_os/app/cursor_rules_autosync.py
 CHECK_INTERVAL = 30  # секунд между проверками
@@ -97,6 +108,7 @@ CHECK_INTERVAL = 30  # секунд между проверками
 ## 📝 Шаблоны ролей
 
 Скрипт использует умные шаблоны для разных ролей:
+
 - Backend Developer
 - Frontend Developer
 - DevOps Engineer
@@ -112,6 +124,7 @@ CHECK_INTERVAL = 30  # секунд между проверками
 ## 🎨 Формат файлов
 
 Каждый файл содержит:
+
 - YAML frontmatter (description, priority)
 - Emoji индикатор роли
 - Обязанности
@@ -145,6 +158,7 @@ employees.json изменен
 ## 🎯 Use Cases
 
 ### Найм нового сотрудника
+
 ```bash
 # 1. Добавить в employees.json
 # 2. Sync автоматически создаст файл при commit/worker cycle
@@ -152,6 +166,7 @@ employees.json изменен
 ```
 
 ### Изменение роли
+
 ```bash
 # 1. Обновить роль в employees.json
 # 2. Файл автоматически обновится
@@ -159,6 +174,7 @@ employees.json изменен
 ```
 
 ### Увольнение
+
 ```bash
 # 1. Удалить из employees.json
 # 2. Файл автоматически удалится из .cursor/rules/
@@ -167,6 +183,7 @@ employees.json изменен
 ## 🚨 Troubleshooting
 
 ### Worker не запускается
+
 ```bash
 # Проверить подключение к БД
 python -c "import asyncpg; import asyncio; asyncio.run(asyncpg.connect('$DATABASE_URL'))"
@@ -176,6 +193,7 @@ psql $DATABASE_URL -f knowledge_os/db/migrations/create_experts_changelog.sql
 ```
 
 ### Файлы не обновляются
+
 ```bash
 # Проверить права
 ls -la .cursor/rules/

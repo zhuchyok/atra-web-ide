@@ -10,6 +10,7 @@
 **Moondream Station** - это локальный сервис для обработки изображений с использованием **Moondream 3 Preview**, оптимизированный для **Apple Silicon (MLX)**.
 
 ### Преимущества:
+
 - ✅ **MLX Native** - полностью оптимизирован для Apple Silicon
 - ✅ **Быстрая обработка** - более 35 токенов/сек на M1 Max
 - ✅ **Локальная обработка** - без отправки в облако
@@ -135,6 +136,7 @@ result = await run_smart_agent_async(
 **Base URL:** `http://localhost:2020/v1`
 
 #### Query (запрос к изображению)
+
 ```bash
 POST /v1/query
 {
@@ -144,6 +146,7 @@ POST /v1/query
 ```
 
 #### Caption (описание изображения)
+
 ```bash
 POST /v1/caption
 {
@@ -153,6 +156,7 @@ POST /v1/caption
 ```
 
 #### Detect (обнаружение объектов)
+
 ```bash
 POST /v1/detect
 {
@@ -223,11 +227,13 @@ print(response.json())
 ### Moondream Station не запускается
 
 1. Проверьте установку:
+
    ```bash
    pip list | grep moondream
    ```
 
 2. Проверьте порт 2020:
+
    ```bash
    lsof -i :2020
    ```
@@ -240,12 +246,14 @@ print(response.json())
 ### VisionProcessor не использует Moondream Station
 
 1. Проверьте переменные окружения:
+
    ```bash
    echo $MOONDREAM_STATION_ENABLED
    echo $MOONDREAM_STATION_URL
    ```
 
 2. Проверьте логи:
+
    ```bash
    grep "VISION" logs/*.log
    ```

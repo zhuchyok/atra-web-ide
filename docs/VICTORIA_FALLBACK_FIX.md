@@ -8,6 +8,7 @@
 ## 🐛 Проблема
 
 Когда Victoria Agent (порт 8010) не запущен, чат показывал только текстовое сообщение:
+
 > "К сожалению, сейчас не могу подключиться к Victoria Agent. Попробуйте позже или используйте простой режим чата."
 
 **Fallback на MLX/Ollama не срабатывал автоматически.**
@@ -32,6 +33,7 @@
 ### `backend/app/routers/chat.py`
 
 **Было:**
+
 ```python
 if "error" in result:
     # Просто текстовое сообщение
@@ -39,16 +41,17 @@ if "error" in result:
 ```
 
 **Стало:**
+
 ```python
 if "error" in result:
     # Автоматический fallback на MLX
     if mlx_available.get("status") == "healthy":
         result = await mlx.generate(...)
-    
+
     # Fallback на Ollama если MLX недоступен
     if result is None or "error" in result:
         result = await ollama.generate(...)
-    
+
     # Только если все недоступны - показываем сообщение
     if result is None or "error" in result:
         fallback_response = "Все сервисы недоступны..."
@@ -115,4 +118,4 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8010
 
 ---
 
-*Исправление применено: 26.01.2026*
+_Исправление применено: 26.01.2026_

@@ -6,11 +6,11 @@
 
 ## Сводка
 
-| Параметр | До инцидента | Во время инцидента | После восстановления |
-|----------|--------------|--------------------|----------------------|
-| Экспертов | 85 | 1 | 85 |
-| Узлов знаний | 26 337 | 27 | 26 337 |
-| Volume | atra_knowledge_postgres_data | knowledge_os_postgres_data | atra_knowledge_postgres_data |
+| Параметр     | До инцидента                 | Во время инцидента         | После восстановления         |
+| ------------ | ---------------------------- | -------------------------- | ---------------------------- |
+| Экспертов    | 85                           | 1                          | 85                           |
+| Узлов знаний | 26 337                       | 27                         | 26 337                       |
+| Volume       | atra_knowledge_postgres_data | knowledge_os_postgres_data | atra_knowledge_postgres_data |
 
 **Симптомы:** На дашборде и в API — «1 эксперт», «27 узлов», ошибки «column» на всех страницах.
 
@@ -49,6 +49,7 @@ PostgreSQL (`knowledge_postgres`) использовал **другой Docker v
 1. **Определено:** данные в volume `atra_knowledge_postgres_data`.
 
 2. **Изменение `knowledge_os/docker-compose.yml`:**
+
    ```yaml
    volumes:
      postgres_data:
@@ -75,9 +76,11 @@ PostgreSQL (`knowledge_postgres`) использовал **другой Docker v
    - Текущее состояние: `postgres_data` → `atra_knowledge_postgres_data`.
 
 2. **Проверка после перезапуска:**
+
    ```bash
    docker exec knowledge_postgres psql -U admin -d knowledge_os -t -c "SELECT COUNT(*) FROM experts; SELECT COUNT(*) FROM knowledge_nodes;"
    ```
+
    Ожидаемо: 85, 26337.
 
 3. **Дашборд:** после восстановления БД ошибки «column» должны исчезнуть (схема соответствует данным).
@@ -117,4 +120,4 @@ PostgreSQL (`knowledge_postgres`) использовал **другой Docker v
 
 ---
 
-*Документ создан 2026-02-01. Обновить при изменении архитектуры volumes.*
+_Документ создан 2026-02-01. Обновить при изменении архитектуры volumes._

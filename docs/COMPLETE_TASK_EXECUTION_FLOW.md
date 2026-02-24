@@ -96,14 +96,15 @@
 **Код:** `victoria_enhanced.py` → `solve()`
 
 **Процесс:**
+
 ```python
 async def solve(self, goal: str, method: Optional[str] = None) -> Dict:
     # 1. Категоризация
     category = self._categorize_task(goal)
-    
+
     # 2. Проверка на создание файлов
     should_use_department_heads, dept_info = await self._should_use_department_heads(goal, category)
-    
+
     # 3. Выбор метода
     if should_use_department_heads:
         # Используем Department Heads System
@@ -114,11 +115,13 @@ async def solve(self, goal: str, method: Optional[str] = None) -> Dict:
 ```
 
 **✅ Сильные стороны:**
+
 - Автоматическая категоризация
 - Проверка на создание файлов
 - Выбор оптимального метода
 
 **⚠️ Улучшения:**
+
 - Добавить явное планирование перед делегированием
 - Добавить анализ зависимостей
 
@@ -129,48 +132,51 @@ async def solve(self, goal: str, method: Optional[str] = None) -> Dict:
 **Код:** `victoria_enhanced.py` → `_create_detailed_plan()` (НОВЫЙ МЕТОД)
 
 **Процесс:**
+
 ```python
 async def _create_detailed_plan(self, goal: str) -> Dict:
     # Используем Extended Thinking для глубокого планирования
     plan_result = await self.extended_thinking.think(plan_prompt)
-    
+
     # Парсим JSON план
     return self._parse_plan_json(plan_result)
 ```
 
 **Результат:**
+
 ```json
 {
-    "goal": "создай одностраничный сайт...",
-    "subtasks": [
-        {
-            "id": "subtask_1",
-            "description": "Создать HTML структуру",
-            "department": "Frontend",
-            "role": "Frontend Developer",
-            "priority": "high",
-            "dependencies": [],
-            "can_parallel": true,
-            "success_criteria": "Готовый HTML код",
-            "recommended_models": ["qwen2.5-coder:32b"]
-        },
-        {
-            "id": "subtask_2",
-            "description": "Наполнить SEO контентом",
-            "department": "Marketing",
-            "role": "SEO Specialist",
-            "priority": "high",
-            "dependencies": ["subtask_1"],
-            "can_parallel": false,
-            "success_criteria": "SEO оптимизированный контент"
-        }
-    ],
-    "execution_order": ["subtask_1", "subtask_2"],
-    "parallel_groups": []
+  "goal": "создай одностраничный сайт...",
+  "subtasks": [
+    {
+      "id": "subtask_1",
+      "description": "Создать HTML структуру",
+      "department": "Frontend",
+      "role": "Frontend Developer",
+      "priority": "high",
+      "dependencies": [],
+      "can_parallel": true,
+      "success_criteria": "Готовый HTML код",
+      "recommended_models": ["qwen2.5-coder:32b"]
+    },
+    {
+      "id": "subtask_2",
+      "description": "Наполнить SEO контентом",
+      "department": "Marketing",
+      "role": "SEO Specialist",
+      "priority": "high",
+      "dependencies": ["subtask_1"],
+      "can_parallel": false,
+      "success_criteria": "SEO оптимизированный контент"
+    }
+  ],
+  "execution_order": ["subtask_1", "subtask_2"],
+  "parallel_groups": []
 }
 ```
 
 **✅ Преимущества:**
+
 - Детальное планирование
 - Учет зависимостей
 - Параллельное выполнение
@@ -183,14 +189,15 @@ async def _create_detailed_plan(self, goal: str) -> Dict:
 **Код:** `victoria_enhanced.py` → `_think_and_create_prompt_for_veronica()`
 
 **Процесс:**
+
 ```python
 async def _think_and_create_prompt_for_veronica(self, goal: str) -> str:
     # 1. Создаем детальный план
     plan = await self._create_detailed_plan(goal)
-    
+
     # 2. Получаем структуру организации
     structure_summary = await self._get_organizational_structure_summary()
-    
+
     # 3. Формируем промпт
     veronica_prompt = f"""
     ЗАДАЧА ОТ VICTORIA: {goal}
@@ -201,6 +208,7 @@ async def _think_and_create_prompt_for_veronica(self, goal: str) -> str:
 ```
 
 **✅ Улучшения:**
+
 - Использует детальный план
 - Включает структуру организации
 - Структурированный формат
@@ -212,27 +220,29 @@ async def _think_and_create_prompt_for_veronica(self, goal: str) -> str:
 **Код:** `task_distribution_system.py` → `distribute_tasks_from_veronica_prompt()`
 
 **Процесс:**
+
 ```python
 async def distribute_tasks_from_veronica_prompt(...):
     # 1. Парсим подзадачи
     subtasks = self._parse_subtasks_from_prompt(veronica_prompt)
-    
+
     # 2. Для каждой подзадачи
     for subtask_info in subtasks:
         # Определяем отдел
         department = subtask_info.get('department')
-        
+
         # Находим управляющего
         manager = dept_structure.get('manager')
-        
+
         # Выбираем сотрудника
         employee = self._select_employee_for_task(...)
-        
+
         # Создаем TaskAssignment
         assignment = TaskAssignment(...)
 ```
 
 **✅ Сильные стороны:**
+
 - Парсинг подзадач
 - Выбор сотрудника с учетом загрузки
 - Создание TaskAssignment
@@ -244,26 +254,29 @@ async def distribute_tasks_from_veronica_prompt(...):
 **Код:** `task_distribution_system.py` → `execute_task_assignment()`
 
 **Процесс:**
+
 ```python
 async def execute_task_assignment(self, assignment: TaskAssignment):
     # 1. Создаем промпт для сотрудника
     employee_prompt = self._build_employee_prompt(assignment, ...)
-    
+
     # 2. Выполняем через ReActAgent
     expert_agent = ReActAgent(...)
     result = await expert_agent.run(goal=assignment.subtask)
-    
+
     # 3. Обновляем статус
     assignment.status = TaskStatus.COMPLETED
     assignment.result = result
 ```
 
 **✅ Сильные стороны:**
+
 - Использование ReActAgent
 - Retry механизм
 - Обновление статуса
 
 **⚠️ Улучшения:**
+
 - Добавить контекст от других подзадач
 - Улучшить критерии успеха в промпте
 
@@ -274,11 +287,12 @@ async def execute_task_assignment(self, assignment: TaskAssignment):
 **Код:** `task_distribution_system.py` → `manager_review_task()`
 
 **Процесс:**
+
 ```python
 async def manager_review_task(self, assignment, original_requirements):
     # 1. Валидация через TaskValidator
     validation_passed, score, feedback = await self.validator.validate_task_result(...)
-    
+
     # 2. Принятие решения
     if validation_passed and score >= 0.5:
         assignment.status = TaskStatus.REVIEWED
@@ -288,6 +302,7 @@ async def manager_review_task(self, assignment, original_requirements):
 ```
 
 **✅ Сильные стороны:**
+
 - Валидация через TaskValidator
 - Эскалация при ошибках
 - Обновление статуса
@@ -299,32 +314,34 @@ async def manager_review_task(self, assignment, original_requirements):
 **Код:** `task_distribution_system.py` → `department_head_collect_tasks()` (УЛУЧШЕНО)
 
 **Процесс:**
+
 ```python
 async def department_head_collect_tasks(self, assignments, department):
     # 1. Фильтруем утвержденные задачи
     dept_assignments = [a for a in assignments if a.status == TaskStatus.REVIEWED]
-    
+
     # 2. Получаем Department Head
     dept_head = await self._get_department_head(department)
-    
+
     # 3. Синтезируем результаты отдела
     synthesis_prompt = f"""
     ТЫ: {dept_head['name']}, Department Head отдела {department}
     СИНТЕЗИРУЙ РЕЗУЛЬТАТЫ ОТ СОТРУДНИКОВ...
     """
-    
+
     # 4. Выполняем синтез через ReActAgent
     dept_head_agent = ReActAgent(...)
     synthesis = await dept_head_agent.run(goal=synthesis_prompt)
-    
+
     # 5. Парсим результат
     dept_synthesis = self._parse_synthesis_result(synthesis)
-    
+
     # 6. Создаем TaskCollection
     collection = TaskCollection(aggregated_result=dept_synthesis["unified_result"])
 ```
 
 **✅ Улучшения:**
+
 - Синтез через Department Head
 - Парсинг JSON результата
 - Fallback на простую агрегацию
@@ -336,6 +353,7 @@ async def department_head_collect_tasks(self, assignments, department):
 **Код:** `task_distribution_system.py` → `veronica_collect_all_departments()` (УЛУЧШЕНО)
 
 **Процесс:**
+
 ```python
 async def veronica_collect_all_departments(self, collections, original_goal):
     # 1. Объединяем коллекции
@@ -345,7 +363,7 @@ async def veronica_collect_all_departments(self, collections, original_goal):
         all_assignments.extend(collection.assignments)
         dept = collection.assignments[0].department
         department_results[dept] = {"result": collection.aggregated_result}
-    
+
     # 2. Создаем промпт для синтеза
     synthesis_prompt = f"""
     ТЫ: Veronica, координатор корпорации
@@ -353,18 +371,19 @@ async def veronica_collect_all_departments(self, collections, original_goal):
     РЕЗУЛЬТАТЫ ОТ ВСЕХ ОТДЕЛОВ: {json.dumps(department_results)}
     СОЗДАЙ ЕДИНЫЙ АГРЕГИРОВАННЫЙ РЕЗУЛЬТАТ...
     """
-    
+
     # 3. Выполняем синтез через Veronica Agent или ReActAgent
     synthesis = await self._execute_veronica_synthesis(synthesis_prompt)
-    
+
     # 4. Парсим результат
     veronica_synthesis = self._parse_veronica_synthesis(synthesis)
-    
+
     # 5. Создаем финальную коллекцию
     final_collection = TaskCollection(aggregated_result=veronica_synthesis["unified_result"])
 ```
 
 **✅ Улучшения:**
+
 - Синтез через Veronica Agent (с fallback на ReActAgent)
 - Парсинг JSON результата
 - Подготовка для Victoria
@@ -376,33 +395,35 @@ async def veronica_collect_all_departments(self, collections, original_goal):
 **Код:** `victoria_enhanced.py` → `_synthesize_collected_results()` (УЛУЧШЕНО)
 
 **Процесс:**
+
 ```python
 async def _synthesize_collected_results(self, collection, original_goal):
     # 1. Анализируем типы результатов
     has_html = any("html" in (a.result or "").lower() for a in collection.assignments)
     has_code = any(ext in (a.result or "") for a in collection.assignments for ext in [".py", ".js"])
-    
+
     # 2. Создаем промпт для синтеза
     synthesis_prompt = f"""
     ТЫ: Victoria, главный стратег корпорации
     ИСХОДНАЯ ЗАДАЧА: {original_goal}
     СОБРАННЫЕ РЕЗУЛЬТАТЫ: {collection.aggregated_result}
-    
+
     СОЗДАЙ ФИНАЛЬНОЕ РЕШЕНИЕ:
     1. ПРОАНАЛИЗИРУЙ (полнота, качество, соответствие)
     2. СИНТЕЗИРУЙ (объедини, устрани противоречия)
     3. ПРОВЕРЬ (готовность к использованию)
     4. СОЗДАЙ ФИНАЛЬНЫЙ ОТВЕТ (готовый код/HTML/файл)
     """
-    
+
     # 3. Выполняем синтез через Extended Thinking
     synthesis = await self.extended_thinking.think(synthesis_prompt)
-    
+
     # 4. Возвращаем финальный результат
     return synthesis
 ```
 
 **✅ Улучшения:**
+
 - Анализ типов результатов
 - Детальный промпт для синтеза
 - Акцент на готовый результат (не план)
@@ -418,6 +439,7 @@ Victoria → Veronica → Сотрудники → Результат (прос�
 ```
 
 **Проблемы:**
+
 - Нет детального планирования
 - Нет синтеза на уровнях Department Head и Veronica
 - Простая агрегация вместо синтеза
@@ -426,7 +448,7 @@ Victoria → Veronica → Сотрудники → Результат (прос�
 ### После улучшений:
 
 ```
-Victoria (планирование) 
+Victoria (планирование)
   → Victoria (промпт для Veronica)
   → Veronica (распределение)
   → Сотрудники (выполнение)
@@ -438,6 +460,7 @@ Victoria (планирование)
 ```
 
 **Преимущества:**
+
 - ✅ Детальное планирование с зависимостями
 - ✅ Синтез на каждом уровне
 - ✅ Валидация на каждом этапе
@@ -450,11 +473,13 @@ Victoria (планирование)
 ### 1. Anthropic: Hierarchical Orchestration ✅
 
 **Принципы:**
+
 - Изолированные контексты для каждого агента
 - Явные handoffs между уровнями
 - Четкие роли и ответственность
 
 **Применение:**
+
 - ✅ Victoria → Veronica (явный промпт)
 - ✅ Veronica → Department Head (синтез)
 - ✅ Department Head → Сотрудник (специфичный промпт)
@@ -466,11 +491,13 @@ Victoria (планирование)
 ### 2. OpenAI: LLM-Driven Orchestration ✅
 
 **Принципы:**
+
 - LLM планирует и решает flow
 - Специализированные агенты
 - Структурированные outputs
 
 **Применение:**
+
 - ✅ Victoria планирует (Extended Thinking)
 - ✅ Структурированный JSON для всех уровней
 - ✅ Специализированные промпты для каждого уровня
@@ -478,11 +505,13 @@ Victoria (планирование)
 ### 3. AgentOrchestra Framework ✅
 
 **Принципы:**
+
 - Центральное планирование
 - Явная формулировка подцелей
 - Адаптивное распределение ролей
 
 **Применение:**
+
 - ✅ Victoria - центральный планировщик
 - ✅ Явные подцели в плане
 - ✅ Адаптивное распределение через Load Balancer
@@ -496,6 +525,7 @@ Victoria (планирование)
 **Файл:** `knowledge_os/app/victoria_enhanced.py`
 
 **Функциональность:**
+
 - Создает детальный план с подзадачами
 - Учитывает зависимости
 - Определяет параллельные группы
@@ -506,6 +536,7 @@ Victoria (планирование)
 **Файл:** `knowledge_os/app/task_distribution_system.py`
 
 **Улучшения:**
+
 - Добавлен синтез через Department Head
 - Парсинг JSON результата
 - Fallback на простую агрегацию
@@ -515,6 +546,7 @@ Victoria (планирование)
 **Файл:** `knowledge_os/app/task_distribution_system.py`
 
 **Улучшения:**
+
 - Добавлен синтез через Veronica Agent
 - Парсинг JSON результата
 - Подготовка для Victoria
@@ -524,6 +556,7 @@ Victoria (планирование)
 **Файл:** `knowledge_os/app/victoria_enhanced.py`
 
 **Улучшения:**
+
 - Анализ типов результатов
 - Детальный промпт для синтеза
 - Акцент на готовый результат

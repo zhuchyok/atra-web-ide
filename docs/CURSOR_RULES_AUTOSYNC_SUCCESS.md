@@ -9,9 +9,11 @@
 ## 📊 Что реализовано
 
 ### 1. Основной скрипт синхронизации
+
 **Файл:** `scripts/sync_cursor_rules.py`
 
 **Характеристики:**
+
 - ✅ Работает БЕЗ внешних зависимостей (только stdlib)
 - ✅ Обрабатывает 85 файлов за ~1 секунду
 - ✅ Умные шаблоны для 15+ ролей
@@ -19,20 +21,24 @@
 - ✅ Детальная статистика выполнения
 
 **Использование:**
+
 ```bash
 python3 scripts/sync_cursor_rules.py
 ```
 
 ### 2. Git Hook (автоматический триггер)
+
 **Файл:** `.git/hooks/pre-commit`
 
 **Функционал:**
+
 - ✅ Срабатывает при коммите `employees.json`
 - ✅ Автоматически запускает синхронизацию
 - ✅ Добавляет изменения в тот же коммит
 - ✅ Исполняемый и протестирован
 
 **Работает автоматически:**
+
 ```bash
 git add configs/experts/employees.json
 git commit -m "Найм: Новый Backend Developer"
@@ -40,6 +46,7 @@ git commit -m "Найм: Новый Backend Developer"
 ```
 
 ### 3. Git tracking
+
 **Настроено в:** `.gitignore`
 
 ```gitignore
@@ -48,27 +55,33 @@ git commit -m "Найм: Новый Backend Developer"
 ```
 
 **Результат:**
+
 - ✅ Файлы `.cursor/rules/*.md` теперь коммитятся
 - ✅ Готовы для копирования в другие проекты
 - ✅ 86 файлов (85 экспертов + README) добавлены в git
 
 ### 4. Документация
+
 - ✅ `docs/CURSOR_RULES_AUTOSYNC.md` — полная документация
 - ✅ `docs/CURSOR_RULES_AUTOSYNC_SUCCESS.md` — результаты внедрения
 - ✅ `docs/CURSOR_RULES_QUICK_START.md` — быстрый старт
 - ✅ `.cursor/rules/README.md` — описание прямо в папке
 
 ### 5. Тестирование
+
 **Файл:** `scripts/test_git_hook.sh`
 
 **Результаты:**
+
 - ✅ Скрипт синхронизации работает
 - ✅ Git Hook срабатывает корректно
 - ✅ Файлы обновляются автоматически
 - ✅ Git tracking настроен правильно
 
 ### 6. Опциональные компоненты
+
 **Database Trigger:** `knowledge_os/db/migrations/create_experts_changelog.sql`
+
 - Real-time синхронизация при изменениях в БД
 - Worker: `knowledge_os/app/cursor_rules_autosync.py`
 - Статус: готов, но не обязателен
@@ -93,31 +106,32 @@ git commit -m "Найм: Новый Backend Developer"
 
 Реализовано **15 специализированных шаблонов** + универсальный:
 
-| Роль | Emoji | Технологии |
-|------|-------|-----------|
-| Team Lead | 👑 | Leadership, Task Decomposition |
-| Backend Developer | 💻 | Python, FastAPI, PostgreSQL |
-| Frontend Developer | 🎨 | React, TypeScript, TailwindCSS |
-| Full-stack Developer | 🔧 | Next.js, tRPC, Prisma |
-| DevOps Engineer | 🔧 | Kubernetes, Terraform, CI/CD |
-| ML Engineer | 🤖 | PyTorch, MLflow, Model Serving |
-| QA Engineer | 🧪 | pytest, Playwright, Automation |
-| Data Analyst | 📊 | SQL, Pandas, Analytics |
-| Product Manager | 📦 | Roadmap, Requirements, Metrics |
-| UI/UX Designer | 🎨 | Figma, Prototyping, Research |
-| Principal AI Architect | 🤖 | Multi-agent, LLMs, Coordination |
-| CEO | 🎯 | Strategy, Leadership, Vision |
-| Trading Strategist | 📈 | Backtesting, Algorithms, Risk |
-| M&A Analyst | 💼 | Valuation, Due Diligence |
-| Chief Knowledge Officer | 🧠 | Knowledge Graphs, RAG, Embeddings |
-| Local Developer (Agent) | 💻 | Docker, Testing, Integration |
-| **DEFAULT** | 👤 | Универсальный шаблон |
+| Роль                    | Emoji | Технологии                        |
+| ----------------------- | ----- | --------------------------------- |
+| Team Lead               | 👑    | Leadership, Task Decomposition    |
+| Backend Developer       | 💻    | Python, FastAPI, PostgreSQL       |
+| Frontend Developer      | 🎨    | React, TypeScript, TailwindCSS    |
+| Full-stack Developer    | 🔧    | Next.js, tRPC, Prisma             |
+| DevOps Engineer         | 🔧    | Kubernetes, Terraform, CI/CD      |
+| ML Engineer             | 🤖    | PyTorch, MLflow, Model Serving    |
+| QA Engineer             | 🧪    | pytest, Playwright, Automation    |
+| Data Analyst            | 📊    | SQL, Pandas, Analytics            |
+| Product Manager         | 📦    | Roadmap, Requirements, Metrics    |
+| UI/UX Designer          | 🎨    | Figma, Prototyping, Research      |
+| Principal AI Architect  | 🤖    | Multi-agent, LLMs, Coordination   |
+| CEO                     | 🎯    | Strategy, Leadership, Vision      |
+| Trading Strategist      | 📈    | Backtesting, Algorithms, Risk     |
+| M&A Analyst             | 💼    | Valuation, Due Diligence          |
+| Chief Knowledge Officer | 🧠    | Knowledge Graphs, RAG, Embeddings |
+| Local Developer (Agent) | 💻    | Docker, Testing, Integration      |
+| **DEFAULT**             | 👤    | Универсальный шаблон              |
 
 ---
 
 ## 🎯 Use Cases
 
 ### 1. Найм нового сотрудника
+
 ```json
 // configs/experts/employees.json
 {
@@ -130,12 +144,14 @@ git commit -m "Найм: Новый Backend Developer"
   ]
 }
 ```
+
 ```bash
 git commit -m "Найм: Новый Backend Developer"
 # ✅ Автоматически создастся 86_novyy_razrabotchik.md
 ```
 
 ### 2. Изменение роли сотрудника
+
 ```bash
 # Изменить роль в employees.json: Developer → Senior Developer
 git commit -m "Повышение: Developer → Senior"
@@ -143,6 +159,7 @@ git commit -m "Повышение: Developer → Senior"
 ```
 
 ### 3. Увольнение сотрудника
+
 ```bash
 # Удалить из employees.json
 git commit -m "Увольнение: Имя сотрудника"
@@ -150,6 +167,7 @@ git commit -m "Увольнение: Имя сотрудника"
 ```
 
 ### 4. Копирование в другой проект
+
 ```bash
 # Все 85 экспертов одной командой!
 cp -r .cursor/rules/ ~/другой-проект/.cursor/
@@ -163,12 +181,14 @@ git submodule add <repo> другой-проект/.cursor/rules
 ## 🔄 Триггеры синхронизации
 
 ### Автоматически при:
+
 - ➕ **Найм** — добавление в `employees.json` → создание файла
 - 🔄 **Изменение данных** — обновление роли/имени → обновление файла
 - ➖ **Увольнение** — удаление из `employees.json` → удаление файла
 - 🔀 **Объединение** — изменение department/role → обновление файла
 
 ### Вручную:
+
 ```bash
 python3 scripts/sync_cursor_rules.py
 ```
@@ -178,11 +198,13 @@ python3 scripts/sync_cursor_rules.py
 ## 🧪 Тестирование
 
 ### Полный тест системы
+
 ```bash
 bash scripts/test_git_hook.sh
 ```
 
 **Результат теста:**
+
 ```
 ✅ Hook найден и исполняемый
 ✅ Синхронизация завершена
@@ -191,6 +213,7 @@ bash scripts/test_git_hook.sh
 ```
 
 ### Быстрая проверка
+
 ```bash
 python3 scripts/sync_cursor_rules.py
 # Вывод: статистика синхронизации
@@ -242,6 +265,7 @@ atra-web-ide/
 ## 🎁 Дополнительные возможности (опционально)
 
 ### Real-time синхронизация через БД
+
 ```bash
 # Применить миграцию
 psql $DATABASE_URL -f knowledge_os/db/migrations/create_experts_changelog.sql
@@ -251,17 +275,20 @@ python3 knowledge_os/app/cursor_rules_autosync.py &
 ```
 
 **Функционал:**
+
 - Отслеживает изменения в таблице `experts`
 - Автоматически запускает синхронизацию
 - Логирует все изменения
 - Опционально: auto-commit в git
 
 ### LaunchAgent для macOS
+
 ```bash
 scripts/setup_employees_sync_daemon.sh
 ```
 
 **Функционал:**
+
 - Автозапуск при старте системы
 - Периодическая проверка изменений
 - Фоновая синхронизация
@@ -289,17 +316,20 @@ scripts/setup_employees_sync_daemon.sh
 **Полностью автоматическая система синхронизации работает!**
 
 ### Что происходит при изменении команды:
+
 1. Меняете `configs/experts/employees.json`
 2. Делаете `git commit`
 3. **Автоматически** обновляются `.cursor/rules/*.md`
 4. Файлы готовы для копирования в другие проекты
 
 ### Скорость и производительность:
+
 - ⚡ 85 файлов за ~1 секунду
 - 📊 4,245 строк кода
 - 💾 348 KB
 
 ### Надежность:
+
 - ✅ Проверено на реальных данных
 - ✅ Git Hook протестирован
 - ✅ Синхронизация работает корректно
@@ -310,7 +340,9 @@ scripts/setup_employees_sync_daemon.sh
 ## 📚 Дополнительная информация
 
 ### Формат файлов экспертов
+
 Каждый файл содержит:
+
 - YAML frontmatter (description, priority)
 - Emoji индикатор роли
 - 🎯 Основные обязанности
@@ -322,7 +354,9 @@ scripts/setup_employees_sync_daemon.sh
 - Timestamp автогенерации
 
 ### Мировые практики
+
 Система спроектирована с учетом best practices:
+
 - **Идемпотентность** — можно запускать сколько угодно раз
 - **Circuit breaker** — обработка ошибок
 - **Incremental updates** — только реальные изменения
@@ -348,5 +382,5 @@ scripts/setup_employees_sync_daemon.sh
 
 ---
 
-*Последнее обновление: 2026-02-01 16:06*  
-*Статус: READY FOR PRODUCTION ✅*
+_Последнее обновление: 2026-02-01 16:06_  
+_Статус: READY FOR PRODUCTION ✅_

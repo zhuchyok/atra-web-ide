@@ -17,17 +17,18 @@
 
 ## Точки зависания и таймауты
 
-| Этап | Где код | Таймаут | Что может держать |
-|------|---------|---------|--------------------|
-| **Understand** | `_understand_goal_with_clarification` → `agent.understand_goal` → planner.ask | **180 с** (OllamaExecutor) | Медленный Ollama/модель; долгий ответ LLM. |
-| **Уточняющие вопросы** | `_generate_clarification_questions` → planner.ask | **180 с** | То же. |
-| **Делегирование Veronica** | `delegate_to_veronica` → aiohttp POST :8011 | **60 с** (`DELEGATE_VERONICA_TIMEOUT`) | Veronica не отвечает, сеть, перегрузка :8011. |
-| **Victoria Enhanced** | `enhanced.solve()` | **Нет общего таймаута** | Department Heads (БД + несколько LLM), делегирование (до 300 с в multi_agent_collaboration), затем react/simple — много шагов. |
-| **agent.run()** | `VictoriaAgent.run` → цикл step() | **Нет общего таймаута** | До **max_steps** (по умолчанию 500, env VICTORIA_MAX_STEPS) шагов; каждый шаг — один вызов LLM. |
-| **Один шаг агента** | `step()` → local_router.run_local_llm или executor.ask | **120 с** (LocalAIRouter) / **180 с** (OllamaExecutor) | Медленная модель, долгая генерация. |
-| **План** | `agent.plan(restated)` → planner.ask | **180 с** | То же. |
+| Этап                       | Где код                                                                       | Таймаут                                                | Что может держать                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Understand**             | `_understand_goal_with_clarification` → `agent.understand_goal` → planner.ask | **180 с** (OllamaExecutor)                             | Медленный Ollama/модель; долгий ответ LLM.                                                                                     |
+| **Уточняющие вопросы**     | `_generate_clarification_questions` → planner.ask                             | **180 с**                                              | То же.                                                                                                                         |
+| **Делегирование Veronica** | `delegate_to_veronica` → aiohttp POST :8011                                   | **60 с** (`DELEGATE_VERONICA_TIMEOUT`)                 | Veronica не отвечает, сеть, перегрузка :8011.                                                                                  |
+| **Victoria Enhanced**      | `enhanced.solve()`                                                            | **Нет общего таймаута**                                | Department Heads (БД + несколько LLM), делегирование (до 300 с в multi_agent_collaboration), затем react/simple — много шагов. |
+| **agent.run()**            | `VictoriaAgent.run` → цикл step()                                             | **Нет общего таймаута**                                | До **max_steps** (по умолчанию 500, env VICTORIA_MAX_STEPS) шагов; каждый шаг — один вызов LLM.                                |
+| **Один шаг агента**        | `step()` → local_router.run_local_llm или executor.ask                        | **120 с** (LocalAIRouter) / **180 с** (OllamaExecutor) | Медленная модель, долгая генерация.                                                                                            |
+| **План**                   | `agent.plan(restated)` → planner.ask                                          | **180 с**                                              | То же.                                                                                                                         |
 
 Итог: задача может «висеть» долго, если:
+
 - долго отвечает **Ollama** (understand, plan, каждый step);
 - **Veronica** не отвечает в течение 60 с (потом fallback на Victoria);
 - **Victoria Enhanced** уходит в Department Heads или в многошаговый react без ограничения по времени;
@@ -78,6 +79,7 @@
 3. **Мониторинг** — по логам `[TRACE]` и полю `stage` в статусе строить дашборд «на каком этапе сколько задач проводят время».
 
 Файлы с трассировкой:
+
 - `src/agents/bridge/victoria_server.py` — `_run_task_background`, `run_task`, обновление `store["stage"]`, логи `[TRACE]`.
 - `src/agents/core/base_agent.py` — в цикле `run()` логи `[TRACE] run: step N` (опционально).
 - `src/agents/bridge/victoria_server.py` — `get_run_status` возвращает `stage`.

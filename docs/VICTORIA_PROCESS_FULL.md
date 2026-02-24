@@ -8,13 +8,14 @@
 
 В чате корпорации и команде добавили **victoria-agent** на порту **8010**. **Victoria Agent / Enhanced / Initiative** — это **один сервис** (один процесс, один контейнер), просто с разным уровнем возможностей. Для полноценной работы Виктории **все три уровня должны быть запущены**.
 
-| Уровень | Что даёт | Как включается |
-|--------|----------|-----------------|
-| **Victoria Agent** | Базовый: чат с LLM, ответы на запросы, планирование, инструменты (read_file, web_search и т.д.). | Всегда активен в этом процессе. |
-| **Victoria Enhanced** | ReAct, Extended Thinking, Swarm, Consensus, Department Heads, делегирование Veronica, выбор модели из Ollama/MLX. | `USE_VICTORIA_ENHANCED=true` (в docker-compose уже true). |
+| Уровень                 | Что даёт                                                                                                                   | Как включается                                              |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **Victoria Agent**      | Базовый: чат с LLM, ответы на запросы, планирование, инструменты (read_file, web_search и т.д.).                           | Всегда активен в этом процессе.                             |
+| **Victoria Enhanced**   | ReAct, Extended Thinking, Swarm, Consensus, Department Heads, делегирование Veronica, выбор модели из Ollama/MLX.          | `USE_VICTORIA_ENHANCED=true` (в docker-compose уже true).   |
 | **Victoria Initiative** | Проактивность: Event Bus, File Watcher, Service Monitor, Deadline Tracker, Skill Registry, автоперезапуск MLX при падении. | `ENABLE_EVENT_MONITORING=true` (в docker-compose уже true). |
 
 **Где это сделано:**
+
 - **Сервер:** `src/agents/bridge/victoria_server.py` — в `lifespan` при старте: если оба флага true, создаётся `VictoriaEnhanced()` и вызывается `await victoria_enhanced_instance.start()`, что поднимает Event Bus, File Watcher, Service Monitor и т.д. (Initiative).
 - **Контейнер:** `knowledge_os/docker-compose.yml` — сервис `victoria-agent`, порт `8010:8000`, переменные `USE_VICTORIA_ENHANCED: "true"`, `ENABLE_EVENT_MONITORING: true`.
 - **Проверка:** `GET http://localhost:8010/status` — в ответе есть `victoria_levels`: `agent`, `enhanced`, `initiative` (все true при корректном запуске).
@@ -26,10 +27,12 @@
 **Где:** Чат (терминал `victoria_chat.py` или Web IDE / API).
 
 **Что происходит:**
+
 - Твой текст уходит как `goal` в запросе.
 - Вместе с ним могут передаваться: `project_context` (atra-web-ide / atra), `session_id`, `chat_history` (последние 30 пар сообщений).
 
 **Куда идёт запрос:**
+
 - **URL:** `http://localhost:8010/run` (или удалённый Victoria).
 - **Метод:** `POST /run`.
 - **Режим:** по умолчанию с `async_mode=1` — сервер сразу отвечает 202 и выполняет задачу в фоне; чат опрашивает статус и по завершении показывает результат.
@@ -51,7 +54,7 @@
    - **restated** — одно ясное предложение: что сделать (понятно исполнителю и инструментам);
    - **category** — `simple` | `investigate` | `multi_step`;
    - **first_step** — рекомендация первого шага (например: «list_directory в frontend»).  
-   Так запрос «ошибки на странице X, найди и исправь» превращается в «Проверить структуру frontend и найти причину 404 на странице X» с подсказкой первого шага.
+     Так запрос «ошибки на странице X, найди и исправь» превращается в «Проверить структуру frontend и найти причину 404 на странице X» с подсказкой первого шага.
 
 2. **Plan (планирование)** — вызывается уже по **переформулированной** цели (`restated`), не по сырому тексту. План строится короткий (1–2 шага), без галлюцинаций.
 
@@ -127,6 +130,7 @@
 **Где:** тот же `victoria_server.py`.
 
 **Что происходит:**
+
 - Из результата Enhanced берётся `result`, `method`, `metadata`, `delegated_to`, `task_id` (если есть).
 - Формируется **TaskResponse:** `status="success"`, `output=<текст>`, `knowledge={<метаданные>}`.
 - В **синхронном** режиме этот ответ сразу уходит клиенту (чат/API).
@@ -139,6 +143,7 @@
 **Где:** `scripts/victoria_chat.py` (или фронт/другой клиент).
 
 **Что происходит:**
+
 - При **async:** после 202 чат периодически вызывает `GET /run/status/{task_id}`; при `status=completed` читает `output` и `knowledge`, выводит ответ Victoria, метод, «Выполнено через: …» (если было делегирование).
 - При **sync:** из тела ответа `POST /run` сразу берутся `output` и `knowledge` и выводятся так же.
 - Текст ответа при необходимости переносится по ширине терминала; сообщение и ответ сохраняются в `chat_history` для следующих запросов.
@@ -147,19 +152,19 @@
 
 ## Краткая схема «кто что где»
 
-| Этап | Кто/что | Где (файл/сервис) |
-|------|---------|-------------------|
-| Запрос | Ты → чат/API | victoria_chat.py или frontend |
-| Приём | Victoria HTTP API | victoria_server.py, POST /run |
-| Контекст и безопасность | Сервер | victoria_server.py (project_context, project_prompt) |
-| Категория и метод | Victoria Enhanced | victoria_enhanced.py (_categorize_task, _select_optimal_method) |
-| Department Heads (если нужно) | Victoria + БД экспертов | victoria_enhanced.py, department_heads_system |
-| Делегирование (если нужно) | TaskDelegator, MultiAgentCollaboration | task_delegation.py, multi_agent_collaboration.py |
-| Выполнение Veronica | Veronica Agent | HTTP :8011 /run |
-| ReAct (файлы, команды) | ReActAgent | react_agent.py, MLX/Ollama |
-| Simple (только текст) | Victoria Enhanced | victoria_enhanced.py, MLX API / Ollama |
-| Extended Thinking | ExtendedThinkingEngine | extended_thinking.py |
-| Ответ пользователю | Сервер → чат | TaskResponse → victoria_chat.py, вывод в терминал |
+| Этап                          | Кто/что                                | Где (файл/сервис)                                                 |
+| ----------------------------- | -------------------------------------- | ----------------------------------------------------------------- |
+| Запрос                        | Ты → чат/API                           | victoria_chat.py или frontend                                     |
+| Приём                         | Victoria HTTP API                      | victoria_server.py, POST /run                                     |
+| Контекст и безопасность       | Сервер                                 | victoria_server.py (project_context, project_prompt)              |
+| Категория и метод             | Victoria Enhanced                      | victoria_enhanced.py (\_categorize_task, \_select_optimal_method) |
+| Department Heads (если нужно) | Victoria + БД экспертов                | victoria_enhanced.py, department_heads_system                     |
+| Делегирование (если нужно)    | TaskDelegator, MultiAgentCollaboration | task_delegation.py, multi_agent_collaboration.py                  |
+| Выполнение Veronica           | Veronica Agent                         | HTTP :8011 /run                                                   |
+| ReAct (файлы, команды)        | ReActAgent                             | react_agent.py, MLX/Ollama                                        |
+| Simple (только текст)         | Victoria Enhanced                      | victoria_enhanced.py, MLX API / Ollama                            |
+| Extended Thinking             | ExtendedThinkingEngine                 | extended_thinking.py                                              |
+| Ответ пользователю            | Сервер → чат                           | TaskResponse → victoria_chat.py, вывод в терминал                 |
 
 ---
 
@@ -195,10 +200,10 @@
 
 **Куда уходит делегирование:**
 
-| Кому делегировано | URL | Кто обрабатывает |
-|-------------------|-----|-------------------|
-| Victoria | `VICTORIA_URL` (8010) `/run` | Victoria Agent (тот же сервер или отдельный инстанс) |
-| Veronica | `VERONICA_URL` (8011) `/run` | Veronica Agent |
+| Кому делегировано | URL                          | Кто обрабатывает                                     |
+| ----------------- | ---------------------------- | ---------------------------------------------------- |
+| Victoria          | `VICTORIA_URL` (8010) `/run` | Victoria Agent (тот же сервер или отдельный инстанс) |
+| Veronica          | `VERONICA_URL` (8011) `/run` | Veronica Agent                                       |
 
 **Итог:** делегирование решается по анализу задачи и профилям агентов; выполнение — через HTTP POST на `/run` выбранного агента. Ответ возвращается в Victoria и далее пользователю.
 
@@ -213,6 +218,7 @@
 **Где:** `src/agents/bridge/victoria_server.py` — `VictoriaAgent.orchestrate_task(goal)`, плюс при использовании Enhanced — вся логика в `victoria_enhanced.solve()`.
 
 **Что делает:**
+
 - Принимает **твою** задачу (через `POST /run` или `POST /orchestrate`).
 - Анализирует сложность и категорию (`_assess_complexity`, `_categorize_task`).
 - **Простая задача:** выбирает одного эксперта или выполняет сама (через `run()` или Enhanced `solve()`).
@@ -227,6 +233,7 @@
 **Где:** `knowledge_os/app/enhanced_orchestrator.py` — `run_enhanced_orchestration_cycle()`.
 
 **Что делает:**
+
 - Работает **отдельно** от твоего чата с Victoria. Запускается по расписанию или вручную (например, через `telegram_simple` или скрипты).
 - Читает **задачи из БД** (`tasks`): приоритизация, выбор задач без исполнителя (`assignee_expert_id IS NULL`).
 - **Фазы:** авто-фикс ошибок, миграции, приоритизация, назначение экспертам (`assign_task_to_best_expert`), обновление очередей.
@@ -235,12 +242,12 @@
 
 **Кратко:**
 
-| | Victoria как оркестратор | Enhanced Orchestrator |
-|---|--------------------------|------------------------|
-| **Триггер** | Твой запрос в чат/API (`/run`, `/orchestrate`) | Фоновый цикл по БД |
-| **Вход** | `goal` из запроса | Записи в `tasks` |
-| **Выход** | Ответ тебе в чат | Обновление `tasks`, отчёты |
-| **Роль** | Оркестрация **твоего** запроса, делегирование, выбор метода | Оркестрация **очереди задач** корпорации, назначение экспертам |
+|             | Victoria как оркестратор                                    | Enhanced Orchestrator                                          |
+| ----------- | ----------------------------------------------------------- | -------------------------------------------------------------- |
+| **Триггер** | Твой запрос в чат/API (`/run`, `/orchestrate`)              | Фоновый цикл по БД                                             |
+| **Вход**    | `goal` из запроса                                           | Записи в `tasks`                                               |
+| **Выход**   | Ответ тебе в чат                                            | Обновление `tasks`, отчёты                                     |
+| **Роль**    | Оркестрация **твоего** запроса, делегирование, выбор метода | Оркестрация **очереди задач** корпорации, назначение экспертам |
 
 ---
 
@@ -266,19 +273,25 @@
 Чтобы проверить всю цепочку на реальных сервисах (без моков):
 
 1. **Запустите Knowledge OS** (Victoria, БД, при необходимости Veronica):
+
    ```bash
    docker-compose -f knowledge_os/docker-compose.yml up -d
    ```
+
    На сервере Victoria должны быть: `USE_VICTORIA_ENHANCED=true`, `DATABASE_URL` (PostgreSQL с экспертами).
 
 2. **Запустите тест живой цепочки** (один sync-запрос «Помоги с анализом данных»):
+
    ```bash
    cd knowledge_os && make test-live-chain
    ```
+
    или:
+
    ```bash
    cd knowledge_os && python scripts/run_live_chain_test.py
    ```
+
    Ожидание: HTTP 200, `status=success`, непустой `output`, в `knowledge.method` при проходе через отделы — `department_heads` или `task_distribution`.
 
 3. **Интеграционные тесты pytest** (те же проверки + async-режим):

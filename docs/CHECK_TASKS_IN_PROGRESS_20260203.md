@@ -3,14 +3,16 @@
 ## Результаты проверки
 
 ### 1. Контейнеры
-| Сервис | Статус |
-|--------|--------|
-| knowledge_os_worker | Up ~1 hour |
-| knowledge_postgres | Up, healthy |
-| victoria-agent, veronica-agent | Up |
-| corporation-dashboard | Up |
+
+| Сервис                         | Статус      |
+| ------------------------------ | ----------- |
+| knowledge_os_worker            | Up ~1 hour  |
+| knowledge_postgres             | Up, healthy |
+| victoria-agent, veronica-agent | Up          |
+| corporation-dashboard          | Up          |
 
 ### 2. База данных (прямой запрос)
+
 ```
  completed   |  6150
  in_progress |     5   ← сейчас в БД 5 задач «в работе»
@@ -18,12 +20,14 @@
 ```
 
 ### 3. Воркер
+
 - **Работает**: в логах видны завершённые задачи (`Task ... COMPLETED`), запросы к Ollama (HTTP 200).
 - **Ollama**: доступен (`host.docker.internal:11434` → 200).
 - **MLX**: сервер отвечает (200 на /), но `mlx модели (0)` в логах — воркер использует только Ollama.
 - **BACKPRESSURE**: в последних 500 строках логов не появлялся — воркер не блокируется перегрузкой.
 
 ### 4. Дашборд
+
 - Запрос к задачам: `FROM tasks` без фильтра по проекту — те же данные, что и воркер.
 - Кэш: `fetch_data_tasks` с TTL **15 сек**. Кнопка «Обновить» сбрасывает кэш и подставляет `_cache_bust` для нового запроса к БД.
 

@@ -8,11 +8,13 @@
 ## 🔄 Что изменилось
 
 ### Раньше:
+
 1. Victoria (если доступна)
 2. Ollama (основной)
 3. MLX (fallback при ошибке Ollama)
 
 ### Теперь:
+
 1. Victoria (если доступна)
 2. **MLX API Server (приоритет)** ✅
 3. Ollama (fallback при ошибке MLX)
@@ -47,7 +49,7 @@ async def generate(self, prompt, system, max_tokens, model):
 # ПРИОРИТЕТ: Сначала пробуем MLX API Server
 if mlx_available.get("status") == "healthy":
     result = await mlx.generate(...)
-    
+
 # Fallback на Ollama если MLX недоступен
 if result is None or "error" in result:
     result = await ollama.generate(...)
@@ -85,6 +87,7 @@ if result is None or "error" in result:
 ## 🔧 После изменений
 
 **Перезапустите backend:**
+
 ```bash
 # Остановить старый процесс
 lsof -ti:8080 | xargs kill
@@ -99,10 +102,11 @@ cd backend
 ## 🧪 Тестирование
 
 После перезапуска:
+
 1. Откройте чат в браузере
 2. Отправьте сообщение
 3. Проверьте логи backend - должно быть: `🍎 [MLX] Генерируем ответ через MLX API Server`
 
 ---
 
-*Изменения применены: 26.01.2026*
+_Изменения применены: 26.01.2026_

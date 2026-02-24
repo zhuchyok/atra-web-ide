@@ -8,11 +8,13 @@
 ## 🔍 Найденные проблемы
 
 ### 1. **Frontend не был запущен** ✅ ИСПРАВЛЕНО
+
 - **Статус:** Frontend не отвечал на порту 3002
 - **Исправление:** Запущен frontend через `npm run dev`
 - **PID:** 83339
 
 ### 2. **Victoria недоступна** ⚠️ НЕ КРИТИЧНО
+
 - **Статус:** Victoria не запущена на порту 8010
 - **Причина:** Docker не запущен или Victoria не запущена
 - **Влияние:** Чат будет работать через fallback на Ollama/MLX
@@ -23,6 +25,7 @@
 ## ✅ Исправления
 
 ### Frontend
+
 ```bash
 cd frontend
 npm run dev
@@ -30,6 +33,7 @@ npm run dev
 ```
 
 ### Backend
+
 - ✅ Backend работает на порту 8080
 - ✅ Health check: OK
 - ⚠️ Victoria: unhealthy (но это не критично)
@@ -56,6 +60,7 @@ npm run dev
 - **Backend:** `/tmp/atra_backend.log`
 
 Просмотр:
+
 ```bash
 tail -f /tmp/atra_frontend.log
 tail -f /tmp/atra_backend.log
@@ -68,6 +73,7 @@ tail -f /tmp/atra_backend.log
 Если нужна Victoria:
 
 1. **Запустить Docker:**
+
    ```bash
    open -a Docker
    ```
@@ -79,6 +85,7 @@ tail -f /tmp/atra_backend.log
    ```
 
 Или через docker-compose:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 ```
@@ -95,4 +102,4 @@ docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 
 ---
 
-*Исправлено: 26.01.2026*
+_Исправлено: 26.01.2026_

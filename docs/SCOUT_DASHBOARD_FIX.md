@@ -8,6 +8,7 @@
 ## 🐛 ПРОБЛЕМА
 
 В логах дашборда обнаружена ошибка:
+
 ```
 python3: can't open file '/app/knowledge_os/app/scout_researcher.py': [Errno 2] No such file or directory
 ```
@@ -19,14 +20,17 @@ python3: can't open file '/app/knowledge_os/app/scout_researcher.py': [Errno 2] 
 ## ✅ ИСПРАВЛЕНИЕ
 
 ### 1. Исправлен путь для разведки
+
 - **Было:** `/app/knowledge_os/app/scout_researcher.py`
 - **Стало:** `/app/scout_researcher.py` (через docker exec)
 
 ### 2. Исправлен путь для симулятора
+
 - **Было:** `/app/knowledge_os/app/simulator.py`
 - **Стало:** `/app/simulator.py` (через docker exec)
 
 ### 3. Добавлена обработка ошибок
+
 - Проверка результата выполнения
 - Fallback на создание задачи в БД
 - Информативные сообщения об ошибках

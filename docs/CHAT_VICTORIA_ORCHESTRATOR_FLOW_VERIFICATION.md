@@ -17,16 +17,16 @@
 
 ## Что проверено и работает
 
-| Этап | Где | Статус |
-|------|-----|--------|
-| Чат → Backend → Victoria `/run` | backend/app/routers/chat.py, backend/app/services/victoria.py | ✅ Backend вызывает `victoria.run(prompt, expert_name, project_context)`. |
-| Понимание цели + уточняющие вопросы | victoria_server.py `_understand_goal_with_clarification`, при `needs_clarification` возвращается JSONResponse 200 с `clarification_questions` | ✅ Реализовано в Victoria. |
-| Вызов оркестратора | victoria_server.py `run_task`: IntegrationBridge.process_task(restated_goal) → bridge_result | ✅ План и assignments сохраняются в `orchestration_plan`. |
-| Контекст плана для LLM | `_build_orchestration_context(orchestration_plan)` → строка, подмешивается в цель для Enhanced и agent.run() | ✅ `orchestration_context_str` передаётся в enhanced.solve() и в agent.run(goal_for_run). |
-| Предпочтение Veronica по назначению | `_orchestrator_recommends_veronica(orchestration_plan)` + task_type == "veronica" | ✅ При `prefer_veronica` вызывается `delegate_to_veronica()`, результат возвращается пользователю. |
-| Enhanced с планом оркестратора | goal_for_enhanced = orchestration_context_str + "\n\nЗАДАЧА: " + goal | ✅ Контекст и история передаются в enhanced.solve(). |
-| agent.run() с планом | goal_for_run = orchestration_context_str + "\n\nЗАДАЧА: " + goal_for_run | ✅ LLM получает план оркестратора и следует ему. |
-| Результат в чат | Victoria возвращает output → backend берёт result/response/output → стримит chunk'ами | ✅ Итоговый текст отображается в чате. |
+| Этап                                | Где                                                                                                                                           | Статус                                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Чат → Backend → Victoria `/run`     | backend/app/routers/chat.py, backend/app/services/victoria.py                                                                                 | ✅ Backend вызывает `victoria.run(prompt, expert_name, project_context)`.                          |
+| Понимание цели + уточняющие вопросы | victoria_server.py `_understand_goal_with_clarification`, при `needs_clarification` возвращается JSONResponse 200 с `clarification_questions` | ✅ Реализовано в Victoria.                                                                         |
+| Вызов оркестратора                  | victoria_server.py `run_task`: IntegrationBridge.process_task(restated_goal) → bridge_result                                                  | ✅ План и assignments сохраняются в `orchestration_plan`.                                          |
+| Контекст плана для LLM              | `_build_orchestration_context(orchestration_plan)` → строка, подмешивается в цель для Enhanced и agent.run()                                  | ✅ `orchestration_context_str` передаётся в enhanced.solve() и в agent.run(goal_for_run).          |
+| Предпочтение Veronica по назначению | `_orchestrator_recommends_veronica(orchestration_plan)` + task_type == "veronica"                                                             | ✅ При `prefer_veronica` вызывается `delegate_to_veronica()`, результат возвращается пользователю. |
+| Enhanced с планом оркестратора      | goal_for_enhanced = orchestration_context_str + "\n\nЗАДАЧА: " + goal                                                                         | ✅ Контекст и история передаются в enhanced.solve().                                               |
+| agent.run() с планом                | goal_for_run = orchestration_context_str + "\n\nЗАДАЧА: " + goal_for_run                                                                      | ✅ LLM получает план оркестратора и следует ему.                                                   |
+| Результат в чат                     | Victoria возвращает output → backend берёт result/response/output → стримит chunk'ами                                                         | ✅ Итоговый текст отображается в чате.                                                             |
 
 ---
 

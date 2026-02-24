@@ -4,28 +4,28 @@
 
 ## 1. Состояние сервисов
 
-| Проверка | Результат |
-|----------|-----------|
+| Проверка             | Результат                   |
+| -------------------- | --------------------------- |
 | `GET /health` (8010) | **200** — Victoria доступна |
 
 ## 2. Код и маршрутизация
 
-| Компонент | Статус |
-|-----------|--------|
-| **ReAct `_build_result()`** | Ответ при `action=finish` берётся из `observation` и дублируется в `final_reflection`/`response` |
-| **Victoria Enhanced** | Категории: `informational` → simple, `status_query` → simple, `reasoning` → extended_thinking, `general`/`fast`/`coding` → react |
-| **Детекция мусора** | `_is_gibberish_output()` — fallback на simple при CJK/коде/артефактах |
-| **Извлечение результата ReAct** | Учитываются `final_reflection`, `response`, `observation` последнего шага |
+| Компонент                       | Статус                                                                                                                           |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **ReAct `_build_result()`**     | Ответ при `action=finish` берётся из `observation` и дублируется в `final_reflection`/`response`                                 |
+| **Victoria Enhanced**           | Категории: `informational` → simple, `status_query` → simple, `reasoning` → extended_thinking, `general`/`fast`/`coding` → react |
+| **Детекция мусора**             | `_is_gibberish_output()` — fallback на simple при CJK/коде/артефактах                                                            |
+| **Извлечение результата ReAct** | Учитываются `final_reflection`, `response`, `observation` последнего шага                                                        |
 
 ## 3. Ручные тесты
 
-| Запрос | Режим | Результат |
-|--------|-------|-----------|
-| «привет» | async | **OK** — ответ за ~300 ms |
-| «привет» | sync | **OK** — ответ получен |
-| «что ты умеешь» | async | Зависит от нагрузки: иногда быстрый ответ, при занятости MLX — долго (poll) |
-| «какой статус проекта?» / сложный статус | async | **OK** — связный ответ за ~24 с (status_query → simple) |
-| «Покажи список файлов в frontend» | async | **OK** — список через ReAct/list_directory |
+| Запрос                                   | Режим | Результат                                                                   |
+| ---------------------------------------- | ----- | --------------------------------------------------------------------------- |
+| «привет»                                 | async | **OK** — ответ за ~300 ms                                                   |
+| «привет»                                 | sync  | **OK** — ответ получен                                                      |
+| «что ты умеешь»                          | async | Зависит от нагрузки: иногда быстрый ответ, при занятости MLX — долго (poll) |
+| «какой статус проекта?» / сложный статус | async | **OK** — связный ответ за ~24 с (status_query → simple)                     |
+| «Покажи список файлов в frontend»        | async | **OK** — список через ReAct/list_directory                                  |
 
 ## 4. Полный цикл теста (test_victoria_chat_full_cycle.py)
 

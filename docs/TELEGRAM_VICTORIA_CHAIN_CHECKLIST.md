@@ -7,12 +7,12 @@
 
 ## Откуда берутся ошибки
 
-| Симптом | Источник в коде | Причина |
-|--------|------------------|--------|
-| **«Эксперт Veronica не найден в БД»** | `knowledge_os/app/task_distribution_system_complete.py` (стр. ~250–252): `assignment.result = f"Эксперт '{assignment.employee_name}' не найден в БД"` | В план/assignments попадает имя «Veronica» (латиница), а в БД эксперт — «Вероника» (кириллица). Исправление: `_get_expert_by_name` использует `resolve_expert_name_for_db` и fallback по роли «Local Developer». **Нужно:** на сервере VictoriaATRA/Mac Studio должен быть задеплоен актуальный код (с этим фиксом) и перезапущен victoria-agent. |
-| **«Таймаут: задача заняла слишком много времени»** | `src/agents/bridge/victoria_mcp_server.py`: при `httpx.TimeoutException` возвращается сообщение с указанием лимита. Таймаут клиента MCP задаётся **VICTORIA_MCP_RUN_TIMEOUT_SEC** (по умолчанию **600 с = 10 мин**; раньше было 300 с). | Задачи на код (оркестратор → эксперты → Victoria Enhanced) часто дольше 5 минут. Увеличьте `VICTORIA_MCP_RUN_TIMEOUT_SEC` при необходимости. |
-| **Таймаут в Telegram** | `src/agents/bridge/victoria_telegram_bot.py`: при `result is None` (в т.ч. таймаут) пользователь видит: «❌ Не удалось выполнить задачу. Таймаут выполнения (до N мин)». Таймаут опроса: **VICTORIA_POLL_TIMEOUT_SEC** (по умолчанию 900 с = 15 мин). | Victoria не успевает ответить за 15 мин (тяжёлые модели, цепочка экспертов). |
-| **Смешанный/битый текст** | Модель возвращает «мусор» или внутренние рассуждения (finish без output, смешение языков). В коде есть фильтры (`_strip_internal_monologue` в victoria_server, проверки в victoria_enhanced), но не все пути ими покрыты. | LLM иногда выдаёт нестабильный вывод; часть ответов не очищается перед отправкой пользователю. |
+| Симптом                                            | Источник в коде                                                                                                                                                                                                                                       | Причина                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **«Эксперт Veronica не найден в БД»**              | `knowledge_os/app/task_distribution_system_complete.py` (стр. ~250–252): `assignment.result = f"Эксперт '{assignment.employee_name}' не найден в БД"`                                                                                                 | В план/assignments попадает имя «Veronica» (латиница), а в БД эксперт — «Вероника» (кириллица). Исправление: `_get_expert_by_name` использует `resolve_expert_name_for_db` и fallback по роли «Local Developer». **Нужно:** на сервере VictoriaATRA/Mac Studio должен быть задеплоен актуальный код (с этим фиксом) и перезапущен victoria-agent. |
+| **«Таймаут: задача заняла слишком много времени»** | `src/agents/bridge/victoria_mcp_server.py`: при `httpx.TimeoutException` возвращается сообщение с указанием лимита. Таймаут клиента MCP задаётся **VICTORIA_MCP_RUN_TIMEOUT_SEC** (по умолчанию **600 с = 10 мин**; раньше было 300 с).               | Задачи на код (оркестратор → эксперты → Victoria Enhanced) часто дольше 5 минут. Увеличьте `VICTORIA_MCP_RUN_TIMEOUT_SEC` при необходимости.                                                                                                                                                                                                      |
+| **Таймаут в Telegram**                             | `src/agents/bridge/victoria_telegram_bot.py`: при `result is None` (в т.ч. таймаут) пользователь видит: «❌ Не удалось выполнить задачу. Таймаут выполнения (до N мин)». Таймаут опроса: **VICTORIA_POLL_TIMEOUT_SEC** (по умолчанию 900 с = 15 мин). | Victoria не успевает ответить за 15 мин (тяжёлые модели, цепочка экспертов).                                                                                                                                                                                                                                                                      |
+| **Смешанный/битый текст**                          | Модель возвращает «мусор» или внутренние рассуждения (finish без output, смешение языков). В коде есть фильтры (`_strip_internal_monologue` в victoria_server, проверки в victoria_enhanced), но не все пути ими покрыты.                             | LLM иногда выдаёт нестабильный вывод; часть ответов не очищается перед отправкой пользователю.                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -24,7 +24,7 @@
 - [ ] **veronica-agent** запущен: `curl -s http://localhost:8011/health` → 200 (если запросы идут в Veronica).
 - [ ] **PostgreSQL (knowledge_postgres)** доступна для Victoria: в контейнере victoria-agent переменная `DATABASE_URL` указывает на работающую БД.
 - [ ] В таблице `experts` есть эксперт с именем **«Вероника»** (кириллица) и ролью, содержащей «Local Developer». Проверка:  
-  `SELECT name, role FROM experts WHERE name = 'Вероника' OR role ILIKE '%Local Developer%';`
+      `SELECT name, role FROM experts WHERE name = 'Вероника' OR role ILIKE '%Local Developer%';`
 
 ### 2. Актуальность кода
 
@@ -62,9 +62,9 @@
 
 ## Где что править в коде (справка)
 
-| Что | Файл |
-|-----|------|
+| Что                                              | Файл                                                                                                                  |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | Резолв «Veronica» → «Вероника», fallback по роли | `knowledge_os/app/task_distribution_system_complete.py` (`_get_expert_by_name`), `knowledge_os/app/expert_aliases.py` |
-| Таймаут MCP victoria_run | `src/agents/bridge/victoria_mcp_server.py`: переменная **VICTORIA_MCP_RUN_TIMEOUT_SEC** (по умолчанию 600) |
-| Таймаут Telegram-опроса Victoria | `src/agents/bridge/victoria_telegram_bot.py` (`VICTORIA_POLL_TIMEOUT_SEC`) |
-| Сообщение пользователю при таймауте в Telegram | `src/agents/bridge/victoria_telegram_bot.py` (блок «Не удалось выполнить задачу», стр. ~702–710) |
+| Таймаут MCP victoria_run                         | `src/agents/bridge/victoria_mcp_server.py`: переменная **VICTORIA_MCP_RUN_TIMEOUT_SEC** (по умолчанию 600)            |
+| Таймаут Telegram-опроса Victoria                 | `src/agents/bridge/victoria_telegram_bot.py` (`VICTORIA_POLL_TIMEOUT_SEC`)                                            |
+| Сообщение пользователю при таймауте в Telegram   | `src/agents/bridge/victoria_telegram_bot.py` (блок «Не удалось выполнить задачу», стр. ~702–710)                      |

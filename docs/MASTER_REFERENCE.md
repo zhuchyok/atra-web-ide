@@ -1,17 +1,34 @@
 # Единый справочник проекта ATRA Web IDE (Master Reference)
 
 **«Библия» проекта** — это **этот документ + связка документов**, на которые он ссылается. Когда говорят **«библия»**, имеется в виду: изучить **docs/MASTER_REFERENCE.md** и при необходимости связанные документы:
+
 - **docs/COGNITIVE_CODE.md** (Когнитивный кодекс: стандарты критического мышления).
 - **PROJECT_ARCHITECTURE_AND_GUIDE**, **ARCHITECTURE_FULL**, **CURRENT_STATE_WORKER_AND_LLM**.
 - **CHANGES_FROM_OTHER_CHATS.md** (Лог изменений).
 - **VERIFICATION_CHECKLIST**, **DASHBOARDS_AND_AGENTS_FULL_PICTURE**.
-Закреплено в **.cursorrules** (раздел «Библия проекта»).
+  Закреплено в **.cursorrules** (раздел «Библия проекта»).
 
 **Назначение:** при любых вопросах по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
 
-**Обновлено:** 2026-02-19
+**Обновлено:** 2026-02-24
 
-Последние изменения (2026-02-23): **Open WebUI Update: v0.8.5.** (1) Обновлен образ в `knowledge_os/docker-compose.yml` до `v0.8.5`. (2) Проведен полный бэкап данных (963MB) перед обновлением. (3) Верифицирована работа миграций и доступность `/health`. (4) Сохранены все кастомные настройки и история чатов.
+---
+
+## Wisdom Era Status (Singularity 20.0)
+
+**Архитектура:** Мозг (MLX, порт 11435, Victoria-Strategist) + Руки (Ollama, victoria-wisdom-30b, KEEP_ALIVE=-1). Эксперты участвуют через оркестратор и execute_assignments; Совет экспертов (expert_council_discussion) и Совет Директоров (strategic_board, board_scheduler каждые 6 ч) активны.
+
+**Полноценная Виктория (как должно быть):** (1) **MLX (мозг):** `VICTORIA_MLX_BRAIN=true bash scripts/start_mlx_api_server.sh` — предзагрузка victoria-wisdom-30b в MLX. (2) **Ollama (руки):** victoria-wisdom-30b загружена, OLLAMA_KEEP_ALIVE=86400 в victoria-agent (держим 24 ч). (3) **Дефибриллятор:** `nohup python3 scripts/host_recovery_listener.py &` (порт 9099). (4) **Victoria-agent:** `docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent`, MLX_API_URL=http://host.docker.internal:11435 (по умолчанию в compose). Проверка: MLX — `curl -s http://localhost:11435/api/tags`; Ollama — `curl -s http://localhost:11434/api/ps`; Victoria — `curl -s http://localhost:8010/health`.
+
+**Самовосстановление:** При падении MLX/Ollama оркестратор (Виктория) шлёт POST на `RECOVERY_WEBHOOK_URL` (host.docker.internal:9099/recover). Слушатель запускает `system_auto_recovery.sh` и поднимает MLX без участия пользователя. **Recovery Listener** регистрируется в launchd при `bash scripts/setup_system_auto_recovery.sh` (com.atra.recovery-listener) и стартует при загрузке Mac — вручную ничего запускать не нужно. Проверка: `launchctl list | grep recovery-listener`, `./scripts/verify_full_recovery_readiness.sh`.
+
+**Последний аудит (24.02.2026):** Закрыты 170 висящих strategy_sessions; запущен run_board_meeting(); директива в board_decisions и на дашборде 8501. Итоги аудита Mac Studio: см. docs/WISDOM_ERA_AUDIT_2026_02.md и узел знаний (Management, type=wisdom_era_audit).
+
+---
+
+Последние изменения (2026-02-24): **World-Class Audit Phase 2: Внедрены все 7 фаз.** Проведён аудит 5 топовых проектов (tokio, langchain, llama.cpp, clap, turbo; итого 1.2M+ LOC). Внедрены 20+ мировых практик: (1) Gateway — graceful shutdown, runtime builder, semaphore rate limiting; (2) Victoria — 3-tier fallback + exponential retry; (3) atra-cli — native completions, ValueHint, config file, colored help; (4) MLX — 4 quantization profiles, GPU memory monitoring, auto-cleanup; (5) CI/CD — content-addressed task hashing, git change detection. Код: 720 строк, документация: 4,700 строк. 8 файлов создано/изменено. Все 10 TODO закрыты. CHANGES §0.6B, docs/FINAL_COMPLETE_100_PERCENT.md.
+
+Последние изменения (2026-02-24): **Эра Мудрости: Совет Директоров и дефибриллятор.** (1) Закрыты 170 висящих strategy_sessions (active→cancelled). (2) Введён дефибриллятор MLX: `scripts/host_recovery_listener.py` (порт 9099), RECOVERY_WEBHOOK_URL в оркестраторе — при падении Ollama/MLX вызывается автовосстановление на хосте. (3) Handoff в новый чат: `docs/SESSION_HANDOFF_2026_02_24.md`. (4) Запущен один прогон run_board_meeting(); новые директивы — в board_decisions и на дашборде. См. CHANGES §0.5b.
 
 Последние изменения (2026-02-19): **Singularity 20.0: The Wisdom Era (20/10).** (1) Внедрена `Collective Brainstorming` — автономный процесс проектирования сложных фич через диалог экспертов (Игорь, Анна, Елена) под руководством Виктории. (2) Реализован `Mentorship Engine` — автоматический аудит выполненных задач с генерацией персональных советов (Mentorship Notes) для экспертов. (3) Внедрен `SOP Generator` — автоматическое создание Standard Operating Procedures на основе успешных задач (8/10+). (4) Интегрирован `Adversarial Red Teaming` для верификации новых SOP и инсайтов через стресс-тест «Критиком». (5) Реализована `Wisdom Injection` в `ai_core.py` — инъекция мета-стратегий и советов ментора прямо в системные промпты. (6) В Дашборд добавлена вкладка `Wisdom & Mentorship` для мониторинга эволюции интеллекта.
 
@@ -39,20 +56,20 @@
 Последние изменения (2026-02-15): **Victoria Telegram Bot: Health Check, Supervisor, Monitoring & Fast Track.** (1) В `victoria_telegram_bot.py` внедрена система пульса. (2) В `victoria_server.py` добавлены API эндпоинты `/health/telegram` и `Fast Track` роутинг для мгновенных ответов через `lfm2.5-thinking:1.2b`. (3) Создан `scripts/victoria_bot_supervisor.sh` с защитой от дублей. (4) В `prometheus_metrics.py` добавлены метрики `telegram_bot_*`. (5) В `executor.py` добавлена поддержка динамической смены модели. См. CHANGES §13.
 
 Последние изменения (2026-02-14): **Phase 4: Dual-Channel Reasoning & Semantic History.**
-Последние изменения (2026-01-28): **PRINCIPLE_EXPERTS_FIRST уровень «пушка».** (1) П.6: web_search_fallback — конфиг WEB_SEARCH_PROVIDERS, ретраи с экспоненциальной задержкой, таймауты по провайдеру, лог used_source. (2) П.1: кэш веб-результатов по хешу (WEB_SEARCH_CACHE_TTL_SEC, WEB_SEARCH_CACHE_MAX_SIZE); воркер пишет had_web_block в metadata задачи; метрика knowledge_os_tasks_web_block_total в /metrics. (3) П.2: выбор до 3 скиллов по релевантности к задаче (_select_skills_by_relevance_sync по keywords/description из SKILL.md). (4) П.4: backend /metrics/summary — числовые chat_expert_answer_total, chat_fallback_total, chat_fallback_ratio, alert_fallback_high (порог 30%); виджет в дашборде Knowledge OS при ATRA_BACKEND_URL; запись в VERIFICATION §3 про алерт при доле fallback > 30%. (5) П.7: при «Принять кандидата» — задача онбординга (assignee Виктория), запись в notifications (Telegram). PRINCIPLE_EXPERTS_FIRST.md обновлён (таблица «Реализовано», «Что можно усилить дальше»). См. CHANGES §0.4fc.
+Последние изменения (2026-01-28): **PRINCIPLE_EXPERTS_FIRST уровень «пушка».** (1) П.6: web_search_fallback — конфиг WEB_SEARCH_PROVIDERS, ретраи с экспоненциальной задержкой, таймауты по провайдеру, лог used_source. (2) П.1: кэш веб-результатов по хешу (WEB_SEARCH_CACHE_TTL_SEC, WEB_SEARCH_CACHE_MAX_SIZE); воркер пишет had_web_block в metadata задачи; метрика knowledge_os_tasks_web_block_total в /metrics. (3) П.2: выбор до 3 скиллов по релевантности к задаче (\_select_skills_by_relevance_sync по keywords/description из SKILL.md). (4) П.4: backend /metrics/summary — числовые chat_expert_answer_total, chat_fallback_total, chat_fallback_ratio, alert_fallback_high (порог 30%); виджет в дашборде Knowledge OS при ATRA_BACKEND_URL; запись в VERIFICATION §3 про алерт при доле fallback > 30%. (5) П.7: при «Принять кандидата» — задача онбординга (assignee Виктория), запись в notifications (Telegram). PRINCIPLE_EXPERTS_FIRST.md обновлён (таблица «Реализовано», «Что можно усилить дальше»). См. CHANGES §0.4fc.
 Последние изменения (2026-02-14): **Phase 2.6: Разделение воркеров по ролям (Heavy/Light).** Воркеры разделены на два типа: `expert-worker-heavy` (1 инстанс, модель `qwen3-coder:30b` для кода и архитектуры, лимит 10GB RAM) и `expert-worker-light` (2 инстанса, модель `lfm2.5-thinking:1.2b` для быстрых задач, лимит 4GB RAM). Это обеспечивает баланс между мощностью интеллекта и скоростью обработки простых запросов без перегрузки Mac Studio.
 Последние изменения (2026-02-14): **Phase 2.5: Гибридное масштабирование и оптимизация RAM.** Количество реплик `expert-worker` снижено до 3 для уменьшения Swap на Mac Studio. Внедрена гибридная модель: лимиты памяти оптимизированы (6GB limit / 2GB reservation), включен `SMART_WORKER_MAX_CONCURRENT=2` для предотвращения взрывной нагрузки. Проведена полная очистка Docker ресурсов (reclaimed 17.91GB).
 Последние изменения (2026-02-14): **Phase 2 Roadmap: Exponential Learning — Масштабирование и коллективное обучение.** В `knowledge_os/docker-compose.yml` воркер `expert-worker` масштабирован до 3 реплик (`deploy: replicas: 3`) для параллельной обработки задач. Включена система Collective Learning (`ENABLE_COLLECTIVE_LEARNING=true`): воркеры обмениваются опытом через `CorporationSelfLearning`, анализируя ошибки и оптимизируя выбор моделей в реальном времени. Исправлена ошибка сериализации `metadata` в `knowledge_service.py` (принудительный `json.dumps`). Верифицирован параллельный захват задач из Redis Stream.
 Последние изменения (2026-02-14): **Оптимизация ресурсов и систематизация логов.** Проведена полная очистка логов Docker и локальных файлов (`./logs/*.log`). Во всех `docker-compose.yml` (корень и `knowledge_os/`) настроена принудительная ротация логов: `max-size: 10m`, `max-file: 3`. Все контейнеры перезапущены с `--force-recreate` для применения лимитов. Создан скрипт `scripts/maintenance/cleanup_logs.sh` для регулярного обслуживания. Это предотвращает критическую нагрузку на память и своп Mac Studio.
 Последние изменения (2026-02-13): **Victoria: «Монстр-Логика» делегирования, фикс роутера и отказоустойчивость.** В `victoria_server.py`: принудительное выполнение `execute_assignments_async`, если назначено >1 эксперта (даже при наличии Вероники); `load_dotenv()` при старте; фикс путей `ko_paths` (добавлен `os.getcwd()`) и `sys.path` (локальный `_sys`); параметр `use_enhanced` в `TaskRequest`. В `intelligent_model_router.py`: реализован `estimate_task_complexity` (оценка сложности по промпту) и `get_pool` (DB pool). В `extended_thinking.py`: отказоустойчивость — одновременная попытка MLX и Ollama. В `integration_bridge.py`: принудительное назначение Вероники (coding) и Романа (DB) в V2. См. CHANGES §0.4fb.
-Последние изменения (2026-02-08): **Victoria: 202 до стратегии, прогрев, OLLAMA_KEEP_ALIVE, кэш understand_goal.** При async_mode=true POST /run сразу возвращает 202; стратегия и understand_goal выполняются в фоне в _run_task_background. Прогрев при старте (warmup_victoria в lifespan при VICTORIA_WARMUP_ENABLED). OLLAMA_KEEP_ALIVE по умолчанию 86400 в docker-compose. GET /run/status при clarify в фоне отдаёт clarification_questions в корне ответа. Кэш _understand_goal_cache (TTL 300 с, макс. 200). См. CHANGES §0.4er, CURATOR_RUNBOOK §1.6.
+Последние изменения (2026-02-08): **Victoria: 202 до стратегии, прогрев, OLLAMA_KEEP_ALIVE, кэш understand_goal.** При async_mode=true POST /run сразу возвращает 202; стратегия и understand_goal выполняются в фоне в \_run_task_background. Прогрев при старте (warmup_victoria в lifespan при VICTORIA_WARMUP_ENABLED). OLLAMA_KEEP_ALIVE по умолчанию 86400 в docker-compose. GET /run/status при clarify в фоне отдаёт clarification_questions в корне ответа. Кэш \_understand_goal_cache (TTL 300 с, макс. 200). См. CHANGES §0.4er, CURATOR_RUNBOOK §1.6.
 Последние изменения (2026-02-11): **Proverka:** сверка с MASTER_REFERENCE и VERIFICATION_CHECKLIST_OPTIMIZATIONS §5. Затронутые области: куратор (run_curator_and_compare.sh — ensure Victoria перед прогоном; curator_send_tasks_to_victoria.py — таймаут POST 120 с, повторы при «timed out»; CURATOR_RUNBOOK §1.6 причина Read timed out). Пункт §5 «Запуск долгих скриптов»: таймаут среды ≥10/30 мин в runbook учтён. Тесты: run_all_system_tests **65 backend + 44 knowledge_os = 109 passed**. См. CHANGES §0.4ep, §0.4eo.
 Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 5 внедрена.** Интеграция и верификация: сквозные тесты (test_reasoning_logic_recap.py — ReCAP рефлексия; test_reasoning_logic_contract.py — контракт clarify/decline/strategy/confidence); обновлены VICTORIA_TASK_CHAIN_FULL (схема стратегия→память→план→выполнение→рефлексия→ответ с confidence, §9 тесты) и THINKING_AND_APPROACH (§6 Victoria). План полностью внедрён (фазы 0–5). См. CHANGES §0.4eo.
 Последние изменения (2026-02-11): **Proverka:** сверка с MASTER_REFERENCE и VERIFICATION_CHECKLIST_OPTIMIZATIONS §5; затронутые области (Victoria, ReCAP, long_term_memory, victoria_common, маршрутизация, чат) проверены по чеклисту. Тесты: run_all_system_tests 106 passed, test_task_detector_chain 20 passed. Пункт 38 учтён (при деплое — пересборка victoria-agent, куратор при необходимости). См. CHANGES §0.4en.
-Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 4 внедрена.** Неопределённость в контракте: при confidence < 0.7 в knowledge добавляется uncertainty_reason (из стратегии или reason); в _select_strategy planner может вернуть uncertainty_reason. Промпты: PROMPT_UNCERTAINTY_LINE и пункт 7 в build_simple_prompt — явно выражать неопределённость в ответе. См. CHANGES §0.4em.
-Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 3 внедрена.** Рефлексия и пересмотр плана в ReCAP: после провала/пустого шага вызов _should_revise_plan (ДА/НЕТ + причина); при «ДА» — пересборка плана с контекстом previous_plan_failure, лимит VICTORIA_MAX_PLAN_REVISIONS (1). VICTORIA_REFLECTION_ENABLED, VICTORIA_MAX_PLAN_REVISIONS в docker-compose и .env.example. См. CHANGES §0.4el, VICTORIA_TASK_CHAIN_FULL §5.3.
+Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 4 внедрена.** Неопределённость в контракте: при confidence < 0.7 в knowledge добавляется uncertainty_reason (из стратегии или reason); в \_select_strategy planner может вернуть uncertainty_reason. Промпты: PROMPT_UNCERTAINTY_LINE и пункт 7 в build_simple_prompt — явно выражать неопределённость в ответе. См. CHANGES §0.4em.
+Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 3 внедрена.** Рефлексия и пересмотр плана в ReCAP: после провала/пустого шага вызов \_should_revise_plan (ДА/НЕТ + причина); при «ДА» — пересборка плана с контекстом previous_plan_failure, лимит VICTORIA_MAX_PLAN_REVISIONS (1). VICTORIA_REFLECTION_ENABLED, VICTORIA_MAX_PLAN_REVISIONS в docker-compose и .env.example. См. CHANGES §0.4el, VICTORIA_TASK_CHAIN_FULL §5.3.
 Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 2 внедрена.** Долгосрочная память: таблица long_term_memory (миграция add_long_term_memory.sql), менеджер long_term_memory.py (save_thread, get_recent_threads); после успешного ответа сохраняется резюме обмена, при запросе подмешивается блок «Ранее по этому проекту/пользователю» в контекст Enhanced. Объединение с session (task_memory) в одном контексте. LONG_TERM_MEMORY_ENABLED по умолчанию false. См. CHANGES §0.4ek, VICTORIA_TASK_CHAIN_FULL §5.2.
-Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 0 и Фаза 1 внедрены.** В Victoria добавлен единый слой выбора стратегии: _select_strategy (planner, кэш по goal+session_summary), стратегии quick_answer / deep_analysis / need_clarification / decline_or_redirect; ранний выход при clarification и decline; маршрутизация quick→Veronica/agent, deep→Enhanced; strategy/confidence в knowledge во всех путях ответа; async 202 после стратегии и understand_goal, _run_task_background с _inject_strategy и _save_session_exchange. Контракт в VICTORIA_TASK_CHAIN_FULL §5.1, промпты в PROMPTS_VICTORIA. Env: VICTORIA_STRATEGY_ENABLED, STRATEGY_CACHE_TTL_SEC в .env.example и knowledge_os/docker-compose. Тесты 106 passed. См. CHANGES §0.4ej.
+Последние изменения (2026-02-11): **План «Логика мысли» Victoria — Фаза 0 и Фаза 1 внедрены.** В Victoria добавлен единый слой выбора стратегии: \_select_strategy (planner, кэш по goal+session_summary), стратегии quick_answer / deep_analysis / need_clarification / decline_or_redirect; ранний выход при clarification и decline; маршрутизация quick→Veronica/agent, deep→Enhanced; strategy/confidence в knowledge во всех путях ответа; async 202 после стратегии и understand_goal, \_run_task_background с \_inject_strategy и \_save_session_exchange. Контракт в VICTORIA_TASK_CHAIN_FULL §5.1, промпты в PROMPTS_VICTORIA. Env: VICTORIA_STRATEGY_ENABLED, STRATEGY_CACHE_TTL_SEC в .env.example и knowledge_os/docker-compose. Тесты 106 passed. См. CHANGES §0.4ej.
 Последние изменения (2026-02-11): **План «Логика мысли» Victoria.** Документ [PLAN_REASONING_LOGIC_VICTORIA.md](PLAN_REASONING_LOGIC_VICTORIA.md) — детальный план по внедрению единой линии рассуждения: выбор стратегии (quick/deep/clarify/decline), связность и память между диалогами, самокритика и итерация плана, неопределённость как часть логики. Опора на команду экспертов, базу знаний (session_context, query_classifier, task_detector, victoria_enhanced, recap, collective_memory) и мировые практики (MAR, ReCAP, LoCoMo, ограничения self-verification). Фазы 0–5 с задачами и критериями. См. CHANGES §0.4ei.
 Последние изменения (2026-02-08): **Proverka:** сверка с MASTER_REFERENCE и VERIFICATION §5; тесты run_all_system_tests 106 passed, test_task_detector_chain 20 passed. См. CHANGES §0.4eh.
 Последние изменения (2026-02-08): **Планы закрыты:** всё запланированное внедрено; TODO_FIXME_BACKLOG (высокий/средний) закрыт; планы «умнее быстрее», «как я», PRINCIPLE_EXPERTS_FIRST, бэклог — закрыты. Планы можно считать закрытыми. См. CHANGES §0.4eg.
@@ -60,12 +77,12 @@
 Последние изменения (2026-02-08): **«Дальше делай что осталось»:** в web_search_fallback добавлен fallback на Ollama web_search при OLLAMA_API_KEY (POST ollama.com/api/web_search). П.6 PRINCIPLE_EXPERTS_FIRST завершён. См. CHANGES §0.4ee.
 Последние изменения (2026-02-08): **«Делай дальше все»:** реализованы четыре пункта TODO_FIXME_BACKLOG: master_plan_generator (update_master_plan + get_plan/update_plan в session_manager), strategy_discovery (LLM уточняющие вопросы), model_enhancer (pgvector в retrieve_enhanced_context), early_warning_system (Telegram/Email уведомления). Тесты 106 passed. См. CHANGES §0.4ed.
 Последние изменения (2026-02-08): **Proverka:** сверка с MASTER_REFERENCE и VERIFICATION_CHECKLIST_OPTIMIZATIONS §5; затронутые области (оркестрация, Victoria, тесты) проверены по чеклисту; запущен run_all_system_tests — 62 backend + 44 knowledge_os = 106 passed. См. CHANGES §0.4ec.
-Последние изменения (2026-02-11): **«Всё доделывай»:** hierarchical_orchestration — генерация через модель (Ollama в _decompose_goals, парсинг, fallback); query_orchestrator — подбор из БД в select_context (enrich_context_from_db_async по goal); ORCHESTRATION_CANARY — как включить V2 100%; TODO_FIXME_BACKLOG обновлён. См. CHANGES §0.4eb.
+Последние изменения (2026-02-11): **«Всё доделывай»:** hierarchical_orchestration — генерация через модель (Ollama в \_decompose_goals, парсинг, fallback); query_orchestrator — подбор из БД в select_context (enrich_context_from_db_async по goal); ORCHESTRATION_CANARY — как включить V2 100%; TODO_FIXME_BACKLOG обновлён. См. CHANGES §0.4eb.
 Последние изменения (2026-02-11): **Proverka:** сверка с MASTER_REFERENCE и VERIFICATION §5; в четырёх планах отмечены закрытые пункты (п. 1.2 сохранение обмена в плане «как я»); остальные пункты бэклога — по TODO_FIXME_BACKLOG при касании. См. CHANGES §0.4ea.
-Последние изменения (2026-02-11): **«Погнали»:** куратор при деплое — CURATOR_RUNBOOK §1.5, scripts/run_curator_post_deploy.sh, HOW_TO_INDEX; TODO_FIXME_BACKLOG: recap_framework — реальные результаты зависимостей в _build_context (results). См. CHANGES §0.4dz.
+Последние изменения (2026-02-11): **«Погнали»:** куратор при деплое — CURATOR_RUNBOOK §1.5, scripts/run_curator_post_deploy.sh, HOW_TO_INDEX; TODO_FIXME_BACKLOG: recap_framework — реальные результаты зависимостей в \_build_context (results). См. CHANGES §0.4dz.
 Последние изменения (2026-02-11): **«Доделываем»:** чекпоинт П.1.2 — сессия закрыта; тесты 103 passed. См. CHANGES §0.4dy.
-Последние изменения (2026-02-11): **«Дальше»:** план «как я» П.1.2 — после каждого успешного ответа Victoria при наличии session_id вызывается _save_session_exchange (goal, output) в session_context_manager (четыре пути: quick_data, veronica, enhanced, agent_run). См. CHANGES §0.4dx.
-Последние изменения (2026-02-11): **«Дальше по плану»:** план «умнее быстрее» §3.1 эталоны куратора — в _get_curator_rag_context добавлены list_files, greeting, one_line_code по ключевым словам (RAG curator_standards). См. CHANGES §0.4dw.
+Последние изменения (2026-02-11): **«Дальше»:** план «как я» П.1.2 — после каждого успешного ответа Victoria при наличии session_id вызывается \_save_session_exchange (goal, output) в session_context_manager (четыре пути: quick_data, veronica, enhanced, agent_run). См. CHANGES §0.4dx.
+Последние изменения (2026-02-11): **«Дальше по плану»:** план «умнее быстрее» §3.1 эталоны куратора — в \_get_curator_rag_context добавлены list_files, greeting, one_line_code по ключевым словам (RAG curator_standards). См. CHANGES §0.4dw.
 Последние изменения (2026-02-11): **«Дальше»:** план «умнее быстрее» §4.1 Nightly → видимость в RAG — скрипт backfill_knowledge_embeddings.py для дозаписи embedding узлам knowledge_nodes без него (Ollama get_embedding). HOW_TO_INDEX дополнен. См. CHANGES §0.4dv.
 Последние изменения (2026-02-11): **«Двигаемся дальше»:** план «умнее быстрее» §2.1 «сделай как тогда» — при фразах «как вчера»/«повтори» перед understand_goal подставляется контекст последних завершённых задач из БД (recent_tasks_context.py, victoria_server). См. CHANGES §0.4du.
 Последние изменения (2026-02-11): **Proverka «все делаем»:** сверка с MASTER_REFERENCE и VERIFICATION §5; в четырёх планах отмечены закрытые пункты; тесты run_all_system_tests. См. CHANGES §0.4dt.
@@ -93,7 +110,7 @@
 
 Последние изменения (2026-02-11): **Планы «умнее быстрее» и «как я»: длинный контекст, память по задаче, шаблон simple.** Длинный контекст: VICTORIA_CHAT_HISTORY_MAX_MESSAGES, VICTORIA_HISTORY_MAX_CHARS, VICTORIA_GOAL_MAX_CHARS в bridge. Память по задаче: get_session_memory_summary в session_context_manager; bridge передаёт task_memory при session_id; в Enhanced блок «По этой сессии уже делали». Шаблон simple: build_simple_prompt и WORLD_PRACTICES_LINE в configs/victoria_common. См. CHANGES §0.4dd.
 
-Последние изменения (2026-02-11): **Контекст из БД: задачи по проекту в промпт Victoria.** При наличии project_context в context для Enhanced подмешивается блок «Текущие задачи по проекту» (до 5 последних из tasks по project_context). Bridge передаёт project_context в context_with_history; victoria_enhanced._get_project_tasks_context запрашивает БД и добавляет блок в simple-промпт. См. CHANGES §0.4dc.
+Последние изменения (2026-02-11): **Контекст из БД: задачи по проекту в промпт Victoria.** При наличии project_context в context для Enhanced подмешивается блок «Текущие задачи по проекту» (до 5 последних из tasks по project_context). Bridge передаёт project_context в context_with_history; victoria_enhanced.\_get_project_tasks_context запрашивает БД и добавляет блок в simple-промпт. См. CHANGES §0.4dc.
 
 Последние изменения (2026-02-11): **Планы: закрыты сделанные пункты.** В четырёх планах (.cursor/plans/) отмечено выполненное (PRINCIPLE_EXPERTS_FIRST — все 7 пунктов; бэклог — целиком; «умнее быстрее» и «как я» — соответствующие блоки) и перечислены следующие шаги. См. CHANGES §0.4db.
 
@@ -117,9 +134,9 @@
 
 Последние изменения (2026-02-10): **RAG-кэш в Redis (план «дальше»).** В victoria_server добавлен RAG_CACHE_BACKEND=memory|redis; при redis кэш контекста RAG в Redis (ключ rag_ctx:{md5(goal)}, TTL из RAG_CACHE_TTL_SEC, REDIS_URL). По умолчанию memory. NEXT_STEPS §2 обновлён. См. CHANGES §0.4cr.
 
-Последние изменения (2026-02-10): **Планы «как я» и «умнее, быстрее» — вторая очередь.** (1) Контекст «ранее по задаче»: в промпте simple при наличии chat_history подпись заменена на «Ранее по задаче (контекст чата):». (2) RAG: в victoria_server._get_knowledge_context добавлена сортировка по **usage_count DESC NULLS LAST** (векторный и ILIKE fallback). (3) Похожие успешные решения: в victoria_enhanced добавлен _get_similar_tasks_context(goal) — до 2 записей из домена victoria_tasks, подставляются в промпт simple. (4) Runbook по типу задачи: в HOW_TO_INDEX строка и в KNOWLEDGE_BASE_USAGE §6 (curator_standards, victoria_tasks, usage_count, скрипт эталонов). (5) CURATOR_CHECKLIST: куратор как регрессия, candidate for standard при обратной связи «принять». См. CHANGES §0.4cq.
+Последние изменения (2026-02-10): **Планы «как я» и «умнее, быстрее» — вторая очередь.** (1) Контекст «ранее по задаче»: в промпте simple при наличии chat_history подпись заменена на «Ранее по задаче (контекст чата):». (2) RAG: в victoria_server.\_get_knowledge_context добавлена сортировка по **usage_count DESC NULLS LAST** (векторный и ILIKE fallback). (3) Похожие успешные решения: в victoria_enhanced добавлен \_get_similar_tasks_context(goal) — до 2 записей из домена victoria_tasks, подставляются в промпт simple. (4) Runbook по типу задачи: в HOW_TO_INDEX строка и в KNOWLEDGE_BASE_USAGE §6 (curator_standards, victoria_tasks, usage_count, скрипт эталонов). (5) CURATOR_CHECKLIST: куратор как регрессия, candidate for standard при обратной связи «принять». См. CHANGES §0.4cq.
 
-Последние изменения (2026-02-10): **Планы «как я» и «умнее, быстрее» — вторая очередь.** Контекст «ранее по задаче»: в промпте simple история чата подписана «Ранее по задаче (контекст чата):». RAG: в victoria_server._get_knowledge_context добавлена сортировка по usage_count DESC (векторный и ILIKE fallback). Похожие выполненные задачи: _get_similar_tasks_context в victoria_enhanced ищет по сходству цели (ILIKE) в домене victoria_tasks, приоритет usage_count; fallback — последние 2 по использованию. HOW_TO_INDEX: строка «Runbook по типу задачи». CURATOR_MENTOR_CAUSES: блок «Куратор как регрессия» и candidate for standard. См. CHANGES §0.4cq.
+Последние изменения (2026-02-10): **Планы «как я» и «умнее, быстрее» — вторая очередь.** Контекст «ранее по задаче»: в промпте simple история чата подписана «Ранее по задаче (контекст чата):». RAG: в victoria_server.\_get_knowledge_context добавлена сортировка по usage_count DESC (векторный и ILIKE fallback). Похожие выполненные задачи: \_get_similar_tasks_context в victoria_enhanced ищет по сходству цели (ILIKE) в домене victoria_tasks, приоритет usage_count; fallback — последние 2 по использованию. HOW_TO_INDEX: строка «Runbook по типу задачи». CURATOR_MENTOR_CAUSES: блок «Куратор как регрессия» и candidate for standard. См. CHANGES §0.4cq.
 
 Последние изменения (2026-02-10): **Планы «как я» и «умнее, быстрее, знания в дело» — шесть пунктов внедрены.** (1) MAC_STUDIO_M4_MODELS_GUIDE: раздел «Стратегия быстрый + умный для 128 GB» (набор моделей, порядок загрузки, когда какую использовать). (2) Victoria Enhanced: при недоступности LLM — эталонные ответы для **greeting** и **what_can_you_do** (как для status_project), источник «что умеешь» — get_capabilities_text(). (3) CURATOR_RUNBOOK: §4 Veronica (таймауты DELEGATE_VERONICA_TIMEOUT, сбои «список файлов», ссылка CURATOR_LIST_FILES_FAILURES); §5 операционные «секретики» (таблица: один воркер, VERIFICATION §5, границы, Redis 6381, маршрутизация, контракт, recovery). (4) CONTRIBUTING: чеклист при коммите (тесты, куратор при необходимости, обновить MASTER_REFERENCE/CHANGES). (5) configs/victoria_common: PROMPT_RUSSIAN_ONLY и PROMPT_RUSSIAN_AND_BREVITY_LINES; victoria_enhanced (simple_prompt) и react_agent используют их. См. CHANGES §0.4cp.
 
@@ -159,7 +176,7 @@
 
 Последние изменения (2026-02-08): **Тестирование всей системы (§0.4aj).** Документ TESTING_FULL_SYSTEM.md — что тестировать (Victoria, Veronica, оркестраторы, эксперты), как запускать, один скрипт `./scripts/run_all_system_tests.sh` (backend 57 + knowledge_os 41 unit). Добавлены тесты: delegate_to_veronica (mock), expert_services, IntegrationBridge. См. CHANGES §0.4aj.
 
-Последние изменения (2026-02-08): **Тесты и проверка логики цепочки (§0.4ai).** test_task_detector.py приведён к PREFER_EXPERTS_FIRST; backend/app/tests/test_task_detector_chain.py — 15 тестов (detect_task_type, should_use_enhanced, _build_orchestration_context, _orchestrator_recommends_veronica). Backend 52 теста. VICTORIA_TASK_CHAIN_FULL §9, VERIFICATION_CHECKLIST §5. См. CHANGES §0.4ai.
+Последние изменения (2026-02-08): **Тесты и проверка логики цепочки (§0.4ai).** test_task_detector.py приведён к PREFER_EXPERTS_FIRST; backend/app/tests/test_task_detector_chain.py — 15 тестов (detect_task_type, should_use_enhanced, \_build_orchestration_context, \_orchestrator_recommends_veronica). Backend 52 теста. VICTORIA_TASK_CHAIN_FULL §9, VERIFICATION_CHECKLIST §5. См. CHANGES §0.4ai.
 
 Последние изменения (2026-02-08): **Полная цепочка задачи Victoria (§0.4ah).** Документ VICTORIA_TASK_CHAIN_FULL.md: схема от POST /run до ответа, кто распределяет (task_detector, IntegrationBridge), кто исполняет (Veronica / Enhanced / agent_run), один эксперт или команда (swarm/consensus только для complex), разрывы и рекомендации. См. CHANGES §0.4ah.
 
@@ -179,7 +196,7 @@
 
 Последние изменения (2026-02-08): **Backlog и runbook (§0.4w).** TODO_FIXME_BACKLOG: optimize_symbol_parameters закрыт; auto_generate_tests — уточнение. Контейнер оркестратора — enhanced_orchestrator (health + webhook); ORCHESTRATOR_137_AND_OLLAMA, LIVING_ORGANISM_PREVENTION, VERIFICATION_CHECKLIST §3/§5 актуальны.
 
-Последние изменения (2026-02-08): **Батч эмбеддингов в Victoria (§0.4v).** _get_embeddings_batch(texts); предзагрузка RAG использует один батч при поддержке API. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4v.
+Последние изменения (2026-02-08): **Батч эмбеддингов в Victoria (§0.4v).** \_get_embeddings_batch(texts); предзагрузка RAG использует один батч при поддержке API. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4v.
 
 Последние изменения (2026-02-08): **Предзагрузка типовых запросов в кэш RAG (§0.4u).** При старте Victoria в фоне заполняется кэш RAG запросами «статус», «список файлов» и др. RAG_PRELOAD_TYPICAL_QUERIES, RAG_CACHE_TTL_SEC>0. См. CHANGES §0.4u.
 
@@ -191,7 +208,7 @@
 
 Последние изменения (2026-02-08): **Метрики латентности RAG+ в Victoria (§0.4q).** В plan() замеряются embed_ms, prepare_ms (эксперт+RAG), llm_plan_ms; при RAG_LATENCY_LOG=true или VICTORIA_DEBUG=true логируются с префиксом [RAG+_latency]. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4q.
 
-Последние изменения (2026-02-08): **Один эмбеддинг на запрос в Victoria (§0.4p).** В точке входа (формирование промпта) эмбеддинг вычисляется один раз и передаётся в _get_knowledge_context(precomputed_embedding=...); параллель эксперт + RAG с этим эмбеддингом. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4p.
+Последние изменения (2026-02-08): **Один эмбеддинг на запрос в Victoria (§0.4p).** В точке входа (формирование промпта) эмбеддинг вычисляется один раз и передаётся в \_get_knowledge_context(precomputed_embedding=...); параллель эксперт + RAG с этим эмбеддингом. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4p.
 
 Последние изменения (2026-02-08): **Один эмбеддинг на запрос в Victoria (§0.4p).** В точке входа (формирование промпта) эмбеддинг вычисляется один раз и передаётся в `_get_knowledge_context(goal, precomputed_embedding=...)`; параллель: эксперт + RAG с этим эмбеддингом. См. RAG_PLUS_ROCKET_SPEED, CHANGES §0.4p.
 
@@ -203,7 +220,8 @@
 
 Последние изменения (2026-02-08): **Контейнеры оркестратора/Nightly Learner: контроль и перезапуск (§0.4k).** Причина «задачи не создавались, обучение не проходило»: контейнеры knowledge_nightly и knowledge_os_orchestrator упали; скрипт самовосстановления делал `restart` (не поднимает остановленные). Исправлено: при остановленных контейнерах — `up -d`; явная проверка и подъём knowledge_nightly и knowledge_os_orchestrator в system_auto_recovery.sh и check_and_start_containers.sh. См. CHANGES_FROM_OTHER_CHATS §0.4k, WHY_NO_LEARNING_DEBATES_HYPOTHESES_TASKS §0.
 
-Последние изменения (2026-02-15): 
+Последние изменения (2026-02-15):
+
 - **Политика портов (§0.5a):** Создан `docs/PORT_REGISTRY.md`. Порты CORE (8010, 8011, 8080, 3000) объявлены неприкосновенными.
 - **Проект Сетки 21 (§0.4j):** Зарегистрирован в реестре (slug: setki-21). Настроены порты 8081 и 3003.
 
@@ -231,7 +249,7 @@
 
 Последние изменения (2026-02-05): **Порог покрытия в CI (PROJECT_GAPS §2).** В workflow pytest-knowledge-os.yml добавлен **--cov-fail-under** (env COVERAGE_FAIL_UNDER, по умолчанию 0). После замера базовой линии поднять в workflow (например 5 или 10). VERIFICATION_CHECKLIST §2 и PROJECT_GAPS §2 обновлены. См. CHANGES_FROM_OTHER_CHATS §0.3w.
 
-Последние изменения (2026-02-05): **Мониторинг deferred_to_human и last_error (PROJECT_GAPS §3).** В GET /metrics (knowledge_rest 8002) добавлены метрики **knowledge_os_tasks_deferred_to_human_total** и **knowledge_os_tasks_deferred_last_error_total**{error_type=timeout|empty_or_short_response|validation_failed|connection_error|oom_or_metal|other}. Реализация в knowledge_os/app/rest_api.py (_deferred_metrics_prometheus, _normalize_last_error_type). VERIFICATION_CHECKLIST §3 и PROJECT_GAPS §3 обновлены. Алерты в Grafana — настроить по порогу. См. CHANGES_FROM_OTHER_CHATS §0.3v.
+Последние изменения (2026-02-05): **Мониторинг deferred_to_human и last_error (PROJECT_GAPS §3).** В GET /metrics (knowledge_rest 8002) добавлены метрики **knowledge_os_tasks_deferred_to_human_total** и **knowledge_os_tasks_deferred_last_error_total**{error_type=timeout|empty_or_short_response|validation_failed|connection_error|oom_or_metal|other}. Реализация в knowledge_os/app/rest_api.py (\_deferred_metrics_prometheus, \_normalize_last_error_type). VERIFICATION_CHECKLIST §3 и PROJECT_GAPS §3 обновлены. Алерты в Grafana — настроить по порогу. См. CHANGES_FROM_OTHER_CHATS §0.3v.
 
 Последние изменения (2026-02-05): **Границы src/ и knowledge_os (PROJECT_GAPS §1).** Создан документ [SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md](SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md): явно зафиксировано, какой путь продакшен для какого домена (knowledge_os/app — корпорация; src/agents/bridge — Victoria Server/Bot; src/ остальное — торговля). В MASTER_REFERENCE добавлен §1г; в VERIFICATION_CHECKLIST §5 — пункт при правках в этих зонах. PROJECT_GAPS §1 обновлён: статус «Частично (2026-02-05): задокументировано». См. CHANGES_FROM_OTHER_CHATS §0.3u.
 
@@ -251,15 +269,15 @@
 
 Последние изменения (2026-02-05): Интеграция Atra Core. Объединение стратегического лидерства и персонального опыта экспертов (Игорь, Роман, Дмитрий) с инфраструктурой Singularity 9.0. Внедрены стандарты UTC, идемпотентности и метод группового обсуждения экспертов. См. .cursorrules.
 
-**Последние изменения (2026-02-04):** **MLX API: таймауты по моделям (загрузка + инференс + запас).** У каждой модели разное время загрузки и инференса; раньше использовались фиксированные 300 с. Введены: (1) **MODEL_TIME_ESTIMATES** в `knowledge_os/app/mlx_api_server.py` — для каждой модели (104b, 70b, 32b, 3b, 1b и др.) заданы load_sec, inference_sec_per_1k, margin_sec; для неизвестных — fallback по размеру из имени. (2) **get_model_timeout_estimate(model_key, max_tokens, load_time_actual)** — полный таймаут = загрузка (факт из кэша или оценка) + (max_tokens/1000 × inference_sec_per_1k) + margin. (3) Таймаут **ожидания слота** в middleware задаётся через **MLX_QUEUE_WAIT_TIMEOUT** или автоматически как максимум по всем моделям (2k токенов). (4) Таймаут **генерации** в _generate_text_internal и таймаут **очереди** (add_request, wait_for) используют эту оценку по модели и max_tokens. Health/read-only (/ , /health, /api/tags) не занимают слот. См. CHANGES_FROM_OTHER_CHATS §0.3m.
+**Последние изменения (2026-02-04):** **MLX API: таймауты по моделям (загрузка + инференс + запас).** У каждой модели разное время загрузки и инференса; раньше использовались фиксированные 300 с. Введены: (1) **MODEL_TIME_ESTIMATES** в `knowledge_os/app/mlx_api_server.py` — для каждой модели (104b, 70b, 32b, 3b, 1b и др.) заданы load_sec, inference_sec_per_1k, margin_sec; для неизвестных — fallback по размеру из имени. (2) **get_model_timeout_estimate(model_key, max_tokens, load_time_actual)** — полный таймаут = загрузка (факт из кэша или оценка) + (max_tokens/1000 × inference_sec_per_1k) + margin. (3) Таймаут **ожидания слота** в middleware задаётся через **MLX_QUEUE_WAIT_TIMEOUT** или автоматически как максимум по всем моделям (2k токенов). (4) Таймаут **генерации** в \_generate_text_internal и таймаут **очереди** (add_request, wait_for) используют эту оценку по модели и max_tokens. Health/read-only (/ , /health, /api/tags) не занимают слот. См. CHANGES_FROM_OTHER_CHATS §0.3m.
 
-**Последние изменения (2026-02-04):** **Дашборд корпорации: рендер только по разделу (под ключ).** В Corporation Dashboard (8501) навигация по **6 разделам** в сайдбаре; при выборе раздела рендерятся **только подвкладки этого раздела** (ленивая загрузка по DASHBOARD_OPTIMIZATION_PLAN). Обзор — единая точка входа (st.stop); Задачи — 2 подвкладки (Список задач, Поставить задачу); Разведка и симуляции — 3 (Симулятор, Маркетинг, Разведка); **Стратегия и эксперты** — 5 подвкладок (Ликвидность, Структура, OKR, Решения Совета, Академия ИИ), контент вынесен в _render_liquidity, _render_structure, _render_okr, _render_board_decisions, _render_academy; Аналитика и качество / Система и агент — заглушки с подсказкой (подвкладки подключаются по плану). Блок из 23 вкладок удалён (~2400 строк); параметризованный запрос в _render_board_decisions. См. DASHBOARDS_AND_AGENTS_FULL_PICTURE §4, CHANGES_FROM_OTHER_CHATS §0.3j.
+**Последние изменения (2026-02-04):** **Дашборд корпорации: рендер только по разделу (под ключ).** В Corporation Dashboard (8501) навигация по **6 разделам** в сайдбаре; при выборе раздела рендерятся **только подвкладки этого раздела** (ленивая загрузка по DASHBOARD_OPTIMIZATION_PLAN). Обзор — единая точка входа (st.stop); Задачи — 2 подвкладки (Список задач, Поставить задачу); Разведка и симуляции — 3 (Симулятор, Маркетинг, Разведка); **Стратегия и эксперты** — 5 подвкладок (Ликвидность, Структура, OKR, Решения Совета, Академия ИИ), контент вынесен в \_render_liquidity, \_render_structure, \_render_okr, \_render_board_decisions, \_render_academy; Аналитика и качество / Система и агент — заглушки с подсказкой (подвкладки подключаются по плану). Блок из 23 вкладок удалён (~2400 строк); параметризованный запрос в \_render_board_decisions. См. DASHBOARDS_AND_AGENTS_FULL_PICTURE §4, CHANGES_FROM_OTHER_CHATS §0.3j.
 
 **Последние изменения (2026-02-04):** **Методология работы.** В .cursorrules добавлен раздел «Методология работы»: делать как нужно, советоваться со специалистами (роли в .cursor/rules/, VERIFICATION_CHECKLIST, CHANGES_FROM_OTHER_CHATS), постоянно проверять результат и исправлять ошибки, сверяться с мировыми практиками, устранять причины сбоев, сверяться с библией и обновлять её. В MASTER_REFERENCE добавлен подраздел «Методология работы» в § «Как пользоваться». См. CHANGES_FROM_OTHER_CHATS §0.3h.
 
-**Последние изменения (2026-02-04):** **Порядок везде.** (1) Файлы .backup из исходников перенесены в **docs/archive/obsolete_backups/** (например src/filters/manager.py.backup). (2) В .gitignore добавлены *.backup, *.bak, *.swp, *.tmp (мировая практика: не коммитить бэкапы и временные файлы). (3) В PROJECT_ARCHITECTURE_AND_GUIDE §2 уточнена структура: корень (README, PLAN, VICTORIA, VERONICA, requirements), docs/archive (root_reports, obsolete_backups). См. docs/archive/README.md.
+**Последние изменения (2026-02-04):** **Порядок везде.** (1) Файлы .backup из исходников перенесены в **docs/archive/obsolete_backups/** (например src/filters/manager.py.backup). (2) В .gitignore добавлены _.backup, _.bak, _.swp, _.tmp (мировая практика: не коммитить бэкапы и временные файлы). (3) В PROJECT_ARCHITECTURE_AND_GUIDE §2 уточнена структура: корень (README, PLAN, VICTORIA, VERONICA, requirements), docs/archive (root_reports, obsolete_backups). См. docs/archive/README.md.
 
-**Последние изменения (2026-02-04):** **Порядок в папках: архив корневых отчётов.** Одноразовые отчёты и статусы из корня репозитория перенесены в **docs/archive/root_reports/** (исторические COMPLETE_*, FINAL_*, VICTORIA_*, TELEGRAM_* и др.). В корне оставлены: README.md, PLAN.md, VICTORIA.md, VERONICA.md, requirements.txt и конфиги/скрипты. В .gitignore добавлены артефакты сборки: target/, *.o, *.rlib, *.dylib, *.a. Актуальная документация — docs/ (MASTER_REFERENCE и таблица документов §8). См. docs/archive/README.md.
+**Последние изменения (2026-02-04):** **Порядок в папках: архив корневых отчётов.** Одноразовые отчёты и статусы из корня репозитория перенесены в **docs/archive/root_reports/** (исторические COMPLETE*\*, FINAL*\_, VICTORIA\_\_, TELEGRAM\__ и др.). В корне оставлены: README.md, PLAN.md, VICTORIA.md, VERONICA.md, requirements.txt и конфиги/скрипты. В .gitignore добавлены артефакты сборки: target/, _.o, _.rlib, _.dylib, \*.a. Актуальная документация — docs/ (MASTER_REFERENCE и таблица документов §8). См. docs/archive/README.md.
 
 **Последние изменения (2026-02-04):** **Использование normalize_and_hash_batch в embedding_optimizer.** В `get_embeddings_batch` хэши для списка текстов получаются одним вызовом `_get_text_hashes_batch(texts)` (внутри — Rust `normalize_and_hash_batch` при наличии), затем поиск по кэшу через `_get_cached_embedding_by_hash`. Один переход Python↔Rust на батч вместо N. Логика кэша (память → БД) вынесена в `_get_cached_embedding_by_hash`; `get_cached_embedding` и батч её переиспользуют. Тесты и проверка совпадения с одиночным хэшем — ок. См. CORPORATION_RUST_ROADMAP §5 (использование batch в Python).
 
@@ -287,10 +305,10 @@
 
 **Ранее (2026-02-03):** **Корпорация как мозг, реестр проектов.** Таблица `projects` (миграция add_projects_table.sql), загрузка реестра в Victoria/Veronica из БД с fallback на env; регистрация проекта: скрипт `scripts/register_project.py` и `POST /api/projects/register`; колонка `tasks.project_context` для изоляции; §1а, §1б, §1в в библии, NEW_PROJECT_MINIMAL_STEPS.md, .env.client.example. См. CHANGES_FROM_OTHER_CHATS §0.
 
-**Последние изменения (2026-01-27):** **План верификации и аудит (выполнено).** По планам verification_and_architecture_plan и аудит_и_план: в PROJECT_ARCHITECTURE_AND_GUIDE добавлен §10.2 «Задачи из БД: tasks → воркер → Ollama/MLX» (поток от оркестратора до LocalAIRouter); в CURRENT_STATE_WORKER_AND_LLM §6 — явная ссылка на чеклист пункты 14–19. WORKER_THROUGHPUT уже указывает пункты 14–19; Smart Worker и ссылки на WORKER_THROUGHPUT/OLLAMA_MLX в PROJECT_ARCHITECTURE уже были. Верификация: backend/Victoria/Veronica health 200; тесты knowledge_os (json_fast, rest_api, victoria_chat_and_request) — 23 passed. См. VERIFICATION_CHECKLIST_OPTIMIZATIONS пункты 14–19, 21, 36.
+**Последние изменения (2026-01-27):** **План верификации и аудит (выполнено).** По планам verification*and_architecture_plan и аудит*и_план: в PROJECT_ARCHITECTURE_AND_GUIDE добавлен §10.2 «Задачи из БД: tasks → воркер → Ollama/MLX» (поток от оркестратора до LocalAIRouter); в CURRENT_STATE_WORKER_AND_LLM §6 — явная ссылка на чеклист пункты 14–19. WORKER_THROUGHPUT уже указывает пункты 14–19; Smart Worker и ссылки на WORKER_THROUGHPUT/OLLAMA_MLX в PROJECT_ARCHITECTURE уже были. Верификация: backend/Victoria/Veronica health 200; тесты knowledge_os (json_fast, rest_api, victoria_chat_and_request) — 23 passed. См. VERIFICATION_CHECKLIST_OPTIMIZATIONS пункты 14–19, 21, 36.
 
 **Анализ сессии (2026-01-27): что улучшили, что не ухудшили.**  
-Улучшено: (1) Совет Директоров в чате — стратегические вопросы получают структурированное решение и ответ через Victoria; (2) документация — поток задач (tasks → воркер → LLM) в PROJECT_ARCHITECTURE §10.2, явные ссылки на чеклист 14–19 в CURRENT_STATE; (3) три плана закрыты (board_victoria_chat_integration, verification_and_architecture_plan, аудит_и_план). Не ухудшено: тесты knowledge_os 23 passed, линтер без ошибок по изменённым файлам (chat, strategic_classifier, strategic_board, rest_api); fallback при ошибке board/consult сохранён; контракт Victoria (goal, project_context) не менялся. Рекомендации специалистов (VERIFICATION_CHECKLIST, причины сбоев, «при следующих изменениях») учтены; библия обновлена.
+Улучшено: (1) Совет Директоров в чате — стратегические вопросы получают структурированное решение и ответ через Victoria; (2) документация — поток задач (tasks → воркер → LLM) в PROJECT*ARCHITECTURE §10.2, явные ссылки на чеклист 14–19 в CURRENT_STATE; (3) три плана закрыты (board_victoria_chat_integration, verification_and_architecture_plan, аудит*и_план). Не ухудшено: тесты knowledge_os 23 passed, линтер без ошибок по изменённым файлам (chat, strategic_classifier, strategic_board, rest_api); fallback при ошибке board/consult сохранён; контракт Victoria (goal, project_context) не менялся. Рекомендации специалистов (VERIFICATION_CHECKLIST, причины сбоев, «при следующих изменениях») учтены; библия обновлена.
 
 **Ранее (2026-01-27):** **Совет Директоров — Victoria — Чат.** Стратегические вопросы в чате: классификатор (strategic_classifier) → вызов Knowledge OS `POST /api/board/consult` → решение Совета сохраняется в `board_decisions` (session_id, user_id, source=chat) → промпт с блоком [РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ] передаётся в Victoria → ответ пользователю. Реализовано для SSE (stream) и для POST /api/chat/send. Дашборд (8501): вкладка «Решения Совета» — фильтры по источнику, риску, correlation_id. Миграция: `knowledge_os/db/migrations/add_board_decisions.sql`. При ошибке board/consult чат продолжает работу с Victoria без решения (fallback). См. CHANGES_FROM_OTHER_CHATS §11.
 
@@ -320,11 +338,11 @@
 
 **Ранее (2026-02-03):** **Session context в Victoria при session_id.** При вызове Victoria API с session_id без chat_history — victoria_server вызывает session_context_manager.get_session_context и подмешивает в context["chat_history"]. Работает для прямых вызовов (скрипты, Telegram). Backend уже передаёт контекст в goal через context_prefix.
 
-**Ранее (2026-02-03):** **Ретривал по успешным решениям в ai_core.** В _get_knowledge_context добавлен третий параллельный запрос: выборка из knowledge_nodes где source_ref='autonomous_worker', confidence_score>=0.8, по similarity к запросу (limit 2). Форматируется как [ПРИМЕР УСПЕШНОГО РЕШЕНИЯ] в контекст — похожие цели получают примеры в промпт.
+**Ранее (2026-02-03):** **Ретривал по успешным решениям в ai_core.** В \_get_knowledge_context добавлен третий параллельный запрос: выборка из knowledge_nodes где source_ref='autonomous_worker', confidence_score>=0.8, по similarity к запросу (limit 2). Форматируется как [ПРИМЕР УСПЕШНОГО РЕШЕНИЯ] в контекст — похожие цели получают примеры в промпт.
 
 **Ранее (2026-02-03):** **ReActAgent: рефлексия при ошибках, интеграция request_approval.** (1) При observation с Error/ошибка/требуется одобрение — промпт рефлексии явно просит проанализировать причину и предложить другой подход. (2) Перед create_file/write_file при блокировке approval_manager вызывается get_hitl().request_approval() — создаётся запрос с request_id для будущего UI; агент получает сообщение с request_id.
 
-**Ранее (2026-02-03):** **Victoria task_plan_struct: улучшенный парсинг JSON.** В _think_and_create_prompt_for_veronica добавлен _try_parse_llm_json: несколько попыток (trailing comma, markdown fences), меньше падений при «почти-валидном» JSON от LLM → чаще task_plan_struct без повторного вызова Victoria. Исправлен баг: при prompt_data=None цикл по subtasks вызывал AttributeError — используется (prompt_data or {}).get.
+**Ранее (2026-02-03):** **Victoria task_plan_struct: улучшенный парсинг JSON.** В \_think_and_create_prompt_for_veronica добавлен \_try_parse_llm_json: несколько попыток (trailing comma, markdown fences), меньше падений при «почти-валидном» JSON от LLM → чаще task_plan_struct без повторного вызова Victoria. Исправлен баг: при prompt_data=None цикл по subtasks вызывал AttributeError — используется (prompt_data or {}).get.
 
 **Ранее (2026-02-03):** **Живой мозг: Prompt Engineer, Self-Check→задачи, календарь, библия.** (1) Добавлена роль Prompt Engineer (Арина) в employees.json; Knowledge Applicator создаёт задачи с assignee_hint «Prompt Engineer». (2) Self-Check при DEGRADED/UNHEALTHY без auto_fix создаёт задачу в БД (assignee_hint: SRE). (3) Создан CORPORATION_PLANNING_CALENDAR.md — единый обзор автономных циклов. (4) Уточнено: проверка после выполнения в цепочке БД уже реализована (task_result_validator в Smart Worker). См. CHANGES_FROM_OTHER_CHATS §10.
 
@@ -356,12 +374,12 @@
 
 ## 1. Проект и архитектура (кратко)
 
-| Что | Где подробно |
-|-----|---------------|
-| Структура, порты, запуск, API, метрики | [PROJECT_ARCHITECTURE_AND_GUIDE.md](PROJECT_ARCHITECTURE_AND_GUIDE.md) |
-| Схема Victoria → оркестратор → эксперты → Smart Worker → Ollama/MLX | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md) |
-| Процесс Victoria от запроса до ответа | [VICTORIA_PROCESS_FULL.md](VICTORIA_PROCESS_FULL.md) |
-| Кто выполняет задачу, кто кому докладывает | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md), [VERONICA_REAL_ROLE.md](VERONICA_REAL_ROLE.md) |
+| Что                                                                 | Где подробно                                                                                 |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Структура, порты, запуск, API, метрики                              | [PROJECT_ARCHITECTURE_AND_GUIDE.md](PROJECT_ARCHITECTURE_AND_GUIDE.md)                       |
+| Схема Victoria → оркестратор → эксперты → Smart Worker → Ollama/MLX | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md)                                                 |
+| Процесс Victoria от запроса до ответа                               | [VICTORIA_PROCESS_FULL.md](VICTORIA_PROCESS_FULL.md)                                         |
+| Кто выполняет задачу, кто кому докладывает                          | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md), [VERONICA_REAL_ROLE.md](VERONICA_REAL_ROLE.md) |
 
 - **Проект:** ATRA Web IDE — браузерная оболочка для ИИ-корпорации Singularity 14.0 (чат, редактор, файлы, превью).
 - **Цель архитектуры:** современный автономный агент с «супер-командой» — всё необходимое для автономии в одном контуре: Victoria (Team Lead, три уровня) + 86 экспертов в БД (источник истины: таблица experts в PostgreSQL, Docker) + Совет Директоров (стратегические решения) + Veronica (исполнение шагов) + Enhanced Orchestrator + Smart Worker (задачи из БД → Ollama/MLX) + дашборды (задачи, эксперты, Решения Совета, качество). Чат, задачи, стратегия и исполнение согласованы через единую БД и API.
@@ -402,23 +420,23 @@
 
 ## 2. Компоненты и порты (сводка)
 
-| Компонент | Порт | Описание |
-|-----------|------|----------|
-| Frontend | 3000 → 3002 | Svelte, чат, редактор. В docker-compose Web IDE проброшен на 3002. |
-| Backend | 8080 | FastAPI: чат/stream, plan, RAG, метрики, A/B. Семафор на Victoria. |
-| Victoria | 8010 | Team Lead, один сервис, три уровня (Agent, Enhanced, Initiative). |
-| Veronica | 8011 | Local Developer, вызывается только Victoria. |
-| PostgreSQL | 5432 | knowledge_postgres, БД knowledge_os. |
-| Redis | 6379 (в сети), 6381 (хост) | knowledge_os_redis из Knowledge OS (atra — отдельный проект). |
-| Prometheus Web IDE | 9091 | Метрики backend. |
-| Grafana Web IDE | 3002 | Дашборды чата/бэкенда. |
-| Prometheus Knowledge OS | 9092 | Метрики Knowledge OS. |
-| Grafana Knowledge OS | 3001 | Дашборды оркестрации, БЗ, агентов. |
-| Smart Worker | — | Обработка задач из БД (pending → in_progress → completed). |
-| Ollama | 11434 | LLM на хосте. |
-| MLX API | 11435 | LLM на хосте. |
-| Corporation Dashboard | 8501 | Streamlit, задачи, эксперты, разведка, симуляции, **Решения Совета**. |
-| Knowledge REST API | 8002 | knowledge_rest: логирование чата, **POST /api/board/consult** (консультация Совета). |
+| Компонент               | Порт                       | Описание                                                                             |
+| ----------------------- | -------------------------- | ------------------------------------------------------------------------------------ |
+| Frontend                | 3000 → 3002                | Svelte, чат, редактор. В docker-compose Web IDE проброшен на 3002.                   |
+| Backend                 | 8080                       | FastAPI: чат/stream, plan, RAG, метрики, A/B. Семафор на Victoria.                   |
+| Victoria                | 8010                       | Team Lead, один сервис, три уровня (Agent, Enhanced, Initiative).                    |
+| Veronica                | 8011                       | Local Developer, вызывается только Victoria.                                         |
+| PostgreSQL              | 5432                       | knowledge_postgres, БД knowledge_os.                                                 |
+| Redis                   | 6379 (в сети), 6381 (хост) | knowledge_os_redis из Knowledge OS (atra — отдельный проект).                        |
+| Prometheus Web IDE      | 9091                       | Метрики backend.                                                                     |
+| Grafana Web IDE         | 3002                       | Дашборды чата/бэкенда.                                                               |
+| Prometheus Knowledge OS | 9092                       | Метрики Knowledge OS.                                                                |
+| Grafana Knowledge OS    | 3001                       | Дашборды оркестрации, БЗ, агентов.                                                   |
+| Smart Worker            | —                          | Обработка задач из БД (pending → in_progress → completed).                           |
+| Ollama                  | 11434                      | LLM на хосте.                                                                        |
+| MLX API                 | 11435                      | LLM на хосте.                                                                        |
+| Corporation Dashboard   | 8501                       | Streamlit, задачи, эксперты, разведка, симуляции, **Решения Совета**.                |
+| Knowledge REST API      | 8002                       | knowledge_rest: логирование чата, **POST /api/board/consult** (консультация Совета). |
 
 Полная картина дашбордов и агентов: [DASHBOARDS_AND_AGENTS_FULL_PICTURE.md](DASHBOARDS_AND_AGENTS_FULL_PICTURE.md).
 
@@ -428,7 +446,7 @@
 
 - **Чат:** Пользователь → Frontend (3002) или API → Backend (8080) → Victoria (8010) POST /run. Ответ SSE или 202 + task_id. **Стратегические вопросы:** перед вызовом Victoria backend вызывает классификатор `is_strategic_question()`; при True — запрос в Knowledge OS `POST /api/board/consult` (source=chat, session_id, user_id, correlation_id); решение Совета пишется в `board_decisions` и передаётся в промпт Victoria блоком [РЕШЕНИЕ СОВЕТА ДИРЕКТОРОВ]. При недоступности board/consult чат идёт в Victoria без решения (fallback).
 - **Задачи в БД:** Два входа — (1) пользователь/API/дашборд создаёт task с assignee_expert_id=NULL; (2) Enhanced Orchestrator назначает эксперта. Smart Worker берёт pending по assignee_expert_id, переводит в in_progress, heartbeat каждые 15 сек, вызывает ai_core.run_smart_agent_async; по завершении — **task_result_validator** проверяет результат; при провале (score < 0.5) задача возвращается в pending; при успехе — completed. Зависшие (updated_at старше SMART_WORKER_STUCK_MINUTES) сбрасываются в pending.
-- **Делегирование:** Victoria отправляет в Veronica только простые шаги или одно действие; целые задачи решают Victoria + эксперты из БД (86; счёт из Docker/PostgreSQL). PREFER_EXPERTS_FIRST=true: (1) task_detector — «сделай/напиши код» → enhanced; (2) victoria_enhanced._should_delegate_task — в Veronica только простые одношаговые (_is_simple_veronica_request). Верификация: пункт 20 чеклиста, тесты TestPreferExpertsFirstDelegation.
+- **Делегирование:** Victoria отправляет в Veronica только простые шаги или одно действие; целые задачи решают Victoria + эксперты из БД (86; счёт из Docker/PostgreSQL). PREFER_EXPERTS_FIRST=true: (1) task_detector — «сделай/напиши код» → enhanced; (2) victoria_enhanced.\_should_delegate_task — в Veronica только простые одношаговые (\_is_simple_veronica_request). Верификация: пункт 20 чеклиста, тесты TestPreferExpertsFirstDelegation.
 - **Гипотезы → дебаты:** При создании гипотезы (Cross-Domain Linker, Expert Council) вызывается `create_debate_for_hypothesis()` → `run_expert_council()` → INSERT в `expert_discussions`. Nightly Learner вызывает Debate Processor, который при consensus_score ≥ 0.5 создаёт задачи. Знания из завершённых задач пишутся в `knowledge_nodes` с embedding для RAG.
 - **Узлы знаний (knowledge_nodes) и RAG:** В БД хранится **полный** content (отчёты, инсайты). Поиск: векторный (по embedding) и текстовый (ILIKE). В контекст Victoria передаётся сниппет на узел (RAG_SNIPPET_CHARS, по умолчанию 500) и для **топ-1** по similarity — полный контент до RAG_TOP1_FULL_MAX_CHARS (2000). Эмбеддинги есть только у части узлов — семантический поиск работает по ним; остальные участвуют в ILIKE. При добавлении записей в knowledge_nodes по возможности сохранять embedding. **Размерность эмбеддингов:** везде **768** (nomic-embed-text); таблицы semantic_ai_cache, embedding_cache, knowledge_nodes — vector(768). Миграция `fix_embedding_dimensions_768.sql` при необходимости приводит колонки к 768. Дашборд/списки: в SELECT использовать LEFT(content, N). См. [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) §3, §5.
 
@@ -437,10 +455,12 @@
 ### 3а. Инструменты агента и Human-in-the-Loop
 
 **Инструменты по путям выполнения:**
+
 - **Victoria Base / Executor** (`src/agents/core/executor.py`, victoria_server): только `read_file`, `list_directory`, `run_terminal_cmd`, `ssh_run`, `finish` — **write_file отсутствует**
 - **Victoria Enhanced + ReAct** (`knowledge_os/app/react_agent.py`): полный набор, включая `create_file`, `write_file`, `search_knowledge`
 
 **Подтверждение критичных действий:**
+
 - **approval_manager** — при `AGENT_APPROVAL_REQUIRED=true` блокирует запись в критичные файлы (package.json, .env, Dockerfile). Возвращает агенту ошибку. Интегрирован в ReActAgent.
 - **human_in_the_loop.request_approval** — полноценный HITL (ожидание ответа пользователя). Реализован в `human_in_the_loop.py`, используется только в AdaptiveAgent; **не интегрирован в ReActAgent / основной агентский цикл**
 
@@ -459,7 +479,9 @@
 ## 4. Воркер и LLM (текущее состояние)
 
 ### 4.1. Сосуществование тяжелых моделей (80B) и MLX
-**Критическое ограничение:** Использование тяжелых моделей в Ollama (например, `qwen3-coder-next:latest` 80B, ~52GB) блокирует значительную часть GPU-памяти (Metal). 
+
+**Критическое ограничение:** Использование тяжелых моделей в Ollama (например, `qwen3-coder-next:latest` 80B, ~52GB) блокирует значительную часть GPU-памяти (Metal).
+
 - **Проблема:** MLX API Server падает с ошибкой `Insufficient Memory (Metal OOM)`, если Ollama удерживала тяжелую модель.
 - **Решение:** `OLLAMA_KEEP_ALIVE` в `docker-compose.yml` установлен в **300** (5 минут). Это гарантирует автоматическую выгрузку тяжелых моделей и освобождение памяти для MLX.
 - **Рекомендация:** При работе с 80B моделями вручную выгружайте их после завершения задачи (`ollama stop <model>`), если требуется немедленный возврат к работе с Victoria/MLX.
@@ -467,6 +489,7 @@
 ### 4.2. Распределение задач
 
 ### 4.3. Порты и URL
+
 - Victoria: `8010` (внешний), `8000` (внутренний)
 - Veronica: `8011` (внешний), `8000` (внутренний)
 - Ollama: `11434`
@@ -487,24 +510,24 @@
 
 ### 5а. Living Organism / Living Brain: статус планов (2026-02-03)
 
-| План | Реализовано | Где |
-|------|-------------|-----|
-| Библия, инструменты, HITL | ✅ | §3а, .cursorrules |
-| Prompt Engineer (Арина) | ✅ | employees.json, ROLE_PROMPT_TEMPLATES |
-| Self-Check → задачи | ✅ | self_check_system._create_recovery_task |
-| CORPORATION_PLANNING_CALENDAR | ✅ | docs/CORPORATION_PLANNING_CALENDAR.md |
-| Victoria task_plan_struct | ✅ | victoria_enhanced._try_parse_llm_json |
-| Декомпозиция сложных задач | ✅ | enhanced_orchestrator Phase 1.5 |
-| Рефлексия + request_approval | ✅ | react_agent |
-| Ретривал успешных решений | ✅ | ai_core._get_knowledge_context |
-| session_context в Victoria | ✅ | victoria_server, VictoriaClient |
-| Автотесты (Phase 13) | ✅ | nightly_learner |
-| Test Generation (Phase 14) | ✅ | nightly_learner, git diff |
-| correlation_id везде | ✅ | chat, terminal, editor → Victoria |
-| Tacit Knowledge баг-фикс | ✅ | ai_core is_coding_task |
-| Code-Smell, ROLE_PROMPT | ✅ | sync_employees, code_auditor |
-| AUTO_PROFILING_GUIDE | ✅ | docs/AUTO_PROFILING_GUIDE.md |
-| Retention traces | ✅ | cleanup_old_traces.py, CORPORATION_PLANNING_CALENDAR |
+| План                          | Реализовано | Где                                                  |
+| ----------------------------- | ----------- | ---------------------------------------------------- |
+| Библия, инструменты, HITL     | ✅          | §3а, .cursorrules                                    |
+| Prompt Engineer (Арина)       | ✅          | employees.json, ROLE_PROMPT_TEMPLATES                |
+| Self-Check → задачи           | ✅          | self_check_system.\_create_recovery_task             |
+| CORPORATION_PLANNING_CALENDAR | ✅          | docs/CORPORATION_PLANNING_CALENDAR.md                |
+| Victoria task_plan_struct     | ✅          | victoria_enhanced.\_try_parse_llm_json               |
+| Декомпозиция сложных задач    | ✅          | enhanced_orchestrator Phase 1.5                      |
+| Рефлексия + request_approval  | ✅          | react_agent                                          |
+| Ретривал успешных решений     | ✅          | ai_core.\_get_knowledge_context                      |
+| session_context в Victoria    | ✅          | victoria_server, VictoriaClient                      |
+| Автотесты (Phase 13)          | ✅          | nightly_learner                                      |
+| Test Generation (Phase 14)    | ✅          | nightly_learner, git diff                            |
+| correlation_id везде          | ✅          | chat, terminal, editor → Victoria                    |
+| Tacit Knowledge баг-фикс      | ✅          | ai_core is_coding_task                               |
+| Code-Smell, ROLE_PROMPT       | ✅          | sync_employees, code_auditor                         |
+| AUTO_PROFILING_GUIDE          | ✅          | docs/AUTO_PROFILING_GUIDE.md                         |
+| Retention traces              | ✅          | cleanup_old_traces.py, CORPORATION_PLANNING_CALENDAR |
 
 | Phase 15 авто-профилирование | ✅ | nightly_learner (воскресенье), cProfile → knowledge_nodes |
 | Dashboard auto-apply (safe) | ✅ | dashboard_daily_improver, AUTO_APPLY_DASHBOARD=true, max_entries патч |
@@ -536,99 +559,100 @@
 
 ## 7. Конфигурация (ключевые переменные)
 
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| USE_VICTORIA_ENHANCED | true | Включить Victoria Enhanced (ReAct, Department Heads, делегирование). |
-| ENABLE_EVENT_MONITORING | true | Включить Victoria Initiative (Event Bus, мониторинг, skills). |
-| PREFER_EXPERTS_FIRST | true | Execution-задачи в Victoria Enhanced, в Veronica — только простые. |
-| SMART_WORKER_STUCK_MINUTES | 15 | Через сколько минут задача в in_progress без обновления updated_at считается зависшей. |
-| SMART_WORKER_MAX_CONCURRENT | 15 | Потолок: макс. задач «в работе» одновременно. |
-| SMART_WORKER_ADAPTIVE_CONCURRENCY | true | При true — effective_N по CPU/RAM и MLX/Ollama (потолок MAX_CONCURRENT); при false — фиксированный N. |
-| ADAPTIVE_MLX_SAFE_MAX | 2 | Потолок одновременных запросов к MLX со стороны воркера (MLX вылетает при высоком параллелизме). |
-| SMART_WORKER_BATCH_BY_MODEL | true | Батчировать задачи по (source, model). |
-| SMART_WORKER_HEAVY_LIGHT_PAIRING | true | 50/50 MLX/Ollama + тяжёлый/лёгкий pairing: когда Ollama тяжёлая — MLX лёгкая, и наоборот. false = intelligent_model_router по сложности. |
-| SMART_WORKER_INTERLEAVE_BLOCKS | true | Чередовать блоки (MLX и Ollama одновременно); при pairing — тяжёлый на одном, лёгкий на другом. |
-| SMART_WORKER_HEAVY_MODEL_TIMEOUT_MULTIPLIER | 1.5 | Для тяжёлых моделей (70b, 104b, 32b) — множитель таймаута. Учитывает время загрузки (30–90 сек). |
-| OLLAMA_API_URL, MLX_API_URL | host.docker.internal / localhost | URL Ollama и MLX. |
-| DATABASE_URL | postgresql://...knowledge_postgres:5432/knowledge_os | БД Knowledge OS. |
-| MAX_CONCURRENT_VICTORIA | 50 | Семафор запросов к Victoria в backend. |
-| VICTORIA_MAX_STEPS_CHAT | 50 | Лимит шагов Victoria для чата (backend). Меньше «превышен лимит 500» и долгих ответов на локальных моделях. |
-| VICTORIA_MAX_STEPS | 50 (Telegram) | Лимит шагов в Telegram-боте Victoria; на сервере по умолчанию 500 (если клиент не передаёт max_steps). |
-| **VICTORIA_TIMEOUT** | **900** | Таймаут ожидания ответа Victoria (сек). 900 с = 15 мин — чтобы не обрывать сложные запросы на локальных моделях. |
-| **OLLAMA_EXECUTOR_TIMEOUT** | **300** | Таймаут одного вызова Ollama в Victoria (сек). 300 с на каждый шаг LLM. |
-| RAG_CONTEXT_LIMIT | 5 | Макс. узлов знаний в контексте Victoria. |
-| RAG_SIMILARITY_THRESHOLD | 0.6 | Порог similarity для включения узла в контекст (RAG). |
-| RAG_SNIPPET_CHARS | 500 | Символов на узел в контексте (сниппет). Раньше 200. |
-| RAG_TOP1_FULL_MAX_CHARS | 2000 | Для топ-1 по similarity — полный контент до этого лимита; 0 = отключено. |
-| AUTO_APPLY_DASHBOARD | false | При true — Dashboard Daily Improver авто-патчит max_entries в st.cache_data (Living Organism §3). |
-| PREDICTIVE_STUCK_COUNT_THRESHOLD | 5 | Порог: при in_progress без обновления >15 мин ≥ N — создаётся задача. |
-| PREDICTIVE_PENDING_COUNT_THRESHOLD | 30 | Порог: при pending старше 1ч ≥ N — создаётся задача. |
-| BATCH_SMALL_TASKS_ENABLED | true (docker) | При true — Phase 1.6 помечает задачи одного domain (low/medium) batch_group. |
-| BATCH_SMALL_TASKS_THRESHOLD | 3 | Мин. задач в domain для batch_group. |
-| SMART_WORKER_BATCH_GROUP_LLM | true (docker) | При true — воркер обрабатывает задачи с batch_group одним вызовом LLM (2–3 на батч). |
-| SMART_WORKER_BATCH_GROUP_MAX | 3 | Макс. задач в одном батч-вызове LLM. |
+| Переменная                                  | По умолчанию                                         | Описание                                                                                                                                 |
+| ------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| USE_VICTORIA_ENHANCED                       | true                                                 | Включить Victoria Enhanced (ReAct, Department Heads, делегирование).                                                                     |
+| ENABLE_EVENT_MONITORING                     | true                                                 | Включить Victoria Initiative (Event Bus, мониторинг, skills).                                                                            |
+| PREFER_EXPERTS_FIRST                        | true                                                 | Execution-задачи в Victoria Enhanced, в Veronica — только простые.                                                                       |
+| SMART_WORKER_STUCK_MINUTES                  | 15                                                   | Через сколько минут задача в in_progress без обновления updated_at считается зависшей.                                                   |
+| SMART_WORKER_MAX_CONCURRENT                 | 15                                                   | Потолок: макс. задач «в работе» одновременно.                                                                                            |
+| SMART_WORKER_ADAPTIVE_CONCURRENCY           | true                                                 | При true — effective_N по CPU/RAM и MLX/Ollama (потолок MAX_CONCURRENT); при false — фиксированный N.                                    |
+| ADAPTIVE_MLX_SAFE_MAX                       | 2                                                    | Потолок одновременных запросов к MLX со стороны воркера (MLX вылетает при высоком параллелизме).                                         |
+| SMART_WORKER_BATCH_BY_MODEL                 | true                                                 | Батчировать задачи по (source, model).                                                                                                   |
+| SMART_WORKER_HEAVY_LIGHT_PAIRING            | true                                                 | 50/50 MLX/Ollama + тяжёлый/лёгкий pairing: когда Ollama тяжёлая — MLX лёгкая, и наоборот. false = intelligent_model_router по сложности. |
+| SMART_WORKER_INTERLEAVE_BLOCKS              | true                                                 | Чередовать блоки (MLX и Ollama одновременно); при pairing — тяжёлый на одном, лёгкий на другом.                                          |
+| SMART_WORKER_HEAVY_MODEL_TIMEOUT_MULTIPLIER | 1.5                                                  | Для тяжёлых моделей (70b, 104b, 32b) — множитель таймаута. Учитывает время загрузки (30–90 сек).                                         |
+| OLLAMA_API_URL, MLX_API_URL                 | host.docker.internal / localhost                     | URL Ollama и MLX.                                                                                                                        |
+| DATABASE_URL                                | postgresql://...knowledge_postgres:5432/knowledge_os | БД Knowledge OS.                                                                                                                         |
+| MAX_CONCURRENT_VICTORIA                     | 50                                                   | Семафор запросов к Victoria в backend.                                                                                                   |
+| VICTORIA_MAX_STEPS_CHAT                     | 50                                                   | Лимит шагов Victoria для чата (backend). Меньше «превышен лимит 500» и долгих ответов на локальных моделях.                              |
+| VICTORIA_MAX_STEPS                          | 50 (Telegram)                                        | Лимит шагов в Telegram-боте Victoria; на сервере по умолчанию 500 (если клиент не передаёт max_steps).                                   |
+| **VICTORIA_TIMEOUT**                        | **900**                                              | Таймаут ожидания ответа Victoria (сек). 900 с = 15 мин — чтобы не обрывать сложные запросы на локальных моделях.                         |
+| **OLLAMA_EXECUTOR_TIMEOUT**                 | **300**                                              | Таймаут одного вызова Ollama в Victoria (сек). 300 с на каждый шаг LLM.                                                                  |
+| RAG_CONTEXT_LIMIT                           | 5                                                    | Макс. узлов знаний в контексте Victoria.                                                                                                 |
+| RAG_SIMILARITY_THRESHOLD                    | 0.6                                                  | Порог similarity для включения узла в контекст (RAG).                                                                                    |
+| RAG_SNIPPET_CHARS                           | 500                                                  | Символов на узел в контексте (сниппет). Раньше 200.                                                                                      |
+| RAG_TOP1_FULL_MAX_CHARS                     | 2000                                                 | Для топ-1 по similarity — полный контент до этого лимита; 0 = отключено.                                                                 |
+| AUTO_APPLY_DASHBOARD                        | false                                                | При true — Dashboard Daily Improver авто-патчит max_entries в st.cache_data (Living Organism §3).                                        |
+| PREDICTIVE_STUCK_COUNT_THRESHOLD            | 5                                                    | Порог: при in_progress без обновления >15 мин ≥ N — создаётся задача.                                                                    |
+| PREDICTIVE_PENDING_COUNT_THRESHOLD          | 30                                                   | Порог: при pending старше 1ч ≥ N — создаётся задача.                                                                                     |
+| BATCH_SMALL_TASKS_ENABLED                   | true (docker)                                        | При true — Phase 1.6 помечает задачи одного domain (low/medium) batch_group.                                                             |
+| BATCH_SMALL_TASKS_THRESHOLD                 | 3                                                    | Мин. задач в domain для batch_group.                                                                                                     |
+| SMART_WORKER_BATCH_GROUP_LLM                | true (docker)                                        | При true — воркер обрабатывает задачи с batch_group одним вызовом LLM (2–3 на батч).                                                     |
+| SMART_WORKER_BATCH_GROUP_MAX                | 3                                                    | Макс. задач в одном батч-вызове LLM.                                                                                                     |
 
 ---
 
 ## 8. Таблица документов (где что искать)
 
-| Тема | Документ |
-|------|----------|
-| Архитектура, порты, запуск | [PROJECT_ARCHITECTURE_AND_GUIDE.md](PROJECT_ARCHITECTURE_AND_GUIDE.md) |
-| Границы src/ и knowledge_os (дублирование кода) | [SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md](SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md) |
-| Схема Victoria → оркестратор → эксперты → воркер | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md) |
-| Процесс Victoria от запроса до ответа | [VICTORIA_PROCESS_FULL.md](VICTORIA_PROCESS_FULL.md) |
-| Воркер: пропускная способность, зависания, батчи | [WORKER_THROUGHPUT_AND_STUCK_TASKS.md](WORKER_THROUGHPUT_AND_STUCK_TASKS.md) |
-| Ollama/MLX: URL, эхо, сканер | [OLLAMA_MLX_CONNECTION_AND_ECHO.md](OLLAMA_MLX_CONNECTION_AND_ECHO.md) |
-| MLX API: порт 11435, скрипты, мониторинг | [MLX_API_SERVER_PORT_UPDATE.md](MLX_API_SERVER_PORT_UPDATE.md) |
-| Текущее состояние воркера и LLM | [CURRENT_STATE_WORKER_AND_LLM.md](CURRENT_STATE_WORKER_AND_LLM.md) |
-| Чеклист верификации (1–24), причины сбоев, при следующих изменениях | [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) |
-| Сводка изменений из чатов | [CHANGES_FROM_OTHER_CHATS.md](CHANGES_FROM_OTHER_CHATS.md) |
-| Дашборды и агенты (полная картина) | [DASHBOARDS_AND_AGENTS_FULL_PICTURE.md](DASHBOARDS_AND_AGENTS_FULL_PICTURE.md) |
-| Роль Veronica, PREFER_EXPERTS_FIRST | [VERONICA_REAL_ROLE.md](VERONICA_REAL_ROLE.md) |
-| Чат и оркестратор | [CHAT_ORCHESTRATOR_FLOW.md](CHAT_ORCHESTRATOR_FLOW.md) |
-| Совет Директоров: чат → board/consult → Victoria | §3б этого документа; [CHANGES_FROM_OTHER_CHATS.md](CHANGES_FROM_OTHER_CHATS.md) §11 |
-| **Авто-расчёт параллелизма воркера (CPU/память, MLX+Ollama, тяжёлые/лёгкие)** | [ADAPTIVE_WORKER_CONCURRENCY_PLAN.md](ADAPTIVE_WORKER_CONCURRENCY_PLAN.md) |
-| Гипотезы, дебаты, цепочка гипотеза → дебат → задача | [HYPOTHESES_SYSTEM_STATUS.md](mac-studio/HYPOTHESES_SYSTEM_STATUS.md) |
-| Календарь автономных циклов (что когда как) | [CORPORATION_PLANNING_CALENDAR.md](CORPORATION_PLANNING_CALENDAR.md) |
-| Авто-профилирование (cProfile, py-spy) — Living Brain §6.3 | [AUTO_PROFILING_GUIDE.md](AUTO_PROFILING_GUIDE.md) |
-| Grafana (настройка) | [GRAFANA_SETUP.md](GRAFANA_SETUP.md) |
-| План верификации и полная хронология | .cursor/plans/VERIFICATION_AND_FULL_PICTURE_PLAN.md |
-| **Корпорация на Rust: дорожная карта (видение, фазы, принципы)** | [CORPORATION_RUST_ROADMAP.md](CORPORATION_RUST_ROADMAP.md) |
-| Оптимизации и кандидаты на Rust (cache_normalizer, порядок перевода) | [OPTIMIZATION_AND_RUST_CANDIDATES.md](OPTIMIZATION_AND_RUST_CANDIDATES.md) |
-| Архив (исторические отчёты из корня) | [archive/README.md](archive/README.md) |
-| **Планы и отчёты (единый индекс)** | [PLANS_AND_REPORTS_INDEX.md](PLANS_AND_REPORTS_INDEX.md) — .cursor/plans/, docs/archive/, learning_programs/, ai_insights/ |
-| **Проект Сетки 21 (регистрация, .env)** | [PROJECT_SETKI_21_SETUP.md](PROJECT_SETKI_21_SETUP.md) |
-| Оркестратор 137 (OOM), Ollama недоступен, живой организм | [ORCHESTRATOR_137_AND_OLLAMA.md](ORCHESTRATOR_137_AND_OLLAMA.md) |
-| Victoria постоянно вылетает (ложный down, OOM) | [VICTORIA_RESTARTS_CAUSE.md](VICTORIA_RESTARTS_CAUSE.md) |
-| Mac Studio: характеристики, загрузка, настройки Victoria/Backend | [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md) |
-| Копия «тебя» на Mac Studio: статус и следующие шаги | [MAC_STUDIO_COPY_STATUS.md](MAC_STUDIO_COPY_STATUS.md) — что есть, чем продолжить (куратор, эталоны, план). |
-| Время по моделям (загрузка, ответ): у каждой модели своё время, таймауты | [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md) |
-| **Холодный старт моделей (Ollama 8, MLX 11): замеры, таблицы, таймауты** | [MODEL_COLD_START_REFERENCE.md](MODEL_COLD_START_REFERENCE.md). Данные: **configs/ollama_model_timings.json**, **configs/mlx_model_timings.json**. Скрипт: `scripts/measure_cold_start_all_models.py` (MEASURE_SOURCE=ollama|mlx|all). |
-| Предотвращение повторения: задачи не создаются, оркестратор 137 | [LIVING_ORGANISM_PREVENTION.md](LIVING_ORGANISM_PREVENTION.md) |
-| Выявленные проблемы и решения с привлечением экспертов | [PROBLEMS_AND_EXPERT_SOLUTIONS.md](PROBLEMS_AND_EXPERT_SOLUTIONS.md) |
-| Куратор Victoria и корпорации (Mac Studio) | [VICTORIA_CURATOR_PLAN.md](VICTORIA_CURATOR_PLAN.md) — постановка задач, проверка цепочки, наставник, эталоны |
-| Чеклист куратора при разборе отчётов | [curator_reports/CURATOR_CHECKLIST.md](curator_reports/CURATOR_CHECKLIST.md) |
-| Runbook куратора (прогон → чеклист → RAG) | [CURATOR_RUNBOOK.md](CURATOR_RUNBOOK.md) |
-| Сбои «список файлов» в кураторе (connection reset, при следующих) | [curator_reports/CURATOR_LIST_FILES_FAILURES.md](curator_reports/CURATOR_LIST_FILES_FAILURES.md) |
-| **Полная цепочка задачи Victoria** (кто распределяет, кто исполняет, один эксперт или команда, возврат) | [VICTORIA_TASK_CHAIN_FULL.md](VICTORIA_TASK_CHAIN_FULL.md) |
-| **Тестирование всей системы** (Victoria, Veronica, оркестраторы, эксперты; как запускать; run_all_system_tests.sh) | [TESTING_FULL_SYSTEM.md](TESTING_FULL_SYSTEM.md) |
-| **Подключение экспертов: источник, sync, БД, потребители, TTL, runbook** | [EXPERT_CONNECTION_ARCHITECTURE.md](EXPERT_CONNECTION_ARCHITECTURE.md) |
-| **Использование базы знаний (Victoria, Veronica, оркестраторы, эксперты)** | [KNOWLEDGE_BASE_USAGE.md](KNOWLEDGE_BASE_USAGE.md) |
-| **Как что делать (единый индекс для команды и агентов)** | [HOW_TO_INDEX.md](HOW_TO_INDEX.md) |
-| **Как мы мыслим: подход и логика обработки задач** | [THINKING_AND_APPROACH.md](THINKING_AND_APPROACH.md) |
-| **Проверка корпорации (пошагово, причина — как нужно — переделать)** | [CORPORATION_CHECK.md](CORPORATION_CHECK.md) |
-| **Дорожная карта: когда корпорация станет «как я», что дальше по плану** | [ROADMAP_CORPORATION_LIKE_AI.md](ROADMAP_CORPORATION_LIKE_AI.md) |
-| **Что не сделано и недоделано (единый список)** | [WHATS_NOT_DONE.md](WHATS_NOT_DONE.md) |
-| Следующие шаги (RAG Redis, эталоны, улучшения) | [NEXT_STEPS_CORPORATION.md](NEXT_STEPS_CORPORATION.md) |
-| **Contributing Guide (для команды)** | [CONTRIBUTING.md](../CONTRIBUTING.md) — запуск, тесты, E2E, методология, эксперты, развитие Victoria, TODO backlog. |
-| **Ручные проверки (эхо/503, делегирование, Grafana, launchd)** | [MANUAL_VERIFICATION_CHECKLIST.md](MANUAL_VERIFICATION_CHECKLIST.md) — по желанию после изменений или перед релизом. |
+| Тема                                                                                                               | Документ                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ----- |
+| Архитектура, порты, запуск                                                                                         | [PROJECT_ARCHITECTURE_AND_GUIDE.md](PROJECT_ARCHITECTURE_AND_GUIDE.md)                                                                                                                                                       |
+| Границы src/ и knowledge_os (дублирование кода)                                                                    | [SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md](SRC_AND_KNOWLEDGE_OS_BOUNDARIES.md)                                                                                                                                                     |
+| Схема Victoria → оркестратор → эксперты → воркер                                                                   | [ARCHITECTURE_FULL.md](ARCHITECTURE_FULL.md)                                                                                                                                                                                 |
+| Процесс Victoria от запроса до ответа                                                                              | [VICTORIA_PROCESS_FULL.md](VICTORIA_PROCESS_FULL.md)                                                                                                                                                                         |
+| Воркер: пропускная способность, зависания, батчи                                                                   | [WORKER_THROUGHPUT_AND_STUCK_TASKS.md](WORKER_THROUGHPUT_AND_STUCK_TASKS.md)                                                                                                                                                 |
+| Ollama/MLX: URL, эхо, сканер                                                                                       | [OLLAMA_MLX_CONNECTION_AND_ECHO.md](OLLAMA_MLX_CONNECTION_AND_ECHO.md)                                                                                                                                                       |
+| MLX API: порт 11435, скрипты, мониторинг                                                                           | [MLX_API_SERVER_PORT_UPDATE.md](MLX_API_SERVER_PORT_UPDATE.md)                                                                                                                                                               |
+| Текущее состояние воркера и LLM                                                                                    | [CURRENT_STATE_WORKER_AND_LLM.md](CURRENT_STATE_WORKER_AND_LLM.md)                                                                                                                                                           |
+| Чеклист верификации (1–24), причины сбоев, при следующих изменениях                                                | [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md)                                                                                                                                           |
+| Сводка изменений из чатов                                                                                          | [CHANGES_FROM_OTHER_CHATS.md](CHANGES_FROM_OTHER_CHATS.md)                                                                                                                                                                   |
+| Дашборды и агенты (полная картина)                                                                                 | [DASHBOARDS_AND_AGENTS_FULL_PICTURE.md](DASHBOARDS_AND_AGENTS_FULL_PICTURE.md)                                                                                                                                               |
+| Роль Veronica, PREFER_EXPERTS_FIRST                                                                                | [VERONICA_REAL_ROLE.md](VERONICA_REAL_ROLE.md)                                                                                                                                                                               |
+| Чат и оркестратор                                                                                                  | [CHAT_ORCHESTRATOR_FLOW.md](CHAT_ORCHESTRATOR_FLOW.md)                                                                                                                                                                       |
+| Совет Директоров: чат → board/consult → Victoria                                                                   | §3б этого документа; [CHANGES_FROM_OTHER_CHATS.md](CHANGES_FROM_OTHER_CHATS.md) §11                                                                                                                                          |
+| **Авто-расчёт параллелизма воркера (CPU/память, MLX+Ollama, тяжёлые/лёгкие)**                                      | [ADAPTIVE_WORKER_CONCURRENCY_PLAN.md](ADAPTIVE_WORKER_CONCURRENCY_PLAN.md)                                                                                                                                                   |
+| Гипотезы, дебаты, цепочка гипотеза → дебат → задача                                                                | [HYPOTHESES_SYSTEM_STATUS.md](mac-studio/HYPOTHESES_SYSTEM_STATUS.md)                                                                                                                                                        |
+| Календарь автономных циклов (что когда как)                                                                        | [CORPORATION_PLANNING_CALENDAR.md](CORPORATION_PLANNING_CALENDAR.md)                                                                                                                                                         |
+| Авто-профилирование (cProfile, py-spy) — Living Brain §6.3                                                         | [AUTO_PROFILING_GUIDE.md](AUTO_PROFILING_GUIDE.md)                                                                                                                                                                           |
+| Grafana (настройка)                                                                                                | [GRAFANA_SETUP.md](GRAFANA_SETUP.md)                                                                                                                                                                                         |
+| План верификации и полная хронология                                                                               | .cursor/plans/VERIFICATION_AND_FULL_PICTURE_PLAN.md                                                                                                                                                                          |
+| **Корпорация на Rust: дорожная карта (видение, фазы, принципы)**                                                   | [CORPORATION_RUST_ROADMAP.md](CORPORATION_RUST_ROADMAP.md)                                                                                                                                                                   |
+| Оптимизации и кандидаты на Rust (cache_normalizer, порядок перевода)                                               | [OPTIMIZATION_AND_RUST_CANDIDATES.md](OPTIMIZATION_AND_RUST_CANDIDATES.md)                                                                                                                                                   |
+| Архив (исторические отчёты из корня)                                                                               | [archive/README.md](archive/README.md)                                                                                                                                                                                       |
+| **Планы и отчёты (единый индекс)**                                                                                 | [PLANS_AND_REPORTS_INDEX.md](PLANS_AND_REPORTS_INDEX.md) — .cursor/plans/, docs/archive/, learning_programs/, ai_insights/                                                                                                   |
+| **Проект Сетки 21 (регистрация, .env)**                                                                            | [PROJECT_SETKI_21_SETUP.md](PROJECT_SETKI_21_SETUP.md)                                                                                                                                                                       |
+| Оркестратор 137 (OOM), Ollama недоступен, живой организм                                                           | [ORCHESTRATOR_137_AND_OLLAMA.md](ORCHESTRATOR_137_AND_OLLAMA.md)                                                                                                                                                             |
+| Victoria постоянно вылетает (ложный down, OOM)                                                                     | [VICTORIA_RESTARTS_CAUSE.md](VICTORIA_RESTARTS_CAUSE.md)                                                                                                                                                                     |
+| Mac Studio: характеристики, загрузка, настройки Victoria/Backend                                                   | [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md)                                                                                                                                                           |
+| Копия «тебя» на Mac Studio: статус и следующие шаги                                                                | [MAC_STUDIO_COPY_STATUS.md](MAC_STUDIO_COPY_STATUS.md) — что есть, чем продолжить (куратор, эталоны, план).                                                                                                                  |
+| Время по моделям (загрузка, ответ): у каждой модели своё время, таймауты                                           | [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md)                                                                                                                                                                       |
+| **Холодный старт моделей (Ollama 8, MLX 11): замеры, таблицы, таймауты**                                           | [MODEL_COLD_START_REFERENCE.md](MODEL_COLD_START_REFERENCE.md). Данные: **configs/ollama_model_timings.json**, **configs/mlx_model_timings.json**. Скрипт: `scripts/measure_cold_start_all_models.py` (MEASURE_SOURCE=ollama | mlx | all). |
+| Предотвращение повторения: задачи не создаются, оркестратор 137                                                    | [LIVING_ORGANISM_PREVENTION.md](LIVING_ORGANISM_PREVENTION.md)                                                                                                                                                               |
+| Выявленные проблемы и решения с привлечением экспертов                                                             | [PROBLEMS_AND_EXPERT_SOLUTIONS.md](PROBLEMS_AND_EXPERT_SOLUTIONS.md)                                                                                                                                                         |
+| Куратор Victoria и корпорации (Mac Studio)                                                                         | [VICTORIA_CURATOR_PLAN.md](VICTORIA_CURATOR_PLAN.md) — постановка задач, проверка цепочки, наставник, эталоны                                                                                                                |
+| Чеклист куратора при разборе отчётов                                                                               | [curator_reports/CURATOR_CHECKLIST.md](curator_reports/CURATOR_CHECKLIST.md)                                                                                                                                                 |
+| Runbook куратора (прогон → чеклист → RAG)                                                                          | [CURATOR_RUNBOOK.md](CURATOR_RUNBOOK.md)                                                                                                                                                                                     |
+| Сбои «список файлов» в кураторе (connection reset, при следующих)                                                  | [curator_reports/CURATOR_LIST_FILES_FAILURES.md](curator_reports/CURATOR_LIST_FILES_FAILURES.md)                                                                                                                             |
+| **Полная цепочка задачи Victoria** (кто распределяет, кто исполняет, один эксперт или команда, возврат)            | [VICTORIA_TASK_CHAIN_FULL.md](VICTORIA_TASK_CHAIN_FULL.md)                                                                                                                                                                   |
+| **Тестирование всей системы** (Victoria, Veronica, оркестраторы, эксперты; как запускать; run_all_system_tests.sh) | [TESTING_FULL_SYSTEM.md](TESTING_FULL_SYSTEM.md)                                                                                                                                                                             |
+| **Подключение экспертов: источник, sync, БД, потребители, TTL, runbook**                                           | [EXPERT_CONNECTION_ARCHITECTURE.md](EXPERT_CONNECTION_ARCHITECTURE.md)                                                                                                                                                       |
+| **Использование базы знаний (Victoria, Veronica, оркестраторы, эксперты)**                                         | [KNOWLEDGE_BASE_USAGE.md](KNOWLEDGE_BASE_USAGE.md)                                                                                                                                                                           |
+| **Как что делать (единый индекс для команды и агентов)**                                                           | [HOW_TO_INDEX.md](HOW_TO_INDEX.md)                                                                                                                                                                                           |
+| **Как мы мыслим: подход и логика обработки задач**                                                                 | [THINKING_AND_APPROACH.md](THINKING_AND_APPROACH.md)                                                                                                                                                                         |
+| **Проверка корпорации (пошагово, причина — как нужно — переделать)**                                               | [CORPORATION_CHECK.md](CORPORATION_CHECK.md)                                                                                                                                                                                 |
+| **Дорожная карта: когда корпорация станет «как я», что дальше по плану**                                           | [ROADMAP_CORPORATION_LIKE_AI.md](ROADMAP_CORPORATION_LIKE_AI.md)                                                                                                                                                             |
+| **Что не сделано и недоделано (единый список)**                                                                    | [WHATS_NOT_DONE.md](WHATS_NOT_DONE.md)                                                                                                                                                                                       |
+| Следующие шаги (RAG Redis, эталоны, улучшения)                                                                     | [NEXT_STEPS_CORPORATION.md](NEXT_STEPS_CORPORATION.md)                                                                                                                                                                       |
+| **Contributing Guide (для команды)**                                                                               | [CONTRIBUTING.md](../CONTRIBUTING.md) — запуск, тесты, E2E, методология, эксперты, развитие Victoria, TODO backlog.                                                                                                          |
+| **Ручные проверки (эхо/503, делегирование, Grafana, launchd)**                                                     | [MANUAL_VERIFICATION_CHECKLIST.md](MANUAL_VERIFICATION_CHECKLIST.md) — по желанию после изменений или перед релизом.                                                                                                         |
 
 ---
 
 ---
 
 ## 10. Последние исправления (2026-02-21)
+
 - **Singularity 20.0 — The Wisdom Era (Giant-Inspired Evolution):**
   - **Digital Constitution (Constitutional AI):** Внедрен свод фундаментальных правил (`digital_constitution.py`), вдохновленный Anthropic. Виктория теперь обязана проверять свои решения на соответствие безопасности, масштабируемости и этике.
   - **Voice of Experience (Predictive Self-Correction):** Система проактивно предупреждает экспертов о возможных ошибках (`experience_retriever.py`), анализируя похожие провалы в прошлом и заметки ментора.
@@ -677,16 +701,16 @@
 
 ## 11. Что перезагрузить после изменений
 
-| Что меняли | Что перезагрузить / проверить |
-|------------|-------------------------------|
-| MLX API (падение, Metal OOM) | Мониторинг перезапускает автоматически (com.atra.mlx-monitor). Ручной перезапуск: `bash scripts/start_mlx_api_server.sh`. Проверка: `curl -s http://localhost:11435/health`. |
-| Код воркера (smart_worker_autonomous, local_router, ai_core) | `docker compose -f knowledge_os/docker-compose.yml restart knowledge_os_worker` |
-| Код Victoria / Veronica | `docker compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent` |
-| Provisioning Grafana (dashboard.yml, datasources, JSON) | `docker compose restart grafana` (Web IDE) или `docker compose -f knowledge_os/docker-compose.yml restart grafana` (Knowledge OS). После рестарта дашборды подхватываются из папок «Web IDE» / «Knowledge OS» в левой панели. |
-| Backend (config, routers) | `docker compose restart backend` или перезапуск uvicorn |
-| Реестр проектов (таблица projects) | Рестарт Victoria/Veronica чтобы подхватить новый slug: `docker compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent`. Либо подождать TTL кэша (при реализации обновления кэша по времени). |
-| Полный перезапуск стека | Сначала Knowledge OS: `docker compose -f knowledge_os/docker-compose.yml up -d`; через 15–20 сек Web IDE: `docker compose up -d`. Проверка: `curl -s http://localhost:8080/health`, `curl -s http://localhost:8010/status`. |
+| Что меняли                                                   | Что перезагрузить / проверить                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MLX API (падение, Metal OOM)                                 | Мониторинг перезапускает автоматически (com.atra.mlx-monitor). Ручной перезапуск: `bash scripts/start_mlx_api_server.sh`. Проверка: `curl -s http://localhost:11435/health`.                                                  |
+| Код воркера (smart_worker_autonomous, local_router, ai_core) | `docker compose -f knowledge_os/docker-compose.yml restart knowledge_os_worker`                                                                                                                                               |
+| Код Victoria / Veronica                                      | `docker compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent`                                                                                                                                     |
+| Provisioning Grafana (dashboard.yml, datasources, JSON)      | `docker compose restart grafana` (Web IDE) или `docker compose -f knowledge_os/docker-compose.yml restart grafana` (Knowledge OS). После рестарта дашборды подхватываются из папок «Web IDE» / «Knowledge OS» в левой панели. |
+| Backend (config, routers)                                    | `docker compose restart backend` или перезапуск uvicorn                                                                                                                                                                       |
+| Реестр проектов (таблица projects)                           | Рестарт Victoria/Veronica чтобы подхватить новый slug: `docker compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent`. Либо подождать TTL кэша (при реализации обновления кэша по времени).        |
+| Полный перезапуск стека                                      | Сначала Knowledge OS: `docker compose -f knowledge_os/docker-compose.yml up -d`; через 15–20 сек Web IDE: `docker compose up -d`. Проверка: `curl -s http://localhost:8080/health`, `curl -s http://localhost:8010/status`.   |
 
 ---
 
-*При любых изменениях в архитектуре, логике, компонентах или подходах — обновлять этот документ и соответствующий раздел. Документ всегда актуален.*
+_При любых изменениях в архитектуре, логике, компонентах или подходах — обновлять этот документ и соответствующий раздел. Документ всегда актуален._

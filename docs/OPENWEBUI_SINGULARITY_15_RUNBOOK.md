@@ -68,9 +68,11 @@ curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health
 ### 2.0 Всё из одного файла (рекомендуется)
 
 После запуска стека выполните один раз:
+
 ```bash
 python3 scripts/openwebui_bootstrap_singularity_15.py
 ```
+
 Откройте файл **configs/openwebui_singularity_15_oneload/SYSTEM_PROMPT_AND_TOOL.txt**: в нём готовый системный промпт и инструкция по добавлению инструмента. Скопируйте системный промпт в Open WebUI → модель Victoria → System Prompt; затем Workspace → Tools → Import Tools → выберите `configs/openwebui_ask_victoria_tool.py`.
 
 ### 2.1 Системный промпт (Golden Persona)
@@ -93,8 +95,8 @@ python3 scripts/openwebui_bootstrap_singularity_15.py
 3. В настройках инструмента (Valves). **Рекомендуется — как Cursor/backend** (один канал, 3 ретрая, таймаут 900 с):
    - **USE_BACKEND_PROXY:** `true`
    - **VICTORIA_URL:** `http://atra-web-ide-backend:8000` (внутри Docker-сети контейнер слушает порт 8000; 8080 — только на хосте).
-   Тогда запросы идут через `POST /api/chat/ask-victoria` и тот же VictoriaClient, что и чат Cursor — меньше RemoteProtocolError и обрывов.
-   Альтернатива (напрямую к Victoria): **USE_BACKEND_PROXY:** `false`, **VICTORIA_URL:** `http://victoria-agent:8000`.
+     Тогда запросы идут через `POST /api/chat/ask-victoria` и тот же VictoriaClient, что и чат Cursor — меньше RemoteProtocolError и обрывов.
+     Альтернатива (напрямую к Victoria): **USE_BACKEND_PROXY:** `false`, **VICTORIA_URL:** `http://victoria-agent:8000`.
    - **ASK_VICTORIA_TIMEOUT:** при необходимости увеличьте (по умолчанию 600; при прокси через бэкенд бэкенд использует свой VICTORIA_TIMEOUT, например 900).
 
 **Вариант B — через конфиг API (если Open WebUI поддерживает)**
@@ -116,13 +118,13 @@ curl -s http://localhost:8080/metrics/summary | grep -E "ask_victoria|status"
 
 ## 4. Типичные проблемы
 
-| Симптом | Что проверить |
-|--------|----------------|
-| Модель отвечает «Я Qwen» / «Я Claude» вместо Виктории | Системный промпт задан **в пресете** (Пресеты → Edit пресета → System Prompt)? Откройте **новый чат** после сохранения пресета. |
+| Симптом                                                         | Что проверить                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Модель отвечает «Я Qwen» / «Я Claude» вместо Виктории           | Системный промпт задан **в пресете** (Пресеты → Edit пресета → System Prompt)? Откройте **новый чат** после сохранения пресета.                                                                                                                                                                                                                                                                                                                                            |
 | «Victoria is temporarily unavailable» / **RemoteProtocolError** | Переведи Open WebUI **на прокси через бэкенд** (как Cursor): Valves → USE_BACKEND_PROXY=true, VICTORIA_URL=http://atra-web-ide-backend:8000. Бэкенд использует VictoriaClient с **3 ретраями** и таймаутом 900 с — меньше обрывов. Если оставляешь прямой вызов Victoria — увеличь ASK_VICTORIA_TIMEOUT, упрости запрос или повтори через минуту. Проверка: `docker exec open-webui curl -s http://victoria-agent:8000/health` или `curl -s http://localhost:8080/health`. |
-| Инструмент не вызывается | Системный промпт скопирован полностью? Модель поддерживает function calling? В чате включён инструмент ask_victoria? |
-| 503 от бэкенда | Лимит слотов Victoria (MAX_CONCURRENT_VICTORIA) — сообщение «Too many requests». Или ошибка Victoria — в теле ответа теперь краткая причина: таймаут / нет связи / перегрузка. Запустите диагностику: `./scripts/test_ask_victoria_chain.sh`. |
-| Таймаут | Увеличить ASK_VICTORIA_TIMEOUT в Valves (рекомендуется 300–600 для анализа/оркестрации). Если запрос всё равно обрывается — см. ниже «Таймауты Open WebUI». |
+| Инструмент не вызывается                                        | Системный промпт скопирован полностью? Модель поддерживает function calling? В чате включён инструмент ask_victoria?                                                                                                                                                                                                                                                                                                                                                       |
+| 503 от бэкенда                                                  | Лимит слотов Victoria (MAX_CONCURRENT_VICTORIA) — сообщение «Too many requests». Или ошибка Victoria — в теле ответа теперь краткая причина: таймаут / нет связи / перегрузка. Запустите диагностику: `./scripts/test_ask_victoria_chain.sh`.                                                                                                                                                                                                                              |
+| Таймаут                                                         | Увеличить ASK_VICTORIA_TIMEOUT в Valves (рекомендуется 300–600 для анализа/оркестрации). Если запрос всё равно обрывается — см. ниже «Таймауты Open WebUI».                                                                                                                                                                                                                                                                                                                |
 
 ### Диагностика цепочки Backend → Victoria
 
@@ -140,10 +142,10 @@ curl -s http://localhost:8080/metrics/summary | grep -E "ask_victoria|status"
 
 Open WebUI ограничивает время ожидания на стороне бэкенда. Переменные окружения контейнера (или хоста, если запуск не в Docker):
 
-| Переменная | По умолчанию | Назначение |
-|------------|--------------|------------|
-| **AIOHTTP_CLIENT_TIMEOUT** | 300 (сек) | Общий таймаут клиента (Ollama, OpenAI, возможно весь запрос чата с инструментами). Увеличь до 600–900 или пустая строка `""` — без лимита. |
-| **AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA** | 10 (сек) | Таймаут получения данных от tool server. Если вызовы инструментов режутся через ~10 с — увеличь до 600 и больше. |
+| Переменная                                  | По умолчанию | Назначение                                                                                                                                 |
+| ------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **AIOHTTP_CLIENT_TIMEOUT**                  | 300 (сек)    | Общий таймаут клиента (Ollama, OpenAI, возможно весь запрос чата с инструментами). Увеличь до 600–900 или пустая строка `""` — без лимита. |
+| **AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA** | 10 (сек)     | Таймаут получения данных от tool server. Если вызовы инструментов режутся через ~10 с — увеличь до 600 и больше.                           |
 
 Где задать: при запуске в Docker — в `docker-compose` или `.env` для сервиса `open-webui`, например:
 
@@ -167,9 +169,11 @@ environment:
 ## 6. Установка Open WebUI с нуля (опционально)
 
 Если нужен чистый сброс и автоматическое создание админа:
+
 ```bash
 ./scripts/openwebui_fresh_install_singularity_15.sh
 ```
+
 Задайте в .env или export: `OPENWEBUI_ADMIN_EMAIL`, `OPENWEBUI_ADMIN_PASSWORD`. После установки войдите в Open WebUI и выполните шаги из §2.0 (один файл).
 
 ## 7. Автозапуск (чтобы всё поднималось автоматически)
@@ -186,4 +190,4 @@ environment:
 
 ---
 
-*См. также: docs/OPENWEBUI_RAG_SETUP.md, docs/SINGULARITY_15_GOLDEN_PERSONA.md*
+_См. также: docs/OPENWEBUI_RAG_SETUP.md, docs/SINGULARITY_15_GOLDEN_PERSONA.md_

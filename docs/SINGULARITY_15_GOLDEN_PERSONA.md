@@ -56,12 +56,12 @@ KISS, первые принципы, инверсия (что может пой�
 
 ## Параметры инструмента ask_victoria
 
-| Параметр           | Описание |
-|--------------------|----------|
-| goal               | Цель/запрос (обязательно). |
-| project_context    | atra-web-ide \| setki-21 \| atra (по умолчанию atra-web-ide). |
-| user_key           | Стабильный ID пользователя для LTM (например openwebui-{user_id}). |
+| Параметр        | Описание                                                           |
+| --------------- | ------------------------------------------------------------------ |
+| goal            | Цель/запрос (обязательно).                                         |
+| project_context | atra-web-ide \| setki-21 \| atra (по умолчанию atra-web-ide).      |
+| user_key        | Стабильный ID пользователя для LTM (например openwebui-{user_id}). |
 
 ---
 
-*См. план: .cursor/plans/singularity_15.0_unified_consciousness_bridge_*.plan.md*
+_См. план: .cursor/plans/singularity*15.0_unified_consciousness_bridge*_.plan.md\*

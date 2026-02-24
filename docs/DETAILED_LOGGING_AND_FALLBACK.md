@@ -5,6 +5,7 @@
 ## Проблема
 
 При отправке запроса к Victoria через `chat_victoria.sh` возникала ошибка:
+
 ```
 Connection reset by peer
 ```
@@ -51,6 +52,7 @@ FALLBACK_MODELS_MLX = [
 ```
 
 **Механизм fallback:**
+
 - При получении HTTP 500 или ошибки с индикаторами краша ("unexpectedly stopped", "out of memory")
 - Модель добавляется в `_failed_models` (не будет повторно использоваться в сессии)
 - Ищется следующая доступная модель (сначала MLX, потом Ollama)
@@ -78,6 +80,7 @@ python3 scripts/test_request_flow.py --goal "напиши код"
 ```
 
 **Что проверяет скрипт:**
+
 1. Подключение к Victoria, Ollama, MLX
 2. Список доступных моделей
 3. Прямой тест модели (без Victoria)
@@ -86,12 +89,14 @@ python3 scripts/test_request_flow.py --goal "напиши код"
 ## Результаты тестирования
 
 ### До изменений:
+
 ```
 ⚠️ Ошибка опроса: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))
 ❌ Не удалось получить ответ от Victoria
 ```
 
 ### После изменений:
+
 ```
 ✅ Task completed! Total time: 12361ms
 Model: Victoria Enhanced

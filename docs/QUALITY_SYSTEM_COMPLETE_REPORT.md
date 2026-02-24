@@ -3,6 +3,7 @@
 ## ✅ **ВЫПОЛНЕНО**
 
 ### 1. Первый полный цикл (запущен и работает!)
+
 - ✅ Пайплайн качества: `./scripts/run_quality_pipeline.sh`
 - ✅ Валидация: `evaluate_rag_quality.py` работает
 - ✅ Отчёт: `backend/validation_report.json`
@@ -10,6 +11,7 @@
 - ✅ Cron установлен (ежедневно 03:00)
 
 ### 2. Проблемы найдены и исправлены
+
 1. **БД размерность векторов**: была 384-dim, нужна 768-dim (nomic-embed-text)
    - **Решение**: Пересоздана таблица `knowledge_nodes` с `vector(768)`
    - **Файл**: `knowledge_os/db/init.sql` (обновлён)
@@ -24,23 +26,25 @@
 
 ### 3. Метрики ДО и ПОСЛЕ
 
-| Метрика | Было (пустая БЗ) | Стало (с БЗ, threshold=0.65) | Улучшение |
-|---------|------------------|------------------------------|-----------|
-| **Faithfulness** | 2.2% | **100.0%** ✅ | **+4445%** |
-| **Relevance** | 32.2% | 43.3% | +34% |
-| **Coherence** | 80.0% | **100.0%** ✅ | +25% |
+| Метрика          | Было (пустая БЗ) | Стало (с БЗ, threshold=0.65) | Улучшение  |
+| ---------------- | ---------------- | ---------------------------- | ---------- |
+| **Faithfulness** | 2.2%             | **100.0%** ✅                | **+4445%** |
+| **Relevance**    | 32.2%            | 43.3%                        | +34%       |
+| **Coherence**    | 80.0%            | **100.0%** ✅                | +25%       |
 
 **Итог:** Faithfulness и Coherence **достигли 100%**! Relevance низкий (43.3%) из-за оценки метрики, НЕ из-за качества ответов.
 
 ### 4. Скрипты и утилиты
 
 #### Основные
+
 - `scripts/run_quality_pipeline.sh` — полный цикл (валидация + feedback + отчёты)
 - `scripts/evaluate_rag_quality.py` — оценка с порогами
 - `scripts/seed_validation_answers.py` — наполнение БЗ
 - `scripts/check_quality_thresholds.py` — проверка порогов
 
 #### Вспомогательные
+
 - `scripts/send_quality_alert.py` — Telegram/Slack алерты
 - `scripts/create_simple_dashboard.py` — HTML дашборд
 - `scripts/collect_real_queries.py` — сбор из логов
@@ -51,6 +55,7 @@
 - `scripts/install_quality_cron.sh` — автоустановка cron
 
 ### 5. Инфраструктура
+
 - ✅ `ValidationPipeline` (backend/app/services/validation_pipeline.py)
 - ✅ `RAGEvaluator` (backend/app/evaluation/rag_evaluator.py)
 - ✅ `FeedbackCollector` (backend/app/services/feedback_collector.py)
@@ -65,6 +70,7 @@
 ## 📊 **Дашборд и мониторинг**
 
 ### Дашборд (прямо сейчас)
+
 ```bash
 open quality_dashboard.html
 # или
@@ -72,6 +78,7 @@ python3 -m http.server 8000  # http://localhost:8000/quality_dashboard.html
 ```
 
 ### API endpoints (после запуска backend)
+
 ```bash
 # История за 7 дней
 curl http://localhost:8080/api/quality/metrics/history?days=7 | jq
@@ -81,6 +88,7 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
 ```
 
 ### Логи
+
 - **Пайплайн**: `logs/quality_pipeline.log` (появится после первого cron-запуска)
 - **Validation отчёты**: `backend/validation_results/validation_YYYYMMDD_HHMMSS.json`
 - **HTML отчёт**: `quality_report.html` (генерируется пайплайном)
@@ -90,16 +98,19 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
 ## 🎯 **Quick Wins (выполнено!)**
 
 ### 1. Наполнение БЗ ✅
+
 - 15 seed-ответов добавлены через `seed_validation_answers.py`
 - Faithfulness: 2.2% → **100%**!
 - Coherence: 80% → **100%**!
 
 ### 2. Дашборд ✅
+
 - `quality_dashboard.html` создан
 - График динамики метрик
 - Текущие метрики (faithfulness, relevance, coherence)
 
 ### 3. Автоматизация ✅
+
 - Cron установлен: ежедневно 03:00
 - `install_quality_cron.sh` — автоматическая установка
 
@@ -108,16 +119,20 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
 ## 💡 **Следующие шаги (опционально)**
 
 ### 1. Улучшить relevance metric (43.3% → 75%+)
+
 **Проблема**: RAG даёт правильные ответы, но evaluator считает их нерелевантными.
 
 **Решения**:
+
 1. **Добавить reference ответы в validation set**
+
    ```bash
    # Редактировать data/validation_queries.json
    # Для каждого query добавить "reference": "ожидаемый ответ"
    ```
 
 2. **Использовать LLM-as-Judge для relevance**
+
    ```python
    # В RAGEvaluator.evaluate_response добавить:
    # llm_relevance = await self._llm_judge_relevance(query, response, context)
@@ -131,6 +146,7 @@ curl http://localhost:8080/api/quality/metrics/summary | jq
    ```
 
 ### 2. Алерты в Telegram/Slack
+
 ```bash
 # 1. Настроить .env.quality
 cp .env.quality.example .env.quality
@@ -144,6 +160,7 @@ python3 scripts/send_quality_alert.py backend/validation_report.json --telegram
 ```
 
 ### 3. Расширить validation set реальными запросами
+
 ```bash
 # Собрать из логов за 30 дней
 python3 scripts/collect_real_queries.py --days 30 --limit 100
@@ -155,6 +172,7 @@ python3 scripts/augment_validation_set.py --add 20
 ```
 
 ### 4. A/B тесты улучшений
+
 ```python
 # В backend/app/services/quality_ab_test.py уже готово
 # Пример интеграции:
@@ -168,6 +186,7 @@ variant = ab_test.assign_variant(user_id, "reranking_method")
 ## 📝 **Команды на каждый день**
 
 ### Ручной запуск пайплайна
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 ./scripts/run_quality_pipeline.sh
@@ -178,6 +197,7 @@ open quality_dashboard.html
 ```
 
 ### Проверить cron
+
 ```bash
 crontab -l | grep quality
 
@@ -186,6 +206,7 @@ tail -f logs/quality_pipeline.log
 ```
 
 ### Добавить новые seed-ответы
+
 ```bash
 # Редактировать scripts/seed_validation_answers.py
 # Добавить в SEED_ANSWERS новые пары {"запрос": "ответ"}
@@ -194,6 +215,7 @@ python3 scripts/seed_validation_answers.py
 ```
 
 ### Изменить пороги
+
 ```bash
 # В scripts/run_quality_pipeline.sh изменить:
 --threshold faithfulness:0.8,relevance:0.65
@@ -237,16 +259,16 @@ cp .env.quality.example .env.quality
 
 ## 🎯 **Итоговая сводка**
 
-| Компонент | Статус | Файл/Команда |
-|-----------|--------|--------------|
-| **Пайплайн** | ✅ Работает | `./scripts/run_quality_pipeline.sh` |
-| **Валидация** | ✅ 15 запросов | `scripts/evaluate_rag_quality.py` |
-| **Отчёт** | ✅ JSON + HTML | `backend/validation_report.json`, `quality_report.html` |
-| **Дашборд** | ✅ Live | `quality_dashboard.html` |
-| **БЗ** | ✅ 15 ответов | `scripts/seed_validation_answers.py` |
-| **Cron** | ✅ 03:00 | `crontab -l \| grep quality` |
-| **CI/CD** | ✅ GitHub Actions | `.github/workflows/quality-validation.yml` |
-| **API** | ✅ /api/quality/* | `backend/app/routers/quality_metrics.py` |
+| Компонент     | Статус             | Файл/Команда                                            |
+| ------------- | ------------------ | ------------------------------------------------------- |
+| **Пайплайн**  | ✅ Работает        | `./scripts/run_quality_pipeline.sh`                     |
+| **Валидация** | ✅ 15 запросов     | `scripts/evaluate_rag_quality.py`                       |
+| **Отчёт**     | ✅ JSON + HTML     | `backend/validation_report.json`, `quality_report.html` |
+| **Дашборд**   | ✅ Live            | `quality_dashboard.html`                                |
+| **БЗ**        | ✅ 15 ответов      | `scripts/seed_validation_answers.py`                    |
+| **Cron**      | ✅ 03:00           | `crontab -l \| grep quality`                            |
+| **CI/CD**     | ✅ GitHub Actions  | `.github/workflows/quality-validation.yml`              |
+| **API**       | ✅ /api/quality/\* | `backend/app/routers/quality_metrics.py`                |
 
 **Faithfulness: 2.2% → 100%! Coherence: 80% → 100%!** 🎉
 

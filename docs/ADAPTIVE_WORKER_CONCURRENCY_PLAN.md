@@ -22,12 +22,12 @@
 
 ## 2. Специалисты и чеклист (с кем сверяться)
 
-| Роль | Эксперт | Что проверять |
-|------|---------|----------------|
-| **Backend** | Игорь | Пул БД достаточен при динамическом N; семафор/очередь не дают утечек; нет блокирующего I/O в event loop. |
-| **SRE / Monitor** | Елена | Heartbeat и stuck reset работают при изменяющемся N; метрики (effective_concurrent, cpu, ram, mlx/ollama utilization); алерты при падении N ниже порога или OOM. |
-| **Performance** | Ольга | Latency и throughput не деградируют; при перегрузке — backpressure (снижение N), а не каскад таймаутов. |
-| **QA** | Анна | Тесты: граничные случаи (MLX недоступен, Ollama перегружен, память 95%); регрессия при отключении адаптива. |
+| Роль              | Эксперт | Что проверять                                                                                                                                                    |
+| ----------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend**       | Игорь   | Пул БД достаточен при динамическом N; семафор/очередь не дают утечек; нет блокирующего I/O в event loop.                                                         |
+| **SRE / Monitor** | Елена   | Heartbeat и stuck reset работают при изменяющемся N; метрики (effective_concurrent, cpu, ram, mlx/ollama utilization); алерты при падении N ниже порога или OOM. |
+| **Performance**   | Ольга   | Latency и throughput не деградируют; при перегрузке — backpressure (снижение N), а не каскад таймаутов.                                                          |
+| **QA**            | Анна    | Тесты: граничные случаи (MLX недоступен, Ollama перегружен, память 95%); регрессия при отключении адаптива.                                                      |
 
 **Чеклист после внедрения** (добавить в [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md)):
 
@@ -51,11 +51,11 @@
 
 ## 4. Входные данные для расчёта N
 
-| Источник | Данные | Где брать |
-|----------|--------|------------|
-| **Хост** | CPU %, RAM % (и при необходимости диск) | `resource_monitor.get_system_resources()` (уже есть); воркер в Docker может опрашивать хост через MLX/Ollama health или отдельный endpoint. |
-| **MLX API Server** | active_requests, max_concurrent, memory (used_percent) | `resource_monitor.get_mlx_health()` или `GET /health` (уже используется в local_router). |
-| **Ollama** | активные процессы, системные CPU/RAM | `resource_monitor.get_ollama_health()` или `GET /api/ps` + системные метрики. |
+| Источник                    | Данные                                                                  | Где брать                                                                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Хост**                    | CPU %, RAM % (и при необходимости диск)                                 | `resource_monitor.get_system_resources()` (уже есть); воркер в Docker может опрашивать хост через MLX/Ollama health или отдельный endpoint.    |
+| **MLX API Server**          | active_requests, max_concurrent, memory (used_percent)                  | `resource_monitor.get_mlx_health()` или `GET /health` (уже используется в local_router).                                                       |
+| **Ollama**                  | активные процессы, системные CPU/RAM                                    | `resource_monitor.get_ollama_health()` или `GET /api/ps` + системные метрики.                                                                  |
 | **Модели (тяжёлые/лёгкие)** | категория задачи → модель (reasoning/70b = тяжёлая, fast/3.8b = лёгкая) | Уже есть: `available_models_scanner` (MLX_PRIORITY_BY_CATEGORY, OLLAMA_PRIORITY_BY_CATEGORY); воркер знает preferred_model и preferred_source. |
 
 Классификация «тяжёлая/лёгкая» по имени модели (пример):
@@ -79,9 +79,9 @@
 ### 5.2. Формула эффективного N (одновременно «в работе»)
 
 1. **База:** `N_min = 1`, `N_max = SMART_WORKER_MAX_CONCURRENT` (например 20) — потолок из конфига.
-2. **По хосту:**  
-   - если `ram_used_percent > 90` → `N_cap_host = max(1, current_N - 2)` (или формула по свободной памяти);  
-   - если `cpu_percent > 85` → уменьшать N;  
+2. **По хосту:**
+   - если `ram_used_percent > 90` → `N_cap_host = max(1, current_N - 2)` (или формула по свободной памяти);
+   - если `cpu_percent > 85` → уменьшать N;
    - иначе при `ram < 80` и `cpu < 70` — можно осторожно увеличивать N (например +1 раз в 30 сек).
 3. **По MLX:** `mlx_free = mlx_max_concurrent - mlx_active`; если воркер отправляет часть задач в MLX, то «слотов под MLX» не больше `mlx_free` (остальное — Ollama или ожидание).
 4. **По Ollama:** аналогично — не превышать разумное число одновременных запросов к Ollama (например по числу активных процессов или по эмпирическому лимиту на процесс).
@@ -105,9 +105,9 @@
 
 - **Входы:** `get_system_resources()`, `get_mlx_health()`, `get_ollama_health()` (через resource_monitor); опционально текущее N и последние ошибки (OOM/таймаут).
 - **Выход:** рекомендуемое `effective_concurrent` (int), а также метки «mlx_overloaded», «ollama_overloaded», «host_stressed».
-- **Логика:**  
-  - пороги RAM/CPU как в resource_monitor (85%, 90%);  
-  - mlx_free, ollama_cap;  
+- **Логика:**
+  - пороги RAM/CPU как в resource_monitor (85%, 90%);
+  - mlx_free, ollama_cap;
   - N = min(N_max, N_host, mlx_free + ollama_cap); floor 1, не превышать N_max.
 - **Кэш:** обновлять не чаще раз в 10–15 секунд, чтобы не дёргать health на каждый цикл воркера.
 - **Тесты:** мок health (низкая/высокая загрузка) → проверка, что N уменьшается/увеличивается в ожидаемых пределах.
@@ -134,15 +134,15 @@
 
 ## 7. Конфигурация (env)
 
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| SMART_WORKER_ADAPTIVE_CONCURRENCY | false | Включить авто-расчёт N (true) или использовать фиксированный SMART_WORKER_MAX_CONCURRENT. |
-| SMART_WORKER_MAX_CONCURRENT | 10 | Потолок для N при адаптивном режиме; при фиксированном — значение N. |
-| ADAPTIVE_HOST_RAM_THRESHOLD | 0.85 | При RAM > 85% снижать N. |
-| ADAPTIVE_HOST_CPU_THRESHOLD | 0.85 | При CPU > 85% снижать N. |
-| ADAPTIVE_MAX_HEAVY_MLX | 2 | Макс. тяжёлых задач одновременно на MLX. |
-| ADAPTIVE_MAX_HEAVY_OLLAMA | 2 | Макс. тяжёлых задач одновременно на Ollama. |
-| ADAPTIVE_CALC_INTERVAL_SEC | 15 | Интервал пересчёта N (секунды). |
+| Переменная                        | По умолчанию | Описание                                                                                  |
+| --------------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
+| SMART_WORKER_ADAPTIVE_CONCURRENCY | false        | Включить авто-расчёт N (true) или использовать фиксированный SMART_WORKER_MAX_CONCURRENT. |
+| SMART_WORKER_MAX_CONCURRENT       | 10           | Потолок для N при адаптивном режиме; при фиксированном — значение N.                      |
+| ADAPTIVE_HOST_RAM_THRESHOLD       | 0.85         | При RAM > 85% снижать N.                                                                  |
+| ADAPTIVE_HOST_CPU_THRESHOLD       | 0.85         | При CPU > 85% снижать N.                                                                  |
+| ADAPTIVE_MAX_HEAVY_MLX            | 2            | Макс. тяжёлых задач одновременно на MLX.                                                  |
+| ADAPTIVE_MAX_HEAVY_OLLAMA         | 2            | Макс. тяжёлых задач одновременно на Ollama.                                               |
+| ADAPTIVE_CALC_INTERVAL_SEC        | 15           | Интервал пересчёта N (секунды).                                                           |
 
 ---
 

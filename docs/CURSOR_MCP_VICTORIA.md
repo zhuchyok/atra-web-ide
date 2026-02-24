@@ -64,6 +64,7 @@ python3 scripts/victoria/setup_cursor_mcp_global.py
 - «Проверь victoria_health»
 
 **Инструменты MCP:**
+
 - `victoria_chat` — диалог с Викторией (сообщение + опционально история)
 - `victoria_run` — выполнить задачу (goal + max_steps)
 - `victoria_status` — статус Victoria Agent
@@ -83,10 +84,10 @@ VICTORIA_URL=http://192.168.1.64:8010 python3 -m src.agents.bridge.victoria_mcp_
 
 ## Порты
 
-| Сервис              | Порт | Назначение                    |
-|---------------------|------|-------------------------------|
+| Сервис              | Порт | Назначение                       |
+| ------------------- | ---- | -------------------------------- |
 | Victoria Agent      | 8010 | API Виктории (`/run`, `/health`) |
-| Victoria MCP Server | 8012 | MCP для Cursor (SSE: `/sse`)  |
+| Victoria MCP Server | 8012 | MCP для Cursor (SSE: `/sse`)     |
 
 ## Автозапуск MCP (опционально)
 

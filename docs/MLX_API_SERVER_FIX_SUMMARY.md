@@ -29,6 +29,7 @@
 ### 1. Унифицирован порт: 11434
 
 **Исправлено:**
+
 - ✅ `scripts/start_mlx_api_server.sh` — порт 11434
 - ✅ `scripts/monitor_mlx_api_server.sh` — проверяет 11434
 - ✅ `scripts/system_auto_recovery.sh` — проверяет 11434 (все места)
@@ -41,6 +42,7 @@
 **Создан:** `scripts/setup_mlx_autostart.sh`
 
 **Что делает:**
+
 - Создает `~/Library/LaunchAgents/com.atra.mlx-api-server.plist`
 - Автозапуск при загрузке Mac Studio (`RunAtLoad: true`)
 - Автоматический перезапуск при падении (`KeepAlive: Crashed`)
@@ -49,12 +51,14 @@
 ### 3. Улучшена обработка ошибок
 
 **В `mlx_api_server.py`:**
+
 - ✅ `get_model()` — обработка исключений при загрузке моделей
 - ✅ `list_models()` — обработка ошибок с HTTPException
 - ✅ Graceful shutdown при SIGTERM/SIGINT
 - ✅ Очистка кэша моделей при завершении
 
 **В `start_mlx_api_server.sh`:**
+
 - ✅ Проверка падения процесса после запуска
 - ✅ Сохранение PID в `~/Library/Logs/atra/mlx_api_server.pid`
 - ✅ Таймауты и retry при проверке доступности
@@ -102,12 +106,14 @@ tail -f ~/Library/Logs/atra/mlx_api_server.log
 ## 📊 Результат
 
 **До исправлений:**
+
 - ❌ Порт 11435 (не совпадал с конфигурацией)
 - ❌ Нет автозапуска
 - ❌ Нет автоперезапуска при падении
 - ❌ Слабая обработка ошибок
 
 **После исправлений:**
+
 - ✅ Порт 11434 (унифицирован)
 - ✅ Автозапуск через launchd
 - ✅ Автоперезапуск при падении (KeepAlive)
@@ -119,18 +125,21 @@ tail -f ~/Library/Logs/atra/mlx_api_server.log
 ## 🔧 Если проблема повторится
 
 1. **Проверить логи:**
+
    ```bash
    tail -50 ~/Library/Logs/atra/mlx_api_server.log
    tail -50 ~/Library/Logs/atra-mlx-api-server.error.log
    ```
 
 2. **Проверить процесс:**
+
    ```bash
    ps aux | grep mlx_api_server
    lsof -i :11434
    ```
 
 3. **Перезапустить:**
+
    ```bash
    launchctl stop com.atra.mlx-api-server
    launchctl start com.atra.mlx-api-server
@@ -143,4 +152,4 @@ tail -f ~/Library/Logs/atra/mlx_api_server.log
 
 ---
 
-*Исправления применены: 26.01.2026*
+_Исправления применены: 26.01.2026_

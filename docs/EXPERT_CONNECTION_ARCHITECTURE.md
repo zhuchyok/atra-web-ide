@@ -45,15 +45,15 @@
 
 ## 2. Кто и как использует экспертов (consumers)
 
-| Потребитель | Что нужно | Откуда берёт | Масштаб при росте |
-|-------------|-----------|--------------|-------------------|
-| **Промпты, планы, Swarm/Consensus** | Список имён и ролей для вставки в промпт | **expert_services** (get_all_expert_names, get_expert_services_text) = employees.json + БД, кэш БД 60 с | Один модуль, TTL конфигурируемый |
-| **Department Heads** | Глава отдела по имени отдела | **department_heads_system.py** (DEPARTMENT_HEADS dict; при росте — можно грузить из JSON/БД) | Сейчас константа; при 50+ отделах — загрузка из seed/БД |
-| **Назначение задач, workload** | Лучший эксперт по домену/категории, нагрузка | **БД** (experts, tasks): enhanced_orchestrator (get_best_expert_for_domain, assign_task_to_best_expert), **ExpertMatchingEngine** (find_best_expert_for_task) | Запросы к БД; при росте — пул, индексы, опционально кэш нагрузки |
-| **Victoria Enhanced** | Имена для swarm (до 16), consensus (до 10) | **expert_services.get_all_expert_names(max_count=…)** | Уже ограничено max_count |
-| **IntegrationBridge (orchestrator)** | Рекомендация исполнителя | **ExpertMatchingEngine** по категории задачи | Один вызов на задачу |
-| **Воркер (smart_worker_autonomous)** | system_prompt, role по имени | **БД** (SELECT FROM experts WHERE name = $1) | По имени; кэш по имени при необходимости |
-| **Expert council / discussion** | Список по отделу, по релевантности | **БД** (expert_council_discussion, get_experts_by_department) | Отдельные запросы |
+| Потребитель                          | Что нужно                                    | Откуда берёт                                                                                                                                                  | Масштаб при росте                                                |
+| ------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **Промпты, планы, Swarm/Consensus**  | Список имён и ролей для вставки в промпт     | **expert_services** (get_all_expert_names, get_expert_services_text) = employees.json + БД, кэш БД 60 с                                                       | Один модуль, TTL конфигурируемый                                 |
+| **Department Heads**                 | Глава отдела по имени отдела                 | **department_heads_system.py** (DEPARTMENT_HEADS dict; при росте — можно грузить из JSON/БД)                                                                  | Сейчас константа; при 50+ отделах — загрузка из seed/БД          |
+| **Назначение задач, workload**       | Лучший эксперт по домену/категории, нагрузка | **БД** (experts, tasks): enhanced_orchestrator (get_best_expert_for_domain, assign_task_to_best_expert), **ExpertMatchingEngine** (find_best_expert_for_task) | Запросы к БД; при росте — пул, индексы, опционально кэш нагрузки |
+| **Victoria Enhanced**                | Имена для swarm (до 16), consensus (до 10)   | **expert_services.get_all_expert_names(max_count=…)**                                                                                                         | Уже ограничено max_count                                         |
+| **IntegrationBridge (orchestrator)** | Рекомендация исполнителя                     | **ExpertMatchingEngine** по категории задачи                                                                                                                  | Один вызов на задачу                                             |
+| **Воркер (smart_worker_autonomous)** | system_prompt, role по имени                 | **БД** (SELECT FROM experts WHERE name = $1)                                                                                                                  | По имени; кэш по имени при необходимости                         |
+| **Expert council / discussion**      | Список по отделу, по релевантности           | **БД** (expert_council_discussion, get_experts_by_department)                                                                                                 | Отдельные запросы                                                |
 
 **Единая точка входа для «список для промптов»:** только **expert_services**. Для «назначить задачу / workload» — только **БД** (оркестратор, ExpertMatchingEngine, воркер). Дублирования источников для одного и того же использования нет.
 

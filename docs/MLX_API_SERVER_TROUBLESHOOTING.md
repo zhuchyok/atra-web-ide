@@ -8,6 +8,7 @@
 ## 🔍 Причины отключения
 
 ### 1. **Процесс завершается (crash)**
+
 - **Причины:**
   - OOM (Out of Memory) — большие модели (70B+) занимают много RAM
   - Ошибки в коде (исключения не обработаны)
@@ -15,13 +16,16 @@
   - Проблемы с MLX библиотекой
 
 ### 2. **Нет автозапуска**
+
 - Процесс запускается вручную через `nohup`, но нет launchd для автоперезапуска
 - При перезагрузке Mac Studio сервер не запускается автоматически
 
 ### 3. **Монитор не настроен**
+
 - `monitor_mlx_api_server.sh` должен перезапускать при падении, но может не быть запущен через launchd
 
 ### 4. **Проблемы с портом**
+
 - **Было:** `start_mlx_api_server.sh` использовал порт 11435, но конфигурация ожидала 11434
 - **Исправлено:** Все скрипты теперь используют 11434
 
@@ -30,23 +34,27 @@
 ## ✅ Решения (реализовано)
 
 ### 1. **Исправлен порт: 11435 → 11434**
+
 - ✅ `scripts/start_mlx_api_server.sh` — порт 11434
 - ✅ `scripts/monitor_mlx_api_server.sh` — проверяет 11434
 - ✅ `scripts/system_auto_recovery.sh` — проверяет 11434
 - ✅ `knowledge_os/app/mlx_api_server.py` — порт 11434 в `__main__`
 
 ### 2. **Создан launchd plist для автозапуска**
+
 - ✅ `scripts/setup_mlx_autostart.sh` — создает `com.atra.mlx-api-server.plist`
 - ✅ Автозапуск при загрузке Mac Studio
 - ✅ KeepAlive — автоматический перезапуск при падении
 - ✅ Логи: `~/Library/Logs/atra-mlx-api-server.log`
 
 ### 3. **Улучшена обработка ошибок**
+
 - ✅ `mlx_api_server.py`: обработка исключений в `get_model()`, `list_models()`
 - ✅ Graceful shutdown при SIGTERM/SIGINT
 - ✅ Логирование всех ошибок
 
 ### 4. **Улучшен скрипт запуска**
+
 - ✅ Проверка падения процесса после запуска
 - ✅ Сохранение PID в `~/Library/Logs/atra/mlx_api_server.pid`
 - ✅ Таймауты и retry при проверке доступности
@@ -64,6 +72,7 @@ bash scripts/setup_mlx_autostart.sh
 ```
 
 **Что делает:**
+
 - Создает `~/Library/LaunchAgents/com.atra.mlx-api-server.plist`
 - Загружает в launchd
 - Автозапуск при загрузке Mac Studio
@@ -76,6 +85,7 @@ bash scripts/setup_system_auto_recovery.sh
 ```
 
 **Что делает:**
+
 - Создает `com.atra.mlx-monitor.plist` для мониторинга
 - Проверяет MLX каждые 30 секунд
 - Перезапускает при недоступности (до 5 раз/час)
@@ -150,6 +160,7 @@ launchctl start com.atra.mlx-api-server
 **Проблема:** Модели не в `~/mlx-models/` или пути неверные
 
 **Решение:**
+
 ```bash
 # Проверить модели
 ls -la ~/mlx-models/
@@ -163,6 +174,7 @@ grep MODEL_PATHS knowledge_os/app/mlx_api_server.py
 **Проблема:** Большие модели (70B+) занимают всю RAM
 
 **Решение:**
+
 - Использовать меньшие модели (32B, 7B)
 - Ограничить количество одновременно загруженных моделей
 - Освобождать память после использования
@@ -170,6 +182,7 @@ grep MODEL_PATHS knowledge_os/app/mlx_api_server.py
 ### 4. "Процесс падает сразу после запуска"
 
 **Диагностика:**
+
 ```bash
 # Проверить логи
 tail -50 ~/Library/Logs/atra/mlx_api_server.log
@@ -223,4 +236,4 @@ launchctl list | grep -E "mlx|atra"
 
 ---
 
-*Документ обновлен: 26.01.2026*
+_Документ обновлен: 26.01.2026_

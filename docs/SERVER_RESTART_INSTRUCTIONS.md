@@ -28,6 +28,7 @@ ps aux | grep "python.*main" | grep -v grep
 ### 3. Исправить ATRA_ENV (если нужно)
 
 **Для PROD бота:**
+
 ```bash
 cd /root/atra
 sed -i 's/^ATRA_ENV=.*/ATRA_ENV=prod/' env
@@ -35,6 +36,7 @@ grep "^ATRA_ENV" env  # Проверяем
 ```
 
 **Для DEV бота (если запущен отдельно):**
+
 ```bash
 # Если DEV бот в отдельной директории
 cd /root/atra-dev  # или другая директория
@@ -186,4 +188,3 @@ echo "✅ Готово!"
 - **PROD бот** должен иметь `ATRA_ENV=prod`
 - **DEV бот** должен иметь `ATRA_ENV=dev`
 - Если оба бота на одном сервере, используйте разные директории или разные `env` файлы
-

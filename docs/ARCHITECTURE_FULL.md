@@ -134,7 +134,7 @@
                         └─────────────────────────┘
 ```
 
-**Как эксперты решают задачи:** и Task Distribution (сотрудники отделов), и Smart Worker (Enhanced Orchestrator) вызывают **ai_core.run_smart_agent_async(prompt, expert_name=...)**. Внутри ai_core используется **LocalAIRouter**: `router.run_local_llm(prompt, category=...)` — выбор живых узлов (check_health: MLX 11435, Ollama 11434) и модели по категории (_select_model, OLLAMA_MODELS/MODEL_MAP). То есть эксперты тоже обращаются к **моделям из доступных в Ollama и MLX** (LocalAIRouter, при необходимости available_models_scanner).
+**Как эксперты решают задачи:** и Task Distribution (сотрудники отделов), и Smart Worker (Enhanced Orchestrator) вызывают **ai_core.run_smart_agent_async(prompt, expert_name=...)**. Внутри ai_core используется **LocalAIRouter**: `router.run_local_llm(prompt, category=...)` — выбор живых узлов (check_health: MLX 11435, Ollama 11434) и модели по категории (\_select_model, OLLAMA_MODELS/MODEL_MAP). То есть эксперты тоже обращаются к **моделям из доступных в Ollama и MLX** (LocalAIRouter, при необходимости available_models_scanner).
 
 **Почему используется сканер моделей (available_models_scanner):** На Ollama и MLX список установленных моделей может меняться (пользователь делает `ollama pull` / удаляет модели). LocalAIRouter и ReActAgent используют фиксированные имена моделей (MODEL_MAP, OLLAMA_MODELS); если такой модели нет на узле, запрос даёт 404. Сканер запрашивает у Ollama и MLX реальный список моделей (`/api/tags`) и возвращает его с кэшем (TTL). Он используется в путях, где нужно выбирать модель из **фактически установленных** (fallback Victoria при ответе без Department Heads, Extended Thinking, Model Selector). При запуске бэкендов в `ensure_llm_backends` кэш сканера инвалидируется, чтобы при следующем вызове `get_available_models()` список был актуальным. Цепочка: пользователь → Victoria (8010) → Department Heads → отдел → эксперт (БД) → ReActAgent.run(goal) → Ollama/MLX — см. также [TASK_ARCHITECTURE_WHY_EMPTY_RESULT.md](TASK_ARCHITECTURE_WHY_EMPTY_RESULT.md).
 
@@ -142,17 +142,17 @@
 
 ## Кратко по блокам
 
-| Блок | Что делает |
-|------|------------|
-| **Пользователь** | Чат в Web IDE, API, Telegram, задачи в БД. |
-| **Чат/API** | Backend проксирует запрос на Victoria: `POST http://localhost:8010/run` с `goal`, `project_context`. |
-| **Victoria (8010)** | Один сервис, три уровня: Agent (база), Enhanced (ReAct, Department Heads, делегирование, выбор модели), Initiative (Event Bus, мониторинг, skills). При получении задачи — проверка/запуск Ollama и MLX. |
-| **Department Heads** | Если запрос — просьба (не чат): отдел (Strategy/Data и др.), Task Distribution, эксперты из БД → выполнение → сбор → синтез Victoria. |
-| **Делегирование** | Если задача на поиск/исполнение/file_ops → Veronica (8011), ответ возвращается в Victoria → пользователю. |
-| **Сама Victoria** | react, simple, extended_thinking, swarm; модель выбирается из доступных Ollama/MLX. |
-| **Veronica (8011)** | Выполняет переданную задачу, отдаёт результат обратно в Victoria. |
-| **Эксперты (Task Distribution, Smart Worker)** | Решают задачи через **ai_core.run_smart_agent_async** → **LocalAIRouter.run_local_llm** → модели из доступных **Ollama (11434) и MLX (11435)** (check_health, _select_model, при необходимости available_models_scanner). |
-| **Enhanced Orchestrator** | Фоновый цикл по таблице `tasks` (без исполнителя), назначение лучшему эксперту, Smart Worker → ai_core → Ollama/MLX, обновление БД. |
+| Блок                                           | Что делает                                                                                                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Пользователь**                               | Чат в Web IDE, API, Telegram, задачи в БД.                                                                                                                                                                                 |
+| **Чат/API**                                    | Backend проксирует запрос на Victoria: `POST http://localhost:8010/run` с `goal`, `project_context`.                                                                                                                       |
+| **Victoria (8010)**                            | Один сервис, три уровня: Agent (база), Enhanced (ReAct, Department Heads, делегирование, выбор модели), Initiative (Event Bus, мониторинг, skills). При получении задачи — проверка/запуск Ollama и MLX.                   |
+| **Department Heads**                           | Если запрос — просьба (не чат): отдел (Strategy/Data и др.), Task Distribution, эксперты из БД → выполнение → сбор → синтез Victoria.                                                                                      |
+| **Делегирование**                              | Если задача на поиск/исполнение/file_ops → Veronica (8011), ответ возвращается в Victoria → пользователю.                                                                                                                  |
+| **Сама Victoria**                              | react, simple, extended_thinking, swarm; модель выбирается из доступных Ollama/MLX.                                                                                                                                        |
+| **Veronica (8011)**                            | Выполняет переданную задачу, отдаёт результат обратно в Victoria.                                                                                                                                                          |
+| **Эксперты (Task Distribution, Smart Worker)** | Решают задачи через **ai_core.run_smart_agent_async** → **LocalAIRouter.run_local_llm** → модели из доступных **Ollama (11434) и MLX (11435)** (check_health, \_select_model, при необходимости available_models_scanner). |
+| **Enhanced Orchestrator**                      | Фоновый цикл по таблице `tasks` (без исполнителя), назначение лучшему эксперту, Smart Worker → ai_core → Ollama/MLX, обновление БД.                                                                                        |
 
 ---
 
@@ -192,33 +192,33 @@
 
 ## Порты и сервисы
 
-| Порт | Сервис | Роль |
-|------|--------|------|
-| 8010 | victoria-agent | Victoria Agent + Enhanced + Initiative (один процесс). |
-| 8011 | veronica-agent | Veronica, Local Developer. |
-| 11434 | Ollama | LLM (при необходимости поднимается `ollama serve`). |
+| Порт  | Сервис         | Роль                                                       |
+| ----- | -------------- | ---------------------------------------------------------- |
+| 8010  | victoria-agent | Victoria Agent + Enhanced + Initiative (один процесс).     |
+| 8011  | veronica-agent | Veronica, Local Developer.                                 |
+| 11434 | Ollama         | LLM (при необходимости поднимается `ollama serve`).        |
 | 11435 | MLX API Server | LLM (при необходимости поднимается MLX Server Supervisor). |
-| 5432 | PostgreSQL | БД (experts, tasks, knowledge_nodes и др.). |
+| 5432  | PostgreSQL     | БД (experts, tasks, knowledge_nodes и др.).                |
 
 ---
 
 ## Файлы (где что лежит)
 
-| Что | Где |
-|-----|-----|
-| Точка входа Victoria HTTP | `src/agents/bridge/victoria_server.py` (lifespan, POST /run, GET /status). |
-| Три уровня Victoria | Там же: Agent — класс VictoriaAgent; Enhanced + Initiative — VictoriaEnhanced() и start(). |
-| **Пайплайн VictoriaAgent (мировая практика)** | **Understand** (`understand_goal`) → переформулировать запрос под модули; **Plan** по переформулированной цели; **Execute** с подсказкой первого шага. См. `VictoriaAgent.run()` и `docs/VICTORIA_PROCESS_FULL.md`. |
-| Логика solve(), Department Heads, делегирование | `knowledge_os/app/victoria_enhanced.py`. |
-| Проверка/запуск Ollama и MLX при задаче | `knowledge_os/app/llm_backends_ensure.py`, вызов в начале solve(). |
-| Выбор модели из Ollama/MLX | `knowledge_os/app/local_router.py`, `knowledge_os/app/available_models_scanner.py`. |
-| Эксперты и Smart Worker → модели | `knowledge_os/app/ai_core.py` (run_smart_agent_async использует LocalAIRouter.run_local_llm); Task Distribution и Enhanced Orchestrator вызывают ai_core. |
-| Department Heads, Task Distribution | `knowledge_os/app/department_heads_system.py`, `knowledge_os/app/task_distribution_system.py`, `task_distribution_system_complete.py` (execute_task_assignment → run_smart_agent_async). |
-| Делегирование Veronica | `knowledge_os/app/task_delegation.py`, `knowledge_os/app/multi_agent_collaboration.py`. |
-| Enhanced Orchestrator | `knowledge_os/app/enhanced_orchestrator.py` (run_enhanced_orchestration_cycle, assign_task_to_best_expert, Smart Worker). |
-| Telegram → Victoria | `src/agents/bridge/victoria_telegram_bot.py` (опрос getUpdates, POST на VICTORIA_URL:8010/run). |
-| Web Chat → Victoria / MLX | `backend/app/routers/chat.py` (use_victoria → VictoriaClient → 8010; fallback или use_victoria=False → MLX). |
-| Backend → Victoria | `backend/app/services/victoria.py` (VictoriaClient, base_url=8010). |
+| Что                                             | Где                                                                                                                                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Точка входа Victoria HTTP                       | `src/agents/bridge/victoria_server.py` (lifespan, POST /run, GET /status).                                                                                                                                          |
+| Три уровня Victoria                             | Там же: Agent — класс VictoriaAgent; Enhanced + Initiative — VictoriaEnhanced() и start().                                                                                                                          |
+| **Пайплайн VictoriaAgent (мировая практика)**   | **Understand** (`understand_goal`) → переформулировать запрос под модули; **Plan** по переформулированной цели; **Execute** с подсказкой первого шага. См. `VictoriaAgent.run()` и `docs/VICTORIA_PROCESS_FULL.md`. |
+| Логика solve(), Department Heads, делегирование | `knowledge_os/app/victoria_enhanced.py`.                                                                                                                                                                            |
+| Проверка/запуск Ollama и MLX при задаче         | `knowledge_os/app/llm_backends_ensure.py`, вызов в начале solve().                                                                                                                                                  |
+| Выбор модели из Ollama/MLX                      | `knowledge_os/app/local_router.py`, `knowledge_os/app/available_models_scanner.py`.                                                                                                                                 |
+| Эксперты и Smart Worker → модели                | `knowledge_os/app/ai_core.py` (run_smart_agent_async использует LocalAIRouter.run_local_llm); Task Distribution и Enhanced Orchestrator вызывают ai_core.                                                           |
+| Department Heads, Task Distribution             | `knowledge_os/app/department_heads_system.py`, `knowledge_os/app/task_distribution_system.py`, `task_distribution_system_complete.py` (execute_task_assignment → run_smart_agent_async).                            |
+| Делегирование Veronica                          | `knowledge_os/app/task_delegation.py`, `knowledge_os/app/multi_agent_collaboration.py`.                                                                                                                             |
+| Enhanced Orchestrator                           | `knowledge_os/app/enhanced_orchestrator.py` (run_enhanced_orchestration_cycle, assign_task_to_best_expert, Smart Worker).                                                                                           |
+| Telegram → Victoria                             | `src/agents/bridge/victoria_telegram_bot.py` (опрос getUpdates, POST на VICTORIA_URL:8010/run).                                                                                                                     |
+| Web Chat → Victoria / MLX                       | `backend/app/routers/chat.py` (use_victoria → VictoriaClient → 8010; fallback или use_victoria=False → MLX).                                                                                                        |
+| Backend → Victoria                              | `backend/app/services/victoria.py` (VictoriaClient, base_url=8010).                                                                                                                                                 |
 
 ---
 
@@ -226,14 +226,14 @@
 
 Пользователь обращается к системе через любой из каналов; **единая точка входа агентской логики — Victoria (порт 8010)**. Veronica (8011) вызывается только Victoria, не напрямую пользователем.
 
-| Канал | Как запрос попадает в систему | Куда идёт запрос |
-|-------|-------------------------------|-------------------|
-| **Web Chat** (Web IDE) | Frontend → Backend `POST /api/chat` | При `use_victoria=True`: Backend → Victoria (8010). Иначе или fallback: Backend → MLX API (11435). |
-| **Telegram** | Пользователь пишет боту → `victoria_telegram_bot` опрашивает getUpdates | Бот → `POST VICTORIA_URL/run` (обычно 8010). |
-| **Cursor (IDE)** | Запросы из Cursor (чаты, агент) через API или скрипты | Если бэкенд Web IDE: как Web Chat → Victoria (8010). Прямые скрипты: `POST http://localhost:8010/run`. |
-| **Терминал / скрипты** | curl, Python-скрипты, cron | `POST http://localhost:8010/run` (goal, project_context) или запись в БД `tasks`. |
-| **Облачные API / внешние вызовы** | Внешние сервисы по API | На Victoria URL (8010) или на Backend → проксирование на Victoria. |
-| **Задачи в БД** | Создание записей в таблице `tasks` (assignee_expert_id = NULL) | Два потока: (1) Enhanced Orchestrator в фоне читает БД и назначает задачи экспертам (Smart Worker); (2) при необходимости задачи могут обрабатываться через вызов Victoria (зависит от интеграции). |
+| Канал                             | Как запрос попадает в систему                                           | Куда идёт запрос                                                                                                                                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Web Chat** (Web IDE)            | Frontend → Backend `POST /api/chat`                                     | При `use_victoria=True`: Backend → Victoria (8010). Иначе или fallback: Backend → MLX API (11435).                                                                                                  |
+| **Telegram**                      | Пользователь пишет боту → `victoria_telegram_bot` опрашивает getUpdates | Бот → `POST VICTORIA_URL/run` (обычно 8010).                                                                                                                                                        |
+| **Cursor (IDE)**                  | Запросы из Cursor (чаты, агент) через API или скрипты                   | Если бэкенд Web IDE: как Web Chat → Victoria (8010). Прямые скрипты: `POST http://localhost:8010/run`.                                                                                              |
+| **Терминал / скрипты**            | curl, Python-скрипты, cron                                              | `POST http://localhost:8010/run` (goal, project_context) или запись в БД `tasks`.                                                                                                                   |
+| **Облачные API / внешние вызовы** | Внешние сервисы по API                                                  | На Victoria URL (8010) или на Backend → проксирование на Victoria.                                                                                                                                  |
+| **Задачи в БД**                   | Создание записей в таблице `tasks` (assignee_expert_id = NULL)          | Два потока: (1) Enhanced Orchestrator в фоне читает БД и назначает задачи экспертам (Smart Worker); (2) при необходимости задачи могут обрабатываться через вызов Victoria (зависит от интеграции). |
 
 Итог: **все каналы ведут к Victoria (8010)** или к Backend/MLX (обходной путь для простого чата). Victoria решает: Department Heads, делегирование Veronica (8011) или выполнение сама (ReAct, simple, swarm).
 

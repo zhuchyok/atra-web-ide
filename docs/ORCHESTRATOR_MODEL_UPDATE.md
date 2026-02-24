@@ -8,12 +8,14 @@
 ## 🔄 ЧТО ИЗМЕНЕНО
 
 ### 1. **orchestrator.py**
+
 - Обновлены комментарии в функции `run_local_llm()`
 - Изменено описание моделей:
   - **Было:** `glm-4.7-flash:latest (coding/reasoning fallback)`
   - **Стало:** `command-r-plus:104b (coding/reasoning fallback)`
 
 ### 2. **local_router.py**
+
 - Обновлен словарь `OLLAMA_MODELS`:
   - **`coding`:** `glm-4.7-flash:latest` → `command-r-plus:104b`
   - **`reasoning`:** `glm-4.7-flash:latest` → `command-r-plus:104b`
@@ -24,6 +26,7 @@
 ## 📊 НОВАЯ КОНФИГУРАЦИЯ
 
 ### Оркестратор теперь использует:
+
 - **MLX модели (приоритет):**
   - `qwen2.5-coder:32b` (coding)
   - `deepseek-r1-distill-llama:70b` (reasoning)
@@ -46,6 +49,7 @@
 ## 🎯 РЕЗУЛЬТАТ
 
 Оркестратор теперь использует `command-r-plus:104b` вместо `glm-4.7-flash:latest` для:
+
 - Coding задач (fallback)
 - Reasoning задач (fallback)
 - Сложных enterprise-сценариев

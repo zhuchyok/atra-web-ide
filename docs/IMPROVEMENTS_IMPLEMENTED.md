@@ -4,11 +4,11 @@
 
 **Да.** Все три улучшения внедрены и работают в коде:
 
-| Улучшение | Файл | Статус |
-|-----------|------|--------|
-| **Correlation ID** | `src/agents/bridge/victoria_server.py` | ✅ Реализовано |
-| **Кэш в LocalAIRouter** | `knowledge_os/app/local_router.py` | ✅ Реализовано |
-| **Уточняющие вопросы** | `src/agents/bridge/victoria_server.py` | ✅ Реализовано |
+| Улучшение               | Файл                                   | Статус         |
+| ----------------------- | -------------------------------------- | -------------- |
+| **Correlation ID**      | `src/agents/bridge/victoria_server.py` | ✅ Реализовано |
+| **Кэш в LocalAIRouter** | `knowledge_os/app/local_router.py`     | ✅ Реализовано |
+| **Уточняющие вопросы**  | `src/agents/bridge/victoria_server.py` | ✅ Реализовано |
 
 **Уточнения по реализации:**
 
@@ -206,7 +206,7 @@ hit_rate = (router._prompt_cache_hits / max(total, 1)) * 100
 
 ---
 
-## 4. Исправление бага в _ensure_best_available_models
+## 4. Исправление бага в \_ensure_best_available_models
 
 - **Файл:** `src/agents/bridge/victoria_server.py`
 - Исправлен отступ блока **`if best:`** — код внутри блока выровнен по одному уровню с `if best:`.
@@ -227,11 +227,11 @@ hit_rate = (router._prompt_cache_hits / max(total, 1)) * 100
 - [x] Заголовок X-Correlation-ID обрабатывается в run_task
 - [x] Кэш в LocalAIRouter с LRU (сначала TTL, затем самые старые)
 - [x] Кэшируется кортеж (result, routing_source)
-- [x] _check_ambiguity(goal, category, restated) с реализованными эвристиками
-- [x] _generate_clarification_questions через agent.planner.ask
+- [x] \_check_ambiguity(goal, category, restated) с реализованными эвристиками
+- [x] \_generate_clarification_questions через agent.planner.ask
 - [x] Интеграция в run_task: при needs_clarification — JSONResponse с clarification_questions и suggested_restatement
 - [x] restated_goal используется в enhanced.solve и agent.run
-- [x] Исправлен отступ в _ensure_best_available_models
+- [x] Исправлен отступ в \_ensure_best_available_models
 
 ---
 
@@ -243,5 +243,5 @@ hit_rate = (router._prompt_cache_hits / max(total, 1)) * 100
 
 ---
 
-*Документ приведён в соответствие с реализованным кодом.*  
-*Файлы: `src/agents/bridge/victoria_server.py`, `knowledge_os/app/local_router.py`.*
+_Документ приведён в соответствие с реализованным кодом._  
+_Файлы: `src/agents/bridge/victoria_server.py`, `knowledge_os/app/local_router.py`._

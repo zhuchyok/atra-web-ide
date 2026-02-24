@@ -139,22 +139,22 @@
 
 ## Сводка по приоритетам (консенсус отделов)
 
-| Приоритет | Скилл | Кто особенно за |
-|-----------|--------|-------------------|
-| 1 | ask-questions-if-underspecified | Виктория, Анна, Алексей |
-| 2 | file-organizer | Виктория, Вероника |
-| 3 | pptx | Татьяна |
-| 4 | skill-creator | Виктория, Александр |
-| 5 | webapp-testing | Анна, Андрей, Вероника |
-| 6 | backend-development | Игорь, Андрей, Вероника |
-| 7 | python-development | Игорь, Дмитрий, Вероника |
-| 8 | changelog-generator | Игорь, Вероника |
-| 9 | llm-application-dev | Дмитрий, Александр |
-| 10 | frontend-design | Андрей |
-| 11 | doc-coauthoring | Татьяна, Дарья, Александр |
-| 12 | internal-comms | Виктория, Татьяна, Максим, Дарья, Александр |
-| 13 | jira-issues | по необходимости (Support, Product) |
-| 14 | content-research-writer | Дарья, Максим |
+| Приоритет | Скилл                           | Кто особенно за                             |
+| --------- | ------------------------------- | ------------------------------------------- |
+| 1         | ask-questions-if-underspecified | Виктория, Анна, Алексей                     |
+| 2         | file-organizer                  | Виктория, Вероника                          |
+| 3         | pptx                            | Татьяна                                     |
+| 4         | skill-creator                   | Виктория, Александр                         |
+| 5         | webapp-testing                  | Анна, Андрей, Вероника                      |
+| 6         | backend-development             | Игорь, Андрей, Вероника                     |
+| 7         | python-development              | Игорь, Дмитрий, Вероника                    |
+| 8         | changelog-generator             | Игорь, Вероника                             |
+| 9         | llm-application-dev             | Дмитрий, Александр                          |
+| 10        | frontend-design                 | Андрей                                      |
+| 11        | doc-coauthoring                 | Татьяна, Дарья, Александр                   |
+| 12        | internal-comms                  | Виктория, Татьяна, Максим, Дарья, Александр |
+| 13        | jira-issues                     | по необходимости (Support, Product)         |
+| 14        | content-research-writer         | Дарья, Максим                               |
 
 **Предложения добавить в список:**  
 qa-regression (Анна), security-audit / secure-coding в опциональные (Алексей), artifacts-builder в опциональные (Андрей), git/PR workflow в опциональные (Вероника), ADR в опциональные (Александр).

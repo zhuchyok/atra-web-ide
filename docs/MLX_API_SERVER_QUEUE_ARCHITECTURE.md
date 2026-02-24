@@ -11,11 +11,13 @@
 ## Анализ запросов
 
 ### Чат с Викторией
+
 - Путь: `Frontend → Backend API → Victoria API (8010) → MLX API Server (11435)`
 - Приоритет: **ВЫСОКИЙ** (пользователь ждет ответа)
 - Тип: интерактивный, требует быстрого ответа
 
 ### Task Distribution
+
 - Путь: `Victoria → Task Distribution → ReActAgent → MLX API Server (11435)`
 - Приоритет: **СРЕДНИЙ** (может подождать)
 - Тип: фоновый, может выполняться асинхронно
@@ -50,7 +52,7 @@ class MLXRequestQueue:
         self.active_requests = 0
         self.queue = asyncio.PriorityQueue()
         self._lock = asyncio.Lock()
-    
+
     async def add_request(
         self,
         request_id: str,
@@ -68,7 +70,7 @@ class MLXRequestQueue:
         )
         await self.queue.put((priority.value, queued))
         await self._process_queue()
-    
+
     async def _process_queue(self):
         """Обработать очередь"""
         while self.active_requests < self.max_concurrent:
@@ -79,16 +81,16 @@ class MLXRequestQueue:
                 )
             except asyncio.TimeoutError:
                 break
-            
+
             # Проверяем таймаут
             if (datetime.now() - request.created_at).total_seconds() > request.timeout:
                 logger.warning(f"⚠️ Запрос {request.request_id} истек по таймауту")
                 continue
-            
+
             # Выполняем запрос
             self.active_requests += 1
             asyncio.create_task(self._execute_request(request))
-    
+
     async def _execute_request(self, request: QueuedRequest):
         """Выполнить запрос"""
         try:
@@ -107,13 +109,13 @@ class RequestRouter:
         self.task_queue = asyncio.Queue()  # Фоновая очередь
         self.max_chat_concurrent = 3  # Резервируем для чата
         self.max_task_concurrent = 2  # Для Task Distribution
-    
+
     async def route_request(self, request_type: str, callback: callable):
         if request_type == "chat":
             await self.chat_queue.put(callback)
         else:
             await self.task_queue.put(callback)
-        
+
         await self._process_queues()
 ```
 
@@ -139,6 +141,7 @@ async def handle_request_with_queue(request):
 ## Рекомендация
 
 **Вариант 1** (очередь с приоритетами) - лучший выбор:
+
 - ✅ Чат получает приоритет
 - ✅ Task Distribution не блокирует чат
 - ✅ Автоматическая обработка очереди
@@ -147,11 +150,13 @@ async def handle_request_with_queue(request):
 ## Вопрос: Чат с Викторией в очереди?
 
 **Текущее состояние:** НЕТ очереди
+
 - Чат идет напрямую к MLX API Server
 - При превышении лимита (5 запросов) получает 503
 - Task Distribution конкурирует с чатом на равных
 
 **После реализации:** ДА, но с приоритетом
+
 - Чат попадает в очередь с приоритетом HIGH
 - Обрабатывается первым при освобождении слота
 - Task Distribution ждет, если все слоты заняты чатом

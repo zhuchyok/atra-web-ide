@@ -3,23 +3,26 @@
 ## Скачанные данные
 
 ### Server 2 (46.149.66.170) — Knowledge OS
-| Файл | Размер | Описание |
-|------|--------|----------|
-| `knowledge_os_dump.sql` | 106 MB | Полный дамп БД (26 таблиц) |
-| `experts.csv` | 131 KB | 58 экспертов |
-| `knowledge_os_app.tar.gz` | 342 KB | 72 Python файла |
+
+| Файл                      | Размер | Описание                   |
+| ------------------------- | ------ | -------------------------- |
+| `knowledge_os_dump.sql`   | 106 MB | Полный дамп БД (26 таблиц) |
+| `experts.csv`             | 131 KB | 58 экспертов               |
+| `knowledge_os_app.tar.gz` | 342 KB | 72 Python файла            |
 
 **Данные в БД:**
+
 - Эксперты: 58
 - Узлы знаний: 50,926
 - Домены: 35
 - Таблицы: 26
 
 ### Server 1 (185.177.216.15) — Trading Bot
-| Файл | Размер | Описание |
-|------|--------|----------|
-| `redis_dump.rdb` | 612 B | Redis backup (4 ключа) |
-| `ai_data.tar.gz` | 1 KB | AI learning/reports data |
+
+| Файл             | Размер | Описание                 |
+| ---------------- | ------ | ------------------------ |
+| `redis_dump.rdb` | 612 B  | Redis backup (4 ключа)   |
+| `ai_data.tar.gz` | 1 KB   | AI learning/reports data |
 
 ## Путь к файлам
 
@@ -36,16 +39,17 @@
 
 ## Статус серверов
 
-| Сервер | IP | Статус |
-|--------|------|--------|
-| Server 1 | 185.177.216.15 | ✅ Ollama работает, SSH OK |
-| Server 2 | 46.149.66.170 | ✅ PostgreSQL работает, SSH OK |
-| Mac Studio | 192.168.1.43 | ✅ Ollama (8 моделей), Victoria/Veronica не запущены |
-| Локально | localhost | ✅ Ollama (6 моделей), Victoria работает |
+| Сервер     | IP             | Статус                                               |
+| ---------- | -------------- | ---------------------------------------------------- |
+| Server 1   | 185.177.216.15 | ✅ Ollama работает, SSH OK                           |
+| Server 2   | 46.149.66.170  | ✅ PostgreSQL работает, SSH OK                       |
+| Mac Studio | 192.168.1.43   | ✅ Ollama (8 моделей), Victoria/Veronica не запущены |
+| Локально   | localhost      | ✅ Ollama (6 моделей), Victoria работает             |
 
 ## Как применить дамп БД
 
 ### Вариант 1: Локально (если есть PostgreSQL)
+
 ```bash
 # Создать БД
 createdb knowledge_os
@@ -55,6 +59,7 @@ psql -d knowledge_os < ~/migration/server2/knowledge_os_dump.sql
 ```
 
 ### Вариант 2: Через Docker
+
 ```bash
 cd /Users/zhuchyok/Documents/atra-web-ide
 
@@ -79,6 +84,7 @@ tar -xzf knowledge_os_app.tar.gz
 ## Эксперты (58 человек)
 
 Экспорт из БД включает:
+
 - Натан — Director of Competitive Intelligence
 - Оксана — Digital Strategist / Media Planner
 - И ещё 56 экспертов...

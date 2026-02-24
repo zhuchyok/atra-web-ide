@@ -1,0 +1,15 @@
+# Example ATRA CLI Config
+# Place at: ~/.config/atra/config.toml
+
+# Gateway URL (default: http://localhost:8081)
+gateway_url = "http://localhost:8081"
+
+# Victoria Agent URL (default: http://localhost:8010)
+victoria_url = "http://localhost:8010"
+
+# Project context (default: atra-web-ide)
+project_context = "atra-web-ide"
+
+# Optional: Additional settings
+# timeout_seconds = 300
+# max_retries = 3

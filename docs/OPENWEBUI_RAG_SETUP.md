@@ -47,4 +47,4 @@
 
 ---
 
-*План: .cursor/plans/singularity_15.0_unified_consciousness_bridge_*.plan.md*
+_План: .cursor/plans/singularity*15.0_unified_consciousness_bridge*_.plan.md\*

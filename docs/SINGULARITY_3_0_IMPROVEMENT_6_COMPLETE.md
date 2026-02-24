@@ -11,6 +11,7 @@
 ### **Global Scout: Интеграция с внешними API**
 
 Система автоматической валидации знаний через внешние источники:
+
 - ✅ **GitHub API** - проверка best practices и популярных решений
 - ✅ **Stack Overflow API** - проверка решений и популярности вопросов
 - ✅ **arXiv API** - проверка научных публикаций
@@ -44,6 +45,7 @@
    - Обновление metadata в БД
 
 **Функции:**
+
 - `validate_knowledge_node()` - валидация узла знания
 - `update_knowledge_validation()` - обновление результатов в БД
 - `run_global_scout_cycle()` - основной цикл валидации
@@ -66,6 +68,7 @@ async def validate_knowledge_external(
 ```
 
 **Использование:**
+
 - Валидация существующего знания: `knowledge_id`
 - Валидация нового знания: `content` + `domain`
 
@@ -79,6 +82,7 @@ await run_global_scout_cycle()
 ```
 
 **Автоматическая валидация:**
+
 - Знания, которые еще не валидировались
 - Знания, которые валидировались более 30 дней назад
 - Ограничение: 10 знаний за цикл (rate limiting)
@@ -123,10 +127,10 @@ await run_global_scout_cycle()
 Результаты сохраняются в `metadata.external_validation`:
 
 ```sql
-UPDATE knowledge_nodes 
+UPDATE knowledge_nodes
 SET metadata = jsonb_set(
-  metadata, 
-  '{external_validation}', 
+  metadata,
+  '{external_validation}',
   '{"overall_relevance": 0.75, ...}'
 )
 WHERE id = 123
@@ -225,4 +229,3 @@ Global Scout успешно интегрирован в Singularity 3.6!
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

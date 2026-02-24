@@ -3,6 +3,7 @@
 ## 📋 Быстрая настройка
 
 ### 1. Подключение к серверу
+
 ```bash
 ssh your_user@your_server_ip
 cd /path/to/atra
@@ -11,21 +12,25 @@ cd /path/to/atra
 ### 2. Назначение ролей администраторов
 
 #### 🔥 Супер администратор (556251171)
+
 ```bash
 python3 set_admin_roles.py 556251171 super_admin
 ```
 
 #### 👑 Администратор (958930260)
+
 ```bash
 python3 set_admin_roles.py 958930260 admin
 ```
 
 ### 3. Быстрая настройка (все сразу)
+
 ```bash
 python3 quick_admin_setup.py
 ```
 
 ### 4. Проверка статуса
+
 ```bash
 python3 quick_admin_setup.py status
 ```
@@ -33,6 +38,7 @@ python3 quick_admin_setup.py status
 ## 🎯 Роли и права
 
 ### 🔥 Супер администратор (556251171)
+
 - **Полные права доступа**
 - Управление всеми пользователями
 - Доступ к системным настройкам
@@ -41,6 +47,7 @@ python3 quick_admin_setup.py status
 - Управление торговыми параметрами
 
 ### 👑 Администратор (958930260)
+
 - **Ограниченные административные права**
 - Просмотр пользователей
 - Доступ к базовой статистике
@@ -48,6 +55,7 @@ python3 quick_admin_setup.py status
 - Нет доступа к системным настройкам
 
 ### 👤 Обычный пользователь
+
 - Только торговые функции
 - Личные настройки
 - Просмотр своих позиций
@@ -55,6 +63,7 @@ python3 quick_admin_setup.py status
 ## 📊 Проверка назначенных ролей
 
 ### Через базу данных
+
 ```bash
 python3 -c "
 from db import Database
@@ -71,6 +80,7 @@ for user_id in user_ids:
 ```
 
 ### Через SQLite
+
 ```bash
 sqlite3 trading.db "SELECT user_id, data FROM users_data WHERE user_id IN ('556251171', '958930260');"
 ```
@@ -78,16 +88,19 @@ sqlite3 trading.db "SELECT user_id, data FROM users_data WHERE user_id IN ('5562
 ## 🔄 Управление ролями
 
 ### Назначение новой роли
+
 ```bash
 python3 set_admin_roles.py <user_id> <role>
 ```
 
 ### Доступные роли:
+
 - `super_admin` - Супер администратор
-- `admin` - Администратор  
+- `admin` - Администратор
 - `user` - Обычный пользователь
 
 ### Примеры:
+
 ```bash
 # Назначить супер администратором
 python3 set_admin_roles.py 123456789 super_admin
@@ -105,6 +118,7 @@ python3 set_admin_roles.py list
 ## 🛡️ Безопасность
 
 ### Рекомендации:
+
 1. **Супер администратор** должен быть только один
 2. Регулярно проверяйте список администраторов
 3. Используйте сильные пароли для доступа к серверу
@@ -112,6 +126,7 @@ python3 set_admin_roles.py list
 5. Регулярно обновляйте систему
 
 ### Проверка безопасности:
+
 ```bash
 # Проверить всех администраторов
 python3 quick_admin_setup.py status
@@ -125,11 +140,13 @@ ls -la user_data.json
 ## 📝 Логирование
 
 ### Проверка логов назначения ролей:
+
 ```bash
 tail -f system_improved.log | grep -i admin
 ```
 
 ### Создание бэкапа перед изменениями:
+
 ```bash
 cp trading.db backups/trading_$(date +%Y%m%d_%H%M%S).db
 ```
@@ -137,15 +154,19 @@ cp trading.db backups/trading_$(date +%Y%m%d_%H%M%S).db
 ## 🆘 Восстановление доступа
 
 ### Если потеряли доступ к супер администратору:
+
 1. Остановите бота
 2. Создайте бэкап базы данных
 3. Выполните быструю настройку:
+
 ```bash
 python3 quick_admin_setup.py
 ```
+
 4. Запустите бота заново
 
 ### Восстановление из бэкапа:
+
 ```bash
 # Найдите нужный бэкап
 ls -la backups/
@@ -160,6 +181,7 @@ python3 quick_admin_setup.py status
 ## ✅ Финальная проверка
 
 После настройки выполните:
+
 ```bash
 # 1. Проверьте роли
 python3 quick_admin_setup.py status
@@ -174,6 +196,7 @@ python3 main.py
 ## 📞 Поддержка
 
 При проблемах:
+
 1. Проверьте логи: `tail -f system_improved.log`
 2. Создайте бэкап: `cp trading.db trading_backup.db`
 3. Обратитесь к документации или разработчику

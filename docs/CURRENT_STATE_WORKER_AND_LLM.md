@@ -26,11 +26,11 @@
 
 ## 2. URL Ollama и MLX
 
-| Место | Переменные | Поведение |
-|-------|------------|-----------|
-| **LocalAIRouter** (`knowledge_os/app/local_router.py`) | `OLLAMA_API_URL`, `OLLAMA_BASE_URL`, `MLX_API_URL` | Формирует `self.nodes`; если не заданы — в Docker `host.docker.internal`, локально `localhost`. |
-| **Воркер (батчи по модели)** | `MLX_API_URL`, `OLLAMA_API_URL`, `OLLAMA_BASE_URL` | Сканер `get_available_models(mlx_url, ollama_url)`; в Docker fallback `host.docker.internal`. |
-| **available_models_scanner** | env в `_default_ollama_url()` / `_default_mlx_url()` | При вызове без аргументов — env + логика Docker. |
+| Место                                                  | Переменные                                           | Поведение                                                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **LocalAIRouter** (`knowledge_os/app/local_router.py`) | `OLLAMA_API_URL`, `OLLAMA_BASE_URL`, `MLX_API_URL`   | Формирует `self.nodes`; если не заданы — в Docker `host.docker.internal`, локально `localhost`. |
+| **Воркер (батчи по модели)**                           | `MLX_API_URL`, `OLLAMA_API_URL`, `OLLAMA_BASE_URL`   | Сканер `get_available_models(mlx_url, ollama_url)`; в Docker fallback `host.docker.internal`.   |
+| **available_models_scanner**                           | env в `_default_ollama_url()` / `_default_mlx_url()` | При вызове без аргументов — env + логика Docker.                                                |
 
 Итог: везде URL берутся из env с fallback на `host.docker.internal` (Docker) или `localhost`. Неверный или не заданный URL → таймауты, пустые ответы.
 
@@ -45,7 +45,7 @@
 1. **Сканер** (`available_models_scanner`): вызывает **get_available_models(mlx_url, ollama_url)** (кэш 120 сек). Список моделей MLX и Ollama — раздельно; для каждой задачи по категории (reasoning/coding/fast/default) выбирается модель через **pick_mlx_for_category** / **pick_ollama_for_category** из **актуальных** моделей в сканере.
 2. **Оркестратор / Victoria:** назначение эксперта, категория задачи; воркер использует **intelligent_model_router** (оценка сложности) или fallback по bug_probability, чтобы отнести задачу к источнику **mlx** или **ollama**.
 3. **Блоки:** задачи группируются по **(preferred_source, preferred_model)**. В **process_task** воркер передаёт в ai_core роутер с `_preferred_source` и `_preferred_model`.
-4. **Время загрузки модели:** при смене модели (новый блок) Ollama/MLX могут загружать модель при первом запросе (30–90 сек для тяжёлых). **Нужно учитывать** время загрузки и запас на развёртывание перед отправкой задач; иначе — ReadTimeout, зависание. MLX ждёт загрузки (_loading_models); Ollama — загрузка ленивая, буфер не учтён. См. VERIFICATION_CHECKLIST_OPTIMIZATIONS.md, раздел 3.
+4. **Время загрузки модели:** при смене модели (новый блок) Ollama/MLX могут загружать модель при первом запросе (30–90 сек для тяжёлых). **Нужно учитывать** время загрузки и запас на развёртывание перед отправкой задач; иначе — ReadTimeout, зависание. MLX ждёт загрузки (\_loading_models); Ollama — загрузка ленивая, буфер не учтён. См. VERIFICATION_CHECKLIST_OPTIMIZATIONS.md, раздел 3.
 
 ---
 
@@ -84,8 +84,8 @@
 - [ ] Heartbeat: без частых «Heartbeat error» в логах; зависшие сбрасываются с сообщением «Вернуто в очередь зависших задач (>15 мин): N».
 - [ ] Ollama/MLX: в контейнере воркера заданы `OLLAMA_API_URL` и `MLX_API_URL` (при необходимости `http://host.docker.internal:11434/11435`); после изменений — перезапуск контейнера knowledge_os_worker.
 - [ ] **MLX не используется:** если в Activity Monitor видна только работа Ollama — см. [MLX_TASK_PROCESSING_CHECK.md](MLX_TASK_PROCESSING_CHECK.md): MLX API Server (порт 11435) должен быть запущен на хосте (`scripts/start_mlx_api_server.sh`); в логах при отсутствии MLX раз в 5 мин появляется предупреждение роутера.
-- [ ] Эхо: при жалобах на «нет ответа» или смену узла без причины — проверить логи «Эхо-ответ от …» и при необходимости ослабить условие в _is_echo_response.
+- [ ] Эхо: при жалобах на «нет ответа» или смену узла без причины — проверить логи «Эхо-ответ от …» и при необходимости ослабить условие в \_is_echo_response.
 
 ---
 
-*Документ актуализирован при внесении изменений в воркер или LLM-цепочку. Все новые правки отражать здесь и в [MASTER_REFERENCE.md](MASTER_REFERENCE.md).*
+_Документ актуализирован при внесении изменений в воркер или LLM-цепочку. Все новые правки отражать здесь и в [MASTER_REFERENCE.md](MASTER_REFERENCE.md)._

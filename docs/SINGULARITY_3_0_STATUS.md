@@ -47,11 +47,13 @@ Knowledge OS (Singularity 3.0)
 **Функции:**
 
 #### **Фаза 1: Ассоциативный мозг (Cross-Domain Linking)**
+
 - ✅ **Кросс-доменные связи:** Находит неочевидные связи между знаниями из разных доменов
 - ✅ **Синтетические гипотезы:** Генерирует инновационные гипотезы на стыке знаний
 - ✅ **Redis Stream:** Публикует новые связи в реальном времени для мгновенной реакции агентов
 
 **Пример:**
+
 ```
 ФАКТ А (Trading): "Sharpe Ratio должен использовать sqrt(365) для крипто"
 ФАКТ Б (ML): "Sample weights нужны для class imbalance"
@@ -59,11 +61,13 @@ Knowledge OS (Singularity 3.0)
 ```
 
 #### **Фаза 2: Двигатель любопытства (Curiosity Engine)**
+
 - ✅ **Интеллектуальные пустыни:** Находит домены с малым количеством знаний
 - ✅ **Автономные исследования:** Создает задачи для экспертов на исследование новых трендов
 - ✅ **Автоматический найм:** Если в домене нет экспертов — нанимает новых!
 
 **Пример:**
+
 ```
 Домен "Web3" имеет только 12 узлов знаний
 → Curiosity Engine создает задачу: "Проведи глубокое исследование новых технологий Web3 в 2026"
@@ -77,6 +81,7 @@ Knowledge OS (Singularity 3.0)
 **Функция:** Автоматическое найм экспертов для "голодных" доменов
 
 **Как работает:**
+
 1. Orchestrator находит домен с малым количеством знаний (< 50 узлов)
 2. Проверяет наличие экспертов в этом домене
 3. Если экспертов нет — запускает `expert_generator.py`
@@ -85,12 +90,13 @@ Knowledge OS (Singularity 3.0)
 **Статус:** ✅ **РАБОТАЕТ**
 
 **Доказательство:**
+
 ```python
 # knowledge_os/app/orchestrator.py:94-98
 if expert_count == 0:
     print(f"🔍 hiring system Recruiting expert for {desert['name']}...")
-    subprocess.run(["/root/knowledge_os/venv/bin/python", 
-                   "/root/knowledge_os/app/expert_generator.py", 
+    subprocess.run(["/root/knowledge_os/venv/bin/python",
+                   "/root/knowledge_os/app/expert_generator.py",
                    desert['name']])
 ```
 
@@ -101,6 +107,7 @@ if expert_count == 0:
 **Функция:** Стресс-тесты знаний на устойчивость к атакам
 
 **Как работает:**
+
 1. `adversarial_critic.py` находит новые узлы знаний
 2. Генерирует "атаки" (проверяет устойчивость знаний)
 3. Оценивает результат: выдержало или уничтожено
@@ -109,15 +116,16 @@ if expert_count == 0:
 **Статус:** ✅ **РАБОТАЕТ**
 
 **Доказательство:**
+
 ```python
 # knowledge_os/app/adversarial_critic.py:84-93
 await conn.execute("""
-    UPDATE knowledge_nodes 
+    UPDATE knowledge_nodes
     SET confidence_score = $1,
         metadata = metadata || $2::jsonb
     WHERE id = $3
-""", result['new_confidence_score'], 
-   json.dumps({"adversarial_attack": result['attack_report']}), 
+""", result['new_confidence_score'],
+   json.dumps({"adversarial_attack": result['attack_report']}),
    node['id'])
 ```
 
@@ -128,6 +136,7 @@ await conn.execute("""
 **Функция:** Аудит системы и выявление проблем
 
 **Как работает:**
+
 1. `code_auditor.py` анализирует код проекта
 2. Выявляет проблемы (high/medium/low severity)
 3. Создает задачи для исправления
@@ -136,11 +145,12 @@ await conn.execute("""
 **Статус:** ✅ **РАБОТАЕТ**
 
 **Доказательство:**
+
 ```python
 # knowledge_os/dashboard/app.py:335-353
 audit_tasks = fetch_data("""
     SELECT title, description, metadata->>'severity' as severity, status
-    FROM tasks 
+    FROM tasks
     WHERE metadata->>'source' = 'code_auditor'
     ORDER BY created_at DESC LIMIT 10
 """)
@@ -268,4 +278,3 @@ audit_tasks = fetch_data("""
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14  
 **Версия:** Singularity 3.0
-

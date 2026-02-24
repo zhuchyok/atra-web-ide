@@ -8,11 +8,13 @@
 ## 🐛 ПРОБЛЕМА
 
 **Ошибка:**
+
 ```
 ModuleNotFoundError: No module named 'singularity_9_ab_tester'
 ```
 
 **Причина:**
+
 - Модуль `singularity_9_ab_tester.py` существует, но не доступен в контейнере `knowledge_dashboard`
 - Модуль требует дополнительные зависимости (`evaluator` и др.)
 - Импорт происходил без обработки ошибок, что ломало весь дашборд
@@ -24,6 +26,7 @@ ModuleNotFoundError: No module named 'singularity_9_ab_tester'
 ### Добавлена обработка ошибок импорта:
 
 1. **Try-except блок для импорта:**
+
    ```python
    try:
        from singularity_9_ab_tester import Singularity9ABTester
@@ -80,6 +83,7 @@ ModuleNotFoundError: No module named 'singularity_9_ab_tester'
 ## 🎯 РЕЗУЛЬТАТ
 
 Теперь дашборд:
+
 - ✅ Работает даже если модуль `singularity_9_ab_tester` недоступен
 - ✅ Показывает предупреждение вместо ошибки
 - ✅ Остальные функции дашборда работают нормально

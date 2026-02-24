@@ -8,13 +8,13 @@
 
 ## 1. Сводная таблица: дашборды и порты
 
-| Компонент | Порт (хост) | URL | Логин / пароль | Назначение |
-|-----------|-------------|-----|----------------|------------|
-| **Grafana (Web IDE)** | 3002 | http://localhost:3002 | admin / admin | Метрики чата, бэкенда, RAG, планов (Prometheus 9091). |
-| **Grafana (Knowledge OS)** | 3001 | http://localhost:3001 | admin / atra2025 | Оркестрация, БЗ, агенты, A/B, обзор (Prometheus 9092). |
-| **Corporation Dashboard (Streamlit)** | 8501 | http://localhost:8501 | — | Задачи, эксперты, разведка, симуляции, маркетинг, A/B; источник задач: dashboard_simulator, dashboard_scout, dashboard_marketing, dashboard_submit. |
-| **Quality dashboard (HTML)** | — | quality_dashboard.html (файл) | — | Генерируется скриптом create_simple_dashboard.py; история качества, алерты. |
-| **Frontend (чат Web IDE)** | 3000 → 3002 | http://localhost:3002 | — | Чат с Victoria; Backend 8080 → Victoria 8010. |
+| Компонент                             | Порт (хост) | URL                           | Логин / пароль   | Назначение                                                                                                                                          |
+| ------------------------------------- | ----------- | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Grafana (Web IDE)**                 | 3002        | http://localhost:3002         | admin / admin    | Метрики чата, бэкенда, RAG, планов (Prometheus 9091).                                                                                               |
+| **Grafana (Knowledge OS)**            | 3001        | http://localhost:3001         | admin / atra2025 | Оркестрация, БЗ, агенты, A/B, обзор (Prometheus 9092).                                                                                              |
+| **Corporation Dashboard (Streamlit)** | 8501        | http://localhost:8501         | —                | Задачи, эксперты, разведка, симуляции, маркетинг, A/B; источник задач: dashboard_simulator, dashboard_scout, dashboard_marketing, dashboard_submit. |
+| **Quality dashboard (HTML)**          | —           | quality_dashboard.html (файл) | —                | Генерируется скриптом create_simple_dashboard.py; история качества, алерты.                                                                         |
+| **Frontend (чат Web IDE)**            | 3000 → 3002 | http://localhost:3002         | —                | Чат с Victoria; Backend 8080 → Victoria 8010.                                                                                                       |
 
 **Примечание:** Frontend в docker-compose Web IDE проброшен на 3002 (3000 занят); Grafana Knowledge OS — на 3001.
 
@@ -84,13 +84,13 @@
 
 ## 6. Агенты: точки входа и UI
 
-| Агент / сервис | Порт | Точка входа (UI/API) | Как проверить |
-|----------------|------|----------------------|----------------|
-| **Victoria** | 8010 | Backend → POST :8010/run; чат Web IDE (Frontend 3002 → Backend 8080 → Victoria); Telegram-бот | GET http://localhost:8010/status → victoria_levels: agent, enhanced, initiative |
-| **Veronica** | 8011 | Вызывается только Victoria (POST :8011/run) | GET http://localhost:8011/status или health |
-| **Backend (чат/план)** | 8080 | POST /api/chat/stream, POST /api/chat/plan; Frontend 3002 | GET http://localhost:8080/health |
-| **Frontend (чат)** | 3002 | Браузер: http://localhost:3002 — чат с Victoria | Открыть в браузере |
-| **REST API Knowledge OS** | 8012 | Метрики, здоровье, задачи (если запущен) | GET :8012/health, GET :8012/metrics |
+| Агент / сервис            | Порт | Точка входа (UI/API)                                                                          | Как проверить                                                                   |
+| ------------------------- | ---- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| **Victoria**              | 8010 | Backend → POST :8010/run; чат Web IDE (Frontend 3002 → Backend 8080 → Victoria); Telegram-бот | GET http://localhost:8010/status → victoria_levels: agent, enhanced, initiative |
+| **Veronica**              | 8011 | Вызывается только Victoria (POST :8011/run)                                                   | GET http://localhost:8011/status или health                                     |
+| **Backend (чат/план)**    | 8080 | POST /api/chat/stream, POST /api/chat/plan; Frontend 3002                                     | GET http://localhost:8080/health                                                |
+| **Frontend (чат)**        | 3002 | Браузер: http://localhost:3002 — чат с Victoria                                               | Открыть в браузере                                                              |
+| **REST API Knowledge OS** | 8012 | Метрики, здоровье, задачи (если запущен)                                                      | GET :8012/health, GET :8012/metrics                                             |
 
 Чат всегда идёт: Пользователь → Frontend (3002) или API → Backend (8080) → Victoria (8010). Оркестратор и задачи в БД — отдельный поток (Enhanced Orchestrator, Smart Worker).
 
@@ -116,4 +116,4 @@
 
 ---
 
-*Документ актуализирован для использования в плане верификации и при настройке/проверке дашбордов и агентов.*
+_Документ актуализирован для использования в плане верификации и при настройке/проверке дашбордов и агентов._

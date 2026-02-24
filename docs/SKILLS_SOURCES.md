@@ -11,32 +11,32 @@ anomaly-detection, circuit-breaker, claude-code-integration, code-analysis, code
 
 **Нужно добавить (в порядке приоритета):**
 
-| № | Скилл | Источник | Зачем |
-|---|--------|----------|--------|
-| 1 | ask-questions-if-underspecified | Ai-Agent-Skills | Уточнять требования до реализации (стыкуется с HITL и уточняющими вопросами Victoria) |
-| 2 | file-organizer | Ai-Agent-Skills / ComposioHQ | Упорядочивание файлов, поиск дубликатов в workspace |
-| 3 | pptx | Ai-Agent-Skills / Anthropic | Презентации (дополнение к pdf, docx, xlsx) |
-| 4 | skill-creator | Ai-Agent-Skills / Anthropic | Гайд по созданию новых скиллов |
-| 5 | webapp-testing | Ai-Agent-Skills / Anthropic | Тестирование веб-приложений (Playwright и т.п.) |
-| 6 | backend-development | Ai-Agent-Skills | Паттерны API, БД, серверная архитектура |
-| 7 | python-development | Ai-Agent-Skills | Современный Python 3.12+ для агента |
-| 8 | changelog-generator | Ai-Agent-Skills | Генерация changelog из коммитов |
-| 9 | llm-application-dev | Ai-Agent-Skills | Проектирование LLM-приложений |
-| 10 | frontend-design | Anthropic / Ai-Agent-Skills | UI-компоненты и вёрстка |
-| 11 | doc-coauthoring | Anthropic / Ai-Agent-Skills | Соавторство доков и спецификаций |
-| 12 | internal-comms | Anthropic | Статусы и коммуникация в команде |
-| 13 | jira-issues | Ai-Agent-Skills / OpenClaw | Создание/поиск тикетов Jira (если используете) |
-| 14 | code-documentation | уже есть | — |
-| 15 | content-research-writer | ComposioHQ | Исследование и тексты с цитатами |
+| №   | Скилл                           | Источник                     | Зачем                                                                                 |
+| --- | ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | ask-questions-if-underspecified | Ai-Agent-Skills              | Уточнять требования до реализации (стыкуется с HITL и уточняющими вопросами Victoria) |
+| 2   | file-organizer                  | Ai-Agent-Skills / ComposioHQ | Упорядочивание файлов, поиск дубликатов в workspace                                   |
+| 3   | pptx                            | Ai-Agent-Skills / Anthropic  | Презентации (дополнение к pdf, docx, xlsx)                                            |
+| 4   | skill-creator                   | Ai-Agent-Skills / Anthropic  | Гайд по созданию новых скиллов                                                        |
+| 5   | webapp-testing                  | Ai-Agent-Skills / Anthropic  | Тестирование веб-приложений (Playwright и т.п.)                                       |
+| 6   | backend-development             | Ai-Agent-Skills              | Паттерны API, БД, серверная архитектура                                               |
+| 7   | python-development              | Ai-Agent-Skills              | Современный Python 3.12+ для агента                                                   |
+| 8   | changelog-generator             | Ai-Agent-Skills              | Генерация changelog из коммитов                                                       |
+| 9   | llm-application-dev             | Ai-Agent-Skills              | Проектирование LLM-приложений                                                         |
+| 10  | frontend-design                 | Anthropic / Ai-Agent-Skills  | UI-компоненты и вёрстка                                                               |
+| 11  | doc-coauthoring                 | Anthropic / Ai-Agent-Skills  | Соавторство доков и спецификаций                                                      |
+| 12  | internal-comms                  | Anthropic                    | Статусы и коммуникация в команде                                                      |
+| 13  | jira-issues                     | Ai-Agent-Skills / OpenClaw   | Создание/поиск тикетов Jira (если используете)                                        |
+| 14  | code-documentation              | уже есть                     | —                                                                                     |
+| 15  | content-research-writer         | ComposioHQ                   | Исследование и тексты с цитатами                                                      |
 
 **Опционально (по задаче):**  
-notion-skill, google-calendar, linear-issues, telegram-* (из OpenClaw), memory/context-* (если нужны доп. варианты).
+notion-skill, google-calendar, linear-issues, telegram-_ (из OpenClaw), memory/context-_ (если нужны доп. варианты).
 
 ---
 
 ## 1. SkillCreator.ai / Ai-Agent-Skills (уже подключено)
 
-- **Репозиторий:** https://github.com/skillcreatorai/Ai-Agent-Skills  
+- **Репозиторий:** https://github.com/skillcreatorai/Ai-Agent-Skills
 - **Установка:** `npx ai-agent-skills install <skill-name>` или копирование из `skills/` в `knowledge_os/app/skills/`.
 - **У нас уже скопированы:** pdf, docx, xlsx, code-review, code-refactoring, code-documentation, mcp-builder.
 - **Ещё полезно взять:** ask-questions-if-underspecified, file-organizer, backend-development, python-development, webapp-testing, changelog-generator, llm-application-dev, skill-creator.
@@ -45,7 +45,7 @@ notion-skill, google-calendar, linear-issues, telegram-* (из OpenClaw), memory
 
 ## 2. Anthropic (официальный репозиторий)
 
-- **Репозиторий:** https://github.com/anthropics/skills  
+- **Репозиторий:** https://github.com/anthropics/skills
 - **Звёзды:** ~60k. Официальные примеры и документ-скиллы (pdf, docx, pptx, xlsx) — source-available.
 - **Структура:** плоская, `skills/<skill-name>/` с SKILL.md.
 - **Что полезно:**
@@ -59,8 +59,8 @@ notion-skill, google-calendar, linear-issues, telegram-* (из OpenClaw), memory
 
 ## 3. OpenClaw / ClawdHub (архив скиллов Clawbot)
 
-- **Репозиторий:** https://github.com/openclaw/skills  
-- **Сайт маркетплейса:** https://clawdhub.com  
+- **Репозиторий:** https://github.com/openclaw/skills
+- **Сайт маркетплейса:** https://clawdhub.com
 - **Установка через CLI:** `npx clawhub@latest install <skill-name>`.
 - **Особенность:** в GitHub скиллы лежат в виде `skills/<author>/<skill-name>/` (например `skills/apatki1996/gita-sotd/`). Чтобы подключать к нам — копировать нужные `<skill-name>` в нашу папку (при конфликте имён можно переименовать в `skill-name-author`).
 - **Что полезно:** сотни community-скиллов (Jira, Notion, Google Calendar, трейдинг, память, поиск и т.д.). Выбирать по названию на clawdhub.com, затем брать из репо по пути `skills/<author>/<skill-name>/`.
@@ -69,7 +69,7 @@ notion-skill, google-calendar, linear-issues, telegram-* (из OpenClaw), memory
 
 ## 4. ComposioHQ Awesome Claude Skills
 
-- **Репозиторий:** https://github.com/ComposioHQ/awesome-claude-skills  
+- **Репозиторий:** https://github.com/ComposioHQ/awesome-claude-skills
 - **Звёзды:** ~28k. Курированный набор из 32 скиллов.
 - **Структура:** плоская, папка на скилл с SKILL.md.
 - **Популярные:** content-research-writer, file-organizer, youtube-downloader, tailored-resume-generator, code-reviewer, skill-creator.

@@ -8,9 +8,11 @@
 ## 🎯 ЧТО БЫЛО СДЕЛАНО
 
 ### 1. ✅ Система проверки сервисов
+
 **Файл:** `scripts/check_all_services_enhanced.sh`
 
 **Проверяет:**
+
 - ✅ Статус всех Docker контейнеров
 - ✅ Health checks всех сервисов
 - ✅ Состояние базы данных PostgreSQL
@@ -19,6 +21,7 @@
 - ✅ Использование диска
 
 **Использование:**
+
 ```bash
 bash scripts/check_all_services_enhanced.sh
 ```
@@ -26,11 +29,14 @@ bash scripts/check_all_services_enhanced.sh
 ---
 
 ### 2. ✅ Система алертов
+
 **Файлы:**
+
 - `scripts/setup_alerts.sh` - настройка
 - `~/bin/atra_check_alerts.sh` - скрипт проверки
 
 **Проверки каждые 15 минут:**
+
 - Docker daemon
 - Knowledge OS API
 - MLX API Server (Ollama)
@@ -44,6 +50,7 @@ bash scripts/check_all_services_enhanced.sh
 ---
 
 ### 3. ✅ Система бэкапов (настроена ранее)
+
 - Локальные бэкапы (03:00)
 - Синхронизация в Google Drive (03:10)
 - Мониторинг здоровья (04:00)
@@ -53,6 +60,7 @@ bash scripts/check_all_services_enhanced.sh
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### ✅ Работает:
+
 - ✅ Все Docker контейнеры запущены
 - ✅ Knowledge OS MCP (порт 8000)
 - ✅ Knowledge OS REST (порт 8002)
@@ -66,6 +74,7 @@ bash scripts/check_all_services_enhanced.sh
 - ✅ Redis и экспортеры
 
 ### ⚠️ Требует внимания:
+
 - ⚠️ MLX API Server (Ollama) офлайн
   - **Решение:** Запустить `ollama serve` на хосте Mac Studio
   - **Не критично:** Docker сервисы работают независимо
@@ -75,6 +84,7 @@ bash scripts/check_all_services_enhanced.sh
 ## 🚀 СЛЕДУЮЩИЕ ШАГИ
 
 ### 1. Запустить Ollama (если нужно):
+
 ```bash
 # Проверка, установлен ли Ollama
 which ollama
@@ -87,11 +97,13 @@ nohup ollama serve > ~/Library/Logs/atra/ollama.log 2>&1 &
 ```
 
 ### 2. Проверка после запуска Ollama:
+
 ```bash
 bash scripts/check_all_services_enhanced.sh
 ```
 
 ### 3. Мониторинг:
+
 ```bash
 # Алерты
 tail -f ~/Library/Logs/atra/alerts.log
@@ -105,6 +117,7 @@ bash scripts/check_all_services_enhanced.sh
 ## 📋 ПОЛЕЗНЫЕ КОМАНДЫ
 
 ### Проверка сервисов:
+
 ```bash
 # Полная проверка
 bash scripts/check_all_services_enhanced.sh
@@ -120,6 +133,7 @@ curl http://localhost:8011/health  # Veronica Agent
 ```
 
 ### Управление:
+
 ```bash
 # Перезапуск сервиса
 docker-compose restart knowledge_mcp

@@ -2,13 +2,13 @@
 
 ## Откуда берутся данные
 
-| Что видно в дашборде | Источник данных | Кто заполняет | Когда запускается |
-|----------------------|-----------------|---------------|-------------------|
-| **Обучение** (вкладка «🎓 Академия ИИ») | Таблица `expert_learning_logs` | `nightly_learner.py` | **1 раз в сутки** по cron: **6:00 МСК** (3:00 UTC) |
-| **Дебаты** (там же) | Таблица `expert_discussions` | `nightly_learner.py` (initiate_debate) | **1 раз в сутки** в том же цикле (6:00 МСК) |
-| **Гипотезы** (кросс-доменные) | Таблица `knowledge_nodes` (content как «🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: …») | `enhanced_orchestrator.py` | **Каждые 5 минут** по cron |
-| **Метрики гипотез Singularity 9.0** | A/B тестер (модуль singularity_9_ab_tester) | Дашборд запрашивает метрики | При открытии вкладки |
-| **Новые задачи** | Таблица `tasks` | `enhanced_orchestrator.py`, worker, дашборд, разведка и др. | Оркестратор — **каждые 5 мин**; остальное — по действиям |
+| Что видно в дашборде                    | Источник данных                                                         | Кто заполняет                                               | Когда запускается                                        |
+| --------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| **Обучение** (вкладка «🎓 Академия ИИ») | Таблица `expert_learning_logs`                                          | `nightly_learner.py`                                        | **1 раз в сутки** по cron: **6:00 МСК** (3:00 UTC)       |
+| **Дебаты** (там же)                     | Таблица `expert_discussions`                                            | `nightly_learner.py` (initiate_debate)                      | **1 раз в сутки** в том же цикле (6:00 МСК)              |
+| **Гипотезы** (кросс-доменные)           | Таблица `knowledge_nodes` (content как «🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: …») | `enhanced_orchestrator.py`                                  | **Каждые 5 минут** по cron                               |
+| **Метрики гипотез Singularity 9.0**     | A/B тестер (модуль singularity_9_ab_tester)                             | Дашборд запрашивает метрики                                 | При открытии вкладки                                     |
+| **Новые задачи**                        | Таблица `tasks`                                                         | `enhanced_orchestrator.py`, worker, дашборд, разведка и др. | Оркестратор — **каждые 5 мин**; остальное — по действиям |
 
 ---
 
@@ -126,6 +126,7 @@ psql "postgresql://admin:secret@localhost:5432/knowledge_os" -f knowledge_os/db/
    ```bash
    crontab -l
    ```
+
    Должны быть строки с `enhanced_orchestrator` и `nightly_learner`.
 
 2. **Victoria:**
@@ -133,6 +134,7 @@ psql "postgresql://admin:secret@localhost:5432/knowledge_os" -f knowledge_os/db/
    ```bash
    curl -s http://localhost:8010/health
    ```
+
    Ожидается ответ с `"agent":"Виктория"` (или аналог).
 
 3. **Таблица логов обучения:**
@@ -140,6 +142,7 @@ psql "postgresql://admin:secret@localhost:5432/knowledge_os" -f knowledge_os/db/
    ```bash
    psql "postgresql://admin:secret@localhost:5432/knowledge_os" -c "\dt expert_learning_logs"
    ```
+
    Таблица должна существовать.
 
 4. **Логи оркестратора и обучения (если cron уже срабатывал):**
@@ -155,6 +158,7 @@ psql "postgresql://admin:secret@localhost:5432/knowledge_os" -f knowledge_os/db/
    docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os victoria-agent python3 /app/knowledge_os/app/enhanced_orchestrator.py
    docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os victoria-agent python3 /app/knowledge_os/app/nightly_learner.py
    ```
+
    После успешного выполнения в дашборде должны появиться/обновиться обучение, дебаты и, при выполнении условий, гипотезы и задачи.
 
 ---

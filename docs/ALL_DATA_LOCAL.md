@@ -12,14 +12,14 @@
 
 ## Что в этой БД
 
-- `knowledge_nodes` — узлы знаний, гипотезы, инсайты  
-- `domains` — домены  
-- `experts` — эксперты  
-- `tasks` — задачи  
-- `interaction_logs` — логи чата  
-- `semantic_ai_cache` — семантический кэш  
-- `expert_discussions` — дебаты  
-- `expert_learning_logs` — логи обучения  
+- `knowledge_nodes` — узлы знаний, гипотезы, инсайты
+- `domains` — домены
+- `experts` — эксперты
+- `tasks` — задачи
+- `interaction_logs` — логи чата
+- `semantic_ai_cache` — семантический кэш
+- `expert_discussions` — дебаты
+- `expert_learning_logs` — логи обучения
 
 Всё перечисленное читается и пишется только в эту локальную БД.
 

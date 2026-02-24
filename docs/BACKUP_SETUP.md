@@ -16,10 +16,10 @@
 
 ## Переменные окружения (.env)
 
-| Переменная | Описание | Обязательно |
-|------------|----------|-------------|
-| `RCLONE_GDRIVE_REMOTE` | Имя rclone remote (по умолчанию `gdrive`) | Для GDrive |
-| `BACKUP_GDRIVE_ENABLED` | `true`/`false` (по умолчанию true) | Нет |
+| Переменная              | Описание                                  | Обязательно |
+| ----------------------- | ----------------------------------------- | ----------- |
+| `RCLONE_GDRIVE_REMOTE`  | Имя rclone remote (по умолчанию `gdrive`) | Для GDrive  |
+| `BACKUP_GDRIVE_ENABLED` | `true`/`false` (по умолчанию true)        | Нет         |
 
 ---
 
@@ -41,11 +41,11 @@ curl https://rclone.org/install.sh | sudo bash
 rclone config
 ```
 
-- `n` — новый remote  
-- Имя: `gdrive` (или другое — укажите в `RCLONE_GDRIVE_REMOTE`)  
-- Storage: `drive` (Google Drive)  
-- Следуйте шагам OAuth (откроется браузер для авторизации)  
-- При необходимости создайте папку `knowledge_os_backups` в Google Drive — rclone создаст её при первой загрузке  
+- `n` — новый remote
+- Имя: `gdrive` (или другое — укажите в `RCLONE_GDRIVE_REMOTE`)
+- Storage: `drive` (Google Drive)
+- Следуйте шагам OAuth (откроется браузер для авторизации)
+- При необходимости создайте папку `knowledge_os_backups` в Google Drive — rclone создаст её при первой загрузке
 
 Конфиг: `~/.config/rclone/rclone.conf`
 
@@ -85,10 +85,10 @@ crontab -e
 
 ## Структура
 
-| Цель | Путь | Хранение |
-|------|------|----------|
-| Локально | `~/Documents/dev/atra/backups/` или `./backups/` | 7 дней |
-| Google Drive | `gdrive:knowledge_os_backups/` | Без автоочистки (ручная ротация) |
+| Цель         | Путь                                             | Хранение                         |
+| ------------ | ------------------------------------------------ | -------------------------------- |
+| Локально     | `~/Documents/dev/atra/backups/` или `./backups/` | 7 дней                           |
+| Google Drive | `gdrive:knowledge_os_backups/`                   | Без автоочистки (ручная ротация) |
 
 ---
 
@@ -121,4 +121,4 @@ gunzip -c /tmp/knowledge_os_YYYYMMDD_HHMMSS.sql.gz | \
 
 ---
 
-*Документ создан 2026-02-01*
+_Документ создан 2026-02-01_

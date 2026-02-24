@@ -9,15 +9,15 @@
 
 ## 1. Что уже есть (база «как я»)
 
-| Область | Состояние |
-|--------|-----------|
-| **Victoria + Veronica** | Один сервис Victoria (8010), три уровня (Agent, Enhanced, Initiative); Veronica (8011) — «руки». Запуск: `docker compose -f knowledge_os/docker-compose.yml up -d`. Модель по умолчанию: phi3.5:3.8b (тяжёлые 70B/104B убраны из приоритетов под Metal/MLX). |
-| **Цепочка задачи** | Документирована (VICTORIA_TASK_CHAIN_FULL). Маршрутизация: простые шаги → Veronica, сложные → Victoria Enhanced (эксперты, swarm/consensus). PREFER_EXPERTS_FIRST, тесты покрывают логику. |
-| **Эксперты** | Один источник (employees.json), sync в БД; 86 экспертов в runtime. Добавление: запись в employees.json → `python scripts/sync_employees.py`. |
-| **Библия и методология** | MASTER_REFERENCE, CHANGES, VERIFICATION_CHECKLIST §5. В промпт Victoria подставляется «КАК МЫ МЫСЛИМ» (corporation_thinking.txt), возможности — victoria_capabilities.txt. |
-| **Куратор и эталоны** | Прогоны: `./scripts/run_curator_scheduled.sh`; сравнение с эталоном: `curator_compare_to_standard.py`; эталоны в RAG (curator_standards). По расписанию: `bash scripts/setup_curator_launchd.sh` (ежедневно 9:00). |
-| **Mac Studio** | Док [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md): RAM/Docker 8–12 GB, MAX_CONCURRENT_VICTORIA 10–20, модель phi3.5:3.8b; при вылетах — VICTORIA_RESTARTS_CAUSE. |
-| **Тесты и верификация** | Backend + knowledge_os тесты; E2E Playwright (чат, health); план верификации пройден; стратегический e2e: `./scripts/test_strategic_chat_e2e.sh`. |
+| Область                  | Состояние                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Victoria + Veronica**  | Один сервис Victoria (8010), три уровня (Agent, Enhanced, Initiative); Veronica (8011) — «руки». Запуск: `docker compose -f knowledge_os/docker-compose.yml up -d`. Модель по умолчанию: phi3.5:3.8b (тяжёлые 70B/104B убраны из приоритетов под Metal/MLX). |
+| **Цепочка задачи**       | Документирована (VICTORIA_TASK_CHAIN_FULL). Маршрутизация: простые шаги → Veronica, сложные → Victoria Enhanced (эксперты, swarm/consensus). PREFER_EXPERTS_FIRST, тесты покрывают логику.                                                                   |
+| **Эксперты**             | Один источник (employees.json), sync в БД; 86 экспертов в runtime. Добавление: запись в employees.json → `python scripts/sync_employees.py`.                                                                                                                 |
+| **Библия и методология** | MASTER_REFERENCE, CHANGES, VERIFICATION_CHECKLIST §5. В промпт Victoria подставляется «КАК МЫ МЫСЛИМ» (corporation_thinking.txt), возможности — victoria_capabilities.txt.                                                                                   |
+| **Куратор и эталоны**    | Прогоны: `./scripts/run_curator_scheduled.sh`; сравнение с эталоном: `curator_compare_to_standard.py`; эталоны в RAG (curator_standards). По расписанию: `bash scripts/setup_curator_launchd.sh` (ежедневно 9:00).                                           |
+| **Mac Studio**           | Док [MAC_STUDIO_LOAD_AND_VICTORIA.md](MAC_STUDIO_LOAD_AND_VICTORIA.md): RAM/Docker 8–12 GB, MAX_CONCURRENT_VICTORIA 10–20, модель phi3.5:3.8b; при вылетах — VICTORIA_RESTARTS_CAUSE.                                                                        |
+| **Тесты и верификация**  | Backend + knowledge_os тесты; E2E Playwright (чат, health); план верификации пройден; стратегический e2e: `./scripts/test_strategic_chat_e2e.sh`.                                                                                                            |
 
 Итого: **база «как я» на Mac Studio уже есть** — один контекст (библия, эксперты, эталоны), предсказуемая цепочка, куратор и расписание, тесты и доки.
 

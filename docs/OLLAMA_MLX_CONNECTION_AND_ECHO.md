@@ -6,12 +6,12 @@
 
 ## 1. Где задаются URL Ollama и MLX
 
-| Место | Переменные | Поведение |
-|-------|------------|-----------|
-| **docker-compose** (knowledge_os, backend) | `OLLAMA_BASE_URL`, `OLLAMA_API_URL`, `SERVER_LLM_URL`, `MLX_API_URL` | Передаются в контейнер; должны использоваться приложением. |
-| **LocalAIRouter** (`knowledge_os/app/local_router.py`) | `OLLAMA_API_URL`, `OLLAMA_BASE_URL`, `MLX_API_URL` | Формирует `self.nodes` (узлы для запросов к LLM). **Раньше в Docker игнорировал env** — исправлено: сначала env, иначе `host.docker.internal` в Docker, `localhost` локально. |
-| **_refresh_available_models** (тот же файл) | `MLX_API_URL`, `OLLAMA_API_URL` | Сканирование списка моделей через `get_available_models(mlx_url, ollama_url)`. |
-| **available_models_scanner** | env в `_default_ollama_url()` / `_default_mlx_url()` | При вызове `scan_and_select_models()` без аргументов используются env + логика Docker. |
+| Место                                                  | Переменные                                                           | Поведение                                                                                                                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **docker-compose** (knowledge_os, backend)             | `OLLAMA_BASE_URL`, `OLLAMA_API_URL`, `SERVER_LLM_URL`, `MLX_API_URL` | Передаются в контейнер; должны использоваться приложением.                                                                                                                    |
+| **LocalAIRouter** (`knowledge_os/app/local_router.py`) | `OLLAMA_API_URL`, `OLLAMA_BASE_URL`, `MLX_API_URL`                   | Формирует `self.nodes` (узлы для запросов к LLM). **Раньше в Docker игнорировал env** — исправлено: сначала env, иначе `host.docker.internal` в Docker, `localhost` локально. |
+| **\_refresh_available_models** (тот же файл)           | `MLX_API_URL`, `OLLAMA_API_URL`                                      | Сканирование списка моделей через `get_available_models(mlx_url, ollama_url)`.                                                                                                |
+| **available_models_scanner**                           | env в `_default_ollama_url()` / `_default_mlx_url()`                 | При вызове `scan_and_select_models()` без аргументов используются env + логика Docker.                                                                                        |
 
 Итог: везде, где мы подключаемся к Ollama/MLX, URL берутся из env с fallback на `host.docker.internal` (Docker) или `localhost`. Неверный или не заданный URL → таймауты, пустые ответы, зависания.
 
@@ -53,12 +53,12 @@
 
 ## 5. Чеклист при проблемах с Ollama/MLX
 
-| № | Проверка | Действие |
-|---|----------|----------|
-| 1 | URL в Docker | В контейнере: `echo $OLLAMA_API_URL $MLX_API_URL` — должны быть заданы и доступны с хоста (например `host.docker.internal:11434/11435`). |
-| 2 | Доступность с контейнера | Из контейнера: `curl -s http://host.docker.internal:11434/api/tags` (и 11435 для MLX) — ответ 200 и список моделей. |
-| 3 | Логи сканера | В логах Victoria/воркера: «Сканирование моделей: MLX=N, Ollama=M» — при N=0, M=0 при работающих серверах проверить URL и сеть. |
-| 4 | Эхо | Если ответ = ваш текст — обновить код (пункт 18 чеклиста), перезапустить Victoria; убедиться, что запросы идут на правильный хост и модель. |
+| №   | Проверка                 | Действие                                                                                                                                    |
+| --- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | URL в Docker             | В контейнере: `echo $OLLAMA_API_URL $MLX_API_URL` — должны быть заданы и доступны с хоста (например `host.docker.internal:11434/11435`).    |
+| 2   | Доступность с контейнера | Из контейнера: `curl -s http://host.docker.internal:11434/api/tags` (и 11435 для MLX) — ответ 200 и список моделей.                         |
+| 3   | Логи сканера             | В логах Victoria/воркера: «Сканирование моделей: MLX=N, Ollama=M» — при N=0, M=0 при работающих серверах проверить URL и сеть.              |
+| 4   | Эхо                      | Если ответ = ваш текст — обновить код (пункт 18 чеклиста), перезапустить Victoria; убедиться, что запросы идут на правильный хост и модель. |
 
 ---
 
@@ -69,4 +69,4 @@
 
 ---
 
-*Документ согласован с рекомендациями Backend (Игорь) и SRE (Елена). См. также [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) (пункты 17–18), [WORKER_THROUGHPUT_AND_STUCK_TASKS.md](WORKER_THROUGHPUT_AND_STUCK_TASKS.md).*
+_Документ согласован с рекомендациями Backend (Игорь) и SRE (Елена). См. также [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) (пункты 17–18), [WORKER_THROUGHPUT_AND_STUCK_TASKS.md](WORKER_THROUGHPUT_AND_STUCK_TASKS.md)._

@@ -23,22 +23,27 @@
 ## Что сделать у себя
 
 1. **Пересоздать launchd (чтобы подхватить PATH и пути):**
+
    ```bash
    cd /path/to/atra-web-ide
    bash scripts/setup_system_auto_recovery.sh
    ```
 
 2. **Проверить логи автопроверки при следующем запуске MLX:**
+
    ```bash
    tail -f ~/Library/Logs/atra-auto-recovery.log
    tail -f ~/Library/Logs/atra-auto-recovery.error.log
    ```
+
    В `error.log` будут сообщения от `start_mlx_api_server.sh` (например, «No module named 'uvicorn'»).
 
 3. **Если используешь venv** — создать его в `knowledge_os` или `backend` и установить зависимости:
+
    ```bash
    cd knowledge_os && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
    ```
+
    После этого автопроверка будет подставлять этот Python при запуске MLX.
 
 4. **Проверить вручную, что MLX стартует так же, как из автопроверки:**

@@ -37,11 +37,11 @@
 
 ## 2. Режимы чата (mode)
 
-| Режим | Описание | Маршрут |
-|-------|----------|---------|
-| **agent** | Сложные задачи, агент | Victoria Enhanced → ReActAgent + Skills |
-| **plan** | Только план | Victoria `/plan` → один вызов LLM, без инструментов |
-| **ask** | Простые вопросы | Шаблоны → MLX → Ollama → (fallback) Victoria |
+| Режим     | Описание              | Маршрут                                             |
+| --------- | --------------------- | --------------------------------------------------- |
+| **agent** | Сложные задачи, агент | Victoria Enhanced → ReActAgent + Skills             |
+| **plan**  | Только план           | Victoria `/plan` → один вызов LLM, без инструментов |
+| **ask**   | Простые вопросы       | Шаблоны → MLX → Ollama → (fallback) Victoria        |
 
 ---
 
@@ -111,36 +111,36 @@
 
 ## 6. API Victoria
 
-| Endpoint | Описание |
-|----------|----------|
-| `POST /run` | Выполнить задачу (sync или async_mode=true) |
-| `GET /run/status/{task_id}` | Статус асинхронной задачи |
-| `POST /plan` | Только план |
-| `GET /health` | Health check |
-| `GET /status` | Статус (skills_count, skill_registry_available и т.д.) |
+| Endpoint                    | Описание                                               |
+| --------------------------- | ------------------------------------------------------ |
+| `POST /run`                 | Выполнить задачу (sync или async_mode=true)            |
+| `GET /run/status/{task_id}` | Статус асинхронной задачи                              |
+| `POST /plan`                | Только план                                            |
+| `GET /health`               | Health check                                           |
+| `GET /status`               | Статус (skills_count, skill_registry_available и т.д.) |
 
 ---
 
 ## 7. Clawdbot-паттерны в проекте
 
-| Компонент | Описание |
-|-----------|----------|
-| Skill Registry | Реестр skills (Agent Skills Framework + Clawdbot) |
-| Skill Loader | Загрузка SKILL.md, watcher для hot-reload |
-| SafeFileWriter | Бэкап перед записью, проверка пути |
-| Event Bus | События (SKILL_NEEDED, FILE_CHANGED и др.) |
-| ReActAgent | Think → Act → Observe → Reflect |
-| Skill Discovery | Поиск и создание новых skills |
+| Компонент       | Описание                                          |
+| --------------- | ------------------------------------------------- |
+| Skill Registry  | Реестр skills (Agent Skills Framework + Clawdbot) |
+| Skill Loader    | Загрузка SKILL.md, watcher для hot-reload         |
+| SafeFileWriter  | Бэкап перед записью, проверка пути                |
+| Event Bus       | События (SKILL_NEEDED, FILE_CHANGED и др.)        |
+| ReActAgent      | Think → Act → Observe → Reflect                   |
+| Skill Discovery | Поиск и создание новых skills                     |
 
 ---
 
 ## 8. Каналы ввода (как в Clawdbot)
 
-| Канал | Маршрут | Инструменты |
-|-------|---------|-------------|
-| Web IDE Chat | Victoria (agent/ask) | ReAct + skills, create_file, write_file |
-| Telegram | Victoria `/run` | То же |
-| Terminal | `v "задача"` → `/api/terminal/ask` → Victoria | То же |
+| Канал        | Маршрут                                       | Инструменты                             |
+| ------------ | --------------------------------------------- | --------------------------------------- |
+| Web IDE Chat | Victoria (agent/ask)                          | ReAct + skills, create_file, write_file |
+| Telegram     | Victoria `/run`                               | То же                                   |
+| Terminal     | `v "задача"` → `/api/terminal/ask` → Victoria | То же                                   |
 
 ---
 

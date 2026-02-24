@@ -10,16 +10,19 @@
 ### Что получают эксперты:
 
 Из `smart_worker_autonomous.py` (строка 114):
+
 ```python
 prompt = f"""{expert_config['system_prompt']}\nRole: {expert_config['role']}\nDept: {expert_config['department']}\nTASK: {task['title']}\nDESC: {task['description']}"""
 ```
 
 **Эксперты получают ТОЛЬКО:**
+
 1. ✅ `system_prompt` - их роль и инструкции
 2. ✅ `title` - название задачи
 3. ✅ `description` - описание задачи
 
 **Пример описания задачи dashboard_audit:**
+
 ```
 Найдена ошибка: Проверить все try/except блоки в дашборде
 Местоположение: app.py - все табы
@@ -55,10 +58,10 @@ prompt = f"""{expert_config['system_prompt']}\nRole: {expert_config['role']}\nDe
    └─> НЕ имеет доступа к файлам проекта
 
 4. Эксперт видит только:
-   "Ты - эксперт по дашбордам. 
+   "Ты - эксперт по дашбордам.
     Задача: Исправить ошибки в дашборде
     Описание: Местоположение: app.py - все табы"
-   
+
    ❌ НЕ видит сам файл app.py!
 ```
 
@@ -90,7 +93,8 @@ prompt = f"""{expert_config['system_prompt']}\nRole: {expert_config['role']}\nDe
 ### Вариант 1: Добавить код в description задачи
 
 При создании задачи dashboard_audit:
-```python
+
+````python
 # Читаем файл
 with open('knowledge_os/dashboard/app.py', 'r') as f:
     code = f.read()
@@ -103,11 +107,12 @@ description = f"""
 КОД ФАЙЛА:
 ```python
 {code[:5000]}  # Первые 5000 символов
-```
+````
 
 Требуется исправление.
 """
-```
+
+````
 
 ### Вариант 2: Передавать путь к файлу в metadata
 
@@ -117,10 +122,11 @@ metadata = {
     "file_type": "python",
     "context": "dashboard"
 }
-```
+````
 
 И в `smart_worker_autonomous.py`:
-```python
+
+````python
 # Читаем файл если указан путь
 if task.get('metadata', {}).get('file_path'):
     file_path = task['metadata']['file_path']
@@ -130,11 +136,12 @@ if task.get('metadata', {}).get('file_path'):
         prompt += f"\n\nКОД ФАЙЛА {file_path}:\n```python\n{file_content}\n```"
     except Exception as e:
         prompt += f"\n\n⚠️ Не удалось прочитать файл {file_path}: {e}"
-```
+````
 
 ### Вариант 3: Дать экспертам доступ к инструментам
 
 Изменить `run_smart_agent_async` чтобы агенты могли использовать:
+
 - `read_file` - чтение файлов
 - `list_directory` - просмотр директорий
 - `grep` - поиск в коде
@@ -158,11 +165,13 @@ if task.get('metadata', {}).get('file_path'):
 ### Среднесрочные (улучшение архитектуры):
 
 1. **Добавить поле `file_context` в таблицу `tasks`:**
+
    ```sql
    ALTER TABLE tasks ADD COLUMN file_context TEXT;
    ```
 
 2. **Создать функцию для автоматического чтения файлов:**
+
    ```python
    async def enrich_task_with_code(task):
        if task.get('metadata', {}).get('file_path'):

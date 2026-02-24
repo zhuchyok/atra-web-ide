@@ -4,13 +4,15 @@
 
 ### ✅ **1. Исправление циклических импортов**
 
-**Проблема:** 
+**Проблема:**
+
 ```
 WARNING:root:Не удалось импортировать signal_live: cannot import name 'get_anomaly_data_with_fallback' from partially initialized module 'signal_live'
 WARNING:root:Не удалось импортировать exchange_api: cannot import name 'get_ohlc_binance_sync_async' from 'exchange_api'
 ```
 
 **Решение:**
+
 - Заменил прямые импорты на ленивые (lazy imports) в:
   - `ai_integration.py`
   - `ai_signal_generator.py`
@@ -21,12 +23,14 @@ WARNING:root:Не удалось импортировать exchange_api: cannot
 
 ### ✅ **2. Оптимизация бэкапов базы данных**
 
-**Проблема:** 
+**Проблема:**
+
 - Бэкапы создавались каждую секунду (8 раз подряд)
 - Замедление работы системы
 - Избыточное использование дискового пространства
 
 **Решение:**
+
 - Заменил все прямые вызовы `backup_file(self.db_path)` на `self.periodic_backup()`
 - Используется существующий механизм с минимальным интервалом (10 минут)
 
@@ -35,11 +39,13 @@ WARNING:root:Не удалось импортировать exchange_api: cannot
 ### ✅ **3. Улучшение graceful shutdown**
 
 **Проблема:**
+
 ```
 systemd[1]: myproject.service: State 'stop-sigterm' timed out. Killing.
 ```
 
 **Решение:**
+
 - Добавлен глобальный флаг `_shutdown_requested`
 - Улучшен обработчик сигналов для различения SIGTERM и SIGINT
 - Переработан основной цикл для корректной обработки shutdown запросов
@@ -50,24 +56,28 @@ systemd[1]: myproject.service: State 'stop-sigterm' timed out. Killing.
 ### ✅ **4. Конфигурация systemd сервиса**
 
 **Создан файл:** `myproject.service`
+
 - Увеличены таймауты: `TimeoutStartSec=60`, `TimeoutStopSec=90`
 - Настроен `KillMode=mixed` для корректного завершения
 - Добавлены ограничения ресурсов и безопасности
 - Настроено логирование через journald
 
 **Создан скрипт:** `update_systemd_service.sh`
+
 - Автоматическое обновление конфигурации на сервере
 - Создание резервных копий
 - Перезагрузка systemd и запуск сервиса
 
 ### ✅ **5. Исправление предупреждения о корутине**
 
-**Проблема:** 
+**Проблема:**
+
 ```
 RuntimeWarning: coroutine 'get_filtered_top_usdt_pairs_fast' was never awaited
 ```
 
 **Решение:**
+
 - Исправлена инициализация списка монет в `config.py`
 - Создана функция `initialize_coins_sync()` с правильной обработкой event loops
 - Добавлена инициализация монет в `main.py` после запуска event loop
@@ -78,12 +88,14 @@ RuntimeWarning: coroutine 'get_filtered_top_usdt_pairs_fast' was never awaited
 ### ✅ **6. Тестирование системы**
 
 **Создан файл:** `test_fixed_imports.py`
+
 - Проверка всех основных импортов
 - Тестирование ленивых импортов
 - Проверка оптимизации бэкапов БД
 - Тестирование graceful shutdown механизма
 
 **Создан файл:** `test_coins_initialization.py`
+
 - Тестирование инициализации списка монет
 - Проверка работы AUTO_FETCH_COINS
 
@@ -117,6 +129,7 @@ RuntimeWarning: coroutine 'get_filtered_top_usdt_pairs_fast' was never awaited
 ### 1. **Загрузите обновленные файлы на сервер**
 
 ### 2. **Обновите systemd сервис:**
+
 ```bash
 # На сервере, от root
 chmod +x update_systemd_service.sh
@@ -124,12 +137,14 @@ chmod +x update_systemd_service.sh
 ```
 
 ### 3. **Протестируйте систему:**
+
 ```bash
 # На сервере
 python3 test_fixed_imports.py
 ```
 
 ### 4. **Проверьте работу сервиса:**
+
 ```bash
 # Статус сервиса
 systemctl status myproject.service
@@ -141,16 +156,19 @@ journalctl -u myproject.service -f
 ## 📊 **Ожидаемые улучшения**
 
 ### **Производительность:**
+
 - ⚡ Устранение циклических импортов - быстрый запуск
 - 💾 Оптимизация бэкапов - меньше нагрузки на диск
 - 🚀 Стабильная работа без перезапусков
 
 ### **Надежность:**
+
 - 🛡️ Корректное завершение работы без таймаутов
 - 🔄 Автоматический перезапуск при сбоях
 - 📝 Подробное логирование для диагностики
 
 ### **Мониторинг:**
+
 - 📊 Четкие логи в journald
 - 🔍 Легкая диагностика проблем
 - ⏱️ Предсказуемое время запуска/остановки
@@ -160,6 +178,7 @@ journalctl -u myproject.service -f
 Все критические проблемы устранены. Система оптимизирована для стабильной работы в продакшене.
 
 ---
+
 **Дата:** 2025-10-04  
 **Версия:** 2.1 (Оптимизированная)  
 **Статус:** ✅ Готово к деплою

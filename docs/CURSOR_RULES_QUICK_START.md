@@ -5,19 +5,23 @@
 ### 🚀 Что работает:
 
 1. **Синхронизация по требованию**
+
    ```bash
    python3 scripts/sync_cursor_rules.py
    ```
+
    - Скорость: 85 файлов за ~1 сек
    - БЕЗ внешних зависимостей
    - Умные шаблоны для 15+ ролей
 
 2. **Git Hook (автоматически при commit)**
+
    ```bash
    git add configs/experts/employees.json
    git commit -m "Найм: Новый сотрудник"
    # ↓ автоматически обновляются .cursor/rules/
    ```
+
    - ✅ Установлен: `.git/hooks/pre-commit`
    - ✅ Исполняемый: `rwxr-xr-x`
    - ✅ Протестирован
@@ -27,6 +31,7 @@
    # Добавлено в .gitignore:
    !.cursor/rules/
    ```
+
    - ✅ Файлы теперь коммитятся
    - ✅ Готовы для копирования в другие проекты
 
@@ -35,6 +40,7 @@
 ## 🎯 Use Cases
 
 ### 1. Найм нового сотрудника
+
 ```bash
 # 1. Добавить в employees.json
 # 2. git commit
@@ -42,13 +48,15 @@
 ```
 
 ### 2. Изменение роли
+
 ```bash
 # 1. Изменить роль в employees.json
-# 2. git commit  
+# 2. git commit
 # 3. ✅ Автоматически обновится файл
 ```
 
 ### 3. Увольнение
+
 ```bash
 # 1. Удалить из employees.json
 # 2. git commit
@@ -56,6 +64,7 @@
 ```
 
 ### 4. Копирование в другой проект
+
 ```bash
 # Просто скопируйте всю папку
 cp -r .cursor/rules/ ~/другой-проект/.cursor/
@@ -77,20 +86,21 @@ cp -r .cursor/rules/ ~/другой-проект/.cursor/
 
 ## 🔧 Компоненты системы
 
-| Компонент | Статус | Путь |
-|-----------|--------|------|
-| Sync Script | ✅ Работает | `scripts/sync_cursor_rules.py` |
-| Git Hook | ✅ Установлен | `.git/hooks/pre-commit` |
-| Test Script | ✅ Работает | `scripts/test_git_hook.sh` |
-| Gitignore | ✅ Настроен | `.gitignore` |
-| DB Trigger | ⏸️ Опционально | `knowledge_os/db/migrations/` |
-| Worker | ⏸️ Опционально | `knowledge_os/app/cursor_rules_autosync.py` |
+| Компонент   | Статус         | Путь                                        |
+| ----------- | -------------- | ------------------------------------------- |
+| Sync Script | ✅ Работает    | `scripts/sync_cursor_rules.py`              |
+| Git Hook    | ✅ Установлен  | `.git/hooks/pre-commit`                     |
+| Test Script | ✅ Работает    | `scripts/test_git_hook.sh`                  |
+| Gitignore   | ✅ Настроен    | `.gitignore`                                |
+| DB Trigger  | ⏸️ Опционально | `knowledge_os/db/migrations/`               |
+| Worker      | ⏸️ Опционально | `knowledge_os/app/cursor_rules_autosync.py` |
 
 ---
 
 ## 📝 Шаблоны ролей
 
 Специализированные шаблоны для:
+
 - 👑 Team Lead
 - 💻 Backend Developer
 - 🎨 Frontend Developer / UI/UX Designer
@@ -105,7 +115,7 @@ cp -r .cursor/rules/ ~/другой-проект/.cursor/
 - 🧠 Chief Knowledge Officer
 - 💻 Local Developer (Agent)
 
-+ 👤 DEFAULT для остальных
+* 👤 DEFAULT для остальных
 
 ---
 
@@ -127,7 +137,9 @@ git status .cursor/rules/
 ## 🎁 Бонусы
 
 ### Background Worker (опционально)
+
 Real-time синхронизация при изменениях в БД:
+
 ```bash
 # 1. Применить миграцию
 psql $DATABASE_URL -f knowledge_os/db/migrations/create_experts_changelog.sql
@@ -137,6 +149,7 @@ python3 knowledge_os/app/cursor_rules_autosync.py &
 ```
 
 ### LaunchAgent для macOS (опционально)
+
 ```bash
 # Автозапуск при старте системы
 scripts/setup_employees_sync_daemon.sh

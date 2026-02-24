@@ -8,8 +8,8 @@
 
 ## 1. Проект
 
-- **Название:** ATRA Web IDE  
-- **Назначение:** браузерная оболочка для ИИ-корпорации Singularity 9.0 (чат с Victoria/Veronica, редактор кода, файлы, превью).  
+- **Название:** ATRA Web IDE
+- **Назначение:** браузерная оболочка для ИИ-корпорации Singularity 9.0 (чат с Victoria/Veronica, редактор кода, файлы, превью).
 - **Контекст:** основной проект корпорации — `MAIN_PROJECT=atra-web-ide`; агенты Victoria и Veronica общие для всех проектов (atra, atra-web-ide и др.), контекст передаётся через `project_context` в запросах.
 - **Независимость от atra:** проект atra — отдельный (будет в новом репозитории/проекте). В atra-web-ide свой Redis: контейнер **knowledge_os_redis**, порт на хосте **6381**; в compose не используем контейнеры atra (knowledge_redis и др.).
 - **Реестр проектов и новый проект:** список разрешённых проектов и конфиг хранятся в БД (таблица `projects`). Регистрация: скрипт `scripts/register_project.py` или `POST /api/projects/register` (Knowledge OS 8002). Подробно: [MASTER_REFERENCE.md](MASTER_REFERENCE.md) §1а, §1б, §1в.
@@ -69,33 +69,36 @@ atra-web-ide/
 
 ## 3. Компоненты и порты
 
-| Компонент | Порт (хост) | Описание |
-|-----------|-------------|----------|
-| **Frontend** | 3000 | Svelte, чат, редактор, файлы. |
-| **Backend** | 8080 | FastAPI: чат/stream, plan, RAG, план-кэш, метрики, A/B. Ограничивает число запросов к Victoria (семафор). |
-| **Victoria** | 8010 | Team Lead, один сервис (victoria-agent). Три уровня: Agent, Enhanced, Initiative. Запуск: knowledge_os/docker-compose.yml. |
-| **Veronica** | 8011 | Local Developer (veronica-agent). Вызывается Victoria при делегировании. |
-| **PostgreSQL** | 5432 | knowledge_postgres, БД knowledge_os (experts, tasks и др.). |
-| **Redis** | 6379 (в сети), 6381 (хост) | knowledge_os_redis из Knowledge OS. Web IDE: REDIS_URL=redis://knowledge_os_redis:6379. Проект atra — отдельный, свой Redis. |
-| **Prometheus (Web IDE)** | 9091 | Метрики backend. |
-| **Grafana (Web IDE)** | 3002 | Дашборды (логин admin/admin). |
-| **Prometheus (Knowledge OS)** | 9092 | Метрики Knowledge OS (если 9090 занят). |
-| **Grafana (Knowledge OS)** | 3001 | Дашборды Knowledge OS. |
-| **Smart Worker (knowledge_os_worker)** | — | Обработка задач из БД (pending → in_progress → completed). Пул БД, heartbeat, батчи по модели. Запуск: knowledge_os/docker-compose.yml. |
-| **Ollama** | 11434 | LLM на хосте. |
-| **MLX API** | 11435 | LLM на хосте. |
+| Компонент                              | Порт (хост)                | Описание                                                                                                                                |
+| -------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**                           | 3000                       | Svelte, чат, редактор, файлы.                                                                                                           |
+| **Backend**                            | 8080                       | FastAPI: чат/stream, plan, RAG, план-кэш, метрики, A/B. Ограничивает число запросов к Victoria (семафор).                               |
+| **Victoria**                           | 8010                       | Team Lead, один сервис (victoria-agent). Три уровня: Agent, Enhanced, Initiative. Запуск: knowledge_os/docker-compose.yml.              |
+| **Veronica**                           | 8011                       | Local Developer (veronica-agent). Вызывается Victoria при делегировании.                                                                |
+| **PostgreSQL**                         | 5432                       | knowledge_postgres, БД knowledge_os (experts, tasks и др.).                                                                             |
+| **Redis**                              | 6379 (в сети), 6381 (хост) | knowledge_os_redis из Knowledge OS. Web IDE: REDIS_URL=redis://knowledge_os_redis:6379. Проект atra — отдельный, свой Redis.            |
+| **Prometheus (Web IDE)**               | 9091                       | Метрики backend.                                                                                                                        |
+| **Grafana (Web IDE)**                  | 3002                       | Дашборды (логин admin/admin).                                                                                                           |
+| **Prometheus (Knowledge OS)**          | 9092                       | Метрики Knowledge OS (если 9090 занят).                                                                                                 |
+| **Grafana (Knowledge OS)**             | 3001                       | Дашборды Knowledge OS.                                                                                                                  |
+| **Smart Worker (knowledge_os_worker)** | —                          | Обработка задач из БД (pending → in_progress → completed). Пул БД, heartbeat, батчи по модели. Запуск: knowledge_os/docker-compose.yml. |
+| **Ollama**                             | 11434                      | LLM на хосте.                                                                                                                           |
+| **MLX API**                            | 11435                      | LLM на хосте.                                                                                                                           |
 
 ---
 
 ## 4. Порядок запуска
 
 1. **Knowledge OS** (Victoria, Veronica, БД, Redis, Prometheus, Grafana и др.):
+
    ```bash
    docker-compose -f knowledge_os/docker-compose.yml up -d
    ```
+
    Подождать 15–20 сек.
 
 2. **Web IDE** (backend, frontend, Prometheus, Grafana):
+
    ```bash
    docker-compose up -d
    ```
@@ -113,27 +116,27 @@ atra-web-ide/
 
 ## 5. API (Backend)
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| GET | /health | Состояние backend и зависимостей (Victoria, Ollama, MLX). |
-| POST | /api/chat/stream | Чат (SSE). Запросы к Victoria; при перегрузке — 503 с Retry-After. |
-| POST | /api/chat/plan | План по цели (Victoria). |
-| GET | /metrics | Метрики в формате Prometheus. |
-| GET | /metrics/summary | Краткая сводка метрик. |
-| GET | /api/files | Список файлов. |
-| GET | /api/experts | Список экспертов. |
-| GET | /api/preview | Превью файлов. |
-| POST | /api/plan-cache/clear | Очистка кэша планов. |
-| POST | /api/rag-optimization/cache/clear | Очистка кэша RAG. |
-| GET | /api/ab-testing/experiments | A/B-эксперименты. |
-| GET | /api/ab-testing/user/{user_id}/variants | Варианты пользователя. |
+| Метод | Путь                                    | Описание                                                           |
+| ----- | --------------------------------------- | ------------------------------------------------------------------ |
+| GET   | /health                                 | Состояние backend и зависимостей (Victoria, Ollama, MLX).          |
+| POST  | /api/chat/stream                        | Чат (SSE). Запросы к Victoria; при перегрузке — 503 с Retry-After. |
+| POST  | /api/chat/plan                          | План по цели (Victoria).                                           |
+| GET   | /metrics                                | Метрики в формате Prometheus.                                      |
+| GET   | /metrics/summary                        | Краткая сводка метрик.                                             |
+| GET   | /api/files                              | Список файлов.                                                     |
+| GET   | /api/experts                            | Список экспертов.                                                  |
+| GET   | /api/preview                            | Превью файлов.                                                     |
+| POST  | /api/plan-cache/clear                   | Очистка кэша планов.                                               |
+| POST  | /api/rag-optimization/cache/clear       | Очистка кэша RAG.                                                  |
+| GET   | /api/ab-testing/experiments             | A/B-эксперименты.                                                  |
+| GET   | /api/ab-testing/user/{user_id}/variants | Варианты пользователя.                                             |
 
 **Knowledge OS REST API (knowledge_rest, порт 8002):** Backend вызывает для логирования чата и консультации Совета.
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| POST | /api/log_interaction | Логирование взаимодействия (prompt, response, expert_name). |
-| POST | /api/board/consult | Консультация Совета Директоров по стратегическому вопросу. Body: question, session_id?, user_id?, correlation_id?, source? (chat\|api). Заголовок X-API-Key. Ответ: directive_text, structured_decision, risk_level?, recommend_human_review. |
+| Метод | Путь                 | Описание                                                                                                                                                                                                                                      |
+| ----- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST  | /api/log_interaction | Логирование взаимодействия (prompt, response, expert_name).                                                                                                                                                                                   |
+| POST  | /api/board/consult   | Консультация Совета Директоров по стратегическому вопросу. Body: question, session_id?, user_id?, correlation_id?, source? (chat\|api). Заголовок X-API-Key. Ответ: directive_text, structured_decision, risk_level?, recommend_human_review. |
 
 ---
 
@@ -204,21 +207,21 @@ atra-web-ide/
 
 ## 11. Связанные документы
 
-| Документ | Содержание |
-|----------|------------|
-| **docs/ARCHITECTURE_FULL.md** | Полная схема Victoria → делегирование → Veronica, оркестратор, эксперты. |
-| **docs/VICTORIA_PROCESS_FULL.md** | Процесс Victoria: от запроса до выполнения задачи. |
-| **docs/VICTORIA_VERONICA_OVERVIEW.md** | Краткий обзор Victoria и Veronica, порты, изменения. |
-| **VICTORIA.md** | Контекст Victoria: порты, команда, Cursor-роли, лимиты, стресс-тест. |
-| **VERONICA.md** | Контекст Veronica: порты, связь с Victoria и backend. |
-| **.cursorrules** | Компоненты, API, запуск, Cursor (роли, команда). |
-| **.cursor/README.md** | Индекс ролей Cursor и связь с configs/experts/team.md. |
-| **configs/experts/team.md** | Команда экспертов и соответствие .cursor/rules. |
-| **configs/experts/employees.json** | Единый источник сотрудников. Новых — добавлять сюда, затем запускать `scripts/sync_employees.py`. |
-| **configs/experts/employees.md** | Таблица сотрудников (генерируется из employees.json). |
-| **docs/LOAD_TEST_RESULTS.md** | Стресс-тест: как запускать, результаты. |
-| **docs/REPORT_STRESS_AND_METRICS.md** | Отчёт: метрики, стресс-тест, concurrency limiter. |
-| **docs/WORKER_THROUGHPUT_AND_STUCK_TASKS.md** | Воркер: пропускная способность, зависания, батчи по модели, чеклист 14–19. |
-| **docs/OLLAMA_MLX_CONNECTION_AND_ECHO.md** | Ollama/MLX: URL из env, эхо-ответы, сканер моделей, чеклист при проблемах. |
+| Документ                                       | Содержание                                                                                                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **docs/ARCHITECTURE_FULL.md**                  | Полная схема Victoria → делегирование → Veronica, оркестратор, эксперты.                                   |
+| **docs/VICTORIA_PROCESS_FULL.md**              | Процесс Victoria: от запроса до выполнения задачи.                                                         |
+| **docs/VICTORIA_VERONICA_OVERVIEW.md**         | Краткий обзор Victoria и Veronica, порты, изменения.                                                       |
+| **VICTORIA.md**                                | Контекст Victoria: порты, команда, Cursor-роли, лимиты, стресс-тест.                                       |
+| **VERONICA.md**                                | Контекст Veronica: порты, связь с Victoria и backend.                                                      |
+| **.cursorrules**                               | Компоненты, API, запуск, Cursor (роли, команда).                                                           |
+| **.cursor/README.md**                          | Индекс ролей Cursor и связь с configs/experts/team.md.                                                     |
+| **configs/experts/team.md**                    | Команда экспертов и соответствие .cursor/rules.                                                            |
+| **configs/experts/employees.json**             | Единый источник сотрудников. Новых — добавлять сюда, затем запускать `scripts/sync_employees.py`.          |
+| **configs/experts/employees.md**               | Таблица сотрудников (генерируется из employees.json).                                                      |
+| **docs/LOAD_TEST_RESULTS.md**                  | Стресс-тест: как запускать, результаты.                                                                    |
+| **docs/REPORT_STRESS_AND_METRICS.md**          | Отчёт: метрики, стресс-тест, concurrency limiter.                                                          |
+| **docs/WORKER_THROUGHPUT_AND_STUCK_TASKS.md**  | Воркер: пропускная способность, зависания, батчи по модели, чеклист 14–19.                                 |
+| **docs/OLLAMA_MLX_CONNECTION_AND_ECHO.md**     | Ollama/MLX: URL из env, эхо-ответы, сканер моделей, чеклист при проблемах.                                 |
 | **docs/DASHBOARDS_AND_AGENTS_FULL_PICTURE.md** | Полная картина: все дашборды (Grafana 3001/3002, Corporation 8501, quality), агенты, порты, что проверять. |
-| **docs/MASTER_REFERENCE.md** | Единый справочник проекта: архитектура, логика, разработка, изменения — «библия» проекта. |
+| **docs/MASTER_REFERENCE.md**                   | Единый справочник проекта: архитектура, логика, разработка, изменения — «библия» проекта.                  |

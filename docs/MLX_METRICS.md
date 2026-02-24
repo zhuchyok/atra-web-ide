@@ -7,11 +7,13 @@
 ## 🚀 Быстрый просмотр
 
 ### Через скрипт (рекомендуется):
+
 ```bash
 bash scripts/check_mlx_status.sh
 ```
 
 ### Через curl:
+
 ```bash
 # Прямой доступ к MLX
 curl http://localhost:11435/health | python3 -m json.tool
@@ -25,16 +27,19 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ## 📈 Основные метрики
 
 ### 1. **Статус сервера**
+
 - `status`: `"healthy"` | `"degraded"` | `"warning"` | `"critical"`
 - `service`: Название сервиса
 - `version`: Версия API
 
 ### 2. **Загрузка запросами**
+
 - `active_requests`: Текущее количество активных запросов
 - `max_concurrent`: Максимальное количество параллельных запросов (по умолчанию: 5)
 - `active_model_requests`: Запросы по каждой модели
 
 **Пример:**
+
 ```json
 {
   "active_requests": 2,
@@ -47,6 +52,7 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ```
 
 ### 3. **Использование памяти**
+
 - `memory.used_percent`: Процент использования памяти (0-100)
 - `memory.available_gb`: Доступная память в GB
 - `memory.total_gb`: Общий объем памяти в GB
@@ -54,6 +60,7 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 - `memory.critical_threshold`: Критический порог (по умолчанию: 95%)
 
 **Пример:**
+
 ```json
 {
   "memory": {
@@ -67,6 +74,7 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ```
 
 ### 4. **Загруженные модели**
+
 - `models_cached`: Количество моделей в кэше
 - `cached_models`: Список загруженных моделей с метриками:
   - `name`: Имя модели
@@ -77,6 +85,7 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
   - `is_loading`: Загружается ли модель сейчас
 
 **Пример:**
+
 ```json
 {
   "models_cached": 3,
@@ -94,10 +103,12 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ```
 
 ### 5. **Rate Limiting**
+
 - `rate_limit.max_per_window`: Максимум запросов в окне
 - `rate_limit.window_seconds`: Размер окна в секундах
 
 ### 6. **Предупреждения**
+
 - `warnings`: Список предупреждений (высокое использование памяти, перегрузка запросами)
 
 ---
@@ -105,20 +116,24 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ## 🔍 Интерпретация статусов
 
 ### `healthy`
+
 - ✅ Память < 85%
 - ✅ Активных запросов < максимума
 - ✅ Все модели работают нормально
 
 ### `degraded`
+
 - ⚠️ Память 85-95% ИЛИ
 - ⚠️ Активных запросов = максимуму
 - ⚠️ Сервер работает, но перегружен
 
 ### `warning`
+
 - ⚠️ Память 85-95%
 - ⚠️ Есть предупреждения
 
 ### `critical`
+
 - 🚨 Память > 95%
 - 🚨 Критическая ситуация
 - 🚨 Автоматическая очистка моделей
@@ -128,17 +143,20 @@ curl http://localhost:8080/api/chat/mlx/metrics | python3 -m json.tool
 ## 📊 Примеры использования
 
 ### Проверка загрузки:
+
 ```bash
 # Быстрая проверка статуса
 curl -s http://localhost:11435/health | python3 -c "import sys, json; d=json.load(sys.stdin); print(f\"Статус: {d['status']}\"); print(f\"Активных запросов: {d['active_requests']}/{d['max_concurrent']}\"); print(f\"Память: {d['memory']['used_percent']}%\")"
 ```
 
 ### Мониторинг в реальном времени:
+
 ```bash
 watch -n 2 'curl -s http://localhost:11435/health | python3 -m json.tool | grep -A 5 "active_requests\|memory"'
 ```
 
 ### Проверка конкретной модели:
+
 ```bash
 curl -s http://localhost:11435/health | python3 -c "import sys, json; d=json.load(sys.stdin); models=[m for m in d['cached_models'] if m['name']=='qwen2.5-coder:32b']; print(json.dumps(models[0] if models else {}, indent=2))"
 ```
@@ -148,9 +166,11 @@ curl -s http://localhost:11435/health | python3 -c "import sys, json; d=json.loa
 ## 🛠️ Endpoints
 
 ### MLX API Server (прямой доступ):
+
 - `GET /health` - Полные метрики и статус
 
 ### Backend API (через ATRA Web IDE):
+
 - `GET /api/chat/mlx/metrics` - Проксирует метрики MLX
 - `GET /api/chat/status` - Статус Victoria и MLX
 
@@ -172,4 +192,4 @@ curl -s http://localhost:11435/health | python3 -c "import sys, json; d=json.loa
 
 ---
 
-*Обновлено: 26.01.2026*
+_Обновлено: 26.01.2026_

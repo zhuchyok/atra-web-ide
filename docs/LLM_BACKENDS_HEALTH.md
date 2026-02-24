@@ -2,11 +2,11 @@
 
 ## Режимы чата и используемые бэкенды
 
-| Режим   | Вкладка | Кто отвечает | Fallback |
-|--------|---------|----------------|----------|
+| Режим     | Вкладка | Кто отвечает            | Fallback                                  |
+| --------- | ------- | ----------------------- | ----------------------------------------- |
 | **Ask**   | Чат     | MLX → Ollama → Victoria | При недоступности MLX и Ollama — Victoria |
-| **Agent** | Агент   | Victoria (/run)        | При ошибке Victoria — MLX → Ollama |
-| **Plan**  | План    | Только Victoria (/plan) | Нет (только план, без выполнения) |
+| **Agent** | Агент   | Victoria (/run)         | При ошибке Victoria — MLX → Ollama        |
+| **Plan**  | План    | Только Victoria (/plan) | Нет (только план, без выполнения)         |
 
 - **Ask** — быстрый ответ: сначала MLX, затем Ollama, при недоступности обоих — Victoria.
 - **Agent** — полный агент: запрос в Victoria; при ошибке Victoria — MLX → Ollama.
@@ -33,19 +33,19 @@
    При вызове `solve()` в Victoria Enhanced вызывается `ensure_llm_backends_available()` (см. `knowledge_os/app/llm_backends_ensure.py`):  
    проверяются MLX и Ollama, при необходимости запускаются `ollama serve` и MLX через `mlx_server_supervisor`.
 
-2. **Скрипты на хосте**  
-   - `scripts/AUTO_START_MLX.sh` — запуск MLX  
-   - `scripts/start_mlx_with_supervisor.py` — MLX под супервизором  
-   - `knowledge_os/app/mlx_server_supervisor.py` — перезапуск MLX при падении  
+2. **Скрипты на хосте**
+   - `scripts/AUTO_START_MLX.sh` — запуск MLX
+   - `scripts/start_mlx_with_supervisor.py` — MLX под супервизором
+   - `knowledge_os/app/mlx_server_supervisor.py` — перезапуск MLX при падении
    - Системный сервис/cron для `ollama serve` при необходимости
 
-3. **Переменные окружения**  
-   - `OLLAMA_URL` / `OLLAMA_BASE_URL` — URL Ollama (по умолчанию `http://localhost:11434`)  
+3. **Переменные окружения**
+   - `OLLAMA_URL` / `OLLAMA_BASE_URL` — URL Ollama (по умолчанию `http://localhost:11434`)
    - `MLX_API_URL` — URL MLX API Server (по умолчанию `http://localhost:11435`)  
-   **Docker:** если бэкенд в контейнере, а Ollama и MLX на хосте — задайте в `docker-compose` для backend:
+     **Docker:** если бэкенд в контейнере, а Ollama и MLX на хосте — задайте в `docker-compose` для backend:
    - `OLLAMA_URL=http://host.docker.internal:11434`
    - `MLX_API_URL=http://host.docker.internal:11435`  
-   Иначе режимы **Ask** и fallback **Agent** не увидят MLX/Ollama.
+     Иначе режимы **Ask** и fallback **Agent** не увидят MLX/Ollama.
 
 ## Итог
 

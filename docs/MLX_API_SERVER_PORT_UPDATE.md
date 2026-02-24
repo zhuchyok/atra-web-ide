@@ -8,6 +8,7 @@
 ## ✅ Применённые изменения
 
 ### 1. **MLX API Server (`knowledge_os/app/mlx_api_server.py`)**
+
 - ✅ Порт по умолчанию: **11435** (через `MLX_API_PORT`)
 - ✅ Поддержка переменной окружения `MLX_API_PORT`
 - ✅ Улучшенные настройки uvicorn:
@@ -18,31 +19,37 @@
 ### 2. **Скрипты запуска и мониторинга**
 
 #### `scripts/start_mlx_api_server.sh`
+
 - ✅ Порт: **11435** (по умолчанию)
 - ✅ Поддержка `MLX_API_PORT` для переопределения
 - ✅ Улучшенная проверка доступности
 - ✅ Сохранение PID для монитора
 
 #### `scripts/monitor_mlx_api_server.sh`
+
 - ✅ Проверка порта **11435**
 - ✅ Поддержка `MLX_API_PORT`
 
 #### `scripts/system_auto_recovery.sh`
+
 - ✅ Все проверки обновлены на порт **11435**
 - ✅ Поддержка `MLX_API_PORT`
 
 #### `scripts/AUTO_START_MLX.sh`
+
 - ✅ Порт: **11435**
 - ✅ Поддержка `MLX_API_PORT`
 - ✅ Экспорт переменной окружения для Python
 
 #### `scripts/check_all_services.sh`
+
 - ✅ Проверка порта **11435**
 - ✅ Поддержка `MLX_API_PORT`
 
 ### 3. **Backend конфигурация**
 
 #### `backend/app/config.py`
+
 - ✅ Поддержка `MLX_API_URL` через `OLLAMA_URL`
 - ✅ По умолчанию: `http://localhost:11434` (Ollama)
 - ✅ Можно переопределить через `MLX_API_URL=http://localhost:11435`
@@ -67,6 +74,7 @@ bash scripts/start_mlx_api_server.sh
 ### Использование в backend
 
 **Вариант 1:** Через переменную окружения
+
 ```bash
 export OLLAMA_URL=http://localhost:11435
 # или
@@ -74,6 +82,7 @@ export MLX_API_URL=http://localhost:11435
 ```
 
 **Вариант 2:** В `.env` файле
+
 ```env
 OLLAMA_URL=http://localhost:11435
 # или
@@ -85,6 +94,7 @@ MLX_API_URL=http://localhost:11435
 ## 📊 Проверка
 
 ### Проверка синтаксиса скриптов
+
 ```bash
 bash -n scripts/start_mlx_api_server.sh      # ✅ OK
 bash -n scripts/monitor_mlx_api_server.sh   # ✅ OK
@@ -92,12 +102,14 @@ bash -n scripts/system_auto_recovery.sh      # ✅ OK
 ```
 
 ### Проверка импорта MLX API Server
+
 ```bash
 python3 -c "import sys; sys.path.insert(0, 'knowledge_os'); from app.mlx_api_server import app; print('OK')"
 # ✅ OK (с предупреждением о psutil, если не установлен)
 ```
 
 ### Проверка доступности
+
 ```bash
 # Проверка на порту 11435
 curl http://localhost:11435/api/tags
@@ -139,4 +151,4 @@ curl http://localhost:11435/health
 
 ---
 
-*Обновление применено: 26.01.2026*
+_Обновление применено: 26.01.2026_

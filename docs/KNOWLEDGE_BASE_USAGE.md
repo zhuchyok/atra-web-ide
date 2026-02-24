@@ -61,13 +61,13 @@
 
 ## 7. Итог
 
-| Компонент | Использует базу знаний? | Как |
-|-----------|-------------------------|-----|
-| **Victoria** | Да | _get_knowledge_context (RAG+ / ILIKE) в victoria_server |
-| **Veronica** | Да | get_knowledge_context_veronica (ILIKE) в server.py |
-| **Оркестраторы** | Да | через run_smart_agent_async → _get_knowledge_context в ai_core |
-| **Эксперты** | Да | через run_smart_agent_async (тот же путь) |
-| **Воркер задач** | Да | run_smart_agent_async при исполнении задачи |
-| **Telegram** | Да | search_knowledge в telegram_gateway |
+| Компонент        | Использует базу знаний? | Как                                                             |
+| ---------------- | ----------------------- | --------------------------------------------------------------- |
+| **Victoria**     | Да                      | \_get_knowledge_context (RAG+ / ILIKE) в victoria_server        |
+| **Veronica**     | Да                      | get_knowledge_context_veronica (ILIKE) в server.py              |
+| **Оркестраторы** | Да                      | через run_smart_agent_async → \_get_knowledge_context в ai_core |
+| **Эксперты**     | Да                      | через run_smart_agent_async (тот же путь)                       |
+| **Воркер задач** | Да                      | run_smart_agent_async при исполнении задачи                     |
+| **Telegram**     | Да                      | search_knowledge в telegram_gateway                             |
 
 База знаний, которая ежедневно накапливается, **активно используется** Victoria, Veronica, оркестраторами и экспертами через описанные точки входа.

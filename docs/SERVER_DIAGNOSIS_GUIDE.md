@@ -3,6 +3,7 @@
 ## 📋 **ПОШАГОВАЯ ИНСТРУКЦИЯ**
 
 ### **Шаг 1: Подключение к серверу**
+
 ```bash
 ssh root@your-server-ip
 # или
@@ -10,6 +11,7 @@ ssh username@your-server-ip
 ```
 
 ### **Шаг 2: Копирование файлов на сервер**
+
 ```bash
 # С вашего локального компьютера:
 scp diagnose_talib_server.py root@your-server:/root/
@@ -18,6 +20,7 @@ scp talib_wrapper_improved.py root@your-server:/root/
 ```
 
 ### **Шаг 3: Запуск диагностики**
+
 ```bash
 # На сервере:
 cd /root
@@ -26,6 +29,7 @@ python3 diagnose_talib_server.py
 ```
 
 ### **Шаг 4: Автоматическое исправление**
+
 ```bash
 # На сервере:
 chmod +x fix_talib_server.sh
@@ -35,6 +39,7 @@ chmod +x fix_talib_server.sh
 ## 🔍 **РУЧНАЯ ДИАГНОСТИКА**
 
 ### **Проверка 1: Системная информация**
+
 ```bash
 # Проверяем ОС
 cat /etc/os-release
@@ -48,6 +53,7 @@ pip --version
 ```
 
 ### **Проверка 2: Установленные пакеты**
+
 ```bash
 # Ищем talib в pip
 pip list | grep -i talib
@@ -58,6 +64,7 @@ pip show TA-Lib
 ```
 
 ### **Проверка 3: Системные библиотеки**
+
 ```bash
 # Ищем ta-lib в системе
 ldconfig -p | grep ta-lib
@@ -66,6 +73,7 @@ find /usr/local -name "*ta-lib*" 2>/dev/null
 ```
 
 ### **Проверка 4: Переменные окружения**
+
 ```bash
 # Проверяем важные переменные
 echo $LD_LIBRARY_PATH
@@ -74,6 +82,7 @@ echo $PATH
 ```
 
 ### **Проверка 5: Тест импорта talib**
+
 ```bash
 # Пробуем импортировать talib
 python3 -c "import talib; print('talib версия:', talib.__version__)"
@@ -82,6 +91,7 @@ python3 -c "import talib; print('talib версия:', talib.__version__)"
 ## 🛠️ **РЕШЕНИЯ ПРОБЛЕМ**
 
 ### **Проблема 1: talib не установлен**
+
 ```bash
 # Устанавливаем системные зависимости
 sudo apt-get update
@@ -106,6 +116,7 @@ pip install TA-Lib
 ```
 
 ### **Проблема 2: talib установлен, но не работает**
+
 ```bash
 # Переустанавливаем с правами root
 sudo pip install --force-reinstall TA-Lib
@@ -116,6 +127,7 @@ ls -la /usr/local/lib/python*/site-packages/talib*
 ```
 
 ### **Проблема 3: Проблемы с путями**
+
 ```bash
 # Добавляем пути в PYTHONPATH
 export PYTHONPATH="/usr/local/lib/python3.9/site-packages:$PYTHONPATH"
@@ -128,18 +140,21 @@ python3 -c "import sys; print('Python paths:'); [print(f'  {p}') for p in sys.pa
 ## 🔧 **АЛЬТЕРНАТИВНЫЕ РЕШЕНИЯ**
 
 ### **Решение 1: Fallback режим**
+
 ```bash
 # Если talib не работает, система автоматически переключится на fallback
 # Никаких дополнительных действий не требуется
 ```
 
 ### **Решение 2: Использование conda**
+
 ```bash
 # Если pip не работает, попробуйте conda
 conda install -c conda-forge ta-lib
 ```
 
 ### **Решение 3: Docker контейнер**
+
 ```bash
 # Если проблемы с системными зависимостями, используйте Docker
 docker run -it python:3.9 bash
@@ -149,6 +164,7 @@ pip install TA-Lib
 ## 📊 **ПРОВЕРКА РЕЗУЛЬТАТА**
 
 ### **После исправления проверьте:**
+
 ```bash
 # 1. Проверяем, что talib работает
 python3 -c "import talib; print('✅ talib работает')"
@@ -166,6 +182,7 @@ python3 main.py
 ## 🚨 **ЕСЛИ НИЧЕГО НЕ ПОМОГАЕТ**
 
 ### **Последний вариант:**
+
 1. **Используйте fallback режим** - система автоматически переключится
 2. **Проверьте логи** - `tail -50 system_improved.log`
 3. **Запустите диагностику** - `python3 diagnose_talib_server.py`

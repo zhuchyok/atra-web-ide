@@ -10,6 +10,7 @@
 **Причина:** Дашборд пытался запустить разведку через `docker exec`, но в контейнере `knowledge_dashboard` нет доступа к команде `docker`.
 
 **Ошибка:**
+
 ```
 FileNotFoundError: [Errno 2] No such file or directory: 'docker'
 ```
@@ -21,10 +22,12 @@ FileNotFoundError: [Errno 2] No such file or directory: 'docker'
 ## ✅ РЕШЕНИЕ
 
 ### Изменен подход:
+
 - ❌ **Было:** Попытка запуска через `docker exec` из дашборда
 - ✅ **Стало:** Прямое создание задачи в БД
 
 ### Преимущества:
+
 - ✅ Работает в Docker окружении
 - ✅ Надежнее
 - ✅ Автоматическая обработка через worker
@@ -35,6 +38,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'docker'
 ## 🔧 ЧТО ИЗМЕНЕНО
 
 ### В `dashboard/app.py`:
+
 1. **Убрана вся логика с `docker exec`**
 2. **Всегда создается задача в БД** с метаданными:
    - `source: "dashboard_scout"`

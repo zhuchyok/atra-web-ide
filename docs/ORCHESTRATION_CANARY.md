@@ -6,25 +6,30 @@
 
 ## Переменные окружения
 
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| `ORCHESTRATION_V2_ENABLED` | `false` | Включить A/B: при `true` часть запросов идёт в V2. |
-| `ORCHESTRATION_V2_PERCENTAGE` | `10` | Процент трафика в V2 (0–100). |
+| Переменная                    | По умолчанию | Описание                                           |
+| ----------------------------- | ------------ | -------------------------------------------------- |
+| `ORCHESTRATION_V2_ENABLED`    | `false`      | Включить A/B: при `true` часть запросов идёт в V2. |
+| `ORCHESTRATION_V2_PERCENTAGE` | `10`         | Процент трафика в V2 (0–100).                      |
 
 В `.env` и в `knowledge_os/docker-compose.yml` для Victoria уже заданы:
+
 - `ORCHESTRATION_V2_ENABLED=true`
 - `ORCHESTRATION_V2_PERCENTAGE=10`
 
 ### Включить V2 для 100% трафика
 
 Чтобы весь трафик шёл в EnhancedOrchestratorV2 (без A/B):
+
 ```bash
 ORCHESTRATION_V2_PERCENTAGE=100
 ```
+
 Или в `knowledge_os/docker-compose.yml` для victoria-agent:
+
 ```yaml
 ORCHESTRATION_V2_PERCENTAGE: "100"
 ```
+
 После изменения перезапустить victoria-agent. Рекомендуется сначала прогнать тесты и при необходимости быстрый прогон куратора (CURATOR_RUNBOOK §1.5).
 
 ### Включить V2 для 100% трафика
@@ -50,6 +55,7 @@ environment:
 Колонка `tasks.orchestrator_version` создаётся **автоматически при старте Knowledge OS API** (в `rest_api.py` — `startup`). Ручной запуск не нужен.
 
 Если API не поднимаете, миграцию можно применить вручную:
+
 ```bash
 # Вариант 1: из контейнера Victoria (есть knowledge_os и asyncpg)
 docker exec victoria-agent python3 -c "
@@ -78,8 +84,8 @@ psql \"\$DATABASE_URL\" -f knowledge_os/db/migrations/add_orchestrator_version.s
 
 ## Где что лежит
 
-- Конфиг оркестрации: `knowledge_os/app/config.py` (ORCHESTRATION_V2_*).
+- Конфиг оркестрации: `knowledge_os/app/config.py` (ORCHESTRATION*V2*\*).
 - Мост A/B: `knowledge_os/app/task_orchestration/integration_bridge.py`.
-- Запись задач в БД (orchestrator_version): `src/agents/bridge/victoria_server.py` (_record_orchestration_task_start/complete).
-- Экспорт A/B в Prometheus: `knowledge_os/app/rest_api.py` (_ab_metrics_prometheus, GET /metrics).
+- Запись задач в БД (orchestrator_version): `src/agents/bridge/victoria_server.py` (\_record_orchestration_task_start/complete).
+- Экспорт A/B в Prometheus: `knowledge_os/app/rest_api.py` (\_ab_metrics_prometheus, GET /metrics).
 - Дашборд A/B: `infrastructure/monitoring/grafana/provisioning/dashboards/orchestration_ab.json`.

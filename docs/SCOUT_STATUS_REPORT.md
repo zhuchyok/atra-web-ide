@@ -8,12 +8,14 @@
 ## 📊 ТЕКУЩАЯ СИТУАЦИЯ
 
 ### Проверка:
+
 - ✅ **Enhanced отчетов в БД:** 0 (еще не запускались)
 - ✅ **Модуль Enhanced разведки:** Доступен и работает
 - ✅ **Интеграция:** Настроена
 - ⏳ **Процесс разведки:** Не обнаружен в активных процессах
 
 ### Новые записи в БД:
+
 - Последние 8 записей - это **обычные отчеты Виктории** (не разведка)
 - Разведка еще не создала записи
 
@@ -22,7 +24,9 @@
 ## 🚀 ВОЗМОЖНЫЕ ПРИЧИНЫ
 
 ### 1. Процесс еще выполняется
+
 Enhanced разведка занимает **5-10 минут**:
+
 - Сбор данных: 2-3 минуты
 - Глубокий анализ через LLM: 3-5 минут
 - Сохранение отчетов: 1 минута
@@ -30,7 +34,9 @@ Enhanced разведка занимает **5-10 минут**:
 **Решение:** Подождать еще несколько минут
 
 ### 2. Запуск через дашборд не сработал
+
 Возможные причины:
+
 - Docker exec не выполнился
 - Ошибка при создании задачи
 - Worker не обработал задачу
@@ -38,7 +44,9 @@ Enhanced разведка занимает **5-10 минут**:
 **Решение:** Проверить логи дашборда и worker'а
 
 ### 3. Запуск напрямую через docker exec
+
 Если запускали напрямую:
+
 ```bash
 docker exec -d knowledge_os_worker python3 /app/enhanced_scout_researcher.py "Компания" "Локация"
 ```
@@ -50,17 +58,20 @@ docker exec -d knowledge_os_worker python3 /app/enhanced_scout_researcher.py "К
 ## ✅ ЧТО ПРОВЕРИТЬ
 
 ### 1. Проверить логи worker'а:
+
 ```bash
 docker logs knowledge_os_worker --tail 100 | grep -i "scout\|разведк\|enhanced"
 ```
 
 ### 2. Проверить новые отчеты:
+
 ```bash
 docker exec knowledge_postgres psql -U admin -d knowledge_os -c \
   "SELECT COUNT(*) FROM knowledge_nodes WHERE metadata->>'source' IN ('enhanced_scout_research', 'enhanced_scout_report') AND created_at > NOW() - INTERVAL '15 minutes';"
 ```
 
 ### 3. Проверить задачи:
+
 ```bash
 docker exec knowledge_postgres psql -U admin -d knowledge_os -c \
   "SELECT * FROM tasks WHERE metadata->>'source' = 'dashboard_scout' ORDER BY created_at DESC LIMIT 1;"

@@ -19,19 +19,23 @@
 ## 1. Запустить прогон
 
 **Быстрый (2 задачи):**
+
 ```bash
 ./scripts/run_curator.sh
 ```
 
 **Полный (файл задач):**
+
 ```bash
 ./scripts/run_curator.sh --file scripts/curator_tasks.txt --async --max-wait 600
 ```
 
 **Регулярный прогон (для cron/launchd):**
+
 ```bash
 ./scripts/run_curator_scheduled.sh
 ```
+
 Использует `scripts/curator_tasks.txt` и `--max-wait 600`; переопределение: `CURATOR_TASKS_FILE`, `CURATOR_MAX_WAIT`, `VICTORIA_URL`.
 
 - **Cron (Linux/macOS):** ежедневно в 9:00  
@@ -47,6 +51,7 @@
 **Память:** При высокой загрузке RAM (Ollama 25–35 ГБ + Docker + Python) возможны падения Python или connection reset. Перед полным прогоном по возможности выгрузите неиспользуемые модели Ollama (`ollama list`; при необходимости перезапуск Ollama освобождает память). Подробнее: [VICTORIA_RESTARTS_CAUSE.md](VICTORIA_RESTARTS_CAUSE.md) §6.
 
 **Быстрая проверка (2 задачи, до 6 мин):**
+
 ```bash
 python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --quick
 ```
@@ -60,12 +65,15 @@ python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.t
 После **деплоя** (например `docker-compose up -d` или выкат на сервер) один раз прогнать быстрый прогон куратора и сравнение с эталонами — проверка, что Victoria и эталоны в порядке после выката.
 
 **Команда (рекомендуемая):**
+
 ```bash
 ./scripts/run_curator_post_deploy.sh
 ```
+
 Скрипт запускает быстрый прогон (2 задачи) и сравнение по всем эталонам; код выхода 0/1 как у куратора.
 
 **Альтернатива (то же вручную):**
+
 ```bash
 ./scripts/run_curator_and_compare.sh
 ```
@@ -79,6 +87,7 @@ python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.t
 **Почему в отчёте куратора было «error» с текстом `Read timed out` (read timeout=30):** Victoria не успела ответить на первый запрос **POST /run** в течение 30 секунд. Возможные причины: (1) **Victoria не была запущена** — тогда скрипт раньше выходил по «Victoria недоступна» после проверки /health; (2) **Victoria была запущена, но при первом запросе долго «прогревалась»** (холодный старт LLM, загрузка модели) и не отдала 202 за 30 с; (3) Victoria перегружена или зависла.
 
 **Что сделано, чтобы такого не было:**
+
 - **Перед прогоном** (`run_curator_and_compare.sh`): шаг «0. Проверка Victoria». Если `GET ${VICTORIA_URL}/health` не отвечает — автоматически выполняется `docker-compose -f knowledge_os/docker-compose.yml up -d`, затем ожидание /health до **90 с**. Если за 90 с Victoria не поднялась — скрипт выходит с подсказкой запустить вручную или `bash scripts/system_auto_recovery.sh`.
 - **Таймаут первого POST /run** в кураторе по умолчанию **300 с** (переменная `CURATOR_POST_RUN_TIMEOUT`): до ответа 202 Victoria выполняет стратегию и understand_goal (вызовы LLM), при холодном старте модели это может занять 3–5 мин. При необходимости увеличить до 400–600.
 - **Повтор при таймауте:** при ошибке «timed out» куратор делает до двух повторов (как при обрыве соединения), с паузой 3 с.
@@ -113,20 +122,24 @@ python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.t
 Выводы записать в `FINDINGS_YYYY-MM-DD.md` или в отчёт `*_findings.md`.
 
 **Сравнение с эталоном (скоринг «как я»):**
+
 ```bash
 python3 scripts/curator_compare_to_standard.py --report docs/curator_reports/curator_YYYY-MM-DD_HH-MM-SS.json --standard what_can_you_do
 ```
+
 Опционально: `--standard greeting`, `--standard status_project`, `--standard list_files`, `--standard one_line_code` или `--standard-file путь/к/эталону.md`.
 
 **При падении скоринга — пометка в FINDINGS (план «умнее быстрее» §4.1):** добавить `--write-findings`. Тогда при доле совпадений ниже порога (по умолчанию 0.5) в `docs/curator_reports/FINDINGS_YYYY-MM-DD.md` дописывается строка «Требуется дообучение RAG / правка эталона» по релевантным задачам. Порог: `--threshold 0.6` (0..1).
 
 **Прогон + сравнение по всем эталонам (регулярная проверка, план «как я» п.3.1):**
+
 ```bash
 ./scripts/run_curator_and_compare.sh        # быстрый прогон (--quick), затем сравнение с status_project, greeting, what_can_you_do, list_files, one_line_code
 ./scripts/run_curator_and_compare.sh --full # полный прогон, затем то же сравнение
 ./scripts/run_curator_and_compare.sh --write-findings   # при падении скоринга дописывать в FINDINGS_YYYY-MM-DD.md (план «умнее быстрее» §4.1)
 ./scripts/run_curator_and_compare.sh --full --write-findings
 ```
+
 Таймаут среды: для быстрого прогона не менее 10 мин, для полного — не менее 30 мин (см. §1 «Почему прогон мог прерваться по таймауту»).
 
 ---
@@ -146,10 +159,12 @@ DATABASE_URL=postgresql://admin:secret@localhost:5432/knowledge_os python3 scrip
 **Стабильность:** следить за Grafana (порт 3002), алерт deferred_to_human; при падениях MLX/Ollama — `./scripts/system_auto_recovery.sh`. См. WHATS_NOT_DONE.md «Действия сейчас».
 
 **После изменений в коде Victoria (bridge или Enhanced):** контейнер использует образ — недостаточно только `restart`. Пересобрать образ и поднять контейнер заново:
+
 ```bash
 docker compose -f knowledge_os/docker-compose.yml build victoria-agent
 docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 ```
+
 Трассировка маршрута «какой статус проекта?»: `python3 scripts/trace_status_project_route.py` (из корня репо). Перед/после правок в Victoria или Enhanced рекомендуется: `./scripts/run_all_system_tests.sh`; при необходимости — быстрый прогон куратора или сравнение с эталоном (см. [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) §2 и пункт 38).
 
 ---
@@ -165,15 +180,15 @@ docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 
 ## 5. Операционные «секретики» (чтобы ничего не забыть)
 
-| Что | Где смотреть | Действие |
-|-----|---------------|----------|
-| **Один воркер на окружение** | VERIFICATION §5, §3 | Перед и после деплоя проверять `docker ps`: только один контейнер воркера на окружение. |
-| **Перед правками в коде/конфиге** | VERIFICATION §5 | Определить затронутые компоненты; открыть §5 и выполнить пункты по ним (чат, воркер, Ollama/MLX, Victoria, Совет, БД, RAG). |
-| **Границы кода** | SRC_AND_KNOWLEDGE_OS_BOUNDARIES | При правках в `src/` или `knowledge_os/app/` сверять границы; при общей логике — единый модуль. |
-| **Redis (atra-web-ide)** | VERIFICATION §3, §5 | Контейнер **knowledge_os_redis**, порт хоста **6381**. Не использовать knowledge_redis и 6380 (atra). |
-| **Изменения в маршрутизации Victoria** | VERIFICATION §5 | Прогнать `pytest backend/app/tests/test_task_detector_chain.py -v`; при необходимости обновить VICTORIA_TASK_CHAIN_FULL §9. |
-| **Контракт Victoria** | VERIFICATION §5, п.21 | POST /run — body.goal (не prompt), project_context; при новых полях сверять с TaskRequest в victoria_server. |
-| **Recovery по расписанию** | VERIFICATION §5, ORCHESTRATOR_137 | Один раз: `bash scripts/setup_system_auto_recovery.sh`; при остановленных контейнерах использовать **up -d**, не только restart. |
+| Что                                    | Где смотреть                      | Действие                                                                                                                         |
+| -------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Один воркер на окружение**           | VERIFICATION §5, §3               | Перед и после деплоя проверять `docker ps`: только один контейнер воркера на окружение.                                          |
+| **Перед правками в коде/конфиге**      | VERIFICATION §5                   | Определить затронутые компоненты; открыть §5 и выполнить пункты по ним (чат, воркер, Ollama/MLX, Victoria, Совет, БД, RAG).      |
+| **Границы кода**                       | SRC_AND_KNOWLEDGE_OS_BOUNDARIES   | При правках в `src/` или `knowledge_os/app/` сверять границы; при общей логике — единый модуль.                                  |
+| **Redis (atra-web-ide)**               | VERIFICATION §3, §5               | Контейнер **knowledge_os_redis**, порт хоста **6381**. Не использовать knowledge_redis и 6380 (atra).                            |
+| **Изменения в маршрутизации Victoria** | VERIFICATION §5                   | Прогнать `pytest backend/app/tests/test_task_detector_chain.py -v`; при необходимости обновить VICTORIA_TASK_CHAIN_FULL §9.      |
+| **Контракт Victoria**                  | VERIFICATION §5, п.21             | POST /run — body.goal (не prompt), project_context; при новых полях сверять с TaskRequest в victoria_server.                     |
+| **Recovery по расписанию**             | VERIFICATION §5, ORCHESTRATOR_137 | Один раз: `bash scripts/setup_system_auto_recovery.sh`; при остановленных контейнерах использовать **up -d**, не только restart. |
 
 ---
 

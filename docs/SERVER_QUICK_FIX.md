@@ -1,19 +1,23 @@
 # 🚀 БЫСТРОЕ ИСПРАВЛЕНИЕ ДЕМО-РЕЖИМА НА СЕРВЕРЕ
 
 ## 🚨 Проблема
+
 Dashboard открывается, но показывает **демо-режим** вместо полноценной работы.
 
 ## ✅ БЫСТРОЕ РЕШЕНИЕ
 
 ### Шаг 1: Скопируйте скрипт на сервер
+
 Скопируйте файл `quick_fix_server.py` в корневую папку проекта на сервере.
 
 ### Шаг 2: Запустите исправление
+
 ```bash
 python3 quick_fix_server.py
 ```
 
 ### Шаг 3: Перезапустите систему
+
 ```bash
 # Остановите текущий процесс
 pkill -f "python.*main.py"
@@ -23,6 +27,7 @@ python3 main.py
 ```
 
 ### Шаг 4: Обновите страницу Dashboard
+
 Откройте Dashboard в браузере и обновите страницу (F5 или Ctrl+R).
 
 ---
@@ -30,12 +35,14 @@ python3 main.py
 ## 🎯 ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 **До исправления:**
+
 ```
 📊 Демо режим: Включен
 ⚠️ ATRA система не доступна - работа в демо режиме
 ```
 
 **После исправления:**
+
 ```
 ✅ Улучшенные системы доступны для Dashboard
 📊 Демо режим: Отключен
@@ -51,7 +58,9 @@ python3 main.py
 ### 1. Откройте файл `src/filters/manager.py`
 
 ### 2. Найдите строки 9-12 и замените их:
+
 **Было:**
+
 ```python
 from .btc_trend import BTCTrenFilter
 from .news import NewsFilter
@@ -60,6 +69,7 @@ from .whale import WhaleFilter
 ```
 
 **Стало:**
+
 ```python
 # from .btc_trend import BTCTrenFilter  # Временно отключено
 # from .news import NewsFilter  # Временно отключено
@@ -68,7 +78,9 @@ from .whale import WhaleFilter
 ```
 
 ### 3. Найдите метод `_initialize_default_filters` и замените его содержимое:
+
 **Было:**
+
 ```python
 def _initialize_default_filters(self):
     """Инициализация фильтров по умолчанию"""
@@ -79,6 +91,7 @@ def _initialize_default_filters(self):
 ```
 
 **Стало:**
+
 ```python
 def _initialize_default_filters(self):
     """Инициализация фильтров по умолчанию"""
@@ -88,12 +101,14 @@ def _initialize_default_filters(self):
 ```
 
 ### 4. Очистите кэш Python:
+
 ```bash
 find . -name "__pycache__" -type d -exec rm -rf {} +
 find . -name "*.pyc" -delete
 ```
 
 ### 5. Перезапустите систему:
+
 ```bash
 python3 main.py
 ```
@@ -132,5 +147,6 @@ python3 quick_fix_server.py && pkill -f "python.*main.py" && python3 main.py
 ```
 
 ---
+
 **Дата:** 2025-10-05  
 **Статус:** ✅ Готово к применению

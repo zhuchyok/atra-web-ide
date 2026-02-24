@@ -10,9 +10,11 @@
 ### Подключение через Knowledge OS Database
 
 **Раньше:**
+
 - Чат → Victoria HTTP API → Victoria Agent → Knowledge OS Database
 
 **Теперь:**
+
 - Чат → Knowledge OS Client (прямое подключение) ✅
 - Чат → Victoria HTTP API → Victoria Agent → Knowledge OS Database (через connection pool)
 
@@ -86,11 +88,13 @@ async def sse_generator(
 ## 📊 Структура Knowledge OS Database
 
 ### Таблицы:
+
 - `experts` - 58+ экспертов
 - `knowledge_nodes` - 50,926+ знаний
 - `domains` - 35+ доменов
 
 ### Подключение:
+
 - **URL:** `postgresql://admin:secret@localhost:5432/knowledge_os`
 - **Pool:** `app.state.knowledge_os_pool` (asyncpg.Pool)
 - **Min size:** 2 соединения
@@ -111,6 +115,7 @@ async def sse_generator(
 ## 🧪 Тестирование
 
 После перезапуска backend:
+
 1. Откройте чат
 2. Отправьте сообщение с `expert_name` (например, "Python Developer")
 3. В логах должно быть: `✅ Эксперт 'Python Developer' найден в Knowledge OS`
@@ -121,12 +126,14 @@ async def sse_generator(
 ## 📝 Связь с Clawdbot
 
 **Clawdbot** - это паттерн для:
+
 - File watching
 - Skill discovery
 - Proactive actions
 - Knowledge management
 
 **Knowledge OS Database** - это наша реализация:
+
 - PostgreSQL база данных
 - 58+ экспертов
 - 50,926+ знаний
@@ -135,4 +142,4 @@ async def sse_generator(
 
 ---
 
-*Интеграция применена: 26.01.2026*
+_Интеграция применена: 26.01.2026_

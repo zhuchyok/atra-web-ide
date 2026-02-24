@@ -53,11 +53,11 @@
 
 ## 2. Кто распределяет задачу
 
-| Этап | Где | Что делает |
-|------|-----|------------|
-| **Тип задачи** | `task_detector.detect_task_type()` | Определяет: `simple_chat`, `veronica`, `department_heads`, `enhanced`. Ключевые слова + PREFER_EXPERTS_FIRST. |
-| **План/назначения** | `IntegrationBridge.process_task()` (если ORCHESTRATION_V2_ENABLED) | V2: EnhancedOrchestratorV2.run_phases_1_to_5 → план, assignments, strategy, execution_order. Existing: ExpertMatchingEngine.find_best_expert_for_task → **один** эксперт в `assignments["main"]`. Результат — **только план**, не исполнение. |
-| **Использование плана в Victoria** | `_build_orchestration_context(orchestration_plan)` | Текст стратегии и назначений подставляется в контекст (промпт) для Enhanced и для agent.run. **Важно:** оркестратор не вызывает исполнение в БД (tasks/smart_worker) — это другой, асинхронный контур. |
+| Этап                               | Где                                                                | Что делает                                                                                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Тип задачи**                     | `task_detector.detect_task_type()`                                 | Определяет: `simple_chat`, `veronica`, `department_heads`, `enhanced`. Ключевые слова + PREFER_EXPERTS_FIRST.                                                                                                                                 |
+| **План/назначения**                | `IntegrationBridge.process_task()` (если ORCHESTRATION_V2_ENABLED) | V2: EnhancedOrchestratorV2.run_phases_1_to_5 → план, assignments, strategy, execution_order. Existing: ExpertMatchingEngine.find_best_expert_for_task → **один** эксперт в `assignments["main"]`. Результат — **только план**, не исполнение. |
+| **Использование плана в Victoria** | `_build_orchestration_context(orchestration_plan)`                 | Текст стратегии и назначений подставляется в контекст (промпт) для Enhanced и для agent.run. **Важно:** оркестратор не вызывает исполнение в БД (tasks/smart_worker) — это другой, асинхронный контур.                                        |
 
 При **EXECUTE_ASSIGNMENTS_IN_RUN=true** (по умолчанию в docker-compose): после получения assignments вызывается **execute_assignments_async** → по каждому эксперту из плана вызывается **run_smart_agent_async**; результаты подставляются в контекст Victoria вместо текста плана. См. п.12.2 плана «как я», [execute_assignments.py](knowledge_os/app/execute_assignments.py).
 
@@ -65,12 +65,12 @@
 
 ### 2.1 Откуда вызываются эксперты при Victoria в Docker
 
-| Где что выполняется | Описание |
-|---------------------|----------|
-| **Запрос в Victoria** | Backend (или чат) шлёт POST /run на **victoria-agent:8010** (с хоста — localhost:8010). Обработчик — процесс внутри контейнера victoria-agent. |
-| **IntegrationBridge, execute_assignments** | Выполняются **внутри того же контейнера** victoria-agent (Python-процесс Victoria). План и вызовы экспертов — в одном процессе. |
-| **run_smart_agent_async (ai_core)** | Тоже внутри контейнера. Отправляет HTTP-запросы к LLM по адресу из env: **OLLAMA_BASE_URL** (в docker-compose задан `http://host.docker.internal:11434`). |
-| **Инференс LLM** | **На хосте**: Ollama слушает 11434, MLX при необходимости — 11435. Контейнер обращается к ним через `host.docker.internal`, т.е. эксперты «вызываются» логикой из контейнера, а тяжёлая работа (модель) — на машине хоста. |
+| Где что выполняется                        | Описание                                                                                                                                                                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Запрос в Victoria**                      | Backend (или чат) шлёт POST /run на **victoria-agent:8010** (с хоста — localhost:8010). Обработчик — процесс внутри контейнера victoria-agent.                                                                             |
+| **IntegrationBridge, execute_assignments** | Выполняются **внутри того же контейнера** victoria-agent (Python-процесс Victoria). План и вызовы экспертов — в одном процессе.                                                                                            |
+| **run_smart_agent_async (ai_core)**        | Тоже внутри контейнера. Отправляет HTTP-запросы к LLM по адресу из env: **OLLAMA_BASE_URL** (в docker-compose задан `http://host.docker.internal:11434`).                                                                  |
+| **Инференс LLM**                           | **На хосте**: Ollama слушает 11434, MLX при необходимости — 11435. Контейнер обращается к ним через `host.docker.internal`, т.е. эксперты «вызываются» логикой из контейнера, а тяжёлая работа (модель) — на машине хоста. |
 
 Итого: **эксперты вызываются из контейнера victoria-agent** (код execute_assignments → ai_core.run_smart_agent_async); запросы к моделям уходят на **хост** (Ollama/MLX по host.docker.internal).
 
@@ -78,17 +78,17 @@
 
 ## 3. Кто исполняет (один эксперт или команда)
 
-| Маршрут | Кто исполняет | Один или команда |
-|---------|----------------|-------------------|
-| **Veronica** | Veronica Agent (POST к ней, она вызывает свою LLM + инструменты) | **Один** агент (Вероника). |
-| **Enhanced → Department Heads** | Отдел (head + эксперты отдела), при стратегии swarm — несколько экспертов отдела | **Команда** отдела или один head. |
-| **Enhanced → Task Delegator** | MultiAgentCollaboration.execute_task(task) — один назначенный агент по задаче | **Один** назначенный агент. |
-| **Enhanced → simple** | Один вызов LLM (Виктория, выбранная модель по категории) | **Один** (модель). |
-| **Enhanced → react** | ReActAgent — одна модель + инструменты (файлы, терминал) | **Один** (модель + инструменты). |
-| **Enhanced → swarm** | SwarmIntelligence.solve — параллельные ответы от нескольких «экспертов» (имена из get_all_expert_names, до 16) | **Команда** (много вызовов LLM с разными expert_name). |
-| **Enhanced → consensus** | ConsensusAgent.reach_consensus — до 10 экспертов (имена из БД или fallback список) | **Команда** (несколько экспертов, затем консенсус). |
-| **Enhanced → extended_thinking / tree_of_thoughts / recap** | Одна модель, углублённое рассуждение | **Один** (модель). |
-| **agent_run** | Victoria base agent (OllamaExecutor + инструменты) | **Один** (Victoria как исполнитель). |
+| Маршрут                                                     | Кто исполняет                                                                                                  | Один или команда                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Veronica**                                                | Veronica Agent (POST к ней, она вызывает свою LLM + инструменты)                                               | **Один** агент (Вероника).                             |
+| **Enhanced → Department Heads**                             | Отдел (head + эксперты отдела), при стратегии swarm — несколько экспертов отдела                               | **Команда** отдела или один head.                      |
+| **Enhanced → Task Delegator**                               | MultiAgentCollaboration.execute_task(task) — один назначенный агент по задаче                                  | **Один** назначенный агент.                            |
+| **Enhanced → simple**                                       | Один вызов LLM (Виктория, выбранная модель по категории)                                                       | **Один** (модель).                                     |
+| **Enhanced → react**                                        | ReActAgent — одна модель + инструменты (файлы, терминал)                                                       | **Один** (модель + инструменты).                       |
+| **Enhanced → swarm**                                        | SwarmIntelligence.solve — параллельные ответы от нескольких «экспертов» (имена из get_all_expert_names, до 16) | **Команда** (много вызовов LLM с разными expert_name). |
+| **Enhanced → consensus**                                    | ConsensusAgent.reach_consensus — до 10 экспертов (имена из БД или fallback список)                             | **Команда** (несколько экспертов, затем консенсус).    |
+| **Enhanced → extended_thinking / tree_of_thoughts / recap** | Одна модель, углублённое рассуждение                                                                           | **Один** (модель).                                     |
+| **agent_run**                                               | Victoria base agent (OllamaExecutor + инструменты)                                                             | **Один** (Victoria как исполнитель).                   |
 
 **Когда «вся команда» (много экспертов):** только при методе **swarm** или **consensus** внутри Victoria Enhanced, либо при **Department Heads** со стратегией swarm. Остальные пути — один исполнитель (модель или Veronica).
 
@@ -98,17 +98,17 @@
 
 `VictoriaEnhanced._categorize_task(goal)` даёт категорию. `_select_optimal_method(category, goal)` выбирает метод:
 
-| Категория | Метод по умолчанию | Команда? |
-|-----------|--------------------|----------|
-| informational | simple | Нет |
-| status_query | simple | Нет |
-| fast | react / simple | Нет |
-| reasoning | extended_thinking / recap | Нет |
-| planning | tree_of_thoughts / hierarchical | Нет (или hierarchical — несколько ролей) |
-| **complex** | **swarm** / consensus | **Да** (много экспертов) |
-| execution | react / simple | Нет |
-| coding | react / simple | Нет |
-| general | react / simple | Нет |
+| Категория     | Метод по умолчанию              | Команда?                                 |
+| ------------- | ------------------------------- | ---------------------------------------- |
+| informational | simple                          | Нет                                      |
+| status_query  | simple                          | Нет                                      |
+| fast          | react / simple                  | Нет                                      |
+| reasoning     | extended_thinking / recap       | Нет                                      |
+| planning      | tree_of_thoughts / hierarchical | Нет (или hierarchical — несколько ролей) |
+| **complex**   | **swarm** / consensus           | **Да** (много экспертов)                 |
+| execution     | react / simple                  | Нет                                      |
+| coding        | react / simple                  | Нет                                      |
+| general       | react / simple                  | Нет                                      |
 
 «Сложная» задача (complex) — та, где в цели есть слова про команду/экспертов/критичность или аналитику кода; тогда действительно вызывается swarm или consensus.
 
@@ -126,19 +126,19 @@
 
 При внедрении плана «Логика мысли» (см. [PLAN_REASONING_LOGIC_VICTORIA.md](PLAN_REASONING_LOGIC_VICTORIA.md)) ответ Victoria расширяется опциональными полями. Обратная совместимость: старые клиенты их игнорируют.
 
-| Поле | Тип | Обязательность | Описание |
-|------|-----|----------------|----------|
-| `status` | string | да | Без изменений: `success`, `needs_clarification`, `error` и т.д. |
-| `output` | any | да | Без изменений. |
-| `knowledge` | object | опционально | Расширяется вложенными полями ниже. |
-| `knowledge.strategy` | string | нет (новое) | `quick_answer` \| `deep_analysis` \| `need_clarification` \| `decline_or_redirect`. |
-| `knowledge.strategy_reason` | string | нет (новое) | Краткая причина выбора стратегии. |
-| `knowledge.confidence` | float | нет (новое) | 0.0–1.0. |
-| `knowledge.uncertainty_reason` | string | нет (новое) | Текст, если уверенность низкая. |
+| Поле                           | Тип    | Обязательность | Описание                                                                            |
+| ------------------------------ | ------ | -------------- | ----------------------------------------------------------------------------------- |
+| `status`                       | string | да             | Без изменений: `success`, `needs_clarification`, `error` и т.д.                     |
+| `output`                       | any    | да             | Без изменений.                                                                      |
+| `knowledge`                    | object | опционально    | Расширяется вложенными полями ниже.                                                 |
+| `knowledge.strategy`           | string | нет (новое)    | `quick_answer` \| `deep_analysis` \| `need_clarification` \| `decline_or_redirect`. |
+| `knowledge.strategy_reason`    | string | нет (новое)    | Краткая причина выбора стратегии.                                                   |
+| `knowledge.confidence`         | float  | нет (новое)    | 0.0–1.0.                                                                            |
+| `knowledge.uncertainty_reason` | string | нет (новое)    | Текст, если уверенность низкая.                                                     |
 
 ### 5.2 Память: сессия и долгосрочная (Фаза 2 плана «Логика мысли»)
 
-- **Сессия:** при `session_id` Victoria подмешивает контекст из `session_context` (get_session_context) и краткую память по задаче (get_session_memory_summary → блок «Ранее по этой задаче (сессия)»). После успешного ответа вызывается _save_session_exchange(goal, output).
+- **Сессия:** при `session_id` Victoria подмешивает контекст из `session_context` (get_session_context) и краткую память по задаче (get_session_memory_summary → блок «Ранее по этой задаче (сессия)»). После успешного ответа вызывается \_save_session_exchange(goal, output).
 - **Долгосрочная память:** при `LONG_TERM_MEMORY_ENABLED=true` используется таблица `long_term_memory` (ключ user_key=session_id или "anonymous", project_context). После каждого успешного ответа сохраняется краткое резюме (goal_summary, outcome_summary до 500 символов); при новом запросе до K последних «нитей» подмешиваются в блок «Ранее по этому проекту/пользователю» в промпте Enhanced. Сессия и долгосрочная память объединяются в одном контексте (task_memory + long_term_memory). См. knowledge_os/app/long_term_memory.py, миграция add_long_term_memory.sql.
 
 ### 5.3 Рефлексия и пересмотр плана (Фаза 3, ReCAP)
@@ -189,7 +189,7 @@
 
 ## 9. Проверка логики и связей (тесты)
 
-- **Логика мысли (Фаза 5):** `knowledge_os/tests/test_reasoning_logic_recap.py` — ReCAP: _is_step_failed_or_empty, _build_high_level_prompt с previous_plan_failure, _execute_plan возвращает (results, should_replan, failure_info). `backend/app/tests/test_reasoning_logic_contract.py` — контракт ответа Victoria: needs_clarification → clarification_questions; knowledge.strategy, confidence в raw.
+- **Логика мысли (Фаза 5):** `knowledge_os/tests/test_reasoning_logic_recap.py` — ReCAP: \_is_step_failed_or_empty, \_build_high_level_prompt с previous_plan_failure, \_execute_plan возвращает (results, should_replan, failure_info). `backend/app/tests/test_reasoning_logic_contract.py` — контракт ответа Victoria: needs_clarification → clarification_questions; knowledge.strategy, confidence в raw.
 - **Маршрутизация (task_detector):** `backend/app/tests/test_task_detector_chain.py` — тесты `detect_task_type` (simple_chat, veronica, enhanced, department_heads) и `should_use_enhanced` при PREFER_EXPERTS_FIRST. Скрипт `scripts/test_task_detector.py` — те же кейсы для быстрой проверки.
 - **План оркестратора:** в том же файле класс `TestOrchestrationContext` — тесты `_build_orchestration_context` (пустой ввод, strategy, assignments) и `_orchestrator_recommends_veronica` (True при expert_name Veronica/Вероника).
 - **Делегирование Veronica:** `backend/app/tests/test_veronica_delegate.py` — delegate_to_veronica (пустой goal → None, 200 → dict, ошибки/не-dict → None), mock aiohttp.
@@ -201,4 +201,4 @@
 
 ---
 
-*Документ подготовлен по результатам анализа кода: victoria_server.py, task_detector.py, enhanced_router.py, victoria_enhanced.py, task_orchestration/integration_bridge.py.*
+_Документ подготовлен по результатам анализа кода: victoria_server.py, task_detector.py, enhanced_router.py, victoria_enhanced.py, task_orchestration/integration_bridge.py._

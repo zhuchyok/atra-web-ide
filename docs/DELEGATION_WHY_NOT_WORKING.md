@@ -46,15 +46,15 @@
 
 ### 3. Veronica не запущена или не в той же сети
 
-- Контейнер: `docker ps | grep veronica-agent`.  
-- Сеть: оба сервиса в одном `docker-compose` и в одной сети (например, `atra-network`).  
+- Контейнер: `docker ps | grep veronica-agent`.
+- Сеть: оба сервиса в одном `docker-compose` и в одной сети (например, `atra-network`).
 - Health: `curl -s http://localhost:8011/health` (с хоста) или из контейнера Victoria:  
   `curl -s http://veronica-agent:8000/health`.
 
 ### 4. Таймаут / сеть
 
 - При долгом ответе Veronica или проблемах с сетью запрос падает по таймауту или по исключению. В логах:  
-  `Ошибка делегирования Veronica (делегирование не сработало): ...`  
+  `Ошибка делегирования Veronica (делегирование не сработало): ...`
 - Увеличить таймаут: `DELEGATE_VERONICA_TIMEOUT=120` (секунды).
 
 ### 5. Делегирование «неудачное»: ответ приходит, но с ошибкой (Ollama HTTP 404)
@@ -75,14 +75,14 @@
 - **Вариант А (рекомендуется).** Использовать **автовыбор модели** — просто не задавать `VERONICA_MODEL`, система сама выберет лучшую доступную:
   ```yaml
   # docker-compose.yml
-  VERONICA_MODEL: ${VERONICA_MODEL:-}  # Пустое = автовыбор
+  VERONICA_MODEL: ${VERONICA_MODEL:-} # Пустое = автовыбор
   ```
-  
 - **Вариант Б.** Задать модель явно, которая **точно есть** в Ollama:
+
   ```bash
   # Проверить доступные модели
   curl http://localhost:11434/api/tags
-  
+
   # В docker-compose для veronica-agent:
   VERONICA_MODEL: "qwen2.5-coder:32b"  # Или другая из списка
   ```
@@ -91,29 +91,29 @@
 
 ### 6. Veronica отвечает HTTP 500
 
-- Victoria получает HTTP 500 и считает делегирование неудачным → fallback на Victoria.  
+- Victoria получает HTTP 500 и считает делегирование неудачным → fallback на Victoria.
 - Нужно, чтобы у Veronica был доступ к Ollama (правильный `OLLAMA_BASE_URL` и установленная модель). Иначе исправить окружение Veronica.
 
 ### 7. Тип задачи не «veronica»
 
-- Делегирование вызывается только при `task_type == "veronica"`. Тип задаётся в `task_detector.py` по ключевым словам (например, «покажи файлы», «выполни», «сделай»).  
+- Делегирование вызывается только при `task_type == "veronica"`. Тип задаётся в `task_detector.py` по ключевым словам (например, «покажи файлы», «выполни», «сделай»).
 - Если фраза не попадает в `VERONICA_KEYWORDS` и эвристики кода, тип будет `enhanced` или `department_heads` — тогда вызывается Enhanced или agent.run, а не Veronica.
 
 ---
 
 ## Диагностика
 
-1. **Логи Victoria:** при запросе смотреть:  
-   - `[DELEGATION] VERONICA_URL=...`  
-   - `Делегирую Veronica: <цель> -> <url>`  
-   - либо `Veronica HTTP ... (делегирование не сработало)`  
+1. **Логи Victoria:** при запросе смотреть:
+   - `[DELEGATION] VERONICA_URL=...`
+   - `Делегирую Veronica: <цель> -> <url>`
+   - либо `Veronica HTTP ... (делегирование не сработало)`
    - либо `Ошибка делегирования Veronica ...`
 
 2. **Статус задачи (async):** В ответе `GET /run/status/{task_id}` поле `stage` может быть `delegate_veronica` во время вызова Veronica; в `knowledge.execution_trace` при успешном делегировании: `routed_to: "veronica"`, `delegated_to: "Veronica"`.
 
-3. **Проверка доступности Veronica из Victoria:**  
+3. **Проверка доступности Veronica из Victoria:**
    - В контейнере Victoria:  
-     `curl -s http://veronica-agent:8000/health`  
+     `curl -s http://veronica-agent:8000/health`
    - С хоста:  
      `curl -s http://localhost:8011/health`
 
@@ -121,10 +121,10 @@
 
 ## Файлы
 
-| Что | Где |
-|-----|-----|
-| Детектор типа задачи | `src/agents/bridge/task_detector.py` |
-| Вызов Veronica по HTTP | `src/agents/bridge/enhanced_router.py` (`delegate_to_veronica`) |
-| Синхронный run | `src/agents/bridge/victoria_server.py` — `run_task` (блок `task_type == "veronica"`) |
-| Фоновый run (async) | `src/agents/bridge/victoria_server.py` — `_run_task_background` (блок делегирования) |
-| API Veronica | `src/agents/bridge/server.py` — `POST /run` |
+| Что                    | Где                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Детектор типа задачи   | `src/agents/bridge/task_detector.py`                                                 |
+| Вызов Veronica по HTTP | `src/agents/bridge/enhanced_router.py` (`delegate_to_veronica`)                      |
+| Синхронный run         | `src/agents/bridge/victoria_server.py` — `run_task` (блок `task_type == "veronica"`) |
+| Фоновый run (async)    | `src/agents/bridge/victoria_server.py` — `_run_task_background` (блок делегирования) |
+| API Veronica           | `src/agents/bridge/server.py` — `POST /run`                                          |

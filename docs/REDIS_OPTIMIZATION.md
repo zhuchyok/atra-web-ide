@@ -8,8 +8,8 @@ Ollama (embeddings) + MLX (LLM) + RAG Context Cache: Redis ускоряет по
 # Для кэша (RAG, планы) — без персистентности, максимум скорость
 command:
   - redis-server
-  - --save ""              # Отключаем RDB
-  - --appendonly no        # Отключаем AOF
+  - --save "" # Отключаем RDB
+  - --appendonly no # Отключаем AOF
   - --maxmemory 1gb
   - --maxmemory-policy allkeys-lru
   - --activerehashing yes

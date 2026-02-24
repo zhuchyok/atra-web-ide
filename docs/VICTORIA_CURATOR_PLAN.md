@@ -20,11 +20,11 @@
 
 ## 2. Что видно в цепочке сегодня
 
-| Что нужно куратору | Где брать |
-|--------------------|-----------|
-| Итоговый ответ (output) | В ответе Victoria: `TaskResponse.output` |
-| Маршрут (Victoria vs Veronica, quick_data) | В ответе: `TaskResponse.knowledge` → `execution_trace` (routed_to, task_type, delegated_to) |
-| correlation_id для трассировки | В ответе 202 (async) или в заголовке/теле синхронного ответа; в логах Victoria по этому id можно искать шаги |
+| Что нужно куратору                                    | Где брать                                                                                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Итоговый ответ (output)                               | В ответе Victoria: `TaskResponse.output`                                                                                        |
+| Маршрут (Victoria vs Veronica, quick_data)            | В ответе: `TaskResponse.knowledge` → `execution_trace` (routed_to, task_type, delegated_to)                                     |
+| correlation_id для трассировки                        | В ответе 202 (async) или в заголовке/теле синхронного ответа; в логах Victoria по этому id можно искать шаги                    |
 | Пошаговые шаги ReAct (думаю → инструмент → результат) | Сейчас в ответе не отдаются целиком; видны в **логах** Victoria (`docker logs victoria-agent` или файл логов по correlation_id) |
 
 **Итог:** для «первого времени» достаточно: **goal → output + knowledge (trace)**. Для глубокого разбора цепочки — дочитать логи по `correlation_id` (скрипт может сохранять correlation_id в отчёт; разбор логов — отдельный шаг или доработка API на «verbose steps»).

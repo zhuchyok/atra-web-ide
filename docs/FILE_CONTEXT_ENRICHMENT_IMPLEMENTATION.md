@@ -16,12 +16,14 @@
 ### 1. **File Context Enricher** (`knowledge_os/app/file_context_enricher.py`)
 
 Реализует лучшие практики:
+
 - ✅ **Context Window Management** - chunking для больших файлов
 - ✅ **Metadata-based file references** - пути к файлам в metadata
 - ✅ **Selective context injection** - только релевантные части
 - ✅ **Smart file reading** - безопасное чтение с обработкой ошибок
 
 **Основано на:**
+
 - LangChain Document Loaders
 - AutoGPT File Context
 - GitHub Copilot Context Management
@@ -29,12 +31,14 @@
 ### 2. **Обновлен Smart Worker** (`knowledge_os/app/smart_worker_autonomous.py`)
 
 **Изменения:**
+
 - ✅ Автоматическое чтение файлов из `metadata.file_path`
 - ✅ Обогащение описания задачи кодом файла
 - ✅ Поддержка нескольких файлов через `metadata.file_paths`
 - ✅ Извлечение релевантных секций по keywords
 
 **Код:**
+
 ```python
 # Автоматически читаем файлы из metadata
 from file_context_enricher import get_file_enricher
@@ -53,11 +57,13 @@ if file_path:
 ### 3. **Обновлен Code Auditor** (`knowledge_os/app/code_auditor.py`)
 
 **Изменения:**
+
 - ✅ Автоматическое извлечение `file_path` из описания задачи
 - ✅ Добавление `file_path` в `metadata` при создании задачи
 - ✅ Извлечение keywords для selective context
 
 **Паттерны поиска:**
+
 - `Местоположение: app.py`
 - `файл: app.py`
 - `file: app.py`
@@ -85,7 +91,7 @@ if file_path:
    └─> title (название задачи)
    └─> description (обогащенное с кодом файла)
    └─> Инструкции о работе с кодом
-   
+
 4. Эксперт видит РЕАЛЬНЫЙ КОД и анализирует его
 ```
 
@@ -120,13 +126,15 @@ OVERLAP_SIZE = 200         # Перекрытие между чанками
 ### Пример 1: Задача dashboard_audit
 
 **До:**
+
 ```
 Задача: "Исправить ошибки в дашборде"
 Описание: "Местоположение: app.py - все табы"
 ```
 
 **После:**
-```
+
+````
 Задача: "Исправить ошибки в дашборде"
 Описание: "Местоположение: app.py - все табы
 
@@ -141,20 +149,23 @@ import psycopg2
 VECTOR_CORE_URL = "http://localhost:8001"
 def get_embedding(text: str) -> list:
     # ... реальный код ...
-```
+````
+
 ```
 
 ### Пример 2: Большой файл (chunking)
 
 Если файл > 50KB:
 ```
+
 ⚠️ ФАЙЛ БОЛЬШОЙ (120000 байт). Показаны первые 8000 символов:
 
 ```python
 # ... первые чанки ...
 [...пропущено для экономии контекста...]
 ```
-```
+
+````
 
 ---
 
@@ -215,7 +226,7 @@ await conn.execute("""
     INSERT INTO tasks (title, description, metadata)
     VALUES ($1, $2, $3)
 """, "Исправить ошибки", "Описание задачи", json.dumps(task_metadata))
-```
+````
 
 ### Несколько файлов:
 

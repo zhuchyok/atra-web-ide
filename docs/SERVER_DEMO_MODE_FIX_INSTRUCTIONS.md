@@ -3,6 +3,7 @@
 ## 🚨 Проблема
 
 На сервере при запуске бота появляется сообщение:
+
 ```
 ⚠️  ATRA модули не доступны - Dashboard будет работать в демо-режиме
 ```
@@ -26,6 +27,7 @@
 #### Шаг 1: Исправьте файл `src/filters/manager.py`
 
 **Найдите строки 9-12:**
+
 ```python
 from .btc_trend import BTCTrenFilter
 from .news import NewsFilter
@@ -34,6 +36,7 @@ from .whale import WhaleFilter
 ```
 
 **Замените их на:**
+
 ```python
 # from .btc_trend import BTCTrenFilter  # Временно отключено - класс не существует
 # from .news import NewsFilter  # Временно отключено
@@ -44,6 +47,7 @@ from .whale import WhaleFilter
 #### Шаг 2: Исправьте метод `_initialize_default_filters`
 
 **Найдите метод (примерно строки 22-38):**
+
 ```python
 def _initialize_default_filters(self):
     """Инициализация фильтров по умолчанию"""
@@ -65,6 +69,7 @@ def _initialize_default_filters(self):
 ```
 
 **Замените его на:**
+
 ```python
 def _initialize_default_filters(self):
     """Инициализация фильтров по умолчанию"""
@@ -96,17 +101,20 @@ python3 main.py
 ## 🧪 Проверка исправления
 
 ### Тест 1: Проверка импорта dashboard
+
 ```bash
 python3 -c "from web.dashboard import dashboard; print('✅ Dashboard импортируется успешно')"
 ```
 
 **Ожидаемый результат:**
+
 ```
 ✅ Улучшенные системы доступны для Dashboard
 ✅ Dashboard импортируется успешно
 ```
 
 ### Тест 2: Проверка src модулей
+
 ```bash
 python3 -c "
 from src.signals import check_and_send_signals
@@ -118,6 +126,7 @@ print('✅ Все src модули работают')
 ```
 
 **Ожидаемый результат:**
+
 ```
 ✅ Все src модули работают
 ```
@@ -134,6 +143,7 @@ print('✅ Все src модули работают')
 ```
 
 **Вместо:**
+
 ```
 ⚠️  ATRA модули не доступны - Dashboard будет работать в демо-режиме
 📊 Демо режим: Включен
@@ -164,5 +174,6 @@ python3 diagnose_imports.py
 4. **Перезапустите систему** после изменений
 
 ---
+
 **Дата создания:** 2025-10-05  
 **Статус:** ✅ Готово к применению

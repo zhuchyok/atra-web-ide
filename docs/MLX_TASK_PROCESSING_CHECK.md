@@ -71,12 +71,12 @@ bash scripts/start_mlx_api_server.sh
 
 ## 5. Итог
 
-| Вопрос | Ответ |
-|--------|--------|
-| Почему в Activity Monitor не видно «MLX»? | MLX API Server — это процесс **Python (uvicorn)** на порту 11435, в списке процессов он идёт как Python. |
-| Почему задачи не идут в MLX? | Скорее всего не запущен MLX API Server: порт 11435 не отвечает, в healthy_nodes только Ollama. |
-| Как проверить? | `curl -s http://localhost:11435/health` (на хосте) или `curl -s http://host.docker.internal:11435/health` из контейнера. |
-| Как включить MLX? | Запустить на хосте: `bash scripts/start_mlx_api_server.sh`. |
+| Вопрос                                    | Ответ                                                                                                                    |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Почему в Activity Monitor не видно «MLX»? | MLX API Server — это процесс **Python (uvicorn)** на порту 11435, в списке процессов он идёт как Python.                 |
+| Почему задачи не идут в MLX?              | Скорее всего не запущен MLX API Server: порт 11435 не отвечает, в healthy_nodes только Ollama.                           |
+| Как проверить?                            | `curl -s http://localhost:11435/health` (на хосте) или `curl -s http://host.docker.internal:11435/health` из контейнера. |
+| Как включить MLX?                         | Запустить на хосте: `bash scripts/start_mlx_api_server.sh`.                                                              |
 
 ---
 
@@ -85,6 +85,7 @@ bash scripts/start_mlx_api_server.sh
 Если в дашборде «В работе» отображается **больше 15** задач при настройке **SMART_WORKER_MAX_CONCURRENT=15**, значит одновременно работают **несколько воркеров** (каждый держит до 15 задач). Например: 28 ≈ два контейнера (15+13).
 
 Возможные контейнеры:
+
 - **knowledge_os_worker** — из `knowledge_os/docker-compose.yml` (основной воркер).
 - **knowledge_worker** — образ `atra-knowledge_worker` (старый); если запущен вместе с knowledge_os_worker, в сумме будет до 30 задач «в работе».
 

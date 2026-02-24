@@ -8,10 +8,10 @@
 
 ## Кто такие
 
-| Агент    | Роль           | Порт | Контейнер        | Где запускается                |
-|----------|----------------|------|------------------|---------------------------------|
-| **Victoria** | Team Lead, координатор | **8010** | victoria-agent   | knowledge_os/docker-compose.yml |
-| **Veronica** | Local Developer, исполнитель | **8011** | veronica-agent   | knowledge_os/docker-compose.yml |
+| Агент        | Роль                         | Порт     | Контейнер      | Где запускается                 |
+| ------------ | ---------------------------- | -------- | -------------- | ------------------------------- |
+| **Victoria** | Team Lead, координатор       | **8010** | victoria-agent | knowledge_os/docker-compose.yml |
+| **Veronica** | Local Developer, исполнитель | **8011** | veronica-agent | knowledge_os/docker-compose.yml |
 
 Оба агента **общие для всех проектов** (atra-web-ide, atra и др.). Контекст проекта передаётся в запросах через `project_context`; основной проект: `MAIN_PROJECT=atra-web-ide`.
 

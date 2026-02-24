@@ -53,6 +53,7 @@ psql $DATABASE_URL -f knowledge_os/db/migrations/add_prompt_change_log.sql
 Вкладка **Singularity 9.0** — внизу секция **Singularity 10.0 — Автономия и применение знаний**.
 
 Метрики:
+
 - **Improvements per cycle (7d)** — knowledge_nodes за 7 дней
 - **Success rate (tasks)** — % completed за 30 дней
 - **Prompt evolutions (7d)** — prompt_change_log за 7 дней

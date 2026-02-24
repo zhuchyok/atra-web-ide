@@ -11,6 +11,7 @@
 ### **Webhooks и REST API для интеграции с внешними системами**
 
 Система интеграции с внешними системами:
+
 - ✅ **Webhooks** - для уведомлений в Slack, Discord, Telegram, Custom
 - ✅ **REST API** - для работы с Knowledge OS из внешних систем
 - ✅ **Автоматические отчеты** - ежедневные и еженедельные
@@ -77,6 +78,7 @@
 7. **GET /stats** - Статистика системы
 
 **Аутентификация:**
+
 - Через заголовок `X-API-Key`
 - API ключ из environment variable `API_KEY`
 
@@ -98,6 +100,7 @@ webhook_id = await manager.register_webhook(
 ```
 
 **Формат сообщения:**
+
 - Заголовок с эмодзи
 - Блоки с текстом (Markdown)
 
@@ -112,6 +115,7 @@ webhook_id = await manager.register_webhook(
 ```
 
 **Формат сообщения:**
+
 - Embed с заголовком и описанием
 - Цвет: синий (#58a6ff)
 - Timestamp
@@ -127,6 +131,7 @@ webhook_id = await manager.register_webhook(
 ```
 
 **Формат сообщения:**
+
 - Markdown форматирование
 - Заголовок с эмодзи
 
@@ -141,6 +146,7 @@ webhook_id = await manager.register_webhook(
 ```
 
 **Формат payload:**
+
 ```json
 {
   "event_type": "knowledge_created",
@@ -156,6 +162,7 @@ webhook_id = await manager.register_webhook(
 ### **Ежедневный отчет:**
 
 Отправляется в 9:00 каждый день:
+
 - Новых знаний за день
 - Завершенных задач за день
 - Взаимодействий за день
@@ -164,6 +171,7 @@ webhook_id = await manager.register_webhook(
 ### **Еженедельный отчет:**
 
 Отправляется в понедельник:
+
 - Новых знаний за неделю
 - Завершенных задач за неделю
 - Всего экспертов
@@ -270,4 +278,3 @@ Webhooks и REST API успешно интегрированы в Singularity 4.
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

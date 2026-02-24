@@ -3,6 +3,7 @@
 ## 🔧 **РЕШЕНИЕ ПРОБЛЕМЫ С GIT**
 
 ### **1. Исправление незавершенного слияния:**
+
 ```bash
 # Отменить текущее слияние
 git merge --abort
@@ -15,6 +16,7 @@ git clean -fd
 ```
 
 ### **2. Обновление кода:**
+
 ```bash
 # Получить последние изменения
 git pull origin worker
@@ -27,6 +29,7 @@ git reset --hard origin/worker
 ## 🚀 **РАЗВЕРТЫВАНИЕ НОВОЙ СИСТЕМЫ УПРАВЛЕНИЯ**
 
 ### **1. Проверка файлов:**
+
 ```bash
 # Убедиться, что новые файлы есть
 ls -la server_manager.py
@@ -35,6 +38,7 @@ ls -la server_config.json
 ```
 
 ### **2. Настройка прав:**
+
 ```bash
 # Сделать скрипт исполняемым
 chmod +x atra_server.sh
@@ -44,6 +48,7 @@ python3 --version
 ```
 
 ### **3. Остановка старых процессов:**
+
 ```bash
 # Остановить все процессы ATRA
 pkill -f "main.py"
@@ -56,6 +61,7 @@ rm -f atra.lock bot_restart_signal.txt
 ```
 
 ### **4. Запуск новой системы:**
+
 ```bash
 # Запустить через новую систему управления
 ./atra_server.sh start
@@ -67,6 +73,7 @@ rm -f atra.lock bot_restart_signal.txt
 ## ⚙️ **КОНФИГУРАЦИЯ ДЛЯ СЕРВЕРА**
 
 ### **Минимальная конфигурация (рекомендуется):**
+
 ```bash
 # Отключить конфликтующие мониторы
 ./atra_server.sh disable monitoring
@@ -79,6 +86,7 @@ rm -f atra.lock bot_restart_signal.txt
 ```
 
 ### **С автоперезапуском (для нестабильных серверов):**
+
 ```bash
 # Включить автоперезапуск
 ./atra_server.sh enable auto_restart
@@ -86,6 +94,7 @@ rm -f atra.lock bot_restart_signal.txt
 ```
 
 ### **Полная конфигурация (для продвинутых пользователей):**
+
 ```bash
 # Включить все компоненты
 ./atra_server.sh enable monitoring
@@ -97,12 +106,14 @@ rm -f atra.lock bot_restart_signal.txt
 ## 🔄 **АВТОМАТИЧЕСКИЙ ЗАПУСК ПРИ ПЕРЕЗАГРУЗКЕ**
 
 ### **1. Создание systemd сервиса:**
+
 ```bash
 # Создать файл сервиса
 sudo nano /etc/systemd/system/atra.service
 ```
 
 ### **2. Содержимое сервиса:**
+
 ```ini
 [Unit]
 Description=ATRA Trading System
@@ -121,6 +132,7 @@ WantedBy=multi-user.target
 ```
 
 ### **3. Активация сервиса:**
+
 ```bash
 # Перезагрузить systemd
 sudo systemctl daemon-reload
@@ -138,6 +150,7 @@ sudo systemctl status atra.service
 ## 📊 **МОНИТОРИНГ СИСТЕМЫ**
 
 ### **Проверка статуса:**
+
 ```bash
 # Статус системы управления
 ./atra_server.sh status
@@ -150,6 +163,7 @@ tail -f logs/system.log.1
 ```
 
 ### **Управление сервисом:**
+
 ```bash
 # Остановить
 sudo systemctl stop atra.service
@@ -164,6 +178,7 @@ sudo systemctl restart atra.service
 ## 🚨 **РЕШЕНИЕ ПРОБЛЕМ**
 
 ### **Проблема: Git конфликты**
+
 ```bash
 git merge --abort
 git reset --hard HEAD
@@ -171,6 +186,7 @@ git pull origin worker
 ```
 
 ### **Проблема: Система не запускается**
+
 ```bash
 # Проверить зависимости
 python3 -c "import asyncio, aiohttp, telegram"
@@ -183,6 +199,7 @@ cat server_config.json
 ```
 
 ### **Проблема: Постоянные перезапуски**
+
 ```bash
 # Отключить конфликтующие мониторы
 ./atra_server.sh disable monitoring
@@ -204,14 +221,17 @@ cat server_config.json
 ## 🎯 **РЕКОМЕНДАЦИИ**
 
 ### **Для стабильной работы:**
+
 - Используйте минимальную конфигурацию
 - Отключите все мониторы
 - Настройте systemd сервис
 
 ### **Для мониторинга:**
+
 - Включите только один тип мониторинга
 - Не используйте одновременно `monitoring` и `auto_restart`
 
 ### **Для разработки:**
+
 - Включите `monitoring` для отслеживания
 - Используйте `./atra_server.sh status` для проверки
