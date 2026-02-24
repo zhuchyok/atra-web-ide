@@ -15,19 +15,19 @@ logger = logging.getLogger(__name__)
 try:
     from available_models_scanner import (
         get_available_models,
-        pick_best_ollama,
         pick_best_mlx,
-        pick_ollama_for_category,
+        pick_best_ollama,
         pick_mlx_for_category,
+        pick_ollama_for_category,
     )
 except ImportError:
     try:
         from app.available_models_scanner import (
             get_available_models,
-            pick_best_ollama,
             pick_best_mlx,
-            pick_ollama_for_category,
+            pick_best_ollama,
             pick_mlx_for_category,
+            pick_ollama_for_category,
         )
     except ImportError:
         get_available_models = None
@@ -51,7 +51,9 @@ class ModelRegistry:
     Used by orchestrator and workers to choose models for tasks.
     """
 
-    def __init__(self, mlx_url: Optional[str] = None, ollama_url: Optional[str] = None, ttl_sec: int = 120):
+    def __init__(
+        self, mlx_url: Optional[str] = None, ollama_url: Optional[str] = None, ttl_sec: int = 120
+    ):
         self.mlx_url = mlx_url or _default_mlx_url()
         self.ollama_url = ollama_url or _default_ollama_url()
         self._ttl_sec = ttl_sec
@@ -76,15 +78,27 @@ class ModelRegistry:
         """
         mlx_list, ollama_list = await self.scan_models()
         if priority == "mlx" and mlx_list:
-            model = pick_mlx_for_category(category, mlx_list) if pick_mlx_for_category else pick_best_mlx(mlx_list)
+            model = (
+                pick_mlx_for_category(category, mlx_list)
+                if pick_mlx_for_category
+                else pick_best_mlx(mlx_list)
+            )
             if model:
                 return f"mlx:{model}"
         if ollama_list:
-            model = pick_ollama_for_category(category, ollama_list) if pick_ollama_for_category else pick_best_ollama(ollama_list)
+            model = (
+                pick_ollama_for_category(category, ollama_list)
+                if pick_ollama_for_category
+                else pick_best_ollama(ollama_list)
+            )
             if model:
                 return f"ollama:{model}"
         if priority == "ollama" and ollama_list:
-            model = pick_ollama_for_category(category, ollama_list) if pick_ollama_for_category else pick_best_ollama(ollama_list)
+            model = (
+                pick_ollama_for_category(category, ollama_list)
+                if pick_ollama_for_category
+                else pick_best_ollama(ollama_list)
+            )
             if model:
                 return f"ollama:{model}"
         if mlx_list and pick_best_mlx:

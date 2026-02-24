@@ -6,6 +6,7 @@
 ## 🎯 ПРИОРИТЕТЫ
 
 ### **ЭТАП 1: Критичные фильтры (влияют на качество сигналов)**
+
 1. ✅ **Direction Confidence** - минимум 3/4 для soft, 4/4 для strict
 2. ✅ **RSI Warning** - блокировка RSI > 65 для BUY, RSI < 35 для SELL
 3. ✅ **Quality Score** - минимум 0.68
@@ -13,6 +14,7 @@
 5. ✅ **AI Score Filter** - soft=15.0, strict=25.0
 
 ### **ЭТАП 2: Важные фильтры (защита от рисков)**
+
 6. ⏳ **Anomaly Filter** - блокировка 0 и >=5 кружков
 7. ⏳ **Liquidity Checker** - проверка depth и 24h volume
 8. ⏳ **Portfolio Risk Manager** - полная интеграция
@@ -20,6 +22,7 @@
 10. ⏳ **AI Volatility Filter** - фильтрация волатильности
 
 ### **ЭТАП 3: Дополнительные фильтры (оптимизация)**
+
 11. ⏳ **Composite Signal Score** - дополнительный бонус
 12. ⏳ **Symbol Blocker** - блокировка проблемных символов
 13. ⏳ **Symbol Health** - проверка здоровья символа
@@ -31,14 +34,17 @@
 ## 📝 ДЕТАЛЬНЫЙ ПЛАН ЭТАПА 1
 
 ### 1. Direction Confidence
+
 **Функция:** `calculate_direction_confidence(df, signal_type, trade_mode, filter_mode)`
 
 **Логика:**
+
 - 4 проверки: EMA alignment, Price >/< EMA, RSI, MACD
 - Soft: минимум 3/4
 - Strict: минимум 4/4
 
 **Интеграция:**
+
 ```python
 # В generate_signal после проверки BTC alignment
 if not calculate_direction_confidence(
@@ -51,13 +57,16 @@ if not calculate_direction_confidence(
 ```
 
 ### 2. RSI Warning
+
 **Функция:** `check_rsi_warning(df, signal_type)`
 
 **Логика:**
+
 - BUY: блокирует если RSI > 65
 - SELL: блокирует если RSI < 35
 
 **Интеграция:**
+
 ```python
 # После direction_confidence
 if not check_rsi_warning(df, direction):
@@ -65,13 +74,16 @@ if not check_rsi_warning(df, direction):
 ```
 
 ### 3. Quality Score
+
 **Класс:** `SignalQualityValidator`
 
 **Логика:**
+
 - 5 компонентов: данные (30%), тренд (25%), объем (20%), волатильность (15%), RSI (10%)
 - Минимум 0.68
 
 **Интеграция:**
+
 ```python
 # Инициализация в __init__
 self.quality_validator = SignalQualityValidator()
@@ -83,14 +95,17 @@ if not self.quality_validator.is_signal_valid(quality_score):
 ```
 
 ### 4. Pattern Confidence
+
 **Класс:** `PatternConfidenceScorer`
 
 **Логика:**
+
 - Базовый confidence для каждого паттерна
 - Бонусы за тренд и дополнительные условия
 - Минимум 0.60
 
 **Интеграция:**
+
 ```python
 # Инициализация в __init__
 self.pattern_scorer = PatternConfidenceScorer()
@@ -106,13 +121,16 @@ if not self.pattern_scorer.is_pattern_reliable(pattern_confidence):
 ```
 
 ### 5. AI Score Filter
+
 **Функция:** `calculate_ai_signal_score(df, ai_params, symbol)`
 
 **Логика:**
+
 - Расчет AI-скора на основе индикаторов
 - Пороги: soft=15.0, strict=25.0
 
 **Интеграция:**
+
 ```python
 # В generate_signal (в начале, после расчета индикаторов)
 ai_params = get_ai_optimized_parameters(symbol)
@@ -128,6 +146,7 @@ if score < required_threshold:
 ## 🔧 ТЕХНИЧЕСКИЕ ДЕТАЛИ
 
 ### Необходимые импорты:
+
 ```python
 from signal_live import (
     calculate_direction_confidence,
@@ -140,10 +159,12 @@ from signal_live import (
 ```
 
 ### Необходимые индикаторы:
+
 - ADX (для trend_strength в Quality Score)
 - Volatility (для volatility_quality)
 
 ### Порядок проверок:
+
 1. Pipeline Validation (уже есть)
 2. AI Score Filter
 3. AI Volume Filter
@@ -167,6 +188,7 @@ from signal_live import (
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 После добавления всех критичных фильтров:
+
 - **Количество сигналов:** уменьшится на 30-40%
 - **Win Rate:** увеличится на 5-10%
 - **Profit Factor:** улучшится на 0.2-0.3
@@ -179,4 +201,3 @@ from signal_live import (
 3. Результаты более реалистичны (ближе к реальной системе)
 4. Win Rate > 50%
 5. Profit Factor > 1.0
-

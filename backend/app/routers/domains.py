@@ -1,13 +1,15 @@
 """
 Domains Router - Knowledge OS домены (35 доменов)
 """
+
+import logging
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import List, Optional
-import logging
 
-from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 from app.services.cache import get_cache
+from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -15,6 +17,7 @@ router = APIRouter()
 
 class Domain(BaseModel):
     """Домен Knowledge OS"""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -23,7 +26,7 @@ class Domain(BaseModel):
 
 @router.get("/", response_model=List[Domain])
 async def list_domains(
-    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client)
+    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client),
 ) -> List[Domain]:
     """
     Получить список всех доменов Knowledge OS (35 доменов).

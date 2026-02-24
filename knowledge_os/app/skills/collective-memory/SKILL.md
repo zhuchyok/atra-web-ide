@@ -4,7 +4,15 @@ description: Collective Memory - использование накопленны
 category: knowledge
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🧬", "homepage": "https://en.wikipedia.org/wiki/Stigmergy"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🧬",
+        "homepage": "https://en.wikipedia.org/wiki/Stigmergy",
+      },
+  }
 ---
 
 # Collective Memory Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🧬", "homepage": "https://en
 ## Когда использовать
 
 Используй этот навык для:
+
 - Использования знаний из предыдущих задач
 - Поиска решений в базе знаний
 - Обучения на опыте команды
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🧬", "homepage": "https://en
 ## Методология
 
 Collective Memory работает через:
+
 1. **Knowledge Retrieval** - Поиск релевантных знаний
 2. **Pattern Matching** - Сопоставление с похожими задачами
 3. **Solution Adaptation** - Адаптация решений

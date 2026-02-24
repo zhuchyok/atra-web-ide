@@ -5,17 +5,17 @@ Performance Profiling - Профилирование критичных путе
 Цель: Обеспечить профилирование критичных функций и автоматическое обнаружение узких мест
 """
 
-import cProfile
-import pstats
-import io
-import functools
-import logging
-import time
 import asyncio
-from typing import Callable, Any, Optional, Dict, List
+import cProfile
+import functools
+import io
+import logging
+import pstats
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from contextlib import contextmanager
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ProfileResult:
     """Результат профилирования"""
+
     function_name: str
     total_time: float
     cumulative_time: float
@@ -36,6 +37,7 @@ class ProfileResult:
 @dataclass
 class LatencyMetric:
     """Метрика latency"""
+
     function_name: str
     duration_ms: float
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -123,8 +125,8 @@ class PerformanceProfiler:
         stats_output = stream.getvalue()
 
         # Парсим вывод stats (упрощённая версия)
-        lines = stats_output.split('\n')
-        for line in lines[5:5+limit]:  # Пропускаем заголовки
+        lines = stats_output.split("\n")
+        for line in lines[5 : 5 + limit]:  # Пропускаем заголовки
             if not line.strip():
                 continue
 
@@ -137,23 +139,29 @@ class PerformanceProfiler:
                     per_call = total_time / calls if calls > 0 else 0
 
                     # Извлекаем имя функции и путь
-                    func_info = ' '.join(parts[5:]) if len(parts) > 5 else "unknown"
-                    file_path = func_info.split(':', maxsplit=1)[0] if ':' in func_info else "unknown"
+                    func_info = " ".join(parts[5:]) if len(parts) > 5 else "unknown"
+                    file_path = (
+                        func_info.split(":", maxsplit=1)[0] if ":" in func_info else "unknown"
+                    )
 
                     # Исправляем длинную строку (C0301) и используем maxsplit (C0207)
-                    info_parts = func_info.split(':')
+                    info_parts = func_info.split(":")
                     line_number = int(info_parts[1]) if len(info_parts) > 1 else 0
-                    function_name = func_info.split('(', maxsplit=1)[0] if '(' in func_info else func_info
+                    function_name = (
+                        func_info.split("(", maxsplit=1)[0] if "(" in func_info else func_info
+                    )
 
-                    results.append(ProfileResult(
-                        function_name=function_name,
-                        total_time=total_time,
-                        cumulative_time=cumulative_time,
-                        calls=calls,
-                        per_call_time=per_call,
-                        file_path=file_path,
-                        line_number=line_number
-                    ))
+                    results.append(
+                        ProfileResult(
+                            function_name=function_name,
+                            total_time=total_time,
+                            cumulative_time=cumulative_time,
+                            calls=calls,
+                            per_call_time=per_call,
+                            file_path=file_path,
+                            line_number=line_number,
+                        )
+                    )
                 except (ValueError, IndexError):
                     continue
 
@@ -165,7 +173,7 @@ class PerformanceProfiler:
         function_name: str,
         duration_ms: float,
         success: bool = True,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> None:
         """
         Записать метрику latency
@@ -178,10 +186,7 @@ class PerformanceProfiler:
         """
         if self.enable_latency:
             metric = LatencyMetric(
-                function_name=function_name,
-                duration_ms=duration_ms,
-                success=success,
-                error=error
+                function_name=function_name, duration_ms=duration_ms, success=success, error=error
             )
             self._latency_metrics.append(metric)
 
@@ -192,7 +197,7 @@ class PerformanceProfiler:
                     "Performance bottleneck detected: %s took %.2fms (threshold: %.2fms)",
                     function_name,
                     duration_ms,
-                    self._threshold_ms
+                    self._threshold_ms,
                 )
 
     def get_latency_stats(self, function_name: Optional[str] = None) -> Dict[str, Any]:
@@ -218,7 +223,7 @@ class PerformanceProfiler:
                 "max_ms": 0.0,
                 "p95_ms": 0.0,
                 "p99_ms": 0.0,
-                "success_rate": 0.0
+                "success_rate": 0.0,
             }
 
         durations = [m.duration_ms for m in metrics]
@@ -232,9 +237,13 @@ class PerformanceProfiler:
             "avg_ms": sum(durations) / len(durations),
             "min_ms": min(durations),
             "max_ms": max(durations),
-            "p95_ms": durations_sorted[int(len(durations_sorted) * 0.95)] if durations_sorted else 0.0,
-            "p99_ms": durations_sorted[int(len(durations_sorted) * 0.99)] if durations_sorted else 0.0,
-            "success_rate": success_count / len(metrics) if metrics else 0.0
+            "p95_ms": durations_sorted[int(len(durations_sorted) * 0.95)]
+            if durations_sorted
+            else 0.0,
+            "p99_ms": durations_sorted[int(len(durations_sorted) * 0.99)]
+            if durations_sorted
+            else 0.0,
+            "success_rate": success_count / len(metrics) if metrics else 0.0,
         }
 
     def detect_bottlenecks(self, threshold_ms: Optional[float] = None) -> List[LatencyMetric]:
@@ -288,6 +297,7 @@ def profile(func: Optional[Callable] = None, *, threshold_ms: float = 100.0):
             # ...
             pass
     """
+
     def decorator(f: Callable) -> Callable:
         profiler = get_profiler()
 

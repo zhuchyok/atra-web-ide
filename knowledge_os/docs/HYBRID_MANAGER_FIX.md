@@ -8,6 +8,7 @@
 ## ❌ ПРОБЛЕМА:
 
 **Ошибка импорта:**
+
 ```
 ModuleNotFoundError: No module named 'smart_rate_limiter'
 ModuleNotFoundError: No module named 'ohlc_utils'
@@ -18,6 +19,7 @@ ModuleNotFoundError: No module named 'ohlc_utils'
 ## 🔍 ДИАГНОСТИКА:
 
 ### Найдено:
+
 1. **Неправильный импорт `smart_rate_limiter`:**
    - Было: `from smart_rate_limiter import smart_rate_limiter`
    - Файл находится в: `src/utils/smart_rate_limiter.py`
@@ -33,6 +35,7 @@ ModuleNotFoundError: No module named 'ohlc_utils'
 ## ✅ ИСПРАВЛЕНИЯ:
 
 ### 1. Исправлен импорт `smart_rate_limiter`:
+
 ```python
 # Было:
 from smart_rate_limiter import smart_rate_limiter
@@ -42,6 +45,7 @@ from src.utils.smart_rate_limiter import smart_rate_limiter
 ```
 
 ### 2. Исправлен импорт `ohlc_utils`:
+
 ```python
 # Было:
 from ohlc_utils import get_ohlc_binance_sync
@@ -71,4 +75,3 @@ from src.utils.ohlc_utils import get_ohlc_binance_sync
 ## 📝 ФАЙЛЫ ИЗМЕНЕНЫ:
 
 - `src/data/hybrid_manager.py` - исправлены импорты
-

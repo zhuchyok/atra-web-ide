@@ -87,7 +87,7 @@ if [ "$SETUP_SYNC" = "y" ] || [ "$SETUP_SYNC" = "Y" ]; then
         mkdir -p .team_data
         cp -r "$ATRA_PROJECT_PATH/.team_data"/* .team_data/ 2>/dev/null || true
         echo -e "${GREEN}  ✅ Данные команды скопированы${NC}"
-        
+
         # Инициализация Git если нужно
         if [ ! -d ".team_data/.git" ]; then
             echo -e "${GREEN}  🔧 Инициализация Git репозитория...${NC}"
@@ -140,4 +140,3 @@ echo "   bash scripts/setup_team_sync.sh"
 echo ""
 echo -e "${GREEN}🎉 ГОТОВО! Команда из 22 экспертов готова к работе!${NC}"
 echo ""
-

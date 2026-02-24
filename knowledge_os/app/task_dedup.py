@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Дедупликация задач, создаваемых из обучения (оркестратор, curiosity engine).
 
@@ -11,16 +10,14 @@
 - Enhanced Orchestrator Phase 5 (Curiosity Engine)
 - Streaming Orchestrator (_run_curiosity_engine)
 """
+
 import logging
+
 logger = logging.getLogger(__name__)
 
 
 async def same_task_for_expert_in_last_n_days(
-    conn,
-    title: str,
-    description: str,
-    assignee_expert_id,
-    days: int = 30
+    conn, title: str, description: str, assignee_expert_id, days: int = 30
 ) -> bool:
     """
     Проверяет, была ли уже такая же задача у этого эксперта за последние N дней.
@@ -46,7 +43,8 @@ async def same_task_for_expert_in_last_n_days(
     if not title_norm or not description_norm:
         return False
     try:
-        exists = await conn.fetchval("""
+        exists = await conn.fetchval(
+            """
             SELECT EXISTS(
                 SELECT 1 FROM tasks t
                 WHERE t.title = $1
@@ -54,7 +52,12 @@ async def same_task_for_expert_in_last_n_days(
                   AND t.assignee_expert_id = $3
                   AND t.created_at >= NOW() - ($4 || ' days')::interval
             )
-        """, title_norm, description_norm, assignee_expert_id, str(days))
+        """,
+            title_norm,
+            description_norm,
+            assignee_expert_id,
+            str(days),
+        )
         return bool(exists)
     except Exception as e:
         logger.warning("Task dedup check failed: %s", e)

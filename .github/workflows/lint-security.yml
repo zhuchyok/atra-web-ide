@@ -1,0 +1,145 @@
+# CI Workflow: Linting, Security & Type Checking
+# Based on FastAPI and ripgrep best practices
+# Runs on every push and PR
+
+name: Lint & Security
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  # Python: Ruff linting (replaces flake8, black, isort)
+  ruff-lint:
+    name: Ruff (Python Linter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff check (backend)
+        run: ruff check backend/ --output-format=github
+        continue-on-error: false
+
+      - name: Run Ruff check (knowledge_os)
+        run: ruff check knowledge_os/ --output-format=github
+        continue-on-error: false
+
+      - name: Run Ruff format check
+        run: ruff format --check backend/ knowledge_os/ src/
+
+  # Python: Type checking (mypy)
+  mypy-typecheck:
+    name: MyPy (Type Checking)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install mypy pydantic fastapi
+          cd backend && pip install -r requirements.txt
+
+      - name: Run MyPy (backend)
+        run: mypy backend/app --ignore-missing-imports
+        continue-on-error: true  # Not blocking yet
+
+  # Rust: Clippy linting & format check
+  rust-lint:
+    name: Rust (Clippy & fmt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run rustfmt check
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # Rust: Security audit (cargo audit)
+  cargo-audit:
+    name: Cargo Audit (Security)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        run: cargo audit --deny warnings
+
+  # Security: Detect secrets
+  detect-secrets:
+    name: Detect Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      - name: Run detect-secrets
+        run: detect-secrets scan --baseline .secrets.baseline
+
+  # JavaScript: Prettier format check (frontend)
+  prettier-check:
+    name: Prettier (Frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
+
+      - name: Run Prettier check
+        run: cd frontend && npx prettier --check "src/**/*.{js,ts,svelte,json,css,md}"

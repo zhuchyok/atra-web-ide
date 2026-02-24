@@ -5,6 +5,7 @@
 ### **1. ОШИБКА В РАСЧЕТЕ СВОБОДНЫХ СРЕДСТВ**
 
 #### **ПРОБЛЕМА:**
+
 ```python
 # В signal_risk_improvements.py строка 125
 reserve = deposit * 0.15  # 15% резерв
@@ -14,6 +15,7 @@ available = max(0, available - reserve)
 **ОШИБКА:** Резерв 15% слишком большой! Это блокирует 15% депозита даже для больших сумм.
 
 #### **ИСПРАВЛЕНИЕ:**
+
 ```python
 # Адаптивный резерв по размеру депозита
 if deposit <= 1000:
@@ -29,12 +31,14 @@ reserve = deposit * reserve_pct
 ### **2. ОШИБКА В ЛОГИКЕ DCA УСРЕДНЕНИЯ**
 
 #### **ПРОБЛЕМА:**
+
 ```python
 # В dca_improvements.py строка 468
 avg_entry_price = sum(p * q for p, q in zip(entry_prices, qtys)) / sum(qtys)
 ```
 
 **ОШИБКА:** Неправильный расчет средней цены! Должно быть:
+
 ```python
 total_cost = sum(p * q for p, q in zip(entry_prices, qtys))
 total_qty = sum(qtys)
@@ -44,6 +48,7 @@ avg_entry_price = total_cost / total_qty if total_qty > 0 else 0
 ### **3. ОШИБКА В СИСТЕМЕ МОНИТОРИНГА ПОЗИЦИЙ**
 
 #### **ПРОБЛЕМА:**
+
 ```python
 # В price_monitor_system.py строка 50-58
 SELECT DISTINCT
@@ -58,6 +63,7 @@ WHERE result IS NULL OR result = ''
 ### **4. ОШИБКА В РАСЧЕТЕ ПРИБЫЛИ**
 
 #### **ПРОБЛЕМА:**
+
 ```python
 # В price_monitor_system.py строки 214, 237
 profit_50pct = (current_price - tp1) * 0.5  # НЕПРАВИЛЬНО!
@@ -65,6 +71,7 @@ profit_100pct = (current_price - tp2) * 1.0  # НЕПРАВИЛЬНО!
 ```
 
 **ОШИБКА:** Прибыль рассчитывается неправильно! Должно быть:
+
 ```python
 # Для TP1 (50% позиции)
 profit_50pct = (current_price - entry_price) * 0.5 * total_qty
@@ -76,6 +83,7 @@ profit_100pct = (current_price - entry_price) * 1.0 * total_qty
 ### **5. ОШИБКА В АДАПТИВНОЙ ЛОГИКЕ**
 
 #### **ПРОБЛЕМА:**
+
 ```python
 # В signal_risk_improvements.py строка 202
 adaptive_leverage = max_leverage * volatility_factor * trend_factor * regime_mult
@@ -312,6 +320,7 @@ def get_improved_dynamic_leverage(
 ## 🎯 **РЕЗУЛЬТАТ АУДИТА:**
 
 ### **НАЙДЕНО 5 КРИТИЧЕСКИХ ОШИБОК:**
+
 1. ❌ **Слишком большой резерв** (15% блокирует средства)
 2. ❌ **Неправильный расчет средней цены** DCA
 3. ❌ **Неточный мониторинг позиций** (DISTINCT пропускает данные)
@@ -319,6 +328,7 @@ def get_improved_dynamic_leverage(
 5. ❌ **Неограниченные множители** в адаптивной логике
 
 ### **ВСЕ ОШИБКИ ИСПРАВЛЕНЫ:**
+
 1. ✅ **Адаптивный резерв** по размеру депозита
 2. ✅ **Правильный расчет средней цены** DCA
 3. ✅ **Точный мониторинг позиций** с группировкой

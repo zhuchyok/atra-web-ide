@@ -4,9 +4,9 @@ SignalAcceptanceManager - Система управления принятием
 
 import logging
 import sqlite3
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 try:
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -18,9 +18,11 @@ from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class SignalData:
     """Данные сигнала"""
+
     symbol: str
     direction: str  # LONG/SHORT
     entry_price: float
@@ -31,6 +33,7 @@ class SignalData:
     status: str = "pending"  # pending, accepted, in_progress, closed
     accepted_time: Optional[datetime] = None
     accepted_by: Optional[str] = None
+
 
 class SignalAcceptanceManager:
     """Менеджер принятия сигналов с интерактивными кнопками"""
@@ -61,33 +64,38 @@ class SignalAcceptanceManager:
             if signal_data.status == "pending":
                 # Кнопка принятия сигнала
                 accept_text = f"✅ Принять {signal_data.direction}"
-                buttons.append([InlineKeyboardButton(
-                    accept_text,
-                    callback_data=f"accept_{signal_data.symbol}_{signal_data.signal_time.timestamp()}"
-                )])
+                buttons.append(
+                    [
+                        InlineKeyboardButton(
+                            accept_text,
+                            callback_data=f"accept_{signal_data.symbol}_{signal_data.signal_time.timestamp()}",
+                        )
+                    ]
+                )
 
             elif signal_data.status == "accepted":
                 # Кнопка закрытия позиции
                 close_text = f"🔴 Закрыть {signal_data.direction}"
-                buttons.append([InlineKeyboardButton(
-                    close_text,
-                    callback_data=f"close_{signal_data.symbol}_{signal_data.signal_time.timestamp()}"
-                )])
+                buttons.append(
+                    [
+                        InlineKeyboardButton(
+                            close_text,
+                            callback_data=f"close_{signal_data.symbol}_{signal_data.signal_time.timestamp()}",
+                        )
+                    ]
+                )
 
             elif signal_data.status == "in_progress":
                 # Информационная кнопка
                 info_text = f"🔄 В работе {signal_data.direction}"
-                buttons.append([InlineKeyboardButton(
-                    info_text,
-                    callback_data="info"
-                )])
+                buttons.append([InlineKeyboardButton(info_text, callback_data="info")])
 
             return InlineKeyboardMarkup(buttons)
 
         except Exception as e:
             logger.error("❌ Ошибка создания клавиатуры: %s", e)
             return None
-    
+
     async def register_signal(self, signal_data: SignalData, message_id: int, chat_id: int) -> bool:
         """Регистрирует новый сигнал в системе"""
         try:
@@ -105,7 +113,9 @@ class SignalAcceptanceManager:
             signal_key = f"{signal_data.symbol}_{signal_timestamp}"
             self.pending_signals[signal_key] = signal_data
 
-            logger.info("✅ Сигнал зарегистрирован: %s %s", signal_data.symbol, signal_data.direction)
+            logger.info(
+                "✅ Сигнал зарегистрирован: %s %s", signal_data.symbol, signal_data.direction
+            )
             return True
 
         except Exception as e:
@@ -121,25 +131,23 @@ class SignalAcceptanceManager:
             logger.info("🔍 Доступные сигналы: %s", list(self.pending_signals.keys()))
 
             # Получаем данные сигнала из базы
-            signal_data_db = self.acceptance_db.get_signal_by_symbol(symbol, user_id, signal_timestamp)
+            signal_data_db = self.acceptance_db.get_signal_by_symbol(
+                symbol, user_id, signal_timestamp
+            )
             if not signal_data_db:
                 logger.error("❌ Сигнал %s не найден в базе для пользователя %s", symbol, user_id)
                 return False
 
             # Если не переданы message_id и chat_id, пытаемся получить из базы
-            message_id = signal_data_db.get('message_id')
-            chat_id = signal_data_db.get('chat_id')
+            message_id = signal_data_db.get("message_id")
+            chat_id = signal_data_db.get("chat_id")
 
             if not message_id or not chat_id:
                 logger.error("❌ Не найдены message_id или chat_id для сигнала %s", symbol)
                 return False
 
             # Обновляем статус в базе данных
-            success = self.acceptance_db.update_signal_status(
-                symbol,
-                'accepted',
-                user_id
-            )
+            success = self.acceptance_db.update_signal_status(symbol, "accepted", user_id)
 
             if not success:
                 logger.error("❌ Не удалось обновить статус в базе для %s", symbol)
@@ -148,10 +156,10 @@ class SignalAcceptanceManager:
             # 🆕 ПРОВЕРКА: Есть ли у пользователя ключи биржи для открытия позиции
             has_exchange_keys = False
             try:
-                keys = await self.acceptance_db.get_active_exchange_keys(int(user_id), 'bitget')
+                keys = await self.acceptance_db.get_active_exchange_keys(int(user_id), "bitget")
                 # get_active_exchange_keys возвращает Dict или None
-                has_exchange_keys = bool(keys and isinstance(keys, dict) and keys.get('api_key'))
-                status_text = 'есть' if has_exchange_keys else 'нет'
+                has_exchange_keys = bool(keys and isinstance(keys, dict) and keys.get("api_key"))
+                status_text = "есть" if has_exchange_keys else "нет"
                 logger.info("🔍 [ACCEPT] Пользователь %s: ключи биржи = %s", user_id, status_text)
             except Exception as e:
                 logger.debug("⚠️ Ошибка проверки ключей для %s: %s", user_id, e)
@@ -160,7 +168,7 @@ class SignalAcceptanceManager:
             # Обновляем signals_log: PENDING -> OPEN (для корреляции в manual-режиме)
             # Это делается ВСЕГДА, даже если ключей нет (для расчета рисков)
             try:
-                await self.acceptance_db.update_signals_log_result(symbol, user_id, 'OPEN')
+                await self.acceptance_db.update_signals_log_result(symbol, user_id, "OPEN")
                 logger.info("✅ [ACCEPT] Сигнал %s учтен для расчета рисков (status=OPEN)", symbol)
             except Exception:
                 logger.debug("signals_log update skip (non-fatal)")
@@ -169,26 +177,29 @@ class SignalAcceptanceManager:
             if has_exchange_keys:
                 # ОТКРЫВАЕМ ПОЗИЦИЮ НА БИРЖЕ
                 position_data = {
-                    'symbol': symbol,
-                    'direction': signal_data_db['direction'],
-                    'entry_price': signal_data_db.get('entry_price'),
-                    'user_id': user_id,
-                    'message_id': message_id,
-                    'chat_id': chat_id
+                    "symbol": symbol,
+                    "direction": signal_data_db["direction"],
+                    "entry_price": signal_data_db.get("entry_price"),
+                    "user_id": user_id,
+                    "message_id": message_id,
+                    "chat_id": chat_id,
                 }
 
                 position_result = self.position_manager.open_position(position_data)
 
                 if position_result:
-                    logger.info("✅ [ACCEPT] Позиция открыта на бирже для %s (у пользователя есть ключи)", symbol)
+                    logger.info(
+                        "✅ [ACCEPT] Позиция открыта на бирже для %s (у пользователя есть ключи)",
+                        symbol,
+                    )
 
                     # 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ: ОБНОВЛЯЕМ СООБЩЕНИЕ В TELEGRAM
                     update_success = await self.telegram_updater.update_acceptance_status(
                         chat_id=chat_id,
                         message_id=message_id,
                         symbol=symbol,
-                        direction=signal_data_db['direction'],
-                        accepted_by=user_id
+                        direction=signal_data_db["direction"],
+                        accepted_by=user_id,
                     )
 
                     if update_success:
@@ -205,7 +216,8 @@ class SignalAcceptanceManager:
                 logger.info(
                     "📊 [ACCEPT] Сигнал %s принят пользователем %s БЕЗ ключей биржи. "
                     "Учитывается для расчета рисков, позиция НЕ открывается на бирже.",
-                    symbol, user_id
+                    symbol,
+                    user_id,
                 )
 
                 # Обновляем сообщение в Telegram (сигнал принят, но позиция не открыта)
@@ -214,11 +226,13 @@ class SignalAcceptanceManager:
                         chat_id=chat_id,
                         message_id=message_id,
                         symbol=symbol,
-                        direction=signal_data_db['direction'],
-                        accepted_by=user_id
+                        direction=signal_data_db["direction"],
+                        accepted_by=user_id,
                     )
                     if update_success:
-                        logger.info("✅ Сообщение Telegram обновлено для %s (без открытия позиции)", symbol)
+                        logger.info(
+                            "✅ Сообщение Telegram обновлено для %s (без открытия позиции)", symbol
+                        )
                 except Exception as e:
                     logger.debug("⚠️ Ошибка обновления сообщения Telegram: %s", e)
 
@@ -228,8 +242,10 @@ class SignalAcceptanceManager:
         except Exception as e:
             logger.error("❌ Критическая ошибка при принятии сигнала: %s", e)
             return False
-    
-    async def update_signal_message_id(self, symbol: str, signal_timestamp: float, message_id: int) -> bool:
+
+    async def update_signal_message_id(
+        self, symbol: str, signal_timestamp: float, message_id: int
+    ) -> bool:
         """Обновляет message_id для сигнала"""
         try:
             signal_key = f"{symbol}_{signal_timestamp}"
@@ -239,7 +255,9 @@ class SignalAcceptanceManager:
                 self.pending_signals[signal_key].message_id = message_id
 
             # Обновляем в базе данных
-            success = await self.acceptance_db.update_signal_message_id(symbol, signal_timestamp, message_id)
+            success = await self.acceptance_db.update_signal_message_id(
+                symbol, signal_timestamp, message_id
+            )
 
             if success:
                 logger.info("✅ Message ID обновлен для %s: %s", symbol, message_id)
@@ -277,7 +295,7 @@ class SignalAcceptanceManager:
                 signal_data.chat_id,
                 signal_data.message_id,
                 signal_data,
-                self.create_acceptance_keyboard(signal_data)
+                self.create_acceptance_keyboard(signal_data),
             )
 
             logger.info("✅ Позиция закрыта: %s пользователем %s", symbol, user_id)
@@ -302,7 +320,7 @@ class SignalAcceptanceManager:
         except Exception as e:
             logger.error("❌ Ошибка получения активных позиций: %s", e)
             return []
-    
+
     async def cleanup_expired_signals(self, max_age_hours: int = 24):
         """Очищает устаревшие сигналы"""
         try:
@@ -329,10 +347,12 @@ class SignalAcceptanceManager:
         """Получает статистику принятия сигналов"""
         try:
             stats = await self.acceptance_db.get_statistics()
-            stats.update({
-                "pending_signals": len(self.pending_signals),
-                "active_positions": len(self.active_positions)
-            })
+            stats.update(
+                {
+                    "pending_signals": len(self.pending_signals),
+                    "active_positions": len(self.active_positions),
+                }
+            )
             return stats
         except Exception as e:
             logger.error("❌ Ошибка получения статистики: %s", e)
@@ -356,8 +376,19 @@ class SignalAcceptanceManager:
                 logger.info("🔍 Найдено %s pending сигналов в БД", len(rows))
 
                 for row in rows:
-                    (symbol, direction, entry_price, signal_time_str, message_id,
-                     chat_id, user_id, status, accepted_time_str, accepted_by, signal_key) = row
+                    (
+                        symbol,
+                        direction,
+                        entry_price,
+                        signal_time_str,
+                        message_id,
+                        chat_id,
+                        user_id,
+                        status,
+                        accepted_time_str,
+                        accepted_by,
+                        signal_key,
+                    ) = row
 
                     # Создаем объект SignalData
                     signal_data = SignalData(
@@ -369,8 +400,10 @@ class SignalAcceptanceManager:
                         chat_id=chat_id,
                         user_id=user_id,
                         status=status,
-                        accepted_time=datetime.fromisoformat(accepted_time_str) if accepted_time_str else None,
-                        accepted_by=accepted_by
+                        accepted_time=datetime.fromisoformat(accepted_time_str)
+                        if accepted_time_str
+                        else None,
+                        accepted_by=accepted_by,
                     )
 
                     # Добавляем в pending_signals

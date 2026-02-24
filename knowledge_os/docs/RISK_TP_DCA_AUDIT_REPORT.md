@@ -5,21 +5,25 @@
 ### Основные компоненты:
 
 #### 1. **Расчет рисков:**
+
 - **`get_dynamic_risk_pct(df, i)`** - Динамический расчет процента риска
 - **`calculate_position_size_from_risk()`** - Расчет размера позиции на основе риска
 - **`calculate_anomaly_based_risk()`** - Корректировка риска на основе аномалий
 
 #### 2. **Take Profit / Stop Loss:**
+
 - **`get_dynamic_tp_levels(df, i, side)`** - Динамический расчет TP уровней
 - **`get_dynamic_sl_level(df, i, side)`** - Динамический расчет SL уровней
 
 #### 3. **DCA (Dollar-Cost Averaging):**
+
 - **`dca_calculate_next_qty_and_tp()`** - Расчет DCA позиции и TP
 - **`should_dca(side, last_close, stop_loss, dca_pct)`** - Проверка необходимости DCA
 
 ### 🔧 Анализ логики расчета рисков:
 
 #### **Динамический риск (`get_dynamic_risk_pct`):**
+
 ```python
 def get_dynamic_risk_pct(df, i):
     if i < 21:
@@ -33,10 +37,12 @@ def get_dynamic_risk_pct(df, i):
     dynamic_risk = max(1.0, min(dynamic_risk, 5.0))  # 1% - 5%
     return dynamic_risk
 ```
+
 - **Плюсы**: Адаптивный к волатильности и тренду
 - **Минусы**: Ограничен жесткими рамками (1-5%)
 
 #### **Расчет размера позиции:**
+
 ```python
 def calculate_position_size_from_risk(entry_price, stop_price, deposit_usdt, risk_pct, leverage=1.0):
     risk_usdt = deposit_usdt * risk_pct / 100.0
@@ -45,12 +51,14 @@ def calculate_position_size_from_risk(entry_price, stop_price, deposit_usdt, ris
     notional = qty * entry_price
     return qty, notional_with_leverage, risk_usdt
 ```
+
 - **Плюсы**: Прозрачная формула, учитывает плечо
 - **Минусы**: Не учитывает минимальные лоты биржи
 
 ### 📈 Анализ TP/SL систем:
 
 #### **Динамические TP уровни (`get_dynamic_tp_levels`):**
+
 ```python
 # 1. Волатильность
 volatility = closes.std() / closes.mean()
@@ -66,10 +74,12 @@ else:  # short
 # 3. Комбинированный
 final_tp1 = max(vol_tp1, bb_tp1) if side == "long" else min(vol_tp1, bb_tp1)
 ```
+
 - **Плюсы**: Учитывает несколько факторов
 - **Минусы**: Сложная логика, может быть противоречивой
 
 #### **DCA система:**
+
 ```python
 def dca_calculate_next_qty_and_tp(...):
     # Базовый расчет
@@ -83,34 +93,41 @@ def dca_calculate_next_qty_and_tp(...):
     if used_risk > max_risk or dca_count >= MAX_DCA:
         return 0, avg_price, None, None, True
 ```
+
 - **Плюсы**: Увеличивает позицию при просадке
 - **Минусы**: Может привести к большим убыткам
 
 ### 🚨 Выявленные проблемы:
 
 #### **Проблема 1: Сложность DCA логики**
+
 - **MAX_DCA = 3** - слишком мало для реальной торговли
 - **ALPHA** параметр не определен в коде
 - Нет проверки минимального расстояния между DCA
 
 #### **Проблема 2: Ограничения риска**
+
 - Фиксированные рамки 1-5% могут быть неоптимальными
 - Нет учета разных стилей торговли (агрессивный/консервативный)
 
 #### **Проблема 3: TP/SL не согласованы**
+
 ```python
 # В DCA LONG:
 tp1 = avg_price_new * (1 + dynamic_tp1_pct / 100)
 # SL рассчитывается отдельно в другом месте
 stop_loss_price = avg_price_new * (1 - abs(tp1_pct) / 100 * 0.5)
 ```
+
 - **Проблема**: TP и SL рассчитываются независимо, могут не соответствовать друг другу
 
 #### **Проблема 4: Отсутствие валидации**
+
 - Нет проверки на разумные значения TP/SL
 - Нет защиты от экстремальных значений волатильности
 
 #### **Проблема 5: Разные константы**
+
 ```python
 # В разных местах разные константы:
 MAX_DCA = 3  # в одном файле
@@ -120,6 +137,7 @@ MAX_DCA = 2  # в другом? (нужно проверить)
 ### 🔧 Рекомендации по улучшению:
 
 #### **1. Унификация констант:**
+
 ```python
 # Создать файл constants.py
 class TradingConstants:
@@ -133,6 +151,7 @@ class TradingConstants:
 ```
 
 #### **2. Улучшение DCA системы:**
+
 ```python
 def improved_dca_calculator(entry_prices, qtys, current_price, dca_count, deposit, risk_pct, leverage, side):
     # 1. Проверка лимитов
@@ -159,6 +178,7 @@ def improved_dca_calculator(entry_prices, qtys, current_price, dca_count, deposi
 ```
 
 #### **3. Согласование TP/SL:**
+
 ```python
 def calculate_coordinated_tp_sl(entry_price, current_volatility, trend_strength, side="long"):
     # 1. Определяем базовые уровни
@@ -199,6 +219,7 @@ def calculate_coordinated_tp_sl(entry_price, current_volatility, trend_strength,
 ```
 
 #### **4. Добавление валидации:**
+
 ```python
 def validate_trading_parameters(entry_price, sl_price, tp1_price, tp2_price, side):
     errors = []
@@ -236,21 +257,25 @@ def validate_trading_parameters(entry_price, sl_price, tp1_price, tp2_price, sid
 ### 📋 План улучшений:
 
 #### **Фаза 1: Исправление критических ошибок**
+
 1. Исправить несогласованность TP/SL
 2. Добавить валидацию параметров
 3. Унифицировать константы
 
 #### **Фаза 2: Улучшение DCA**
+
 1. Увеличить MAX_DCA_COUNT до 5
 2. Добавить умную логику DCA
 3. Реализовать прогрессивное уменьшение риска
 
 #### **Фаза 3: Оптимизация рисков**
+
 1. Добавить адаптивный риск на основе волатильности
 2. Реализовать разные профили риска
 3. Добавить защиту от экстремальных значений
 
 #### **Фаза 4: Тестирование**
+
 1. Добавить unit тесты для функций риска
 2. Создать интеграционные тесты DCA
 3. Провести бэктестирование улучшенной системы
@@ -258,20 +283,23 @@ def validate_trading_parameters(entry_price, sl_price, tp1_price, tp2_price, sid
 ### 🎯 Приоритеты:
 
 #### **Высокий приоритет:**
+
 1. Исправить несогласованность TP/SL
 2. Добавить валидацию параметров
 3. Улучшить DCA логику
 
 #### **Средний приоритет:**
+
 1. Унифицировать константы
 2. Добавить разные профили риска
 3. Оптимизировать производительность
 
 #### **Низкий приоритет:**
+
 1. Добавить расширенную статистику
 2. Реализовать адаптивные стратегии
 3. Интегрировать ML для предсказания риска
 
 ---
 
-*Аудит рисков, TP/SL и DCA завершен. Система имеет хорошую базу, но требует доработки для надежности и эффективности.*
+_Аудит рисков, TP/SL и DCA завершен. Система имеет хорошую базу, но требует доработки для надежности и эффективности._

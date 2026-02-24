@@ -4,7 +4,7 @@ description: Tacit Knowledge Extractor - извлечение неявных з�
 category: personalization
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🎨"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🎨" } }
 ---
 
 # Tacit Knowledge Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎨"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Понимания стиля кода пользователя
 - Адаптации под предпочтения
 - Генерации кода в стиле пользователя
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎨"}}
 ## Методология
 
 Tacit Knowledge работает через:
+
 1. **Code Analysis** - Анализ существующего кода пользователя
 2. **Pattern Extraction** - Извлечение паттернов стиля
 3. **Style Learning** - Обучение на стиле

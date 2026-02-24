@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import os
 import logging
+import os
 from datetime import datetime
 
 from src.shared.utils.datetime_utils import get_utc_now
@@ -49,5 +49,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

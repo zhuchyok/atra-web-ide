@@ -6,6 +6,7 @@
 ## 🔴 ПРОБЛЕМА
 
 Пользователь сообщил, что:
+
 1. **19:36** - Позиция SYRUPUSDT SHORT открылась на бирже
 2. **19:38:12** - Система отправила алерт "Позиция закрыта на бирже (автосинхронизация)"
 3. Но позиция на бирже была открыта и закрылась на бирже
@@ -17,6 +18,7 @@
 ### 1. Защита от преждевременного закрытия новых позиций
 
 Добавлена проверка времени создания позиции:
+
 - **Не закрываем позиции**, которые были открыты **менее 5 минут назад**
 - Это защита от задержки появления позиции в API биржи
 - Позиции старше 5 минут закрываются, если не найдены на бирже
@@ -24,6 +26,7 @@
 ### 2. Подробное логирование
 
 Добавлено логирование для отладки:
+
 - Количество позиций, полученных с биржи
 - Детали каждой позиции (symbol, contracts)
 - Сравнение local_open vs remote_open
@@ -40,21 +43,21 @@
 try:
     from datetime import datetime, timedelta
     import sqlite3
-    
+
     # Получаем время создания позиции из БД
     with sqlite3.connect(adb_local.db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             SELECT entry_time, created_at FROM active_positions
-            WHERE symbol = ? AND accepted_by = ? 
+            WHERE symbol = ? AND accepted_by = ?
               AND UPPER(IFNULL(status,'open')) LIKE 'OPEN%'
             ORDER BY created_at DESC LIMIT 1
             """,
             (sym, str(uid))
         )
         result = cursor.fetchone()
-        
+
         if result:
             entry_time_str = result[0] or result[1]
             if entry_time_str:
@@ -63,10 +66,10 @@ try:
                     entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
                 else:
                     entry_time = datetime.fromtimestamp(entry_time_str)
-                
+
                 # Проверяем, прошло ли 5 минут
                 time_since_entry = datetime.now() - entry_time.replace(tzinfo=None) if entry_time.tzinfo else datetime.now() - entry_time
-                
+
                 if time_since_entry < timedelta(minutes=5):
                     logger.warning(
                         "⏸️ [SYNC] Позиция %s для пользователя %d слишком новая "
@@ -114,11 +117,13 @@ logger.warning(
 ## 🎯 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### До исправления:
+
 - Позиции закрывались сразу после открытия (через 2-3 минуты)
 - Пользователи получали ложные алерты о закрытии позиций
 - Позиции, которые были открыты на бирже, закрывались локально
 
 ### После исправления:
+
 - Позиции не закрываются, если они открыты менее 5 минут назад
 - Позиции старше 5 минут закрываются только если действительно не найдены на бирже
 - Подробное логирование помогает понять, что происходит при синхронизации
@@ -126,6 +131,7 @@ logger.warning(
 ## 🔍 МОНИТОРИНГ
 
 ### Ключевые метрики для отслеживания:
+
 1. **Логи синхронизации:**
    - Количество позиций с биржи
    - Сравнение local_open vs remote_open
@@ -155,4 +161,3 @@ logger.warning(
 
 **Время исправления:** 2025-11-06 19:40 MSK  
 **Статус:** ✅ Исправлено и готово к тестированию
-

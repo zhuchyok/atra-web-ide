@@ -7,13 +7,13 @@ This use case handles placing a new trading order.
 from decimal import Decimal
 from typing import Optional
 
-from src.shared.utils.datetime_utils import get_utc_now
-from src.domain.entities.order import Order, OrderSide, OrderType, OrderStatus
+from src.domain.entities.order import Order, OrderSide, OrderStatus, OrderType
 from src.domain.entities.position import PositionSide
 from src.domain.repositories.order_repository import OrderRepository
 from src.domain.value_objects.price import Price
 from src.domain.value_objects.symbol import Symbol
 from src.infrastructure.external.exchanges.base import ExchangeAdapter
+from src.shared.utils.datetime_utils import get_utc_now
 
 
 class PlaceOrderUseCase:
@@ -80,4 +80,3 @@ class PlaceOrderUseCase:
         saved_order = await self._order_repository.save(order)
 
         return saved_order
-

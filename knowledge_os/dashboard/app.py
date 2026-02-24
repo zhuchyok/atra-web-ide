@@ -1,34 +1,45 @@
-import streamlit as st
+import asyncio
+import json
+import logging
+import os
+import subprocess
+import sys
+import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+
+import httpx
+import networkx as nx
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from database_service import (
-    db_session, get_db_connection, fetch_data, fetch_parallel,
-    check_services, fetch_intellectual_capital, get_project_slugs,
-    quick_db_check, fetch_latest_directive, fetch_sidebar_metrics,
-    search_knowledge_base
-)
+import streamlit as st
 from components.metrics import render_metric_card
-import os
-import sys
-import networkx as nx
-import subprocess
-import httpx
-import asyncio
-import logging
-import json
-import traceback
-from datetime import datetime, timedelta, timezone
-from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-import time
+from database_service import (
+    check_services,
+    db_session,
+    fetch_data,
+    fetch_intellectual_capital,
+    fetch_latest_directive,
+    fetch_parallel,
+    fetch_sidebar_metrics,
+    get_db_connection,
+    get_project_slugs,
+    quick_db_check,
+    search_knowledge_base,
+)
 
 logger = logging.getLogger(__name__)
 
 # Корпорация: корень и каталог приложения (дашборд = часть корпорации, ищем модули в корпорации)
 _DASHBOARD_DIR = os.path.dirname(os.path.abspath(__file__))  # knowledge_os/dashboard
-CORPORATION_ROOT = os.path.dirname(_DASHBOARD_DIR)            # knowledge_os
-CORPORATION_APP_DIR = os.path.join(CORPORATION_ROOT, "app")  # knowledge_os/app — singularity_9_ab_tester, evaluator
+CORPORATION_ROOT = os.path.dirname(_DASHBOARD_DIR)  # knowledge_os
+CORPORATION_APP_DIR = os.path.join(
+    CORPORATION_ROOT, "app"
+)  # knowledge_os/app — singularity_9_ab_tester, evaluator
 
 # Fallback для Docker (compose монтирует репо в /app/project)
 for _candidate in (CORPORATION_APP_DIR, "/app/project/knowledge_os/app"):
@@ -42,11 +53,13 @@ if os.path.isdir(CORPORATION_APP_DIR) and CORPORATION_APP_DIR not in sys.path:
 
 # Предзагрузка evaluator из app, чтобы singularity_9_ab_tester всегда видел модуль (в т.ч. в Docker)
 import logging as _dashboard_logging
+
 _dashboard_log = _dashboard_logging.getLogger("corporation_dashboard")
 if "evaluator" not in sys.modules:
     _eval_py = os.path.join(CORPORATION_APP_DIR, "evaluator.py")
     if os.path.isfile(_eval_py):
         import importlib.util
+
         try:
             _spec = importlib.util.spec_from_file_location("evaluator", _eval_py)
             if _spec and _spec.loader:
@@ -55,17 +68,23 @@ if "evaluator" not in sys.modules:
                 _spec.loader.exec_module(_mod)
                 _dashboard_log.info("evaluator loaded CORPORATION_APP_DIR=%s", CORPORATION_APP_DIR)
         except Exception as _eval_err:
-            _dashboard_log.warning("evaluator load failed CORPORATION_APP_DIR=%s: %s", CORPORATION_APP_DIR, _eval_err, exc_info=True)
+            _dashboard_log.warning(
+                "evaluator load failed CORPORATION_APP_DIR=%s: %s",
+                CORPORATION_APP_DIR,
+                _eval_err,
+                exc_info=True,
+            )
 
 # Настройка страницы
 st.set_page_config(
     page_title="Intelligence Command Center | ATRA Corporation",
     page_icon="🏢",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 VECTOR_CORE_URL = os.getenv("VECTOR_CORE_URL", "http://knowledge_vector_core:8001")
+
 
 def get_embedding(text: str) -> list:
     """Get embedding from VectorCore microservice."""
@@ -84,10 +103,12 @@ def get_embedding(text: str) -> list:
         st.error(f"Неожиданная ошибка VectorCore: {e}")
         return [0.0] * 768
 
+
 # Design system: токены (дизайнер) + компоненты (верстальщик)
 # Цвета, отступы и типографика — единый источник для всего дашборда
 
-st.markdown("""
+st.markdown(
+    """
     <style>
     /* === DESIGN TOKENS (UI/UX) === */
     :root {
@@ -124,7 +145,7 @@ st.markdown("""
         --dash-text-5xl: 2rem;       /* 32px — крупные акценты */
     }
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    
+
     html, body, [data-testid="stAppViewContainer"] {
         font-family: var(--dash-font);
         font-size: var(--dash-text-base);
@@ -132,7 +153,7 @@ st.markdown("""
         line-height: 1.5;
     }
     .main { background-color: var(--dash-bg); font-size: var(--dash-text-base); }
-    
+
     /* Глобальные заголовки Streamlit и Markdown */
     h1, [data-testid="stMarkdown"] h1 { font-size: var(--dash-text-3xl) !important; font-weight: 800 !important; letter-spacing: -0.02em; margin-bottom: 0.5rem !important; }
     h2, [data-testid="stMarkdown"] h2 { font-size: var(--dash-text-2xl) !important; font-weight: 700 !important; margin-top: 1rem !important; margin-bottom: 0.5rem !important; }
@@ -140,7 +161,7 @@ st.markdown("""
     p, [data-testid="stMarkdown"] p { font-size: var(--dash-text-base) !important; line-height: 1.55 !important; }
     [data-testid="stCaptionContainer"] { font-size: var(--dash-text-sm) !important; color: var(--dash-text-muted) !important; }
     [data-testid="stMetricLabel"] { font-size: var(--dash-text-sm) !important; font-weight: 600 !important; color: var(--dash-text-muted) !important; }
-    
+
     /* Сайдбар в одной стилистике */
     [data-testid="stSidebar"] {
         background: var(--dash-surface) !important;
@@ -148,7 +169,7 @@ st.markdown("""
     }
     [data-testid="stSidebar"] .stMarkdown { color: var(--dash-text-muted); }
     [data-testid="stSidebar"] label { color: var(--dash-text) !important; }
-    
+
     @media (max-width: 768px) {
         .premium-card { padding: var(--dash-space) !important; margin-bottom: var(--dash-space-sm) !important; }
         .stTabs [data-baseweb="tab-list"] { flex-wrap: wrap; gap: 8px !important; }
@@ -165,7 +186,7 @@ st.markdown("""
         h2, [data-testid="stMarkdown"] h2 { font-size: var(--dash-text-xl) !important; }
         h3, [data-testid="stMarkdown"] h3 { font-size: var(--dash-text-lg) !important; }
     }
-    
+
     .premium-card {
         background: linear-gradient(145deg, var(--dash-surface-elevated), var(--dash-surface));
         border: 1px solid var(--dash-border);
@@ -232,7 +253,7 @@ st.markdown("""
     .stTabs [aria-selected="true"] { color: var(--dash-accent) !important; border-bottom: 2px solid var(--dash-accent) !important; }
     .expert-header { font-size: var(--dash-text-xl); font-weight: 800; color: var(--dash-text-strong); margin-bottom: 4px; }
     .expert-role { font-size: var(--dash-text-base); color: var(--dash-text-muted); margin-bottom: var(--dash-space-sm); }
-    
+
     /* Анимации для карточек */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
@@ -241,19 +262,19 @@ st.markdown("""
     .premium-card {
         animation: fadeIn 0.3s ease-in;
     }
-    
+
     /* Анимация пульсации для индикатора активности */
     @keyframes pulse {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.7; transform: scale(1.1); }
     }
-    
+
     /* Анимация обновления данных */
     @keyframes slideIn {
         from { opacity: 0; transform: translateX(-10px); }
         to { opacity: 1; transform: translateX(0); }
     }
-    
+
     /* Индикатор загрузки */
     .loading-indicator {
         display: inline-block;
@@ -264,22 +285,22 @@ st.markdown("""
         border-radius: 50%;
         animation: spin 1s linear infinite;
     }
-    
+
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
-    
+
     /* Плавное появление метрик */
     [data-testid="stMetricValue"] {
         animation: slideIn 0.5s ease-out;
     }
-    
+
     [data-testid="stMetricValue"] {
         font-size: var(--dash-text-4xl) !important;
         font-weight: 800 !important;
         letter-spacing: -0.02em;
     }
-    
+
     /* Скроллбар стилизация */
     ::-webkit-scrollbar {
         width: 8px;
@@ -343,7 +364,9 @@ st.markdown("""
     /* Таблицы и данные */
     .dash-table { font-size: var(--dash-text-sm); }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def _toast(message: str, icon: str = "✅"):
@@ -356,6 +379,7 @@ def _toast(message: str, icon: str = "✅"):
     except Exception:
         st.success(message)
 
+
 def main():
     # Toast с прошлого run (ТЗ: уведомления после действий)
     if st.session_state.get("toast_message"):
@@ -366,7 +390,7 @@ def main():
             except Exception:
                 pass
     # Инициализация session_state для отслеживания удаленных отчетов
-    if 'deleted_reports' not in st.session_state:
+    if "deleted_reports" not in st.session_state:
         st.session_state.deleted_reports = set()
 
     # Быстрая проверка БД с таймаутом — если не ответила за 10 сек, показываем ошибку и не крутим «Running fetch_data»
@@ -388,7 +412,9 @@ def main():
                     st.stop()
                 st.session_state["_db_ok"] = True
             except FuturesTimeoutError:
-                st.error("Таймаут подключения к БД (10 сек). Проверьте PostgreSQL и сеть (в Docker: сервис knowledge_postgres в atra-network).")
+                st.error(
+                    "Таймаут подключения к БД (10 сек). Проверьте PostgreSQL и сеть (в Docker: сервис knowledge_postgres в atra-network)."
+                )
                 if st.button("Повторить"):
                     del st.session_state["_db_ok"]
                     st.rerun()
@@ -403,22 +429,30 @@ def main():
     # Шапка: логотип, раздел, время UTC, статус, метрики, обновить (всё на своих местах)
     _section = st.session_state.get("dashboard_section", "Обзор")
     col_header1, col_header2, col_header3, col_header4, col_header5 = st.columns([2, 1, 1, 1, 1])
-    
+
     # ПАРАЛЛЕЛЬНЫЙ СБОР ДАННЫХ ДЛЯ ШАПКИ И МЕТРИК
     with st.spinner(""):
-        results = fetch_parallel({
-            "tasks_count": ("SELECT COUNT(*) as count FROM tasks", ()),
-            "experts_count": ("SELECT COUNT(*) as count FROM experts", ()),
-            "intellectual_capital": ("SELECT COUNT(*) as total_nodes, SUM(usage_count) as total_usage FROM knowledge_nodes", ()),
-            "last_update": ("""
-                SELECT 
+        results = fetch_parallel(
+            {
+                "tasks_count": ("SELECT COUNT(*) as count FROM tasks", ()),
+                "experts_count": ("SELECT COUNT(*) as count FROM experts", ()),
+                "intellectual_capital": (
+                    "SELECT COUNT(*) as total_nodes, SUM(usage_count) as total_usage FROM knowledge_nodes",
+                    (),
+                ),
+                "last_update": (
+                    """
+                SELECT
                     GREATEST(
                         COALESCE((SELECT MAX(updated_at) FROM tasks), '1970-01-01'::timestamp),
                         COALESCE((SELECT MAX(created_at) FROM knowledge_nodes), '1970-01-01'::timestamp)
                     ) as last_db_update
-            """, ())
-        })
-    
+            """,
+                    (),
+                ),
+            }
+        )
+
     total_tasks = results.get("tasks_count", [{}])[0].get("count", 0)
     total_experts = results.get("experts_count", [{}])[0].get("count", 0)
     total_nodes = results.get("intellectual_capital", [{}])[0].get("total_nodes", 0)
@@ -434,7 +468,7 @@ def main():
             time_since_update = datetime.now(timezone.utc) - last_db_update
             minutes_ago = int(time_since_update.total_seconds() / 60)
             hours_ago = int(time_since_update.total_seconds() / 3600)
-            
+
             if minutes_ago < 1:
                 update_status = "только что"
                 status_color = "#238636"
@@ -451,15 +485,18 @@ def main():
         else:
             update_status = "неизвестно"
             status_color = "#8b949e"
-    
+
     # Настройка времени: используем московское время (UTC+3)
     moscow_tz = timezone(timedelta(hours=3))
-    current_time = datetime.now(moscow_tz).strftime('%H:%M:%S')
+    current_time = datetime.now(moscow_tz).strftime("%H:%M:%S")
 
     with col_header1:
         st.title("🏢 ATRA Corporation 10.0")
-        status_emoji = "🟢" if status_color == "#238636" else "🟡" if status_color == "#fab387" else "🔴"
-        st.markdown(f"""
+        status_emoji = (
+            "🟢" if status_color == "#238636" else "🟡" if status_color == "#fab387" else "🔴"
+        )
+        st.markdown(
+            f"""
             <div class="dash-header-line" style="display: flex; align-items: center; gap: 12px; margin-top: 2px; flex-wrap: wrap;">
                 <span style="color: var(--dash-text-muted); font-size: var(--dash-text-sm);">{_section}</span>
                 <span style="color: var(--dash-border);">|</span>
@@ -468,7 +505,9 @@ def main():
                 <span style="display: inline-block; width: 6px; height: 6px; background: {status_color}; border-radius: 50%; animation: pulse 2s infinite;"></span>
             </div>
             <style>@keyframes pulse {{ 0%,100% {{ opacity:1 }} 50% {{ opacity:.6 }} }}</style>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
         st.caption("Кэш 60 с · обновить: 🔄 справа")
     with col_header2:
         st.metric("Задач", f"{total_tasks:,}")
@@ -477,25 +516,32 @@ def main():
     with col_header4:
         st.metric("Экспертов", total_experts)
     with col_header5:
-        if st.button("🔄", help="Обновить все данные", use_container_width=True, key="header_refresh"):
+        if st.button(
+            "🔄", help="Обновить все данные", use_container_width=True, key="header_refresh"
+        ):
             st.cache_data.clear()
             st.session_state["toast_message"] = ("Данные обновлены", "🔄")
             st.rerun()
-    
+
     st.markdown("---")
 
     _svc_for_banner = check_services()
     _any_warning = any(s == "⚠️" for s in _svc_for_banner.values())
     if _any_warning and not st.session_state.get("alert_banner_dismissed"):
         warn_services = [n for n, s in _svc_for_banner.items() if s == "⚠️"]
-        st.markdown(f"""
+        st.markdown(
+            f"""
             <div class="alert-banner" id="alert-banner">
                 <span>⚠️ Сервисы недоступны: {", ".join(warn_services)}. Проверьте MLX (порт 11435) и Ollama (11434).</span>
             </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
         col_alert_btn, _ = st.columns([1, 5])
         with col_alert_btn:
-            if st.button("Скрыть", key="dismiss_alert_banner", help="Скрыть баннер до следующей перезагрузки"):
+            if st.button(
+                "Скрыть", key="dismiss_alert_banner", help="Скрыть баннер до следующей перезагрузки"
+            ):
                 st.session_state["alert_banner_dismissed"] = True
                 st.rerun()
 
@@ -503,17 +549,24 @@ def main():
     latest_directive = fetch_latest_directive()
     if latest_directive and latest_directive[0]:
         d0 = latest_directive[0]
-        created = d0.get('created_at')
-        created_str = created.strftime('%d.%m %H:%M') if hasattr(created, 'strftime') else (str(created)[:16] if created else 'N/A')
-        content_safe = d0.get('content') or ''
-        st.markdown(f"""
+        created = d0.get("created_at")
+        created_str = (
+            created.strftime("%d.%m %H:%M")
+            if hasattr(created, "strftime")
+            else (str(created)[:16] if created else "N/A")
+        )
+        content_safe = d0.get("content") or ""
+        st.markdown(
+            f"""
             <div class="directive-card">
                 <div style="color: var(--dash-danger); font-weight: 800; font-size: var(--dash-text-base); text-transform: uppercase; margin-bottom: 10px;">
                     🚨 СТРАТЕГИЧЕСКАЯ ДИРЕКТИВА СОВЕТА ДИРЕКТОРОВ (от {created_str})
                 </div>
                 <div style="color: #cdd6f4; font-size: var(--dash-text-lg); line-height: 1.6;">{content_safe}</div>
             </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
     # --- Боковая панель: только навигация и ключевые метрики (минимализм, без мутору) ---
     with st.sidebar:
@@ -522,21 +575,24 @@ def main():
         all_ok = all(s == "✅" for s in services_status.values())
         status_text = "СИСТЕМА ОК" if all_ok else "ТРЕБУЕТСЯ ВНИМАНИЕ"
         status_color = "var(--dash-success)" if all_ok else "var(--dash-warning)"
-        
-        st.markdown(f"""
+
+        st.markdown(
+            f"""
             <div style="background: {status_color}; color: white; padding: 12px; border-radius: 8px; margin-bottom: 16px; text-align: center; font-weight: 800; font-size: 14px;">
                 {status_text}
             </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         _sections = [
-            "🏠 Обзор (Pulse)", 
+            "🏠 Обзор (Pulse)",
             "🏛️ Wisdom & Mentorship",
-            "🛠️ Задачи и SLA", 
-            "🎯 Стратегия и ROI", 
-            "🧠 Интеллект (RAG)", 
+            "🛠️ Задачи и SLA",
+            "🎯 Стратегия и ROI",
+            "🧠 Интеллект (RAG)",
             "🕵️ Инструменты экспертов",
-            "⚙️ Система и Безопасность"
+            "⚙️ Система и Безопасность",
         ]
         section = st.radio("📂 Раздел", _sections, key="nav_section", label_visibility="collapsed")
         st.session_state.dashboard_section = section
@@ -550,14 +606,14 @@ def main():
         _task_stats = sidebar_data.get("tasks", [])
         _stats_ic = fetch_intellectual_capital()
         _experts_cnt = sidebar_data.get("experts", [])
-        
+
         t_total = _task_stats[0]["total"] if _task_stats and _task_stats[0] else 0
         t_done = _task_stats[0]["completed"] if _task_stats and _task_stats[0] else 0
         t_work = _task_stats[0]["in_progress"] if _task_stats and _task_stats[0] else 0
         t_wait = _task_stats[0]["pending"] if _task_stats and _task_stats[0] else 0
         n_nodes = _stats_ic[0]["total_nodes"] if _stats_ic and _stats_ic[0] else 0
         n_exp = _experts_cnt[0]["count"] if _experts_cnt and _experts_cnt[0] else 0
-        
+
         col_s1, col_s2, col_s3 = st.columns(3)
         with col_s1:
             st.metric("Задач", f"{t_total:,}", f"✅{t_done}")
@@ -581,25 +637,32 @@ def main():
                 st.caption("⚠️ MLX: порт 11435. `bash scripts/start_mlx_api_server.sh`")
             if services_status.get("Ollama") == "⚠️":
                 st.caption("⚠️ Ollama: порт 11434. `ollama serve`")
-            
+
             failed_tasks = sidebar_data.get("failed_tasks", [])
-            for ft in (failed_tasks or []):
+            for ft in failed_tasks or []:
                 st.caption(f"❌ {ft.get('title', '')[:50]} | {ft.get('source', '-')}")
-            
+
             changes_stats = sidebar_data.get("changes", [])
             if changes_stats and changes_stats[0]:
                 cs = changes_stats[0]
-                st.caption(f"Задач: 1 мин — {cs.get('last_minute', 0) or 0}, 1 ч — {cs.get('last_hour', 0) or 0}")
+                st.caption(
+                    f"Задач: 1 мин — {cs.get('last_minute', 0) or 0}, 1 ч — {cs.get('last_hour', 0) or 0}"
+                )
             st.caption("Кэш БД 60 с, сервисы 30 с. Принудительное обновление — 🔄 в шапке.")
 
     # Раздел «Обзор»: dashboard home — только ключевые метрики, директива, поиск (без лишнего)
     if "Обзор" in st.session_state.get("dashboard_section", ""):
         # Карточки метрик в одну строку (как в ТЗ: real-time метрики)
         with st.spinner(""):
-            results = fetch_parallel({
-                "tasks": ("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM tasks", ()),
-                "experts": ("SELECT COUNT(*) as count FROM experts", ())
-            })
+            results = fetch_parallel(
+                {
+                    "tasks": (
+                        "SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM tasks",
+                        (),
+                    ),
+                    "experts": ("SELECT COUNT(*) as count FROM experts", ()),
+                }
+            )
             _to = results.get("tasks", [])
             _ex = results.get("experts", [])
             _ic = fetch_intellectual_capital()
@@ -611,7 +674,7 @@ def main():
         o_experts = _ex[0]["count"] if _ex and _ex[0] else 0
         o_services_ok = sum(1 for s in _svc.values() if s == "✅")
         o_services_total = len(_svc)
-        
+
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             render_metric_card("Задачи", f"{o_tasks:,}", delta=f"в работе {o_in_progress}")
@@ -620,37 +683,57 @@ def main():
         with c3:
             render_metric_card("Эксперты", o_experts)
         with c4:
-            _svc_color = "var(--dash-success)" if o_services_ok == o_services_total else "var(--dash-warning)"
-            render_metric_card("Сервисы", f"{o_services_ok}/{o_services_total}", delta="PG · MLX · Ollama", delta_color="normal" if o_services_ok == o_services_total else "inverse")
-        
+            _svc_color = (
+                "var(--dash-success)"
+                if o_services_ok == o_services_total
+                else "var(--dash-warning)"
+            )
+            render_metric_card(
+                "Сервисы",
+                f"{o_services_ok}/{o_services_total}",
+                delta="PG · MLX · Ollama",
+                delta_color="normal" if o_services_ok == o_services_total else "inverse",
+            )
+
         # Подсказка при устаревших данных (ТЗ: hint если метрики не приходят > 12 сек)
         _last_updated = fetch_data("SELECT MAX(updated_at) as t FROM tasks")
-        _last_ts = _last_updated[0]["t"] if _last_updated and _last_updated[0] and _last_updated[0].get("t") else None
+        _last_ts = (
+            _last_updated[0]["t"]
+            if _last_updated and _last_updated[0] and _last_updated[0].get("t")
+            else None
+        )
         if _last_ts:
             try:
                 if _last_ts.tzinfo is None:
                     _last_ts = _last_ts.replace(tzinfo=timezone.utc)
                 diff_sec = (datetime.now(timezone.utc) - _last_ts).total_seconds()
                 if diff_sec > 12:
-                    st.caption(f"💾 Данные кэшируются. Последнее изменение задач: {int(diff_sec / 60)} мин назад. Нажмите 🔄 в шапке для актуальных цифр.")
+                    st.caption(
+                        f"💾 Данные кэшируются. Последнее изменение задач: {int(diff_sec / 60)} мин назад. Нажмите 🔄 в шапке для актуальных цифр."
+                    )
             except Exception:
                 st.caption("💾 Кэш 60 с. Обновить: 🔄 в шапке.")
         else:
             st.caption("💾 Кэш 60 с. Обновить: 🔄 в шапке.")
-        
+
         st.markdown("---")
-        
+
         # Поиск и быстрый переход на одном ряду
         col_search, col_task = st.columns([3, 1])
         with col_search:
-            search_query = st.text_input("🔍 Поиск в базе знаний", placeholder="Тренды, практики, решения…", key="overview_search", label_visibility="collapsed")
+            search_query = st.text_input(
+                "🔍 Поиск в базе знаний",
+                placeholder="Тренды, практики, решения…",
+                key="overview_search",
+                label_visibility="collapsed",
+            )
         with col_task:
             if st.button("📋 Поставить задачу", key="overview_put_task", use_container_width=True):
                 st.session_state.dashboard_section = "🛠️ Задачи и SLA"
                 st.session_state["nav_section"] = "🛠️ Задачи и SLA"
                 st.cache_data.clear()
                 st.rerun()
-        
+
         if search_query and len(search_query.strip()) >= 2:
             with st.spinner("Поиск..."):
                 try:
@@ -659,98 +742,133 @@ def main():
                     if results:
                         for r in results:
                             similarity_pct = (r.get("similarity") or 0) * 100
-                            color = "#58a6ff" if similarity_pct > 80 else "#fab387" if similarity_pct > 60 else "#8b949e"
-                            content_preview = (r.get("content") or "")[:200] + ("..." if len(r.get("content") or "") > 200 else "")
-                            st.markdown(f"""
+                            color = (
+                                "#58a6ff"
+                                if similarity_pct > 80
+                                else "#fab387"
+                                if similarity_pct > 60
+                                else "#8b949e"
+                            )
+                            content_preview = (r.get("content") or "")[:200] + (
+                                "..." if len(r.get("content") or "") > 200 else ""
+                            )
+                            st.markdown(
+                                f"""
                                 <div style="background: #0d1117; padding: 12px; border-radius: 8px; border-left: 3px solid {color}; margin-bottom: 8px;">
-                                    <div style="font-size: 11px; color: #8b949e;">{r.get('domain', 'N/A')} · <strong style="color: {color};">{similarity_pct:.1f}%</strong></div>
+                                    <div style="font-size: 11px; color: #8b949e;">{r.get("domain", "N/A")} · <strong style="color: {color};">{similarity_pct:.1f}%</strong></div>
                                     <div style="font-size: 13px; color: #c9d1d9; margin-top: 4px;">{content_preview}</div>
                                 </div>
-                                """, unsafe_allow_html=True)
+                                """,
+                                unsafe_allow_html=True,
+                            )
                     else:
-                        st.markdown("""
+                        st.markdown(
+                            """
                             <div class="empty-state">
                                 <div class="empty-icon">🔍</div>
                                 <div class="empty-title">Ничего не найдено</div>
                                 <div class="empty-hint">Попробуйте другой запрос или проверьте, что база знаний заполнена (узлы с эмбеддингами).</div>
                             </div>
-                        """, unsafe_allow_html=True)
+                        """,
+                            unsafe_allow_html=True,
+                        )
                 except Exception as e:
                     st.error(f"Ошибка поиска: {e}")
-        
+
         # --- ПУЛЬС КОРПОРАЦИИ (Дополнительные виджеты) ---
         st.markdown("### 💓 Пульс Корпорации")
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            # Последние алерты безопасности
+            # Последние алерты безопасности (таблица anomaly_detection_logs может отсутствовать)
             try:
-                threats = fetch_data("SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3")
+                threats = fetch_data(
+                    "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3"
+                )
                 if threats:
                     st.markdown("**🛡️ Безопасность**")
                     for t in threats:
-                        st.caption(f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}")
+                        st.caption(
+                            f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}"
+                        )
                 else:
                     st.success("🛡️ Угроз не обнаружено")
-            except: pass
+            except Exception:
+                st.caption("🛡️ Модуль безопасности не настроен")
         with col_p2:
             # Последние решения совета
             try:
-                decisions = fetch_data("SELECT content, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'board_decision' ORDER BY created_at DESC LIMIT 3")
+                decisions = fetch_data(
+                    "SELECT content, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'board_decision' ORDER BY created_at DESC LIMIT 3"
+                )
                 if decisions:
                     st.markdown("**🏛️ Решения Совета**")
                     for d in decisions:
-                        st.caption(f"📜 {d['content'][:50]}... ({d['created_at'].strftime('%d.%m')})")
+                        st.caption(
+                            f"📜 {(d['content'] or '')[:50]}... ({d['created_at'].strftime('%d.%m') if hasattr(d['created_at'], 'strftime') else d['created_at']})"
+                        )
                 else:
                     st.info("🏛️ Решений совета пока нет")
-            except: pass
+            except Exception:
+                st.caption("🏛️ Нет данных по решениям совета")
         with col_p3:
             # Новое в AI Research
             try:
-                latest_ai = fetch_data("SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') ORDER BY created_at DESC LIMIT 3")
+                latest_ai = fetch_data(
+                    "SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') ORDER BY created_at DESC LIMIT 3"
+                )
                 if latest_ai:
                     st.markdown("**📚 AI Research**")
                     for ai in latest_ai:
-                        st.caption(f"📄 {ai['path'].split('/')[-1]}")
+                        p = ai.get("path") or ""
+                        st.caption(f"📄 {p.split('/')[-1] if p else '—'}")
                 else:
                     st.caption("📚 База мудрости пуста")
-            except: pass
+            except Exception:
+                st.caption("📚 Домен AI Research не настроен")
 
         st.stop()
 
     elif "Wisdom" in st.session_state.get("dashboard_section", ""):
         from tabs.wisdom_tab import render_wisdom_tab
+
         render_wisdom_tab()
         st.stop()
 
     # Раздел «Задачи»: только 2 подвкладки (ленивая загрузка по DASHBOARD_OPTIMIZATION_PLAN)
     elif "Задачи" in st.session_state.get("dashboard_section", ""):
         from tabs.tasks_tab import render_tasks_tab
+
         render_tasks_tab()
         st.stop()
 
     elif "Стратегия" in st.session_state.get("dashboard_section", ""):
         from tabs.strategy_tab import render_strategy_tab
+
         render_strategy_tab()
         st.stop()
 
     elif "Интеллект" in st.session_state.get("dashboard_section", ""):
         from tabs.data_tab import render_data_tab
+
         render_data_tab()
         st.stop()
 
     elif "Инструменты" in st.session_state.get("dashboard_section", ""):
         from tabs.scout_tab import render_scout_tab
+
         render_scout_tab()
         st.stop()
 
     elif "Система" in st.session_state.get("dashboard_section", ""):
         from tabs.system_tab import render_system_tab
+
         render_system_tab()
         st.stop()
 
     else:
         st.warning("Выберите раздел в боковой панели слева.")
         st.stop()
+
 
 if __name__ == "__main__":
     try:

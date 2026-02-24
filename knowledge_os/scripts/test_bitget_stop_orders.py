@@ -77,9 +77,7 @@ def _read_env_keys() -> Dict[str, str]:
 
     if missing:
         hint = ", ".join(missing)
-        raise RuntimeError(
-            f"Не заданы переменные окружения или значения в .env для Bitget: {hint}"
-        )
+        raise RuntimeError(f"Не заданы переменные окружения или значения в .env для Bitget: {hint}")
     return env_map  # type: ignore[return-value]
 
 
@@ -203,4 +201,3 @@ async def run_test(config: TestConfig) -> None:
 
 if __name__ == "__main__":
     asyncio.run(run_test(TestConfig()))
-

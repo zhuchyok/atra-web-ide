@@ -2,4 +2,4 @@
 Orders Use Cases Module
 """
 
-__all__ = ['PlaceOrderUseCase']
+__all__ = ["PlaceOrderUseCase"]

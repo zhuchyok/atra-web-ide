@@ -105,7 +105,7 @@ echo ""
 echo "[4/4] Применение изменений через Veronica на Mac Studio..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     echo "   🔧 Применение изменений в chat.py (если нужно)..."
     if grep -q "Victoria Enhanced: всегда используем Victoria Enhanced" backend/app/routers/chat.py 2>/dev/null; then
         echo "      ✅ Изменение уже применено"
@@ -130,7 +130,7 @@ with open('backend/app/routers/chat.py', 'w') as f:
 print('✅ Изменение применено')
 PYEOF
     fi
-    
+
     echo "   ✅ Все изменения применены"
 EOF
 echo ""

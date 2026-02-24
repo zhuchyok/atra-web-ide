@@ -3,6 +3,7 @@
 ## 🎯 ПРОБЛЕМА
 
 Ошибка в логах:
+
 ```
 ERROR:src.database.db:❌ [DB] Не удалось переинициализировать подключение: cannot import name 'get_connection' from 'src.database.connection_pool'
 ```
@@ -29,4 +30,3 @@ ERROR:src.database.db:❌ [DB] Не удалось переинициализи�
 
 **Дата:** 2025-01-XX  
 **Исполнитель:** Команда экспертов ATRA (21 сотрудник)
-

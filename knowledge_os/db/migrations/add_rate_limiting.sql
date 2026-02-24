@@ -18,4 +18,3 @@ CREATE INDEX IF NOT EXISTS idx_rate_limits_blocked ON rate_limits(blocked) WHERE
 COMMENT ON TABLE rate_limits IS 'Rate limiting для защиты от злоупотреблений';
 COMMENT ON COLUMN rate_limits.user_id IS 'ID пользователя или идентификатор';
 COMMENT ON COLUMN rate_limits.blocked IS 'Заблокирован ли пользователь';
-

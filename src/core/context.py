@@ -1,5 +1,6 @@
-import requests
 from typing import Dict
+
+import requests
 
 try:
     from src.utils.cache_utils import cache_with_ttl
@@ -7,9 +8,11 @@ except ImportError:
     try:
         from cache_utils import cache_with_ttl
     except ImportError:
+
         def cache_with_ttl(*args, **kwargs):
             def decorator(func):
                 return func
+
             return decorator
 
 
@@ -20,9 +23,7 @@ def get_fgi_value() -> int:
         url = "https://api.alternative.me/fng/"
         params = {"limit": 1, "format": "json"}
         session = requests.Session()
-        session.headers.update(
-            {"User-Agent": "Mozilla/5.0 (compatible; ATRA/1.0)"}
-        )
+        session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; ATRA/1.0)"})
         resp = session.get(url, params=params, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
@@ -76,7 +77,7 @@ async def get_market_sentiment(
             mc = float(data.get("market_cap", 0) or 0)
             if v24 > 0 and mc > 0:
                 ratio = min(1.0, (v24 / mc) * 2.0)
-                score += (ratio - 0.5)
+                score += ratio - 0.5
 
         if fgi_norm is not None:
             score = (0.6 * score) + (0.4 * fgi_norm)
@@ -105,5 +106,3 @@ async def get_market_sentiment(
         return result
     except (ValueError, TypeError, KeyError):
         return {"score": 0.0, "label": "Нейтрально", "fgi": None, "source": "error"}
-
-

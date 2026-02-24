@@ -45,6 +45,7 @@ def check_user_trading_hours(user_data):
 ### **🔍 В функции `check_and_send_signals` (2 места):**
 
 #### **📍 Место 1 - Генерация сигналов:**
+
 ```python
 # Проверяем торговые часы пользователя
 if not check_user_trading_hours(user_data):
@@ -64,6 +65,7 @@ if not check_user_trading_hours(user_data):
 ```
 
 #### **📍 Место 2 - Отправка сигналов:**
+
 ```python
 # Проверяем торговые часы пользователя
 if not check_user_trading_hours(user_data):
@@ -76,6 +78,7 @@ if not check_user_trading_hours(user_data):
 ## 🚀 **ЧТО ПРОИСХОДИТ В РАЗНЫХ СЛУЧАЯХ:**
 
 ### **✅ Случай 1: Торговые часы НЕ установлены**
+
 ```
 📋 user_data.get("trading_hours") → None
 🔍 check_user_trading_hours() → return True
@@ -83,6 +86,7 @@ if not check_user_trading_hours(user_data):
 ```
 
 ### **✅ Случай 2: Торговые часы установлены (например, 9-18)**
+
 ```
 📋 user_data.get("trading_hours") → {"start": 9, "end": 18}
 🔍 check_user_trading_hours() → проверяет текущий час
@@ -101,6 +105,7 @@ if not check_user_trading_hours(user_data):
 3. **При начале торговой сессии** → все накопленные DCA сигналы обрабатываются
 
 ### **💡 Пример:**
+
 ```
 ⏰ 22:00 (вне торговых часов)
 📊 Есть открытая позиция BTCUSDT
@@ -119,6 +124,7 @@ if not check_user_trading_hours(user_data):
 ## 🛠 **КОМАНДЫ ДЛЯ УПРАВЛЕНИЯ ТОРГОВЫМИ ЧАСАМИ:**
 
 ### **📋 Установка торговых часов:**
+
 ```
 /set_trading_hours 9 18    # 09:00-18:00 (МСК)
 /set_trading_hours 7 23    # 07:00-23:00 (МСК)
@@ -127,11 +133,13 @@ if not check_user_trading_hours(user_data):
 ```
 
 ### **📋 Просмотр текущих настроек:**
+
 ```
 /trading_hours
 ```
 
 ### **📋 Сброс торговых часов (круглосуточно):**
+
 ```
 /set_trading_hours 0 24
 ```
@@ -141,6 +149,7 @@ if not check_user_trading_hours(user_data):
 ## 📊 **ПРИМЕРЫ РАБОТЫ:**
 
 ### **🔍 Ваш случай (торговые часы НЕ установлены):**
+
 ```
 📋 user_data.get("trading_hours") → None
 🔍 check_user_trading_hours() → return True
@@ -149,6 +158,7 @@ if not check_user_trading_hours(user_data):
 ```
 
 ### **🔍 Если бы установили 9-18:**
+
 ```
 📋 user_data.get("trading_hours") → {"start": 9, "end": 18}
 ⏰ 14:00 → check_user_trading_hours() → True → сигналы приходят
@@ -160,16 +170,19 @@ if not check_user_trading_hours(user_data):
 ## 🎯 **ИТОГ:**
 
 ### **✅ Для вас (торговые часы не установлены):**
+
 - **Сигналы приходят КРУГЛОСУТОЧНО**
 - **Никаких ограничений по времени**
 - **Система работает в режиме 24/7**
 
 ### **✅ Если хотите ограничить время:**
+
 - Используйте `/set_trading_hours 9 18` (например, 09:00-18:00)
 - Сигналы будут приходить только в указанное время
 - DCA сигналы будут накапливаться и отправляться при начале сессии
 
 ### **✅ Если хотите вернуться к круглосуточной торговле:**
+
 - Используйте `/set_trading_hours 0 24`
 - Или удалите настройки торговых часов
 
@@ -178,10 +191,12 @@ if not check_user_trading_hours(user_data):
 ## 🚀 **РЕКОМЕНДАЦИИ:**
 
 ### **📋 Для активной торговли:**
+
 - Оставьте как есть (круглосуточно)
 - Не пропустите важные сигналы
 
 ### **📋 Для ограничения времени:**
+
 - Установите торговые часы под ваш график
 - DCA сигналы будут накапливаться и отправляться при начале сессии
 

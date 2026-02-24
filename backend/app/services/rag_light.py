@@ -4,6 +4,7 @@ RAG-light: быстрый ответ на фактуальные вопросы 
 Эмбеддинги через Ollama (nomic-embed-text).
 Фаза 3: батчинг эмбеддингов, предзагрузка, fallback на keyword-поиск.
 """
+
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,14 +18,19 @@ logger = logging.getLogger(__name__)
 
 def _rag_metrics_decorator(func):
     """Декоратор метрик RAG (ленивый импорт, без зависимости при старте)."""
-    async def wrapper(self, query: str, timeout_ms: Optional[int] = None, user_id: Optional[str] = None):
+
+    async def wrapper(
+        self, query: str, timeout_ms: Optional[int] = None, user_id: Optional[str] = None
+    ):
         try:
-            from app.metrics.prometheus_metrics import (
-                RAG_REQUESTS,
-                RAG_DURATION,
-                RAG_CHUNKS_RETURNED,
-            )
             import time
+
+            from app.metrics.prometheus_metrics import (
+                RAG_CHUNKS_RETURNED,
+                RAG_DURATION,
+                RAG_REQUESTS,
+            )
+
             RAG_REQUESTS.labels(mode="ask", type="rag_light", path="processing").inc()
             start = time.perf_counter()
             result = await func(self, query, timeout_ms, user_id)
@@ -34,6 +40,7 @@ def _rag_metrics_decorator(func):
             return result
         except Exception:
             return await func(self, query, timeout_ms, user_id)
+
     return wrapper
 
 
@@ -66,15 +73,9 @@ class RAGLightService:
         self.ab_testing = ab_testing_service
         self.reranking_service = reranking_service
         self.query_rewriter_service = query_rewriter_service
-        self.use_reranking = (
-            config.get("reranking_enabled", False) if config else False
-        )
-        self.use_query_expansion = (
-            config.get("query_expansion_enabled", True) if config else True
-        )
-        self.use_query_rewriter = (
-            config.get("query_rewriter_enabled", True) if config else True
-        )
+        self.use_reranking = config.get("reranking_enabled", False) if config else False
+        self.use_query_expansion = config.get("query_expansion_enabled", True) if config else True
+        self.use_query_rewriter = config.get("query_rewriter_enabled", True) if config else True
         self._cache: dict = {}
         self._cache_max = 200
         self.rag_context_cache: Any = None
@@ -92,6 +93,7 @@ class RAGLightService:
         if getattr(settings, "embedding_batch_enabled", False):
             try:
                 from app.services.embedding_batch import EmbeddingBatchProcessor
+
                 self.embedding_batch_processor = EmbeddingBatchProcessor(
                     ollama_url=settings.ollama_url,
                     ollama_model=getattr(settings, "ollama_embed_model", "nomic-embed-text"),
@@ -100,9 +102,13 @@ class RAGLightService:
                 )
             except Exception as e:
                 logger.debug("EmbeddingBatchProcessor init skipped: %s", e)
-        if getattr(settings, "rag_light_prefetch_enabled", False) and self.embedding_batch_processor:
+        if (
+            getattr(settings, "rag_light_prefetch_enabled", False)
+            and self.embedding_batch_processor
+        ):
             try:
                 from app.services.rag_light_prefetch import RAGLightPrefetch
+
                 self.prefetch_service = RAGLightPrefetch(
                     self.embedding_batch_processor,
                     prefetch_file=getattr(settings, "rag_light_prefetch_file", None),
@@ -112,6 +118,7 @@ class RAGLightService:
         if getattr(settings, "embedding_fallback_enabled", False):
             try:
                 from app.services.embedding_fallback import EmbeddingFallback
+
                 self.fallback_service = EmbeddingFallback(
                     local_model_name=getattr(settings, "local_embedding_model", "all-MiniLM-L6-v2"),
                     keyword_fallback_enabled=getattr(settings, "keyword_fallback_enabled", True),
@@ -121,7 +128,10 @@ class RAGLightService:
         if getattr(settings, "rag_context_cache_enabled", True):
             try:
                 from app.services.rag_context_cache import get_rag_context_cache
-                ttl = getattr(settings, "rag_cache_ttl_sec", None) or getattr(settings, "rag_light_cache_ttl", 300)
+
+                ttl = getattr(settings, "rag_cache_ttl_sec", None) or getattr(
+                    settings, "rag_light_cache_ttl", 300
+                )
                 self.rag_context_cache = get_rag_context_cache(
                     ttl=ttl,
                     use_redis=bool(getattr(settings, "redis_url", None)),
@@ -207,7 +217,9 @@ class RAGLightService:
         th = threshold if threshold is not None else self.similarity_threshold
 
         if self.rag_context_cache:
-            cached = await self.rag_context_cache.get_context(query, user_id, limit=limit, threshold=th)
+            cached = await self.rag_context_cache.get_context(
+                query, user_id, limit=limit, threshold=th
+            )
             if cached:
                 return cached
 
@@ -220,12 +232,11 @@ class RAGLightService:
             limit=limit,
             threshold=th,
         )
-        result = [
-            (r.get("content") or "", float(r.get("similarity", 0)))
-            for r in rows
-        ]
+        result = [(r.get("content") or "", float(r.get("similarity", 0))) for r in rows]
         if result and self.rag_context_cache:
-            await self.rag_context_cache.save_context(query, result, user_id, limit=limit, threshold=th)
+            await self.rag_context_cache.save_context(
+                query, result, user_id, limit=limit, threshold=th
+            )
         return result
 
     async def search_with_reranking(
@@ -289,6 +300,7 @@ class RAGLightService:
             return query
         try:
             from app.services.query_expansion import expand_query, expand_query_fallback
+
             expanded = expand_query(query)
             if expanded == query:
                 expanded = expand_query_fallback(query)
@@ -300,7 +312,11 @@ class RAGLightService:
             return query
 
     async def search_one_chunk(
-        self, query: str, limit: int = 1, threshold: Optional[float] = None, user_id: Optional[str] = None
+        self,
+        query: str,
+        limit: int = 1,
+        threshold: Optional[float] = None,
+        user_id: Optional[str] = None,
     ) -> Optional[Tuple[str, float]]:
         """
         Поиск одного наиболее релевантного чанка в БЗ по вектору.
@@ -333,7 +349,9 @@ class RAGLightService:
         sim = float(r.get("similarity", 0))
         result = (content, sim)
         if self.rag_context_cache:
-            await self.rag_context_cache.save_context(query, [result], user_id, limit=1, threshold=th)
+            await self.rag_context_cache.save_context(
+                query, [result], user_id, limit=1, threshold=th
+            )
         return result
 
     def extract_direct_answer(self, query: str, chunk: str) -> str:
@@ -353,7 +371,13 @@ class RAGLightService:
         query_lower = query.lower()
         chunk_lower = chunk.lower()
         keywords = (
-            "это", "составляет", "равно", "стоит", "находится", "является", "включает",
+            "это",
+            "составляет",
+            "равно",
+            "стоит",
+            "находится",
+            "является",
+            "включает",
         )
         sentences = chunk.replace(".\n", ". ").split(". ")
         for sentence in sentences:
@@ -412,11 +436,13 @@ class RAGLightService:
         if cache_key in self._cache:
             try:
                 from app.metrics.prometheus_metrics import record_cache_hit
+
                 record_cache_hit("rag_light_context")
             except Exception:
                 pass
             return self._cache[cache_key]
         import time
+
         t0 = time.perf_counter()
         try:
             result = await asyncio.wait_for(
@@ -455,9 +481,7 @@ class RAGLightService:
                         query, self.knowledge_os
                     )
                     if chunk:
-                        logger.info(
-                            "RAG-light keyword fallback for: %s...", query[:50]
-                        )
+                        logger.info("RAG-light keyword fallback for: %s...", query[:50])
                         return self.extract_direct_answer(query, chunk)
                 return None
             best_chunk = chunks[0]
@@ -503,6 +527,7 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
         ab_testing = None
         try:
             from app.services.ab_testing import get_ab_testing_service
+
             ab_testing = get_ab_testing_service()
         except Exception:
             pass
@@ -515,6 +540,7 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
         if getattr(settings, "reranking_enabled", False):
             try:
                 from app.services.reranking import RerankingService
+
                 reranking_service = RerankingService(
                     method="text_similarity",
                     top_k=5,
@@ -525,6 +551,7 @@ def get_rag_light_service(knowledge_os=None) -> RAGLightService:
         if getattr(settings, "query_rewriter_enabled", True):
             try:
                 from app.services.query_rewriter import QueryRewriter
+
                 query_rewriter_service = QueryRewriter(use_llm=False)
             except Exception as e:
                 logger.debug("QueryRewriter init skipped: %s", e)

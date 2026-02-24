@@ -28,11 +28,11 @@ def ensure_requests():
     except ImportError:
         print("📦 Обнаружено отсутствие модуля 'requests'")
         print("🔧 Автоматическая установка...")
-        
+
         try:
             # Пробуем pip3
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"], 
-                                stdout=subprocess.DEVNULL, 
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"],
+                                stdout=subprocess.DEVNULL,
                                 stderr=subprocess.DEVNULL)
             print("✅ 'requests' успешно установлен!")
             import requests
@@ -89,7 +89,7 @@ def send_message(url: str, goal: str, max_steps: int = 500, project_context: Opt
     """Отправить сообщение Victoria"""
     try:
         print("   (это может занять некоторое время...)")
-        
+
         payload = {"goal": goal, "max_steps": max_steps}
         if project_context:
             payload["project_context"] = project_context
@@ -97,7 +97,7 @@ def send_message(url: str, goal: str, max_steps: int = 500, project_context: Opt
             payload["session_id"] = session_id
         if chat_history:
             payload["chat_history"] = chat_history
-        
+
         response = requests.post(
             f"{url}/run",
             json=payload,
@@ -121,14 +121,14 @@ def main():
     print("🤖 VICTORIA CHAT - Интерактивный чат с Victoria")
     print("=" * 60)
     print()
-    
+
     # Определяем URL
     force_remote = os.getenv("VICTORIA_REMOTE_URL") is not None
-    
+
     url = None
     print("🔍 Поиск доступной Victoria...")
     print()
-    
+
     if force_remote:
         print(f"🌐 Использование удаленной Victoria: {REMOTE_URL}")
         if check_victoria_health(REMOTE_URL, verbose=True):
@@ -163,12 +163,12 @@ def main():
             print("💡 Используйте удаленную Victoria:")
             print("   VICTORIA_REMOTE_URL=http://185.177.216.15:8010 python3 victoria_chat_standalone.py")
             sys.exit(1)
-    
+
     # Настройки чата
     project_context = os.getenv("PROJECT_CONTEXT", "atra-web-ide")
     session_id = os.getenv("SESSION_ID", f"terminal_{os.getpid()}")
     chat_history = []
-    
+
     print()
     print(f"📁 Проект: {project_context}")
     print(f"🔑 Сессия: {session_id}")
@@ -177,18 +177,18 @@ def main():
     print("💡 Команды: /status, /health, /project <name>, /help")
     print("-" * 60)
     print()
-    
+
     while True:
         try:
             user_input = input("👤 Вы: ").strip()
-            
+
             if not user_input:
                 continue
-            
+
             if user_input.lower() in ['exit', 'выход', 'quit', 'q']:
                 print("\n👋 До свидания!")
                 break
-            
+
             if user_input.lower() == '/status':
                 try:
                     response = requests.get(f"{url}/status", timeout=5)
@@ -201,7 +201,7 @@ def main():
                     print(f"❌ Ошибка: {e}")
                 print()
                 continue
-            
+
             if user_input.lower() == '/health':
                 try:
                     response = requests.get(f"{url}/health", timeout=5)
@@ -214,14 +214,14 @@ def main():
                     print(f"❌ Ошибка: {e}")
                 print()
                 continue
-            
+
             if user_input.lower().startswith('/project '):
                 new_project = user_input.split(' ', 1)[1].strip()
                 project_context = new_project
                 print(f"\n📁 Проект изменен на: {project_context}")
                 print()
                 continue
-            
+
             if user_input.lower() == '/help':
                 print("\n📚 Доступные команды:")
                 print("   /status          - показать статус Victoria")
@@ -231,20 +231,20 @@ def main():
                 print("   exit / выход     - выйти из чата")
                 print()
                 continue
-            
+
             print("\n🤔 Victoria думает...", end="", flush=True)
             result = send_message(url, user_input, project_context=project_context, session_id=session_id, chat_history=chat_history[-5:] if chat_history else None)
-            
+
             if result:
                 if result.get("status") == "success":
                     output = result.get("output", "")
                     knowledge = result.get("knowledge", {})
-                    
+
                     print("\n" + "=" * 60)
                     print("🤖 Victoria:")
                     print("=" * 60)
                     print(output)
-                    
+
                     if knowledge:
                         method = knowledge.get("method")
                         if method:
@@ -252,20 +252,20 @@ def main():
                         project_ctx = knowledge.get("project_context")
                         if project_ctx:
                             print(f"📁 Проект: {project_ctx}")
-                    
+
                     chat_history.append({"user": user_input, "assistant": output})
                     if len(chat_history) > 20:
                         chat_history.pop(0)
-                    
+
                     print("=" * 60)
                 else:
                     error = result.get("error", "Неизвестная ошибка")
                     print(f"\n❌ Ошибка: {error}")
             else:
                 print("\n❌ Не удалось получить ответ от Victoria")
-            
+
             print()
-            
+
         except KeyboardInterrupt:
             print("\n\n👋 До свидания!")
             break

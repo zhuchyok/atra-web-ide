@@ -68,12 +68,14 @@ except Exception as e:
 ### 2. Что смотреть в логах
 
 **После ручного закрытия позиции:**
+
 ```
 [DEBUG] {symbol}: Позиция: {symbol} {side} status=closed qty=0.0
 [DEBUG] {symbol}: Открытые позиции пользователя {user_id}: 0
 ```
 
 **Если позиция НЕ закрыта:**
+
 ```
 [DEBUG] {symbol}: Позиция: {symbol} {side} status=open qty={positive_number}
 [DEBUG] {symbol}: Открытые позиции пользователя {user_id}: 1
@@ -84,6 +86,7 @@ except Exception as e:
 Если после закрытия позиции система не генерирует новые сигналы, можно вручную проверить и очистить данные:
 
 1. **Проверьте базу данных:**
+
    ```bash
    sqlite3 trading.db
    SELECT * FROM user_data WHERE user_id = '{your_user_id}';
@@ -94,19 +97,20 @@ except Exception as e:
    - Если есть позиции с `status = "open"` и `qty > 0`, но позиция закрыта вручную, нужно обновить
 
 3. **Вручную обновить данные (если нужно):**
+
    ```python
    # В Python консоли
    from db import Database
    from user_utils import load_user_data_for_signals
-   
+
    db = Database()
    user_data = load_user_data_for_signals()
-   
+
    # Проверить открытые позиции для конкретного пользователя
    user_id = "YOUR_USER_ID"
    positions = user_data[user_id].get("positions", [])
    open_positions = [p for p in positions if p.get("status") == "open" and float(p.get("qty", 0)) > 0]
-   
+
    print(f"Открытые позиции: {len(open_positions)}")
    for pos in open_positions:
        print(f"{pos.get('symbol')} {pos.get('side')} status={pos.get('status')} qty={pos.get('qty')}")
@@ -122,22 +126,22 @@ def cleanup_stuck_positions(user_data_dict):
     for user_id, user_data in user_data_dict.items():
         positions = user_data.get("positions", [])
         cleaned = []
-        
+
         for pos in positions:
             # Если позиция помечена как закрытая или qty = 0, не добавляем в open_positions
             if pos.get("status") == "closed" or float(pos.get("qty", 0)) <= 0:
                 pos["status"] = "closed"
                 pos["qty"] = 0.0
             cleaned.append(pos)
-        
+
         user_data["positions"] = cleaned
         user_data["open_positions"] = [
             p for p in cleaned
             if p.get("status") == "open" and float(p.get("qty", 0)) > 0
         ]
-        
+
         print(f"[CLEANUP] Пользователь {user_id}: {len(user_data['open_positions'])} открытых позиций")
-    
+
     return user_data_dict
 ```
 

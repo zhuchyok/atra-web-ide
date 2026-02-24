@@ -8,25 +8,23 @@ import asyncio
 import logging
 import sqlite3
 import sys
+from collections.abc import Iterable, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from observability.agent_identity import authorize_agent_action
+from observability.context_engine import get_context_engine
 from observability.guidance import get_guidance
 from observability.lm_judge import get_lm_judge
-from observability.tracing import get_tracer
 from observability.prompt_manager import get_prompt_manager
-from observability.context_engine import get_context_engine
+from observability.tracing import get_tracer
 from order_audit_log import get_audit_log
 from risk_flags_manager import RiskFlagsManager
-
-from src.shared.utils.datetime_utils import get_utc_now
-
 from risk_monitor.bitget import (  # noqa: E402  pylint: disable=wrong-import-position
     BitgetProtectionStatus,
     ExpectedProtection,
@@ -55,6 +53,8 @@ from risk_monitor.telegram import (  # noqa: E402  pylint: disable=wrong-import-
     send_stoploss_alert,
 )
 
+from src.shared.utils.datetime_utils import get_utc_now
+
 logging.basicConfig(level=logging.INFO)
 LOGGER = logging.getLogger(__name__)
 
@@ -64,27 +64,28 @@ def check_large_losses(db_path: str, threshold_usd: float = -10.0, hours: int = 
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        
+
         since = get_utc_now() - timedelta(hours=hours)
-        
+
         # Проверяем наличие таблицы trades
         cursor = conn.execute("""
-            SELECT name FROM sqlite_master 
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name='trades'
         """)
         if not cursor.fetchone():
             LOGGER.debug("⚠️ Таблица trades не найдена, пропускаем проверку крупных убытков")
             conn.close()
             return []
-        
+
         # Проверяем наличие колонки user_id
         cursor = conn.execute("PRAGMA table_info(trades)")
         columns = [row[1] for row in cursor.fetchall()]
         has_user_id = "user_id" in columns
-        
+
         if has_user_id:
-            cursor = conn.execute("""
-                SELECT 
+            cursor = conn.execute(
+                """
+                SELECT
                     symbol,
                     direction,
                     entry_price,
@@ -99,10 +100,13 @@ def check_large_losses(db_path: str, threshold_usd: float = -10.0, hours: int = 
                 WHERE datetime(entry_time) >= datetime(?)
                   AND net_pnl_usd < ?
                 ORDER BY net_pnl_usd ASC
-            """, (since.isoformat(), threshold_usd))
+            """,
+                (since.isoformat(), threshold_usd),
+            )
         else:
-            cursor = conn.execute("""
-                SELECT 
+            cursor = conn.execute(
+                """
+                SELECT
                     symbol,
                     direction,
                     entry_price,
@@ -116,8 +120,10 @@ def check_large_losses(db_path: str, threshold_usd: float = -10.0, hours: int = 
                 WHERE datetime(entry_time) >= datetime(?)
                   AND net_pnl_usd < ?
                 ORDER BY net_pnl_usd ASC
-            """, (since.isoformat(), threshold_usd))
-        
+            """,
+                (since.isoformat(), threshold_usd),
+            )
+
         losses = []
         for row in cursor.fetchall():
             loss_dict = {
@@ -136,10 +142,10 @@ def check_large_losses(db_path: str, threshold_usd: float = -10.0, hours: int = 
             else:
                 loss_dict["user_id"] = "unknown"
             losses.append(loss_dict)
-        
+
         conn.close()
         return losses
-        
+
     except Exception as e:
         LOGGER.error("❌ Ошибка проверки крупных убытков: %s", e)
         return []
@@ -154,11 +160,21 @@ def parse_args() -> argparse.Namespace:
         default="data/reports/performance_live_vs_backfill.json",
         help="JSON с метриками (по умолчанию data/reports/performance_live_vs_backfill.json)",
     )
-    parser.add_argument("--warn-maxdd", type=float, default=15.0, help="Порог предупреждения по MaxDD (%)")
-    parser.add_argument("--stop-maxdd", type=float, default=18.0, help="Порог остановки по MaxDD (%)")
-    parser.add_argument("--stop-daily-loss", type=float, default=5.0, help="Порог дневного убытка (%)")
-    parser.add_argument("--weak-setup-limit", type=int, default=10, help="Количество WEAK_SETUP для стопа")
-    parser.add_argument("--hours", type=int, default=24, help="Период для расчёта дневного PnL (часы)")
+    parser.add_argument(
+        "--warn-maxdd", type=float, default=15.0, help="Порог предупреждения по MaxDD (%)"
+    )
+    parser.add_argument(
+        "--stop-maxdd", type=float, default=18.0, help="Порог остановки по MaxDD (%)"
+    )
+    parser.add_argument(
+        "--stop-daily-loss", type=float, default=5.0, help="Порог дневного убытка (%)"
+    )
+    parser.add_argument(
+        "--weak-setup-limit", type=int, default=10, help="Количество WEAK_SETUP для стопа"
+    )
+    parser.add_argument(
+        "--hours", type=int, default=24, help="Период для расчёта дневного PnL (часы)"
+    )
     parser.add_argument(
         "--signals-hours",
         type=int,
@@ -241,13 +257,26 @@ def evaluate_bitget_protection(
 ) -> Tuple[List[BitgetProtectionStatus], List[str], Dict[str, int], Dict[str, int]]:
     """Collect Bitget status and attempt auto-fix if required."""
     if not (args.check_bitget_stoploss and bitget_keys):
-        return [], [], {"sl_created": 0, "sl_failed": 0, "tp_created": 0, "tp_failed": 0, "skipped": 0}, {}
+        return (
+            [],
+            [],
+            {"sl_created": 0, "sl_failed": 0, "tp_created": 0, "tp_failed": 0, "skipped": 0},
+            {},
+        )
 
     statuses = asyncio.run(collect_bitget_protection_status(bitget_keys))
     missing_labels = [status.stoploss_label() for status in statuses if status.missing_stoploss()]
-    gaps_for_fix = [status for status in statuses if status.missing_stoploss() or status.missing_take_profit()]
+    gaps_for_fix = [
+        status for status in statuses if status.missing_stoploss() or status.missing_take_profit()
+    ]
 
-    auto_fix_summary = {"sl_created": 0, "sl_failed": 0, "tp_created": 0, "tp_failed": 0, "skipped": 0}
+    auto_fix_summary = {
+        "sl_created": 0,
+        "sl_failed": 0,
+        "tp_created": 0,
+        "tp_failed": 0,
+        "skipped": 0,
+    }
     plan_metrics: Dict[str, int] = {}
     audit = None
 
@@ -263,11 +292,15 @@ def evaluate_bitget_protection(
             )
         )
         statuses = asyncio.run(collect_bitget_protection_status(bitget_keys))
-        missing_labels = [status.stoploss_label() for status in statuses if status.missing_stoploss()]
+        missing_labels = [
+            status.stoploss_label() for status in statuses if status.missing_stoploss()
+        ]
 
     if bitget_keys:
         audit = audit or get_audit_log()
-        plan_metrics = log_bitget_plan_executions(bitget_keys, audit, {status.market_id for status in statuses})
+        plan_metrics = log_bitget_plan_executions(
+            bitget_keys, audit, {status.market_id for status in statuses}
+        )
 
     return statuses, missing_labels, auto_fix_summary, plan_metrics
 
@@ -284,7 +317,7 @@ def write_outputs(
     write_limit_market_metrics(limit_market_stats)
     write_auto_fix_metrics(auto_fix_summary)
     write_plan_metrics(plan_metrics)
-    
+
     # 🆕 Экспорт метрик агентов в Prometheus формат
     try:
         agent_metrics = get_agent_metrics()
@@ -307,7 +340,7 @@ def main() -> None:
             "hours": args.hours,
         },
     )
-    
+
     # 🆕 Загрузка системного промпта агента с умным выбором контекста
     prompt_manager = get_prompt_manager()
     agent_prompt = prompt_manager.load_prompt("risk_monitor")
@@ -318,7 +351,7 @@ def main() -> None:
             "check_bitget_stoploss": args.check_bitget_stoploss,
             "hours": args.hours,
         }
-        
+
         # 🧠 Используем ContextEngine для умного выбора контекста
         context_engine = get_context_engine()
         enriched_context = context_engine.select_context(
@@ -327,7 +360,7 @@ def main() -> None:
         )
         # Объединяем базовый и обогащенный контекст
         final_context = {**base_context, **enriched_context}
-        
+
         full_prompt = agent_prompt.get_full_prompt(final_context, use_context_engine=True)
         trace.record(
             step="think",
@@ -338,8 +371,12 @@ def main() -> None:
                 "context_keys": list(final_context.keys()),
             },
         )
-        LOGGER.debug("📝 [PROMPT] risk_monitor v%s загружен (%d символов, контекст: %s)", 
-                    agent_prompt.version, len(full_prompt), ", ".join(final_context.keys()))
+        LOGGER.debug(
+            "📝 [PROMPT] risk_monitor v%s загружен (%d символов, контекст: %s)",
+            agent_prompt.version,
+            len(full_prompt),
+            ", ".join(final_context.keys()),
+        )
     authorize_agent_action(
         agent="risk_monitor",
         permission="db:write.metrics",
@@ -361,7 +398,11 @@ def main() -> None:
                 name="guidance_loaded",
                 metadata={
                     "entries": [
-                        {"issue": entry.issue, "recommendation": entry.recommendation, "count": entry.count}
+                        {
+                            "issue": entry.issue,
+                            "recommendation": entry.recommendation,
+                            "count": entry.count,
+                        }
                         for entry in guidance_entries
                     ]
                 },
@@ -444,8 +485,7 @@ def main() -> None:
         large_losses = check_large_losses(args.db, threshold_usd=-10.0)
         if large_losses:
             LOGGER.warning(
-                "🚨 Обнаружено %d сделок с крупным убытком (PnL < -10 USD)",
-                len(large_losses)
+                "🚨 Обнаружено %d сделок с крупным убытком (PnL < -10 USD)", len(large_losses)
             )
             trace.record(
                 step="observe",
@@ -463,10 +503,11 @@ def main() -> None:
                 threshold_usd=-10.0,
                 authorize=authorize_agent_action,
             )
-            
+
             # 🆕 Публикуем событие для координации агентов
             try:
-                from observability.agent_coordinator import publish_agent_event, EventType
+                from observability.agent_coordinator import EventType, publish_agent_event
+
                 publish_agent_event(
                     event_type=EventType.RISK_ALERT,
                     agent="risk_monitor",
@@ -484,9 +525,12 @@ def main() -> None:
 
         protection_verdict = lm_judge.judge_protection(
             missing_stoploss=len(stoploss_missing),
-            auto_fix_failures=auto_fix_summary.get("sl_failed", 0) + auto_fix_summary.get("tp_failed", 0),
+            auto_fix_failures=auto_fix_summary.get("sl_failed", 0)
+            + auto_fix_summary.get("tp_failed", 0),
         )
-        trace.record(step="observe", name="lm_judge_protection", metadata=protection_verdict.to_dict())
+        trace.record(
+            step="observe", name="lm_judge_protection", metadata=protection_verdict.to_dict()
+        )
         if protection_verdict.status != "pass":
             LOGGER.warning(
                 "🧾 [JUDGE] risk_monitor verdict=%s reasons=%s",
@@ -509,4 +553,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

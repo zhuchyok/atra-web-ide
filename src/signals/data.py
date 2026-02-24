@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль работы с данными
 Вынесен из signal_live.py для рефакторинга
@@ -7,15 +6,17 @@
 
 import asyncio
 import concurrent.futures
-import pandas as pd
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 # Импорты для гибридного менеджера данных
 try:
     from hybrid_data_manager import hybrid_data_manager
+
     HYBRID_DATA_MANAGER_AVAILABLE = True
     HYBRID_DATA_MANAGER = hybrid_data_manager
 except ImportError:
@@ -36,13 +37,16 @@ except ImportError:
     try:
         from signal_live import add_technical_indicators
     except ImportError:
+
         def add_technical_indicators(df):
             return df
+
 
 # Импорт пользователей
 try:
     from src.utils.user_utils import load_user_data_for_signals
 except ImportError:
+
     def load_user_data_for_signals():
         return {}
 
@@ -60,9 +64,9 @@ async def get_symbol_data(symbol: str, force_fresh: bool = False) -> Optional[An
             else:
                 logger.error("Не доступны ни HybridDataManager, ни get_ohlc_with_fallback")
                 return None
-        
+
         # Проверяем, что данные получены и не пустые
-        if df is None or (hasattr(df, '__len__') and len(df) == 0):
+        if df is None or (hasattr(df, "__len__") and len(df) == 0):
             logger.debug("Нет данных для %s", symbol)
             return None
 
@@ -111,20 +115,24 @@ def get_symbols() -> List[str]:
         except ImportError:
             logger.error("Не удалось импортировать get_filtered_top_usdt_pairs_fast")
             return ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
-        
+
         current_loop = asyncio.get_event_loop()
         if current_loop.is_running():
             # Если loop уже запущен, используем ThreadPoolExecutor для запуска в новом event loop
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=60))
+                future = executor.submit(
+                    asyncio.run, get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=60)
+                )
                 symbols = future.result()
         else:
             # Если loop не запущен, запускаем его
-            symbols = current_loop.run_until_complete(get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=60))
+            symbols = current_loop.run_until_complete(
+                get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=60)
+            )
 
         if symbols:
             # Дополнительная фильтрация стейблкоинов, чёрного списка и некорректных символов
-            from config import STABLECOIN_SYMBOLS, BLACKLISTED_SYMBOLS
+            from config import BLACKLISTED_SYMBOLS, STABLECOIN_SYMBOLS
 
             # Фильтруем:
             # 1. Стейблкоины
@@ -132,22 +140,27 @@ def get_symbols() -> List[str]:
             # 3. Дублированные символы (CAKEUSDTUSDT, USDEUSDTUSDT и т.д.)
             # 4. Символы не заканчивающиеся на USDT
             filtered_symbols = [
-                s for s in symbols
+                s
+                for s in symbols
                 if s not in STABLECOIN_SYMBOLS
                 and s not in BLACKLISTED_SYMBOLS
-                and s.endswith('USDT')
-                and not s.endswith('USDTUSDT')  # Фильтруем дубли
-                and s.count('USDT') == 1  # Только одно вхождение USDT
+                and s.endswith("USDT")
+                and not s.endswith("USDTUSDT")  # Фильтруем дубли
+                and s.count("USDT") == 1  # Только одно вхождение USDT
             ]
 
-            logger.info("✅ Загружено %d реальных символов из API (после фильтрации: %d)",
-                       len(symbols), len(filtered_symbols))
+            logger.info(
+                "✅ Загружено %d реальных символов из API (после фильтрации: %d)",
+                len(symbols),
+                len(filtered_symbols),
+            )
             return filtered_symbols
         else:
             logger.warning("⚠️ Не удалось получить символы из API, используем fallback")
             # Fallback список без стейблкоинов
             fallback_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SNXUSDT", "DASHUSDT", "NEARUSDT"]
             from config import STABLECOIN_SYMBOLS
+
             filtered_fallback = [s for s in fallback_symbols if s not in STABLECOIN_SYMBOLS]
             return filtered_fallback
     except Exception as e:
@@ -156,8 +169,8 @@ def get_symbols() -> List[str]:
         fallback_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SNXUSDT", "DASHUSDT", "NEARUSDT"]
         try:
             from config import STABLECOIN_SYMBOLS
+
             filtered_fallback = [s for s in fallback_symbols if s not in STABLECOIN_SYMBOLS]
         except ImportError:
             filtered_fallback = fallback_symbols
         return filtered_fallback
-

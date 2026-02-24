@@ -7,6 +7,7 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 ```
 
 **Симптомы:**
+
 - Система падала при ошибке `Conflict`
 - Не было автоматического восстановления
 - Требовался ручной перезапуск
@@ -14,11 +15,13 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 ## 🔍 **Анализ**
 
 ### **Причина ошибки:**
+
 - Другой экземпляр бота использует тот же токен
 - Webhook конфликты
 - Сетевые проблемы с Telegram API
 
 ### **Текущее поведение:**
+
 - Система останавливалась при ошибке
 - Нет автоматического восстановления
 - Потеря торговых сигналов
@@ -26,6 +29,7 @@ telegram.error.Conflict: Conflict: terminated by other getUpdates request; make 
 ## ✅ **Решение**
 
 ### **1. Добавлен импорт ошибки:**
+
 ```python
 from telegram.error import (
     TelegramError,
@@ -38,6 +42,7 @@ from telegram.error import (
 ```
 
 ### **2. Обработка в функции `notify_user`:**
+
 ```python
 except telegram.error.Conflict as e:
     print(f"[notify_user] Конфликт бота для пользователя {user_id}: {e}")
@@ -47,6 +52,7 @@ except telegram.error.Conflict as e:
 ```
 
 ### **3. Обработка в цикле инициализации:**
+
 ```python
 except telegram.error.Conflict as e:
     print(f"⚠️ Конфликт бота (попытка {attempt + 1}/{max_retries}): {e}")
@@ -56,6 +62,7 @@ except telegram.error.Conflict as e:
 ```
 
 ### **4. Обработка в основном цикле:**
+
 ```python
 except telegram.error.Conflict as e:
     print(f"⚠️ Конфликт бота в основном цикле: {e}")
@@ -67,6 +74,7 @@ except telegram.error.Conflict as e:
 ## 🎯 **Результат**
 
 ### **До исправления:**
+
 ```
 ❌ telegram.error.Conflict: Conflict: terminated by other getUpdates request
 ❌ Система останавливается
@@ -74,6 +82,7 @@ except telegram.error.Conflict as e:
 ```
 
 ### **После исправления:**
+
 ```
 ⚠️ Конфликт бота: Conflict: terminated by other getUpdates request
 🔄 Делаем паузу 5 секунд и продолжаем...
@@ -84,16 +93,19 @@ except telegram.error.Conflict as e:
 ## 📊 **Логика обработки**
 
 ### **В `notify_user`:**
+
 - **Пауза:** 5 секунд
 - **Действие:** Возврат `True` (успех)
 - **Результат:** Система продолжает работу
 
 ### **В инициализации:**
+
 - **Пауза:** 10 секунд
 - **Действие:** `continue` (повтор попытки)
 - **Результат:** Не увеличивается счетчик попыток
 
 ### **В основном цикле:**
+
 - **Пауза:** 5 секунд
 - **Действие:** `continue` (продолжение)
 - **Результат:** Система не останавливается
@@ -101,16 +113,19 @@ except telegram.error.Conflict as e:
 ## 🚀 **Преимущества**
 
 ### **1. Автоматическое восстановление:**
+
 - ✅ Система не падает при ошибке `Conflict`
 - ✅ Автоматическая пауза и продолжение
 - ✅ Непрерывная работа торговых сигналов
 
 ### **2. Улучшенная стабильность:**
+
 - ✅ Обработка сетевых проблем
 - ✅ Восстановление после временных сбоев
 - ✅ Минимальные потери данных
 
 ### **3. Лучший пользовательский опыт:**
+
 - ✅ Бот продолжает отвечать на команды
 - ✅ Сигналы отправляются без перерывов
 - ✅ Нет необходимости в ручном перезапуске
@@ -118,11 +133,13 @@ except telegram.error.Conflict as e:
 ## 📝 **Технические детали**
 
 ### **Импорты:**
+
 ```python
 from telegram.error import Conflict  # ✅ Добавлен
 ```
 
 ### **Обработка ошибок:**
+
 ```python
 try:
     # Операции с Telegram API
@@ -133,6 +150,7 @@ except telegram.error.Conflict as e:
 ```
 
 ### **Логирование:**
+
 - ✅ Информативные сообщения об ошибках
 - ✅ Указание времени паузы
 - ✅ Статус восстановления
@@ -140,6 +158,7 @@ except telegram.error.Conflict as e:
 ## 🔄 **Следующие шаги**
 
 1. **Протестировать исправление:**
+
    ```bash
    python3 main.py
    ```

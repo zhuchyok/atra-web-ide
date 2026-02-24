@@ -15,11 +15,11 @@ from src.domain.entities.signal import Signal, SignalSide, SignalStatus
 class SignalModel:
     """
     ORM Model for Signal
-    
+
     This is an infrastructure concern for database persistence.
     It converts between database representation and domain entities.
     """
-    
+
     def __init__(
         self,
         id: str,
@@ -43,7 +43,7 @@ class SignalModel:
         self.status = status
         self.confidence = confidence
         self.risk_percentage = risk_percentage
-    
+
     @classmethod
     def from_entity(cls, signal: Signal) -> 'SignalModel':
         """Create model from domain entity"""
@@ -59,7 +59,7 @@ class SignalModel:
             confidence=signal.confidence,
             risk_percentage=signal.risk_percentage,
         )
-    
+
     def to_entity(self) -> Signal:
         """Convert model to domain entity"""
         return Signal(
@@ -74,4 +74,3 @@ class SignalModel:
             confidence=self.confidence,
             risk_percentage=self.risk_percentage,
         )
-

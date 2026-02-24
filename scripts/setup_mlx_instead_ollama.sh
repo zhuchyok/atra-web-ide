@@ -50,13 +50,13 @@ else
   echo "⚠️  Скрипт запуска не найден, запускаю напрямую..."
   LOG_DIR="$HOME/Library/Logs/atra"
   mkdir -p "$LOG_DIR"
-  
+
   nohup python3 -m uvicorn knowledge_os.app.mlx_api_server:app \
     --host 0.0.0.0 \
     --port 11434 \
     --app-dir "$ROOT_DIR/knowledge_os/app" \
     > "$LOG_DIR/mlx_api_server.log" 2>&1 &
-  
+
   sleep 3
   if curl -s -f "http://localhost:11434/" >/dev/null 2>&1; then
     echo "✅ MLX API Server запущен"

@@ -8,6 +8,7 @@
 ## 📊 ОПТИМАЛЬНЫЕ ПАРАМЕТРЫ ПРИМЕНЕНЫ В `config.py`
 
 ### **1. Volume Profile Filter:**
+
 ```python
 VP_FILTER_CONFIG = {
     "volume_profile_threshold": 0.6  # ✅ Уже применено
@@ -15,6 +16,7 @@ VP_FILTER_CONFIG = {
 ```
 
 ### **2. VWAP Filter:**
+
 ```python
 VWAP_FILTER_CONFIG = {
     "vwap_threshold": 0.6  # ✅ Уже применено
@@ -22,6 +24,7 @@ VWAP_FILTER_CONFIG = {
 ```
 
 ### **3. AMT Filter:**
+
 ```python
 AMT_FILTER_CONFIG = {
     "lookback": 20,  # ✅ Уже применено
@@ -31,6 +34,7 @@ AMT_FILTER_CONFIG = {
 ```
 
 ### **4. Market Profile Filter:**
+
 ```python
 MARKET_PROFILE_FILTER_CONFIG = {
     "tolerance_pct": 1.5  # ✅ Уже применено
@@ -38,6 +42,7 @@ MARKET_PROFILE_FILTER_CONFIG = {
 ```
 
 ### **5. Institutional Patterns Filter:**
+
 ```python
 INSTITUTIONAL_PATTERNS_FILTER_CONFIG = {
     "min_quality_score": 0.6  # ✅ Уже применено
@@ -45,6 +50,7 @@ INSTITUTIONAL_PATTERNS_FILTER_CONFIG = {
 ```
 
 ### **6. Order Flow Filter:**
+
 ```python
 ORDER_FLOW_FILTER_CONFIG = {
     "required_confirmations": 0,  # ✅ ДОБАВЛЕНО
@@ -53,6 +59,7 @@ ORDER_FLOW_FILTER_CONFIG = {
 ```
 
 ### **7. Microstructure Filter:**
+
 ```python
 MICROSTRUCTURE_FILTER_CONFIG = {
     "tolerance_pct": 2.5,  # ✅ ДОБАВЛЕНО
@@ -62,6 +69,7 @@ MICROSTRUCTURE_FILTER_CONFIG = {
 ```
 
 ### **8. Momentum Filter:**
+
 ```python
 MOMENTUM_FILTER_CONFIG = {
     "mfi_long": 50,  # ✅ ДОБАВЛЕНО
@@ -72,6 +80,7 @@ MOMENTUM_FILTER_CONFIG = {
 ```
 
 ### **9. Trend Strength Filter:**
+
 ```python
 TREND_STRENGTH_FILTER_CONFIG = {
     "adx_threshold": 15,  # ✅ ДОБАВЛЕНО
@@ -90,4 +99,3 @@ TREND_STRENGTH_FILTER_CONFIG = {
 ---
 
 **Статус:** Частично завершено (параметры добавлены в config.py, нужно обновить фильтры)
-

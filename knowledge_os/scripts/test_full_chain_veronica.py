@@ -11,9 +11,9 @@
   POLL_MINUTES=8 python3 scripts/test_full_chain_veronica.py   # ждать до 8 мин (для поиска)
 """
 
+import json
 import os
 import sys
-import json
 
 try:
     import requests
@@ -25,7 +25,9 @@ VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
 VERONICA_URL = os.getenv("VERONICA_URL", "http://localhost:8011")
 # Переопредели задачу: GOAL="Привет" — быстрый тест без Veronica; иначе — задача для Veronica (поиск)
 GOAL = os.getenv("GOAL", "Найди в интернете кратко: что такое LLM (одним абзацем).")
-POLL_MINUTES = int(os.getenv("POLL_MINUTES", "6"))  # макс. минут ожидания (исследование может занять 5+ мин)
+POLL_MINUTES = int(
+    os.getenv("POLL_MINUTES", "6")
+)  # макс. минут ожидания (исследование может занять 5+ мин)
 
 
 def sep():
@@ -61,7 +63,9 @@ def run_demo():
     print("      Veronica (метод/модель на её стороне): react / simple")
     sep()
     step(6, "Ответ Вероники (итог, переданный через Victoria):")
-    print("      LLM (Large Language Model) — большая языковая модель, нейросеть для генерации текста.")
+    print(
+        "      LLM (Large Language Model) — большая языковая модель, нейросеть для генерации текста."
+    )
     sep()
     step(7, "Обратно по цепочке:")
     print("      Veronica → Victoria → тебе (status=success)")
@@ -97,8 +101,11 @@ def run():
     if r.status_code == 202:
         task_id = r.json().get("task_id")
         status_url = f"{VICTORIA_URL}/run/status/{task_id}"
-        print(f"  Задача принята, task_id={task_id}. Ожидание выполнения (опрос каждые 5 с, макс. {POLL_MINUTES} мин)...")
+        print(
+            f"  Задача принята, task_id={task_id}. Ожидание выполнения (опрос каждые 5 с, макс. {POLL_MINUTES} мин)..."
+        )
         import time
+
         for _ in range(POLL_MINUTES * 12):
             time.sleep(5)
             sr = requests.get(status_url, timeout=10)
@@ -108,7 +115,11 @@ def run():
             rec = sr.json()
             st = rec.get("status")
             if st == "completed":
-                data = {"status": rec.get("status"), "output": rec.get("output"), "knowledge": rec.get("knowledge")}
+                data = {
+                    "status": rec.get("status"),
+                    "output": rec.get("output"),
+                    "knowledge": rec.get("knowledge"),
+                }
                 break
             if st == "failed":
                 print(f"  Задача завершилась с ошибкой: {rec.get('error', 'unknown')}")
@@ -142,9 +153,11 @@ def run():
     # --- Шаг 3: Цепочка (кому передано) ---
     step(3, "Цепочка выполнения:")
     if delegated_to:
-        print(f"      Ты → Victoria (:8010) → {delegated_to} (:8011) → выполнение → обратно в Victoria → тебе")
+        print(
+            f"      Ты → Victoria (:8010) → {delegated_to} (:8011) → выполнение → обратно в Victoria → тебе"
+        )
     else:
-        print(f"      Ты → Victoria (:8010) → выполнение самой Victoria (без делегирования) → тебе")
+        print("      Ты → Victoria (:8010) → выполнение самой Victoria (без делегирования) → тебе")
     sep()
 
     # --- Шаг 4: Шаги координации ---
@@ -193,7 +206,7 @@ def run():
             v_knowledge = vdata.get("knowledge") or {}
             v_method = v_knowledge.get("method", "?")
             print(f"      Veronica method (прямой ответ): {v_method}")
-            print(f"      Veronica output (первые 800 символов):")
+            print("      Veronica output (первые 800 символов):")
             print("      " + (v_out[:800].replace("\n", "\n      ") if v_out else "(пусто)"))
         else:
             print(f"      Veronica HTTP {rv.status_code}: {rv.text[:300]}")

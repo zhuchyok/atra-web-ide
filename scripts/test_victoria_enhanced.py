@@ -24,9 +24,9 @@ async def test_victoria_enhanced():
     """Тестирование Victoria Enhanced"""
     try:
         from knowledge_os.app.victoria_enhanced import VictoriaEnhanced
-        
+
         print("🚀 Запуск тестирования Victoria Enhanced...\n")
-        
+
         # Инициализируем Victoria Enhanced
         victoria = VictoriaEnhanced(
             model_name="phi3.5:3.8b",
@@ -36,7 +36,7 @@ async def test_victoria_enhanced():
             use_consensus=True,
             use_collective_memory=True
         )
-        
+
         # Проверяем статус компонентов
         print("=" * 60)
         print("📊 СТАТУС КОМПОНЕНТОВ")
@@ -45,11 +45,11 @@ async def test_victoria_enhanced():
         for key, value in status.items():
             icon = "✅" if value else "❌"
             print(f"{icon} {key}: {value}")
-        
+
         print("\n" + "=" * 60)
         print("🧪 ТЕСТИРОВАНИЕ РАЗНЫХ ТИПОВ ЗАДАЧ")
         print("=" * 60)
-        
+
         # Тест 1: Reasoning задача
         print("\n1️⃣ Reasoning задача:")
         print("   Задача: Реши задачу: У Маши было 5 яблок, она отдала 2, затем купила 3. Сколько яблок у Маши?")
@@ -61,7 +61,7 @@ async def test_victoria_enhanced():
         print(f"   ✅ Результат: {str(result1.get('result', ''))[:300]}")
         if 'confidence' in result1:
             print(f"   ✅ Уверенность: {result1['confidence']:.2f}")
-        
+
         # Тест 2: Planning задача
         print("\n2️⃣ Planning задача:")
         print("   Задача: Спланируй оптимизацию производительности веб-приложения")
@@ -71,7 +71,7 @@ async def test_victoria_enhanced():
         )
         print(f"   ✅ Метод: {result2.get('method')}")
         print(f"   ✅ Результат: {str(result2.get('result', ''))[:300]}")
-        
+
         # Тест 3: Complex задача (Swarm)
         print("\n3️⃣ Complex задача (Swarm Intelligence):")
         print("   Задача: Как улучшить работу мультиагентной системы?")
@@ -83,7 +83,7 @@ async def test_victoria_enhanced():
         print(f"   ✅ Результат: {str(result3.get('result', ''))[:300]}")
         if 'global_best_score' in result3:
             print(f"   ✅ Score: {result3['global_best_score']:.2f}")
-        
+
         # Тест 4: Execution задача (ReAct)
         print("\n4️⃣ Execution задача (ReAct):")
         print("   Задача: Выполни анализ структуры проекта")
@@ -95,13 +95,13 @@ async def test_victoria_enhanced():
         print(f"   ✅ Результат: {str(result4.get('result', ''))[:300]}")
         if 'steps' in result4:
             print(f"   ✅ Шагов: {result4['steps']}")
-        
+
         print("\n" + "=" * 60)
         print("✅ ТЕСТИРОВАНИЕ ЗАВЕРШЕНО")
         print("=" * 60)
-        
+
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Ошибка тестирования: {e}")
         import traceback

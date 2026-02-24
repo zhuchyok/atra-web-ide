@@ -79,6 +79,7 @@ await ai_integration.update_pattern_from_closed_trade(
 **Скрипт:** `scripts/sync_trades_to_patterns.py`
 
 **Использование:**
+
 ```bash
 # Синхронизация за последние 24 часа
 python3 scripts/sync_trades_to_patterns.py --hours 24
@@ -88,6 +89,7 @@ python3 scripts/sync_trades_to_patterns.py --hours 24 --dry-run
 ```
 
 **Рекомендуется добавить в cron:**
+
 ```bash
 # Каждый час синхронизировать закрытые сделки
 0 * * * * cd /path/to/atra && python3 scripts/sync_trades_to_patterns.py --hours 1
@@ -98,27 +100,32 @@ python3 scripts/sync_trades_to_patterns.py --hours 24 --dry-run
 ## 📊 Полный цикл обновления паттернов
 
 ### 1. Открытие сигнала:
+
 ```
 Сигнал отправлен → record_signal_pattern_on_send() → Паттерн со статусом PENDING
 Сигнал принят → record_signal_pattern() → Паттерн со статусом ACCEPTED
 ```
 
 ### 2. Закрытие позиции:
+
 ```
 Позиция закрыта → update_pattern_from_closed_trade() → Паттерн обновлён результатом (WIN/LOSS)
 ```
 
 ### 3. Автоматический импорт:
+
 ```
 Каждый час → sync_trades_to_patterns.py → Импорт закрытых сделок из trading.db
 ```
 
 ### 4. Непрерывное обучение:
+
 ```
 Каждый час → continuous_learning() → Оптимизация параметров на основе новых паттернов
 ```
 
 ### 5. Обновление параметров:
+
 ```
 Каждые 6 часов → SymbolSpecificOptimizer → Обновление индивидуальных параметров для символов
 ```
@@ -138,6 +145,7 @@ python3 scripts/sync_trades_to_patterns.py --hours 24 --dry-run
 ## ✅ Итог
 
 **Что работает:**
+
 - ✅ Добавление паттернов при открытии сигналов
 - ✅ Обновление паттернов при закрытии сделок (НОВОЕ)
 - ✅ Автоматический импорт из trading.db (НОВОЕ)
@@ -146,6 +154,7 @@ python3 scripts/sync_trades_to_patterns.py --hours 24 --dry-run
 - ✅ Обновление индивидуальных параметров (каждые 6 часов)
 
 **Система полностью автоматизирована:**
+
 - 🟢 Паттерны обновляются автоматически
 - 🟢 Параметры оптимизируются автоматически
 - 🟢 Система учится на реальных результатах

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS knowledge_translations (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(knowledge_node_id, language_code)
 );
 
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ui_translations (
     context VARCHAR(100), -- 'dashboard', 'api', 'telegram', etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(language_code, translation_key, context)
 );
 
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS user_language_preferences (
     search_language VARCHAR(10) DEFAULT 'auto', -- 'auto' = автоматическое определение
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     PRIMARY KEY (user_id)
 );
 
@@ -86,7 +86,7 @@ BEGIN
     FROM knowledge_translations
     WHERE knowledge_node_id = node_id
       AND language_code = lang_code;
-    
+
     -- Если перевода нет, возвращаем оригинал
     IF translated IS NULL THEN
         SELECT content INTO original_content
@@ -94,7 +94,7 @@ BEGIN
         WHERE id = node_id;
         RETURN original_content;
     END IF;
-    
+
     RETURN translated;
 END;
 $$ LANGUAGE plpgsql;
@@ -122,9 +122,9 @@ BEGIN
             lang_code := 'en';
         END IF;
     END IF;
-    
+
     RETURN QUERY
-    SELECT 
+    SELECT
         k.id as node_id,
         COALESCE(kt.translated_content, k.content) as content,
         COALESCE(kt.language_code, 'original') as language_code,
@@ -132,9 +132,9 @@ BEGIN
         d.name as domain_name
     FROM knowledge_nodes k
     JOIN domains d ON k.domain_id = d.id
-    LEFT JOIN knowledge_translations kt ON k.id = kt.knowledge_node_id 
+    LEFT JOIN knowledge_translations kt ON k.id = kt.knowledge_node_id
         AND kt.language_code = lang_code
-    WHERE 
+    WHERE
         k.content ILIKE '%' || search_query || '%'
         OR kt.translated_content ILIKE '%' || search_query || '%'
     ORDER BY k.confidence_score DESC
@@ -148,4 +148,3 @@ COMMENT ON TABLE ui_translations IS 'Локализация интерфейса
 COMMENT ON TABLE user_language_preferences IS 'Языковые настройки пользователей';
 COMMENT ON FUNCTION get_knowledge_translation IS 'Получение перевода знания на указанный язык';
 COMMENT ON FUNCTION search_knowledge_multilang IS 'Мультиязычный поиск знаний';
-

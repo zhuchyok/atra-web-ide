@@ -70,10 +70,12 @@
 **Класс:** `SignalQualityValidator`
 
 **Функции:**
+
 - `calculate_quality_score()` - расчёт общего score качества
 - `is_signal_valid()` - проверка валидности сигнала
 
 **Проверки:**
+
 - Качество данных (30%)
 - Сила тренда (25%)
 - Объём (20%)
@@ -85,12 +87,14 @@
 ### **2. Фильтры качества**
 
 **Классы:**
+
 - `PatternConfidenceScorer` - оценка надёжности паттернов
 - `DynamicSymbolBlocker` - динамическая блокировка символов
 - `SmartRSIFilter` - умный RSI фильтр
 - `PipelineMonitor` - мониторинг pipeline
 
 **Функции:**
+
 - `check_ai_volume_filter()` - фильтр объёма
 - `check_ai_volatility_filter()` - фильтр волатильности
 - `check_all_trend_alignments()` - проверка выравнивания трендов
@@ -125,6 +129,7 @@
 **Функция:** `check_ml_filter()`
 
 **Процесс:**
+
 1. Сбор индикаторов (RSI, MACD, EMA, BB, ATR, ADX)
 2. Сбор рыночных условий (BTC trend, volume ratio, volatility)
 3. Подготовка параметров сигнала (entry, TP1, TP2, risk, leverage)
@@ -132,6 +137,7 @@
 5. Проверка порогов (probability, expected profit)
 
 **Пороги:**
+
 - `ML_MIN_WIN_PROBABILITY` = 0.40 (40%)
 - `ML_MIN_EXPECTED_PROFIT` = 0.5% (0.5%)
 
@@ -142,6 +148,7 @@
 **Функция:** `_run_mtf_confirmation_with_logging()`
 
 **Процесс:**
+
 1. Попытка гибридной MTF (H4 + H1)
 2. Fallback на стандартную MTF (H4)
 3. Проверка подтверждения на старшем таймфрейме
@@ -197,12 +204,14 @@
 ## 📊 МЕТРИКИ И МОНИТОРИНГ
 
 **PipelineMonitor** отслеживает:
+
 - Общее количество попыток
 - Прохождение каждого этапа
 - Финальные сигналы
 - Распределение паттернов
 
 **Prometheus метрики:**
+
 - `signal_generated` - сгенерированные сигналы
 - `signal_accepted` - принятые сигналы
 - `signal_rejected` - отклонённые сигналы
@@ -213,6 +222,7 @@
 ## 🔧 КОНФИГУРАЦИЯ
 
 **Основные параметры:**
+
 - `filter_mode` - режим фильтров ("soft" или "strict")
 - `ai_score_threshold` - порог AI score (15.0 для soft, 25.0 для strict)
 - `ML_MIN_WIN_PROBABILITY` - минимальная вероятность успеха (0.40)
@@ -275,5 +285,4 @@ ml_passed, ml_reason, prediction = await check_ml_filter(
 
 ---
 
-*Документация подготовлена: Мария (Technical Writer)*
-
+_Документация подготовлена: Мария (Technical Writer)_

@@ -28,7 +28,7 @@ case $choice in
         echo ""
         echo "Tailscale - лучший вариант для безопасного удаленного доступа"
         echo ""
-        
+
         # Проверка установки Tailscale
         if ! command -v tailscale >/dev/null 2>&1; then
             echo "📥 Установка Tailscale..."
@@ -39,7 +39,7 @@ case $choice in
                 exit 1
             fi
         fi
-        
+
         echo "✅ Tailscale установлен"
         echo ""
         echo "📝 Инструкция:"
@@ -57,7 +57,7 @@ case $choice in
         echo "     bash scripts/update_tailscale_config.sh"
         echo ""
         ;;
-        
+
     2)
         echo ""
         echo "=============================================="
@@ -66,7 +66,7 @@ case $choice in
         echo ""
         echo "Cloudflare Tunnel - бесплатный туннель через облако"
         echo ""
-        
+
         # Проверка установки cloudflared
         if ! command -v cloudflared >/dev/null 2>&1; then
             echo "📥 Установка cloudflared..."
@@ -77,7 +77,7 @@ case $choice in
                 exit 1
             fi
         fi
-        
+
         echo "✅ cloudflared установлен"
         echo ""
         echo "📝 Инструкция:"
@@ -93,7 +93,7 @@ case $choice in
         echo ""
         echo "  5. На MacBook используйте домены вместо IP"
         echo ""
-        
+
         # Создание конфигурации tunnel.yml
         cat > "$ROOT/tunnel.yml" << 'TUNNEL_EOF'
 tunnel: atra-mac-studio
@@ -112,7 +112,7 @@ TUNNEL_EOF
         echo ""
         echo "  6. Для автозапуска создан launchd service"
         echo ""
-        
+
         # Создание launchd для автозапуска туннеля
         LAUNCHD_TUNNEL="${HOME}/Library/LaunchAgents/com.atra.cloudflare-tunnel.plist"
         cat > "$LAUNCHD_TUNNEL" << EOF
@@ -148,7 +148,7 @@ EOF
         echo "✅ Создан launchd service для автозапуска туннеля"
         echo "   Загрузите: launchctl load $LAUNCHD_TUNNEL"
         ;;
-        
+
     3)
         echo ""
         echo "=============================================="
@@ -167,10 +167,10 @@ EOF
         SERVER_PORT_VER=${SERVER_PORT_VER:-8011}
         read -p "Порт на сервере для MCP [8012]: " SERVER_PORT_MCP
         SERVER_PORT_MCP=${SERVER_PORT_MCP:-8012}
-        
+
         echo ""
         echo "📝 Создание SSH туннелей..."
-        
+
         # Создание скрипта для SSH туннелей
         cat > "$ROOT/scripts/start_ssh_tunnels.sh" << EOF
 #!/bin/bash
@@ -203,7 +203,7 @@ EOF
         echo ""
         echo "📝 Для автозапуска создайте launchd service или добавьте в cron"
         ;;
-        
+
     4)
         echo ""
         echo "=============================================="
@@ -212,7 +212,7 @@ EOF
         echo ""
         echo "Ngrok - быстрый туннель для тестирования"
         echo ""
-        
+
         # Проверка установки ngrok
         if ! command -v ngrok >/dev/null 2>&1; then
             echo "📥 Установка ngrok..."
@@ -223,7 +223,7 @@ EOF
                 exit 1
             fi
         fi
-        
+
         echo "✅ ngrok установлен"
         echo ""
         echo "📝 Инструкция:"
@@ -238,7 +238,7 @@ EOF
         echo "  ⚠️  ВАЖНО: Ngrok бесплатный план имеет ограничения"
         echo "     Для продакшена используйте Tailscale или Cloudflare Tunnel"
         ;;
-        
+
     *)
         echo "❌ Неверный выбор"
         exit 1

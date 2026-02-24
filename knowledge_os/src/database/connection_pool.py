@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 🔧 Connection Pool для SQLite (Игорь - после обучения 30%)
 
@@ -7,11 +6,11 @@
 Использует singleton pattern для переиспользования соединений.
 """
 
+import logging
 import sqlite3
 import threading
-import logging
-from typing import Optional, Dict
 from contextlib import contextmanager
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class SQLiteConnectionPool:
     Это критично для производительности и предотвращения блокировок.
     """
 
-    _instance: Optional['SQLiteConnectionPool'] = None
+    _instance: Optional["SQLiteConnectionPool"] = None
     _lock = threading.Lock()
 
     def __init__(self, db_path: str, max_connections: int = 5):
@@ -48,13 +47,13 @@ class SQLiteConnectionPool:
             "PRAGMA journal_mode=WAL;",
             "PRAGMA synchronous=NORMAL;",
             "PRAGMA busy_timeout=30000;",
-            "PRAGMA foreign_keys=ON;"
+            "PRAGMA foreign_keys=ON;",
         ]
 
         logger.info("📊 SQLite Connection Pool создан: %s, max=%s", db_path, max_connections)
 
     @classmethod
-    def get_instance(cls, db_path: str = None, max_connections: int = 5) -> 'SQLiteConnectionPool':
+    def get_instance(cls, db_path: str = None, max_connections: int = 5) -> "SQLiteConnectionPool":
         """
         Получить singleton экземпляр пула
 
@@ -72,11 +71,7 @@ class SQLiteConnectionPool:
 
     def _create_connection(self) -> sqlite3.Connection:
         """Создает новое соединение с настройками"""
-        conn = sqlite3.connect(
-            self.db_path,
-            check_same_thread=False,
-            timeout=30.0
-        )
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
 
         # Применяем PRAGMA настройки
         for pragma in self._default_pragmas:
@@ -114,7 +109,11 @@ class SQLiteConnectionPool:
                     self._connection_counter += 1
                     self._connections[conn_id] = self._create_connection()
                     self._in_use[conn_id] = True
-                    logger.debug("📊 Создано новое соединение #%s (всего: %s)", conn_id, len(self._connections))
+                    logger.debug(
+                        "📊 Создано новое соединение #%s (всего: %s)",
+                        conn_id,
+                        len(self._connections),
+                    )
 
             if conn_id is None:
                 # Все соединения заняты - создаем временное
@@ -162,10 +161,10 @@ class SQLiteConnectionPool:
         """Возвращает статистику пула"""
         with self._pool_lock:
             return {
-                'total_connections': len(self._connections),
-                'in_use': sum(1 for in_use in self._in_use.values() if in_use),
-                'available': sum(1 for in_use in self._in_use.values() if not in_use),
-                'max_connections': self.max_connections
+                "total_connections": len(self._connections),
+                "in_use": sum(1 for in_use in self._in_use.values() if in_use),
+                "available": sum(1 for in_use in self._in_use.values() if not in_use),
+                "max_connections": self.max_connections,
             }
 
 

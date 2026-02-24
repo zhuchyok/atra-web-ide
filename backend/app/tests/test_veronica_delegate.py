@@ -3,6 +3,7 @@
 Используется mock aiohttp — без живого Veronica. Связь с docs/TESTING_FULL_SYSTEM.md.
 Запуск: pytest backend/app/tests/test_veronica_delegate.py -v
 """
+
 import os
 import sys
 from pathlib import Path
@@ -42,7 +43,12 @@ async def test_delegate_200_returns_dict():
     """HTTP 200 + dict → dict с status, output, knowledge, correlation_id."""
     payload = {"status": "success", "output": "Список файлов: a, b", "knowledge": {"steps": []}}
     session = _make_session_mock(200, payload)
-    with patch("aiohttp.ClientSession", return_value=MagicMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None))):
+    with patch(
+        "aiohttp.ClientSession",
+        return_value=MagicMock(
+            __aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None)
+        ),
+    ):
         result = await delegate_to_veronica("покажи файлы", "atra-web-ide", "corr-123")
     assert result is not None
     assert result["status"] == "success"
@@ -55,7 +61,12 @@ async def test_delegate_200_returns_dict():
 async def test_delegate_non_200_returns_none():
     """HTTP не 200 → None."""
     session = _make_session_mock(503, {"error": "overload"})
-    with patch("aiohttp.ClientSession", return_value=MagicMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None))):
+    with patch(
+        "aiohttp.ClientSession",
+        return_value=MagicMock(
+            __aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None)
+        ),
+    ):
         result = await delegate_to_veronica("покажи файлы", "atra-web-ide", None)
     assert result is None
 
@@ -66,7 +77,12 @@ async def test_delegate_exception_returns_none():
     session = MagicMock()
     session.post.return_value.__aenter__ = AsyncMock(side_effect=TimeoutError("timeout"))
     session.post.return_value.__aexit__ = AsyncMock(return_value=None)
-    with patch("aiohttp.ClientSession", return_value=MagicMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None))):
+    with patch(
+        "aiohttp.ClientSession",
+        return_value=MagicMock(
+            __aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None)
+        ),
+    ):
         result = await delegate_to_veronica("покажи файлы", "atra-web-ide", None)
     assert result is None
 
@@ -75,6 +91,11 @@ async def test_delegate_exception_returns_none():
 async def test_delegate_response_not_dict_returns_none():
     """Ответ не dict (например список) → None."""
     session = _make_session_mock(200, ["not", "a", "dict"])
-    with patch("aiohttp.ClientSession", return_value=MagicMock(__aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None))):
+    with patch(
+        "aiohttp.ClientSession",
+        return_value=MagicMock(
+            __aenter__=AsyncMock(return_value=session), __aexit__=AsyncMock(return_value=None)
+        ),
+    ):
         result = await delegate_to_veronica("покажи файлы", "atra-web-ide", None)
     assert result is None

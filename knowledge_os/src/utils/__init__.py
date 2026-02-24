@@ -8,7 +8,7 @@
 """
 
 __all__ = [
-    'CacheManager',
-    'get_symbol_precision',
-    'shared_utils',
+    "CacheManager",
+    "get_symbol_precision",
+    "shared_utils",
 ]

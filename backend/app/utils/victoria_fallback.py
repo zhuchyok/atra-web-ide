@@ -80,9 +80,7 @@ async def call_victoria_with_fallback(
         return {"status": "victoria", "response": response_text, "source": "Victoria Agent"}
 
     except (httpx.TimeoutException, httpx.ConnectError) as e:
-        logger.warning(
-            f"Victoria unavailable ({type(e).__name__}: {e}), trying Veronica fallback"
-        )
+        logger.warning(f"Victoria unavailable ({type(e).__name__}: {e}), trying Veronica fallback")
 
         # Try Veronica (single attempt, shorter timeout)
         try:

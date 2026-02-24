@@ -35,10 +35,10 @@
 
    # Обновление системы
    sudo apt update && sudo apt upgrade -y
-   
+
    # Установка Python 3.9+
    sudo apt install python3.9 python3.9-pip python3.9-venv -y
-   
+
    # Установка Git
    sudo apt install git -y
 
@@ -49,7 +49,7 @@
    # Создание пользователя для бота
    sudo useradd -m -s /bin/bash atra
    sudo usermod -aG sudo atra
-   
+
    # Переключение на пользователя
    sudo su - atra
 
@@ -60,11 +60,11 @@
    # Клонирование проекта
    git clone https://github.com/your-repo/atra.git
    cd atra
-   
+
    # Создание виртуального окружения
    python3.9 -m venv venv
    source venv/bin/activate
-   
+
    # Установка зависимостей
    pip install -r requirements.txt
 
@@ -75,7 +75,7 @@
    # Создание файла конфигурации
    cp .env.example .env
    nano .env
-   
+
    # Настройка переменных окружения
    export TELEGRAM_BOT_TOKEN="your_bot_token"
    export DATABASE_URL="sqlite:///atra.db"
@@ -89,25 +89,25 @@ Docker развертывание
 .. code-block:: dockerfile
 
    FROM python:3.9-slim
-   
+
    WORKDIR /app
-   
+
    # Установка системных зависимостей
    RUN apt-get update && apt-get install -y \
        gcc \
        g++ \
        && rm -rf /var/lib/apt/lists/*
-   
+
    # Копирование файлов
    COPY requirements.txt .
    RUN pip install --no-cache-dir -r requirements.txt
-   
+
    COPY . .
-   
+
    # Создание пользователя
    RUN useradd -m -u 1000 atra
    USER atra
-   
+
    # Запуск приложения
    CMD ["python", "main.py"]
 
@@ -116,7 +116,7 @@ Docker развертывание
 .. code-block:: yaml
 
    version: '3.8'
-   
+
    services:
      atra:
        build: .
@@ -131,7 +131,7 @@ Docker развертывание
          - ./logs:/app/logs
        networks:
          - atra-network
-   
+
      nginx:
        image: nginx:alpine
        container_name: atra-nginx
@@ -143,7 +143,7 @@ Docker развертывание
          - ./nginx.conf:/etc/nginx/nginx.conf
        networks:
          - atra-network
-   
+
    networks:
      atra-network:
        driver: bridge
@@ -154,10 +154,10 @@ Docker развертывание
 
    # Сборка и запуск
    docker-compose up -d
-   
+
    # Просмотр логов
    docker-compose logs -f atra
-   
+
    # Остановка
    docker-compose down
 
@@ -173,7 +173,7 @@ Systemd сервис
    [Unit]
    Description=ATRA Trading Bot
    After=network.target
-   
+
    [Service]
    Type=simple
    User=atra
@@ -183,7 +183,7 @@ Systemd сервис
    ExecStart=/home/atra/atra/venv/bin/python main.py
    Restart=always
    RestartSec=10
-   
+
    [Install]
    WantedBy=multi-user.target
 
@@ -193,16 +193,16 @@ Systemd сервис
 
    # Перезагрузка systemd
    sudo systemctl daemon-reload
-   
+
    # Включение автозапуска
    sudo systemctl enable atra
-   
+
    # Запуск сервиса
    sudo systemctl start atra
-   
+
    # Проверка статуса
    sudo systemctl status atra
-   
+
    # Просмотр логов
    sudo journalctl -u atra -f
 
@@ -218,7 +218,7 @@ Nginx конфигурация
    server {
        listen 80;
        server_name your-domain.com;
-       
+
        location / {
            proxy_pass http://localhost:8000;
            proxy_set_header Host $host;
@@ -226,7 +226,7 @@ Nginx конфигурация
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto $scheme;
        }
-       
+
        location /static/ {
            alias /home/atra/atra/static/;
        }
@@ -238,7 +238,7 @@ Nginx конфигурация
 
    # Установка Certbot
    sudo apt install certbot python3-certbot-nginx -y
-   
+
    # Получение SSL сертификата
    sudo certbot --nginx -d your-domain.com
 
@@ -253,7 +253,7 @@ Nginx конфигурация
    tail -f logs/system.log
    tail -f logs/errors.log
    tail -f logs/trades.log
-   
+
    # Ротация логов
    sudo logrotate -f /etc/logrotate.d/atra
 
@@ -287,22 +287,22 @@ Nginx конфигурация
 .. code-block:: bash
 
    #!/bin/bash
-   
+
    BACKUP_DIR="/home/atra/backups"
    DATE=$(date +%Y%m%d_%H%M%S)
-   
+
    # Создание директории для бэкапов
    mkdir -p $BACKUP_DIR
-   
+
    # Бэкап базы данных
    cp atra.db $BACKUP_DIR/atra_$DATE.db
-   
+
    # Бэкап конфигурации
    cp .env $BACKUP_DIR/env_$DATE
-   
+
    # Бэкап логов
    tar -czf $BACKUP_DIR/logs_$DATE.tar.gz logs/
-   
+
    # Удаление старых бэкапов (старше 30 дней)
    find $BACKUP_DIR -name "*.db" -mtime +30 -delete
    find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
@@ -313,7 +313,7 @@ Nginx конфигурация
 
    # Добавление в crontab
    crontab -e
-   
+
    # Ежедневный бэкап в 2:00
    0 2 * * * /home/atra/backup.sh
 
@@ -326,17 +326,17 @@ Nginx конфигурация
 
    # Остановка сервиса
    sudo systemctl stop atra
-   
+
    # Обновление кода
    git pull origin main
-   
+
    # Обновление зависимостей
    source venv/bin/activate
    pip install -r requirements.txt
-   
+
    # Запуск тестов
    python run_tests.py
-   
+
    # Запуск сервиса
    sudo systemctl start atra
 
@@ -346,7 +346,7 @@ Nginx конфигурация
 
    # Откат к предыдущей версии
    git reset --hard HEAD~1
-   
+
    # Перезапуск сервиса
    sudo systemctl restart atra
 
@@ -371,7 +371,7 @@ Nginx конфигурация
    # Отключение root логина
    sudo nano /etc/ssh/sshd_config
    # PermitRootLogin no
-   
+
    # Перезапуск SSH
    sudo systemctl restart ssh
 
@@ -393,7 +393,7 @@ Nginx конфигурация
    # Статус сервисов
    sudo systemctl status atra
    sudo systemctl status nginx
-   
+
    # Проверка портов
    netstat -tlnp | grep :80
    netstat -tlnp | grep :443
@@ -404,7 +404,7 @@ Nginx конфигурация
 
    # Проверка логов приложения
    tail -f logs/system.log
-   
+
    # Проверка логов nginx
    tail -f /var/log/nginx/access.log
    tail -f /var/log/nginx/error.log
@@ -415,9 +415,9 @@ Nginx конфигурация
 
    # Запуск тестов
    python run_tests.py
-   
+
    # Проверка API
    curl http://localhost:8000/health
-   
+
    # Проверка Telegram бота
    # Отправьте команду /start боту

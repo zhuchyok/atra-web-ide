@@ -26,4 +26,3 @@ ps aux | grep "python.*main.py" | grep -v grep
 echo ""
 echo "📋 Последние строки лога:"
 tail -20 main.log
-

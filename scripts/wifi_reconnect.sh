@@ -44,37 +44,37 @@ check_internet_via_wifi() {
 # Функция переподключения к Wi-Fi
 reconnect_wifi() {
     log "🔄 Попытка переподключения к Wi-Fi..."
-    
+
     # Получаем список доступных Wi-Fi сетей
     WIFI_INTERFACE=$(networksetup -listallhardwareports | grep -A 1 "Wi-Fi" | grep "Device" | awk '{print $2}')
-    
+
     if [ -z "$WIFI_INTERFACE" ]; then
         log "❌ Wi-Fi интерфейс не найден"
         return 1
     fi
-    
+
     log "   Интерфейс Wi-Fi: $WIFI_INTERFACE"
-    
+
     # Выключаем Wi-Fi
     log "   Выключаю Wi-Fi..."
     networksetup -setairportpower "$WIFI_INTERFACE" off
     sleep 2
-    
+
     # Включаем Wi-Fi
     log "   Включаю Wi-Fi..."
     networksetup -setairportpower "$WIFI_INTERFACE" on
     sleep 5
-    
+
     # Пробуем подключиться к последней использованной сети
     log "   Подключаюсь к последней использованной сети..."
-    
+
     # Ждем подключения (до 30 секунд)
     MAX_WAIT=30
     WAITED=0
     while [ $WAITED -lt $MAX_WAIT ]; do
         if check_wifi_connected; then
             log "✅ Wi-Fi подключен"
-            
+
             # Проверяем интернет
             sleep 3
             if check_internet_via_wifi; then
@@ -88,7 +88,7 @@ reconnect_wifi() {
         sleep 2
         WAITED=$((WAITED + 2))
     done
-    
+
     log "❌ Не удалось подключиться к Wi-Fi за $MAX_WAIT секунд"
     return 1
 }

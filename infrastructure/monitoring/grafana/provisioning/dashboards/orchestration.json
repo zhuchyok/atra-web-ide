@@ -15,20 +15,35 @@
             "legendFormat": "Tasks/sec"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
       },
       {
         "id": 2,
         "title": "Phase Durations",
         "type": "timeseries",
         "targets": [
-          {"expr": "orchestration_phase_duration_seconds{phase=\"receive\"}", "legendFormat": "Receive"},
-          {"expr": "orchestration_phase_duration_seconds{phase=\"analyze\"}", "legendFormat": "Analyze"},
-          {"expr": "orchestration_phase_duration_seconds{phase=\"decompose\"}", "legendFormat": "Decompose"},
-          {"expr": "orchestration_phase_duration_seconds{phase=\"strategy\"}", "legendFormat": "Strategy"},
-          {"expr": "orchestration_phase_duration_seconds{phase=\"experts\"}", "legendFormat": "Experts"}
+          {
+            "expr": "orchestration_phase_duration_seconds{phase=\"receive\"}",
+            "legendFormat": "Receive"
+          },
+          {
+            "expr": "orchestration_phase_duration_seconds{phase=\"analyze\"}",
+            "legendFormat": "Analyze"
+          },
+          {
+            "expr": "orchestration_phase_duration_seconds{phase=\"decompose\"}",
+            "legendFormat": "Decompose"
+          },
+          {
+            "expr": "orchestration_phase_duration_seconds{phase=\"strategy\"}",
+            "legendFormat": "Strategy"
+          },
+          {
+            "expr": "orchestration_phase_duration_seconds{phase=\"experts\"}",
+            "legendFormat": "Experts"
+          }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
       },
       {
         "id": 3,
@@ -40,7 +55,7 @@
             "legendFormat": "Success %"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
       },
       {
         "id": 4,
@@ -52,7 +67,7 @@
             "legendFormat": "Avg duration"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
       },
       {
         "id": 5,
@@ -64,7 +79,7 @@
             "legendFormat": "Subtasks/task"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
       },
       {
         "id": 6,
@@ -76,7 +91,7 @@
             "legendFormat": "Experts/task"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
       }
     ],
     "schemaVersion": 16,

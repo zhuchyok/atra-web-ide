@@ -8,9 +8,11 @@
 ## ✅ ОПТИМИЗИРОВАННЫЕ ФИЛЬТРЫ
 
 ### 1. 🔵 Order Flow Filter
+
 **Файл:** `src/filters/order_flow_filter.py`  
 **Статус:** ✅ Оптимизирован  
 **Параметры:**
+
 - `required_confirmations`: 0 (только PR проверка)
 - `pr_threshold`: 0.5
 
@@ -19,9 +21,11 @@
 ---
 
 ### 2. 🟢 Microstructure Filter
+
 **Файл:** `src/filters/microstructure_filter.py`  
 **Статус:** ✅ Оптимизирован  
 **Параметры:**
+
 - `tolerance_pct`: 2.5
 - `min_strength`: 0.1
 - `lookback`: 30
@@ -31,9 +35,11 @@
 ---
 
 ### 3. 🟡 Momentum Filter
+
 **Файл:** `src/filters/momentum_filter.py`  
 **Статус:** ✅ Оптимизирован  
 **Параметры:**
+
 - `mfi_long`: 50
 - `mfi_short`: 50
 - `stoch_long`: 50
@@ -44,9 +50,11 @@
 ---
 
 ### 4. 🟣 Trend Strength Filter
+
 **Файл:** `src/filters/trend_strength_filter.py`  
 **Статус:** ✅ Оптимизирован  
 **Параметры:**
+
 - `adx_threshold`: 15
 - `require_direction`: false
 
@@ -57,9 +65,11 @@
 ## ❌ НЕ ОПТИМИЗИРОВАННЫЕ ФИЛЬТРЫ (ТРЕБУЮТ ДОБАВЛЕНИЯ)
 
 ### 5. 📊 Volume Profile (VP) Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Статус:** ❌ Не оптимизирован  
 **Параметры для оптимизации:**
+
 - `volume_profile_threshold`: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 **Описание:** Фильтр на основе Volume Profile (VPVR) - проверяет расположение цены относительно Value Area  
@@ -68,9 +78,11 @@
 ---
 
 ### 6. 📈 VWAP Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Статус:** ❌ Не оптимизирован  
 **Параметры для оптимизации:**
+
 - `vwap_threshold`: [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 **Описание:** Фильтр на основе VWAP и его стандартных отклонений
@@ -78,9 +90,11 @@
 ---
 
 ### 7. 🎯 AMT (Auction Market Theory) Filter
+
 **Файл:** `src/filters/amt_filter.py`  
 **Статус:** ❌ Не оптимизирован  
 **Параметры для оптимизации:**
+
 - `lookback`: [15, 20, 25]
 - `balance_threshold`: [0.2, 0.3, 0.4]
 - `imbalance_threshold`: [0.5, 0.6, 0.7]
@@ -90,9 +104,11 @@
 ---
 
 ### 8. 📉 Market Profile (TPO) Filter
+
 **Файл:** `src/filters/market_profile_filter.py`  
 **Статус:** ❌ Не оптимизирован  
 **Параметры для оптимизации:**
+
 - `tolerance_pct`: [0.5, 1.0, 1.5, 2.0]
 
 **Описание:** Фильтр на основе Market Profile (TPO + Volume Profile) - комбинированный POC и Value Area
@@ -100,9 +116,11 @@
 ---
 
 ### 9. 🏛️ Institutional Patterns Filter
+
 **Файл:** `src/filters/institutional_patterns_filter.py`  
 **Статус:** ❌ Не оптимизирован  
 **Параметры для оптимизации:**
+
 - `min_quality_score`: [0.5, 0.6, 0.7, 0.8]
 
 **Описание:** Фильтр на основе обнаруженных паттернов институционалов (Iceberg Orders, Spoofing)
@@ -112,6 +130,7 @@
 ## 💡 ФИЛЬТРЫ ДЛЯ ВЫХОДА (НЕ ДЛЯ ВХОДА)
 
 ### 10. ⚠️ Exhaustion Filter
+
 **Файл:** `src/filters/exhaustion_filter.py`  
 **Статус:** ⚠️ Для выхода, не для входа  
 **Описание:** Фильтр для раннего выхода при исчерпании движения (Volume Exhaustion, Price Exhaustion, Liquidity Exhaustion)  
@@ -122,6 +141,7 @@
 ## 🔧 ДРУГИЕ ФИЛЬТРЫ В СИСТЕМЕ
 
 ### 11. 📰 News Filter
+
 **Файл:** `src/filters/news.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр на основе новостей - блокирует сигналы при негативных новостях
@@ -129,6 +149,7 @@
 ---
 
 ### 12. 🐋 Whale Filter
+
 **Файл:** `src/filters/whale.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр отслеживания китов - анализирует активность крупных игроков
@@ -136,6 +157,7 @@
 ---
 
 ### 13. 📊 BTC Trend Filter
+
 **Файл:** `src/filters/btc_trend.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр тренда биткоина - блокирует сигналы против тренда BTC
@@ -143,6 +165,7 @@
 ---
 
 ### 14. 📈 Dominance Trend Filter
+
 **Файл:** `src/filters/dominance_trend.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр тренда доминации BTC - блокирует LONG альтов при росте BTC.D
@@ -150,6 +173,7 @@
 ---
 
 ### 15. 🎯 Interest Zone Filter
+
 **Файл:** `src/filters/interest_zone.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр зон интереса - проверяет расположение цены относительно зон интереса
@@ -157,6 +181,7 @@
 ---
 
 ### 16. 📐 Fibonacci Zone Filter
+
 **Файл:** `src/filters/fibonacci_zone.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр Фибоначчи - проверяет расположение цены относительно уровней Фибоначчи
@@ -164,6 +189,7 @@
 ---
 
 ### 17. 📊 Volume Imbalance Filter
+
 **Файл:** `src/filters/volume_imbalance.py`  
 **Статус:** ✅ Включен в config.py  
 **Описание:** Фильтр имбалансов объема - проверяет скачки объема
@@ -240,4 +266,3 @@ USE_EXHAUSTION_FILTER = True  # Используется для раннего �
 3. Добавить параметры для новых 5 фильтров
 4. Запустить оптимизацию на 30-дневном периоде
 5. Применить оптимальные параметры
-

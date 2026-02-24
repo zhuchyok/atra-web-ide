@@ -12,12 +12,14 @@
 **Файл:** `observability/implicit_feedback.py`
 
 **Функциональность:**
+
 - ✅ `collect_from_trade()` - сбор feedback из одной сделки
 - ✅ `collect_from_trades_table()` - массовый сбор из БД
 - ✅ `convert_to_lessons()` - конвертация feedback в lessons
 - ✅ `save_feedback()` - сохранение feedback в JSON
 
 **Логика:**
+
 - Прибыльные сделки (pnl > 0) → позитивный feedback
 - Убыточные сделки (pnl < -5 USD) → негативный feedback
 - Нейтральные сделки пропускаются
@@ -25,6 +27,7 @@
 ### 2. Интеграция в FeedbackAggregator
 
 **Улучшения:**
+
 - ✅ `_load_implicit_feedback()` - загрузка неявного feedback
 - ✅ Автоматическая конвертация в lessons
 - ✅ Интеграция в `collect_lessons()`
@@ -32,6 +35,7 @@
 ### 3. Интеграция в process_feedback.py
 
 **Улучшения:**
+
 - ✅ Автоматический сбор неявного feedback
 - ✅ Сохранение feedback в JSON
 - ✅ Логирование статистики (positive/negative)
@@ -43,6 +47,7 @@
 ### Автоматический сбор:
 
 1. **Сделка закрывается:**
+
    ```python
    # В системе закрытия позиций
    feedback = collector.collect_from_trade(
@@ -58,6 +63,7 @@
    ```
 
 2. **Массовый сбор из БД:**
+
    ```python
    collector = get_implicit_feedback_collector()
    feedback_list = collector.collect_from_trades_table(lookback_days=7)
@@ -77,6 +83,7 @@ python3 scripts/process_feedback.py --apply-guidance
 ```
 
 **Процесс:**
+
 1. Автоматический анализ сделок (AutoTradeAnalyzer)
 2. Сбор неявного feedback (ImplicitFeedbackCollector)
 3. Агрегация всех источников (FeedbackAggregator)
@@ -111,6 +118,6 @@ python3 scripts/process_feedback.py --apply-guidance
 ---
 
 **См. также:**
+
 - [AGENT_DEVELOPMENT_ROADMAP.md](./AGENT_DEVELOPMENT_ROADMAP.md) - полный план развития
 - [AGENT_OPS_COMPLETE.md](./AGENT_OPS_COMPLETE.md) - Agent Ops
-

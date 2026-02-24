@@ -5,13 +5,16 @@ Anomaly Filter Module
 This module contains anomaly detection and filtering functions
 """
 
-import pandas as pd
-import numpy as np
-from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+import numpy as np
+import pandas as pd
+
 from src.shared.utils.datetime_utils import get_utc_now
+
+from ..core.cache import cache_anomaly, get_cached_anomaly
 from ..core.config import INDICATOR_SETTINGS
-from ..core.cache import get_cached_anomaly, cache_anomaly
 from .base import BaseFilter, FilterResult
 from .config import ANOMALY_FILTER
 
@@ -25,8 +28,8 @@ class AnomalyFilter(BaseFilter):
     def filter_signal(self, signal_data: Dict[str, Any]) -> FilterResult:
         """Фильтрация сигнала на основе аномалий"""
         try:
-            symbol = signal_data.get('symbol', '')
-            df = signal_data.get('df')
+            symbol = signal_data.get("symbol", "")
+            df = signal_data.get("df")
 
             if df is None or df.empty:
                 return FilterResult(False, "Нет данных для анализа аномалий")
@@ -34,8 +37,9 @@ class AnomalyFilter(BaseFilter):
             # Проверяем кэш
             cached_result = get_cached_anomaly(symbol)
             if cached_result:
-                return FilterResult(cached_result.get('passed', True),
-                                  cached_result.get('reason', ''))
+                return FilterResult(
+                    cached_result.get("passed", True), cached_result.get("reason", "")
+                )
 
             # Анализируем аномалии
             anomaly_score = self.calculate_anomaly_score(df)
@@ -50,10 +54,10 @@ class AnomalyFilter(BaseFilter):
 
             # Кэшируем результат
             cache_data = {
-                'passed': result.passed,
-                'reason': result.reason,
-                'anomaly_score': anomaly_score,
-                'timestamp': get_utc_now().isoformat()
+                "passed": result.passed,
+                "reason": result.reason,
+                "anomaly_score": anomaly_score,
+                "timestamp": get_utc_now().isoformat(),
             }
             cache_anomaly(symbol, cache_data)
 
@@ -65,7 +69,7 @@ class AnomalyFilter(BaseFilter):
     def calculate_anomaly_score(self, df: pd.DataFrame) -> float:
         """Расчет скора аномалий"""
         try:
-            if df.empty or 'volume' not in df.columns or 'close' not in df.columns:
+            if df.empty or "volume" not in df.columns or "close" not in df.columns:
                 return 0.0
 
             lookback = ANOMALY_FILTER["settings"]["lookback_periods"]
@@ -83,11 +87,7 @@ class AnomalyFilter(BaseFilter):
             price_anomaly = self.calculate_price_anomaly(df, lookback)
 
             # Комбинированный скор аномалий
-            combined_score = (
-                volume_anomaly * 0.5 +
-                market_cap_anomaly * 0.3 +
-                price_anomaly * 0.2
-            )
+            combined_score = volume_anomaly * 0.5 + market_cap_anomaly * 0.3 + price_anomaly * 0.2
 
             return min(combined_score, 10.0)  # Ограничиваем максимум
 
@@ -99,10 +99,10 @@ class AnomalyFilter(BaseFilter):
         """Расчет аномалий объема"""
         try:
             # Текущий объем
-            current_volume = df['volume'].iloc[-1]
+            current_volume = df["volume"].iloc[-1]
 
             # Средний объем за период
-            avg_volume = df['volume'].iloc[-lookback:-1].mean()
+            avg_volume = df["volume"].iloc[-lookback:-1].mean()
 
             if avg_volume <= 0:
                 return 0.0
@@ -126,17 +126,17 @@ class AnomalyFilter(BaseFilter):
         """Расчет аномалий капитализации"""
         try:
             # Если нет данных о капитализации, используем объем * цена как proxy
-            if 'market_cap' in df.columns:
-                current_cap = df['market_cap'].iloc[-1]
-                avg_cap = df['market_cap'].iloc[-lookback:-1].mean()
+            if "market_cap" in df.columns:
+                current_cap = df["market_cap"].iloc[-1]
+                avg_cap = df["market_cap"].iloc[-lookback:-1].mean()
             else:
                 # Используем объем * цена как proxy для капитализации
-                current_volume = df['volume'].iloc[-1]
-                current_price = df['close'].iloc[-1]
+                current_volume = df["volume"].iloc[-1]
+                current_price = df["close"].iloc[-1]
                 current_cap = current_volume * current_price
 
-                avg_volume = df['volume'].iloc[-lookback:-1].mean()
-                avg_price = df['close'].iloc[-lookback:-1].mean()
+                avg_volume = df["volume"].iloc[-lookback:-1].mean()
+                avg_price = df["close"].iloc[-lookback:-1].mean()
                 avg_cap = avg_volume * avg_price
 
             if avg_cap <= 0:
@@ -160,8 +160,8 @@ class AnomalyFilter(BaseFilter):
     def calculate_price_anomaly(self, df: pd.DataFrame, lookback: int) -> float:
         """Расчет аномалий цены"""
         try:
-            current_price = df['close'].iloc[-1]
-            prices = df['close'].iloc[-lookback:-1]
+            current_price = df["close"].iloc[-1]
+            prices = df["close"].iloc[-lookback:-1]
 
             if len(prices) == 0:
                 return 0.0
@@ -261,24 +261,24 @@ class AnomalyFilter(BaseFilter):
             level = self.get_anomaly_level(anomaly_score)
 
             return {
-                'symbol': symbol,
-                'anomaly_score': anomaly_score,
-                'is_anomaly': is_anomaly,
-                'level': level,
-                'timestamp': get_utc_now().isoformat(),
-                'threshold': 2.0
+                "symbol": symbol,
+                "anomaly_score": anomaly_score,
+                "is_anomaly": is_anomaly,
+                "level": level,
+                "timestamp": get_utc_now().isoformat(),
+                "threshold": 2.0,
             }
 
         except Exception as e:
             print(f"[AnomalyFilter] Ошибка получения индикатора аномалий для {symbol}: {e}")
             return {
-                'symbol': symbol,
-                'anomaly_score': 0.0,
-                'is_anomaly': False,
-                'level': 'error',
-                'timestamp': get_utc_now().isoformat(),
-                'threshold': 2.0,
-                'error': str(e)
+                "symbol": symbol,
+                "anomaly_score": 0.0,
+                "is_anomaly": False,
+                "level": "error",
+                "timestamp": get_utc_now().isoformat(),
+                "threshold": 2.0,
+                "error": str(e),
             }
 
 

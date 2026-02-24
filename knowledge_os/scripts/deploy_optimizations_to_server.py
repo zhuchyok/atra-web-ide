@@ -6,8 +6,9 @@
 
 import os
 import sys
-import pexpect
 from pathlib import Path
+
+import pexpect
 
 SERVER = "root@185.177.216.15"
 PASSWORD = "u44Ww9NmtQj,XG"
@@ -51,14 +52,14 @@ def deploy_file(file_path):
     """Загружает один файл на сервер"""
     try:
         print(f"  📤 {file_path}...", end=" ", flush=True)
-        
+
         # Используем scp с pexpect для автоматического ввода пароля
         cmd = f"scp -o StrictHostKeyChecking=no {file_path} {SERVER}:{REMOTE_DIR}/{file_path}"
         child = pexpect.spawn(cmd, timeout=30)
-        
+
         # Ожидаем запрос пароля
-        index = child.expect(['password:', pexpect.EOF, pexpect.TIMEOUT], timeout=10)
-        
+        index = child.expect(["password:", pexpect.EOF, pexpect.TIMEOUT], timeout=10)
+
         if index == 0:
             child.sendline(PASSWORD)
             child.expect(pexpect.EOF)
@@ -77,7 +78,7 @@ def deploy_file(file_path):
             else:
                 print(f"❌ (код выхода: {child.exitstatus})")
                 return False
-                
+
     except pexpect.TIMEOUT:
         print("❌ (таймаут)")
         return False
@@ -92,12 +93,12 @@ def create_remote_dirs():
         print("📁 Создание директорий на сервере...")
         cmd = f"ssh -o StrictHostKeyChecking=no {SERVER} 'mkdir -p {REMOTE_DIR}/src/database {REMOTE_DIR}/scripts'"
         child = pexpect.spawn(cmd, timeout=30)
-        
-        index = child.expect(['password:', pexpect.EOF, pexpect.TIMEOUT], timeout=10)
+
+        index = child.expect(["password:", pexpect.EOF, pexpect.TIMEOUT], timeout=10)
         if index == 0:
             child.sendline(PASSWORD)
             child.expect(pexpect.EOF)
-        
+
         child.close()
         return child.exitstatus == 0
     except Exception as e:
@@ -111,12 +112,12 @@ def set_permissions():
         print("🔧 Установка прав на скрипты...")
         cmd = f"ssh -o StrictHostKeyChecking=no {SERVER} 'cd {REMOTE_DIR} && chmod +x scripts/*.py'"
         child = pexpect.spawn(cmd, timeout=30)
-        
-        index = child.expect(['password:', pexpect.EOF, pexpect.TIMEOUT], timeout=10)
+
+        index = child.expect(["password:", pexpect.EOF, pexpect.TIMEOUT], timeout=10)
         if index == 0:
             child.sendline(PASSWORD)
             child.expect(pexpect.EOF)
-        
+
         child.close()
         return child.exitstatus == 0
     except Exception as e:
@@ -130,11 +131,11 @@ def main():
     print("🚀 ДЕПЛОЙ ОПТИМИЗАЦИЙ БАЗЫ ДАННЫХ НА СЕРВЕР")
     print("=" * 70)
     print()
-    
+
     # Проверяем наличие файлов
     print("📦 Проверка файлов...")
     missing = check_files()
-    
+
     if missing:
         print()
         print(f"❌ Отсутствуют файлы ({len(missing)}):")
@@ -142,26 +143,26 @@ def main():
             print(f"   - {file}")
         print()
         response = input("Продолжить деплой без отсутствующих файлов? (y/n): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Деплой отменен.")
             return 1
-    
+
     print()
     print(f"✅ Найдено файлов: {len(FILES) - len(missing)}/{len(FILES)}")
     print()
-    
+
     # Создаем директории на сервере
     if not create_remote_dirs():
         print("⚠️  Не удалось создать директории, продолжаем...")
     print()
-    
+
     # Загружаем файлы
     print("📤 Загрузка файлов на сервер...")
     print()
-    
+
     success_count = 0
     failed_files = []
-    
+
     for file in FILES:
         if Path(file).exists():
             if deploy_file(file):
@@ -170,25 +171,25 @@ def main():
                 failed_files.append(file)
         else:
             print(f"  ⏭️  {file} (пропущен - файл не найден)")
-    
+
     print()
-    
+
     # Устанавливаем права
     set_permissions()
     print()
-    
+
     # Итоги
     print("=" * 70)
     if failed_files:
-        print(f"⚠️  Деплой завершен с ошибками:")
+        print("⚠️  Деплой завершен с ошибками:")
         print(f"   Успешно: {success_count}/{len(FILES) - len(missing)}")
         print(f"   Ошибок: {len(failed_files)}")
         for file in failed_files:
             print(f"      - {file}")
     else:
-        print(f"✅ Деплой завершен успешно!")
+        print("✅ Деплой завершен успешно!")
         print(f"   Загружено файлов: {success_count}")
-    
+
     print()
     print("📋 Следующие шаги на сервере:")
     print("   1. Применить оптимизации: python3 scripts/apply_all_optimizations.py")
@@ -196,11 +197,11 @@ def main():
     print("   3. Мониторинг: python3 scripts/monitor_database_performance.py")
     print()
     print("=" * 70)
-    
+
     return 0 if not failed_files else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
@@ -209,6 +210,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\n\n❌ Критическая ошибка: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
-

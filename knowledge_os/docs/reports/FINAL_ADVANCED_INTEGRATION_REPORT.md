@@ -7,10 +7,12 @@
 ## 📦 **СОЗДАННЫЕ МОДУЛИ:**
 
 ### **1. market_regime_detector.py** ✅
+
 **Размер:** 223 строки
 **Класс:** `MarketRegimeDetector`
 
 **Функционал:**
+
 - ✅ Определение 5 рыночных режимов
 - ✅ Расчет уверенности для каждого режима
 - ✅ Множители параметров (position, sl, tp, aggression, quality_threshold)
@@ -18,6 +20,7 @@
 - ✅ Статистика распределения режимов
 
 **Режимы:**
+
 - `BULL_TREND` - position ×1.4, sl ×0.8, tp ×1.5
 - `BEAR_TREND` - position ×0.6, sl ×1.3, tp ×1.2
 - `HIGH_VOL_RANGE` - position ×0.8, sl ×1.5, tp ×1.3
@@ -27,10 +30,12 @@
 ---
 
 ### **2. composite_signal_engine.py** ✅
+
 **Размер:** 354 строки
 **Класс:** `CompositeSignalEngine`
 
 **Функционал:**
+
 - ✅ 4 торговые стратегии:
   1. **Trend Following** - EMA, ADX, направление тренда
   2. **Mean Reversion** - RSI, BB, отклонение от MA
@@ -45,6 +50,7 @@
 - ✅ Бонус к AI score при высокой уверенности
 
 **Веса (пример для BTC_HIGH в BULL_TREND):**
+
 ```
 Trend Following: 40% × 1.4 (bull) = 56%
 Mean Reversion: 20% × 0.6 (bull) = 12%
@@ -57,9 +63,11 @@ Volume: 15% × 1.0 = 15%
 ---
 
 ### **3. Correlation Penalty в correlation_risk_manager.py** ✅
+
 **Метод:** `calculate_position_multiplier()`
 
 **Функционал:**
+
 - ✅ Расчет корреляции с КАЖДОЙ открытой позицией
 - ✅ Нелинейный штраф:
   - Корр > 0.85 → ×0.3 (-70%)
@@ -74,9 +82,11 @@ Volume: 15% × 1.0 = 15%
 ---
 
 ### **4. Regime Adjustments в adaptive_parameter_controller.py** ✅
+
 **Метод:** `apply_regime_adjustments()`
 
 **Функционал:**
+
 - ✅ Коррекция порогов score по режиму
 - ✅ Множители для каждого режима:
   - `BULL_TREND`: ×0.90 (смягчаем на 10%)
@@ -93,6 +103,7 @@ Volume: 15% × 1.0 = 15%
 ### **Добавлено:**
 
 #### **1. Импорты (строки 62-82):**
+
 ```python
 from market_regime_detector import get_regime_detector
 from composite_signal_engine import get_composite_engine
@@ -102,6 +113,7 @@ composite_engine = get_composite_engine()
 ```
 
 #### **2. Определение режима в цикле (строки 2531-2550):**
+
 ```python
 # 0. ОПРЕДЕЛЯЕМ РЫНОЧНЫЙ РЕЖИМ
 btc_data = await get_ohlc_with_fallback("BTCUSDT", "1h", limit=250)
@@ -110,6 +122,7 @@ regime_multipliers = regime_detector.get_regime_multipliers(...)
 ```
 
 #### **3. Composite signal в generate_signal (строки 1375-1403):**
+
 ```python
 # COMPOSITE SIGNAL SCORE
 composite_result = composite_engine.calculate_composite_score(df, asset_group, regime)
@@ -118,6 +131,7 @@ if composite_result['confidence'] > 0.7:
 ```
 
 #### **4. Множители режима в send_signal (строки 2003-2008):**
+
 ```python
 # ПРИМЕНЯЕМ МНОЖИТЕЛИ РЫНОЧНОГО РЕЖИМА
 if regime_multipliers:
@@ -125,6 +139,7 @@ if regime_multipliers:
 ```
 
 #### **5. Correlation penalty в send_signal (строки 2010-2029):**
+
 ```python
 # ПРИМЕНЯЕМ CORRELATION PENALTY
 penalty_data = await correlation_manager.calculate_position_multiplier(...)
@@ -187,6 +202,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ## 🎯 **ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ:**
 
 ### **Сценарий 1: BULL_TREND**
+
 ```
 Режим: BULL_TREND (уверенность: 85%)
 Эффект:
@@ -194,7 +210,7 @@ entry_amount_usdt *= penalty_data['multiplier']
   ✅ Стопы ужаты на 20% (меньше ложных срабатываний)
   ✅ Цели расширены на 50% (больше прибыль)
   ✅ Фильтры смягчены на 10% (больше сигналов)
-  
+
 Результат:
   📈 Частота сигналов: +15%
   📈 Средняя прибыль: +25%
@@ -202,6 +218,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ```
 
 ### **Сценарий 2: BEAR_TREND**
+
 ```
 Режим: BEAR_TREND (уверенность: 80%)
 Эффект:
@@ -209,7 +226,7 @@ entry_amount_usdt *= penalty_data['multiplier']
   ⚠️ Стопы расширены на 30% (защита от волатильности)
   ⚠️ Цели скромнее на 20% (быстрая фиксация)
   ⚠️ Фильтры строже на 15% (меньше сигналов)
-  
+
 Результат:
   📉 Частота сигналов: -25%
   🛡️ Защита капитала: +40%
@@ -217,13 +234,14 @@ entry_amount_usdt *= penalty_data['multiplier']
 ```
 
 ### **Сценарий 3: CRASH**
+
 ```
 Режим: CRASH (уверенность: 90%)
 Эффект:
   🚨 Позиции минимум (-70%)
   🚨 Стопы очень широкие (+100%)
   🚨 Фильтры очень строгие (+50%)
-  
+
 Результат:
   ⛔ Почти не входим в рынок
   🛡️ Максимальная защита капитала
@@ -231,6 +249,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ```
 
 ### **Сценарий 4: Высокая корреляция портфеля**
+
 ```
 Открыто: ETHUSDT, LINKUSDT
 Новый: AAVEUSDT (корр к ETH: 0.82)
@@ -247,25 +266,27 @@ entry_amount_usdt *= penalty_data['multiplier']
 
 ## 📈 **ПРОГНОЗИРУЕМЫЕ МЕТРИКИ:**
 
-| Метрика | Старая система | Новая система | Улучшение |
-|---------|----------------|---------------|-----------|
-| **Sharpe Ratio** | 1.2-1.5 | **1.8-2.3** | **+40-50%** |
-| **Win Rate** | 63-65% | **68-73%** | **+5-8%** |
-| **Profit Factor** | 1.3-1.5 | **1.7-2.1** | **+30-40%** |
-| **Max Drawdown** | 18-22% | **12-15%** | **-30-35%** |
-| **Диверсификация** | 0.65-0.70 | **0.40-0.50** | **-30% корр** |
-| **Годовая доходность** | 45-55% | **70-95%** | **+55-75%** |
+| Метрика                | Старая система | Новая система | Улучшение     |
+| ---------------------- | -------------- | ------------- | ------------- |
+| **Sharpe Ratio**       | 1.2-1.5        | **1.8-2.3**   | **+40-50%**   |
+| **Win Rate**           | 63-65%         | **68-73%**    | **+5-8%**     |
+| **Profit Factor**      | 1.3-1.5        | **1.7-2.1**   | **+30-40%**   |
+| **Max Drawdown**       | 18-22%         | **12-15%**    | **-30-35%**   |
+| **Диверсификация**     | 0.65-0.70      | **0.40-0.50** | **-30% корр** |
+| **Годовая доходность** | 45-55%         | **70-95%**    | **+55-75%**   |
 
 ---
 
 ## 🛡️ **ЗАЩИТНЫЕ МЕХАНИЗМЫ:**
 
 ### **1. Автоматическая адаптация:**
+
 - ✅ Режим определяется каждый цикл (каждый час)
 - ✅ Параметры адаптируются автоматически
 - ✅ Нет ручной настройки
 
 ### **2. Многоуровневая защита:**
+
 ```
 Проверка сигнала:
   ├─> AI Score фильтр
@@ -277,6 +298,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ```
 
 ### **3. Диверсификация портфеля:**
+
 ```
 Каждый новый сигнал:
   ├─> Проверка корреляции с открытыми позициями
@@ -290,6 +312,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ## 🎮 **ЧТО ВИДНО В ЛОГАХ:**
 
 ### **Инициализация:**
+
 ```
 ✅ MarketRegimeDetector доступен
 ✅ CompositeSignalEngine доступен
@@ -297,6 +320,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ```
 
 ### **В работе:**
+
 ```
 📊 Рыночный режим: BULL_TREND (уверенность: 85%)
 🎛️ [ETHUSDT] Режим BULL_TREND: базовая сумма 100.00 → 140.00 USDT (x1.40)
@@ -311,32 +335,34 @@ entry_amount_usdt *= penalty_data['multiplier']
 ## 🔍 **СРАВНЕНИЕ ДО/ПОСЛЕ:**
 
 ### **ДО (старая система):**
+
 ```python
 Сигнал ETHUSDT:
   AI Score: 45.0
   Entry: 100 USDT (фиксированный риск 2%)
   SL/TP: статические
-  
+
 → Не учитывает рыночные условия
 → Одинаковый размер всегда
 → Риск кластеризации корреляций
 ```
 
 ### **ПОСЛЕ (новая система):**
+
 ```python
 Сигнал ETHUSDT в BULL_TREND:
   AI Score: 45.0
   + Composite бонус: +2.5 (4 стратегии согласны)
   = Final Score: 47.5
-  
+
   Entry расчет:
     Базовый: 100 USDT
     × Режим BULL (1.4) = 140 USDT
     × Correlation (0.7) = 98 USDT
-    
+
   SL: × 0.8 (ужато на 20%)
   TP: × 1.5 (расширено на 50%)
-  
+
 → Адаптируется к рынку
 → Контролирует диверсификацию
 → Оптимальные параметры для условий
@@ -347,13 +373,14 @@ entry_amount_usdt *= penalty_data['multiplier']
 ## 🚀 **ГОТОВНОСТЬ К ЗАПУСКУ:**
 
 ### **Проверка компонентов:**
-| Компонент | Статус | Ошибки |
-|-----------|--------|--------|
-| market_regime_detector.py | ✅ Готов | 3 warnings (не критично) |
-| composite_signal_engine.py | ✅ Готов | 2 warnings (не критично) |
-| correlation_risk_manager.py | ✅ Готов | 3 warnings (не критично) |
-| adaptive_parameter_controller.py | ✅ Готов | 4 warnings (не критично) |
-| signal_live.py | ✅ Готов | 45 warnings (не критично) |
+
+| Компонент                        | Статус   | Ошибки                    |
+| -------------------------------- | -------- | ------------------------- |
+| market_regime_detector.py        | ✅ Готов | 3 warnings (не критично)  |
+| composite_signal_engine.py       | ✅ Готов | 2 warnings (не критично)  |
+| correlation_risk_manager.py      | ✅ Готов | 3 warnings (не критично)  |
+| adaptive_parameter_controller.py | ✅ Готов | 4 warnings (не критично)  |
+| signal_live.py                   | ✅ Готов | 45 warnings (не критично) |
 
 **КРИТИЧЕСКИХ ОШИБОК: 0** ✅
 
@@ -383,11 +410,13 @@ entry_amount_usdt *= penalty_data['multiplier']
 5. 📊 **Прогнозируемое улучшение** +40-50% Sharpe Ratio
 
 **ЗАПУСК:**
+
 ```bash
 python3 main.py
 ```
 
 **ОЖИДАЙТЕ В ЛОГАХ:**
+
 ```
 ✅ MarketRegimeDetector доступен
 ✅ CompositeSignalEngine доступен
@@ -398,4 +427,3 @@ python3 main.py
 ```
 
 ## 🏆 **СИСТЕМА УРОВНЯ ХЕДЖ-ФОНДОВ ГОТОВА К РАБОТЕ!** 🚀
-

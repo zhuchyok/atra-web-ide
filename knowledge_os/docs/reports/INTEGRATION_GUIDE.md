@@ -3,6 +3,7 @@
 ## 📋 **ОБЗОР СИСТЕМЫ**
 
 Система принятия сигналов добавляет интерактивные кнопки к торговым сигналам, позволяя пользователям:
+
 - ✅ **Принимать сигналы** одним нажатием кнопки
 - 🔄 **Отслеживать позиции** в реальном времени
 - 📊 **Получать статистику** по принятым сигналам
@@ -69,12 +70,12 @@ from telegram_buttons_config import get_button_text, get_message_template
 class YourTradingBot:
     def __init__(self):
         # ... существующий код ...
-        
+
         # Инициализация системы принятия сигналов
         self.acceptance_db = AcceptanceDatabase()
         self.telegram_updater = TelegramMessageUpdater()
         self.position_manager = ImprovedPositionManager(
-            self.acceptance_db, 
+            self.acceptance_db,
             self.telegram_updater
         )
         self.signal_acceptance = SignalAcceptanceManager(
@@ -82,7 +83,7 @@ class YourTradingBot:
             self.telegram_updater,
             self.position_manager
         )
-        
+
         # Устанавливаем бота в updater
         self.telegram_updater.set_bot(self.bot)
 ```
@@ -104,26 +105,26 @@ async def send_signal_with_buttons(self, signal_data: dict):
             user_id=signal_data.get('user_id'),
             chat_id=signal_data.get('chat_id')
         )
-        
+
         # Создаем клавиатуру
         keyboard = self.signal_acceptance.create_acceptance_keyboard(signal)
-        
+
         # Отправляем сообщение
         message_id = await self.telegram_updater.send_signal_with_buttons(
             signal_data['chat_id'],
             signal,
             keyboard
         )
-        
+
         if message_id:
             # Регистрируем сигнал в системе
             await self.signal_acceptance.register_signal(
                 signal, message_id, signal_data['chat_id']
             )
             return True
-        
+
         return False
-        
+
     except Exception as e:
         logger.error(f"❌ Ошибка отправки сигнала с кнопками: {e}")
         return False
@@ -142,63 +143,63 @@ async def handle_callback_query(call):
         data = call.data
         user_id = str(call.from_user.id)
         chat_id = call.message.chat.id
-        
+
         if data.startswith('accept_'):
             # Принятие сигнала
             parts = data.split('_')
             if len(parts) >= 3:
                 symbol = parts[1]
                 signal_timestamp = float(parts[2])
-                
+
                 success = await bot.signal_acceptance.accept_signal(
                     symbol, signal_timestamp, user_id
                 )
-                
+
                 if success:
                     await bot.answer_callback_query(
-                        call.id, 
+                        call.id,
                         f"✅ Сигнал {symbol} принят!"
                     )
                 else:
                     await bot.answer_callback_query(
-                        call.id, 
+                        call.id,
                         "❌ Ошибка принятия сигнала"
                     )
-        
+
         elif data.startswith('close_'):
             # Закрытие позиции
             parts = data.split('_')
             if len(parts) >= 3:
                 symbol = parts[1]
                 signal_timestamp = float(parts[2])
-                
+
                 success = await bot.signal_acceptance.close_position(
                     symbol, signal_timestamp, user_id
                 )
-                
+
                 if success:
                     await bot.answer_callback_query(
-                        call.id, 
+                        call.id,
                         f"📊 Позиция {symbol} закрыта!"
                     )
                 else:
                     await bot.answer_callback_query(
-                        call.id, 
+                        call.id,
                         "❌ Ошибка закрытия позиции"
                     )
-        
+
         elif data == 'my_signals':
             # Показать мои сигналы
             signals = await bot.signal_acceptance.get_user_signals(user_id)
             await bot.telegram_updater.send_user_signals(chat_id, signals)
             await bot.answer_callback_query(call.id, "📋 Ваши сигналы")
-        
+
         elif data == 'statistics':
             # Показать статистику
             stats = await bot.signal_acceptance.get_statistics()
             await bot.telegram_updater.send_statistics(chat_id, stats)
             await bot.answer_callback_query(call.id, "📊 Статистика")
-        
+
     except Exception as e:
         logger.error(f"❌ Ошибка обработки callback: {e}")
         await bot.answer_callback_query(call.id, "❌ Произошла ошибка")
@@ -242,20 +243,20 @@ async def main_trading_loop():
         try:
             # 1. Генерируем сигналы (существующий код)
             signals = await generate_signals()
-            
+
             # 2. Отправляем сигналы с кнопками
             for signal in signals:
                 await bot.send_signal_with_buttons(signal)
-            
+
             # 3. Обновляем позиции
             await bot.position_manager.start_price_monitoring()
-            
+
             # 4. Очищаем устаревшие сигналы
             await bot.signal_acceptance.cleanup_expired_signals()
-            
+
             # 5. Ждем следующий цикл
             await asyncio.sleep(60)  # 1 минута
-            
+
         except Exception as e:
             logger.error(f"❌ Ошибка в торговом цикле: {e}")
             await asyncio.sleep(60)
@@ -383,6 +384,7 @@ python3 your_main_file.py
 Теперь ваш бот поддерживает интерактивные кнопки принятия сигналов! 🎉
 
 **Основные возможности:**
+
 - ✅ Принятие сигналов одним нажатием
 - 🔄 Отслеживание позиций в реальном времени
 - 📊 Полная статистика и аналитика

@@ -86,9 +86,8 @@ echo "✅ База данных успешно восстановлена из �
 echo ""
 echo "📝 Проверка:"
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" -h localhost -d "$DB_NAME" -c "
-    SELECT 
+    SELECT
         (SELECT count(*) FROM knowledge_nodes) as knowledge_nodes,
         (SELECT count(*) FROM experts) as experts,
         (SELECT count(*) FROM domains) as domains;
 "
-

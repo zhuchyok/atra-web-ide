@@ -40,7 +40,7 @@ echo "📦 Применение изменений..."
 
 ssh -o StrictHostKeyChecking=no "$MAC_STUDIO" << EOF
     cd "$PROJECT_PATH"
-    
+
     # Приоритет 3
     echo "  - Копирование файлов Приоритета 3..."
     cp -f $SYNC_DIR/knowledge_os/app/reinforcement_learning.py knowledge_os/app/ 2>/dev/null || true
@@ -48,12 +48,12 @@ ssh -o StrictHostKeyChecking=no "$MAC_STUDIO" << EOF
     cp -f $SYNC_DIR/knowledge_os/app/emergent_hierarchy.py knowledge_os/app/ 2>/dev/null || true
     cp -f $SYNC_DIR/knowledge_os/app/advanced_ensemble.py knowledge_os/app/ 2>/dev/null || true
     cp -f $SYNC_DIR/knowledge_os/app/model_specialization.py knowledge_os/app/ 2>/dev/null || true
-    
+
     # Middleware
     echo "  - Копирование middleware..."
     mkdir -p backend/app/middleware
     cp -f $SYNC_DIR/backend/app/middleware/*.py backend/app/middleware/ 2>/dev/null || true
-    
+
     # Backend улучшения
     echo "  - Копирование backend улучшений..."
     cp -f $SYNC_DIR/backend/app/config.py backend/app/ 2>/dev/null || true
@@ -65,12 +65,12 @@ ssh -o StrictHostKeyChecking=no "$MAC_STUDIO" << EOF
     cp -f $SYNC_DIR/backend/app/routers/chat.py backend/app/routers/ 2>/dev/null || true
     cp -f $SYNC_DIR/backend/app/routers/files.py backend/app/routers/ 2>/dev/null || true
     cp -f $SYNC_DIR/backend/app/routers/experts.py backend/app/routers/ 2>/dev/null || true
-    
+
     # Документация
     echo "  - Копирование документации..."
     mkdir -p docs/mac-studio
     cp -f $SYNC_DIR/docs/mac-studio/SINGULARITY_9_IMPROVEMENTS.md docs/mac-studio/ 2>/dev/null || true
-    
+
     echo "✅ Изменения применены!"
 EOF
 
@@ -79,13 +79,13 @@ echo ""
 echo "✅ Проверка примененных файлов..."
 ssh -o StrictHostKeyChecking=no "$MAC_STUDIO" << EOF
     cd "$PROJECT_PATH"
-    
+
     echo "  - Приоритет 3:"
     ls -1 knowledge_os/app/{reinforcement_learning,adaptive_agent,emergent_hierarchy,advanced_ensemble,model_specialization}.py 2>&1 | wc -l
-    
+
     echo "  - Middleware:"
     ls -1 backend/app/middleware/{error_handler,rate_limiter,logging_middleware}.py 2>&1 | wc -l
-    
+
     echo "  - Документация:"
     test -f docs/mac-studio/SINGULARITY_9_IMPROVEMENTS.md && echo "✅ Есть" || echo "❌ Нет"
 EOF

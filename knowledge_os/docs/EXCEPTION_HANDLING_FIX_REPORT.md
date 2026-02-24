@@ -1,6 +1,7 @@
 # Отчет об исправлении слишком общих исключений в telegram_bot.py
 
 ## Проблема
+
 В файле `telegram_bot.py` было обнаружено множество случаев использования слишком общего исключения `Exception`, что является плохой практикой программирования и может скрывать важные ошибки.
 
 ## Выполненные исправления
@@ -8,12 +9,14 @@
 ### 1. Замена `except Exception as e:` на специфичные исключения
 
 **Было:**
+
 ```python
 except Exception as e:
     print(f"[ERROR] Ошибка получения цены для {symbol}: {e}")
 ```
 
 **Стало:**
+
 ```python
 except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError) as e:
     print(f"[ERROR] Ошибка получения цены для {symbol}: {e}")
@@ -22,12 +25,14 @@ except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueE
 ### 2. Замена `except Exception:` на специфичные исключения
 
 **Было:**
+
 ```python
 except Exception:
     fmt = "{:.8f}"
 ```
 
 **Стало:**
+
 ```python
 except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError, AttributeError):
     fmt = "{:.8f}"
@@ -36,26 +41,31 @@ except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueE
 ### 3. Специфичные исключения для разных контекстов
 
 #### Для синхронизации user_data:
+
 ```python
 except (AttributeError, TypeError, KeyError) as e:
 ```
 
 #### Для получения цен:
+
 ```python
 except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError) as e:
 ```
 
 #### Для динамических параметров:
+
 ```python
 except (RuntimeError, ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError, TypeError) as e:
 ```
 
 #### Для форматирования цен:
+
 ```python
 except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError, AttributeError):
 ```
 
 #### Для общих случаев:
+
 ```python
 except (ImportError, KeyError, IndexError, ConnectionError, TimeoutError, ValueError, AttributeError, TypeError) as e:
 ```

@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Главный скрипт для запуска всех проверок
 """
 
-import sys
 import argparse
 import asyncio
+import sys
 from pathlib import Path
 
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
-from scripts.test_utils import TestResult, TestStatus, print_test_summary, save_json_report
-from scripts.test_report_generator import (
-    generate_all_reports,
-    generate_markdown_report,
-    generate_console_report
-)
+from scripts.test_alerts_system import run_all_alerts_tests
 from scripts.test_config import REPORT_CONFIG
+from scripts.test_configuration import run_all_config_tests
 
 # Импорт всех тестовых модулей
 from scripts.test_db_structure import run_all_db_tests
-from scripts.test_files_modules import run_all_file_tests
-from scripts.test_configuration import run_all_config_tests
-from scripts.test_exchange_connection import run_all_exchange_tests
-from scripts.test_logging import run_all_logging_tests
-from scripts.test_performance import run_all_performance_tests
-from scripts.test_metrics import run_all_metrics_tests
-
-# Импорт функциональных тестов
-from scripts.test_signal_functional import run_all_signal_functional_tests
-from scripts.test_orders_functional import run_all_orders_functional_tests
-from scripts.test_risk_management_functional import run_all_risk_management_functional_tests
-
-# Импорт интеграционных тестов и тестов алертов
-from scripts.test_integration_full_cycle import run_all_integration_tests
-from scripts.test_alerts_system import run_all_alerts_tests
 
 # Импорт тестов ETH и SOL TrendFilter
 from scripts.test_eth_sol_trend_filters import run_all_eth_sol_trend_tests
+from scripts.test_exchange_connection import run_all_exchange_tests
+from scripts.test_files_modules import run_all_file_tests
+
+# Импорт интеграционных тестов и тестов алертов
+from scripts.test_integration_full_cycle import run_all_integration_tests
+from scripts.test_logging import run_all_logging_tests
+from scripts.test_metrics import run_all_metrics_tests
+from scripts.test_orders_functional import run_all_orders_functional_tests
+from scripts.test_performance import run_all_performance_tests
+from scripts.test_report_generator import (
+    generate_all_reports,
+    generate_console_report,
+    generate_markdown_report,
+)
+from scripts.test_risk_management_functional import run_all_risk_management_functional_tests
+
+# Импорт функциональных тестов
+from scripts.test_signal_functional import run_all_signal_functional_tests
+from scripts.test_utils import TestResult, TestStatus, print_test_summary, save_json_report
+
 # pylint: enable=wrong-import-position
 
 
@@ -58,7 +58,7 @@ TEST_CATEGORIES = {
     "risk_func": ("Риски (функциональные)", run_all_risk_management_functional_tests),
     "integration": ("Интеграция (полный цикл)", run_all_integration_tests),
     "alerts": ("Система алертов", run_all_alerts_tests),
-    "eth_sol_trend": ("ETH и SOL TrendFilter", run_all_eth_sol_trend_tests)
+    "eth_sol_trend": ("ETH и SOL TrendFilter", run_all_eth_sol_trend_tests),
 }
 
 
@@ -105,11 +105,13 @@ async def run_all_tests() -> list:
             all_results.extend(results)
         except Exception as e:
             print(f"❌ Ошибка при выполнении тестов категории {category_name}: {e}")
-            all_results.append(TestResult(
-                name=f"Категория {category_name}",
-                status=TestStatus.FAIL,
-                message=f"Исключение при выполнении: {str(e)}"
-            ))
+            all_results.append(
+                TestResult(
+                    name=f"Категория {category_name}",
+                    status=TestStatus.FAIL,
+                    message=f"Исключение при выполнении: {str(e)}",
+                )
+            )
 
     return all_results
 
@@ -125,20 +127,16 @@ def main():
   python scripts/test_suite_runner.py --category db
   python scripts/test_suite_runner.py --category files --report markdown
   python scripts/test_suite_runner.py --all --report json --output-dir reports
-        """
+        """,
     )
 
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Запустить все тесты"
-    )
+    parser.add_argument("--all", action="store_true", help="Запустить все тесты")
 
     parser.add_argument(
         "--category",
         type=str,
         choices=list(TEST_CATEGORIES.keys()),
-        help="Запустить тесты конкретной категории"
+        help="Запустить тесты конкретной категории",
     )
 
     parser.add_argument(
@@ -146,21 +144,17 @@ def main():
         type=str,
         choices=["json", "markdown", "console", "all"],
         default="all",
-        help="Формат отчета (по умолчанию: all)"
+        help="Формат отчета (по умолчанию: all)",
     )
 
     parser.add_argument(
         "--output-dir",
         type=str,
         default=REPORT_CONFIG["output_dir"],
-        help=f"Директория для сохранения отчетов (по умолчанию: {REPORT_CONFIG['output_dir']})"
+        help=f"Директория для сохранения отчетов (по умолчанию: {REPORT_CONFIG['output_dir']})",
     )
 
-    parser.add_argument(
-        "--no-console",
-        action="store_true",
-        help="Не выводить отчет в консоль"
-    )
+    parser.add_argument("--no-console", action="store_true", help="Не выводить отчет в консоль")
 
     args = parser.parse_args()
 

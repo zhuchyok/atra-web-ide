@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Генерация событий FalseBreakout/MTF на исторических данных Binance.
 
@@ -12,9 +11,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from pathlib import Path
 import sys
-from typing import Iterable
+from collections.abc import Iterable
+from pathlib import Path
 
 import pandas as pd
 
@@ -22,11 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.database.db import Database  # noqa: E402
 from false_breakout_detector import get_false_breakout_detector  # noqa: E402
 from market_regime_detector import get_regime_detector  # noqa: E402
 from ohlc_utils import get_ohlc_binance_sync  # noqa: E402
 from signal_live import _run_mtf_confirmation_with_logging  # noqa: E402
+
+from src.database.db import Database  # noqa: E402
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -37,7 +37,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=["BTCUSDT"],
         help="Список символов (Binance spot, формата BTCUSDT)",
     )
-    parser.add_argument("--interval", default="1h", help="Интервал свечей Binance (по умолчанию 1h)")
+    parser.add_argument(
+        "--interval", default="1h", help="Интервал свечей Binance (по умолчанию 1h)"
+    )
     parser.add_argument(
         "--limit",
         type=int,
@@ -149,11 +151,12 @@ async def main() -> None:
         )
         total_fbd += fbd_windows
         total_mtf += mtf_events
-        print(f"✅ {symbol}: добавлено FBD окон={fbd_windows}, MTF вызовов={mtf_events}, test_run={args.test_run}")
+        print(
+            f"✅ {symbol}: добавлено FBD окон={fbd_windows}, MTF вызовов={mtf_events}, test_run={args.test_run}"
+        )
 
     print(f"Итого: FBD окон={total_fbd}, MTF событий={total_mtf}")
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-

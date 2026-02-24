@@ -24,7 +24,7 @@ test_check() {
     TESTS_TOTAL=$((TESTS_TOTAL + 1))
     local test_name="$1"
     local command="$2"
-    
+
     echo "📋 Тест: $test_name"
     if eval "$command" > /tmp/test_output.log 2>&1; then
         echo -e "${GREEN}✅ PASSED${NC}"

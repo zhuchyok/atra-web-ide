@@ -80,6 +80,7 @@ message = formatter.format_signal_message(signal_data)
 ### Основные функции
 
 #### `gettext(key, language=None, **kwargs)`
+
 Получение переведенного текста.
 
 ```python
@@ -94,6 +95,7 @@ text = gettext('error_message', 'ru', error_code=404)
 ```
 
 #### `set_language(user_id, language)`
+
 Установка языка для пользователя.
 
 ```python
@@ -101,6 +103,7 @@ set_language(123456789, 'en')  # Английский для пользоват�
 ```
 
 #### `get_supported_languages()`
+
 Получение списка поддерживаемых языков.
 
 ```python
@@ -111,6 +114,7 @@ languages = get_supported_languages()
 ### Классы
 
 #### `Localizer`
+
 Основной класс для управления переводами.
 
 ```python
@@ -129,6 +133,7 @@ text = localizer.get_text('welcome', 'ru')
 Добавьте новый ключ в оба файла:
 
 **locales/ru.json:**
+
 ```json
 {
   "new_feature": "Новая функция"
@@ -136,6 +141,7 @@ text = localizer.get_text('welcome', 'ru')
 ```
 
 **locales/en.json:**
+
 ```json
 {
   "new_feature": "New Feature"
@@ -165,10 +171,10 @@ print(f"Extra keys: {validation['extra_keys']}")
 
 ## 🎯 Поддерживаемые языки
 
-| Код | Язык | Статус | Переводов |
-|-----|------|--------|-----------|
-| ru | Русский | ✅ Полный | 79+ |
-| en | English | ✅ Полный | 79+ |
+| Код | Язык    | Статус    | Переводов |
+| --- | ------- | --------- | --------- |
+| ru  | Русский | ✅ Полный | 79+       |
+| en  | English | ✅ Полный | 79+       |
 
 ## 🔄 Fallback стратегия
 
@@ -205,18 +211,21 @@ print(f"Общее кол-во ключей: {validation['summary']['base_keys_c
 ## 🚨 Обработка ошибок
 
 ### Отсутствующие файлы
+
 ```python
 WARNING: Translation file not found: en.json
 INFO: Using fallback translations
 ```
 
 ### Поврежденные JSON
+
 ```python
 ERROR: Error parsing translation file ru.json
 WARNING: Using empty translations for ru
 ```
 
 ### Отсутствующие ключи
+
 ```python
 WARNING: Translation not found for key 'missing_key' in language 'ru'
 INFO: Returning key as fallback
@@ -225,6 +234,7 @@ INFO: Returning key as fallback
 ## 📝 Лучшие практики
 
 ### 1. Использование в коде
+
 ```python
 # ✅ Хорошо
 text = gettext('welcome')
@@ -234,6 +244,7 @@ text = "Добро пожаловать"  # hardcoded текст
 ```
 
 ### 2. Ключи переводов
+
 ```python
 # ✅ Хорошо - описательные ключи
 "signal_strength": "Сила сигнала"
@@ -245,6 +256,7 @@ text = "Добро пожаловать"  # hardcoded текст
 ```
 
 ### 3. Плейсхолдеры
+
 ```python
 # В JSON
 "price_message": "Цена: {price} USDT"
@@ -301,5 +313,5 @@ def render_dashboard(user_id):
 
 ---
 
-*Система локализации ATRA v1.0*
-*Дата создания: 22 августа 2024 г.*
+_Система локализации ATRA v1.0_
+_Дата создания: 22 августа 2024 г._

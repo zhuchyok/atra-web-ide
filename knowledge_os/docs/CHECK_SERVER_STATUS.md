@@ -1,6 +1,7 @@
 # 🔍 ПРОВЕРКА СТАТУСА СЕРВЕРА
 
 ## 🔗 Подключение к серверу:
+
 ```bash
 ssh root@185.177.216.15
 # Пароль: u44Ww9NmtQj,XG
@@ -9,6 +10,7 @@ ssh root@185.177.216.15
 ## 📋 КОМАНДЫ ДЛЯ ПРОВЕРКИ (копировать на сервер):
 
 ### 1️⃣ Быстрая диагностика:
+
 ```bash
 cd /root/atra
 echo "=== СТАТУС СИСТЕМЫ ==="
@@ -21,6 +23,7 @@ tail -10 system_improved.log
 ```
 
 ### 2️⃣ Проверка Telegram бота:
+
 ```bash
 cd /root/atra
 python3 -c "
@@ -37,6 +40,7 @@ print(f'TELEGRAM_CHAT_IDS: {os.getenv(\"TELEGRAM_CHAT_IDS\", \"не устано
 ```
 
 ### 3️⃣ Проверка процессов:
+
 ```bash
 # Сколько экземпляров
 ps aux | grep main.py | grep -v grep | wc -l
@@ -49,6 +53,7 @@ ls -la atra.lock 2>/dev/null && echo "⚠️ Файл блокировки на�
 ```
 
 ### 4️⃣ Проверка логов на ошибки:
+
 ```bash
 # Ошибки в логах
 grep -E "ERROR|Exception|Failed" system_improved.log | tail -20
@@ -61,6 +66,7 @@ grep "callback_build" system_improved.log | tail -5
 ```
 
 ### 5️⃣ Проверка активности системы:
+
 ```bash
 cd /root/atra
 python3 -c "
@@ -93,6 +99,7 @@ conn.close()
 ```
 
 ### 6️⃣ Проверка почему нет сигналов:
+
 ```bash
 # Проверяем логи на наличие кандидатов
 grep -c "candidate" system_improved.log
@@ -102,7 +109,7 @@ echo "Кандидатов найдено: ^"
 grep -c "gate_trend_skip" system_improved.log
 echo "Отклонено по тренду: ^"
 
-grep -c "gate_mtf_skip" system_improved.log  
+grep -c "gate_mtf_skip" system_improved.log
 echo "Отклонено по MTF: ^"
 
 grep -c "открытую позицию" system_improved.log
@@ -113,6 +120,7 @@ echo "Отправлено сигналов: ^"
 ```
 
 ### 7️⃣ Если бот не работает - перезапуск:
+
 ```bash
 cd /root/atra
 
@@ -135,6 +143,7 @@ tail -20 server.log
 ```
 
 ### 8️⃣ Мониторинг в реальном времени:
+
 ```bash
 # Логи
 tail -f system_improved.log
@@ -146,6 +155,7 @@ tail -f system_improved.log | grep -E "(callback_build|ERROR|WARNING)"
 ## 🎯 ВОЗМОЖНЫЕ ПРОБЛЕМЫ НА СЕРВЕРЕ:
 
 ### A. Множественные экземпляры
+
 ```bash
 # Проверить
 ps aux | grep main.py | grep -v grep | wc -l
@@ -155,12 +165,14 @@ ps aux | grep main.py | grep -v grep | wc -l
 ```
 
 ### B. Блокировка Telegram polling
+
 ```bash
 # Проверить в логах
 grep "Поллинг уже запущен\|ERROR.*TG" system_improved.log | tail -5
 ```
 
 ### C. Неправильная среда (DEV вместо PROD)
+
 ```bash
 # Проверить
 echo $ATRA_ENV
@@ -171,6 +183,7 @@ export ATRA_ENV=prod
 ```
 
 ### D. Система не запущена
+
 ```bash
 # Проверить телеметрию
 python3 -c "

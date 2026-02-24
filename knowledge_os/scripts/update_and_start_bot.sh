@@ -30,4 +30,3 @@ ssh -o StrictHostKeyChecking=no $SERVER "$COMMANDS"
 echo ""
 echo "✅ Готово! Проверьте статус:"
 echo "   ssh $SERVER 'cd $REMOTE_DIR && python3 check_signals_status.py'"
-

@@ -33,7 +33,7 @@ echo "[2/3] Попытка через удаленный сервер..."
 if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${REMOTE_SERVER} "echo 'OK'" 2>/dev/null; then
     echo "   ✅ Удаленный сервер доступен"
     echo "   🔍 Проверка доступа к Mac Studio с сервера..."
-    
+
     # Пробуем выполнить через сервер (если на сервере есть доступ к Mac Studio)
     if ssh ${REMOTE_SERVER} "ssh -o ConnectTimeout=3 -o StrictHostKeyChecking=no ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} 'echo OK' 2>/dev/null" 2>/dev/null; then
         echo "   ✅ Доступ к Mac Studio через сервер работает"

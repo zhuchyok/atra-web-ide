@@ -12,12 +12,14 @@
 **Файл:** `observability/agent_coordinator.py`
 
 **Компоненты:**
+
 - ✅ `SharedMemory` - общая память для координации
 - ✅ `EventBus` - шина событий для координации
 - ✅ `AgentCoordinator` - главный координатор
 - ✅ `EventType` - типы событий для координации
 
 **Архитектура:**
+
 - Event-driven координация через EventBus
 - Shared memory для обмена контекстом
 - Автоматическая координация действий агентов
@@ -25,15 +27,18 @@
 ### 2. Интеграция в агенты
 
 **signal_live:**
+
 - ✅ Публикует `SIGNAL_GENERATED` после успешной отправки сигнала
 - ✅ Сохраняет сигнал в shared memory для auto_execution
 
 **auto_execution:**
+
 - ✅ Публикует `POSITION_OPENED` после открытия позиции
 - ✅ Использует shared context для проверки блокировок
 - ✅ Получает сигналы из shared memory
 
 **risk_monitor:**
+
 - ✅ Публикует `RISK_ALERT` при обнаружении крупных убытков
 - ✅ Сохраняет блокировки в shared memory для signal_live
 
@@ -44,6 +49,7 @@
 ### Поток координации:
 
 1. **signal_live генерирует сигнал:**
+
    ```python
    publish_agent_event(
        EventType.SIGNAL_GENERATED,
@@ -51,18 +57,20 @@
        data={"symbol": "BTCUSDT", "signal_type": "BUY", ...}
    )
    ```
+
    - Событие публикуется в EventBus
    - Сигнал сохраняется в shared memory
    - auto_execution получает уведомление
 
 2. **auto_execution открывает позицию:**
+
    ```python
    # Получает shared context
    shared_context = coordinator.get_shared_context(
        agent="auto_execution",
        context_keys=["signal:BTCUSDT:BUY", "risk_block:max_dd"]
    )
-   
+
    # Публикует событие
    publish_agent_event(
        EventType.POSITION_OPENED,
@@ -70,6 +78,7 @@
        data={"symbol": "BTCUSDT", "direction": "BUY", ...}
    )
    ```
+
    - Позиция сохраняется в shared memory
    - risk_monitor получает уведомление
 
@@ -81,6 +90,7 @@
        data={"alert_type": "large_loss", ...}
    )
    ```
+
    - Блокировка сохраняется в shared memory
    - signal_live получает уведомление и блокирует новые сигналы
 
@@ -116,6 +126,6 @@
 ---
 
 **См. также:**
+
 - [AGENT_DEVELOPMENT_ROADMAP.md](./AGENT_DEVELOPMENT_ROADMAP.md) - полный план развития
 - [AGENT_OPS_COMPLETE.md](./AGENT_OPS_COMPLETE.md) - Agent Ops
-

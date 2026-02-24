@@ -36,4 +36,3 @@ PYTHONPATH="$PROJECT_ROOT" pytest knowledge_os/tests/test_rest_api.py knowledge_
 
 echo ""
 echo "✅ Тесты завершены!"
-

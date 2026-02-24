@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Тесты системы алертов
 Проверяет Telegram уведомления, типы алертов, приоритеты
 """
 
-import sys
 import inspect
+import sys
 from pathlib import Path
 
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.test_utils import (
-    TestResult, TestStatus, measure_time
-)
+from scripts.test_utils import TestResult, TestStatus, measure_time
 
 
 @measure_time
@@ -26,15 +23,10 @@ def test_alert_system_structure() -> TestResult:
             from src.monitoring.alerts import AlertSystem
 
             # Проверяем наличие ключевых методов
-            required_methods = [
-                'create_alert',
-                'check_alert_rules',
-                '_send_notifications'
-            ]
+            required_methods = ["create_alert", "check_alert_rules", "_send_notifications"]
 
             missing_methods = [
-                method for method in required_methods
-                if not hasattr(AlertSystem, method)
+                method for method in required_methods if not hasattr(AlertSystem, method)
             ]
 
             if missing_methods:
@@ -42,7 +34,7 @@ def test_alert_system_structure() -> TestResult:
                     name="Структура AlertSystem",
                     status=TestStatus.WARNING,
                     message=f"Отсутствуют методы: {', '.join(missing_methods)}",
-                    details={"missing_methods": missing_methods}
+                    details={"missing_methods": missing_methods},
                 )
 
             # Проверяем инициализацию
@@ -52,14 +44,14 @@ def test_alert_system_structure() -> TestResult:
                     name="Структура AlertSystem",
                     status=TestStatus.PASS,
                     message="AlertSystem доступен и инициализируется",
-                    details={"methods_available": required_methods}
+                    details={"methods_available": required_methods},
                 )
             except Exception as e:
                 return TestResult(
                     name="Структура AlertSystem",
                     status=TestStatus.WARNING,
                     message=f"Ошибка инициализации: {str(e)}",
-                    details={"error": str(e)}
+                    details={"error": str(e)},
                 )
 
         except ImportError:
@@ -70,7 +62,7 @@ def test_alert_system_structure() -> TestResult:
                     name="Структура AlertSystem",
                     status=TestStatus.PASS,
                     message="Найден AlertManager (альтернативная система)",
-                    details={"system": "AlertManager"}
+                    details={"system": "AlertManager"},
                 )
             except ImportError:
                 return TestResult(
@@ -79,15 +71,15 @@ def test_alert_system_structure() -> TestResult:
                     message="Система алертов не найдена",
                     recommendations=[
                         "Проверьте наличие alert_system.py или monitoring_system.py",
-                        "Система алертов может быть опциональной"
-                    ]
+                        "Система алертов может быть опциональной",
+                    ],
                 )
 
     except Exception as e:
         return TestResult(
             name="Структура AlertSystem",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -102,11 +94,7 @@ def test_telegram_notification_channels() -> TestResult:
             "alert_system": ["TelegramNotificationChannel"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name, items in notification_functions.items():
             try:
@@ -130,21 +118,21 @@ def test_telegram_notification_channels() -> TestResult:
                 status=TestStatus.WARNING,
                 message="Функции отправки в Telegram не найдены",
                 details=test_results["details"],
-                recommendations=["Проверьте наличие telegram_handlers.py"]
+                recommendations=["Проверьте наличие telegram_handlers.py"],
             )
 
         return TestResult(
             name="Каналы Telegram уведомлений",
             status=TestStatus.PASS,
             message=f"Найдены функции отправки ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Каналы Telegram уведомлений",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -158,11 +146,7 @@ def test_alert_types_and_severity() -> TestResult:
             ("monitoring_system", "AlertType", "AlertSeverity"),
         ]
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name, type_name, severity_name in alert_systems_to_check:
             try:
@@ -186,7 +170,9 @@ def test_alert_types_and_severity() -> TestResult:
                     test_results["details"][f"{module_name}.{severity_name}"] = "Не найдено"
 
             except ImportError:
-                test_results["missing"].extend([f"{module_name}.{type_name}", f"{module_name}.{severity_name}"])
+                test_results["missing"].extend(
+                    [f"{module_name}.{type_name}", f"{module_name}.{severity_name}"]
+                )
                 test_results["details"][f"{module_name}.{type_name}"] = "Модуль не найден"
                 test_results["details"][f"{module_name}.{severity_name}"] = "Модуль не найден"
 
@@ -198,22 +184,22 @@ def test_alert_types_and_severity() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие alert_system.py или monitoring_system.py",
-                    "Типы алертов могут быть определены в других модулях"
-                ]
+                    "Типы алертов могут быть определены в других модулях",
+                ],
             )
 
         return TestResult(
             name="Типы и уровни алертов",
             status=TestStatus.PASS,
             message=f"Найдены типы и уровни алертов ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Типы и уровни алертов",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -224,20 +210,16 @@ def test_personal_vs_system_alerts() -> TestResult:
         # Проверяем наличие логики разделения алертов
         alert_systems = ["alert_system", "monitoring_system"]
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name in alert_systems:
             try:
                 module = __import__(module_name, fromlist=[])
 
                 # Проверяем наличие параметра user_id в методах
-                source = inspect.getsource(module) if hasattr(module, '__file__') else ""
+                source = inspect.getsource(module) if hasattr(module, "__file__") else ""
 
-                if 'user_id' in source.lower() or 'personal' in source.lower():
+                if "user_id" in source.lower() or "personal" in source.lower():
                     test_results["found"].append(f"{module_name} (поддержка user_id)")
                     test_results["details"][f"{module_name}"] = "Поддержка персональных алертов"
                 else:
@@ -256,22 +238,22 @@ def test_personal_vs_system_alerts() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие параметра user_id в методах создания алертов",
-                    "Разделение может быть реализовано по-другому"
-                ]
+                    "Разделение может быть реализовано по-другому",
+                ],
             )
 
         return TestResult(
             name="Персональные vs системные алерты",
             status=TestStatus.PASS,
             message=f"Найдена поддержка разделения ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Персональные vs системные алерты",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -282,25 +264,23 @@ def test_alert_priorities_and_escalation() -> TestResult:
         # Проверяем наличие логики приоритетов
         alert_systems = ["alert_system", "monitoring_system"]
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name in alert_systems:
             try:
                 module = __import__(module_name, fromlist=[])
 
                 # Проверяем наличие логики приоритетов
-                source = inspect.getsource(module) if hasattr(module, '__file__') else ""
+                source = inspect.getsource(module) if hasattr(module, "__file__") else ""
 
-                priority_keywords = ['priority', 'severity', 'critical', 'escalation', 'cooldown']
+                priority_keywords = ["priority", "severity", "critical", "escalation", "cooldown"]
                 found_keywords = [kw for kw in priority_keywords if kw in source.lower()]
 
                 if found_keywords:
                     test_results["found"].append(f"{module_name} ({', '.join(found_keywords[:3])})")
-                    test_results["details"][f"{module_name}"] = f"Найдены: {', '.join(found_keywords)}"
+                    test_results["details"][f"{module_name}"] = (
+                        f"Найдены: {', '.join(found_keywords)}"
+                    )
                 else:
                     test_results["missing"].append(f"{module_name} (нет приоритетов)")
                     test_results["details"][f"{module_name}"] = "Нет логики приоритетов"
@@ -317,22 +297,22 @@ def test_alert_priorities_and_escalation() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие логики приоритетов в alert_system",
-                    "Приоритеты могут быть реализованы через severity"
-                ]
+                    "Приоритеты могут быть реализованы через severity",
+                ],
             )
 
         return TestResult(
             name="Приоритеты и эскалация",
             status=TestStatus.PASS,
             message=f"Найдена логика приоритетов ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Приоритеты и эскалация",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -343,7 +323,7 @@ def run_all_alerts_tests() -> list:
         test_telegram_notification_channels,
         test_alert_types_and_severity,
         test_personal_vs_system_alerts,
-        test_alert_priorities_and_escalation
+        test_alert_priorities_and_escalation,
     ]
 
     test_results = []
@@ -353,11 +333,13 @@ def run_all_alerts_tests() -> list:
             test_results.append(result)
             print(result)
         except Exception as e:
-            test_results.append(TestResult(
-                name=test_func.__name__,
-                status=TestStatus.FAIL,
-                message=f"Исключение при выполнении: {str(e)}"
-            ))
+            test_results.append(
+                TestResult(
+                    name=test_func.__name__,
+                    status=TestStatus.FAIL,
+                    message=f"Исключение при выполнении: {str(e)}",
+                )
+            )
 
     return test_results
 
@@ -370,5 +352,5 @@ if __name__ == "__main__":
     results = run_all_alerts_tests()
 
     from scripts.test_utils import print_test_summary
-    print_test_summary(results)
 
+    print_test_summary(results)

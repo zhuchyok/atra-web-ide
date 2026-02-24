@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 🔧 АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ATRA
 Скрипт для создания и проверки базы данных при первом запуске на сервере
 """
 
-import os
-import sys
-import logging
-import sqlite3
 import asyncio
+import logging
+import os
+import sqlite3
+import sys
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
 from typing import Optional
 
+from src.shared.utils.datetime_utils import get_utc_now
+
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 class DatabaseInitializer:
     """Класс для автоматической инициализации базы данных"""
@@ -46,7 +44,9 @@ class DatabaseInitializer:
                 logger.info("✅ База данных прошла проверку целостности")
                 return True
             else:
-                logger.error(f"❌ База данных повреждена: {result[0] if result else 'Неизвестная ошибка'}")
+                logger.error(
+                    f"❌ База данных повреждена: {result[0] if result else 'Неизвестная ошибка'}"
+                )
                 return False
 
         except sqlite3.Error as e:
@@ -61,9 +61,17 @@ class DatabaseInitializer:
 
             # Список обязательных таблиц
             required_tables = [
-                'signals', 'active_signals', 'backtest_results',
-                'telemetry_api', 'users_data', 'signals_log',
-                'fees', 'quotes', 'arbitrage_events', 'pairs', 'manual_trades'
+                "signals",
+                "active_signals",
+                "backtest_results",
+                "telemetry_api",
+                "users_data",
+                "signals_log",
+                "fees",
+                "quotes",
+                "arbitrage_events",
+                "pairs",
+                "manual_trades",
             ]
 
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
@@ -101,10 +109,11 @@ class DatabaseInitializer:
             backup_path = os.path.join(self.backup_dir, f"trading_corrupted_{timestamp}.db")
 
             import shutil
+
             shutil.copy2(self.db_path, backup_path)
             logger.info(f"✅ Создан бэкап поврежденной базы данных: {backup_path}")
 
-        except (OSError, IOError) as e:
+        except OSError as e:
             logger.error(f"❌ Не удалось создать бэкап: {e}")
 
     def remove_corrupted_database(self):
@@ -140,17 +149,18 @@ class DatabaseInitializer:
                 "default_filter_mode": "strict",
                 "default_trade_mode": "spot",
                 "default_risk_pct": 2.0,
-                "default_leverage": 1.0
-            }
+                "default_leverage": 1.0,
+            },
         }
 
         try:
             import json
-            with open(user_data_file, 'w', encoding='utf-8') as f:
+
+            with open(user_data_file, "w", encoding="utf-8") as f:
                 json.dump(default_user_data, f, ensure_ascii=False, indent=2)
             logger.info("✅ Создан файл user_data.json")
             return True
-        except IOError as e:
+        except OSError as e:
             logger.error(f"❌ Ошибка создания файла user_data.json: {e}")
             return False
 
@@ -168,9 +178,9 @@ class DatabaseInitializer:
             except ImportError:
                 from db import Database
             try:
-                from src.execution.exchange_api import BybitAPI, MEXCAPI
+                from src.execution.exchange_api import MEXCAPI, BybitAPI
             except ImportError:
-                from exchange_api import BybitAPI, MEXCAPI
+                from exchange_api import MEXCAPI, BybitAPI
 
             # Создаем экземпляр базы данных (это автоматически создаст таблицы)
             db = Database(self.db_path)
@@ -185,9 +195,9 @@ class DatabaseInitializer:
 
                 if bybit_pairs:
                     db.insert_pairs_for_exchange("Bybit", bybit_pairs)
-                    db.insert_fees_for_pairs("Bybit", bybit_pairs,
-                                           default_maker_fee=0.001,
-                                           default_taker_fee=0.001)
+                    db.insert_fees_for_pairs(
+                        "Bybit", bybit_pairs, default_maker_fee=0.001, default_taker_fee=0.001
+                    )
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка загрузки пар Bybit: {e}")
 
@@ -198,9 +208,9 @@ class DatabaseInitializer:
 
                 if mexc_pairs:
                     db.insert_pairs_for_exchange("MEXC", mexc_pairs)
-                    db.insert_fees_for_pairs("MEXC", mexc_pairs,
-                                           default_maker_fee=0.002,
-                                           default_taker_fee=0.002)
+                    db.insert_fees_for_pairs(
+                        "MEXC", mexc_pairs, default_maker_fee=0.002, default_taker_fee=0.002
+                    )
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка загрузки пар MEXC: {e}")
 
@@ -257,16 +267,21 @@ class DatabaseInitializer:
 
             # Проверяем таблицы
             if not self.check_database_tables():
-                logger.warning("⚠️ В базе данных отсутствуют необходимые таблицы, создаем недостающие...")
+                logger.warning(
+                    "⚠️ В базе данных отсутствуют необходимые таблицы, создаем недостающие..."
+                )
                 # ВМЕСТО ПЕРЕСОЗДАНИЯ БД - создаем недостающие таблицы
                 try:
                     from src.database.db import Database
+
                     db = Database(self.db_path)
                     # _init_tables() создаст только отсутствующие таблицы (CREATE TABLE IF NOT EXISTS)
                     db._init_tables()
                     logger.info("✅ Недостающие таблицы созданы")
                 except Exception as e:
-                    logger.error("❌ Ошибка создания недостающих таблиц: %s, пытаемся пересоздать БД...", e)
+                    logger.error(
+                        "❌ Ошибка создания недостающих таблиц: %s, пытаемся пересоздать БД...", e
+                    )
                     # Фолбэк: только если не удалось создать таблицы
                     self.backup_corrupted_database()
                     self.remove_corrupted_database()
@@ -292,11 +307,11 @@ async def main():
     """Главная функция для запуска инициализации"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Инициализация базы данных ATRA')
-    parser.add_argument('--db-path', default='trading.db',
-                       help='Путь к файлу базы данных')
-    parser.add_argument('--structure-only', action='store_true',
-                       help='Создать только структуру без данных')
+    parser = argparse.ArgumentParser(description="Инициализация базы данных ATRA")
+    parser.add_argument("--db-path", default="trading.db", help="Путь к файлу базы данных")
+    parser.add_argument(
+        "--structure-only", action="store_true", help="Создать только структуру без данных"
+    )
 
     args = parser.parse_args()
 

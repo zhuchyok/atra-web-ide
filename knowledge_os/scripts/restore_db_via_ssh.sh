@@ -34,7 +34,7 @@ else:
     backup_path = os.path.join(backup_dir, f'trading_db_backup_{timestamp}.db')
     shutil.copy2(db_path, backup_path)
     print(f'✅ Бэкап создан: {backup_path}')
-    
+
     print('🔍 Проверка целостности...')
     try:
         conn = sqlite3.connect(db_path)
@@ -42,7 +42,7 @@ else:
         cursor.execute('PRAGMA integrity_check')
         result = cursor.fetchone()
         conn.close()
-        
+
         if result and result[0] == 'ok':
             print('✅ База данных целостна')
         else:
@@ -55,13 +55,13 @@ else:
                 conn.backup(recovered_conn)
                 conn.close()
                 recovered_conn.close()
-                
+
                 test_conn = sqlite3.connect(recovered_path)
                 test_cursor = test_conn.cursor()
                 test_cursor.execute('PRAGMA integrity_check')
                 test_result = test_cursor.fetchone()
                 test_conn.close()
-                
+
                 if test_result and test_result[0] == 'ok':
                     shutil.move(recovered_path, db_path)
                     print('✅ БД восстановлена')
@@ -83,7 +83,7 @@ else:
                     os.remove(recovered_path)
     except Exception as e:
         print(f'❌ Ошибка: {e}')
-    
+
     print('🔍 Финальная проверка...')
     try:
         conn = sqlite3.connect(db_path)
@@ -121,4 +121,3 @@ expect {
 }
 
 wait
-

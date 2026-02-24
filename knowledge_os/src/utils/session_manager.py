@@ -1,12 +1,14 @@
-import aiohttp
 import asyncio
 import logging
 from typing import Optional
 
+import aiohttp
+
 logger = logging.getLogger(__name__)
 
+
 class SessionManager:
-    _instance: Optional['SessionManager'] = None
+    _instance: Optional["SessionManager"] = None
     _session: Optional[aiohttp.ClientSession] = None
     _lock = asyncio.Lock()
 
@@ -30,6 +32,5 @@ class SessionManager:
                 self._session = None
                 logger.info("🛑 Общая aiohttp сессия закрыта")
 
+
 session_manager = SessionManager()
-
-

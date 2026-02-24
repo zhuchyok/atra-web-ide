@@ -68,6 +68,7 @@ self.db = Database()  # ← Подключение 4
 ## 🔧 ЧТО УЖЕ ИСПРАВЛЕНО:
 
 ### ✅ **sources_hub.py:**
+
 ```python
 # ❌ БЫЛО:
 sources_hub = SourcesHub()  # Создавал Database() сразу
@@ -85,6 +86,7 @@ sources_hub = _LazySourcesHub()  # Proxy, создается только при
 ```
 
 ### ✅ **ai_signal_generator.py:**
+
 ```python
 # ❌ БЫЛО:
 ai_signal_generator = AISignalGenerator()
@@ -106,6 +108,7 @@ def get_ai_signal_generator():
 ### **КРИТИЧЕСКИЕ (3 файла):**
 
 #### **1. telegram_handlers.py (строка 41):**
+
 ```python
 # ❌ СЕЙЧАС:
 db = Database()  # Создается при импорте
@@ -120,6 +123,7 @@ def get_db():
 ```
 
 #### **2. telegram_bot_core.py (строка 55):**
+
 ```python
 # ❌ СЕЙЧАС:
 db = Database()  # Создается при импорте
@@ -129,6 +133,7 @@ db = Database()  # Создается при импорте
 ```
 
 #### **3. user_utils.py (строка 4):**
+
 ```python
 # ❌ СЕЙЧАС:
 db = Database()  # Создается при импорте
@@ -147,6 +152,7 @@ def get_db():
 ## 🔥 ПОЧЕМУ ЭТО КРИТИЧНО:
 
 ### **Цепочка импортов:**
+
 ```
 main.py
   ├─ telegram_bot_core.py → db = Database() #1
@@ -164,6 +170,7 @@ main.py
 ```
 
 ### **Результат:**
+
 ```
 ❌ 10-15 одновременных подключений к SQLite
 ❌ SQLite не справляется
@@ -174,23 +181,24 @@ main.py
 
 ## 📊 СТАТИСТИКА ПОДКЛЮЧЕНИЙ:
 
-| Файл | Создает Database()? | Критичность |
-|------|---------------------|-------------|
-| telegram_handlers.py | ✅ ДА (строка 41) | 🔴 КРИТИЧНО |
-| telegram_bot_core.py | ✅ ДА (строка 55) | 🔴 КРИТИЧНО |
-| user_utils.py | ✅ ДА (строка 4) | 🔴 КРИТИЧНО |
-| sources_hub.py | ✅ ДА (в __init__) | ✅ ИСПРАВЛЕНО |
-| ai_signal_generator.py | ❌ НЕТ | ✅ ИСПРАВЛЕНО |
-| signal_live.py | ✅ ДА (в функциях) | 🟡 СРЕДНЕ |
-| system_tasks.py | ✅ ДА (в функциях) | 🟡 СРЕДНЕ |
-| price_monitor_system.py | ✅ ДА (в __init__) | 🟡 СРЕДНЕ |
-| audit_systems.py | ✅ ДА (в __init__) | 🟡 СРЕДНЕ |
+| Файл                    | Создает Database()? | Критичность   |
+| ----------------------- | ------------------- | ------------- |
+| telegram_handlers.py    | ✅ ДА (строка 41)   | 🔴 КРИТИЧНО   |
+| telegram_bot_core.py    | ✅ ДА (строка 55)   | 🔴 КРИТИЧНО   |
+| user_utils.py           | ✅ ДА (строка 4)    | 🔴 КРИТИЧНО   |
+| sources_hub.py          | ✅ ДА (в **init**)  | ✅ ИСПРАВЛЕНО |
+| ai_signal_generator.py  | ❌ НЕТ              | ✅ ИСПРАВЛЕНО |
+| signal_live.py          | ✅ ДА (в функциях)  | 🟡 СРЕДНЕ     |
+| system_tasks.py         | ✅ ДА (в функциях)  | 🟡 СРЕДНЕ     |
+| price_monitor_system.py | ✅ ДА (в **init**)  | 🟡 СРЕДНЕ     |
+| audit_systems.py        | ✅ ДА (в **init**)  | 🟡 СРЕДНЕ     |
 
 ---
 
 ## 🚨 ПОЧЕМУ БД ЛОМАЕТСЯ ПОСТОЯННО:
 
 ### **1. При запуске:**
+
 ```
 main.py импортирует модули
 → Создается 10-15 Database()
@@ -199,6 +207,7 @@ main.py импортирует модули
 ```
 
 ### **2. При работе:**
+
 ```
 Каждая функция создает свой Database()
 → Еще больше подключений
@@ -207,6 +216,7 @@ main.py импортирует модули
 ```
 
 ### **3. При остановке (pkill -9):**
+
 ```
 Процессы убиваются мгновенно
 → Подключения не закрываются корректно
@@ -222,7 +232,7 @@ main.py импортирует модули
 
 1. ✅ **sources_hub.py** - ИСПРАВЛЕНО (lazy init)
 2. ❌ **telegram_handlers.py** - НУЖНО ИСПРАВИТЬ
-3. ❌ **telegram_bot_core.py** - НУЖНО ИСПРАВИТЬ  
+3. ❌ **telegram_bot_core.py** - НУЖНО ИСПРАВИТЬ
 4. ❌ **user_utils.py** - НУЖНО ИСПРАВИТЬ
 
 ### **В перспективе:**
@@ -264,6 +274,7 @@ PROD (сервер):
 ## 🚀 СЛЕДУЮЩИЕ ШАГИ:
 
 ### **1. Исправить telegram_handlers.py:**
+
 ```python
 # Вместо:
 db = Database()
@@ -278,12 +289,14 @@ def get_db():
 ```
 
 ### **2. Исправить telegram_bot_core.py:**
+
 ```python
 # Импортировать get_db из telegram_handlers
 from telegram_handlers import get_db
 ```
 
 ### **3. Исправить user_utils.py:**
+
 ```python
 # Использовать singleton
 _db = None
@@ -299,6 +312,7 @@ def get_db():
 ## 📊 ОЖИДАЕМЫЙ РЕЗУЛЬТАТ:
 
 ### **ДО:**
+
 ```
 ❌ 10-15 одновременных Database()
 ❌ database is locked
@@ -307,6 +321,7 @@ def get_db():
 ```
 
 ### **ПОСЛЕ:**
+
 ```
 ✅ 1 единственный Database()
 ✅ Нет блокировок
@@ -323,4 +338,3 @@ def get_db():
 Это архитектурная проблема, которую НУЖНО исправить!
 
 **sources_hub.py уже исправлен, осталось еще 3 файла!**
-

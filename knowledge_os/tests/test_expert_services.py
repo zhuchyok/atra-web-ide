@@ -3,6 +3,7 @@
 Без БД работают за счёт employees.json (configs/experts). Связь с docs/TESTING_FULL_SYSTEM.md.
 Запуск: из knowledge_os: python3 -m pytest tests/test_expert_services.py -v
 """
+
 import os
 import sys
 

@@ -63,6 +63,7 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 ## 📊 **Логика работы динамического плеча**
 
 ### **Формула расчета:**
+
 ```python
 trend_factor = 1 + abs(trend) * 2  # до 3x при сильном тренде
 volatility_factor = 1 / (1 + volatility * 3)  # уменьшаем при высокой волатильности
@@ -70,6 +71,7 @@ dynamic_leverage = base_leverage * trend_factor * volatility_factor
 ```
 
 ### **Примеры:**
+
 - **Стабильный рынок:** базовое плечо × 1.0 = то же значение
 - **Трендовый рынок:** базовое плечо × 1.5-2.0 = увеличенное плечо
 - **Волатильный рынок:** базовое плечо × 0.7-0.9 = уменьшенное плечо
@@ -77,6 +79,7 @@ dynamic_leverage = base_leverage * trend_factor * volatility_factor
 ## 🎯 **Результат**
 
 ### **✅ Что исправлено:**
+
 1. **Для SPOT торговли:** плечо не отображается в сигнале
 2. **Для FUTURES торговли:** отображается динамическое плечо
 3. **Callback data:** корректно передает плечо для фьючерсов
@@ -85,6 +88,7 @@ dynamic_leverage = base_leverage * trend_factor * volatility_factor
 ### **📱 Пример отображения:**
 
 **SPOT сигнал:**
+
 ```
 🟢 НОВЫЙ ТОРГОВЫЙ СИГНАЛ
 
@@ -97,6 +101,7 @@ dynamic_leverage = base_leverage * trend_factor * volatility_factor
 ```
 
 **FUTURES сигнал:**
+
 ```
 🟢 НОВЫЙ ТОРГОВЫЙ СИГНАЛ
 
@@ -111,13 +116,16 @@ dynamic_leverage = base_leverage * trend_factor * volatility_factor
 ## 🔧 **Технические детали**
 
 ### **Файлы изменены:**
+
 - `signal_live.py` (строки 2865-2978)
 
 ### **Функции затронуты:**
+
 - `check_and_send_signals()` - логика формирования сигналов
 - `get_dynamic_leverage()` - расчет динамического плеча
 
 ### **Переменные:**
+
 - `dynamic_leverage` - динамическое плечо для фьючерсов
 - `trade_mode` - режим торговли (spot/futures)
 - `leverage_for_callback` - плечо для передачи в callback

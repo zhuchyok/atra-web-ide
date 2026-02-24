@@ -30,12 +30,11 @@ def validate_range(
     value: Decimal,
     min_value: Optional[Decimal] = None,
     max_value: Optional[Decimal] = None,
-    name: str = "Value"
+    name: str = "Value",
 ) -> None:
     """Validate that value is within range"""
     if min_value is not None and value < min_value:
         raise ValueError(f"{name} must be at least {min_value}")
-    
+
     if max_value is not None and value > max_value:
         raise ValueError(f"{name} must be at most {max_value}")
-

@@ -67,6 +67,7 @@ python3 scripts/check_environment.py
 ```
 
 Должно показать:
+
 ```
 📊 Окружение: PROD
    ✅ PROD режим - используется TELEGRAM_TOKEN
@@ -104,6 +105,7 @@ TOKEN = (
 ```
 
 **Логика:**
+
 - Если `ATRA_ENV=prod` → используется `TELEGRAM_TOKEN` (PROD токен)
 - Если `ATRA_ENV=dev` или не установлен → используется `TELEGRAM_TOKEN_DEV` (DEV токен)
 
@@ -112,24 +114,28 @@ TOKEN = (
 ### Проверка на сервере:
 
 1. **Проверьте переменную окружения:**
+
    ```bash
    echo $ATRA_ENV
    # Должно быть: prod
    ```
 
 2. **Проверьте файл env:**
+
    ```bash
    grep ATRA_ENV env
    # Должно быть: ATRA_ENV=prod
    ```
 
 3. **Проверьте токены:**
+
    ```bash
    grep TELEGRAM_TOKEN env
    # Должны быть оба токена
    ```
 
 4. **Проверьте логи:**
+
    ```bash
    tail -f logs/system.log | grep -i "telegram\|signal\|token"
    ```
@@ -173,4 +179,3 @@ tail -f logs/system.log
 **Версия:** 1.0  
 **Дата:** 2025-11-13  
 **Автор:** ATRA Team
-

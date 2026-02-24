@@ -3,6 +3,7 @@ Data Retention — консервативная очистка только кэ
 НЕ трогает: knowledge_nodes, experts, domains, tasks, interaction_logs.
 См. docs/DATA_RETENTION_ANALYSIS.md
 """
+
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CleanupResult:
     """Результат очистки одной таблицы."""
+
     table: str
     deleted: int
     dry_run: bool
@@ -24,6 +26,7 @@ class CleanupResult:
 @dataclass
 class RetentionReport:
     """Отчёт об очистке."""
+
     timestamp: str
     dry_run: bool
     results: List[CleanupResult] = field(default_factory=list)
@@ -38,10 +41,17 @@ class DataRetentionManager:
     """
 
     # Таблицы, которые НИКОГДА не трогаем
-    FORBIDDEN_TABLES = frozenset({
-        "knowledge_nodes", "experts", "domains", "tasks",
-        "interaction_logs", "feedback", "quality_issues",
-    })
+    FORBIDDEN_TABLES = frozenset(
+        {
+            "knowledge_nodes",
+            "experts",
+            "domains",
+            "tasks",
+            "interaction_logs",
+            "feedback",
+            "quality_issues",
+        }
+    )
 
     def __init__(
         self,
@@ -86,7 +96,9 @@ class DataRetentionManager:
                     continue
                 try:
                     deleted = await self._clean_table(conn, table, dry_run)
-                    report.results.append(CleanupResult(table=table, deleted=deleted, dry_run=dry_run))
+                    report.results.append(
+                        CleanupResult(table=table, deleted=deleted, dry_run=dry_run)
+                    )
                     total += deleted
                 except Exception as e:
                     logger.exception("Ошибка очистки %s: %s", table, e)
@@ -143,9 +155,7 @@ class DataRetentionManager:
             else:
                 sub = f"SELECT id FROM semantic_ai_cache WHERE {cutoff} LIMIT {self.batch_size}"
 
-            deleted = await conn.execute(
-                f"DELETE FROM {table} WHERE {id_col} IN ({sub})"
-            )
+            deleted = await conn.execute(f"DELETE FROM {table} WHERE {id_col} IN ({sub})")
             n = int(deleted.split()[-1]) if deleted else 0
             total_deleted += n
             if n < self.batch_size:

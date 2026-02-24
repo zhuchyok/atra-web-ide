@@ -24,8 +24,8 @@
    ```
 
 ## Стоп / рестарт
+
 ```bash
 sudo systemctl stop atra.service
 sudo systemctl restart atra.service
 ```
-

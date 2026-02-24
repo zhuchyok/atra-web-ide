@@ -10,16 +10,19 @@
 ### **При отправке сигнала (`send_signal`):**
 
 #### **Для ВСЕХ режимов (AUTO и MANUAL):**
+
 1. ✅ Сигнал отправляется в Telegram
 2. ✅ **Сохраняется в `accepted_signals`** со статусом `pending`
 3. ✅ **Сохраняется в `signals_log`** со статусом `PENDING`
 4. ❌ **НЕ открывается позиция на бирже** (только сохранение)
 
 #### **В AUTO режиме (после сохранения):**
+
 1. ✅ Автоматически открывается позиция на бирже (через `auto_exec.execute_and_open()`)
 2. ⚠️ Статусы обновляются автоматически (через `auto_execution`)
 
 #### **В MANUAL режиме:**
+
 1. ✅ Сигнал сохранен со статусом `pending`
 2. ✅ Ждем нажатия кнопки "ПРИНЯТЬ"
 3. ✅ При нажатии → обновление статусов + открытие позиции
@@ -60,7 +63,7 @@ if SIGNAL_ACCEPTANCE_AVAILABLE and signal_acceptance_manager:
         message_id=message_id_result,
         status="pending"  # Статус pending до принятия
     )
-    
+
     if message_id_result and chat_id_int:
         await signal_acceptance_manager.register_signal(
             signal_data_obj,
@@ -96,6 +99,7 @@ signal_db.insert_signal_log_entry({
 ## 📊 **ПОТОК ДАННЫХ**
 
 ### **MANUAL режим:**
+
 ```
 1. send_signal() → отправка в Telegram
 2. → сохранение в accepted_signals (pending)
@@ -106,6 +110,7 @@ signal_db.insert_signal_log_entry({
 ```
 
 ### **AUTO режим:**
+
 ```
 1. send_signal() → отправка в Telegram
 2. → сохранение в accepted_signals (pending)
@@ -119,11 +124,13 @@ signal_db.insert_signal_log_entry({
 ## ✅ **РЕЗУЛЬТАТ**
 
 ### **До изменений:**
+
 - ❌ Сигналы НЕ сохранялись в базу при отправке
 - ❌ Сигналы сохранялись только при нажатии кнопки "ПРИНЯТЬ"
 - ❌ Невозможно было отследить все отправленные сигналы
 
 ### **После изменений:**
+
 - ✅ Сигналы сохраняются в базу при отправке (для ВСЕХ режимов)
 - ✅ Статус `pending` / `PENDING` до принятия
 - ✅ Полная история всех сигналов в базе данных
@@ -136,6 +143,7 @@ signal_db.insert_signal_log_entry({
 ### **Что нужно проверить:**
 
 1. **Сигналы сохраняются при отправке:**
+
    ```sql
    SELECT * FROM accepted_signals WHERE status = 'pending' ORDER BY created_at DESC LIMIT 10;
    SELECT * FROM signals_log WHERE result = 'PENDING' ORDER BY created_at DESC LIMIT 10;
@@ -162,4 +170,3 @@ signal_db.insert_signal_log_entry({
 ---
 
 **Следующий шаг:** Протестировать сохранение сигналов в реальных условиях.
-

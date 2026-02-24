@@ -1,10 +1,11 @@
 """
 Метрики рекомендаций перехода в режим Агент (Фаза 2, день 3–4).
 """
+
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
-from collections import defaultdict
 
 
 @dataclass

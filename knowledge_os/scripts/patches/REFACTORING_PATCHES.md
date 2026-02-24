@@ -18,9 +18,9 @@ async def telegram_bridge():
     for update in data.get('result', []):
         # ...
         lower_text = user_text.lower()
-        if lower_text.startswith('виктория'): 
+        if lower_text.startswith('виктория'):
             target_name = 'Виктория'; user_text = user_text[8:].strip(', ').strip()
-        elif lower_text.startswith('владимир'): 
+        elif lower_text.startswith('владимир'):
             target_name = 'Владимир'; user_text = user_text[8:].strip(', ').strip()
 ```
 
@@ -33,15 +33,15 @@ from expert_aliases import get_alias_manager, extract_expert_from_message
 async def telegram_bridge():
     print(f"[{datetime.now()}] Telegram шлюз v4.7 (Dynamic Experts) запущен...")
     offset = 0
-    
+
     # Инициализируем менеджер алиасов при старте
     alias_manager = await get_alias_manager()
-    
+
     async with httpx.AsyncClient(timeout=30) as client:
         while True:
             try:
                 # ... existing code ...
-                
+
                 for update in data.get('result', []):
                     offset = update['update_id'] + 1
                     msg = update.get('message')
@@ -49,15 +49,15 @@ async def telegram_bridge():
                         user_id = msg.get('from', {}).get('id')
                         user_text = msg.get('text', '')
                         chat_id = msg['chat']['id']
-                        
+
                         # НОВЫЙ КОД: Динамическое определение эксперта
                         target_name, user_text = await extract_expert_from_message(
-                            user_text, 
+                            user_text,
                             default_expert='Виктория'
                         )
-                        
+
                         asyncio.create_task(handle_message(target_name, user_text, chat_id, user_id))
-                        
+
                 # Периодически обновляем кэш алиасов (раз в 30 мин автоматически)
                 await alias_manager.load_aliases()
                 await check_notifications()
@@ -74,10 +74,10 @@ async def telegram_bridge():
 
 ```python
 # Определение эксперта по ключевым словам
-if any(x in lower_text for x in ['виктория', 'вика']): 
+if any(x in lower_text for x in ['виктория', 'вика']):
     target_name = 'Виктория'
     user_text = user_text.replace('Виктория', '').replace('Вика', '').strip(', ').strip()
-elif any(x in lower_text for x in ['владимир', 'вова']): 
+elif any(x in lower_text for x in ['владимир', 'вова']):
     target_name = 'Владимир'
     # ... и т.д. для каждого эксперта
 ```
@@ -115,7 +115,7 @@ WHERE (l.feedback_score >= $1 OR (e.name IN ('Виктория', 'Дмитрий
 ```python
 # Вариант A: Фильтр по ролям (рекомендуется)
 WHERE (
-    l.feedback_score >= $1 
+    l.feedback_score >= $1
     OR (
         (e.role ILIKE '%Lead%' OR e.role ILIKE '%Director%' OR e.role ILIKE '%Senior%')
         AND l.feedback_score IS NULL
@@ -128,7 +128,7 @@ SENIOR_ROLES = ['Team Lead', 'Director', 'Senior Engineer', 'Manager']
 
 # В запросе:
 WHERE (
-    l.feedback_score >= $1 
+    l.feedback_score >= $1
     OR (e.role = ANY($3::text[]) AND l.feedback_score IS NULL)
 )
 # И передать SENIOR_ROLES как параметр
@@ -143,9 +143,9 @@ WHERE (
 ```python
 # Хардкод дефолта если БД пуста
 expert = {
-    'name': 'Виктория', 
+    'name': 'Виктория',
     'system_prompt': 'Вы Виктория, Главный Координатор торговой системы ATRA...',
-    'role': 'Team Lead', 
+    'role': 'Team Lead',
     'id': 0
 }
 ```
@@ -159,14 +159,14 @@ from expert_validator import get_validated_fallback_experts
 # В handle_message():
 if not expert:
     logger.warning(f"Эксперт {target_name} не найден в БД")
-    
+
     # Пробуем Викторию
     expert = await get_expert_config('Виктория')
-    
+
     if not expert:
         # Используем валидированный fallback с предупреждением
         logger.error("БД недоступна, используется FALLBACK")
-        
+
         # Импортируем дефолтный промпт из конфига (не хардкодим!)
         from config import DEFAULT_COORDINATOR_CONFIG
         expert = DEFAULT_COORDINATOR_CONFIG
@@ -218,11 +218,12 @@ DEFAULT_COORDINATOR_CONFIG = {
 ## ⚠️ ПРИМЕЧАНИЕ О НЕОПРЕДЕЛЁННОСТИ
 
 > **Список хардкодов может быть неполным!**
-> 
+>
 > Проведённый аудит покрывает основные файлы, но в кодовой базе
 > могут существовать другие места с хардкодами экспертов.
-> 
+>
 > Рекомендуется:
+>
 > 1. Регулярно запускать `check_experts_count.py`
 > 2. При добавлении экспертов в БД — проверять все gateway-файлы
 > 3. Использовать `expert_aliases.py` для новых интеграций

@@ -43,15 +43,18 @@ src/
 **Файл:** `src/analysis/auction_market_theory.py`
 
 **Ответственность:**
+
 - Анализ баланса покупателей/продавцов
 - Определение фаз рынка (auction/balance/imbalance)
 - Расчет уровней аукциона
 
 **Зависимости:**
+
 - `pandas`, `numpy`
 - Использует Volume Delta и CDV для анализа
 
 **Интеграция:**
+
 - Используется в `AMTFilter`
 - Интегрирован в `src/signals/core.py`
 
@@ -60,15 +63,18 @@ src/
 **Файл:** `src/analysis/market_profile.py`
 
 **Ответственность:**
+
 - Анализ распределения времени по ценам
 - Расчет TPO POC и Value Area
 - Комбинирование с Volume Profile
 
 **Зависимости:**
+
 - `pandas`, `numpy`
 - Интегрируется с `VolumeProfileAnalyzer`
 
 **Интеграция:**
+
 - Используется в `MarketProfileFilter`
 - Интегрирован в `src/signals/filters_volume_vwap.py`
 
@@ -77,15 +83,18 @@ src/
 **Файл:** `src/analysis/institutional_patterns.py`
 
 **Ответственность:**
+
 - Обнаружение Iceberg Orders
 - Обнаружение Spoofing
 - Оценка качества сигнала
 
 **Зависимости:**
+
 - `pandas`, `numpy`
 - Интегрируется с ML системой
 
 **Интеграция:**
+
 - Используется в `InstitutionalPatternsFilter`
 - Интегрирован в `signal_live.py`
 - ML features в `ml/features/institutional_patterns_features.py`
@@ -95,12 +104,14 @@ src/
 **Файл:** `src/analysis/order_flow/cumulative_delta.py`
 
 **Улучшения:**
+
 - Временная взвешенность (недавние сделки важнее)
 - Интеграция с `DivergenceAnalyzer`
 
 **Файл:** `src/analysis/order_flow/divergence_analyzer.py`
 
 **Ответственность:**
+
 - Анализ дивергенций между ценой и CDV
 - Обнаружение бычьих/медвежьих дивергенций
 
@@ -109,10 +120,12 @@ src/
 **Файл:** `src/analysis/order_flow/price_level_imbalance.py`
 
 **Ответственность:**
+
 - Анализ дисбаланса на каждом уровне цены внутри свечи
 - Определение зон максимального дисбаланса
 
 **Интеграция:**
+
 - Интегрирован в `VolumeImbalanceFilter`
 
 #### 1.6 Volume-Weighted Time (VWT)
@@ -120,11 +133,13 @@ src/
 **Файл:** `src/analysis/vwt.py`
 
 **Ответственность:**
+
 - Взвешивание времени по объему
 - Расчет VWT POC и Value Area
 - Комбинирование с Volume Profile
 
 **Интеграция:**
+
 - Интегрирован в `VolumeProfileAnalyzer`
 
 ---
@@ -136,11 +151,13 @@ src/
 **Файл:** `src/filters/amt_filter.py`
 
 **Логика фильтрации:**
+
 - **Balance**: блокирует все входы
 - **Imbalance**: разрешает входы в направлении дисбаланса
 - **Auction**: в строгом режиме блокирует, в мягком разрешает
 
 **Интеграция:**
+
 - Интегрирован в `src/signals/core.py` (strict и soft режимы)
 - Метрики Prometheus
 
@@ -149,11 +166,13 @@ src/
 **Файл:** `src/filters/market_profile_filter.py`
 
 **Логика фильтрации:**
+
 - **LONG**: цена должна быть близка к Value Area Low или ниже
 - **SHORT**: цена должна быть близка к Value Area High или выше
 - Использует комбинированный POC (Volume Profile + TPO)
 
 **Интеграция:**
+
 - Интегрирован в `src/signals/core.py` (в секции Volume Profile/VWAP)
 - Метрики Prometheus
 
@@ -162,11 +181,13 @@ src/
 **Файл:** `src/filters/institutional_patterns_filter.py`
 
 **Логика фильтрации:**
+
 - **Spoofing обнаружен**: всегда блокирует
 - **Iceberg обнаружен**: может подтверждать или ослаблять
 - **Низкое качество**: блокирует в строгом режиме
 
 **Интеграция:**
+
 - Интегрирован в `signal_live.py` (функция `check_new_filters`)
 - Метрики Prometheus
 
@@ -177,16 +198,19 @@ src/
 #### 3.1 Интеграция в `src/signals/core.py`
 
 **AMT Filter:**
+
 - Интегрирован в `strict_entry_signal()` и `soft_entry_signal()`
 - Проверяется после базовых условий и других фильтров
 
 **Market Profile Filter:**
+
 - Интегрирован в секцию Volume Profile/VWAP
 - Проверяется вместе с Volume Profile и VWAP фильтрами
 
 #### 3.2 Интеграция в `signal_live.py`
 
 **Institutional Patterns Filter:**
+
 - Интегрирован в функцию `check_new_filters()`
 - Проверяется после других новых фильтров (Dominance, Interest Zone, Fibonacci, Volume Imbalance)
 
@@ -199,6 +223,7 @@ src/
 **Файл:** `src/monitoring/prometheus.py`
 
 **Метрики для новых индикаторов:**
+
 - `atra_amt_phase_detected_total` - количество обнаружений фаз
 - `atra_amt_balance_score` - распределение баланса
 - `atra_tpo_poc_detected_total` - количество обнаружений TPO POC
@@ -210,6 +235,7 @@ src/
 - `atra_indicator_processing_time_seconds` - время обработки
 
 **Функции для записи метрик:**
+
 - `record_amt_phase()` - запись фазы AMT
 - `record_tpo_poc()` - запись TPO POC
 - `record_institutional_pattern()` - запись паттерна
@@ -222,6 +248,7 @@ src/
 **Файл:** `src/metrics/filter_metrics.py`
 
 **Новые типы фильтров:**
+
 - `FilterType.AMT_FILTER`
 - `FilterType.MARKET_PROFILE_FILTER`
 - `FilterType.INSTITUTIONAL_PATTERNS_FILTER`
@@ -233,6 +260,7 @@ src/
 **Файл:** `config.py`
 
 **Флаги включения/отключения:**
+
 ```python
 USE_AMT_FILTER = True
 USE_MARKET_PROFILE_FILTER = True
@@ -240,6 +268,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True
 ```
 
 **Настройки:**
+
 - `AMT_FILTER_CONFIG` - настройки AMT
 - `MARKET_PROFILE_FILTER_CONFIG` - настройки Market Profile
 - `INSTITUTIONAL_PATTERNS_FILTER_CONFIG` - настройки Institutional Patterns
@@ -389,4 +418,3 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True
 **Версия документа:** 1.0  
 **Дата:** 2024  
 **Авторы:** Команда ATRA (21 человек)
-

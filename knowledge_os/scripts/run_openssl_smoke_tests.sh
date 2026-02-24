@@ -41,4 +41,3 @@ echo "📨 Telegram risk status dry run..."
 python scripts/send_risk_status_report.py --dry-run
 
 echo "✅ Smoke tests completed under OpenSSL migration sandbox."
-

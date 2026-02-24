@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль отправки сигналов.
 
@@ -12,7 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ from src.shared.config.settings import settings
 
 class BitgetAdapter(ExchangeAdapter):
     """Bitget exchange adapter implementation"""
-    
+
     def __init__(self):
         """Initialize Bitget exchange client"""
         self._exchange = ccxt.bitget({
@@ -30,12 +30,12 @@ class BitgetAdapter(ExchangeAdapter):
             'sandbox': settings.exchange.sandbox,
             'enableRateLimit': True,
         })
-    
+
     async def get_current_price(self, symbol: Symbol) -> Price:
         """Get current market price from Bitget"""
         ticker = self._exchange.fetch_ticker(symbol.pair)
         return Price(Decimal(str(ticker['last'])), "USDT")
-    
+
     async def place_order(
         self,
         symbol: Symbol,
@@ -46,7 +46,7 @@ class BitgetAdapter(ExchangeAdapter):
         """Place order on Bitget"""
         order_type = 'limit' if price else 'market'
         order_side = 'buy' if side == PositionSide.LONG else 'sell'
-        
+
         order = self._exchange.create_order(
             symbol=symbol.pair,
             type=order_type,
@@ -54,9 +54,9 @@ class BitgetAdapter(ExchangeAdapter):
             amount=float(quantity),
             price=float(price.value) if price else None,
         )
-        
+
         return order['id']
-    
+
     async def get_order_status(self, order_id: str) -> OrderResponse:
         """Get order status from Bitget"""
         # Implementation would fetch order from exchange
@@ -71,7 +71,7 @@ class BitgetAdapter(ExchangeAdapter):
             'filled_quantity': Decimal('0'),
             'timestamp': get_utc_now(),
         }
-    
+
     async def cancel_order(self, order_id: str) -> bool:
         """Cancel order on Bitget"""
         try:
@@ -79,9 +79,8 @@ class BitgetAdapter(ExchangeAdapter):
             return True
         except Exception:
             return False
-    
+
     async def get_balance(self, currency: str) -> Decimal:
         """Get account balance from Bitget"""
         balance = self._exchange.fetch_balance()
         return Decimal(str(balance.get(currency, {}).get('free', 0)))
-

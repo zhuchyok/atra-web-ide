@@ -1,13 +1,16 @@
 """
 Модуль для безопасного кэширования данных
 """
-import time
-from typing import Dict, Any, Optional
-from functools import wraps
+
 import inspect
+import time
+from functools import wraps
+from typing import Any, Dict, Optional
+
 
 class CacheManager:
     """Менеджер кэша для безопасного хранения данных (🚀 STATELESS VERSION)"""
+
     _instance = None
 
     def __new__(cls):
@@ -83,15 +86,18 @@ class CacheManager:
         """
         return key in self._cache_data
 
+
 def cache_with_ttl(ttl_seconds: float = 30.0):
     """
     Декоратор для кэширования функций с TTL (🚀 STATELESS VERSION)
     """
+
     def decorator(func):
         # Получаем синглтон менеджер кэша
         cache_manager = CacheManager()
-        
+
         if inspect.iscoroutinefunction(func):
+
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 no_cache = bool(kwargs.pop("_no_cache", False))
@@ -100,11 +106,12 @@ def cache_with_ttl(ttl_seconds: float = 30.0):
                     cached_result = cache_manager.get(cache_key, ttl_seconds)
                     if cached_result is not None:
                         return cached_result
-                
+
                 result = await func(*args, **kwargs)
                 if not no_cache:
                     cache_manager.set(cache_key, result)
                 return result
+
             return async_wrapper
 
         # Синхронная функция
@@ -116,11 +123,12 @@ def cache_with_ttl(ttl_seconds: float = 30.0):
                 cached_result = cache_manager.get(cache_key, ttl_seconds)
                 if cached_result is not None:
                     return cached_result
-            
+
             result = func(*args, **kwargs)
             if not no_cache:
                 cache_manager.set(cache_key, result)
             return result
 
         return wrapper
+
     return decorator

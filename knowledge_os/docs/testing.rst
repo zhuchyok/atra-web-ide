@@ -28,10 +28,10 @@
 
    # Unit тесты
    python -m pytest tests/unit/ -v
-   
+
    # Integration тесты
    python -m pytest tests/integration/ -v
-   
+
    # Performance тесты
    python -m pytest tests/performance/ -v
 
@@ -59,7 +59,7 @@ Unit тесты
            'price': 50000.0,
            'user_id': '123456789'
        }
-       
+
        result = validate_signal_data(signal_data)
        assert result is True
 
@@ -72,7 +72,7 @@ Unit тесты
        """Тест строгого сигнала"""
        df = create_test_dataframe()
        side, price = strict_entry_signal(df, len(df) - 1)
-       
+
        assert side is None or side in ['LONG', 'SHORT']
        assert price is None or isinstance(price, (int, float))
 
@@ -90,10 +90,10 @@ Integration тесты
        """Тест полного потока генерации сигнала"""
        df = prepare_dataframe()
        user_data = get_user_data()
-       
+
        # Генерируем сигнал
        side, price = strict_entry_signal(df, len(df) - 1)
-       
+
        if side and price:
            # Валидируем сигнал
            signal_data = create_signal_data(side, price)
@@ -113,20 +113,20 @@ Performance тесты
    def test_signal_generation_under_load():
        """Тест генерации сигналов под нагрузкой"""
        df = prepare_dataframe()
-       
+
        # Параметры нагрузки
        num_iterations = 1000
        max_execution_time = 10.0  # секунд
-       
+
        start_time = time.time()
-       
+
        # Генерируем множество сигналов
        for i in range(num_iterations):
            side, price = strict_entry_signal(df, len(df) - 1)
-       
+
        end_time = time.time()
        execution_time = end_time - start_time
-       
+
        assert execution_time < max_execution_time
 
 ### Тест памяти
@@ -137,16 +137,16 @@ Performance тесты
        """Тест использования памяти под нагрузкой"""
        import psutil
        import os
-       
+
        process = psutil.Process(os.getpid())
        initial_memory = process.memory_info().rss / 1024 / 1024  # MB
-       
+
        # Генерируем множество сигналов
        for iteration in range(100):
            df = create_test_dataframe()
            for i in range(50, len(df)):
                side, price = strict_entry_signal(df, i)
-           
+
            # Проверяем память
            if iteration % 10 == 0:
                current_memory = process.memory_info().rss / 1024 / 1024
@@ -164,10 +164,10 @@ Performance тесты
        """Описание теста"""
        # Arrange - подготовка данных
        input_data = create_test_data()
-       
+
        # Act - выполнение действия
        result = function_under_test(input_data)
-       
+
        # Assert - проверка результата
        assert result is not None
        assert result > 0
@@ -180,7 +180,7 @@ Performance тесты
    def sample_ohlc_data():
        """Создает тестовые OHLC данные"""
        dates = pd.date_range(start='2024-01-01', periods=100, freq='1H')
-       
+
        df = pd.DataFrame({
            'timestamp': dates,
            'open': np.random.uniform(40000, 60000, 100),
@@ -189,7 +189,7 @@ Performance тесты
            'close': np.random.uniform(40000, 60000, 100),
            'volume': np.random.uniform(1000, 10000, 100)
        })
-       
+
        return df
 
 ### Моки
@@ -200,10 +200,10 @@ Performance тесты
    def test_signal_notification(mock_notify):
        """Тест уведомления о сигнале"""
        mock_notify.return_value = True
-       
+
        # Тестируем отправку сигнала
        result = send_signal(signal_data)
-       
+
        assert result is True
        mock_notify.assert_called_once()
 
@@ -217,26 +217,26 @@ Performance тесты
 .. code-block:: yaml
 
    name: Tests
-   
+
    on: [push, pull_request]
-   
+
    jobs:
      test:
        runs-on: ubuntu-latest
-       
+
        steps:
        - uses: actions/checkout@v2
-       
+
        - name: Set up Python
          uses: actions/setup-python@v2
          with:
            python-version: 3.9
-       
+
        - name: Install dependencies
          run: |
            pip install -r requirements.txt
            pip install -r requirements-dev.txt
-       
+
        - name: Run tests
          run: python run_tests.py
 
@@ -247,7 +247,7 @@ Performance тесты
    # Установка pre-commit hooks
    pip install pre-commit
    pre-commit install
-   
+
    # Запуск проверок
    pre-commit run --all-files
 
@@ -259,7 +259,7 @@ Performance тесты
 .. code-block:: bash
 
    python -m pytest tests/ --cov=src --cov-report=html
-   
+
    # Откройте htmlcov/index.html в браузере
 
 ### JSON отчет

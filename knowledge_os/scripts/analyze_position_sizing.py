@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Аналитика по таблице position_sizing_events.
 
@@ -148,7 +147,9 @@ def analyze(db_path: str, hours: Optional[int]) -> Optional[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Аналитика позиционного сайзинга")
-    parser.add_argument("--db", default="trading.db", help="Путь к базе данных (по умолчанию trading.db)")
+    parser.add_argument(
+        "--db", default="trading.db", help="Путь к базе данных (по умолчанию trading.db)"
+    )
     parser.add_argument(
         "--hours",
         type=int,
@@ -192,4 +193,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

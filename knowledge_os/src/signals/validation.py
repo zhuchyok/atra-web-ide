@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль валидации сигналов
 Вынесен из signal_live.py для рефакторинга
@@ -8,9 +7,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, Mapping, MutableMapping, Optional
+from collections.abc import Iterable, Mapping, MutableMapping
+from typing import Any, Dict, Optional
 
 import pandas as pd
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
@@ -171,56 +172,56 @@ def calculate_direction_confidence(df: pd.DataFrame, signal_type: str) -> bool:
 
         if signal_type == "BUY":
             # Проверка 1: EMA Fast > EMA Slow
-            if 'ema_fast' in df.columns and 'ema_slow' in df.columns:
-                if df['ema_fast'].iloc[-1] > df['ema_slow'].iloc[-1]:
+            if "ema_fast" in df.columns and "ema_slow" in df.columns:
+                if df["ema_fast"].iloc[-1] > df["ema_slow"].iloc[-1]:
                     confirmations += 1
                     logger.debug("✅ [BUY CONFIRM] EMA alignment")
 
             # Проверка 2: Price > EMA Fast
-            if 'close' in df.columns and 'ema_fast' in df.columns:
-                if df['close'].iloc[-1] > df['ema_fast'].iloc[-1]:
+            if "close" in df.columns and "ema_fast" in df.columns:
+                if df["close"].iloc[-1] > df["ema_fast"].iloc[-1]:
                     confirmations += 1
                     logger.debug("✅ [BUY CONFIRM] Price above EMA")
 
             # Проверка 3: RSI < 50 (не перекуплен)
-            if 'rsi' in df.columns:
-                rsi = df['rsi'].iloc[-1]
+            if "rsi" in df.columns:
+                rsi = df["rsi"].iloc[-1]
                 if not pd.isna(rsi) and rsi < 50:
                     confirmations += 1
                     logger.debug("✅ [BUY CONFIRM] RSI %.1f < 50", rsi)
 
             # Проверка 4: MACD > MACD Signal
-            if 'macd' in df.columns and 'macd_signal' in df.columns:
-                macd = df['macd'].iloc[-1]
-                macd_signal = df['macd_signal'].iloc[-1]
+            if "macd" in df.columns and "macd_signal" in df.columns:
+                macd = df["macd"].iloc[-1]
+                macd_signal = df["macd_signal"].iloc[-1]
                 if not pd.isna(macd) and not pd.isna(macd_signal) and macd > macd_signal:
                     confirmations += 1
                     logger.debug("✅ [BUY CONFIRM] MACD above signal")
 
         else:  # SELL
             # Проверка 1: EMA Fast < EMA Slow
-            if 'ema_fast' in df.columns and 'ema_slow' in df.columns:
-                if df['ema_fast'].iloc[-1] < df['ema_slow'].iloc[-1]:
+            if "ema_fast" in df.columns and "ema_slow" in df.columns:
+                if df["ema_fast"].iloc[-1] < df["ema_slow"].iloc[-1]:
                     confirmations += 1
                     logger.debug("✅ [SELL CONFIRM] EMA alignment")
 
             # Проверка 2: Price < EMA Fast
-            if 'close' in df.columns and 'ema_fast' in df.columns:
-                if df['close'].iloc[-1] < df['ema_fast'].iloc[-1]:
+            if "close" in df.columns and "ema_fast" in df.columns:
+                if df["close"].iloc[-1] < df["ema_fast"].iloc[-1]:
                     confirmations += 1
                     logger.debug("✅ [SELL CONFIRM] Price below EMA")
 
             # Проверка 3: RSI > 50 (не перепродан)
-            if 'rsi' in df.columns:
-                rsi = df['rsi'].iloc[-1]
+            if "rsi" in df.columns:
+                rsi = df["rsi"].iloc[-1]
                 if not pd.isna(rsi) and rsi > 50:
                     confirmations += 1
                     logger.debug("✅ [SELL CONFIRM] RSI %.1f > 50", rsi)
 
             # Проверка 4: MACD < MACD Signal
-            if 'macd' in df.columns and 'macd_signal' in df.columns:
-                macd = df['macd'].iloc[-1]
-                macd_signal = df['macd_signal'].iloc[-1]
+            if "macd" in df.columns and "macd_signal" in df.columns:
+                macd = df["macd"].iloc[-1]
+                macd_signal = df["macd_signal"].iloc[-1]
                 if not pd.isna(macd) and not pd.isna(macd_signal) and macd < macd_signal:
                     confirmations += 1
                     logger.debug("✅ [SELL CONFIRM] MACD below signal")
@@ -232,53 +233,65 @@ def calculate_direction_confidence(df: pd.DataFrame, signal_type: str) -> bool:
             missing_checks = []
             if signal_type == "BUY":
                 if (
-                    'ema_fast' not in df.columns or
-                    'ema_slow' not in df.columns or
-                    df['ema_fast'].iloc[-1] <= df['ema_slow'].iloc[-1]
+                    "ema_fast" not in df.columns
+                    or "ema_slow" not in df.columns
+                    or df["ema_fast"].iloc[-1] <= df["ema_slow"].iloc[-1]
                 ):
                     missing_checks.append("EMA alignment")
                 if (
-                    'close' not in df.columns or
-                    'ema_fast' not in df.columns or
-                    df['close'].iloc[-1] <= df['ema_fast'].iloc[-1]
+                    "close" not in df.columns
+                    or "ema_fast" not in df.columns
+                    or df["close"].iloc[-1] <= df["ema_fast"].iloc[-1]
                 ):
                     missing_checks.append("Price > EMA")
-                if 'rsi' not in df.columns or pd.isna(df['rsi'].iloc[-1]) or df['rsi'].iloc[-1] >= 50:
+                if (
+                    "rsi" not in df.columns
+                    or pd.isna(df["rsi"].iloc[-1])
+                    or df["rsi"].iloc[-1] >= 50
+                ):
                     missing_checks.append("RSI < 50")
-                if 'macd' not in df.columns or 'macd_signal' not in df.columns:
+                if "macd" not in df.columns or "macd_signal" not in df.columns:
                     missing_checks.append("MACD (колонки отсутствуют)")
                 elif (
-                    pd.isna(df['macd'].iloc[-1]) or
-                    pd.isna(df['macd_signal'].iloc[-1]) or
-                    df['macd'].iloc[-1] <= df['macd_signal'].iloc[-1]
+                    pd.isna(df["macd"].iloc[-1])
+                    or pd.isna(df["macd_signal"].iloc[-1])
+                    or df["macd"].iloc[-1] <= df["macd_signal"].iloc[-1]
                 ):
                     missing_checks.append("MACD > Signal")
             else:  # SELL
                 if (
-                    'ema_fast' not in df.columns or
-                    'ema_slow' not in df.columns or
-                    df['ema_fast'].iloc[-1] >= df['ema_slow'].iloc[-1]
+                    "ema_fast" not in df.columns
+                    or "ema_slow" not in df.columns
+                    or df["ema_fast"].iloc[-1] >= df["ema_slow"].iloc[-1]
                 ):
                     missing_checks.append("EMA alignment")
                 if (
-                    'close' not in df.columns or
-                    'ema_fast' not in df.columns or
-                    df['close'].iloc[-1] >= df['ema_fast'].iloc[-1]
+                    "close" not in df.columns
+                    or "ema_fast" not in df.columns
+                    or df["close"].iloc[-1] >= df["ema_fast"].iloc[-1]
                 ):
                     missing_checks.append("Price < EMA")
-                if 'rsi' not in df.columns or pd.isna(df['rsi'].iloc[-1]) or df['rsi'].iloc[-1] <= 50:
+                if (
+                    "rsi" not in df.columns
+                    or pd.isna(df["rsi"].iloc[-1])
+                    or df["rsi"].iloc[-1] <= 50
+                ):
                     missing_checks.append("RSI > 50")
-                if 'macd' not in df.columns or 'macd_signal' not in df.columns:
+                if "macd" not in df.columns or "macd_signal" not in df.columns:
                     missing_checks.append("MACD (колонки отсутствуют)")
                 elif (
-                    pd.isna(df['macd'].iloc[-1]) or
-                    pd.isna(df['macd_signal'].iloc[-1]) or
-                    df['macd'].iloc[-1] >= df['macd_signal'].iloc[-1]
+                    pd.isna(df["macd"].iloc[-1])
+                    or pd.isna(df["macd_signal"].iloc[-1])
+                    or df["macd"].iloc[-1] >= df["macd_signal"].iloc[-1]
                 ):
                     missing_checks.append("MACD < Signal")
 
-            logger.warning("🚫 [DIRECTION CHECK] %s: недостаточно подтверждений (%d/4). Отсутствуют: %s",
-                         signal_type, confirmations, ", ".join(missing_checks) if missing_checks else "неизвестно")
+            logger.warning(
+                "🚫 [DIRECTION CHECK] %s: недостаточно подтверждений (%d/4). Отсутствуют: %s",
+                signal_type,
+                confirmations,
+                ", ".join(missing_checks) if missing_checks else "неизвестно",
+            )
         else:
             logger.info("✅ [DIRECTION CHECK] %s: %d/4 подтверждений", signal_type, confirmations)
 
@@ -291,22 +304,26 @@ def calculate_direction_confidence(df: pd.DataFrame, signal_type: str) -> bool:
 def check_rsi_warning(df: pd.DataFrame, signal_type: str) -> bool:
     """Проверяет RSI на перекупленность/перепроданность"""
     try:
-        if 'rsi' not in df.columns:
+        if "rsi" not in df.columns:
             return True  # Если RSI нет, пропускаем проверку
 
-        rsi = df['rsi'].iloc[-1]
+        rsi = df["rsi"].iloc[-1]
         if pd.isna(rsi):
             return True  # Если RSI NaN, пропускаем
 
         if signal_type == "BUY":
             # Для LONG: RSI не должен быть в зоне перекупленности (> 70)
             if rsi > 70:
-                logger.debug("⚠️ [RSI WARNING] %s: RSI %.1f > 70 (перекупленность)", signal_type, rsi)
+                logger.debug(
+                    "⚠️ [RSI WARNING] %s: RSI %.1f > 70 (перекупленность)", signal_type, rsi
+                )
                 return False
         else:  # SELL
             # Для SHORT: RSI не должен быть в зоне перепроданности (< 30)
             if rsi < 30:
-                logger.debug("⚠️ [RSI WARNING] %s: RSI %.1f < 30 (перепроданность)", signal_type, rsi)
+                logger.debug(
+                    "⚠️ [RSI WARNING] %s: RSI %.1f < 30 (перепроданность)", signal_type, rsi
+                )
                 return False
 
         return True

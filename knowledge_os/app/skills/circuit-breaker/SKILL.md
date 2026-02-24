@@ -4,7 +4,7 @@ description: Circuit Breaker - защита от каскадных сбоев (
 category: reliability
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "⚡" } }
 ---
 
 # Circuit Breaker Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Защиты от каскадных сбоев
 - Отказоустойчивости системы
 - Предотвращения перегрузки
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
 ## Методология
 
 Circuit Breaker работает через:
+
 1. **Monitoring** - Мониторинг ошибок
 2. **Threshold** - Порог ошибок
 3. **Open Circuit** - Открытие цепи при превышении порога

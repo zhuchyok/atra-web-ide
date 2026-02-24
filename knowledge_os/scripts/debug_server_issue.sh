@@ -8,7 +8,7 @@ echo "📊 Проверка базы данных..."
 if [ -f "trading.db" ]; then
     SIGNAL_COUNT=$(sqlite3 trading.db "SELECT COUNT(*) FROM signals_log;" 2>/dev/null || echo "0")
     echo "📈 Записей в signals_log: $SIGNAL_COUNT"
-    
+
     if [ "$SIGNAL_COUNT" -gt 0 ]; then
         echo "✅ База данных содержит сигналы"
         echo "📋 Последние 3 записи:"

@@ -36,4 +36,3 @@ echo ""
 # Show quick stats
 echo "📈 Quick Stats:"
 pytest tests/unit/ -q --tb=no 2>&1 | tail -3
-

@@ -25,4 +25,3 @@ journalctl -u signal_live -n 50 --no-pager | grep -i -E "(slippage|SLIPPAGE|Slip
 
 echo ""
 echo "✅ Деплой завершен!"
-

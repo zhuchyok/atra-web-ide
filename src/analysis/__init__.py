@@ -34,12 +34,12 @@ except ImportError:
     VolumeWeightedTime = None
 
 __all__ = [
-    'MarketStructureAnalyzer',
-    'EntryQualityScorer',
-    'VolumeProfileAnalyzer',
-    'VWAPCalculator',
-    'AuctionMarketTheory',
-    'MarketPhase',
-    'TimePriceOpportunity',
-    'VolumeWeightedTime',
+    "MarketStructureAnalyzer",
+    "EntryQualityScorer",
+    "VolumeProfileAnalyzer",
+    "VWAPCalculator",
+    "AuctionMarketTheory",
+    "MarketPhase",
+    "TimePriceOpportunity",
+    "VolumeWeightedTime",
 ]

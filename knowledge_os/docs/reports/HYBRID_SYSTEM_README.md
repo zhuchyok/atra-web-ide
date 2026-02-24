@@ -7,16 +7,19 @@
 ## 🎯 КЛЮЧЕВЫЕ ПРЕИМУЩЕСТВА
 
 ### ✅ **РЕШЕНИЕ ПРОБЛЕМ RATE LIMITING**
+
 - **Нет блокировок API** - умный контроль лимитов
 - **Нет задержек сигналов** - мгновенная отправка из кэша
 - **Нет потери данных** - graceful degradation
 
 ### ✅ **ВЫСОКАЯ ПРОИЗВОДИТЕЛЬНОСТЬ**
+
 - **В 10 раз меньше** API запросов
 - **Мгновенная** обработка сигналов
 - **Параллельная** работа фонового обновления
 
 ### ✅ **НАДЕЖНОСТЬ**
+
 - **Graceful degradation** при сбоях API
 - **Кэширование** как fallback
 - **Отказоустойчивость** системы
@@ -46,26 +49,31 @@
 ## 📁 КОМПОНЕНТЫ СИСТЕМЫ
 
 ### 1. **Smart Rate Limiter** (`smart_rate_limiter.py`)
+
 - Умный контроль частоты API запросов
 - Адаптивные лимиты для разных API
 - Статистика и мониторинг
 
 ### 2. **Adaptive Cache** (`adaptive_cache.py`)
+
 - Кэширование с приоритетами символов
 - TTL в зависимости от важности
 - Автоматическая очистка устаревших данных
 
 ### 3. **Hybrid Data Manager** (`hybrid_data_manager.py`)
+
 - Умное получение данных с приоритетом свежести
 - Fallback к кэшу при ошибках API
 - Пакетное обновление данных
 
 ### 4. **Background Data Updater** (`background_data_updater.py`)
+
 - Фоновое обновление данных с приоритизацией
 - Проактивное обеспечение свежести
 - Умные интервалы обновления
 
 ### 5. **Hybrid Signal Processor** (`signal_live_hybrid.py`)
+
 - Мгновенная обработка сигналов из кэша
 - Без API запросов во время обработки
 - Быстрая отправка в Telegram
@@ -73,6 +81,7 @@
 ## ⚙️ КОНФИГУРАЦИЯ
 
 ### Rate Limiting
+
 ```python
 API_RATE_LIMITS = {
     "binance": {
@@ -87,6 +96,7 @@ API_RATE_LIMITS = {
 ```
 
 ### Приоритеты символов
+
 ```python
 SYMBOL_PRIORITIES = {
     "critical": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],  # 30 сек TTL
@@ -97,6 +107,7 @@ SYMBOL_PRIORITIES = {
 ```
 
 ### Интервалы обновления
+
 ```python
 UPDATE_INTERVALS = {
     "critical": 30,     # 30 секунд для критических
@@ -109,12 +120,14 @@ UPDATE_INTERVALS = {
 ## 🚀 ЗАПУСК СИСТЕМЫ
 
 ### 1. **Автоматический запуск** (через main.py)
+
 ```python
 # Система автоматически запускается при старте ATRA
 python main.py
 ```
 
 ### 2. **Ручной запуск компонентов**
+
 ```python
 # Запуск фонового обновлятеля
 from background_data_updater import background_data_updater
@@ -126,6 +139,7 @@ await check_and_send_signals_hybrid(signal_history)
 ```
 
 ### 3. **Тестирование системы**
+
 ```bash
 python test_hybrid_system.py
 ```
@@ -133,6 +147,7 @@ python test_hybrid_system.py
 ## 📊 МОНИТОРИНГ
 
 ### Статистика Rate Limiter
+
 ```python
 stats = smart_rate_limiter.get_stats()
 print(f"Запросов в минуту: {stats['requests_per_minute']}")
@@ -140,6 +155,7 @@ print(f"Общее количество запросов: {stats['total_requests
 ```
 
 ### Статистика Cache
+
 ```python
 stats = adaptive_cache.get_stats()
 print(f"Hit rate: {stats['hit_rate_percent']:.1f}%")
@@ -147,6 +163,7 @@ print(f"Размер кэша: {stats['cache_size']}")
 ```
 
 ### Статистика Data Manager
+
 ```python
 stats = hybrid_data_manager.get_stats()
 print(f"Cache hits: {stats['data_manager']['cache_hits']}")
@@ -156,6 +173,7 @@ print(f"Fresh data requests: {stats['data_manager']['fresh_data_requests']}")
 ## 🔧 НАСТРОЙКА
 
 ### Изменение лимитов API
+
 ```python
 # В hybrid_config.py
 API_RATE_LIMITS["binance"]["max_per_minute"] = 15  # Увеличить лимит
@@ -163,12 +181,14 @@ API_RATE_LIMITS["binance"]["min_interval"] = 4.0   # Уменьшить инте
 ```
 
 ### Изменение приоритетов символов
+
 ```python
 # В hybrid_config.py
 SYMBOL_PRIORITIES["critical"].append("NEWUSDT")  # Добавить символ
 ```
 
 ### Изменение TTL кэша
+
 ```python
 # В hybrid_config.py
 PRIORITY_TTL["critical"] = 20  # Уменьшить TTL для критических
@@ -177,19 +197,25 @@ PRIORITY_TTL["critical"] = 20  # Уменьшить TTL для критичес�
 ## 🐛 УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Проблема: Высокий rate limiting
+
 **Решение**: Увеличить интервалы в `hybrid_config.py`
+
 ```python
 API_RATE_LIMITS["binance"]["min_interval"] = 10.0  # Увеличить до 10 секунд
 ```
 
 ### Проблема: Устаревшие данные
+
 **Решение**: Уменьшить TTL для критических символов
+
 ```python
 PRIORITY_TTL["critical"] = 15  # Уменьшить до 15 секунд
 ```
 
 ### Проблема: Медленная обработка
+
 **Решение**: Увеличить размер батча
+
 ```python
 BATCH_SIZE = 10  # Увеличить размер батча
 ```
@@ -197,12 +223,14 @@ BATCH_SIZE = 10  # Увеличить размер батча
 ## 📈 ПРОИЗВОДИТЕЛЬНОСТЬ
 
 ### До внедрения гибридной системы:
+
 - ❌ 40-50 API запросов за несколько минут
 - ❌ Circuit breaker срабатывал каждые 5 минут
 - ❌ Блокировка API на 300 секунд
 - ❌ Потеря сигналов из-за недоступности данных
 
 ### После внедрения гибридной системы:
+
 - ✅ 10-15 API запросов в минуту (соблюдение лимитов)
 - ✅ Никогда не превышаем rate limits
 - ✅ Мгновенная отправка сигналов из кэша
@@ -211,6 +239,7 @@ BATCH_SIZE = 10  # Увеличить размер батча
 ## 🎯 РЕЗУЛЬТАТЫ
 
 ### ✅ **ПОЛНОСТЬЮ РЕШЕНЫ ПРОБЛЕМЫ:**
+
 1. **Rate limiting** - умный контроль лимитов
 2. **Сетевые ошибки** - кэширование данных
 3. **Timeout ошибки** - фоновое обновление
@@ -218,6 +247,7 @@ BATCH_SIZE = 10  # Увеличить размер батча
 5. **Задержки сигналов** - мгновенная отправка
 
 ### 📊 **УЛУЧШЕНИЯ:**
+
 - **Производительность**: +1000% (в 10 раз быстрее)
 - **Надежность**: +99.9% (практически без сбоев)
 - **Эффективность**: +90% (меньше API запросов)

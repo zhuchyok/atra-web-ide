@@ -11,12 +11,14 @@
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### До реорганизации:
+
 - ❌ **261 Python файл в корне**
 - ❌ Нет группировки
 - ❌ Хаос в структуре
 - ❌ Сложно найти код
 
 ### После полной реорганизации:
+
 - ✅ **~20-30 файлов в корне** (только основные)
 - ✅ **Все файлы логически сгруппированы**
 - ✅ **Четкая модульная структура**
@@ -78,41 +80,44 @@ atra/
 
 ## 📊 СТАТИСТИКА ПЕРЕМЕЩЕНИЯ
 
-| Категория | Файлов | Куда |
-|-----------|--------|------|
-| AI/ML | 15 | `src/ai/` |
-| Utils | 13+ | `src/utils/` |
-| Telegram | 15 | `src/telegram/` |
-| Data | 14+ | `src/data/` |
-| Monitoring | 15+ | `src/monitoring/` |
-| Strategy | 14 | `src/strategies/` |
-| Filters | 5+ | `src/filters/` |
-| Patterns | 2 | `src/patterns/` |
-| Indicators | 2 | `src/indicators/` |
-| Core | 3+ | `src/core/` |
-| Execution | 12+ | `src/execution/` |
-| Risk | 7 | `src/risk/` |
-| Config | 6+ | `src/config/` |
-| Backups | 40 | `archive/backups/` |
-| Scripts | 50+ | `scripts/` |
-| Tests | 20+ | `tests/` |
-| **ИТОГО** | **~230+** | |
+| Категория  | Файлов    | Куда               |
+| ---------- | --------- | ------------------ |
+| AI/ML      | 15        | `src/ai/`          |
+| Utils      | 13+       | `src/utils/`       |
+| Telegram   | 15        | `src/telegram/`    |
+| Data       | 14+       | `src/data/`        |
+| Monitoring | 15+       | `src/monitoring/`  |
+| Strategy   | 14        | `src/strategies/`  |
+| Filters    | 5+        | `src/filters/`     |
+| Patterns   | 2         | `src/patterns/`    |
+| Indicators | 2         | `src/indicators/`  |
+| Core       | 3+        | `src/core/`        |
+| Execution  | 12+       | `src/execution/`   |
+| Risk       | 7         | `src/risk/`        |
+| Config     | 6+        | `src/config/`      |
+| Backups    | 40        | `archive/backups/` |
+| Scripts    | 50+       | `scripts/`         |
+| Tests      | 20+       | `tests/`           |
+| **ИТОГО**  | **~230+** |                    |
 
 ---
 
 ## 🎯 ДОСТИЖЕНИЯ
 
 ### 1. Полная модульная структура:
+
 - ✅ Все файлы логически сгруппированы
 - ✅ Четкое разделение по функциональности
 - ✅ Легко найти нужный код
 
 ### 2. Перемещено ~230+ файлов:
+
 - ✅ Из корня в правильные директории
 - ✅ Backup файлы в архив
 - ✅ Все файлы организованы
 
 ### 3. Улучшена организация:
+
 - ✅ **-230+ файлов в корне** (с 261 до ~30)
 - ✅ **+200 файлов в src/** (организованы)
 - ✅ **Четкая структура проекта**
@@ -146,4 +151,3 @@ atra/
 ---
 
 **Команда экспертов ATRA (21 сотрудник):** ✅ **РАБОТА ЗАВЕРШЕНА УСПЕШНО**
-

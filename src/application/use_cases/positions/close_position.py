@@ -5,12 +5,12 @@ This use case handles closing a trading position.
 """
 
 from typing import Optional
-from src.shared.utils.datetime_utils import get_utc_now
 
 from src.domain.entities.position import Position
 from src.domain.repositories.position_repository import PositionRepository
 from src.domain.value_objects.price import Price
 from src.infrastructure.external.exchanges.base import ExchangeAdapter
+from src.shared.utils.datetime_utils import get_utc_now
 
 
 class ClosePositionUseCase:

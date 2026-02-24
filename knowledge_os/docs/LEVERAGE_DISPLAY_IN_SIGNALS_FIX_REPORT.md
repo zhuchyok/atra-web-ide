@@ -19,12 +19,14 @@
 ### **✅ Исправление 1: Callback data**
 
 **Было:**
+
 ```python
 leverage_for_callback = dynamic_leverage if trade_mode == 'futures' else None
 callback_data = f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{side.lower()}|{risk_pct}|{leverage_for_callback or 1}'
 ```
 
 **Стало:**
+
 ```python
 leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_leverage else 1
 callback_data = f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{side.lower()}|{risk_pct}|{leverage_for_callback}'
@@ -33,11 +35,13 @@ callback_data = f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{
 ### **✅ Исправление 2: Быстрые команды**
 
 **Было:**
+
 ```python
 <code>/accept {symbol} {now.strftime('%Y-%m-%dT%H:%M')} {price:.2f} 1.0 {side.lower()} {risk_pct:.1f}</code>
 ```
 
 **Стало:**
+
 ```python
 <code>/accept {symbol} {now.strftime('%Y-%m-%dT%H:%M')} {price:.2f} 1.0 {side.lower()} {risk_pct:.1f} {leverage_for_callback}</code>
 ```
@@ -45,6 +49,7 @@ callback_data = f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{
 ### **✅ Исправление 3: Улучшенное логирование**
 
 **Добавлено:**
+
 ```python
 print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическое плечо: {dynamic_leverage}, Передаваемое плечо: {leverage_for_callback}")
 ```
@@ -56,6 +61,7 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 ### **🧪 Тестовые сценарии:**
 
 #### **1. Стабильный рынок (SPOT):**
+
 - **Режим:** SPOT
 - **Базовое плечо:** 1x
 - **Динамическое плечо:** 1.0x
@@ -64,6 +70,7 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 - **Быстрая команда:** `/accept BTCUSDT 2024-01-15T14:30 99.74 1.0 long 1.9 1`
 
 #### **2. Стабильный рынок (FUTURES):**
+
 - **Режим:** FUTURES
 - **Базовое плечо:** 1x
 - **Динамическое плечо:** 1.0x
@@ -72,6 +79,7 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 - **Быстрая команда:** `/accept BTCUSDT 2024-01-15T14:30 99.74 1.0 long 1.9 1.0`
 
 #### **3. Волатильный рынок (FUTURES):**
+
 - **Режим:** FUTURES
 - **Базовое плечо:** 2x
 - **Динамическое плечо:** 2.6x
@@ -80,6 +88,7 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 - **Быстрая команда:** `/accept BTCUSDT 2024-01-15T14:30 106.45 1.0 long 1.8 2.6`
 
 #### **4. Сильный тренд (FUTURES):**
+
 - **Режим:** FUTURES
 - **Базовое плечо:** 5x
 - **Динамическое плечо:** 19.7x
@@ -94,11 +103,11 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 ### **✅ Результаты проверки:**
 
 | Базовое плечо | Динамическое плечо | Передаваемое плечо | Консистентность |
-|---------------|-------------------|-------------------|-----------------|
-| 1x | 1.8x | 1.8x | ✅ |
-| 2x | 4.7x | 4.7x | ✅ |
-| 5x | 19.7x | 19.7x | ✅ |
-| 10x | 20x | 20x | ✅ |
+| ------------- | ------------------ | ------------------ | --------------- |
+| 1x            | 1.8x               | 1.8x               | ✅              |
+| 2x            | 4.7x               | 4.7x               | ✅              |
+| 5x            | 19.7x              | 19.7x              | ✅              |
+| 10x           | 20x                | 20x                | ✅              |
 
 **Все проверки пройдены успешно!**
 
@@ -109,16 +118,19 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 ### **📊 Как теперь работает система:**
 
 1. **Расчет динамического плеча:**
+
    ```python
    dynamic_leverage = get_dynamic_leverage(df, current_index, base_leverage)
    ```
 
 2. **Формирование отображения:**
+
    ```python
    leverage_display = f" | ⚡ Плечо: <code>x{dynamic_leverage}</code>" if trade_mode == 'futures' and dynamic_leverage else ""
    ```
 
 3. **Формирование callback_data:**
+
    ```python
    leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_leverage else 1
    callback_data = f'accept|{symbol}|{time}|{price}|1.0|{side}|{risk_pct}|{leverage_for_callback}'
@@ -134,16 +146,19 @@ print(f"[DEBUG] Режим торговли: {trade_mode}, Динамическ�
 ## ✅ **ПРЕИМУЩЕСТВА ИСПРАВЛЕНИЯ**
 
 ### **🎯 Точность:**
+
 - **Динамическое плечо** правильно рассчитывается и отображается
 - **Callback data** передает корректное значение плеча
 - **Быстрые команды** включают правильное плечо
 
 ### **🔄 Консистентность:**
+
 - **Отображение** соответствует реальному плечу
 - **Передача данных** происходит без потерь
 - **Обработка** в `telegram_bot.py` работает корректно
 
 ### **🛡️ Безопасность:**
+
 - **Fallback значения** для случаев ошибок
 - **Проверки** на корректность данных
 - **Логирование** для отладки

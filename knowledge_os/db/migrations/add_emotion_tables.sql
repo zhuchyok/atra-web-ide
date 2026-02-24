@@ -22,4 +22,3 @@ COMMENT ON COLUMN emotion_logs.detected_emotion IS 'Детектированна
 COMMENT ON COLUMN emotion_logs.emotion_confidence IS 'Уверенность в детекции эмоции (0.0-1.0)';
 COMMENT ON COLUMN emotion_logs.tone_used IS 'Использованный тон ответа на основе эмоции';
 COMMENT ON COLUMN emotion_logs.detail_level IS 'Уровень детализации ответа на основе эмоции';
-

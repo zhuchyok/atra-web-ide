@@ -11,23 +11,27 @@
 ### ✅ **Подтверждение использования Enhanced Bollinger Strategy:**
 
 #### 1. **Настройки стратегии активны**
+
 ```python
 ENHANCED_BOLLINGER_STRATEGY = True
 ```
 
 #### 2. **Используется оптимизированная функция**
+
 ```python
 # В signal_live.py строка 3525:
 enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry_signal(df, current_index, symbol)
 ```
 
 #### 3. **Приоритет стратегии**
+
 - **Высший приоритет**: Оптимизированная Enhanced Bollinger Strategy
 - **Fallback**: Обычная стратегия (если Enhanced не дала сигнала)
 
 ### 🔧 **Текущая конфигурация стратегии:**
 
 #### **Основные параметры:**
+
 - **BB Window**: 20
 - **BB STD**: 2.0
 - **EMA Fast**: 12
@@ -36,6 +40,7 @@ enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry
 - **RSI Oversold**: 30
 
 #### **Режимы сигналов:**
+
 - ✅ **Breakout**: Включен
 - ✅ **Mean Reversion**: Включен
 - ✅ **Squeeze Breakout**: Включен
@@ -43,22 +48,26 @@ enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry
 ### 📈 **Типы сигналов в стратегии:**
 
 #### 1. **Улучшенный пробой полос (высший приоритет)**
+
 - Анализ пробоя верхней/нижней полосы Bollinger
 - Подтверждение объемом и RSI
 - Минимальный пробой: 1.5%
 
 #### 2. **Улучшенный возврат к средней**
+
 - Анализ настроений и оптимизация под активы
 - Фильтрация по глобальному тренду
 - Усиление сигнала объемом
 
 #### 3. **Улучшенный пробой после squeeze**
+
 - Обнаружение сжатия полос Bollinger
 - Пробой после периода низкой волатильности
 
 ## 🎯 **Логика работы системы:**
 
 ### **Порядок генерации сигналов:**
+
 1. **Проверка подключения** к Telegram API
 2. **Получение OHLC данных** для всех символов
 3. **Добавление расширенных индикаторов** (Bollinger Bands, EMA, RSI, ATR)
@@ -67,6 +76,7 @@ enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry
 6. **Отправка сигнала** с динамическими TP
 
 ### **Новые улучшения:**
+
 - ✅ **Предотвращение повторных сигналов** (кэширование)
 - ✅ **Проверка актуальности** (технические условия)
 - ✅ **Динамические TP** (комбинация волатильности + Bollinger Bands)
@@ -75,6 +85,7 @@ enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry
 ## 📊 **Результаты тестирования:**
 
 ### **Тест стратегии:**
+
 ```
 🧪 ТЕСТ ТЕКУЩИХ СИГНАЛОВ
 ============================================================
@@ -108,6 +119,7 @@ enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry
 4. **Включены все режимы сигналов** (Breakout, Mean Reversion, Squeeze Breakout)
 
 ### 🚀 **Преимущества текущей системы:**
+
 - 🎯 **Высокое качество сигналов** благодаря оптимизации
 - 🔄 **Предотвращение дублирования** через кэширование
 - 📊 **Динамические TP** на основе волатильности и Bollinger Bands

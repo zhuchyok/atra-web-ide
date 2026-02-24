@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Сравнение результатов adaptive sizing против baseline.
 
@@ -117,9 +116,7 @@ def _match_trades(events: pd.DataFrame, trades: pd.DataFrame) -> pd.DataFrame:
     )
 
     tolerance = pd.to_timedelta(ENTRY_TIME_TOLERANCE_MINUTES, unit="m")
-    merged["time_diff"] = (
-        merged["entry_time_trade"] - merged["entry_time_event"]
-    ).abs()
+    merged["time_diff"] = (merged["entry_time_trade"] - merged["entry_time_event"]).abs()
 
     merged = merged[merged["time_diff"] <= tolerance]
 
@@ -128,12 +125,16 @@ def _match_trades(events: pd.DataFrame, trades: pd.DataFrame) -> pd.DataFrame:
     merged = merged.rename(columns={"net_pnl_usd": "actual_pnl_usd"})
 
     # Расчёт коэффициентов
-    merged["final_vs_base"] = merged["final_amount_usd"] / merged["baseline_amount_usd"].replace({0.0: pd.NA})
-    merged["ai_vs_base"] = merged["ai_amount_usd"] / merged["baseline_amount_usd"].replace({0.0: pd.NA})
-    merged["baseline_pnl_usd"] = merged["actual_pnl_usd"]
-    merged.loc[merged["final_vs_base"].notna() & (merged["final_vs_base"] != 0), "baseline_pnl_usd"] = (
-        merged["actual_pnl_usd"] / merged["final_vs_base"]
+    merged["final_vs_base"] = merged["final_amount_usd"] / merged["baseline_amount_usd"].replace(
+        {0.0: pd.NA}
     )
+    merged["ai_vs_base"] = merged["ai_amount_usd"] / merged["baseline_amount_usd"].replace(
+        {0.0: pd.NA}
+    )
+    merged["baseline_pnl_usd"] = merged["actual_pnl_usd"]
+    merged.loc[
+        merged["final_vs_base"].notna() & (merged["final_vs_base"] != 0), "baseline_pnl_usd"
+    ] = merged["actual_pnl_usd"] / merged["final_vs_base"]
     merged["final_vs_base"] = merged["final_vs_base"].fillna(1.0)
     merged["ai_vs_base"] = merged["ai_vs_base"].fillna(1.0)
 
@@ -261,4 +262,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

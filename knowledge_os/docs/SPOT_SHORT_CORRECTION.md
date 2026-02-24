@@ -3,9 +3,11 @@
 ## ❌ **МОЯ ОШИБКА**
 
 ### ❌ **Неправильное утверждение:**
+
 "SPOT режим - можно торговать SHORT"
 
 ### ✅ **ПРАВИЛЬНО:**
+
 **SPOT режим НЕ поддерживает SHORT торговлю!**
 
 ---
@@ -28,10 +30,10 @@
 ```json
 {
   "556251171": {
-    "trade_mode": "futures",    // ✅ FUTURES для SHORT торговли
-    "filter_mode": "soft",      // ✅ SOFT для большего количества сигналов
+    "trade_mode": "futures", // ✅ FUTURES для SHORT торговли
+    "filter_mode": "soft", // ✅ SOFT для большего количества сигналов
     "deposit": 10000,
-    "leverage": 3               // ✅ Плечо для FUTURES
+    "leverage": 3 // ✅ Плечо для FUTURES
   }
 }
 ```

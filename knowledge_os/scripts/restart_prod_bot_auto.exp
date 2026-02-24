@@ -79,4 +79,3 @@ send "exit\r"
 expect eof
 
 puts "\n✅ Готово! Бот перезапущен."
-

@@ -3,15 +3,18 @@
 ## ✅ ЛОКАЛЬНАЯ ПРОВЕРКА
 
 ### 1. Синтаксис
+
 - ✅ `slippage_manager.py` - синтаксис корректен
 - ✅ `order_manager.py` - синтаксис корректен
 - ✅ `signal_live.py` - синтаксис корректен
 
 ### 2. Импорты
+
 - ✅ `from slippage_manager import get_slippage_manager` - работает
 - ✅ `SlippageManager` создается успешно
 
 ### 3. Методы SlippageManager
+
 - ✅ `calculate_dynamic_slippage()` - присутствует
 - ✅ `record_slippage()` - присутствует
 - ✅ `get_adjusted_position_size()` - присутствует
@@ -19,12 +22,14 @@
 - ✅ `should_wait_for_better_liquidity()` - присутствует
 
 ### 4. Интеграция в signal_live.py
+
 - ✅ `get_slippage_manager()` - используется
 - ✅ `get_adjusted_position_size()` - используется
 - ✅ Компенсация применяется к `entry_amount_usdt`
 - ✅ Логирование в `sizing_audit`
 
 ### 5. Интеграция в order_manager.py
+
 - ✅ `should_use_limit_order()` - используется
 - ✅ `auto_optimize` параметр добавлен
 - ✅ Динамическое проскальзывание применяется
@@ -73,19 +78,23 @@ ls -la trading.db
 ## ✅ ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ НА СЕРВЕРЕ
 
 ### После git pull:
+
 - ✅ Файл `slippage_manager.py` должен существовать
 - ✅ Изменения в `order_manager.py` и `signal_live.py` должны быть применены
 
 ### После проверки импортов:
+
 - ✅ Должно вывести: `✅ SlippageManager: SlippageManager`
 - ✅ Не должно быть ошибок импорта
 
 ### После перезапуска:
+
 - ✅ Сервис должен быть `active (running)`
 - ✅ В логах должно быть: `✅ SlippageManager инициализирован`
 - ✅ В логах должно быть: `✅ Таблица slippage_records инициализирована`
 
 ### В логах при работе:
+
 - ✅ При генерации сигналов может появиться: `💰 [SLIPPAGE COMPENSATION]`
 - ✅ При создании ордеров может появиться: `🎯 [ORDER OPTIMIZATION]`
 - ✅ Не должно быть ошибок типа: `❌ Ошибка инициализации БД проскальзывания`
@@ -103,4 +112,3 @@ ls -la trading.db
 **Локальная проверка:** ✅ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ  
 **Готовность к деплою:** ✅ ГОТОВО  
 **Требуется ручная проверка на сервере:** ✅ ДА
-

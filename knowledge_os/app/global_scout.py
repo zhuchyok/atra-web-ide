@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 # Third-party imports with fallback
 try:
     import aiohttp
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     aiohttp = None
@@ -23,6 +24,7 @@ except ImportError:
 
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -32,36 +34,43 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_async
 except ImportError:
+
     async def run_smart_agent_async(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_async."""
         return None
 
+
 try:
     from semantic_cache import SemanticAICache
 except ImportError:
+
     class SemanticAICache:
         """Fallback for SemanticAICache."""
-        async def save_to_cache(self, *args, **kwargs): pass
+
+        async def save_to_cache(self, *args, **kwargs):
+            pass
+
 
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
-if USER_NAME == 'zhuchyok':
-    DEFAULT_DB_URL = f'postgresql://{USER_NAME}@localhost:5432/knowledge_os'
+if USER_NAME == "zhuchyok":
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
 else:
-    DEFAULT_DB_URL = 'postgresql://admin:secret@localhost:5432/knowledge_os'
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # API Keys (можно добавить в .env)
-GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', '')
-STACK_OVERFLOW_KEY = os.getenv('STACK_OVERFLOW_KEY', '')
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+STACK_OVERFLOW_KEY = os.getenv("STACK_OVERFLOW_KEY", "")
 
 
 @dataclass
 class ExternalValidation:
     """Результат валидации знания из внешних источников"""
+
     source: str  # 'github', 'stackoverflow', 'arxiv', 'hackernews'
     relevance_score: float  # 0.0 - 1.0
     confidence: float  # 0.0 - 1.0
@@ -91,12 +100,7 @@ class GitHubScout:
         try:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.BASE_URL}/search/repositories"
-                params = {
-                    "q": query,
-                    "sort": "stars",
-                    "order": "desc",
-                    "per_page": limit
-                }
+                params = {"q": query, "sort": "stars", "order": "desc", "per_page": limit}
                 async with session.get(url, headers=self.headers, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -123,7 +127,7 @@ class GitHubScout:
                 confidence=0.0,
                 evidence="No repositories found",
                 timestamp=datetime.now(),
-                metadata={}
+                metadata={},
             )
 
         # Вычисляем релевантность на основе популярности репозиториев
@@ -144,11 +148,11 @@ class GitHubScout:
                     {
                         "name": r.get("full_name"),
                         "stars": r.get("stargazers_count"),
-                        "url": r.get("html_url")
+                        "url": r.get("html_url"),
                     }
                     for r in repositories[:3]
                 ]
-            }
+            },
         )
 
     def _extract_keywords(self, content: str, domain: str) -> List[str]:
@@ -157,8 +161,19 @@ class GitHubScout:
         words = content.lower().split()
         # Фильтруем стоп-слова
         stop_words = {
-            "the", "a", "an", "is", "are", "was", "were",
-            "be", "been", "to", "of", "and", "or"
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "to",
+            "of",
+            "and",
+            "or",
         }
         keywords = [w for w in words if len(w) > 3 and w not in stop_words]
         # Добавляем домен
@@ -188,7 +203,7 @@ class StackOverflowScout:
                     "order": "desc",
                     "sort": "votes",
                     "site": "stackoverflow",
-                    "pagesize": limit
+                    "pagesize": limit,
                 }
                 if self.key:
                     params["key"] = self.key
@@ -218,7 +233,7 @@ class StackOverflowScout:
                 confidence=0.0,
                 evidence="No questions found",
                 timestamp=datetime.now(),
-                metadata={}
+                metadata={},
             )
 
         # Вычисляем релевантность на основе голосов
@@ -240,19 +255,30 @@ class StackOverflowScout:
                         "title": q.get("title"),
                         "votes": q.get("score"),
                         "answers": q.get("answer_count", 0),
-                        "url": q.get("link")
+                        "url": q.get("link"),
                     }
                     for q in questions[:3]
                 ]
-            }
+            },
         )
 
     def _extract_keywords(self, content: str, domain: str) -> List[str]:
         """Извлечение ключевых слов"""
         words = content.lower().split()
         stop_words = {
-            "the", "a", "an", "is", "are", "was", "were",
-            "be", "been", "to", "of", "and", "or"
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "to",
+            "of",
+            "and",
+            "or",
         }
         keywords = [w for w in words if len(w) > 3 and w not in stop_words]
         if domain:
@@ -277,7 +303,7 @@ class ArxivScout:
                     "start": 0,
                     "max_results": limit,
                     "sortBy": "relevance",
-                    "sortOrder": "descending"
+                    "sortOrder": "descending",
                 }
                 async with session.get(self.BASE_URL, params=params) as response:
                     if response.status == 200:
@@ -311,15 +337,26 @@ class ArxivScout:
             confidence=0.6 if papers else 0.0,
             evidence=f"Found {len(papers)} papers" if papers else "No papers found",
             timestamp=datetime.now(),
-            metadata={"papers": papers}
+            metadata={"papers": papers},
         )
 
     def _extract_keywords(self, content: str, domain: str) -> List[str]:
         """Извлечение ключевых слов"""
         words = content.lower().split()
         stop_words = {
-            "the", "a", "an", "is", "are", "was", "were",
-            "be", "been", "to", "of", "and", "or"
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "to",
+            "of",
+            "and",
+            "or",
         }
         keywords = [w for w in words if len(w) > 3 and w not in stop_words]
         if domain:
@@ -336,10 +373,7 @@ class GlobalScout:
         self.arxiv = ArxivScout()
 
     async def validate_knowledge_node(
-        self,
-        knowledge_id: int,
-        content: str,
-        domain: str
+        self, knowledge_id: int, content: str, domain: str
     ) -> Dict[str, Any]:
         """Валидация узла знания через все внешние источники"""
         logger.info("🔍 Validating knowledge node %d via external APIs...", knowledge_id)
@@ -349,7 +383,7 @@ class GlobalScout:
             self.github.validate_knowledge(content, domain),
             self.stackoverflow.validate_knowledge(content, domain),
             self.arxiv.validate_knowledge(content, domain),
-            return_exceptions=True
+            return_exceptions=True,
         )
 
         # Обработка результатов
@@ -358,14 +392,16 @@ class GlobalScout:
             if isinstance(validation, Exception):
                 logger.error("Validation error: %s", validation)
                 continue
-            results.append({
-                "source": validation.source,
-                "relevance_score": validation.relevance_score,
-                "confidence": validation.confidence,
-                "evidence": validation.evidence,
-                "timestamp": validation.timestamp.isoformat(),
-                "metadata": validation.metadata
-            })
+            results.append(
+                {
+                    "source": validation.source,
+                    "relevance_score": validation.relevance_score,
+                    "confidence": validation.confidence,
+                    "evidence": validation.evidence,
+                    "timestamp": validation.timestamp.isoformat(),
+                    "metadata": validation.metadata,
+                }
+            )
 
         # Вычисляем общий score
         if results:
@@ -380,7 +416,7 @@ class GlobalScout:
             "overall_relevance": avg_relevance,
             "overall_confidence": avg_confidence,
             "validations": results,
-            "validated_at": datetime.now().isoformat()
+            "validated_at": datetime.now().isoformat(),
         }
 
     async def update_knowledge_validation(self, conn, knowledge_id: int, validation_result: Dict):
@@ -391,8 +427,7 @@ class GlobalScout:
         try:
             # Получаем текущие metadata
             current_metadata = await conn.fetchval(
-                "SELECT metadata FROM knowledge_nodes WHERE id = $1",
-                knowledge_id
+                "SELECT metadata FROM knowledge_nodes WHERE id = $1", knowledge_id
             )
 
             if current_metadata is None:
@@ -408,7 +443,7 @@ class GlobalScout:
             await conn.execute(
                 "UPDATE knowledge_nodes SET metadata = $1 WHERE id = $2",
                 json.dumps(current_metadata),
-                knowledge_id
+                knowledge_id,
             )
 
             logger.info("✅ Updated validation for knowledge node %d", knowledge_id)
@@ -448,20 +483,18 @@ class PredictiveSynthesisScout:
             # 2. Synthesize a "Future Question"
             prompt = (
                 "ВЫ - ГЛОБАЛЬНЫЙ СКРАУТ ATRA. "
-                f"НА ОСНОВЕ НОВОГО ЗНАНИЯ: \"{node['content']}\" (Домен: {node['domain']})\n\n"
+                f'НА ОСНОВЕ НОВОГО ЗНАНИЯ: "{node["content"]}" (Домен: {node["domain"]})\n\n'
                 "ЗАДАЧА: Предскажите 1 вопрос, который Владелец может задать в ближайшем будущем "
                 "в связи с этим трендом. Дайте идеальный экспертный ответ.\n\n"
                 "ВЕРНИТЕ JSON:\n"
                 "{\n"
-                "    \"predicted_query\": \"Вопрос...\",\n"
-                "    \"expert_response\": \"Ответ...\"\n"
+                '    "predicted_query": "Вопрос...",\n'
+                '    "expert_response": "Ответ..."\n'
                 "}"
             )
 
             response = await run_smart_agent_async(
-                prompt,
-                expert_name="Виктория",
-                category="predictive_scout"
+                prompt, expert_name="Виктория", category="predictive_scout"
             )
 
             if not response:
@@ -477,11 +510,9 @@ class PredictiveSynthesisScout:
 
                 # 3. Pre-cache the result
                 await self.cache.save_to_cache(
-                    data['predicted_query'],
-                    data['expert_response'],
-                    "Виктория"
+                    data["predicted_query"], data["expert_response"], "Виктория"
                 )
-                logger.info("✨ Pre-cached future query: %s", data['predicted_query'])
+                logger.info("✨ Pre-cached future query: %s", data["predicted_query"])
 
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Predictive synthesis error: %s", exc)
@@ -525,9 +556,7 @@ async def run_global_scout_cycle():
         for node in knowledge_nodes:
             try:
                 validation_result = await scout.validate_knowledge_node(
-                    node["id"],
-                    node["content"],
-                    node["domain"]
+                    node["id"], node["content"], node["domain"]
                 )
 
                 # Обновляем в БД
@@ -536,7 +565,7 @@ async def run_global_scout_cycle():
                 # Небольшая задержка между запросами (rate limiting)
                 await asyncio.sleep(1)
             except Exception as exc:  # pylint: disable=broad-exception-caught
-                logger.error("Error validating node %d: %s", node['id'], exc)
+                logger.error("Error validating node %d: %s", node["id"], exc)
 
         logger.info("✅ Global Scout cycle completed")
 

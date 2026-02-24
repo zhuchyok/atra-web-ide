@@ -16,7 +16,7 @@ def send_to_victoria():
     print("📤 ОТПРАВКА ВСЕХ ЗАДАЧ VICTORIA")
     print("=" * 60)
     print()
-    
+
     # Проверка доступности
     try:
         response = requests.get(f"{VICTORIA_URL}/health", timeout=5)
@@ -27,9 +27,9 @@ def send_to_victoria():
     except Exception as e:
         print(f"❌ Ошибка подключения: {e}")
         return False
-    
+
     # Формируем задачу
-    goal = """Прочитай файл ALL_TASKS_FOR_VICTORIA.md в корне проекта atra-web-ide. 
+    goal = """Прочитай файл ALL_TASKS_FOR_VICTORIA.md в корне проекта atra-web-ide.
 
 Выполни ВСЕ 10 задач из списка последовательно:
 
@@ -56,19 +56,19 @@ def send_to_victoria():
 - Docker PATH: /usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH
 
 После выполнения каждой задачи проверяй результат."""
-    
+
     # Отправляем задачу
     try:
         print("\n📤 Отправка задачи Victoria...")
         print("   (это может занять 10-15 минут...)\n")
-        
+
         response = requests.post(
             f"{VICTORIA_URL}/run",
             json={"goal": goal, "max_steps": 60},
             timeout=900,  # 15 минут
             stream=False
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             print("✅ Задача принята Victoria!")
@@ -85,7 +85,7 @@ def send_to_victoria():
             print(f"❌ Ошибка: {response.status_code}")
             print(f"Ответ: {response.text[:200]}")
             return False
-            
+
     except requests.exceptions.Timeout:
         print("⏱️  Таймаут: Victoria не ответила за 15 минут")
         print("💡 Задача может выполняться, проверь логи:")
@@ -97,7 +97,7 @@ def send_to_victoria():
 
 def main():
     success = send_to_victoria()
-    
+
     print()
     print("=" * 60)
     if success:

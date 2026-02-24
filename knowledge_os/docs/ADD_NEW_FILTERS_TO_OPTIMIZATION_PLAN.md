@@ -8,6 +8,7 @@
 ## 📊 ФИЛЬТРЫ ДЛЯ ДОБАВЛЕНИЯ
 
 ### ✅ **УЖЕ ОПТИМИЗИРОВАНЫ (9 фильтров):**
+
 1. Volume Profile
 2. VWAP
 3. Market Profile
@@ -21,6 +22,7 @@
 ### ❌ **НУЖНО ДОБАВИТЬ (9 фильтров):**
 
 #### **1. BTC Trend Filter** 📊
+
 - **Параметры для оптимизации:**
   - `ema_soft`: [50, 100, 200]
   - `ema_strict`: [200]
@@ -30,6 +32,7 @@
 - **Файл:** `src/filters/btc_trend.py`
 
 #### **2. ETH Trend Filter** 📈
+
 - **Параметры для оптимизации:**
   - `ema_soft`: [50, 100, 200]
   - `ema_strict`: [200]
@@ -37,6 +40,7 @@
 - **Использование:** Вычисляется напрямую в `signal_live.py`
 
 #### **3. SOL Trend Filter** 📈
+
 - **Параметры для оптимизации:**
   - `ema_soft`: [50, 100, 200]
   - `ema_strict`: [200]
@@ -44,6 +48,7 @@
 - **Использование:** Вычисляется напрямую в `signal_live.py`
 
 #### **4. Dominance Trend Filter** 📉
+
 - **Параметры для оптимизации:**
   - `dominance_threshold_pct`: [0.5, 1.0, 1.5]
   - `min_days_for_trend`: [1, 3, 7]
@@ -53,6 +58,7 @@
 - **Файл:** `src/filters/dominance_trend.py`
 
 #### **5. Interest Zone Filter** 🎯
+
 - **Параметры для оптимизации:**
   - `lookback_periods`: [50, 100, 200]
   - `min_volume_cluster`: [1.0, 1.5, 2.0]
@@ -62,6 +68,7 @@
 - **Файл:** `src/filters/interest_zone.py`
 
 #### **6. Fibonacci Zone Filter** 📐
+
 - **Параметры для оптимизации:**
   - `lookback_periods`: [50, 100, 200]
   - `tolerance_pct`: [0.3, 0.5, 0.7]
@@ -70,6 +77,7 @@
 - **Файл:** `src/filters/fibonacci_zone.py`
 
 #### **7. Volume Imbalance Filter** 📊
+
 - **Параметры для оптимизации:**
   - `lookback_periods`: [10, 20, 30]
   - `volume_spike_threshold`: [1.5, 2.0, 2.5]
@@ -79,6 +87,7 @@
 - **Файл:** `src/filters/volume_imbalance.py`
 
 #### **8. News Filter** 📰
+
 - **Параметры для оптимизации:**
   - `min_sentiment_score`: [0.1, 0.2, 0.3]
   - `block_long_on_negative`: [True, False]
@@ -87,6 +96,7 @@
 - **Файл:** `src/filters/news.py`
 
 #### **9. Whale Filter** 🐋
+
 - **Параметры для оптимизации:**
   - `min_whale_size_usdt`: [500000, 1000000, 2000000]
   - `activity_threshold`: [0.3, 0.5, 0.7]
@@ -160,10 +170,12 @@ if BTC_TREND_FILTER_AVAILABLE and USE_BTC_TREND_FILTER and long_base_ok:
 ### **Оптимизированный вариант (поэтапная оптимизация):**
 
 **Этап 1:** Оптимизировать по одному фильтру (используя уже оптимизированные параметры для остальных)
+
 - Каждый фильтр: 10-50 комбинаций
 - 9 фильтров × 30 комбинаций = 270 тестов ✅
 
 **Этап 2:** Финальная оптимизация всех фильтров вместе (сокращенный набор параметров)
+
 - 3-5 параметров на фильтр
 - Итого: ~1000-5000 комбинаций ✅
 
@@ -178,6 +190,7 @@ if BTC_TREND_FILTER_AVAILABLE and USE_BTC_TREND_FILTER and long_base_ok:
 3. Финальная проверка всех вместе
 
 **Преимущества:**
+
 - ✅ Быстрее (270 тестов вместо триллионов)
 - ✅ Легче анализировать результаты
 - ✅ Можно пропустить неэффективные фильтры
@@ -190,6 +203,7 @@ if BTC_TREND_FILTER_AVAILABLE and USE_BTC_TREND_FILTER and long_base_ok:
 4. Группа 4: External фильтры (News, Whale)
 
 **Преимущества:**
+
 - ✅ Учитывает взаимодействие фильтров в группе
 - ✅ Быстрее чем полная оптимизация
 
@@ -211,4 +225,3 @@ if BTC_TREND_FILTER_AVAILABLE and USE_BTC_TREND_FILTER and long_base_ok:
 2. `scripts/optimize_all_filters_comprehensive.py` - добавить оптимизацию новых фильтров
 3. `config.py` - добавить конфигурацию новых фильтров
 4. Создать новые файлы-обертки для синхронных версий фильтров
-

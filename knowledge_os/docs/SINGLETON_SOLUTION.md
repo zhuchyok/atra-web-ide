@@ -26,17 +26,17 @@ INFO:ai_learning_system:🤖 ИИ система инициализирован�
 ```python
 class AISingletonRegistry:
     """Реестр singleton экземпляров ИИ системы"""
-    
+
     _instances: Dict[str, Any] = {}
     _initialized = False
-    
+
     @classmethod
     def get_instance(cls, instance_type: str, factory_func=None, *args, **kwargs):
         """Получает или создает singleton экземпляр"""
         if not cls._initialized:
             cls._instances = {}
             cls._initialized = True
-        
+
         if instance_type not in cls._instances:
             if factory_func:
                 logger.info("🤖 Создаем новый экземпляр %s", instance_type)
@@ -46,7 +46,7 @@ class AISingletonRegistry:
                 return None
         else:
             logger.debug("✅ Используем существующий экземпляр %s", instance_type)
-        
+
         return cls._instances[instance_type]
 ```
 
@@ -93,6 +93,7 @@ Same Integration: True
 ## 📊 ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 **ДО:**
+
 ```
 INFO:ai_learning_system:🤖 ИИ система инициализирована. Паттернов: 5
 INFO:ai_learning_system:🤖 ИИ система инициализирована. Паттернов: 5
@@ -102,6 +103,7 @@ INFO:ai_learning_system:🤖 ИИ система инициализирован�
 ```
 
 **ПОСЛЕ:**
+
 ```
 INFO:ai_learning_system:🤖 ИИ система инициализирована. Паттернов: 5
 INFO:ai_singleton:✅ Используем существующий экземпляр ai_learning

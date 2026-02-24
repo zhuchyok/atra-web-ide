@@ -2,9 +2,11 @@
 Тесты endpoint POST /api/chat/ask-victoria (Singularity 15.0).
 Используем dependency_overrides, чтобы не зависеть от реальной Victoria.
 """
+
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock, MagicMock
 
 from app.main import app
 from app.routers import chat
@@ -21,6 +23,7 @@ def _make_mock_client(run_return):
 def client_success():
     async def _dep():
         return _make_mock_client({"status": "success", "result": "Done.", "response": "Done."})
+
     app.dependency_overrides[chat.get_victoria_client] = _dep
     with TestClient(app) as c:
         yield c
@@ -53,6 +56,7 @@ def test_ask_victoria_success_json(client_success):
 def client_error():
     async def _dep():
         return _make_mock_client({"status": "error", "error": "Unavailable"})
+
     app.dependency_overrides[chat.get_victoria_client] = _dep
     with TestClient(app) as c:
         yield c
@@ -62,17 +66,21 @@ def client_error():
 def test_ask_victoria_error_503(client_error):
     resp = client_error.post("/api/chat/ask-victoria", json={"goal": "Задача"})
     assert resp.status_code == 503
-    assert "unavailable" in resp.text.lower() or "Unavailable" in resp.text
+    text_lower = resp.text.lower()
+    assert "unavailable" in text_lower or "Unavailable" in resp.text or "недоступна" in text_lower
 
 
 @pytest.fixture
 def client_clarification():
     async def _dep():
-        return _make_mock_client({
-            "status": "success",
-            "result": "",
-            "clarification_questions": ["Какой проект?", "Какой срок?"],
-        })
+        return _make_mock_client(
+            {
+                "status": "success",
+                "result": "",
+                "clarification_questions": ["Какой проект?", "Какой срок?"],
+            }
+        )
+
     app.dependency_overrides[chat.get_victoria_client] = _dep
     with TestClient(app) as c:
         yield c
@@ -89,8 +97,10 @@ def test_ask_victoria_user_key():
     mock_run = AsyncMock(return_value={"status": "success", "result": "Ok"})
     mock_client = MagicMock(spec=VictoriaClient)
     mock_client.run = mock_run
+
     async def _dep():
         return mock_client
+
     app.dependency_overrides[chat.get_victoria_client] = _dep
     try:
         with TestClient(app) as c:

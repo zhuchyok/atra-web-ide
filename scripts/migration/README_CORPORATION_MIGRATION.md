@@ -11,28 +11,34 @@
 ## Запуск на Mac Studio
 
 **Полная миграция (бэкап + scp + restore + распаковка):**
+
 ```bash
 cd ~/Documents/dev/atra
 python3 scripts/migration/corporation_full_migration.py
 ```
 
 **Только загрузка данных** (без восстановления БД и распаковки; восстановить потом через `restore_only`):
+
 ```bash
 python3 scripts/migration/corporation_full_migration.py --fetch-only
 ```
 
 **Только восстановление** (данные уже в `~/migration`):
+
 ```bash
 python3 scripts/migration/restore_only.py
 ```
+
 Если скрипт «зависает» при проверке Docker: `RESTORE_SKIP_DOCKER=1 python3 scripts/migration/restore_only.py` — тогда только распаковка и вывод команды для ручного импорта.
 
 **Повторная загрузка только S2** (если таймаут на `s2_brain`):
+
 ```bash
 python3 scripts/migration/fetch_s2_only.py
 ```
 
 **Фоновый запуск** (первый прогон может занять 20–30+ минут из‑за дампов и архивов):
+
 ```bash
 bash scripts/migration/run_migration_background.sh
 tail -f ~/migration/migration.log

@@ -20,18 +20,18 @@ expect {
     "# " {
         send "cd /root/atra\r"
         expect "# "
-        
+
         send "echo '=================================================================================='\r"
         expect "# "
         send "echo '🧹 ОЧИСТКА ДИСКА'\r"
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         # Проверяем текущее использование
         send "df -h /\r"
         expect "# "
-        
+
         # Удаляем старые логи
         send "echo ''\r"
         expect "# "
@@ -41,13 +41,13 @@ expect {
         expect "# "
         send "find /root/atra -name '*.log.*' -mtime +7 -delete 2>/dev/null || true\r"
         expect "# "
-        
+
         # Удаляем старые бэкапы
         send "echo '📋 Удаление старых бэкапов...'\r"
         expect "# "
         send "find /root/atra/backups -name '*.db_*' -mtime +7 -delete 2>/dev/null || true\r"
         expect "# "
-        
+
         # Очищаем кэш
         send "echo '📋 Очистка кэша...'\r"
         expect "# "
@@ -55,7 +55,7 @@ expect {
         expect "# "
         send "find /root/atra -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true\r"
         expect "# "
-        
+
         # Очищаем временные файлы
         send "echo '📋 Очистка временных файлов...'\r"
         expect "# "
@@ -63,7 +63,7 @@ expect {
         expect "# "
         send "rm -rf /root/atra/.pytest_cache 2>/dev/null || true\r"
         expect "# "
-        
+
         # Проверяем размер после очистки
         send "echo ''\r"
         expect "# "
@@ -71,7 +71,7 @@ expect {
         expect "# "
         send "df -h /\r"
         expect "# "
-        
+
         # Завершаем обновление git
         send "echo ''\r"
         expect "# "
@@ -79,7 +79,7 @@ expect {
         expect "# "
         send "cd /root/atra && git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || git pull\r"
         expect "# "
-        
+
         # Проверяем статус бота
         send "echo ''\r"
         expect "# "
@@ -87,7 +87,7 @@ expect {
         expect "# "
         send "ps aux | grep -E '(signal_live|main\\.py)' | grep -v grep || echo 'Бот не запущен'\r"
         expect "# "
-        
+
         send "echo ''\r"
         expect "# "
         send "echo '=================================================================================='\r"
@@ -96,7 +96,7 @@ expect {
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         send "exit\r"
         expect eof
     }
@@ -107,4 +107,3 @@ expect {
 }
 
 wait
-

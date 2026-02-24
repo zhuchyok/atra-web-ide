@@ -74,18 +74,18 @@ sshpass -p "$SERVER_PASS" rsync -avz --progress \
 echo -e "\n${YELLOW}5. Обновление конфигурации на сервере...${NC}"
 sshpass -p "$SERVER_PASS" ssh "$SERVER" << 'ENDSSH'
     cd /root/atra || exit 1
-    
+
     # Убедиться, что ATRA_ENV=prod
     if [ -f env ]; then
         sed -i 's/^ATRA_ENV=.*/ATRA_ENV=prod/' env
         echo "✅ ATRA_ENV установлен в prod"
     fi
-    
+
     # Проверить TELEGRAM_TOKEN
     if ! grep -q "TELEGRAM_TOKEN=8156844481" env; then
         echo "⚠️  Проверьте TELEGRAM_TOKEN в env файле!"
     fi
-    
+
     echo "✅ Конфигурация обновлена"
 ENDSSH
 
@@ -93,12 +93,12 @@ ENDSSH
 echo -e "\n${YELLOW}6. Проверка зависимостей...${NC}"
 sshpass -p "$SERVER_PASS" ssh "$SERVER" << 'ENDSSH'
     cd /root/atra || exit 1
-    
+
     # Активировать виртуальное окружение (если используется)
     if [ -d "venv" ]; then
         source venv/bin/activate
     fi
-    
+
     # Проверить основные зависимости
     python3 -c "import telegram; import pandas; import numpy" 2>/dev/null && \
         echo "✅ Основные зависимости установлены" || \
@@ -109,11 +109,11 @@ ENDSSH
 echo -e "\n${YELLOW}7. Проверка конфигурации...${NC}"
 sshpass -p "$SERVER_PASS" ssh "$SERVER" << 'ENDSSH'
     cd /root/atra || exit 1
-    
+
     # Проверить COINS
     echo "Проверка списка монет:"
     python3 -c "from config import COINS; print('COINS:', COINS)" 2>&1 | head -5
-    
+
     # Проверить SYMBOL_SPECIFIC_CONFIG
     echo "Проверка индивидуальных параметров:"
     python3 -c "from src.core.config import SYMBOL_SPECIFIC_CONFIG; print('Конфигурация для:', list(SYMBOL_SPECIFIC_CONFIG.keys()))" 2>&1 | head -10
@@ -126,21 +126,21 @@ echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     sshpass -p "$SERVER_PASS" ssh "$SERVER" << 'ENDSSH'
         cd /root/atra || exit 1
-        
+
         # Активировать виртуальное окружение (если используется)
         if [ -d "venv" ]; then
             source venv/bin/activate
         fi
-        
+
         # Создать директорию для логов, если не существует
         mkdir -p logs
-        
+
         # Запустить систему в фоне
         nohup python3 main.py > logs/atra.log 2>&1 &
-        
+
         # Подождать немного
         sleep 3
-        
+
         # Проверить, что процесс запущен
         PID=$(ps aux | grep "python.*main.py" | grep -v grep | awk '{print $2}')
         if [ -n "$PID" ]; then
@@ -170,4 +170,3 @@ echo "1. Проверьте логи: ssh $SERVER 'tail -f $REMOTE_DIR/logs/atra
 echo "2. Проверьте Telegram бота"
 echo "3. Мониторьте генерацию сигналов"
 echo "4. Проверьте использование оптимального портфеля (AVAXUSDT, LINKUSDT, SOLUSDT, SUIUSDT, DOGEUSDT)"
-

@@ -13,7 +13,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_updated ON knowledge_nodes (updated_at 
 CREATE INDEX IF NOT EXISTS idx_knowledge_verified ON knowledge_nodes (is_verified) WHERE is_verified = TRUE;
 
 -- Композитный индекс для частого запроса: поиск по домену и confidence
-CREATE INDEX IF NOT EXISTS idx_knowledge_domain_confidence 
+CREATE INDEX IF NOT EXISTS idx_knowledge_domain_confidence
     ON knowledge_nodes (domain_id, confidence_score DESC);
 
 -- Индексы для tasks
@@ -26,7 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks (completed_at DESC) WHERE completed_at IS NOT NULL;
 
 -- Композитный индекс для частого запроса: задачи по статусу и приоритету
-CREATE INDEX IF NOT EXISTS idx_tasks_status_priority 
+CREATE INDEX IF NOT EXISTS idx_tasks_status_priority
     ON tasks (status, priority DESC, created_at ASC);
 
 -- Индексы для interaction_logs
@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_interaction_created ON interaction_logs (created_
 CREATE INDEX IF NOT EXISTS idx_interaction_feedback ON interaction_logs (feedback_score) WHERE feedback_score IS NOT NULL;
 
 -- Композитный индекс для частого запроса: логи по эксперту и дате
-CREATE INDEX IF NOT EXISTS idx_interaction_expert_created 
+CREATE INDEX IF NOT EXISTS idx_interaction_expert_created
     ON interaction_logs (expert_id, created_at DESC);
 
 -- Индексы для experts
@@ -95,7 +95,7 @@ END $$;
 
 -- Материализованное представление для статистики по доменам
 CREATE MATERIALIZED VIEW IF NOT EXISTS domain_stats_cache AS
-SELECT 
+SELECT
     d.id as domain_id,
     d.name as domain_name,
     count(k.id) as knowledge_count,
@@ -111,7 +111,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_stats_domain ON domain_stats_cache 
 
 -- Материализованное представление для статистики экспертов
 CREATE MATERIALIZED VIEW IF NOT EXISTS expert_stats_cache AS
-SELECT 
+SELECT
     e.id as expert_id,
     e.name as expert_name,
     e.role,
@@ -151,7 +151,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         query,
         calls,
         total_exec_time,
@@ -181,4 +181,3 @@ COMMENT ON MATERIALIZED VIEW domain_stats_cache IS 'Кэш статистики 
 COMMENT ON MATERIALIZED VIEW expert_stats_cache IS 'Кэш статистики по экспертам для быстрого доступа';
 COMMENT ON FUNCTION refresh_performance_cache IS 'Обновление материализованных представлений (кэша)';
 COMMENT ON FUNCTION analyze_slow_queries IS 'Анализ медленных запросов для оптимизации';
-

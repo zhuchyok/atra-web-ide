@@ -7,20 +7,21 @@ REST API для внешних систем
 - Документация через OpenAPI/Swagger
 """
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, Header
-from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import Response
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-import asyncpg
+import json
 import os
 import sys
-import json
 import uuid
-from pathlib import Path
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import asyncpg
+from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
+from starlette.responses import Response
 
 # Чтобы token_logger и evaluator импортировались (Singularity 9.0 log_interaction)
 _app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +40,7 @@ async def _lifespan(app: FastAPI):
     yield
     try:
         from http_client import close_http_client
+
         await close_http_client()
     except Exception:
         pass
@@ -60,13 +62,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
-API_KEY = os.getenv('API_KEY', 'your-secret-api-key')
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+API_KEY = os.getenv("API_KEY", "your-secret-api-key")
+
 
 # Единый пул БД (при переходе на Rust — замена в db_pool.py)
 async def _get_db():
     from db_pool import get_pool
+
     return await get_pool()
+
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 security = HTTPBearer()
@@ -82,13 +87,13 @@ async def verify_api_key(api_key: str = Depends(api_key_header)):
 async def verify_jwt_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Проверка JWT токена"""
     from security import SecurityManager
-    
+
     security_manager = SecurityManager()
     payload = security_manager.verify_jwt_token(credentials.credentials)
-    
+
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
     return payload
 
 
@@ -135,6 +140,7 @@ class RegisterRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     """П.3 PRINCIPLE_EXPERTS_FIRST: лайк/дизлайк по ответу — сохраняем инсайт в knowledge_nodes при лайке."""
+
     interaction_log_id: str  # UUID записи в interaction_logs
     score: int  # 1 = like, -1 = dislike
     feedback_text: Optional[str] = None
@@ -142,20 +148,25 @@ class FeedbackRequest(BaseModel):
 
 class AcceptCandidateRequest(BaseModel):
     """П.7 PRINCIPLE_EXPERTS_FIRST: принять кандидата из списка найма (убрать из ревью, подтвердить)."""
+
     index: int  # индекс в списке candidates (0-based)
 
 
 class LogInteractionRequest(BaseModel):
     """Лог взаимодействия для Singularity 9.0 (Web IDE, MCP и др.)"""
+
     prompt: str
     response: str
     expert_name: Optional[str] = None
     source: str = "web_ide"
-    knowledge_node_ids: Optional[List[str]] = None  # §4 «принять»: узлы из контекста ответа для усиления при лайке
+    knowledge_node_ids: Optional[List[str]] = (
+        None  # §4 «принять»: узлы из контекста ответа для усиления при лайке
+    )
 
 
 class BoardConsultRequest(BaseModel):
     """Запрос на консультацию Совета Директоров"""
+
     question: str
     session_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -165,6 +176,7 @@ class BoardConsultRequest(BaseModel):
 
 class BoardConsultResponse(BaseModel):
     """Ответ от Совета Директоров"""
+
     directive_text: str
     structured_decision: Dict[str, Any]
     risk_level: Optional[str] = None
@@ -174,6 +186,7 @@ class BoardConsultResponse(BaseModel):
 
 class RegisterProjectRequest(BaseModel):
     """Регистрация проекта в реестре (таблица projects)."""
+
     slug: str
     name: str
     description: Optional[str] = None
@@ -182,6 +195,7 @@ class RegisterProjectRequest(BaseModel):
 
 class ProjectListItem(BaseModel):
     """Элемент списка проектов (GET /api/projects)."""
+
     slug: str
     name: str
     description: Optional[str] = None
@@ -224,7 +238,7 @@ async def _ensure_projects_table_migration():
                     os.path.dirname(__file__), "..", "db", "migrations", "add_projects_table.sql"
                 )
                 if os.path.exists(migration_path):
-                    with open(migration_path, "r", encoding="utf-8") as f:
+                    with open(migration_path, encoding="utf-8") as f:
                         sql = f.read()
                     await conn.execute(sql)
     except Exception:
@@ -242,10 +256,14 @@ async def _ensure_project_context_on_tasks_migration():
             )
             if row is None:
                 migration_path = os.path.join(
-                    os.path.dirname(__file__), "..", "db", "migrations", "add_project_context_to_tasks.sql"
+                    os.path.dirname(__file__),
+                    "..",
+                    "db",
+                    "migrations",
+                    "add_project_context_to_tasks.sql",
                 )
                 if os.path.exists(migration_path):
-                    with open(migration_path, "r", encoding="utf-8") as f:
+                    with open(migration_path, encoding="utf-8") as f:
                         sql = f.read()
                     await conn.execute(sql)
     except Exception:
@@ -262,10 +280,14 @@ async def _ensure_model_performance_metrics_migration():
             )
             if row is None:
                 migration_path = os.path.join(
-                    os.path.dirname(__file__), "..", "db", "migrations", "add_model_performance_metrics.sql"
+                    os.path.dirname(__file__),
+                    "..",
+                    "db",
+                    "migrations",
+                    "add_model_performance_metrics.sql",
                 )
                 if os.path.exists(migration_path):
-                    with open(migration_path, "r", encoding="utf-8") as f:
+                    with open(migration_path, encoding="utf-8") as f:
                         sql = f.read()
                     await conn.execute(sql)
     except Exception:
@@ -282,10 +304,14 @@ async def _ensure_expert_mutations_migration():
             )
             if row is None:
                 migration_path = os.path.join(
-                    os.path.dirname(__file__), "..", "db", "migrations", "20260220_add_expert_mutations.sql"
+                    os.path.dirname(__file__),
+                    "..",
+                    "db",
+                    "migrations",
+                    "20260220_add_expert_mutations.sql",
                 )
                 if os.path.exists(migration_path):
-                    with open(migration_path, "r", encoding="utf-8") as f:
+                    with open(migration_path, encoding="utf-8") as f:
                         sql = f.read()
                     await conn.execute(sql)
     except Exception:
@@ -295,11 +321,7 @@ async def _ensure_expert_mutations_migration():
 @app.get("/")
 async def root():
     """Корневой endpoint"""
-    return {
-        "name": "Knowledge OS REST API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"name": "Knowledge OS REST API", "version": "1.0.0", "status": "running"}
 
 
 @app.get("/health")
@@ -319,28 +341,26 @@ async def get_available_models():
     """
     Получить список реально доступных моделей с MLX и Ollama серверов.
     Данные кэшируются на 2 минуты (TTL=120сек).
-    
+
     Полезно для:
     - Проверки какие модели загружены
     - Отладки выбора моделей
     - Мониторинга состояния серверов
     """
     import os
-    
+
     # URL для Docker контейнера
     mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
     ollama_url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434")
-    
+
     try:
         from available_models_scanner import scan_and_select_models
-        
+
         # Получаем полный отчёт о моделях с правильными URL
         selection = await scan_and_select_models(
-            mlx_url=mlx_url,
-            ollama_url=ollama_url,
-            force_refresh=True
+            mlx_url=mlx_url, ollama_url=ollama_url, force_refresh=True
         )
-        
+
         return {
             "status": "success",
             "mlx": {
@@ -356,15 +376,12 @@ async def get_available_models():
                 "best_model": selection.ollama_best,
             },
             "cache_ttl_seconds": 120,
-            "note": "Модели сканируются автоматически каждые 2 минуты. Удаление/добавление модели будет замечено при следующем скане."
+            "note": "Модели сканируются автоматически каждые 2 минуты. Удаление/добавление модели будет замечено при следующем скане.",
         }
     except Exception as e:
         import traceback
-        return {
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
+
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
 
 
 @app.get("/api/models/metrics")
@@ -375,9 +392,12 @@ async def get_models_metrics():
     """
     try:
         from available_models_scanner import get_available_models_with_metrics
+
         mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
         ollama_url = os.getenv("OLLAMA_API_URL", "http://host.docker.internal:11434")
-        _, _, metrics = await get_available_models_with_metrics(mlx_url, ollama_url, force_refresh=False)
+        _, _, metrics = await get_available_models_with_metrics(
+            mlx_url, ollama_url, force_refresh=False
+        )
         return {"status": "success", "metrics": metrics}
     except Exception as e:
         return {"status": "error", "error": str(e), "metrics": {"ollama": {}, "mlx": {}}}
@@ -448,11 +468,14 @@ async def _deferred_metrics_prometheus() -> str:
     lines = ["# Deferred to human (queue for manual review)"]
     try:
         from db_pool import get_pool
+
         pool = await get_pool()
         async with pool.acquire() as conn:
             deferred_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM tasks WHERE status = $1 AND (metadata->>$2)::text = $3",
-                "completed", "deferred_to_human", "true"
+                "completed",
+                "deferred_to_human",
+                "true",
             )
             lines.append(f"knowledge_os_tasks_deferred_to_human_total {int(deferred_count or 0)}")
             rows = await conn.fetch(
@@ -461,11 +484,14 @@ async def _deferred_metrics_prometheus() -> str:
                    ORDER BY updated_at DESC NULLS LAST LIMIT 500"""
             )
             from collections import Counter
+
             types = Counter(_normalize_last_error_type(r.get("err") if r else None) for r in rows)
             for error_type, count in types.most_common():
                 if count > 0:
-                    safe_type = error_type.replace('"', '_')
-                    lines.append(f'knowledge_os_tasks_deferred_last_error_total{{error_type="{safe_type}"}} {count}')
+                    safe_type = error_type.replace('"', "_")
+                    lines.append(
+                        f'knowledge_os_tasks_deferred_last_error_total{{error_type="{safe_type}"}} {count}'
+                    )
     except Exception as e:
         lines.append(f"# deferred_metrics error: {e}")
         # Fallback: всегда выводим метрику (0), чтобы /metrics содержал имя и тесты/ Prometheus не ломались
@@ -535,10 +561,17 @@ async def log_interaction(body: LogInteractionRequest):
     Вызывается бэкендом Web IDE после ответа Victoria/MLX — метрики появятся на дашборде.
     """
     import logging
+
     _log = logging.getLogger(__name__)
-    _log.info("[LOG_INTERACTION] entry prompt_len=%s response_len=%s source=%s", len(body.prompt), len(body.response), body.source)
+    _log.info(
+        "[LOG_INTERACTION] entry prompt_len=%s response_len=%s source=%s",
+        len(body.prompt),
+        len(body.response),
+        body.source,
+    )
     try:
         from token_logger import log_ai_interaction
+
         log_id = await log_ai_interaction(
             prompt=body.prompt[:10000],
             response=body.response[:20000],
@@ -563,6 +596,7 @@ async def submit_feedback(body: FeedbackRequest):
     При score > 0 (лайк) — автоматически вынести сжатый инсайт в knowledge_nodes (домен эксперта).
     """
     import logging
+
     _log = logging.getLogger(__name__)
     if body.score not in (1, -1):
         raise HTTPException(status_code=400, detail="score must be 1 (like) or -1 (dislike)")
@@ -615,7 +649,10 @@ async def submit_feedback(body: FeedbackRequest):
                             """,
                             valid_uuids,
                         )
-                        _log.info("[FEEDBACK] usage_count+1 for %s node(s) (accepted answer)", len(valid_uuids))
+                        _log.info(
+                            "[FEEDBACK] usage_count+1 for %s node(s) (accepted answer)",
+                            len(valid_uuids),
+                        )
                     except Exception as ue:
                         _log.debug("[FEEDBACK] usage_count update skip: %s", ue)
             domain_id = row["domain_id"]
@@ -631,14 +668,17 @@ async def submit_feedback(body: FeedbackRequest):
             content = f"Успешный ответ (лайк): Q: {(row['user_query'] or '')[:200]} → A: {(row['assistant_response'] or '')[:600]}"
             content_trim = content[:8000]
             # План «умнее быстрее» §4.1: кандидат в эталон для последующего разбора куратором
-            metadata = json.dumps({
-                "source": "feedback_like",
-                "interaction_log_id": body.interaction_log_id,
-                "suggested_standard": True,
-            })
+            metadata = json.dumps(
+                {
+                    "source": "feedback_like",
+                    "interaction_log_id": body.interaction_log_id,
+                    "suggested_standard": True,
+                }
+            )
             embedding = None
             try:
                 from app.semantic_cache import get_embedding as _ge
+
                 embedding = await _ge(content_trim[:8000])
             except Exception:
                 pass
@@ -648,7 +688,10 @@ async def submit_feedback(body: FeedbackRequest):
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, embedding)
                     VALUES ($1, $2, 0.9, $3, $4::vector)
                     """,
-                    domain_id, content_trim, metadata, str(embedding),
+                    domain_id,
+                    content_trim,
+                    metadata,
+                    str(embedding),
                 )
             else:
                 await conn.execute(
@@ -656,9 +699,13 @@ async def submit_feedback(body: FeedbackRequest):
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata)
                     VALUES ($1, $2, 0.9, $3)
                     """,
-                    domain_id, content_trim, metadata,
+                    domain_id,
+                    content_trim,
+                    metadata,
                 )
-            _log.info("[FEEDBACK] insight saved to knowledge_nodes for log_id=%s", body.interaction_log_id)
+            _log.info(
+                "[FEEDBACK] insight saved to knowledge_nodes for log_id=%s", body.interaction_log_id
+            )
             return {"ok": True, "message": "Feedback recorded; insight saved to knowledge"}
     except Exception as e:
         _log.exception("[FEEDBACK] error: %s", e)
@@ -668,8 +715,14 @@ async def submit_feedback(body: FeedbackRequest):
 def _get_autonomous_candidates_path() -> Optional[Path]:
     """Путь к autonomous_candidates.json (П.7)."""
     for p in [
-        Path(__file__).resolve().parent.parent.parent / "configs" / "experts" / "autonomous_candidates.json",
-        Path(__file__).resolve().parent.parent / "configs" / "experts" / "autonomous_candidates.json",
+        Path(__file__).resolve().parent.parent.parent
+        / "configs"
+        / "experts"
+        / "autonomous_candidates.json",
+        Path(__file__).resolve().parent.parent
+        / "configs"
+        / "experts"
+        / "autonomous_candidates.json",
         Path(os.getenv("AUTONOMOUS_CANDIDATES_JSON", "")),
     ]:
         if p and str(p) and p.parent.exists():
@@ -684,7 +737,7 @@ async def get_recruitment_candidates():
     if not path or not path.exists():
         return {"candidates": [], "updated": None}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return {"candidates": data.get("candidates", []), "updated": data.get("updated")}
     except Exception as e:
@@ -699,7 +752,7 @@ async def accept_recruitment_candidate(body: AcceptCandidateRequest):
     if not path or not path.exists():
         raise HTTPException(status_code=404, detail="Candidates file not found")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         candidates = data.get("candidates", [])
         if body.index < 0 or body.index >= len(candidates):
@@ -717,7 +770,9 @@ async def accept_recruitment_candidate(body: AcceptCandidateRequest):
         try:
             pool = await _get_db()
             async with pool.acquire() as conn:
-                victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1")
+                victoria_id = await conn.fetchval(
+                    "SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1"
+                )
                 if victoria_id:
                     await conn.execute(
                         """INSERT INTO tasks (title, description, status, priority, assignee_expert_id, metadata)
@@ -725,16 +780,29 @@ async def accept_recruitment_candidate(body: AcceptCandidateRequest):
                         f"Онбординг: проверить промпт эксперта {name}",
                         f"Кандидат принят из ревью: {name}, {role}, {department}. Проверить system_prompt и при необходимости обновить .cursorrules.",
                         victoria_id,
-                        json.dumps({"source": "recruitment_accept", "expert_name": name, "role": role, "department": department}),
+                        json.dumps(
+                            {
+                                "source": "recruitment_accept",
+                                "expert_name": name,
+                                "role": role,
+                                "department": department,
+                            }
+                        ),
                     )
                 await conn.execute(
                     "INSERT INTO notifications (message, sent) VALUES ($1, FALSE)",
                     f"Новый эксперт принят: {name}, {role}, {department}",
                 )
         except Exception as e:
-            logging.getLogger(__name__).warning("Accept candidate post-actions (task/notification): %s", e)
+            logging.getLogger(__name__).warning(
+                "Accept candidate post-actions (task/notification): %s", e
+            )
 
-        return {"ok": True, "accepted": accepted, "message": "Кандидат принят, убран из списка ревью"}
+        return {
+            "ok": True,
+            "accepted": accepted,
+            "message": "Кандидат принят, убран из списка ревью",
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -773,10 +841,17 @@ async def register_project(body: RegisterProjectRequest):
     """
     slug = (body.slug or "").strip().lower()
     if not slug or not slug.replace("-", "").replace("_", "").isalnum():
-        raise HTTPException(status_code=400, detail="slug must be non-empty alphanumeric (hyphens/underscores allowed)")
+        raise HTTPException(
+            status_code=400,
+            detail="slug must be non-empty alphanumeric (hyphens/underscores allowed)",
+        )
     name = (body.name or slug)[:500]
     description = (body.description or "")[:5000] if body.description else None
-    workspace_path = (body.workspace_path or f"/workspace/{slug}")[:1000] if body.workspace_path else f"/workspace/{slug}"
+    workspace_path = (
+        (body.workspace_path or f"/workspace/{slug}")[:1000]
+        if body.workspace_path
+        else f"/workspace/{slug}"
+    )
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
@@ -795,31 +870,42 @@ async def register_project(body: RegisterProjectRequest):
                 description,
                 workspace_path,
             )
-        return {"ok": True, "slug": slug, "message": "Project registered. Restart Victoria/Veronica to pick up (or use TTL cache)."}
+        return {
+            "ok": True,
+            "slug": slug,
+            "message": "Project registered. Restart Victoria/Veronica to pick up (or use TTL cache).",
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/board/consult", response_model=BoardConsultResponse, dependencies=[Depends(verify_api_key)])
+@app.post(
+    "/api/board/consult",
+    response_model=BoardConsultResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def board_consult(body: BoardConsultRequest):
     """
     Консультация Совета Директоров по стратегическому вопросу.
-    
+
     Вызывается backend'ом при обнаружении стратегического вопроса в чате.
     Совет анализирует контекст (OKR, задачи, знания) и выдаёт структурированное решение.
     """
     import logging
     import uuid
+
     _log = logging.getLogger(__name__)
-    
+
     # Генерируем correlation_id если не передан
     correlation_id = body.correlation_id or str(uuid.uuid4())
-    
-    _log.info(f"[BOARD_CONSULT] question='{body.question[:100]}...' correlation_id={correlation_id}")
-    
+
+    _log.info(
+        f"[BOARD_CONSULT] question='{body.question[:100]}...' correlation_id={correlation_id}"
+    )
+
     try:
         from strategic_board import consult_board
-        
+
         result = await consult_board(
             question=body.question,
             context=None,  # Контекст собирается внутри consult_board
@@ -828,64 +914,60 @@ async def board_consult(body: BoardConsultRequest):
             session_id=body.session_id,
             user_id=body.user_id,
         )
-        
+
         if result is None:
-            _log.error(f"[BOARD_CONSULT] consult_board returned None for correlation_id={correlation_id}")
+            _log.error(
+                f"[BOARD_CONSULT] consult_board returned None for correlation_id={correlation_id}"
+            )
             raise HTTPException(
                 status_code=503,
-                detail="Board of Directors could not process the request. LLM may be unavailable."
+                detail="Board of Directors could not process the request. LLM may be unavailable.",
             )
-        
-        _log.info(f"[BOARD_CONSULT] success correlation_id={correlation_id} decision='{result['structured_decision'].get('decision', '')[:50]}...'")
-        
+
+        _log.info(
+            f"[BOARD_CONSULT] success correlation_id={correlation_id} decision='{result['structured_decision'].get('decision', '')[:50]}...'"
+        )
+
         return BoardConsultResponse(
             directive_text=result["directive_text"],
             structured_decision=result["structured_decision"],
             risk_level=result.get("risk_level"),
             recommend_human_review=result.get("recommend_human_review", False),
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
-    
+
     except ImportError as e:
         _log.exception(f"[BOARD_CONSULT] ImportError: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"strategic_board module not available: {str(e)}"
+            status_code=500, detail=f"strategic_board module not available: {str(e)}"
         )
     except Exception as e:
         _log.exception(f"[BOARD_CONSULT] exception: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Board consult error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Board consult error: {str(e)}")
 
 
 @app.post("/auth/login")
 async def login(credentials: LoginRequest):
     """Аутентификация пользователя"""
     try:
-        from security import SecurityManager, Role
-        
+        from security import Role, SecurityManager
+
         security = SecurityManager()
         user = await security.authenticate_user(credentials.username, credentials.password)
-        
+
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        token = security.generate_jwt_token(
-            user['user_id'],
-            user['username'],
-            user['role']
-        )
-        
+
+        token = security.generate_jwt_token(user["user_id"], user["username"], user["role"])
+
         return {
             "access_token": token,
             "token_type": "bearer",
             "user": {
-                "user_id": user['user_id'],
-                "username": user['username'],
-                "role": user['role'].value
-            }
+                "user_id": user["user_id"],
+                "username": user["username"],
+                "role": user["role"].value,
+            },
         }
     except HTTPException:
         raise
@@ -897,31 +979,28 @@ async def login(credentials: LoginRequest):
 async def register(user_data: RegisterRequest):
     """Регистрация нового пользователя"""
     try:
-        from security import SecurityManager, Role
-        
+        from security import Role, SecurityManager
+
         security = SecurityManager()
-        
+
         # Проверяем роль
         try:
             role = Role(user_data.role)
         except ValueError:
             role = Role.USER
-        
+
         user_id = await security.create_user(
-            user_data.username,
-            user_data.password,
-            role,
-            user_data.email
+            user_data.username, user_data.password, role, user_data.email
         )
-        
+
         if not user_id:
             raise HTTPException(status_code=400, detail="Failed to create user")
-        
+
         return {
             "user_id": user_id,
             "username": user_data.username,
             "role": role.value,
-            "status": "created"
+            "status": "created",
         }
     except HTTPException:
         raise
@@ -934,25 +1013,22 @@ async def get_audit_logs(
     user_id: Optional[str] = None,
     action: Optional[str] = None,
     limit: int = 100,
-    token: Dict = Depends(verify_jwt_token)
+    token: Dict = Depends(verify_jwt_token),
 ):
     """Получение логов аудита (только для админов)"""
     try:
-        from security import SecurityManager, Role, Permission
-        
+        from security import Permission, Role, SecurityManager
+
         security = SecurityManager()
-        
+
         # Проверяем права доступа
-        user_role = Role(token['role'])
+        user_role = Role(token["role"])
         if not security.has_permission(user_role, Permission.ADMIN_ACCESS):
             raise HTTPException(status_code=403, detail="Admin access required")
-        
+
         logs = await security.get_audit_logs(user_id, action, limit)
-        
-        return {
-            "logs": logs,
-            "count": len(logs)
-        }
+
+        return {"logs": logs, "count": len(logs)}
     except HTTPException:
         raise
     except Exception as e:
@@ -963,22 +1039,29 @@ def _get_embedding_for_knowledge():
     """Ленивый импорт get_embedding (по возможности сохранять embedding — VERIFICATION §5, WHATS_NOT_DONE §4)."""
     try:
         from semantic_cache import get_embedding
+
         return get_embedding
     except Exception:
         return None
 
 
-@app.post("/knowledge", response_model=KnowledgeNodeResponse, dependencies=[Depends(verify_jwt_token)])
+@app.post(
+    "/knowledge", response_model=KnowledgeNodeResponse, dependencies=[Depends(verify_jwt_token)]
+)
 async def create_knowledge(knowledge: KnowledgeNodeCreate):
     """Создание нового знания. При доступности semantic_cache сохраняем embedding для семантического поиска (VERIFICATION §5)."""
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
             # Получаем или создаем домен
-            domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1", knowledge.domain)
+            domain_id = await conn.fetchval(
+                "SELECT id FROM domains WHERE name = $1", knowledge.domain
+            )
             if not domain_id:
-                domain_id = await conn.fetchval("INSERT INTO domains (name) VALUES ($1) RETURNING id", knowledge.domain)
-            
+                domain_id = await conn.fetchval(
+                    "INSERT INTO domains (name) VALUES ($1) RETURNING id", knowledge.domain
+                )
+
             # По возможности — эмбеддинг для семантического поиска (размерность 768, nomic-embed-text)
             embedding = None
             get_embedding_fn = _get_embedding_for_knowledge()
@@ -987,53 +1070,73 @@ async def create_knowledge(knowledge: KnowledgeNodeCreate):
                     embedding = await get_embedding_fn(knowledge.content[:8000])
                 except Exception:
                     pass
-            
+
             if embedding is not None:
-                knowledge_id = await conn.fetchval("""
+                knowledge_id = await conn.fetchval(
+                    """
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, embedding)
                     VALUES ($1, $2, $3, $4, $5::vector)
                     RETURNING id
-                """, domain_id, knowledge.content, knowledge.confidence_score, json.dumps(knowledge.metadata), str(embedding))
+                """,
+                    domain_id,
+                    knowledge.content,
+                    knowledge.confidence_score,
+                    json.dumps(knowledge.metadata),
+                    str(embedding),
+                )
             else:
-                knowledge_id = await conn.fetchval("""
+                knowledge_id = await conn.fetchval(
+                    """
                     INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata)
                     VALUES ($1, $2, $3, $4)
                     RETURNING id
-                """, domain_id, knowledge.content, knowledge.confidence_score, json.dumps(knowledge.metadata))
-            
+                """,
+                    domain_id,
+                    knowledge.content,
+                    knowledge.confidence_score,
+                    json.dumps(knowledge.metadata),
+                )
+
             return KnowledgeNodeResponse(
                 id=str(knowledge_id),
                 content=knowledge.content,
                 domain=knowledge.domain,
                 confidence_score=knowledge.confidence_score,
-                created_at=datetime.now()
+                created_at=datetime.now(),
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/knowledge/{knowledge_id}", response_model=KnowledgeNodeResponse, dependencies=[Depends(verify_jwt_token)])
+@app.get(
+    "/knowledge/{knowledge_id}",
+    response_model=KnowledgeNodeResponse,
+    dependencies=[Depends(verify_jwt_token)],
+)
 async def get_knowledge(knowledge_id: str):
     """Получение знания по ID"""
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
-            row = await conn.fetchrow("""
+            row = await conn.fetchrow(
+                """
                 SELECT k.id, k.content, d.name as domain, k.confidence_score, k.created_at
                 FROM knowledge_nodes k
                 JOIN domains d ON k.domain_id = d.id
                 WHERE k.id = $1
-            """, knowledge_id)
-            
+            """,
+                knowledge_id,
+            )
+
             if not row:
                 raise HTTPException(status_code=404, detail="Knowledge not found")
-            
+
             return KnowledgeNodeResponse(
-                id=str(row['id']),
-                content=row['content'],
-                domain=row['domain'],
-                confidence_score=row['confidence_score'],
-                created_at=row['created_at']
+                id=str(row["id"]),
+                content=row["content"],
+                domain=row["domain"],
+                confidence_score=row["confidence_score"],
+                created_at=row["created_at"],
             )
     except HTTPException:
         raise
@@ -1054,27 +1157,27 @@ async def search_knowledge(request: SearchRequest):
                 WHERE k.content ILIKE $1
             """
             params = [f"%{request.query}%"]
-            
+
             if request.domain:
                 query += " AND d.name = $2"
                 params.append(request.domain)
-            
+
             query += " ORDER BY k.confidence_score DESC LIMIT $3"
             params.append(request.limit)
-            
+
             rows = await conn.fetch(query, *params)
-            
+
             return {
                 "query": request.query,
                 "results": [
                     {
-                        "id": str(row['id']),
-                        "content": row['content'],
-                        "domain": row['domain'],
-                        "confidence_score": row['confidence_score']
+                        "id": str(row["id"]),
+                        "content": row["content"],
+                        "domain": row["domain"],
+                        "confidence_score": row["confidence_score"],
                     }
                     for row in rows
-                ]
+                ],
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1085,15 +1188,12 @@ async def create_webhook(webhook: WebhookCreate):
     """Создание webhook"""
     try:
         from webhook_manager import WebhookManager, WebhookType
-        
+
         manager = WebhookManager()
         webhook_id = await manager.register_webhook(
-            WebhookType(webhook.webhook_type),
-            webhook.url,
-            webhook.events,
-            webhook.metadata
+            WebhookType(webhook.webhook_type), webhook.url, webhook.events, webhook.metadata
         )
-        
+
         if webhook_id:
             return {"webhook_id": webhook_id, "status": "created"}
         else:
@@ -1109,20 +1209,20 @@ async def get_stats():
         pool = await _get_db()
         async with pool.acquire() as conn:
             stats = await conn.fetchrow("""
-                SELECT 
+                SELECT
                     (SELECT count(*) FROM knowledge_nodes) as total_knowledge,
                     (SELECT count(*) FROM experts) as total_experts,
                     (SELECT count(*) FROM domains) as total_domains,
                     (SELECT count(*) FROM tasks WHERE status = 'pending') as pending_tasks,
                     (SELECT count(*) FROM tasks WHERE status = 'completed') as completed_tasks
             """)
-            
+
             return {
-                "total_knowledge": stats['total_knowledge'] or 0,
-                "total_experts": stats['total_experts'] or 0,
-                "total_domains": stats['total_domains'] or 0,
-                "pending_tasks": stats['pending_tasks'] or 0,
-                "completed_tasks": stats['completed_tasks'] or 0
+                "total_knowledge": stats["total_knowledge"] or 0,
+                "total_experts": stats["total_experts"] or 0,
+                "total_domains": stats["total_domains"] or 0,
+                "pending_tasks": stats["pending_tasks"] or 0,
+                "completed_tasks": stats["completed_tasks"] or 0,
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1133,21 +1233,28 @@ async def reset_stuck_tasks(hours: int = 1):
     """
     Вернуть зависшие задачи (in_progress > N часов) обратно в pending.
     Нормально одновременно обрабатывается ~10 задач. Много «в работе» = зависли.
-    
+
     hours: считать зависшими задачи в in_progress дольше N часов (по умолчанию 1)
     """
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
-            result = await conn.execute("""
-                UPDATE tasks 
+            result = await conn.execute(
+                """
+                UPDATE tasks
                 SET status = 'pending', updated_at = NOW(),
                     metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('stuck_reset', true, 'previous_status', 'in_progress')
-                WHERE status = 'in_progress' 
+                WHERE status = 'in_progress'
                   AND updated_at < NOW() - make_interval(hours => $1)
-            """, hours)
+            """,
+                hours,
+            )
             count = int(result.split()[-1]) if result and result.startswith("UPDATE") else 0
-            return {"status": "success", "reset_count": count, "message": f"Вернуто в очередь: {count} зависших задач"}
+            return {
+                "status": "success",
+                "reset_count": count,
+                "message": f"Вернуто в очередь: {count} зависших задач",
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1156,39 +1263,43 @@ async def reset_stuck_tasks(hours: int = 1):
 async def reset_deferred_to_pending(limit: int = 100):
     """
     Вернуть задачи из deferred_to_human (ручная обработка) обратно в pending для повторной попытки.
-    
+
     Используйте когда задачи ушли в ручную обработку из-за блокировки security/anomaly,
     но проблема уже исправлена.
-    
+
     limit: максимум задач для сброса (по умолчанию 100)
     """
     try:
         pool = await _get_db()
         async with pool.acquire() as conn:
-            result = await conn.execute("""
+            result = await conn.execute(
+                """
                 WITH to_reset AS (
-                    SELECT id FROM tasks 
-                    WHERE status = 'completed' AND metadata->>'deferred_to_human' = 'true' 
+                    SELECT id FROM tasks
+                    WHERE status = 'completed' AND metadata->>'deferred_to_human' = 'true'
                     LIMIT $1
                 )
-                UPDATE tasks 
-                SET status = 'pending', 
+                UPDATE tasks
+                SET status = 'pending',
                     updated_at = NOW(),
                     metadata = COALESCE(metadata, '{}'::jsonb) - 'deferred_to_human' - 'attempt_count' - 'last_attempt_failed' - 'last_error' - 'next_retry_after'
                 WHERE id IN (SELECT id FROM to_reset)
-            """, limit)
+            """,
+                limit,
+            )
             # parse "UPDATE N" from result
             count = int(result.split()[-1]) if result and result.startswith("UPDATE") else 0
             return {
                 "status": "success",
                 "reset_count": count,
-                "message": f"Вернуто в очередь: {count} задач. Worker подхватит их при следующем цикле."
+                "message": f"Вернуто в очередь: {count} задач. Worker подхватит их при следующем цикле.",
             }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- ATRA Canvas: Comments & Patches ---
+
 
 class FileCommentCreate(BaseModel):
     file_path: str
@@ -1197,11 +1308,13 @@ class FileCommentCreate(BaseModel):
     line_number: Optional[int] = None
     expert_name: Optional[str] = "Виктория"
 
+
 class FilePatchRequest(BaseModel):
     file_path: str
     pattern: str
     replacement: str
     expert_id: Optional[str] = None
+
 
 @app.post("/api/experts/evolve")
 async def trigger_expert_evolution(expert_name: Optional[str] = None):
@@ -1215,12 +1328,16 @@ async def trigger_expert_evolution(expert_name: Optional[str] = None):
         cmd = [sys.executable, script_path]
         if expert_name:
             cmd.extend(["--expert_name", expert_name])
-        
+
         # Запускаем и не ждем завершения (background)
         import subprocess
+
         subprocess.Popen(cmd)
-        
-        return {"status": "success", "message": f"Процесс эволюции для {expert_name or 'всех'} запущен в фоне"}
+
+        return {
+            "status": "success",
+            "message": f"Процесс эволюции для {expert_name or 'всех'} запущен в фоне",
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1230,6 +1347,7 @@ class ExpertUpdate(BaseModel):
     system_prompt: Optional[str] = None
     role: Optional[str] = None
     department: Optional[str] = None
+
 
 @app.post("/api/experts/update")
 async def update_expert_data(body: ExpertUpdate):
@@ -1241,29 +1359,33 @@ async def update_expert_data(body: ExpertUpdate):
             expert = await conn.fetchrow("SELECT name FROM experts WHERE id = $1", body.expert_id)
             if not expert:
                 raise HTTPException(status_code=404, detail="Expert not found")
-            
+
             # 2. Обновляем в БД
             update_fields = []
             params = [body.expert_id]
             if body.system_prompt is not None:
-                update_fields.append(f"system_prompt = ${len(params)+1}")
+                update_fields.append(f"system_prompt = ${len(params) + 1}")
                 params.append(body.system_prompt)
             if body.role is not None:
-                update_fields.append(f"role = ${len(params)+1}")
+                update_fields.append(f"role = ${len(params) + 1}")
                 params.append(body.role)
             if body.department is not None:
-                update_fields.append(f"department = ${len(params)+1}")
+                update_fields.append(f"department = ${len(params) + 1}")
                 params.append(body.department)
-            
+
             if update_fields:
-                await conn.execute(f"UPDATE experts SET {', '.join(update_fields)}, updated_at = NOW(), version = version + 1 WHERE id = $1", *params)
-            
+                await conn.execute(
+                    f"UPDATE experts SET {', '.join(update_fields)}, updated_at = NOW(), version = version + 1 WHERE id = $1",
+                    *params,
+                )
+
             # 3. Двусторонняя синхронизация: Обновляем файл в .cursor/rules (если мы не в Docker или есть доступ)
             # В реальности это делает отдельный фоновый процесс или Sentinel
-            
+
             return {"status": "success", "message": f"Эксперт {expert['name']} обновлен"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/experts/skills")
 async def get_all_skills():
@@ -1272,18 +1394,19 @@ async def get_all_skills():
         skills_dir = "/app/knowledge_os/app/skills"
         if not os.path.exists(skills_dir):
             skills_dir = os.path.join(os.path.dirname(__file__), "skills")
-            
+
         skills = []
         if os.path.exists(skills_dir):
             for skill_name in os.listdir(skills_dir):
                 skill_path = os.path.join(skills_dir, skill_name, "SKILL.md")
                 if os.path.exists(skill_path):
-                    with open(skill_path, "r") as f:
+                    with open(skill_path) as f:
                         content = f.read()
                         skills.append({"name": skill_name, "description": content[:200] + "..."})
         return skills
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/files/comments")
 async def get_file_comments(file_path: str):
@@ -1294,11 +1417,12 @@ async def get_file_comments(file_path: str):
             rows = await conn.fetch(
                 "SELECT id, file_path, pattern, line_number, comment_text, expert_name, status, created_at "
                 "FROM file_comments WHERE file_path = $1 AND status = 'active' ORDER BY created_at ASC",
-                file_path
+                file_path,
             )
             return [dict(r) for r in rows]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/files/comments")
 async def add_file_comment(body: FileCommentCreate):
@@ -1309,11 +1433,16 @@ async def add_file_comment(body: FileCommentCreate):
             comment_id = await conn.fetchval(
                 """INSERT INTO file_comments (file_path, comment_text, pattern, line_number, expert_name)
                    VALUES ($1, $2, $3, $4, $5) RETURNING id""",
-                body.file_path, body.comment_text, body.pattern, body.line_number, body.expert_name
+                body.file_path,
+                body.comment_text,
+                body.pattern,
+                body.line_number,
+                body.expert_name,
             )
             return {"ok": True, "comment_id": str(comment_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/files/patch")
 async def apply_file_patch(body: FilePatchRequest):
@@ -1321,8 +1450,9 @@ async def apply_file_patch(body: FilePatchRequest):
     try:
         # 1. Читаем файл через системный инструмент
         from file_processor import FileProcessor
+
         processor = FileProcessor()
-        
+
         # Получаем абсолютный путь
         full_path = body.file_path
         if not os.path.isabs(full_path):
@@ -1333,40 +1463,46 @@ async def apply_file_patch(body: FilePatchRequest):
         if not os.path.exists(full_path):
             raise HTTPException(status_code=404, detail=f"File {body.file_path} not found")
 
-        with open(full_path, 'r', encoding='utf-8') as f:
+        with open(full_path, encoding="utf-8") as f:
             content = f.read()
-        
+
         # 2. Применяем замену (regex)
         import re
+
         try:
             new_content = re.sub(body.pattern, body.replacement, content)
         except re.error as re_err:
             raise HTTPException(status_code=400, detail=f"Invalid regex pattern: {str(re_err)}")
-        
+
         if new_content == content:
             return {"ok": False, "message": "Pattern not found or no changes made"}
-            
+
         # 3. Сохраняем файл
-        with open(full_path, 'w', encoding='utf-8') as f:
+        with open(full_path, "w", encoding="utf-8") as f:
             f.write(new_content)
-        
+
         # 4. Логируем патч в БД
         pool = await _get_db()
         async with pool.acquire() as conn:
             import uuid
+
             e_id = uuid.UUID(body.expert_id) if body.expert_id else None
             await conn.execute(
                 "INSERT INTO file_patches (file_path, pattern, replacement, expert_id) VALUES ($1, $2, $3, $4)",
-                body.file_path, body.pattern, body.replacement, e_id
+                body.file_path,
+                body.pattern,
+                body.replacement,
+                e_id,
             )
-            
+
         return {"ok": True, "message": "Patch applied successfully"}
     except Exception as e:
-        if isinstance(e, HTTPException): raise e
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002)
 
+    uvicorn.run(app, host="0.0.0.0", port=8002)

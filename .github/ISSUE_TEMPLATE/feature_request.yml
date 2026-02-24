@@ -1,0 +1,70 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за идею! Опишите желаемую функциональность.
+  
+  - type: textarea
+    id: problem
+    attributes:
+      label: Проблема
+      description: Какую проблему решит эта функция?
+      placeholder: "Я всегда раздражался, когда..."
+    validations:
+      required: true
+  
+  - type: textarea
+    id: solution
+    attributes:
+      label: Предлагаемое решение
+      description: Как вы видите реализацию?
+      placeholder: "Было бы здорово, если..."
+    validations:
+      required: true
+  
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Альтернативы
+      description: Рассматривали ли вы альтернативные решения?
+  
+  - type: dropdown
+    id: component
+    attributes:
+      label: Компонент
+      description: Где должна быть эта функция?
+      options:
+        - Backend (FastAPI)
+        - Frontend (Svelte)
+        - Knowledge OS
+        - Rust Gateway
+        - atra-cli
+        - Victoria Agent
+        - Veronica Agent
+        - Documentation
+        - CI/CD
+        - Другое
+    validations:
+      required: true
+  
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Приоритет
+      description: Насколько это важно для вас?
+      options:
+        - "🔴 Высокий (блокирует работу)"
+        - "🟡 Средний (было бы полезно)"
+        - "🟢 Низкий (nice to have)"
+    validations:
+      required: true
+  
+  - type: textarea
+    id: additional
+    attributes:
+      label: Дополнительная информация
+      description: Mockups, примеры, ссылки

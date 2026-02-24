@@ -20,20 +20,20 @@ expect {
     "# " {
         send "cd /root/atra\r"
         expect "# "
-        
+
         send "echo '=================================================================================='\r"
         expect "# "
         send "echo '🧹 АГРЕССИВНАЯ ОЧИСТКА ДИСКА'\r"
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         # Находим самые большие файлы
         send "echo '📊 Поиск больших файлов...'\r"
         expect "# "
         send "du -sh /root/atra/* 2>/dev/null | sort -hr | head -10\r"
         expect "# "
-        
+
         # Удаляем все старые логи (не только старше 7 дней)
         send "echo ''\r"
         expect "# "
@@ -45,7 +45,7 @@ expect {
         expect "# "
         send "find /root/atra -name '*.log' -size +100M -delete 2>/dev/null || true\r"
         expect "# "
-        
+
         # Удаляем все старые бэкапы
         send "echo '📋 Удаление ВСЕХ старых бэкапов...'\r"
         expect "# "
@@ -53,13 +53,13 @@ expect {
         expect "# "
         send "rm -rf /root/atra/backups/*.db_* 2>/dev/null || true\r"
         expect "# "
-        
+
         # Удаляем большие файлы данных
         send "echo '📋 Удаление больших файлов данных...'\r"
         expect "# "
         send "find /root/atra/data -name '*.csv' -size +50M -delete 2>/dev/null || true\r"
         expect "# "
-        
+
         # Очищаем git объекты
         send "echo '📋 Очистка git...'\r"
         expect "# "
@@ -67,7 +67,7 @@ expect {
         expect "# "
         send "rm -rf /root/atra/.git/objects/pack/*.pack.old 2>/dev/null || true\r"
         expect "# "
-        
+
         # Очищаем все кэши
         send "echo '📋 Очистка всех кэшей...'\r"
         expect "# "
@@ -81,7 +81,7 @@ expect {
         expect "# "
         send "rm -rf /root/atra/htmlcov 2>/dev/null || true\r"
         expect "# "
-        
+
         # Проверяем размер после очистки
         send "echo ''\r"
         expect "# "
@@ -89,7 +89,7 @@ expect {
         expect "# "
         send "df -h /\r"
         expect "# "
-        
+
         # Пробуем завершить git pull с минимальным использованием места
         send "echo ''\r"
         expect "# "
@@ -99,7 +99,7 @@ expect {
         expect "# "
         send "cd /root/atra && git reset --hard origin/main 2>/dev/null || git reset --hard origin/master 2>/dev/null || true\r"
         expect "# "
-        
+
         # Проверяем статус бота
         send "echo ''\r"
         expect "# "
@@ -107,7 +107,7 @@ expect {
         expect "# "
         send "ps aux | grep -E '(signal_live|main\\.py)' | grep -v grep || echo 'Бот не запущен'\r"
         expect "# "
-        
+
         # Проверяем последние логи
         send "echo ''\r"
         expect "# "
@@ -115,7 +115,7 @@ expect {
         expect "# "
         send "tail -10 /root/atra/signal_live.log 2>/dev/null || echo 'Лог не найден'\r"
         expect "# "
-        
+
         send "echo ''\r"
         expect "# "
         send "echo '=================================================================================='\r"
@@ -124,7 +124,7 @@ expect {
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         send "exit\r"
         expect eof
     }
@@ -135,4 +135,3 @@ expect {
 }
 
 wait
-

@@ -159,6 +159,7 @@ python3 main.py 2>&1 | grep -E "InterestZoneFilter|FibonacciZoneFilter|Dominance
 ```
 
 Должно быть:
+
 ```
 ✅ InterestZoneFilter инициализирован
 ✅ FibonacciZoneFilter инициализирован
@@ -178,6 +179,7 @@ python3 main.py 2>&1 | grep -E "InterestZoneFilter|FibonacciZoneFilter|Dominance
 ## 📊 РЕЗУЛЬТАТ
 
 После деплоя на сервере:
+
 - ✅ Все новые фильтры работают
 - ✅ Новая логика входа активна
 - ✅ Динамические TP/SL включены

@@ -20,6 +20,7 @@
 ### 1. Исправлена строка 2612 (setup_filter_mode_balanced)
 
 **Было:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -28,6 +29,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "balanced")
 ```
 
 **Стало:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -54,6 +56,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "balanced")
 ### 2. Исправлена строка 2639 (setup_filter_mode_soft)
 
 **Было:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -62,6 +65,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "soft")
 ```
 
 **Стало:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -88,6 +92,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "soft")
 ### 3. Добавлена дополнительная проверка для отображения
 
 **Добавлено в setup_filter_mode_balanced:**
+
 ```python
 # Дополнительная проверка депозита из файла для отображения
 if deposit == 0:
@@ -109,6 +114,7 @@ if deposit == 0:
 ## 🧪 Тестирование
 
 ### Результаты теста:
+
 ```
 🧪 ТЕСТ ИСПРАВЛЕНИЯ ПРОБЛЕМЫ С ДЕПОЗИТОМ
 ============================================================

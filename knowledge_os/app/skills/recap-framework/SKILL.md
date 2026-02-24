@@ -4,7 +4,15 @@ description: ReCAP Framework - Reasoning, Context, Action, Planning (Meta patter
 category: reasoning
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "📋", "homepage": "https://ai.meta.com/research/publications/recap/"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "📋",
+        "homepage": "https://ai.meta.com/research/publications/recap/",
+      },
+  }
 ---
 
 # ReCAP Framework Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "📋", "homepage": "https://ai
 ## Когда использовать
 
 Используй этот навык для:
+
 - Многошаговых reasoning задач
 - Задач, требующих контекста
 - Сложных последовательностей действий
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "📋", "homepage": "https://ai
 ## Методология
 
 ReCAP Framework работает через 4 фазы:
+
 1. **Reasoning** - Рассуждение о задаче
 2. **Context** - Сбор и анализ контекста
 3. **Action** - Планирование действий

@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль для расширенных метрик производительности
 """
 
 import logging
-from typing import List, Optional, Dict
-import pandas as pd
+from typing import Dict, List, Optional
+
 import numpy as np
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_var(
-    returns: pd.Series,
-    confidence: float = 0.95
-) -> float:
+def calculate_var(returns: pd.Series, confidence: float = 0.95) -> float:
     """
     Value at Risk (VaR) - максимальный ожидаемый убыток с заданной вероятностью
 
@@ -32,7 +29,7 @@ def calculate_var(
 
         # VaR = процентиль отрицательных доходностей
         var = returns.quantile(1 - confidence)
-        
+
         # Возвращаем абсолютное значение (VaR обычно отрицательный)
         return abs(float(var))
 
@@ -41,10 +38,7 @@ def calculate_var(
         return 0.0
 
 
-def calculate_cvar(
-    returns: pd.Series,
-    confidence: float = 0.95
-) -> float:
+def calculate_cvar(returns: pd.Series, confidence: float = 0.95) -> float:
     """
     Conditional Value at Risk (CVaR) / Expected Shortfall
     Средний убыток при превышении VaR
@@ -79,10 +73,7 @@ def calculate_cvar(
         return 0.0
 
 
-def calculate_calmar_ratio(
-    annual_return: float,
-    max_drawdown: float
-) -> float:
+def calculate_calmar_ratio(annual_return: float, max_drawdown: float) -> float:
     """
     Calmar Ratio = Annual Return / Max Drawdown
 
@@ -106,9 +97,7 @@ def calculate_calmar_ratio(
 
 
 def calculate_extended_metrics(
-    returns: List[float],
-    max_drawdown: float,
-    annual_return: Optional[float] = None
+    returns: List[float], max_drawdown: float, annual_return: Optional[float] = None
 ) -> Dict[str, float]:
     """
     Рассчитывает все расширенные метрики
@@ -140,21 +129,21 @@ def calculate_extended_metrics(
         calmar_ratio = calculate_calmar_ratio(annual_return, max_drawdown)
 
         return {
-            'var_95': var_95,
-            'var_99': var_99,
-            'cvar_95': cvar_95,
-            'cvar_99': cvar_99,
-            'calmar_ratio': calmar_ratio,
-            'annual_return': annual_return
+            "var_95": var_95,
+            "var_99": var_99,
+            "cvar_95": cvar_95,
+            "cvar_99": cvar_99,
+            "calmar_ratio": calmar_ratio,
+            "annual_return": annual_return,
         }
 
     except Exception as e:
         logger.error(f"Ошибка расчета расширенных метрик: {e}")
         return {
-            'var_95': 0.0,
-            'var_99': 0.0,
-            'cvar_95': 0.0,
-            'cvar_99': 0.0,
-            'calmar_ratio': 0.0,
-            'annual_return': 0.0
+            "var_95": 0.0,
+            "var_99": 0.0,
+            "cvar_95": 0.0,
+            "cvar_99": 0.0,
+            "calmar_ratio": 0.0,
+            "annual_return": 0.0,
         }

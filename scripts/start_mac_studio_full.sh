@@ -73,4 +73,3 @@ echo ""
 echo "📋 Проверка здоровья:"
 echo "   curl http://localhost:11434/  # MLX API Server"
 echo "   curl http://localhost:8000/   # Knowledge OS API"
-

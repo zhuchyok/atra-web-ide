@@ -13,6 +13,7 @@
 **Файл:** `src/core/anti_pattern_detector.py`
 
 **Использование:**
+
 ```python
 from src.core.anti_pattern_detector import get_anti_pattern_detector
 
@@ -27,6 +28,7 @@ if critical_patterns:
 ```
 
 **CI/CD скрипт:**
+
 ```bash
 #!/bin/bash
 # scripts/ci/check_anti_patterns.sh
@@ -67,6 +69,7 @@ else:
 **Файл:** `src/core/profiling.py`
 
 **Использование:**
+
 ```python
 from src.core.profiling import get_profiler
 
@@ -80,6 +83,7 @@ if bottlenecks:
 ```
 
 **CI/CD скрипт:**
+
 ```bash
 #!/bin/bash
 # scripts/ci/check_performance.sh
@@ -112,6 +116,7 @@ else:
 **Файл:** `src/core/self_validation.py`
 
 **Использование:**
+
 ```python
 from src.core.self_validation import get_validation_manager
 from src.core.invariants import register_all_invariants
@@ -127,6 +132,7 @@ if errors:
 ```
 
 **CI/CD скрипт:**
+
 ```bash
 #!/bin/bash
 # scripts/ci/check_invariants.sh
@@ -162,7 +168,7 @@ from src.core.contracts import ContractViolationError
 
 def test_precondition_violation():
     from src.signals.risk import get_dynamic_tp_levels
-    
+
     with pytest.raises(ContractViolationError):
         get_dynamic_tp_levels(None, -1, "invalid")
 ```
@@ -178,9 +184,9 @@ name: Quality Checks
 
 on:
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   anti-patterns:
@@ -189,7 +195,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Check anti-patterns
@@ -201,7 +207,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run tests with validation
@@ -213,7 +219,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Check performance
@@ -298,6 +304,7 @@ invariant_violations = Counter(
 ### Grafana дашборды
 
 **Пример конфигурации:**
+
 - **Панель 1:** Количество антипаттернов по типам
 - **Панель 2:** Latency критичных функций (P50, P95, P99)
 - **Панель 3:** Количество нарушений инвариантов по классам
@@ -317,12 +324,12 @@ groups:
         expr: rate(code_anti_patterns_total{severity="error"}[5m]) > 10
         annotations:
           summary: "Высокое количество критичных антипаттернов"
-      
+
       - alert: SlowFunction
         expr: function_latency_seconds{quantile="0.95"} > 1.0
         annotations:
           summary: "Функция {{ $labels.function_name }} медленная"
-      
+
       - alert: InvariantViolations
         expr: rate(invariant_violations_total[5m]) > 5
         annotations:
@@ -356,4 +363,3 @@ groups:
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 1.0
-

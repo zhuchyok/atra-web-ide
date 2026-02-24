@@ -25,14 +25,14 @@ async def apply_migration():
     try:
         conn = await asyncpg.connect(DB_URL)
         print(f"✅ Подключено к БД")
-        
+
         await conn.execute(sql)
         print(f"✅ Миграция применена: {MIGRATION_FILE.name}")
-        
+
         # Проверяем что триггер создан
         trigger_exists = await conn.fetchval("""
             SELECT EXISTS (
-                SELECT 1 FROM pg_trigger 
+                SELECT 1 FROM pg_trigger
                 WHERE tgname = 'experts_sync_trigger'
             )
         """)
@@ -40,7 +40,7 @@ async def apply_migration():
             print("✅ Триггер experts_sync_trigger активен")
         else:
             print("⚠️ Триггер не создан")
-        
+
         await conn.close()
         return 0
     except Exception as e:

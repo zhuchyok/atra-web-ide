@@ -2,6 +2,7 @@
 Кэш планов (Фаза 3): двухуровневый кэш (память + опционально Redis).
 Ускоряет повторные запросы планов по одному и тому же goal + project_context.
 """
+
 import hashlib
 import logging
 import pickle
@@ -26,6 +27,7 @@ def _get_redis_client():
         return _redis_client
     try:
         import redis.asyncio as aioredis
+
         settings = get_settings()
         url = getattr(settings, "redis_url", None) or getattr(settings, "REDIS_URL", None)
         if url:
@@ -64,14 +66,13 @@ class PlanCacheService:
         h = hashlib.sha256(normalized.encode()).hexdigest()[:16]
         return f"plan:{h}"
 
-    async def get(
-        self, goal: str, project_context: Optional[str] = None
-    ) -> Optional[Dict]:
+    async def get(self, goal: str, project_context: Optional[str] = None) -> Optional[Dict]:
         key = self._generate_key(goal, project_context)
 
         if key in self.local_cache:
             try:
                 from app.metrics.prometheus_metrics import PLAN_CACHE_HITS, record_cache_hit
+
                 PLAN_CACHE_HITS.inc()
                 record_cache_hit("plan_cache")
             except Exception:
@@ -85,6 +86,7 @@ class PlanCacheService:
                 if cached:
                     try:
                         from app.metrics.prometheus_metrics import PLAN_CACHE_HITS, record_cache_hit
+
                         PLAN_CACHE_HITS.inc()
                         record_cache_hit("plan_cache")
                     except Exception:
@@ -145,6 +147,7 @@ class PlanCacheService:
         size = len(self.local_cache) if hasattr(self.local_cache, "__len__") else 0
         try:
             from app.metrics.prometheus_metrics import update_cache_size
+
             update_cache_size("plan_cache", size)
         except Exception:
             pass
@@ -169,9 +172,7 @@ def get_plan_cache_service() -> PlanCacheService:
         enabled = getattr(settings, "plan_cache_enabled", True)
         if not enabled:
             # Отключён: пустой кэш, get всегда None, set ничего не делает по сути
-            _plan_cache_instance = PlanCacheService(
-                use_redis=False, maxsize=0, ttl=0
-            )
+            _plan_cache_instance = PlanCacheService(use_redis=False, maxsize=0, ttl=0)
         else:
             use_redis = getattr(settings, "plan_cache_redis_enabled", False)
             redis_client = _get_redis_client() if use_redis else None

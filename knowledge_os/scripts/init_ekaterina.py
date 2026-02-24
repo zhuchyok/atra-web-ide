@@ -16,32 +16,33 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from observability.team_member_manager import get_team_member_manager
 
+
 def main():
     """Инициализирует Екатерину в системе"""
     print("🚀 Инициализация Екатерины (Financial Analyst)...")
-    
+
     # Получаем менеджер сотрудников
     manager = get_team_member_manager()
-    
+
     # Проверяем, есть ли уже Екатерина
     ekaterina = manager.get_member("Екатерина")
-    
+
     if ekaterina:
-        print(f"✅ Екатерина уже в системе:")
+        print("✅ Екатерина уже в системе:")
         print(f"   - База знаний: {ekaterina.knowledge_base_path}")
         print(f"   - Программа обучения: {ekaterina.learning_program_path}")
-        
+
         # Проверяем существование файлов
         if ekaterina.knowledge_base_path.exists():
-            print(f"   ✅ База знаний существует")
+            print("   ✅ База знаний существует")
         else:
-            print(f"   ⚠️ База знаний не найдена, создаем...")
+            print("   ⚠️ База знаний не найдена, создаем...")
             manager._create_knowledge_base(ekaterina)
-        
+
         if ekaterina.learning_program_path and ekaterina.learning_program_path.exists():
-            print(f"   ✅ Программа обучения существует")
+            print("   ✅ Программа обучения существует")
         else:
-            print(f"   ⚠️ Программа обучения не найдена, создаем...")
+            print("   ⚠️ Программа обучения не найдена, создаем...")
             manager._create_learning_program(ekaterina)
     else:
         print("➕ Добавляем Екатерину в систему...")
@@ -51,13 +52,13 @@ def main():
             priority=14,
             expertise=["финансы", "валидация", "аудит", "Decimal", "расчёты"],
         )
-    
+
     print("\n✅ Екатерина успешно инициализирована!")
     print(f"   - База знаний: {ekaterina.knowledge_base_path}")
     print(f"   - Программа обучения: {ekaterina.learning_program_path}")
-    
+
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
-

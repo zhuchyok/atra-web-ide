@@ -6,10 +6,11 @@
 
 import asyncio
 import logging
-from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 # Импорты из основной системы
 try:
@@ -19,38 +20,48 @@ except ImportError as e:
     AILearningSystem = None
     TradingPattern = None
 
+
 # Ленивые импорты для избежания циклических зависимостей
 def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900):
     """Ленивый импорт get_anomaly_data_with_fallback"""
     try:
         from src.signals.core import get_anomaly_data_with_fallback as _func
+
         return _func(symbol, ttl_seconds)
     except ImportError as e:
         logging.warning("Не удалось импортировать anomaly filter: %s", e)
         return None
 
+
 def get_symbol_info(symbol: str):
     """Ленивый импорт get_symbol_info"""
     try:
         from src.utils.cache_manager import get_symbol_info as _func
+
         return _func(symbol)
     except ImportError as e:
         logging.warning("Не удалось импортировать cache_manager: %s", e)
         return None
 
-def get_ohlc_binance_sync_async(symbol: str, interval: str, limit: int = 100, _no_cache: bool = False):
+
+def get_ohlc_binance_sync_async(
+    symbol: str, interval: str, limit: int = 100, _no_cache: bool = False
+):
     """Ленивый импорт get_ohlc_binance_sync_async"""
     try:
         from src.utils.ohlc_utils import get_ohlc_binance_sync_async as _func
+
         # Исправлено: используем именованный аргумент для _no_cache, чтобы избежать E1121
         return _func(symbol, interval, limit=limit, _no_cache=_no_cache)
     except ImportError as e:
         logging.warning("Не удалось импортировать ohlc_utils: %s", e)
         return None
 
+
 # SourcesHub импортируем отдельно
 try:
     from src.data.sources_hub import sources_hub  # Новый централизованный хаб источников
+
     logging.info("✅ SourcesHub успешно импортирован")
 except ImportError as e:
     logging.warning("Не удалось импортировать sources_hub: %s", e)
@@ -58,11 +69,13 @@ except ImportError as e:
 
 # Импорт динамических функций из правильных модулей
 try:
-    from src.signals.risk import get_dynamic_risk_pct, get_dynamic_leverage
+    from src.signals.risk import get_dynamic_leverage, get_dynamic_risk_pct
     from src.utils.shared_utils import get_dynamic_tp_levels
+
     logging.info("✅ Динамические функции успешно импортированы")
 except ImportError:
     logging.warning("Динамические функции недоступны, используем заглушки")
+
     def get_dynamic_risk_pct(*_args, **_kwargs):
         """Заглушка для процента риска"""
         return 2.0
@@ -75,7 +88,9 @@ except ImportError:
         """Заглушка для уровней тейк-профита"""
         return [1.5, 3.0]
 
+
 logger = logging.getLogger(__name__)
+
 
 class AIIntegration:
     """Интеграция ИИ с торговой системой"""
@@ -104,6 +119,7 @@ class AIIntegration:
         # Используем singleton registry для получения единственного экземпляра
         try:
             from src.ai.singleton import get_ai_learning_system
+
             self.ai_learning = get_ai_learning_system()
             logger.info("✅ Используем singleton экземпляр ИИ системы")
         except (ImportError, AttributeError, Exception) as e:
@@ -126,8 +142,9 @@ class AIIntegration:
         # Запускаем непрерывное обучение в фоне
         self._start_continuous_learning()
 
-    async def capture_signal_data(self, symbol: str, signal_type: str,
-                                entry_price: float, user_data: Dict) -> Optional[TradingPattern]:
+    async def capture_signal_data(
+        self, symbol: str, signal_type: str, entry_price: float, user_data: Dict
+    ) -> Optional[TradingPattern]:
         """Захватывает данные сигнала для обучения"""
         try:
             # Получаем текущие данные
@@ -146,12 +163,20 @@ class AIIntegration:
 
             # Рассчитываем динамические параметры
             risk_pct = get_dynamic_risk_pct(df, current_index)
-            leverage = get_dynamic_leverage(df, current_index, user_data.get('leverage', 1))
+            leverage = get_dynamic_leverage(df, current_index, user_data.get("leverage", 1))
             tp1_pct, tp2_pct = get_dynamic_tp_levels(df, current_index, signal_type)
 
             # Рассчитываем TP уровни
-            tp1 = entry_price * (1 + tp1_pct/100) if signal_type == "LONG" else entry_price * (1 - tp1_pct/100)
-            tp2 = entry_price * (1 + tp2_pct/100) if signal_type == "LONG" else entry_price * (1 - tp2_pct/100)
+            tp1 = (
+                entry_price * (1 + tp1_pct / 100)
+                if signal_type == "LONG"
+                else entry_price * (1 - tp1_pct / 100)
+            )
+            tp2 = (
+                entry_price * (1 + tp2_pct / 100)
+                if signal_type == "LONG"
+                else entry_price * (1 - tp2_pct / 100)
+            )
 
             # Создаем паттерн
             pattern = TradingPattern(
@@ -164,7 +189,7 @@ class AIIntegration:
                 risk_pct=risk_pct,
                 leverage=leverage,
                 indicators=indicators,
-                market_conditions=market_conditions
+                market_conditions=market_conditions,
             )
 
             logger.info("📊 Захвачен паттерн: %s %s", symbol, signal_type)
@@ -180,24 +205,24 @@ class AIIntegration:
             indicators = {}
 
             # RSI
-            if 'rsi' in df.columns and current_index < len(df):
-                indicators['RSI'] = float(df['rsi'].iloc[current_index])
+            if "rsi" in df.columns and current_index < len(df):
+                indicators["RSI"] = float(df["rsi"].iloc[current_index])
 
             # EMA
-            if 'ema7' in df.columns and current_index < len(df):
-                indicators['EMA7'] = float(df['ema7'].iloc[current_index])
-            if 'ema25' in df.columns and current_index < len(df):
-                indicators['EMA25'] = float(df['ema25'].iloc[current_index])
+            if "ema7" in df.columns and current_index < len(df):
+                indicators["EMA7"] = float(df["ema7"].iloc[current_index])
+            if "ema25" in df.columns and current_index < len(df):
+                indicators["EMA25"] = float(df["ema25"].iloc[current_index])
 
             # Bollinger Bands
-            if 'bb_upper' in df.columns and current_index < len(df):
-                indicators['BB_Upper'] = float(df['bb_upper'].iloc[current_index])
-            if 'bb_lower' in df.columns and current_index < len(df):
-                indicators['BB_Lower'] = float(df['bb_lower'].iloc[current_index])
+            if "bb_upper" in df.columns and current_index < len(df):
+                indicators["BB_Upper"] = float(df["bb_upper"].iloc[current_index])
+            if "bb_lower" in df.columns and current_index < len(df):
+                indicators["BB_Lower"] = float(df["bb_lower"].iloc[current_index])
 
             # Volume
-            if 'volume' in df.columns and current_index < len(df):
-                indicators['Volume'] = float(df['volume'].iloc[current_index])
+            if "volume" in df.columns and current_index < len(df):
+                indicators["Volume"] = float(df["volume"].iloc[current_index])
 
             return indicators
 
@@ -205,8 +230,9 @@ class AIIntegration:
             logger.error("❌ Ошибка получения индикаторов: %s", e)
             return {}
 
-    async def _get_market_conditions(self, symbol: str, df: pd.DataFrame = None,
-                                   current_index: int = None) -> Dict[str, Any]:
+    async def _get_market_conditions(
+        self, symbol: str, df: pd.DataFrame = None, current_index: int = None
+    ) -> Dict[str, Any]:
         """Получает рыночные условия через SourcesHub"""
         try:
             conditions = {}
@@ -217,96 +243,100 @@ class AIIntegration:
                 if btc_ohlc:
                     btc_df = pd.DataFrame(btc_ohlc)
                     if len(btc_df) > 0:
-                        btc_price = btc_df['close'].iloc[-1]
-                        btc_ema200 = btc_df['close'].rolling(200).mean().iloc[-1]
-                        conditions['BTC_Trend'] = "BULLISH" if btc_price > btc_ema200 else "BEARISH"
+                        btc_price = btc_df["close"].iloc[-1]
+                        btc_ema200 = btc_df["close"].rolling(200).mean().iloc[-1]
+                        conditions["BTC_Trend"] = "BULLISH" if btc_price > btc_ema200 else "BEARISH"
             except (ValueError, TypeError, KeyError, RuntimeError, OSError):
-                conditions['BTC_Trend'] = "UNKNOWN"
+                conditions["BTC_Trend"] = "UNKNOWN"
 
             # Market Cap через SourcesHub
             if sources_hub:
                 try:
                     mcap_data = await sources_hub.get_market_cap_data(symbol)
                     if mcap_data:
-                        conditions['Market_Cap'] = mcap_data.get('market_cap', 0)
-                        conditions['Market_Cap_Sources'] = mcap_data.get('sources_used', 0)
+                        conditions["Market_Cap"] = mcap_data.get("market_cap", 0)
+                        conditions["Market_Cap_Sources"] = mcap_data.get("sources_used", 0)
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError):
-                    conditions['Market_Cap'] = 0
+                    conditions["Market_Cap"] = 0
 
                 # Volume через SourcesHub
                 try:
                     volume_24h = await sources_hub.get_volume_data(symbol)
                     if volume_24h:
-                        conditions['Volume_24h'] = volume_24h
+                        conditions["Volume_24h"] = volume_24h
                         # Классификация объема
                         if volume_24h > 100_000_000:  # > 100M
-                            conditions['Volume_Class'] = "MEGA"
+                            conditions["Volume_Class"] = "MEGA"
                         elif volume_24h > 50_000_000:  # > 50M
-                            conditions['Volume_Class'] = "HIGH"
+                            conditions["Volume_Class"] = "HIGH"
                         elif volume_24h > 10_000_000:  # > 10M
-                            conditions['Volume_Class'] = "MEDIUM"
+                            conditions["Volume_Class"] = "MEDIUM"
                         else:
-                            conditions['Volume_Class'] = "LOW"
+                            conditions["Volume_Class"] = "LOW"
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError):
-                    conditions['Volume_24h'] = 0
-                    conditions['Volume_Class'] = "UNKNOWN"
+                    conditions["Volume_24h"] = 0
+                    conditions["Volume_Class"] = "UNKNOWN"
 
                 # Price через SourcesHub
                 try:
                     current_price = await sources_hub.get_price_data(symbol)
                     if current_price:
-                        conditions['Current_Price'] = current_price
+                        conditions["Current_Price"] = current_price
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError):
-                    conditions['Current_Price'] = 0
+                    conditions["Current_Price"] = 0
             else:
-                conditions['Market_Cap'] = 0
-                conditions['Volume_24h'] = 0
-                conditions['Volume_Class'] = "UNKNOWN"
-                conditions['Current_Price'] = 0
+                conditions["Market_Cap"] = 0
+                conditions["Volume_24h"] = 0
+                conditions["Volume_Class"] = "UNKNOWN"
+                conditions["Current_Price"] = 0
 
             # Объем торгов (локальный) - только если df передан и есть индекс
-            if df is not None and hasattr(df, 'columns') and len(df) > 0:
+            if df is not None and hasattr(df, "columns") and len(df) > 0:
                 if current_index is None:
                     current_index = len(df) - 1
-                if 'volume' in df.columns and current_index < len(df) and current_index >= 0:
+                if "volume" in df.columns and current_index < len(df) and current_index >= 0:
                     try:
-                        current_volume = df['volume'].iloc[current_index]
+                        current_volume = df["volume"].iloc[current_index]
                         if len(df) >= 20:
-                            avg_volume = df['volume'].rolling(20).mean().iloc[current_index]
+                            avg_volume = df["volume"].rolling(20).mean().iloc[current_index]
                         else:
-                            avg_volume = df['volume'].mean()
+                            avg_volume = df["volume"].mean()
 
-                        if not pd.isna(current_volume) and not pd.isna(avg_volume) and avg_volume > 0:
+                        if (
+                            not pd.isna(current_volume)
+                            and not pd.isna(avg_volume)
+                            and avg_volume > 0
+                        ):
                             if current_volume > avg_volume * 1.5:
-                                conditions['Volume'] = "HIGH"
+                                conditions["Volume"] = "HIGH"
                             elif current_volume < avg_volume * 0.5:
-                                conditions['Volume'] = "LOW"
+                                conditions["Volume"] = "LOW"
                             else:
-                                conditions['Volume'] = "NORMAL"
+                                conditions["Volume"] = "NORMAL"
                         else:
-                            conditions['Volume'] = "NORMAL"
+                            conditions["Volume"] = "NORMAL"
                     except (IndexError, KeyError):
-                        conditions['Volume'] = "NORMAL"
+                        conditions["Volume"] = "NORMAL"
 
                 # Волатильность
-                if 'close' in df.columns and current_index >= 20:
+                if "close" in df.columns and current_index >= 20:
                     try:
-                        recent_prices = df['close'].iloc[current_index-20:current_index+1]
+                        recent_prices = df["close"].iloc[current_index - 20 : current_index + 1]
                         if len(recent_prices) > 0:
                             volatility = recent_prices.std() / recent_prices.mean() * 100
                             if not pd.isna(volatility):
                                 if volatility > 5:
-                                    conditions['Volatility'] = "HIGH"
+                                    conditions["Volatility"] = "HIGH"
                                 elif volatility < 2:
-                                    conditions['Volatility'] = "LOW"
+                                    conditions["Volatility"] = "LOW"
                                 else:
-                                    conditions['Volatility'] = "NORMAL"
+                                    conditions["Volatility"] = "NORMAL"
                             else:
-                                conditions['Volatility'] = "NORMAL"
+                                conditions["Volatility"] = "NORMAL"
                         else:
-                            conditions['Volatility'] = "NORMAL"
+                            conditions["Volatility"] = "NORMAL"
                     except (IndexError, KeyError):
-                        conditions['Volatility'] = "NORMAL"
+                        conditions["Volatility"] = "NORMAL"
 
             return conditions
 
@@ -314,18 +344,19 @@ class AIIntegration:
             logger.error("❌ Ошибка получения рыночных условий: %s", e)
             return {}
 
-    async def update_signal_result(self, symbol: str, signal_type: str,
-                                 entry_price: float, exit_price: float,
-                                 result: str) -> bool:
+    async def update_signal_result(
+        self, symbol: str, signal_type: str, entry_price: float, exit_price: float, result: str
+    ) -> bool:
         """Обновляет результат сигнала для обучения"""
         try:
             # Ищем соответствующий паттерн
             for pattern in self.ai_learning.patterns:
-                if (pattern.symbol == symbol and
-                    pattern.signal_type == signal_type and
-                    abs(pattern.entry_price - entry_price) < 0.01 and
-                    pattern.result is None):
-
+                if (
+                    pattern.symbol == symbol
+                    and pattern.signal_type == signal_type
+                    and abs(pattern.entry_price - entry_price) < 0.01
+                    and pattern.result is None
+                ):
                     # Рассчитываем прибыль
                     if signal_type == "LONG":
                         profit_pct = (exit_price - entry_price) / entry_price * 100
@@ -339,7 +370,13 @@ class AIIntegration:
                     # Обновляем метрики
                     self.ai_learning.update_metrics()
 
-                    logger.info("📊 Обновлен результат: %s %s = %s (%.2f%%)", symbol, signal_type, result, profit_pct)
+                    logger.info(
+                        "📊 Обновлен результат: %s %s = %s (%.2f%%)",
+                        symbol,
+                        signal_type,
+                        result,
+                        profit_pct,
+                    )
                     return True
 
             logger.warning("⚠️ Паттерн не найден: %s %s", symbol, signal_type)
@@ -360,35 +397,59 @@ class AIIntegration:
                 enhanced_item = item.copy()
 
                 # Анализ заголовка
-                title = item.get('title', '').lower()
+                title = item.get("title", "").lower()
 
                 # Определяем тональность
-                positive_keywords = ['pump', 'surge', 'rally', 'bullish', 'breakthrough', 'adoption', 'partnership']
-                negative_keywords = ['dump', 'crash', 'bearish', 'regulation', 'ban', 'hack', 'scam']
+                positive_keywords = [
+                    "pump",
+                    "surge",
+                    "rally",
+                    "bullish",
+                    "breakthrough",
+                    "adoption",
+                    "partnership",
+                ]
+                negative_keywords = [
+                    "dump",
+                    "crash",
+                    "bearish",
+                    "regulation",
+                    "ban",
+                    "hack",
+                    "scam",
+                ]
 
                 positive_score = sum(1 for keyword in positive_keywords if keyword in title)
                 negative_score = sum(1 for keyword in negative_keywords if keyword in title)
 
                 if positive_score > negative_score:
-                    enhanced_item['sentiment'] = 'POSITIVE'
-                    enhanced_item['sentiment_score'] = positive_score
+                    enhanced_item["sentiment"] = "POSITIVE"
+                    enhanced_item["sentiment_score"] = positive_score
                 elif negative_score > positive_score:
-                    enhanced_item['sentiment'] = 'NEGATIVE'
-                    enhanced_item['sentiment_score'] = negative_score
+                    enhanced_item["sentiment"] = "NEGATIVE"
+                    enhanced_item["sentiment_score"] = negative_score
                 else:
-                    enhanced_item['sentiment'] = 'NEUTRAL'
-                    enhanced_item['sentiment_score'] = 0
+                    enhanced_item["sentiment"] = "NEUTRAL"
+                    enhanced_item["sentiment_score"] = 0
 
                 # Определяем важность
-                importance_keywords = ['bitcoin', 'ethereum', 'sec', 'fed', 'regulation', 'adoption', 'institutional']
+                importance_keywords = [
+                    "bitcoin",
+                    "ethereum",
+                    "sec",
+                    "fed",
+                    "regulation",
+                    "adoption",
+                    "institutional",
+                ]
                 importance_score = sum(1 for keyword in importance_keywords if keyword in title)
 
                 if importance_score >= 2:
-                    enhanced_item['importance'] = 'HIGH'
+                    enhanced_item["importance"] = "HIGH"
                 elif importance_score == 1:
-                    enhanced_item['importance'] = 'MEDIUM'
+                    enhanced_item["importance"] = "MEDIUM"
                 else:
-                    enhanced_item['importance'] = 'LOW'
+                    enhanced_item["importance"] = "LOW"
 
                 enhanced_news.append(enhanced_item)
 
@@ -404,9 +465,9 @@ class AIIntegration:
             if not news_items:
                 return {"sentiment": "NEUTRAL", "score": 0}
 
-            positive_count = sum(1 for item in news_items if item.get('sentiment') == 'POSITIVE')
-            negative_count = sum(1 for item in news_items if item.get('sentiment') == 'NEGATIVE')
-            neutral_count = sum(1 for item in news_items if item.get('sentiment') == 'NEUTRAL')
+            positive_count = sum(1 for item in news_items if item.get("sentiment") == "POSITIVE")
+            negative_count = sum(1 for item in news_items if item.get("sentiment") == "NEGATIVE")
+            neutral_count = sum(1 for item in news_items if item.get("sentiment") == "NEUTRAL")
 
             total = len(news_items)
 
@@ -426,7 +487,7 @@ class AIIntegration:
                 "positive": positive_count,
                 "negative": negative_count,
                 "neutral": neutral_count,
-                "total": total
+                "total": total,
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -436,17 +497,19 @@ class AIIntegration:
     def _load_optimized_parameters(self) -> Dict[str, Any]:
         """Загружает оптимизированные параметры из файла"""
         try:
-            import os
             import json
+            import os
 
             params_file = os.path.join("ai_learning_data", "optimized_parameters.json")
             if os.path.exists(params_file):
-                with open(params_file, 'r', encoding='utf-8') as f:
+                with open(params_file, encoding="utf-8") as f:
                     params = json.load(f)
                 logger.info("✅ Загружено %d оптимизированных параметров", len(params))
                 return params
             else:
-                logger.info("📝 Файл оптимизированных параметров не найден, используем значения по умолчанию")
+                logger.info(
+                    "📝 Файл оптимизированных параметров не найден, используем значения по умолчанию"
+                )
                 return {}
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -461,7 +524,7 @@ class AIIntegration:
 
     async def start_continuous_learning_async(self):
         """Асинхронный запуск непрерывного обучения"""
-        if not getattr(self, '_continuous_learning_ready', False):
+        if not getattr(self, "_continuous_learning_ready", False):
             return
 
         try:
@@ -493,7 +556,9 @@ class AIIntegration:
 
             value = self.optimized_parameters.get(parameter_name, default_value)
             if value is not None:
-                logger.debug("🎯 Используем оптимизированный параметр %s: %s", parameter_name, value)
+                logger.debug(
+                    "🎯 Используем оптимизированный параметр %s: %s", parameter_name, value
+                )
             return value
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -507,29 +572,25 @@ class AIIntegration:
                 # Параметры риска
                 "risk_pct": self.get_optimized_parameter("risk_pct", 2.0),
                 "leverage": self.get_optimized_parameter("leverage", 1.0),
-
                 # Тейк-профиты
                 "tp1": self.get_optimized_parameter("tp1", 1.5),
                 "tp2": self.get_optimized_parameter("tp2", 3.0),
-
                 # Индикаторы
                 "rsi_oversold": self.get_optimized_parameter("rsi_oversold", 30),
                 "rsi_overbought": self.get_optimized_parameter("rsi_overbought", 70),
                 "ema_fast": self.get_optimized_parameter("ema_fast", 21),
                 "ema_slow": self.get_optimized_parameter("ema_slow", 50),
-
                 # Stop-Loss
                 "stop_loss_pct": self.get_optimized_parameter("stop_loss_pct", 2.0),
-
                 # Предпочтительные символы
                 "preferred_symbols": self.get_optimized_parameter("preferred_symbols", []),
-
                 # Время торговли
                 "trading_hours": self.get_optimized_parameter("trading_hours", [9, 15, 21]),
-
                 # Рыночные условия
                 "optimal_btc_trend": self.get_optimized_parameter("optimal_btc_trend", "BULLISH"),
-                "optimal_volume_class": self.get_optimized_parameter("optimal_volume_class", "HIGH"),
+                "optimal_volume_class": self.get_optimized_parameter(
+                    "optimal_volume_class", "HIGH"
+                ),
             }
 
             logger.info("🤖 Сформирована ИИ конфигурация с %d параметрами", len(config))
@@ -546,7 +607,7 @@ class AIIntegration:
                 "symbol": symbol,
                 "timestamp": get_utc_now().isoformat(),
                 "recommendations": [],
-                "confidence": 0.0
+                "confidence": 0.0,
             }
 
             # Получаем расширенные данные через SourcesHub
@@ -555,8 +616,8 @@ class AIIntegration:
                     # Market Cap
                     mcap_data = await sources_hub.get_market_cap_data(symbol)
                     if mcap_data:
-                        recommendations["market_cap"] = mcap_data.get('market_cap', 0)
-                        recommendations["market_cap_sources"] = mcap_data.get('sources_used', 0)
+                        recommendations["market_cap"] = mcap_data.get("market_cap", 0)
+                        recommendations["market_cap_sources"] = mcap_data.get("sources_used", 0)
 
                     # Volume
                     volume_24h = await sources_hub.get_volume_data(symbol)
@@ -573,7 +634,9 @@ class AIIntegration:
                     if news_items:
                         enhanced_news = await self.analyze_news_items(news_items)
                         recommendations["news_count"] = len(enhanced_news)
-                        recommendations["news_sentiment"] = self._calculate_news_sentiment(enhanced_news)
+                        recommendations["news_sentiment"] = self._calculate_news_sentiment(
+                            enhanced_news
+                        )
 
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                     logger.warning("⚠️ Не удалось получить данные через SourcesHub: %s", e)
@@ -648,13 +711,16 @@ class AIIntegration:
                         f"🎯 Лучшие условия для {condition}: {most_common}"
                     )
 
-            logger.info("🤖 Рекомендации для %s: %d советов", symbol, len(recommendations['recommendations']))
+            logger.info(
+                "🤖 Рекомендации для %s: %d советов",
+                symbol,
+                len(recommendations["recommendations"]),
+            )
             return recommendations
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка получения рекомендаций: %s", e)
             return {"error": str(e)}
-
 
     async def auto_optimize_user_settings(self, user_id: str, user_data: Dict) -> Dict[str, Any]:
         """Автоматически оптимизирует настройки пользователя"""
@@ -663,17 +729,18 @@ class AIIntegration:
                 "user_id": user_id,
                 "timestamp": get_utc_now().isoformat(),
                 "optimizations": {},
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Анализируем паттерны пользователя
-            user_patterns = [p for p in self.ai_learning.patterns
-                           if p.symbol in user_data.get('favorite_symbols', [])]
+            user_patterns = [
+                p
+                for p in self.ai_learning.patterns
+                if p.symbol in user_data.get("favorite_symbols", [])
+            ]
 
             if not user_patterns:
-                optimization["recommendations"].append(
-                    "📊 Недостаточно данных для оптимизации"
-                )
+                optimization["recommendations"].append("📊 Недостаточно данных для оптимизации")
                 return optimization
 
             # Анализ лучших символов
@@ -702,8 +769,11 @@ class AIIntegration:
                     f"📈 Низкий средний риск: {avg_risk:.1f}%. Можно увеличить"
                 )
 
-                logger.info("🔧 Оптимизация для пользователя %s: %d рекомендаций",
-                            user_id, len(optimization['recommendations']))
+                logger.info(
+                    "🔧 Оптимизация для пользователя %s: %d рекомендаций",
+                    user_id,
+                    len(optimization["recommendations"]),
+                )
             return optimization
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -718,9 +788,9 @@ class AIIntegration:
             # Добавляем интеграционные данные
             report += f"""
 🔗 ИНТЕГРАЦИЯ С СИСТЕМОЙ:
-• Статус обучения: {'🟢 Активно' if self.learning_active else '🔴 Отключено'}
+• Статус обучения: {"🟢 Активно" if self.learning_active else "🔴 Отключено"}
 • Всего паттернов: {len(self.ai_learning.patterns)}
-• Последнее обновление: {get_utc_now().strftime('%Y-%m-%d %H:%M:%S')}
+• Последнее обновление: {get_utc_now().strftime("%Y-%m-%d %H:%M:%S")}
 
 💡 РЕКОМЕНДАЦИИ СИСТЕМЫ:
 """
@@ -736,28 +806,44 @@ class AIIntegration:
             logger.error("❌ Ошибка генерации отчета: %s", e)
             return f"❌ Ошибка генерации отчета: {e}"
 
-    async def record_signal_pattern(self, symbol: str, side: str, entry_price: float,
-                                   tp1_price: float, tp2_price: float, risk_pct: float,
-                                   leverage: float, user_id: int, is_dca: bool = False):
+    async def record_signal_pattern(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        tp1_price: float,
+        tp2_price: float,
+        risk_pct: float,
+        leverage: float,
+        user_id: int,
+        is_dca: bool = False,
+    ):
         """Записывает паттерн принятого сигнала для обучения ИИ"""
         try:
             # Проверяем, есть ли уже паттерн с PENDING статусом
             pattern_id = None
-            if hasattr(self, 'user_patterns'):
+            if hasattr(self, "user_patterns"):
                 for pid, data in self.user_patterns.items():
-                    if (data['user_id'] == user_id and
-                        data['symbol'] == symbol and
-                        data['side'].upper() == side.upper() and
-                        data.get('status') == 'PENDING'):
+                    if (
+                        data["user_id"] == user_id
+                        and data["symbol"] == symbol
+                        and data["side"].upper() == side.upper()
+                        and data.get("status") == "PENDING"
+                    ):
                         pattern_id = pid
                         break
 
             if pattern_id:
                 # Обновляем существующий паттерн - меняем статус на ACCEPTED
                 pattern_data = self.user_patterns[pattern_id]
-                pattern_data['status'] = 'ACCEPTED'
-                pattern_data['accepted_at'] = get_utc_now()
-                logger.info("🤖 ИИ: Паттерн обновлен на ACCEPTED для %s %s пользователя %s", symbol, side, user_id)
+                pattern_data["status"] = "ACCEPTED"
+                pattern_data["accepted_at"] = get_utc_now()
+                logger.info(
+                    "🤖 ИИ: Паттерн обновлен на ACCEPTED для %s %s пользователя %s",
+                    symbol,
+                    side,
+                    user_id,
+                )
                 return
 
             # Создаем новый паттерн (если не найден существующий)
@@ -780,7 +866,7 @@ class AIIntegration:
                 indicators=indicators,
                 market_conditions=market_conditions,
                 result=None,  # Будет заполнено при закрытии позиции
-                profit_pct=None
+                profit_pct=None,
             )
 
             # Добавляем паттерн в систему обучения
@@ -790,15 +876,15 @@ class AIIntegration:
             now = get_utc_now()
             pattern_id = f"{user_id}_{symbol}_{now.strftime('%Y%m%d_%H%M%S')}"
             self.user_patterns[pattern_id] = {
-                'pattern': pattern,
-                'user_id': user_id,
-                'symbol': symbol,
-                'entry_price': entry_price,
-                'side': side,
-                'is_dca': is_dca,
-                'status': 'ACCEPTED',
-                'created_at': now,
-                'accepted_at': now
+                "pattern": pattern,
+                "user_id": user_id,
+                "symbol": symbol,
+                "entry_price": entry_price,
+                "side": side,
+                "is_dca": is_dca,
+                "status": "ACCEPTED",
+                "created_at": now,
+                "accepted_at": now,
             }
 
             logger.info("🤖 ИИ: Паттерн записан для %s %s пользователем %s", symbol, side, user_id)
@@ -824,19 +910,21 @@ class AIIntegration:
         try:
             # Ищем паттерн с PENDING/ACCEPTED статусом для этой сделки
             pattern_id = None
-            if hasattr(self, 'user_patterns'):
+            if hasattr(self, "user_patterns"):
                 for pid, data in self.user_patterns.items():
-                    if (data['user_id'] == user_id and
-                        data['symbol'] == symbol and
-                        data['side'].upper() == side.upper() and
-                        data.get('status') in ['PENDING', 'ACCEPTED']):
+                    if (
+                        data["user_id"] == user_id
+                        and data["symbol"] == symbol
+                        and data["side"].upper() == side.upper()
+                        and data.get("status") in ["PENDING", "ACCEPTED"]
+                    ):
                         pattern_id = pid
                         break
 
             if pattern_id:
                 # Обновляем существующий паттерн результатом
                 pattern_data = self.user_patterns[pattern_id]
-                pattern = pattern_data.get('pattern')
+                pattern = pattern_data.get("pattern")
 
                 if pattern:
                     # Обновляем результат
@@ -844,11 +932,11 @@ class AIIntegration:
                     pattern.profit_pct = profit_pct
 
                     # Обновляем статус
-                    pattern_data['status'] = 'CLOSED'
-                    pattern_data['exit_price'] = exit_price
-                    pattern_data['exit_reason'] = exit_reason
-                    pattern_data['profit_pct'] = profit_pct
-                    pattern_data['closed_at'] = get_utc_now()
+                    pattern_data["status"] = "CLOSED"
+                    pattern_data["exit_price"] = exit_price
+                    pattern_data["exit_reason"] = exit_reason
+                    pattern_data["profit_pct"] = profit_pct
+                    pattern_data["closed_at"] = get_utc_now()
 
                     # Добавляем обновлённый паттерн в систему обучения
                     # (старый паттерн будет заменён при следующей очистке)
@@ -856,7 +944,10 @@ class AIIntegration:
 
                     logger.info(
                         "✅ ИИ: Паттерн обновлён результатом для %s %s: %s (%.2f%%)",
-                        symbol, side, pattern.result, profit_pct
+                        symbol,
+                        side,
+                        pattern.result,
+                        profit_pct,
                     )
                 else:
                     logger.warning("⚠️ ИИ: Паттерн не найден для обновления: %s", pattern_id)
@@ -878,21 +969,33 @@ class AIIntegration:
                     indicators=indicators,
                     market_conditions=market_conditions,
                     result="WIN" if profit_pct > 0 else "LOSS",
-                    profit_pct=profit_pct
+                    profit_pct=profit_pct,
                 )
 
                 self.ai_learning.add_pattern(pattern)
                 logger.info(
                     "📥 ИИ: Создан паттерн из закрытой сделки %s %s: %s (%.2f%%)",
-                    symbol, side, pattern.result, profit_pct
+                    symbol,
+                    side,
+                    pattern.result,
+                    profit_pct,
                 )
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка обновления паттерна из закрытой сделки: %s", e)
 
-    async def record_signal_pattern_on_send(self, symbol: str, side: str, entry_price: float,
-                                           tp1_price: float, tp2_price: float, risk_pct: float,
-                                           leverage: float, user_id: int, df: Any = None):
+    async def record_signal_pattern_on_send(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        tp1_price: float,
+        tp2_price: float,
+        risk_pct: float,
+        leverage: float,
+        user_id: int,
+        df: Any = None,
+    ):
         """Записывает паттерн отправленного сигнала (PENDING) для обучения ИИ
 
         Вызывается при отправке сигнала, чтобы сохранить паттерн даже если пользователь не примет сигнал.
@@ -901,10 +1004,10 @@ class AIIntegration:
         try:
             # Получаем текущие рыночные условия
             # Если передан df, используем последний индекс
-            if df is not None and hasattr(df, '__len__') and len(df) > 0:
+            if df is not None and hasattr(df, "__len__") and len(df) > 0:
                 current_index = len(df) - 1
                 # Создаем DataFrame если передан список
-                if not hasattr(df, 'columns'):
+                if not hasattr(df, "columns"):
                     df = pd.DataFrame(df)
                 market_conditions = await self._get_market_conditions(symbol, df, current_index)
             else:
@@ -928,7 +1031,7 @@ class AIIntegration:
                 indicators=indicators,
                 market_conditions=market_conditions,
                 result=None,  # Будет заполнено при закрытии позиции или отклонении
-                profit_pct=None
+                profit_pct=None,
             )
 
             # Добавляем паттерн в систему обучения
@@ -937,40 +1040,51 @@ class AIIntegration:
             # Сохраняем связь с пользователем для отслеживания результатов
             pattern_id = f"{user_id}_{symbol}_{now.strftime('%Y%m%d_%H%M%S')}"
             self.user_patterns[pattern_id] = {
-                'pattern': pattern,
-                'user_id': user_id,
-                'symbol': symbol,
-                'entry_price': entry_price,
-                'side': side,
-                'status': 'PENDING',  # Статус PENDING - сигнал отправлен, но не принят
-                'created_at': now
+                "pattern": pattern,
+                "user_id": user_id,
+                "symbol": symbol,
+                "entry_price": entry_price,
+                "side": side,
+                "status": "PENDING",  # Статус PENDING - сигнал отправлен, но не принят
+                "created_at": now,
             }
 
-            logger.info("🤖 ИИ: Паттерн сохранен (PENDING) для %s %s пользователя %s", symbol, side, user_id)
+            logger.info(
+                "🤖 ИИ: Паттерн сохранен (PENDING) для %s %s пользователя %s", symbol, side, user_id
+            )
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка записи паттерна при отправке: %s", e)
 
-    async def record_position_result(self, user_id: int, symbol: str, side: str,
-                                   _entry_price: float, _exit_price: float,
-                                   profit_pct: float, is_dca: bool = False):
+    async def record_position_result(
+        self,
+        user_id: int,
+        symbol: str,
+        side: str,
+        _entry_price: float,
+        _exit_price: float,
+        profit_pct: float,
+        is_dca: bool = False,
+    ):
         """Записывает результат закрытой позиции для обучения ИИ"""
         try:
             # Ищем соответствующий паттерн
             pattern_id = None
-            if hasattr(self, 'user_patterns'):
+            if hasattr(self, "user_patterns"):
                 for pid, data in self.user_patterns.items():
-                    if (data['user_id'] == user_id and
-                        data['symbol'] == symbol and
-                        data['side'] == side.lower() and
-                        data['is_dca'] == is_dca):
+                    if (
+                        data["user_id"] == user_id
+                        and data["symbol"] == symbol
+                        and data["side"] == side.lower()
+                        and data["is_dca"] == is_dca
+                    ):
                         pattern_id = pid
                         break
 
             if pattern_id:
                 # Обновляем результат паттерна
                 pattern_data = self.user_patterns[pattern_id]
-                pattern = pattern_data['pattern']
+                pattern = pattern_data["pattern"]
 
                 # Определяем результат
                 if profit_pct > 0:
@@ -988,14 +1102,22 @@ class AIIntegration:
                 # Удаляем из активных паттернов
                 del self.user_patterns[pattern_id]
 
-                logger.info("🤖 ИИ: Результат записан для %s %s: %s (%.2f%%)", symbol, side, pattern.result, profit_pct)
+                logger.info(
+                    "🤖 ИИ: Результат записан для %s %s: %s (%.2f%%)",
+                    symbol,
+                    side,
+                    pattern.result,
+                    profit_pct,
+                )
 
                 # Запускаем переобучение если накопилось достаточно данных
                 if len(self.ai_learning.patterns) % 10 == 0:
                     await self.ai_learning.continuous_learning()
 
             else:
-                logger.warning("🤖 ИИ: Паттерн не найден для %s %s пользователя %s", symbol, side, user_id)
+                logger.warning(
+                    "🤖 ИИ: Паттерн не найден для %s %s пользователя %s", symbol, side, user_id
+                )
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка записи результата ИИ: %s", e)
@@ -1009,61 +1131,71 @@ class AIIntegration:
         """
         try:
             # Если передан df, извлекаем индикаторы из него
-            if df is not None and hasattr(df, 'iloc') and len(df) > 0:
+            if df is not None and hasattr(df, "iloc") and len(df) > 0:
                 try:
                     indicators = {}
                     # RSI
-                    if 'rsi' in df.columns:
-                        rsi_val = df['rsi'].iloc[-1]
-                        indicators['rsi'] = float(rsi_val) if not pd.isna(rsi_val) else 50.0
+                    if "rsi" in df.columns:
+                        rsi_val = df["rsi"].iloc[-1]
+                        indicators["rsi"] = float(rsi_val) if not pd.isna(rsi_val) else 50.0
                     else:
-                        indicators['rsi'] = 50.0
+                        indicators["rsi"] = 50.0
 
                     # EMA
-                    if 'ema_fast' in df.columns:
-                        ema_fast_val = df['ema_fast'].iloc[-1]
-                        indicators['ema_fast'] = float(ema_fast_val) if not pd.isna(ema_fast_val) else 0.0
+                    if "ema_fast" in df.columns:
+                        ema_fast_val = df["ema_fast"].iloc[-1]
+                        indicators["ema_fast"] = (
+                            float(ema_fast_val) if not pd.isna(ema_fast_val) else 0.0
+                        )
                     else:
-                        indicators['ema_fast'] = 0.0
+                        indicators["ema_fast"] = 0.0
 
-                    if 'ema_slow' in df.columns:
-                        ema_slow_val = df['ema_slow'].iloc[-1]
-                        indicators['ema_slow'] = float(ema_slow_val) if not pd.isna(ema_slow_val) else 0.0
+                    if "ema_slow" in df.columns:
+                        ema_slow_val = df["ema_slow"].iloc[-1]
+                        indicators["ema_slow"] = (
+                            float(ema_slow_val) if not pd.isna(ema_slow_val) else 0.0
+                        )
                     else:
-                        indicators['ema_slow'] = 0.0
+                        indicators["ema_slow"] = 0.0
 
                     # Bollinger Bands
-                    if 'bb_upper' in df.columns:
-                        bb_upper_val = df['bb_upper'].iloc[-1]
-                        indicators['bollinger_upper'] = float(bb_upper_val) if not pd.isna(bb_upper_val) else 0.0
+                    if "bb_upper" in df.columns:
+                        bb_upper_val = df["bb_upper"].iloc[-1]
+                        indicators["bollinger_upper"] = (
+                            float(bb_upper_val) if not pd.isna(bb_upper_val) else 0.0
+                        )
                     else:
-                        indicators['bollinger_upper'] = 0.0
+                        indicators["bollinger_upper"] = 0.0
 
-                    if 'bb_lower' in df.columns:
-                        bb_lower_val = df['bb_lower'].iloc[-1]
-                        indicators['bollinger_lower'] = float(bb_lower_val) if not pd.isna(bb_lower_val) else 0.0
+                    if "bb_lower" in df.columns:
+                        bb_lower_val = df["bb_lower"].iloc[-1]
+                        indicators["bollinger_lower"] = (
+                            float(bb_lower_val) if not pd.isna(bb_lower_val) else 0.0
+                        )
                     else:
-                        indicators['bollinger_lower'] = 0.0
+                        indicators["bollinger_lower"] = 0.0
 
                     # Volume
-                    if 'volume' in df.columns:
-                        volume_val = df['volume'].iloc[-1]
-                        indicators['volume'] = float(volume_val) if not pd.isna(volume_val) else 0.0
+                    if "volume" in df.columns:
+                        volume_val = df["volume"].iloc[-1]
+                        indicators["volume"] = float(volume_val) if not pd.isna(volume_val) else 0.0
                     else:
-                        indicators['volume'] = 0.0
+                        indicators["volume"] = 0.0
 
                     return indicators
                 except Exception as e:
-                    logger.debug("Ошибка извлечения индикаторов из df: %s, используем базовые значения", e)
+                    logger.debug(
+                        "Ошибка извлечения индикаторов из df: %s, используем базовые значения", e
+                    )
 
             # Fallback: базовые значения
             return {
-                'rsi': 50.0,
-                'ema_fast': 0.0,
-                'ema_slow': 0.0,
-                'bollinger_upper': 0.0,
-                'bollinger_lower': 0.0,
-                'volume': 0.0
+                "rsi": 50.0,
+                "ema_fast": 0.0,
+                "ema_slow": 0.0,
+                "bollinger_upper": 0.0,
+                "bollinger_lower": 0.0,
+                "volume": 0.0,
             }
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка получения индикаторов: %s", e)
@@ -1085,15 +1217,18 @@ class AIIntegration:
             use_ta_lib = False
             try:
                 # Проверяем, что библиотека ta работает
-                test_data = df['close'].iloc[-20:]  # Берем последние 20 значений для теста
+                test_data = df["close"].iloc[-20:]  # Берем последние 20 значений для теста
                 if len(test_data) >= 14:  # Минимум для RSI
                     from ta.momentum import RSIIndicator  # pylint: disable=import-outside-toplevel
+
                     test_rsi = RSIIndicator(test_data, window=14).rsi()
                     if not test_rsi.isna().iloc[-1]:
                         use_ta_lib = True
                         logger.debug("✅ Библиотека ta доступна и работает корректно")
                     else:
-                        logger.warning("⚠️ ta импортирована, но расчеты дают NaN, используем простые расчеты")
+                        logger.warning(
+                            "⚠️ ta импортирована, но расчеты дают NaN, используем простые расчеты"
+                        )
                 else:
                     logger.warning("⚠️ Недостаточно данных для ta, используем простые расчеты")
             except ImportError:
@@ -1104,35 +1239,62 @@ class AIIntegration:
             if use_ta_lib:
                 # RSI
                 from ta.momentum import RSIIndicator  # pylint: disable=import-outside-toplevel
-                close_floats = df['close'].astype(float)
+
+                close_floats = df["close"].astype(float)
                 rsi = RSIIndicator(close_floats, window=14).rsi()
                 current_rsi = float(rsi.iloc[-1]) if not rsi.isna().iloc[-1] else 50.0
 
                 # EMA
                 from ta.trend import EMAIndicator  # pylint: disable=import-outside-toplevel
+
                 ema_7 = EMAIndicator(close_floats, window=7).ema_indicator()
                 ema_25 = EMAIndicator(close_floats, window=25).ema_indicator()
-                current_ema_7 = float(ema_7.iloc[-1]) if not ema_7.isna().iloc[-1] else float(close_floats.iloc[-1])
-                current_ema_25 = float(ema_25.iloc[-1]) if not ema_25.isna().iloc[-1] else float(close_floats.iloc[-1])
+                current_ema_7 = (
+                    float(ema_7.iloc[-1])
+                    if not ema_7.isna().iloc[-1]
+                    else float(close_floats.iloc[-1])
+                )
+                current_ema_25 = (
+                    float(ema_25.iloc[-1])
+                    if not ema_25.isna().iloc[-1]
+                    else float(close_floats.iloc[-1])
+                )
 
                 # Bollinger Bands
                 from ta.volatility import BollingerBands  # pylint: disable=import-outside-toplevel
+
                 bb = BollingerBands(close_floats, window=20, window_dev=2)
                 bb_upper = bb.bollinger_hband()
                 bb_lower = bb.bollinger_lband()
                 current_price = float(close_floats.iloc[-1])
-                bb_upper_val = float(bb_upper.iloc[-1]) if not bb_upper.isna().iloc[-1] else current_price * 1.02
-                bb_lower_val = float(bb_lower.iloc[-1]) if not bb_lower.isna().iloc[-1] else current_price * 0.98
+                bb_upper_val = (
+                    float(bb_upper.iloc[-1])
+                    if not bb_upper.isna().iloc[-1]
+                    else current_price * 1.02
+                )
+                bb_lower_val = (
+                    float(bb_lower.iloc[-1])
+                    if not bb_lower.isna().iloc[-1]
+                    else current_price * 0.98
+                )
 
                 # MACD
                 from ta.trend import MACD  # pylint: disable=import-outside-toplevel
+
                 macd = MACD(close_floats)
-                current_macd = float(macd.macd().iloc[-1]) if not macd.macd().isna().iloc[-1] else 0.0
-                current_macd_signal = float(macd.macd_signal().iloc[-1]) if not macd.macd_signal().isna().iloc[-1] else 0.0
+                current_macd = (
+                    float(macd.macd().iloc[-1]) if not macd.macd().isna().iloc[-1] else 0.0
+                )
+                current_macd_signal = (
+                    float(macd.macd_signal().iloc[-1])
+                    if not macd.macd_signal().isna().iloc[-1]
+                    else 0.0
+                )
             else:
                 # Простые расчеты без TA-Lib
                 import numpy as np  # pylint: disable=import-outside-toplevel
-                close_floats = df['close'].astype(float)
+
+                close_floats = df["close"].astype(float)
                 current_price = float(close_floats.iloc[-1])
 
                 # Простой RSI
@@ -1140,7 +1302,9 @@ class AIIntegration:
                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
                 rs = gain / loss
-                current_rsi = 100 - (100 / (1 + float(rs.iloc[-1]))) if not np.isnan(rs.iloc[-1]) else 50.0
+                current_rsi = (
+                    100 - (100 / (1 + float(rs.iloc[-1]))) if not np.isnan(rs.iloc[-1]) else 50.0
+                )
 
                 # Простые EMA
                 current_ema_7 = float(close_floats.ewm(span=7).mean().iloc[-1])
@@ -1203,7 +1367,8 @@ class AIIntegration:
 
             # 5. Волатильность фактор
             import numpy as np  # pylint: disable=import-outside-toplevel
-            returns = df['close'].pct_change().dropna()
+
+            returns = df["close"].pct_change().dropna()
             volatility = returns.std() * np.sqrt(24)  # Дневная волатильность
             if 0.01 <= volatility <= 0.05:  # Нормальная волатильность
                 vol_factor = 0.8
@@ -1233,8 +1398,10 @@ class AIIntegration:
             logger.error("❌ Ошибка расчета технической уверенности: %s", e)
             return 0.5  # Нейтральная уверенность при ошибке
 
+
 # Глобальный экземпляр интеграции
 ai_integration = AIIntegration()
+
 
 async def start_ai_learning_integration():
     """Запускает интеграцию обучения ИИ"""
@@ -1245,6 +1412,7 @@ async def start_ai_learning_integration():
 
     # Запускаем одноразовое обучение при старте
     await ai_integration.ai_learning.continuous_learning()
+
 
 if __name__ == "__main__":
     # Тестирование интеграции

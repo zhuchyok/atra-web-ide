@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль для получения реальных комиссий через API биржи
 """
@@ -7,8 +6,8 @@
 import asyncio
 import logging
 import time
-from typing import Optional, Dict
 from datetime import datetime, timedelta
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +29,7 @@ class ExchangeFeeManager:
         return f"{user_id}:{symbol}:{trade_mode}"
 
     async def get_fee_rate(
-        self,
-        user_id: str,
-        symbol: str,
-        trade_mode: str = 'futures',
-        exchange_adapter=None
+        self, user_id: str, symbol: str, trade_mode: str = "futures", exchange_adapter=None
     ) -> float:
         """
         Получает реальную комиссию через API или из кэша
@@ -54,30 +49,25 @@ class ExchangeFeeManager:
         async with self._cache_lock:
             if cache_key in self._fee_cache:
                 cached_data = self._fee_cache[cache_key]
-                age = time.time() - cached_data['timestamp']
+                age = time.time() - cached_data["timestamp"]
 
                 if age < self.cache_ttl_seconds:
-                    logger.debug(f"✅ Комиссия из кэша для {symbol} ({trade_mode}): {cached_data['fee_rate']}")
-                    return cached_data['fee_rate']
+                    logger.debug(
+                        f"✅ Комиссия из кэша для {symbol} ({trade_mode}): {cached_data['fee_rate']}"
+                    )
+                    return cached_data["fee_rate"]
 
         # Получаем через API
         fee_rate = await self._fetch_fee_from_api(user_id, symbol, trade_mode, exchange_adapter)
 
         # Сохраняем в кэш
         async with self._cache_lock:
-            self._fee_cache[cache_key] = {
-                'fee_rate': fee_rate,
-                'timestamp': time.time()
-            }
+            self._fee_cache[cache_key] = {"fee_rate": fee_rate, "timestamp": time.time()}
 
         return fee_rate
 
     async def _fetch_fee_from_api(
-        self,
-        user_id: str,
-        symbol: str,
-        trade_mode: str,
-        exchange_adapter
+        self, user_id: str, symbol: str, trade_mode: str, exchange_adapter
     ) -> float:
         """
         Получает комиссию через API биржи
@@ -92,10 +82,12 @@ class ExchangeFeeManager:
             Комиссия в виде десятичной дроби
         """
         # Fallback на стандартные ставки
-        default_fee = 0.001 if trade_mode == 'spot' else 0.0005
+        default_fee = 0.001 if trade_mode == "spot" else 0.0005
 
         if exchange_adapter is None:
-            logger.debug(f"Адаптер биржи не предоставлен, используем стандартную комиссию: {default_fee}")
+            logger.debug(
+                f"Адаптер биржи не предоставлен, используем стандартную комиссию: {default_fee}"
+            )
             return default_fee
 
         try:
@@ -106,22 +98,26 @@ class ExchangeFeeManager:
             if fee_info and isinstance(fee_info, dict):
                 # Приоритет: takerFee > makerFee > default
                 fee_rate = (
-                    fee_info.get('takerFee') or
-                    fee_info.get('makerFee') or
-                    fee_info.get('feeRate') or
-                    default_fee
+                    fee_info.get("takerFee")
+                    or fee_info.get("makerFee")
+                    or fee_info.get("feeRate")
+                    or default_fee
                 )
 
                 # Конвертируем проценты в десятичную дробь если нужно
                 if fee_rate > 1.0:
                     fee_rate = fee_rate / 100.0
 
-                logger.info(f"✅ Получена комиссия через API для {symbol} ({trade_mode}): {fee_rate}")
+                logger.info(
+                    f"✅ Получена комиссия через API для {symbol} ({trade_mode}): {fee_rate}"
+                )
                 return float(fee_rate)
 
         except AttributeError:
             # Метод get_trading_fee не реализован в адаптере
-            logger.debug(f"Метод get_trading_fee не реализован, используем стандартную комиссию: {default_fee}")
+            logger.debug(
+                f"Метод get_trading_fee не реализован, используем стандартную комиссию: {default_fee}"
+            )
         except Exception as e:
             logger.warning(f"⚠️ Ошибка получения комиссии через API для {symbol}: {e}")
 
@@ -159,15 +155,16 @@ class ExchangeFeeManager:
         total_entries = len(self._fee_cache)
         now = time.time()
         expired = sum(
-            1 for data in self._fee_cache.values()
-            if (now - data['timestamp']) >= self.cache_ttl_seconds
+            1
+            for data in self._fee_cache.values()
+            if (now - data["timestamp"]) >= self.cache_ttl_seconds
         )
 
         return {
-            'total_entries': total_entries,
-            'valid_entries': total_entries - expired,
-            'expired_entries': expired,
-            'cache_ttl_hours': self.cache_ttl_seconds / 3600
+            "total_entries": total_entries,
+            "valid_entries": total_entries - expired,
+            "expired_entries": expired,
+            "cache_ttl_hours": self.cache_ttl_seconds / 3600,
         }
 
 
@@ -184,10 +181,7 @@ def get_fee_manager() -> ExchangeFeeManager:
 
 
 async def get_real_fee_rate(
-    user_id: str,
-    symbol: str,
-    trade_mode: str = 'futures',
-    exchange_adapter=None
+    user_id: str, symbol: str, trade_mode: str = "futures", exchange_adapter=None
 ) -> float:
     """
     Удобная функция для получения реальной комиссии

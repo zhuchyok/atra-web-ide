@@ -22,6 +22,7 @@ bash scripts/copy_team_to_new_project.sh /path/to/new-project
 ```
 
 **Пример:**
+
 ```bash
 bash scripts/copy_team_to_new_project.sh ~/projects/new-website
 ```
@@ -42,6 +43,7 @@ bash scripts/copy_team_to_new_project.sh ~/projects/new-website
 ## ✅ ПОСЛЕ ВЫПОЛНЕНИЯ
 
 1. **Откройте проект в Cursor:**
+
    ```bash
    cd /path/to/new-project
    cursor .
@@ -50,6 +52,7 @@ bash scripts/copy_team_to_new_project.sh ~/projects/new-website
 2. **Откройте новый чат в Cursor**
 
 3. **Опишите задачу:**
+
    ```
    Создать новый корпоративный сайт
    ```
@@ -98,4 +101,3 @@ cp -r /path/to/atra/.team_data /path/to/new-project/
 ---
 
 **Автор:** Виктория (Team Lead)
-

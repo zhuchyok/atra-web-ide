@@ -76,4 +76,3 @@ echo "🛑 Для остановки:"
 echo "  pkill -f telegram_simple.py"
 echo "  pkill -f singularity_autonomous.py"
 echo ""
-

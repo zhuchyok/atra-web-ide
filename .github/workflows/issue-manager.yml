@@ -1,0 +1,72 @@
+# Issue Manager - Automatic issue lifecycle management
+# Based on FastAPI issue-manager
+# Auto-closes stale issues, manages labels
+
+name: Issue Manager
+
+on:
+  schedule:
+    # Run daily at 22:00 UTC (проверка stale issues)
+    - cron: "0 22 * * *"
+  issue_comment:
+    types:
+      - created
+  issues:
+    types:
+      - labeled
+  pull_request_target:
+    types:
+      - labeled
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  issue-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+      
+      - uses: tiangolo/issue-manager@0.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config: >
+            {
+              "answered": {
+                "delay": 604800,
+                "message": "Предполагая, что вопрос был решён, этот issue будет автоматически закрыт. Но вы можете добавить комментарии или создать новый issue/PR."
+              },
+              "waiting": {
+                "delay": 1209600,
+                "message": "Этот PR ожидал ответа автора некоторое время, но неактивен, поэтому будет закрыт. Если есть заинтересованные — создайте новый PR.",
+                "reminder": {
+                    "before": "P3D",
+                    "message": "⚠️ Heads-up: этот PR будет закрыт через 3 дня без активности."
+                }
+              },
+              "invalid": {
+                "delay": 0,
+                "message": "Помечено как invalid и будет закрыто. Если это ошибка — предоставьте детали."
+              },
+              "wontfix": {
+                "delay": 0,
+                "message": "Помечено как wontfix (не будет исправлено) и закрывается."
+              },
+              "duplicate": {
+                "delay": 0,
+                "message": "Дубликат существующего issue. Закрывается."
+              },
+              "stale": {
+                "delay": 2592000,
+                "message": "Этот issue неактивен 30+ дней и будет закрыт. Создайте новый issue если проблема актуальна.",
+                "reminder": {
+                    "before": "P7D",
+                    "message": "⚠️ Этот issue будет закрыт через 7 дней из-за неактивности."
+                }
+              }
+            }

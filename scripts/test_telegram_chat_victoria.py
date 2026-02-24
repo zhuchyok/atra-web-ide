@@ -24,7 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
+VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8081/v1/chat/completions")
 TIMEOUT_SIMPLE = 30
 TIMEOUT_MEDIUM = 90
 TIMEOUT_COMPLEX = 180
@@ -40,25 +40,24 @@ QUICK_SIMPLE_TIMEOUT = 15
 
 
 def _parse_output(data: dict) -> str:
-    out = data.get("output") or data.get("response") or data.get("result")
-    if out is not None:
-        return str(out)[:1500]
-    if data.get("status") == "needs_clarification":
-        qs = data.get("clarification_questions", [])
-        return "needs_clarification: " + "; ".join(qs[:3]) if qs else "needs_clarification"
+    # OpenAI format: choices[0].message.content
+    choices = data.get("choices", [])
+    if choices:
+        return choices[0].get("message", {}).get("content", "")
     return data.get("error", "no output")
 
 
 async def ask_victoria(goal: str, timeout_sec: int) -> tuple[bool, str]:
-    """Один запрос к Victoria POST /run (как Telegram-бот)."""
+    """Один запрос к Rust Gateway (OpenAI compatible)."""
     payload = {
-        "goal": goal,
-        "project_context": os.getenv("PROJECT_NAME", "atra-web-ide"),
-        "max_steps": 500,
+        "model": "victoria-wisdom-30b:latest",
+        "messages": [{"role": "user", "content": goal}],
+        "use_rag": true,
+        "stream": false
     }
     try:
         async with httpx.AsyncClient(timeout=float(timeout_sec + 10)) as client:
-            r = await client.post(f"{VICTORIA_URL}/run", json=payload)
+            r = await client.post(VICTORIA_URL, json=payload)
             if r.status_code == 200:
                 data = r.json()
                 return True, _parse_output(data)

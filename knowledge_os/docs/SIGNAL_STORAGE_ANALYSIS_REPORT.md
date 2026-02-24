@@ -8,11 +8,13 @@
 ## 📊 **ВЫЯВЛЕННАЯ ПРОБЛЕМА**
 
 ### **Сигналы от 17.11.2025 (SUIUSDT, LINKUSDT) были отправлены в Telegram, но:**
+
 - ❌ **НЕ найдены в `signals_log`** (последние записи от 9 ноября)
 - ❌ **НЕ найдены в `accepted_signals`** (последние записи от 26 октября)
 - ❌ **НЕ найдены в `risk_signal_history`** (последние записи от 10 ноября)
 
 ### **Вывод:**
+
 Сигналы **отправляются в Telegram**, но **НЕ сохраняются в базу данных** при отправке!
 
 ---
@@ -25,14 +27,14 @@
 async def send_signal(...):
     # ... формирование сообщения ...
     # ... отправка в Telegram ...
-    
+
     # ❌ ОТСУТСТВУЕТ: Сохранение в signals_log
     # ❌ ОТСУТСТВУЕТ: Регистрация через signal_acceptance_manager
     # ❌ ОТСУТСТВУЕТ: Сохранение в accepted_signals
-    
+
     # ✅ ЕСТЬ: Сохранение в correlation_manager (только для истории рисков)
     await correlation_manager.save_signal_to_history_async(...)
-    
+
     # ✅ ЕСТЬ: Добавление в signal_history (только в памяти)
     signal_history.append(signal_data)
 ```
@@ -40,10 +42,12 @@ async def send_signal(...):
 ### **2. Где ДОЛЖНЫ сохраняться сигналы:**
 
 #### **A. При отправке в Telegram:**
+
 - **`accepted_signals`** - через `signal_acceptance_manager.register_signal()`
 - **`signals_log`** - через `db.insert_signal_log_entry()` или `db.insert_signal_log()`
 
 #### **B. При принятии (кнопка "ПРИНЯТЬ"):**
+
 - **`accepted_signals`** - обновление статуса на "accepted"
 - **`signals_log`** - обновление result на "OPEN"
 - **`active_positions`** - создание новой позиции
@@ -51,6 +55,7 @@ async def send_signal(...):
 ### **3. Текущая ситуация:**
 
 **Сигналы сохраняются ТОЛЬКО при принятии:**
+
 - ✅ При нажатии кнопки "ПРИНЯТЬ" → сохраняется в `accepted_signals` и `signals_log`
 - ❌ При отправке в Telegram → **НЕ сохраняется нигде**
 
@@ -63,7 +68,7 @@ async def send_signal(...):
 ```python
 async def send_signal(...):
     # ... существующий код ...
-    
+
     # 🆕 ДОБАВИТЬ: Регистрация сигнала в системе принятия
     if SIGNAL_ACCEPTANCE_AVAILABLE and signal_acceptance_manager:
         try:
@@ -82,17 +87,17 @@ async def send_signal(...):
                 entry_amount=entry_amount_usdt,
                 confidence=ai_confidence
             )
-            
+
             # Регистрируем сигнал (сохранит в accepted_signals)
             message_id = ...  # Получить из отправки в Telegram
             await signal_acceptance_manager.register_signal(
-                signal_data_obj, 
-                message_id, 
+                signal_data_obj,
+                message_id,
                 user_data.get("user_id")
             )
         except Exception as e:
             logger.error("❌ Ошибка регистрации сигнала: %s", e)
-    
+
     # 🆕 ДОБАВИТЬ: Сохранение в signals_log
     try:
         from db import db
@@ -116,16 +121,19 @@ async def send_signal(...):
 ## 📋 **ТАБЛИЦЫ БАЗЫ ДАННЫХ**
 
 ### **1. `signals_log` (trading.db):**
+
 - **Назначение:** Основная таблица для всех сигналов
 - **Когда сохраняется:** ❌ НЕ сохраняется при отправке
 - **Когда обновляется:** ✅ При принятии (PENDING → OPEN)
 
 ### **2. `accepted_signals` (trading.db):**
+
 - **Назначение:** Сигналы с кнопками принятия
 - **Когда сохраняется:** ❌ НЕ сохраняется при отправке
 - **Когда обновляется:** ✅ При принятии (pending → accepted)
 
 ### **3. `risk_signal_history` (trading.db):**
+
 - **Назначение:** История для расчета корреляционных рисков
 - **Когда сохраняется:** ✅ При отправке (через correlation_manager)
 - **Проблема:** Не содержит полной информации о сигнале
@@ -151,7 +159,7 @@ async def send_signal(...):
 ### **Долгосрочные улучшения:**
 
 1. **Единая точка сохранения:**
-   - Создать функцию `save_signal_to_all_storage()` 
+   - Создать функцию `save_signal_to_all_storage()`
    - Вызывать её из `send_signal`
 
 2. **Логирование:**
@@ -174,4 +182,3 @@ async def send_signal(...):
 ---
 
 **Следующий шаг:** Добавить сохранение сигналов в `send_signal` перед отправкой в Telegram.
-

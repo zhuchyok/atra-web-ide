@@ -44,7 +44,9 @@ class BacktestReportGenerator:
         # Информация о бектесте
         lines.append("## 📋 Информация о бектесте")
         lines.append("")
-        lines.append(f"- **Период:** {self.backtest_info['start_date']} → {self.backtest_info['end_date']}")
+        lines.append(
+            f"- **Период:** {self.backtest_info['start_date']} → {self.backtest_info['end_date']}"
+        )
         lines.append(f"- **Длительность:** {self.backtest_info['days']} дней")
         lines.append(f"- **Символы:** {', '.join(self.backtest_info['symbols'])}")
         lines.append(f"- **Начальный баланс:** ${self.backtest_info['initial_balance']:,.2f}")
@@ -75,10 +77,12 @@ class BacktestReportGenerator:
         lines.append(f"| **Avg PnL** | ${self.metrics['avg_pnl']:,.2f} |")
         lines.append(f"| **Avg Win** | ${self.metrics['avg_win']:,.2f} |")
         lines.append(f"| **Avg Loss** | ${self.metrics['avg_loss']:,.2f} |")
-        if 'max_consecutive_wins' in self.metrics:
+        if "max_consecutive_wins" in self.metrics:
             lines.append(f"| **Max Consecutive Wins** | {self.metrics['max_consecutive_wins']} |")
-        if 'max_consecutive_losses' in self.metrics:
-            lines.append(f"| **Max Consecutive Losses** | {self.metrics['max_consecutive_losses']} |")
+        if "max_consecutive_losses" in self.metrics:
+            lines.append(
+                f"| **Max Consecutive Losses** | {self.metrics['max_consecutive_losses']} |"
+            )
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -87,12 +91,16 @@ class BacktestReportGenerator:
         if not self.trades_df.empty:
             lines.append("## 💰 Анализ по символам")
             lines.append("")
-            symbol_stats = self.trades_df.groupby("symbol").agg(
-                {
-                    "pnl": ["count", "sum", "mean"],
-                    "pnl_percent": "mean",
-                }
-            ).round(2)
+            symbol_stats = (
+                self.trades_df.groupby("symbol")
+                .agg(
+                    {
+                        "pnl": ["count", "sum", "mean"],
+                        "pnl_percent": "mean",
+                    }
+                )
+                .round(2)
+            )
 
             lines.append("| Символ | Сделок | Total PnL | Avg PnL | Avg PnL % |")
             lines.append("|--------|--------|-----------|---------|-----------|")
@@ -101,7 +109,9 @@ class BacktestReportGenerator:
                 total = symbol_stats.loc[symbol, ("pnl", "sum")]
                 avg = symbol_stats.loc[symbol, ("pnl", "mean")]
                 avg_pct = symbol_stats.loc[symbol, ("pnl_percent", "mean")]
-                lines.append(f"| {symbol} | {count} | ${total:,.2f} | ${avg:,.2f} | {avg_pct:.2f}% |")
+                lines.append(
+                    f"| {symbol} | {count} | ${total:,.2f} | ${avg:,.2f} | {avg_pct:.2f}% |"
+                )
 
             lines.append("")
             lines.append("---")
@@ -111,12 +121,16 @@ class BacktestReportGenerator:
         if not self.trades_df.empty:
             lines.append("## 📊 Анализ по направлениям")
             lines.append("")
-            direction_stats = self.trades_df.groupby("direction").agg(
-                {
-                    "pnl": ["count", "sum", "mean"],
-                    "pnl_percent": "mean",
-                }
-            ).round(2)
+            direction_stats = (
+                self.trades_df.groupby("direction")
+                .agg(
+                    {
+                        "pnl": ["count", "sum", "mean"],
+                        "pnl_percent": "mean",
+                    }
+                )
+                .round(2)
+            )
 
             lines.append("| Направление | Сделок | Total PnL | Avg PnL | Avg PnL % |")
             lines.append("|-------------|--------|-----------|---------|-----------|")
@@ -125,7 +139,9 @@ class BacktestReportGenerator:
                 total = direction_stats.loc[direction, ("pnl", "sum")]
                 avg = direction_stats.loc[direction, ("pnl", "mean")]
                 avg_pct = direction_stats.loc[direction, ("pnl_percent", "mean")]
-                lines.append(f"| {direction} | {count} | ${total:,.2f} | ${avg:,.2f} | {avg_pct:.2f}% |")
+                lines.append(
+                    f"| {direction} | {count} | ${total:,.2f} | ${avg:,.2f} | {avg_pct:.2f}% |"
+                )
 
             lines.append("")
             lines.append("---")
@@ -135,11 +151,15 @@ class BacktestReportGenerator:
         if not self.trades_df.empty and "exit_reason" in self.trades_df.columns:
             lines.append("## 🎯 Анализ по причинам закрытия")
             lines.append("")
-            exit_stats = self.trades_df.groupby("exit_reason").agg(
-                {
-                    "pnl": ["count", "sum", "mean"],
-                }
-            ).round(2)
+            exit_stats = (
+                self.trades_df.groupby("exit_reason")
+                .agg(
+                    {
+                        "pnl": ["count", "sum", "mean"],
+                    }
+                )
+                .round(2)
+            )
 
             lines.append("| Причина | Сделок | Total PnL | Avg PnL |")
             lines.append("|---------|--------|-----------|---------|")
@@ -161,7 +181,9 @@ class BacktestReportGenerator:
         if total_filtered > 0:
             lines.append("| Фильтр | Количество блокировок | % от общего |")
             lines.append("|--------|----------------------|-------------|")
-            for filter_name, count in sorted(filter_stats.items(), key=lambda x: x[1], reverse=True):
+            for filter_name, count in sorted(
+                filter_stats.items(), key=lambda x: x[1], reverse=True
+            ):
                 pct = (count / total_filtered * 100) if total_filtered > 0 else 0
                 lines.append(f"| {filter_name} | {count} | {pct:.2f}% |")
         else:
@@ -261,47 +283,68 @@ class BacktestReportGenerator:
         if not self.trades_df.empty:
             lines.append("## 🤖 Анализ использования паттернов и индивидуальных параметров")
             lines.append("")
-            
-            trades_with_params = self.trades_df[self.trades_df.get("symbol_params_used", False) == True]
+
+            trades_with_params = self.trades_df[
+                self.trades_df.get("symbol_params_used", False) == True
+            ]
             trades_with_patterns = self.trades_df[self.trades_df.get("patterns_analyzed", 0) > 0]
-            
+
             if len(trades_with_params) > 0:
-                win_rate_params = (trades_with_params["pnl"] > 0).sum() / len(trades_with_params) * 100
+                win_rate_params = (
+                    (trades_with_params["pnl"] > 0).sum() / len(trades_with_params) * 100
+                )
                 avg_pnl_params = trades_with_params["pnl"].mean()
-                lines.append(f"- **Сделок с индивидуальными параметрами:** {len(trades_with_params)} ({len(trades_with_params)/len(self.trades_df)*100:.1f}%)")
-                lines.append(f"- **Win rate с индивидуальными параметрами:** {win_rate_params:.2f}%")
-                lines.append(f"- **Средний PnL с индивидуальными параметрами:** ${avg_pnl_params:.2f}")
+                lines.append(
+                    f"- **Сделок с индивидуальными параметрами:** {len(trades_with_params)} ({len(trades_with_params) / len(self.trades_df) * 100:.1f}%)"
+                )
+                lines.append(
+                    f"- **Win rate с индивидуальными параметрами:** {win_rate_params:.2f}%"
+                )
+                lines.append(
+                    f"- **Средний PnL с индивидуальными параметрами:** ${avg_pnl_params:.2f}"
+                )
                 lines.append("")
-            
+
             if len(trades_with_patterns) > 0:
-                win_rate_patterns = (trades_with_patterns["pnl"] > 0).sum() / len(trades_with_patterns) * 100
+                win_rate_patterns = (
+                    (trades_with_patterns["pnl"] > 0).sum() / len(trades_with_patterns) * 100
+                )
                 avg_pnl_patterns = trades_with_patterns["pnl"].mean()
                 avg_patterns_analyzed = trades_with_patterns["patterns_analyzed"].mean()
-                lines.append(f"- **Сделок с анализом паттернов:** {len(trades_with_patterns)} ({len(trades_with_patterns)/len(self.trades_df)*100:.1f}%)")
+                lines.append(
+                    f"- **Сделок с анализом паттернов:** {len(trades_with_patterns)} ({len(trades_with_patterns) / len(self.trades_df) * 100:.1f}%)"
+                )
                 lines.append(f"- **Win rate с анализом паттернов:** {win_rate_patterns:.2f}%")
                 lines.append(f"- **Средний PnL с анализом паттернов:** ${avg_pnl_patterns:.2f}")
-                lines.append(f"- **Среднее количество проанализированных паттернов:** {avg_patterns_analyzed:.0f}")
+                lines.append(
+                    f"- **Среднее количество проанализированных паттернов:** {avg_patterns_analyzed:.0f}"
+                )
                 lines.append("")
-            
+
             # Анализ по символам с паттернами
             if "patterns_analyzed" in self.trades_df.columns:
-                symbol_patterns_analysis = self.trades_df.groupby("symbol").agg({
-                    "patterns_analyzed": "mean",
-                    "pnl": ["count", "sum", "mean"]
-                }).round(2)
-                
+                symbol_patterns_analysis = (
+                    self.trades_df.groupby("symbol")
+                    .agg({"patterns_analyzed": "mean", "pnl": ["count", "sum", "mean"]})
+                    .round(2)
+                )
+
                 lines.append("### Анализ паттернов по символам:")
                 lines.append("")
                 lines.append("| Символ | Среднее паттернов | Сделок | Total PnL | Avg PnL |")
                 lines.append("|--------|-------------------|--------|-----------|---------|")
                 for symbol in symbol_patterns_analysis.index:
-                    avg_patterns = symbol_patterns_analysis.loc[symbol, ("patterns_analyzed", "mean")]
+                    avg_patterns = symbol_patterns_analysis.loc[
+                        symbol, ("patterns_analyzed", "mean")
+                    ]
                     count = int(symbol_patterns_analysis.loc[symbol, ("pnl", "count")])
                     total = symbol_patterns_analysis.loc[symbol, ("pnl", "sum")]
                     avg = symbol_patterns_analysis.loc[symbol, ("pnl", "mean")]
-                    lines.append(f"| {symbol} | {avg_patterns:.0f} | {count} | ${total:,.2f} | ${avg:,.2f} |")
+                    lines.append(
+                        f"| {symbol} | {avg_patterns:.0f} | {count} | ${total:,.2f} | ${avg:,.2f} |"
+                    )
                 lines.append("")
-            
+
             lines.append("---")
             lines.append("")
 
@@ -337,11 +380,17 @@ class BacktestReportGenerator:
 
         if len(extreme_oversold) > 0:
             win_rate_oversold = (extreme_oversold["pnl"] > 0).sum() / len(extreme_oversold) * 100
-            lines.append(f"- **Win rate при RSI < 25:** {win_rate_oversold:.2f}% ({len(extreme_oversold)} сделок)")
+            lines.append(
+                f"- **Win rate при RSI < 25:** {win_rate_oversold:.2f}% ({len(extreme_oversold)} сделок)"
+            )
 
         if len(extreme_overbought) > 0:
-            win_rate_overbought = (extreme_overbought["pnl"] > 0).sum() / len(extreme_overbought) * 100
-            lines.append(f"- **Win rate при RSI > 75:** {win_rate_overbought:.2f}% ({len(extreme_overbought)} сделок)")
+            win_rate_overbought = (
+                (extreme_overbought["pnl"] > 0).sum() / len(extreme_overbought) * 100
+            )
+            lines.append(
+                f"- **Win rate при RSI > 75:** {win_rate_overbought:.2f}% ({len(extreme_overbought)} сделок)"
+            )
 
         return "\n".join(lines) if lines else ""
 
@@ -366,7 +415,9 @@ class BacktestReportGenerator:
         high_volume = self.trades_df[self.trades_df["volume_ratio"] > 1.5]
         if len(high_volume) > 0:
             win_rate_high = (high_volume["pnl"] > 0).sum() / len(high_volume) * 100
-            lines.append(f"- **Win rate при volume ratio > 1.5:** {win_rate_high:.2f}% ({len(high_volume)} сделок)")
+            lines.append(
+                f"- **Win rate при volume ratio > 1.5:** {win_rate_high:.2f}% ({len(high_volume)} сделок)"
+            )
 
         return "\n".join(lines) if lines else ""
 
@@ -382,13 +433,17 @@ class BacktestReportGenerator:
         if len(btc_aligned) > 0:
             win_rate_aligned = (btc_aligned["pnl"] > 0).sum() / len(btc_aligned) * 100
             avg_pnl_aligned = btc_aligned["pnl"].mean()
-            lines.append(f"- **Win rate при совпадении с BTC трендом:** {win_rate_aligned:.2f}% ({len(btc_aligned)} сделок)")
+            lines.append(
+                f"- **Win rate при совпадении с BTC трендом:** {win_rate_aligned:.2f}% ({len(btc_aligned)} сделок)"
+            )
             lines.append(f"- **Средний PnL при совпадении:** ${avg_pnl_aligned:.2f}")
 
         if len(btc_opposite) > 0:
             win_rate_opposite = (btc_opposite["pnl"] > 0).sum() / len(btc_opposite) * 100
             avg_pnl_opposite = btc_opposite["pnl"].mean()
-            lines.append(f"- **Win rate при противоположном BTC тренде:** {win_rate_opposite:.2f}% ({len(btc_opposite)} сделок)")
+            lines.append(
+                f"- **Win rate при противоположном BTC тренде:** {win_rate_opposite:.2f}% ({len(btc_opposite)} сделок)"
+            )
             lines.append(f"- **Средний PnL при противоположном:** ${avg_pnl_opposite:.2f}")
 
         return "\n".join(lines) if lines else ""
@@ -401,18 +456,24 @@ class BacktestReportGenerator:
         patterns_total = self.metrics.get("patterns_total", 0)
         trades_with_patterns = self.metrics.get("trades_with_patterns_analysis", 0)
         trades_with_params = self.metrics.get("trades_with_symbol_params", 0)
-        
+
         if patterns_total > 0:
             lines.append("### ✅ Использование паттернов и индивидуальных параметров")
             lines.append("")
             lines.append(f"- **Всего паттернов в системе:** {patterns_total:,}")
-            lines.append(f"- **Сделок с анализом паттернов:** {trades_with_patterns} ({trades_with_patterns/self.metrics.get('total_trades', 1)*100:.1f}%)")
-            lines.append(f"- **Сделок с индивидуальными параметрами:** {trades_with_params} ({trades_with_params/self.metrics.get('total_trades', 1)*100:.1f}%)")
+            lines.append(
+                f"- **Сделок с анализом паттернов:** {trades_with_patterns} ({trades_with_patterns / self.metrics.get('total_trades', 1) * 100:.1f}%)"
+            )
+            lines.append(
+                f"- **Сделок с индивидуальными параметрами:** {trades_with_params} ({trades_with_params / self.metrics.get('total_trades', 1) * 100:.1f}%)"
+            )
             lines.append("")
             if trades_with_patterns < self.metrics.get("total_trades", 1) * 0.8:
-                lines.append("⚠️ **Рекомендация:** Увеличить использование паттернов для оптимизации TP/SL")
+                lines.append(
+                    "⚠️ **Рекомендация:** Увеличить использование паттернов для оптимизации TP/SL"
+                )
                 lines.append("")
-        
+
         # Анализ win rate
         win_rate = self.metrics.get("win_rate", 0)
         if win_rate < 50:
@@ -456,7 +517,9 @@ class BacktestReportGenerator:
             most_blocking = max(filter_stats.items(), key=lambda x: x[1])
             lines.append("### 🔍 Анализ фильтров")
             lines.append("")
-            lines.append(f"- Самый активный фильтр: {most_blocking[0]} ({most_blocking[1]} блокировок)")
+            lines.append(
+                f"- Самый активный фильтр: {most_blocking[0]} ({most_blocking[1]} блокировок)"
+            )
             lines.append("- **Рекомендации:**")
             lines.append("  - Проанализировать эффективность фильтров")
             lines.append("  - Возможно, некоторые фильтры слишком строгие")
@@ -474,7 +537,9 @@ def main():
     """Главная функция."""
     parser = argparse.ArgumentParser(description="Генератор подробного отчета по бектесту")
     parser.add_argument("--input", default="data/backtest_report.json", help="Путь к JSON отчету")
-    parser.add_argument("--output", default="data/backtest_report.md", help="Путь для сохранения Markdown отчета")
+    parser.add_argument(
+        "--output", default="data/backtest_report.md", help="Путь для сохранения Markdown отчета"
+    )
     args = parser.parse_args()
 
     input_path = Path(args.input)
@@ -497,4 +562,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

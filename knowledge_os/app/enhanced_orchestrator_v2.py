@@ -24,13 +24,24 @@ ModelRegistry = None
 
 try:
     from task_orchestration import (
-        TaskComplexityAnalyzer as _TCA,
-        TaskDecomposer as _TD,
-        TaskDependencyGraph as _TDG,
-        SubTask as _ST,
         ExpertMatchingEngine as _EME,
+    )
+    from task_orchestration import (
         ModelRegistry as _MR,
     )
+    from task_orchestration import (
+        SubTask as _ST,
+    )
+    from task_orchestration import (
+        TaskComplexityAnalyzer as _TCA,
+    )
+    from task_orchestration import (
+        TaskDecomposer as _TD,
+    )
+    from task_orchestration import (
+        TaskDependencyGraph as _TDG,
+    )
+
     TaskComplexityAnalyzer = _TCA
     TaskDecomposer = _TD
     TaskDependencyGraph = _TDG
@@ -40,13 +51,24 @@ try:
 except ImportError:
     try:
         from app.task_orchestration import (
-            TaskComplexityAnalyzer as _TCA,
-            TaskDecomposer as _TD,
-            TaskDependencyGraph as _TDG,
-            SubTask as _ST,
             ExpertMatchingEngine as _EME,
+        )
+        from app.task_orchestration import (
             ModelRegistry as _MR,
         )
+        from app.task_orchestration import (
+            SubTask as _ST,
+        )
+        from app.task_orchestration import (
+            TaskComplexityAnalyzer as _TCA,
+        )
+        from app.task_orchestration import (
+            TaskDecomposer as _TD,
+        )
+        from app.task_orchestration import (
+            TaskDependencyGraph as _TDG,
+        )
+
         TaskComplexityAnalyzer = _TCA
         TaskDecomposer = _TD
         TaskDependencyGraph = _TDG
@@ -111,9 +133,7 @@ class EnhancedOrchestratorV2:
                     logger.debug("Expert match for %s failed: %s", st_id, e)
         else:
             try:
-                best = await engine.find_best_expert_for_task(
-                    task_id, description, "general", None
-                )
+                best = await engine.find_best_expert_for_task(task_id, description, "general", None)
                 if best:
                     assignments[task_id] = {
                         "expert_id": best.get("expert_id"),
@@ -163,7 +183,11 @@ class EnhancedOrchestratorV2:
                 logger.warning("Phase 2 complexity failed: %s", e)
         self.active_tasks[task_id]["complexity"] = complexity_score
         self.active_tasks[task_id]["orchestration_type"] = orchestration_type
-        self._log_phase(task_id, "2_complexity", {"complexity_score": complexity_score, "orchestration_type": orchestration_type})
+        self._log_phase(
+            task_id,
+            "2_complexity",
+            {"complexity_score": complexity_score, "orchestration_type": orchestration_type},
+        )
 
         # Phase 3: optional dependency graph
         graph = None
@@ -185,7 +209,9 @@ class EnhancedOrchestratorV2:
         self._log_phase(task_id, "4_strategy", {"strategy": strategy})
 
         # Phase 5: expert matching per (sub)task (переопределяется в EnhancedOrchestratorV2Swarm)
-        assignments = await self.phase_5_select_experts(task_id, graph=graph, description=description)
+        assignments = await self.phase_5_select_experts(
+            task_id, graph=graph, description=description
+        )
         self.active_tasks[task_id]["assignments"] = assignments
         self._log_phase(task_id, "5_assignments", {"count": len(assignments)})
 
@@ -220,5 +246,7 @@ class EnhancedOrchestratorV2:
             "subtask_count": len(graph.subtasks) if graph else 0,
             "execution_order": graph.get_execution_order() if graph else [[task_id]],
             "assignments": assignments,
-            "parallel_estimate": graph.estimate_parallel_duration() if graph and getattr(graph, "estimate_parallel_duration", None) else None,
+            "parallel_estimate": graph.estimate_parallel_duration()
+            if graph and getattr(graph, "estimate_parallel_duration", None)
+            else None,
         }

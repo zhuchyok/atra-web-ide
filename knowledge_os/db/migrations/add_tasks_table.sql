@@ -44,7 +44,7 @@ CREATE TRIGGER update_tasks_updated_at
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'usage_count'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN usage_count INTEGER DEFAULT 0;
@@ -55,7 +55,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'is_verified'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
@@ -66,7 +66,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'department'
     ) THEN
         ALTER TABLE experts ADD COLUMN department VARCHAR(255);
@@ -77,7 +77,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'last_learned_at'
     ) THEN
         ALTER TABLE experts ADD COLUMN last_learned_at TIMESTAMP WITH TIME ZONE;
@@ -88,7 +88,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'version'
     ) THEN
         ALTER TABLE experts ADD COLUMN version INTEGER DEFAULT 1;
@@ -122,4 +122,3 @@ CREATE TABLE IF NOT EXISTS system_metrics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_system_metrics_timestamp ON system_metrics (timestamp);
-

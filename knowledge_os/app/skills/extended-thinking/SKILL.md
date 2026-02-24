@@ -4,7 +4,15 @@ description: Extended Thinking Mode - глубокое рассуждение д
 category: reasoning
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "💭", "homepage": "https://www.anthropic.com/research/extended-thinking"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "💭",
+        "homepage": "https://www.anthropic.com/research/extended-thinking",
+      },
+  }
 ---
 
 # Extended Thinking Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "💭", "homepage": "https://ww
 ## Когда использовать
 
 Используй этот навык для:
+
 - Сложных аналитических задач
 - Задач, требующих глубокого рассуждения
 - Проблем без очевидного решения
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "💭", "homepage": "https://ww
 ## Методология
 
 Extended Thinking работает через:
+
 1. **Deep Analysis** - Глубокий анализ проблемы
 2. **Multi-Perspective** - Рассмотрение с разных точек зрения
 3. **Chain of Thought** - Цепочка рассуждений

@@ -47,10 +47,10 @@ HEADSCALE_URL="${HEADSCALE_URL}"
 # Проверка доступности Headscale
 if curl -s --connect-timeout 5 "$HEADSCALE_URL" >/dev/null 2>&1; then
     echo "[$(date)] Headscale доступен, подключаюсь..."
-    
+
     # Подключение к Headscale
     tailscale up --login-server="$HEADSCALE_URL" --accept-routes 2>&1 | tee -a ~/Library/Logs/headscale-connect.log
-    
+
     if [ \${PIPESTATUS[0]} -eq 0 ]; then
         echo "[$(date)] ✅ Подключение к Headscale успешно"
     else

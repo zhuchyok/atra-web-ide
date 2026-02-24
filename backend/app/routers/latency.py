@@ -2,8 +2,10 @@
 Эндпоинты latency (Фаза 4.1).
 Цель: P95 < 300ms для режима Ask.
 """
+
 import json
 from pathlib import Path
+
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/api/latency", tags=["latency"])
@@ -24,7 +26,7 @@ async def get_latency_benchmark():
             "message": "Run: python scripts/benchmark_latency.py",
         }
     try:
-        with open(BENCHMARK_PATH, "r", encoding="utf-8") as f:
+        with open(BENCHMARK_PATH, encoding="utf-8") as f:
             data = json.load(f)
         return {
             "status": "ok",

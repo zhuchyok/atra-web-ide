@@ -39,7 +39,7 @@ async def main():
         include_anti_hallucination=$INCLUDE_ANTI_HALLUCINATION,
         include_knowledge_base=$INCLUDE_KNOWLEDGE_BASE
     )
-    
+
     import json
     print(json.dumps(results, indent=2, ensure_ascii=False))
 

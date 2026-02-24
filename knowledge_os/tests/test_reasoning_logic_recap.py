@@ -22,17 +22,20 @@ class TestRecapStepFailedOrEmpty:
 
     def test_none_is_failed(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         assert fw._is_step_failed_or_empty(None) is True
 
     def test_empty_string_is_failed(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         assert fw._is_step_failed_or_empty("") is True
         assert fw._is_step_failed_or_empty("   ") is True
 
     def test_error_keywords_are_failed(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         assert fw._is_step_failed_or_empty("ошибка при выполнении") is True
         assert fw._is_step_failed_or_empty("Error: timeout") is True
@@ -42,6 +45,7 @@ class TestRecapStepFailedOrEmpty:
 
     def test_non_empty_ok_is_not_failed(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         assert fw._is_step_failed_or_empty("Результат: 42") is False
         assert fw._is_step_failed_or_empty("Файл создан") is False
@@ -53,6 +57,7 @@ class TestRecapBuildHighLevelPrompt:
 
     def test_previous_plan_failure_in_prompt(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         context = {
             "previous_plan_failure": {
@@ -67,12 +72,14 @@ class TestRecapBuildHighLevelPrompt:
 
     def test_no_previous_failure_no_block(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         prompt = fw._build_high_level_prompt("Построить отчёт", None)
         assert "ПРЕДЫДУЩАЯ ПОПЫТКА" not in prompt
 
     def test_context_without_previous_failure_no_block(self):
         from app.recap_framework import ReCAPFramework
+
         fw = ReCAPFramework(reflection_enabled=True, max_plan_revisions=1)
         prompt = fw._build_high_level_prompt("Задача", {"other": "data"})
         assert "ПРЕДЫДУЩАЯ ПОПЫТКА" not in prompt
@@ -83,7 +90,8 @@ class TestRecapExecutePlanReturnSignature:
 
     @pytest.mark.asyncio
     async def test_execute_plan_returns_tuple_of_three(self):
-        from app.recap_framework import ReCAPFramework, ReCAPPlan, PlanStep, PlanningLevel
+        from app.recap_framework import PlanningLevel, PlanStep, ReCAPFramework, ReCAPPlan
+
         fw = ReCAPFramework(reflection_enabled=False)
         plan = ReCAPPlan(
             goal="Test",

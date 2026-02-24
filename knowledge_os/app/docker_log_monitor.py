@@ -2,6 +2,7 @@ class MockWebhookSender:
     def send(self, message):
         print(f"Mock sending: {message}")
 
+
 class LogMonitor:
     def __init__(self):
         self.sender = MockWebhookSender()

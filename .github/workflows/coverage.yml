@@ -1,0 +1,148 @@
+# CI Workflow: Test Coverage
+# Based on FastAPI and ripgrep best practices
+# Generates coverage reports and badges
+
+name: Coverage
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  # Python: Coverage with pytest-cov
+  python-coverage:
+    name: Python Coverage (pytest-cov)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: knowledge_os
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          cd knowledge_os
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd knowledge_os
+          pytest --cov=app --cov=src --cov-report=xml --cov-report=term --cov-report=html
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./knowledge_os/coverage.xml
+          flags: python
+          name: python-coverage
+          fail_ci_if_error: false
+
+      - name: Upload HTML coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-html
+          path: knowledge_os/htmlcov/
+
+  # Rust: Coverage with cargo-llvm-cov
+  rust-coverage:
+    name: Rust Coverage (cargo-llvm-cov)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: knowledge_os
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-llvm-cov-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://admin:secret@localhost:5432/knowledge_os
+        run: |
+          cargo llvm-cov --workspace --lcov --output-path lcov.info
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./lcov.info
+          flags: rust
+          name: rust-coverage
+          fail_ci_if_error: false
+
+  # Combined coverage badge
+  coverage-badge:
+    name: Generate Coverage Badge
+    needs: [python-coverage, rust-coverage]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Coverage Badge Comment
+        run: |
+          echo "📊 Coverage reports uploaded to Codecov"
+          echo "Python: https://codecov.io/gh/${{ github.repository }}/tree/${{ github.ref_name }}"
+          echo "Rust: https://codecov.io/gh/${{ github.repository }}/tree/${{ github.ref_name }}"

@@ -14,12 +14,13 @@
 - **Что:** SQL дамп базы данных Knowledge OS (сжатый .gz файл)
 - **Команда:** `bash /root/knowledge_os/scripts/backup_db.sh`
 - **Лог:** `/root/knowledge_os/logs/cron_backup.log`
-- **Хранение:** 
+- **Хранение:**
   - Последние 7 дней локально
   - Старые бэкапы автоматически удаляются
   - Опционально: синхронизация с S3 через rclone
 
 **Содержимое бэкапа:**
+
 - Полный дамп базы данных PostgreSQL
 - Все таблицы, индексы, функции
 - Все данные знаний, экспертов, задач
@@ -96,21 +97,21 @@ import asyncio
 
 async def setup():
     manager = WebhookManager()
-    
+
     # Slack
     await manager.register_webhook(
         'slack',
         'https://hooks.slack.com/services/YOUR/WEBHOOK/URL',
         events=['daily_report', 'weekly_report']
     )
-    
+
     # Telegram
     await manager.register_webhook(
         'telegram',
         'https://api.telegram.org/botYOUR_TOKEN/sendMessage',
         events=['daily_report']
     )
-    
+
     print('✅ Webhooks настроены')
 
 asyncio.run(setup())
@@ -208,4 +209,3 @@ tail -f /root/knowledge_os/logs/webhook_reports.log
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

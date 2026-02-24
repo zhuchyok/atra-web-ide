@@ -71,12 +71,14 @@ elif current_price < ema_fast and ema_fast < ema_slow:
 После изменений в логах будет видно:
 
 1. **Обнаружение SHORT паттернов:**
+
    ```
    🔍 [SHORT CLASSIC] EURUSDT: Обнаружен классический медвежий EMA кроссовер (режим=spot)
    🔍 [SHORT Alt-2] ARUSDT: Обнаружен альтернативный паттерн 2 (режим=futures)
    ```
 
 2. **Блокировки по режиму:**
+
    ```
    🚫 [SHORT CLASSIC BLOCK] EURUSDT: SHORT сигнал пропущен (режим: spot, требуется: futures)
    ```
@@ -104,4 +106,3 @@ elif current_price < ema_fast and ema_fast < ema_slow:
 2. ✅ Проверить логи на наличие `[SHORT ...]` записей
 3. ✅ Определить, сколько паттернов блокируется по режиму
 4. ✅ Убедиться, что для пользователей с `trade_mode=futures` SHORT сигналы генерируются
-

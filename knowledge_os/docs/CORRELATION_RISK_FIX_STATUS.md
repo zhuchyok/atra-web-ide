@@ -3,11 +3,13 @@
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### ✅ Тест исправления:
+
 ```bash
 python3 -c 'from src.risk.correlation_risk import CorrelationRiskManager; mgr = CorrelationRiskManager()'
 ```
 
 **Вывод:**
+
 ```
 [PiuX_Trade][DB] Используется база данных: trading.db
 SUCCESS
@@ -22,6 +24,7 @@ SUCCESS
 **Файл:** `src/risk/correlation_risk.py` (строка 145)
 
 **Изменение:**
+
 ```python
 # ❌ БЫЛО:
 self.db = Database(self.db_path)
@@ -31,6 +34,7 @@ self.db = Database(self.db_path, use_connection_pool=False)
 ```
 
 **Причина:**
+
 - `Database` по умолчанию использует connection pool
 - При pool: `self.cursor = None` до получения соединения
 - `correlation_risk.py` использует `self.db.cursor` напрямую
@@ -49,9 +53,10 @@ self.db = Database(self.db_path, use_connection_pool=False)
 
 ## ⚠️ ПРИМЕЧАНИЕ
 
-Если в логах бота все еще видна ошибка "Курсор БД недоступен", это может быть из **старых логов** (до перезапуска). 
+Если в логах бота все еще видна ошибка "Курсор БД недоступен", это может быть из **старых логов** (до перезапуска).
 
 **Проверка:**
+
 - Посмотрите на время последнего изменения `signal_live.log`
 - Проверьте, что бот перезапущен после исправления
 - Ошибка должна исчезнуть в новых логах
@@ -60,4 +65,3 @@ self.db = Database(self.db_path, use_connection_pool=False)
 
 **Дата:** 2025-12-01  
 **Статус:** ✅ Исправлено и протестировано
-

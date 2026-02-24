@@ -26,7 +26,7 @@ check_and_apply() {
     local file_path="$1"
     local check_pattern="$2"
     local description="$3"
-    
+
     echo "   Проверка: $description"
     ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << EOF
         cd ~/Documents/atra-web-ide

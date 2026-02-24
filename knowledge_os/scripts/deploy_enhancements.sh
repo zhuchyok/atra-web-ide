@@ -130,4 +130,3 @@ echo "   0 */6 * * * cd /root/knowledge_os && python3 app/enhanced_immunity.py"
 echo "   */5 * * * * cd /root/knowledge_os && python3 app/enhanced_monitor.py"
 echo ""
 echo "======================================================================"
-

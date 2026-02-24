@@ -30,7 +30,7 @@
 async def run_hybrid_signal_system_fixed():
     """
     Запускает гибридную систему генерации сигналов
-    
+
     Returns:
         None
     """
@@ -44,12 +44,12 @@ async def _generate_signal_impl(
 ) -> Tuple[bool, Optional[str]]:
     """
     Генерирует торговый сигнал для символа
-    
+
     Args:
         symbol: Торговый символ (например, 'BTCUSDT')
         direction: Направление ('long' или 'short')
         regime_data: Данные о рыночном режиме
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (успех, сообщение об ошибке)
     """
@@ -75,12 +75,12 @@ ML система для предсказания успешности сигн�
 class LightGBMPredictor:
     """
     LightGBM система для предсказания успешности торговых сигналов
-    
+
     Использует два подхода:
     1. Классификация - вероятность успеха (0-100%)
     2. Регрессия - размер прибыли в процентах
     """
-    
+
     def __init__(
         self,
         patterns_file: str = "ai_learning_data/trading_patterns.json",
@@ -91,7 +91,7 @@ class LightGBMPredictor:
             patterns_file: Путь к файлу с паттернами
             model_dir: Директория для сохранения моделей
         """
-    
+
     def predict(
         self,
         pattern: Dict[str, Any],
@@ -100,12 +100,12 @@ class LightGBMPredictor:
     ) -> Dict[str, Any]:
         """
         Предсказывает успешность сигнала
-        
+
         Args:
             pattern: Словарь с данными паттерна
             min_win_probability: Минимальная вероятность успеха
             min_expected_profit: Минимальная ожидаемая прибыль
-        
+
         Returns:
             Dict с предсказаниями:
             - success_probability: float (0-1)
@@ -138,14 +138,14 @@ class LightGBMPredictor:
 class RiskManager:
     """
     Главный класс управления рисками
-    
+
     Предоставляет:
     - Управление позициями
     - Расчет размера позиций
     - Мониторинг рисков
     - Корреляционный анализ
     """
-    
+
     def __init__(self, risk_limits: RiskLimits = None):
         """
         Args:
@@ -159,13 +159,13 @@ class RiskManager:
 class PositionSizer:
     """
     Калькулятор размера позиций
-    
+
     Методы:
     - calculate_position_size() - Стандартный расчет
     - calculate_kelly_position_size() - Kelly Criterion
     - calculate_adaptive_risk() - Адаптивный риск
     """
-    
+
     def calculate_position_size(
         self,
         balance: float,
@@ -179,7 +179,7 @@ class PositionSizer:
     ) -> Dict[str, float]:
         """
         Вычисляет размер позиции
-        
+
         Args:
             balance: Текущий баланс
             entry_price: Цена входа
@@ -189,11 +189,11 @@ class PositionSizer:
             use_kelly: Использовать Kelly Criterion
             win_rate: Вероятность выигрыша (для Kelly)
             avg_win_loss_ratio: Средний выигрыш/проигрыш (для Kelly)
-        
+
         Returns:
             Dict с размером позиции и метриками
         """
-    
+
     def calculate_kelly_position_size(
         self,
         balance: float,
@@ -206,9 +206,9 @@ class PositionSizer:
     ) -> Dict[str, float]:
         """
         Вычисляет размер позиции используя Kelly Criterion
-        
+
         Формула: f = (p * b - q) / b
-        
+
         Args:
             balance: Текущий баланс
             entry_price: Цена входа
@@ -217,7 +217,7 @@ class PositionSizer:
             avg_win_loss_ratio: Средний выигрыш / Средний проигрыш
             use_fractional: Использовать Fractional Kelly
             kelly_fraction: Доля от полного Kelly (0.25 = Quarter Kelly)
-        
+
         Returns:
             Dict с размером позиции и метриками Kelly
         """
@@ -279,7 +279,7 @@ class PortfolioMetrics:
 class Database:
     """
     Класс для работы с базой данных сигналов и сделок
-    
+
     Основные методы:
     - add_signal() - Добавить сигнал
     - get_active_signals() - Получить активные сигналы
@@ -287,7 +287,7 @@ class Database:
     - add_position() - Добавить позицию
     - get_positions() - Получить позиции
     """
-    
+
     def __init__(self, db_path: str = "trading.db", use_connection_pool: bool = True):
         """
         Args:
@@ -315,7 +315,7 @@ def add_signal(
 ) -> int:
     """
     Добавляет торговый сигнал в БД
-    
+
     Returns:
         ID созданного сигнала
     """
@@ -323,10 +323,10 @@ def add_signal(
 def get_active_signals(self, user_id: int = None) -> List[Dict]:
     """
     Получает активные сигналы
-    
+
     Args:
         user_id: ID пользователя (опционально)
-    
+
     Returns:
         List[Dict] активных сигналов
     """
@@ -344,15 +344,15 @@ Connection pool для SQLite.
 class SQLiteConnectionPool:
     """
     Connection Pool для SQLite
-    
+
     Переиспользует соединения вместо создания новых
     """
-    
+
     @contextmanager
     def get_connection(self):
         """
         Context manager для получения соединения из пула
-        
+
         Usage:
             with pool.get_connection() as conn:
                 cursor = conn.cursor()
@@ -366,11 +366,11 @@ class SQLiteConnectionPool:
 def get_db_pool(db_path: str = None, max_connections: int = 5) -> SQLiteConnectionPool:
     """
     Получить глобальный connection pool
-    
+
     Args:
         db_path: Путь к БД (требуется при первом вызове)
         max_connections: Максимальное количество соединений
-    
+
     Returns:
         SQLiteConnectionPool instance
     """
@@ -390,12 +390,12 @@ Purged K-Fold Cross-Validation для временных рядов.
 class PurgedKFold:
     """
     Purged K-Fold Cross-Validation для временных рядов
-    
+
     Предотвращает data leakage через:
     - Purge period - удаляет данные между train и test
     - Embargo period - временной зазор
     """
-    
+
     def __init__(
         self,
         n_splits: int = 5,
@@ -408,7 +408,7 @@ class PurgedKFold:
             purge_gap: Количество периодов для удаления
             embargo_pct: Процент данных для embargo
         """
-    
+
     def split(
         self,
         X: pd.DataFrame,
@@ -418,7 +418,7 @@ class PurgedKFold:
     ) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Генерирует индексы для train/test разделения с purge
-        
+
         Returns:
             List of (train_indices, test_indices) tuples
         """
@@ -438,7 +438,7 @@ def purged_train_test_split(
 ) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
     """
     Purged train/test split для временных рядов
-    
+
     Returns:
         X_train, X_test, y_train, y_test
     """
@@ -464,14 +464,14 @@ async def place_order(
 ) -> Dict[str, Any]:
     """
     Размещает ордер на бирже
-    
+
     Args:
         symbol: Торговый символ
         side: 'buy' или 'sell'
         amount: Количество
         price: Цена (для limit ордеров)
         order_type: Тип ордера ('limit' или 'market')
-    
+
     Returns:
         Dict с информацией об ордере
     """
@@ -484,7 +484,7 @@ async def place_stop_loss_order(
 ) -> Optional[Dict[str, Any]]:
     """
     Размещает стоп-лосс ордер
-    
+
     Returns:
         Dict с информацией об ордере или None
     """
@@ -498,7 +498,7 @@ async def place_take_profit_order(
 ) -> Optional[Dict[str, Any]]:
     """
     Размещает take-profit ордер
-    
+
     Returns:
         Dict с информацией об ордере или None
     """
@@ -521,11 +521,11 @@ def configure_structured_logging(
 ) -> logging.Logger:
     """
     Настраивает структурированное логирование
-    
+
     Args:
         level: Уровень логирования
         json_format: Использовать JSON формат
-    
+
     Returns:
         Настроенный logger
     """

@@ -4,7 +4,15 @@ description: Event-Driven Architecture - масштабируемая архит
 category: architecture
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "⚡", "homepage": "https://github.com/microsoft/autogen"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "⚡",
+        "homepage": "https://github.com/microsoft/autogen",
+      },
+  }
 ---
 
 # Event-Driven Architecture Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡", "homepage": "https://git
 ## Когда использовать
 
 Используй этот навык для:
+
 - Масштабируемых систем
 - Асинхронной обработки задач
 - Систем с множеством агентов
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡", "homepage": "https://git
 ## Методология
 
 Event-Driven работает через:
+
 1. **Event Bus** - Центральная шина событий
 2. **Event Publishing** - Публикация событий
 3. **Event Subscription** - Подписка на события

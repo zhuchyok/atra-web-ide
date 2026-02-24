@@ -74,12 +74,12 @@ docker exec -i knowledge_postgres psql -U admin -d knowledge_os < "$DUMP_FILE" 2
 if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo ""
     echo "✅ Дамп импортирован успешно!"
-    
+
     # Проверяем количество узлов
     echo ""
     echo "📊 Статистика после импорта:"
     docker exec knowledge_postgres psql -U admin -d knowledge_os -c "
-        SELECT 
+        SELECT
             COUNT(*) as total_nodes,
             COUNT(DISTINCT domain_id) as domains,
             COUNT(DISTINCT metadata->>'source') as sources

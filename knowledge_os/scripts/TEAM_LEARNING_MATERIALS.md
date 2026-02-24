@@ -9,16 +9,19 @@
 ## 🎯 ФИЛОСОФИЯ ОБУЧЕНИЯ
 
 **Виктор (Team Lead):**
-> "Мы изучаем только самые современные и практичные материалы! 
-> 
+
+> "Мы изучаем только самые современные и практичные материалы!
+>
 > **Принципы выбора:**
+>
 > - ✅ Актуальность (2023-2025)
 > - ✅ Практическая применимость к проекту ATRA
 > - ✅ Проверенные авторы и источники
 > - ✅ Баланс теории и практики (20/80)
 > - ✅ Фокус на крипто-трейдинг и финтех
-> 
+>
 > **Формат обучения:**
+>
 > - 📖 Книги (deep knowledge)
 > - 🎓 Курсы (structured learning)
 > - 📝 Статьи (latest trends)
@@ -30,6 +33,7 @@
 ## 1️⃣ ДМИТРИЙ (ML ENGINEER) - ПРОГРАММА ОБУЧЕНИЯ
 
 ### **Текущий уровень:** ⭐⭐⭐⭐ Master
+
 ### **Цель:** ⭐⭐⭐⭐⭐ Guru (специалист мирового уровня)
 
 ---
@@ -39,96 +43,109 @@
 #### **A) Machine Learning для трейдинга:**
 
 **1. "Machine Learning for Algorithmic Trading" (2nd Edition, 2020-2023)**
-   - Автор: Stefan Jansen
-   - 🌟 Рейтинг: 4.5/5
-   - Темы: ML для финансов, feature engineering, backtesting
-   - Практика: Python, pandas, scikit-learn, LightGBM
-   - **Для ATRA:** Главы 7-12 (ML models для trading signals)
-   - Время: 4 недели (по главе в неделю)
+
+- Автор: Stefan Jansen
+- 🌟 Рейтинг: 4.5/5
+- Темы: ML для финансов, feature engineering, backtesting
+- Практика: Python, pandas, scikit-learn, LightGBM
+- **Для ATRA:** Главы 7-12 (ML models для trading signals)
+- Время: 4 недели (по главе в неделю)
 
 **2. "Advances in Financial Machine Learning" (2018)**
-   - Автор: Marcos López de Prado
-   - 🌟 Рейтинг: 4.7/5
-   - Темы: Meta-labeling, feature importance, backtesting
-   - **Для ATRA:** Главы 2,3,6 (labels, features, backtesting)
-   - Время: 3 недели
-   - ⚠️ Сложная, но must-have!
+
+- Автор: Marcos López de Prado
+- 🌟 Рейтинг: 4.7/5
+- Темы: Meta-labeling, feature importance, backtesting
+- **Для ATRA:** Главы 2,3,6 (labels, features, backtesting)
+- Время: 3 недели
+- ⚠️ Сложная, но must-have!
 
 **3. "Hands-On Gradient Boosting with XGBoost and scikit-learn" (2020)**
-   - Автор: Corey Wade
-   - 🌟 Рейтинг: 4.3/5
-   - Темы: XGBoost, LightGBM, CatBoost, hyperparameter tuning
-   - **Для ATRA:** Все главы (практическое применение)
-   - Время: 2 недели
+
+- Автор: Corey Wade
+- 🌟 Рейтинг: 4.3/5
+- Темы: XGBoost, LightGBM, CatBoost, hyperparameter tuning
+- **Для ATRA:** Все главы (практическое применение)
+- Время: 2 недели
 
 ---
 
 #### **B) Feature Engineering:**
 
 **4. "Feature Engineering for Machine Learning" (2018)**
-   - Авторы: Alice Zheng, Amanda Casari
-   - 🌟 Рейтинг: 4.4/5
-   - Темы: Text, images, time series features
-   - **Для ATRA:** Time series features (критично!)
-   - Время: 2 недели
+
+- Авторы: Alice Zheng, Amanda Casari
+- 🌟 Рейтинг: 4.4/5
+- Темы: Text, images, time series features
+- **Для ATRA:** Time series features (критично!)
+- Время: 2 недели
 
 **5. "Feature Engineering and Selection" (2019)**
-   - Авторы: Max Kuhn, Kjell Johnson
-   - 🌟 Рейтинг: 4.6/5
-   - Темы: Feature selection, dimensionality reduction
-   - **Для ATRA:** Главы 4-6
-   - Время: 2 недели
+
+- Авторы: Max Kuhn, Kjell Johnson
+- 🌟 Рейтинг: 4.6/5
+- Темы: Feature selection, dimensionality reduction
+- **Для ATRA:** Главы 4-6
+- Время: 2 недели
 
 ---
 
 ### **🎓 ОНЛАЙН КУРСЫ:**
 
 **1. Machine Learning for Trading (Udacity)**
-   - Уровень: Advanced
-   - Длительность: 4 месяца (part-time)
-   - Темы: Trading strategies, ML, portfolio optimization
-   - Язык: Python
-   - **Рекомендация:** Пройти модули 4-7 (ML)
+
+- Уровень: Advanced
+- Длительность: 4 месяца (part-time)
+- Темы: Trading strategies, ML, portfolio optimization
+- Язык: Python
+- **Рекомендация:** Пройти модули 4-7 (ML)
 
 **2. LightGBM Practical Course (DataCamp/Kaggle)**
-   - Уровень: Intermediate
-   - Длительность: 20 часов
-   - Темы: LightGBM в production, tuning, deployment
-   - **Рекомендация:** Full course
+
+- Уровень: Intermediate
+- Длительность: 20 часов
+- Темы: LightGBM в production, tuning, deployment
+- **Рекомендация:** Full course
 
 **3. Time Series Forecasting (Coursera by Google)**
-   - Уровень: Advanced
-   - Длительность: 6 недель
-   - Темы: LSTM, ARIMA, Prophet, ML для временных рядов
-   - **Рекомендация:** Weeks 4-6
+
+- Уровень: Advanced
+- Длительность: 6 недель
+- Темы: LSTM, ARIMA, Prophet, ML для временных рядов
+- **Рекомендация:** Weeks 4-6
 
 ---
 
 ### **📝 СТАТЬИ И PAPER'Ы:**
 
 **1. "LightGBM: A Highly Efficient Gradient Boosting Decision Tree" (2017)**
-   - Авторы: Microsoft Research
-   - 📄 Ссылка: NeurIPS 2017
-   - **Must read** для понимания внутренностей LightGBM
+
+- Авторы: Microsoft Research
+- 📄 Ссылка: NeurIPS 2017
+- **Must read** для понимания внутренностей LightGBM
 
 **2. "XGBoost: A Scalable Tree Boosting System" (2016)**
-   - Авторы: Chen & Guestrin
-   - 📄 Ссылка: KDD 2016
-   - Сравнение с LightGBM
+
+- Авторы: Chen & Guestrin
+- 📄 Ссылка: KDD 2016
+- Сравнение с LightGBM
 
 **3. "Feature Engineering for Cryptocurrency Trading" (2023)**
-   - 📄 Medium/Towards Data Science
-   - Актуальные практики для крипто
+
+- 📄 Medium/Towards Data Science
+- Актуальные практики для крипто
 
 **4. "Dealing with Imbalanced Classification Problems" (2023)**
-   - 📄 arXiv
-   - Критично для trading signals (win/loss imbalance)
+
+- 📄 arXiv
+- Критично для trading signals (win/loss imbalance)
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ ДЛЯ ОСВОЕНИЯ:**
 
 **1. Optuna (Hyperparameter Optimization)**
+
 ```python
 import optuna
 
@@ -138,11 +155,11 @@ def objective(trial):
         'max_depth': trial.suggest_int('max_depth', 3, 15),
         'num_leaves': trial.suggest_int('num_leaves', 20, 100),
     }
-    
+
     model = lgb.LGBMClassifier(**params)
     model.fit(X_train, y_train)
     score = roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
-    
+
     return score
 
 study = optuna.create_study(direction='maximize')
@@ -150,9 +167,11 @@ study.optimize(objective, n_trials=100)
 
 print(f"Best params: {study.best_params}")
 ```
+
 **Для ATRA:** Автоматическая оптимизация ML параметров
 
 **2. SHAP (Explainable AI)**
+
 ```python
 import shap
 
@@ -161,9 +180,11 @@ shap_values = explainer.shap_values(X_test)
 
 shap.summary_plot(shap_values, X_test)
 ```
+
 **Для ATRA:** Понимание какие features важны
 
 **3. MLflow (ML Experiment Tracking)**
+
 ```python
 import mlflow
 
@@ -175,31 +196,34 @@ with mlflow.start_run():
     })
     mlflow.sklearn.log_model(model, "model")
 ```
+
 **Для ATRA:** Отслеживание экспериментов ML
 
 **4. Weights & Biases (Advanced Tracking)**
-   - Более продвинутая альтернатива MLflow
-   - Визуализация, сравнение моделей
-   - Team collaboration
+
+- Более продвинутая альтернатива MLflow
+- Визуализация, сравнение моделей
+- Team collaboration
 
 ---
 
 ### **💡 BEST PRACTICES (из индустрии):**
 
 **1. Feature Store Pattern**
+
 ```python
 class FeatureStore:
     """Централизованное хранение features"""
-    
+
     def __init__(self):
         self.features = {}
-        
+
     def register_feature(self, name, calculator_func):
         self.features[name] = calculator_func
-        
+
     def get_features(self, data):
         return {
-            name: func(data) 
+            name: func(data)
             for name, func in self.features.items()
         }
 
@@ -212,14 +236,16 @@ features = store.get_features(market_data)
 ```
 
 **2. Model Registry Pattern**
-   - Версионирование моделей
-   - A/B тестирование
-   - Rollback capability
+
+- Версионирование моделей
+- A/B тестирование
+- Rollback capability
 
 **3. Online Learning**
-   - Incremental updates модели
-   - Адаптация к новым данным
-   - Drift detection
+
+- Incremental updates модели
+- Адаптация к новым данным
+- Drift detection
 
 ---
 
@@ -271,6 +297,7 @@ features = store.get_features(market_data)
 ## 2️⃣ МАКСИМ (DATA ANALYST) - ПРОГРАММА ОБУЧЕНИЯ
 
 ### **Текущий уровень:** ⭐⭐⭐⭐ Master
+
 ### **Цель:** ⭐⭐⭐⭐⭐ Guru
 
 ---
@@ -278,89 +305,102 @@ features = store.get_features(market_data)
 ### **📖 КНИГИ (Must Read):**
 
 **1. "Quantitative Trading: How to Build Your Own Algorithmic Trading Business" (2009/Updated 2024)**
-   - Автор: Ernest P. Chan
-   - 🌟 Рейтинг: 4.2/5
-   - Темы: Mean reversion, momentum, backtesting, risk management
-   - **Для ATRA:** Весь курс (foundation)
-   - Время: 3 недели
+
+- Автор: Ernest P. Chan
+- 🌟 Рейтинг: 4.2/5
+- Темы: Mean reversion, momentum, backtesting, risk management
+- **Для ATRA:** Весь курс (foundation)
+- Время: 3 недели
 
 **2. "Algorithmic Trading: Winning Strategies and Their Rationale" (2013)**
-   - Автор: Ernest P. Chan
-   - 🌟 Рейтинг: 4.3/5
-   - Темы: Pairs trading, volatility, HFT
-   - **Для ATRA:** Chapters 2-5
-   - Время: 3 недели
+
+- Автор: Ernest P. Chan
+- 🌟 Рейтинг: 4.3/5
+- Темы: Pairs trading, volatility, HFT
+- **Для ATRA:** Chapters 2-5
+- Время: 3 недели
 
 **3. "Cryptocurrency Trading & Investing" (2024)**
-   - Авторы: Various (актуальный сборник)
-   - Темы: Crypto-specific strategies, DeFi, on-chain analysis
-   - **Для ATRA:** Весь курс (критично!)
-   - Время: 2 недели
+
+- Авторы: Various (актуальный сборник)
+- Темы: Crypto-specific strategies, DeFi, on-chain analysis
+- **Для ATRA:** Весь курс (критично!)
+- Время: 2 недели
 
 **4. "Systematic Trading: A Unique New Method" (2013)**
-   - Автор: Robert Carver
-   - 🌟 Рейтинг: 4.5/5
-   - Темы: Position sizing, portfolio construction, risk
-   - **Для ATRA:** Chapters 3,4,6 (risk management)
-   - Время: 3 недели
+
+- Автор: Robert Carver
+- 🌟 Рейтинг: 4.5/5
+- Темы: Position sizing, portfolio construction, risk
+- **Для ATRA:** Chapters 3,4,6 (risk management)
+- Время: 3 недели
 
 **5. "Quantitative Risk Management" (2015)**
-   - Авторы: McNeil, Frey, Embrechts
-   - 🌟 Рейтинг: 4.6/5
-   - Темы: VaR, CVaR, stress testing
-   - **Для ATRA:** Chapters 2-3 (basics)
-   - Время: 2 недели
+
+- Авторы: McNeil, Frey, Embrechts
+- 🌟 Рейтинг: 4.6/5
+- Темы: VaR, CVaR, stress testing
+- **Для ATRA:** Chapters 2-3 (basics)
+- Время: 2 недели
 
 **6. "Python for Finance: Mastering Data-Driven Finance" (2nd Ed, 2018)**
-   - Автор: Yves Hilpisch
-   - 🌟 Рейтинг: 4.4/5
-   - Темы: NumPy, pandas, financial analysis
-   - **Для ATRA:** Part III (algorithmic trading)
-   - Время: 3 недели
+
+- Автор: Yves Hilpisch
+- 🌟 Рейтинг: 4.4/5
+- Темы: NumPy, pandas, financial analysis
+- **Для ATRA:** Part III (algorithmic trading)
+- Время: 3 недели
 
 ---
 
 ### **🎓 ОНЛАЙН КУРСЫ:**
 
 **1. Quantitative Finance & Algorithmic Trading (Udemy)**
-   - 130+ часов контента
-   - Python, NumPy, pandas, statistics
-   - Backtesting frameworks
+
+- 130+ часов контента
+- Python, NumPy, pandas, statistics
+- Backtesting frameworks
 
 **2. Cryptocurrency Trading Course (Binance Academy)**
-   - Бесплатный
-   - Специфика крипто-рынков
-   - Technical analysis для криптовалют
+
+- Бесплатный
+- Специфика крипто-рынков
+- Technical analysis для криптовалют
 
 **3. Advanced Statistics for Data Science (Johns Hopkins/Coursera)**
-   - Mathematical foundations
-   - Hypothesis testing
-   - Time series analysis
+
+- Mathematical foundations
+- Hypothesis testing
+- Time series analysis
 
 ---
 
 ### **📝 СТАТЬИ И РЕСУРСЫ:**
 
 **1. Quantitative Research Papers:**
-   - SSRN (Social Science Research Network)
-   - arXiv quantitative finance section
-   - Journal of Financial Data Science
+
+- SSRN (Social Science Research Network)
+- arXiv quantitative finance section
+- Journal of Financial Data Science
 
 **2. Crypto-specific:**
-   - CoinMetrics Research
-   - Messari Research
-   - Dune Analytics blog
+
+- CoinMetrics Research
+- Messari Research
+- Dune Analytics blog
 
 **3. Trading communities:**
-   - QuantConnect forums
-   - QuantInsti blog
-   - Two Sigma research papers
+
+- QuantConnect forums
+- QuantInsti blog
+- Two Sigma research papers
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ:**
 
 **1. QuantLib (Financial Engineering Library)**
+
 ```python
 import QuantLib as ql
 
@@ -370,13 +410,14 @@ price = option.NPV()
 ```
 
 **2. Backtrader (Professional Backtesting)**
+
 ```python
 import backtrader as bt
 
 class MyStrategy(bt.Strategy):
     def __init__(self):
         self.sma = bt.indicators.SMA(period=20)
-        
+
     def next(self):
         if self.data.close > self.sma:
             self.buy()
@@ -387,6 +428,7 @@ cerebro.run()
 ```
 
 **3. VectorBT (Fast Backtesting)**
+
 ```python
 import vectorbt as vbt
 
@@ -402,6 +444,7 @@ print(portfolio.sharpe_ratio())
 ```
 
 **4. PyPortfolioOpt (Portfolio Optimization)**
+
 ```python
 from pypfopt import EfficientFrontier, risk_models, expected_returns
 
@@ -459,64 +502,73 @@ weights = ef.max_sharpe()
 ### **📖 КНИГИ:**
 
 **1. "Fluent Python" (2nd Edition, 2022)**
-   - Автор: Luciano Ramalho
-   - 🌟 Рейтинг: 4.7/5
-   - Темы: Advanced Python, async, decorators, metaclasses
-   - **Для ATRA:** Chapters 17-21 (async/concurrency)
-   - Время: 4 недели
+
+- Автор: Luciano Ramalho
+- 🌟 Рейтинг: 4.7/5
+- Темы: Advanced Python, async, decorators, metaclasses
+- **Для ATRA:** Chapters 17-21 (async/concurrency)
+- Время: 4 недели
 
 **2. "High Performance Python" (2nd Edition, 2020)**
-   - Авторы: Micha Gorelick, Ian Ozsvald
-   - 🌟 Рейтинг: 4.4/5
-   - Темы: Profiling, optimization, Cython, parallelization
-   - **Для ATRA:** All chapters (performance critical!)
-   - Время: 3 недели
+
+- Авторы: Micha Gorelick, Ian Ozsvald
+- 🌟 Рейтинг: 4.4/5
+- Темы: Profiling, optimization, Cython, parallelization
+- **Для ATRA:** All chapters (performance critical!)
+- Время: 3 недели
 
 **3. "Designing Data-Intensive Applications" (2017)**
-   - Автор: Martin Kleppmann
-   - 🌟 Рейтинг: 4.8/5 (легенда!)
-   - Темы: Databases, distributed systems, reliability
-   - **Для ATRA:** Chapters 1-6
-   - Время: 4 недели
+
+- Автор: Martin Kleppmann
+- 🌟 Рейтинг: 4.8/5 (легенда!)
+- Темы: Databases, distributed systems, reliability
+- **Для ATRA:** Chapters 1-6
+- Время: 4 недели
 
 **4. "Clean Architecture" (2017)**
-   - Автор: Robert C. Martin (Uncle Bob)
-   - 🌟 Рейтинг: 4.5/5
-   - Темы: SOLID, dependency injection, testing
-   - **Для ATRA:** Part III-V
-   - Время: 2 недели
+
+- Автор: Robert C. Martin (Uncle Bob)
+- 🌟 Рейтинг: 4.5/5
+- Темы: SOLID, dependency injection, testing
+- **Для ATRA:** Part III-V
+- Время: 2 недели
 
 **5. "Python Concurrency with asyncio" (2022)**
-   - Автор: Matthew Fowler
-   - 🌟 Рейтинг: 4.6/5
-   - Темы: asyncio, async patterns, performance
-   - **Для ATRA:** Full book (critical!)
-   - Время: 2 недели
+
+- Автор: Matthew Fowler
+- 🌟 Рейтинг: 4.6/5
+- Темы: asyncio, async patterns, performance
+- **Для ATRA:** Full book (critical!)
+- Время: 2 недели
 
 ---
 
 ### **🎓 КУРСЫ:**
 
 **1. Python Async Programming (Real Python)**
-   - Async/await patterns
-   - Event loops
-   - Concurrent processing
+
+- Async/await patterns
+- Event loops
+- Concurrent processing
 
 **2. System Design Interview Course**
-   - Scalability patterns
-   - Database design
-   - API design
+
+- Scalability patterns
+- Database design
+- API design
 
 **3. SQLite Performance Tuning**
-   - Indexes
-   - Query optimization
-   - WAL mode
+
+- Indexes
+- Query optimization
+- WAL mode
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ:**
 
 **1. FastAPI (Modern API Framework)**
+
 ```python
 from fastapi import FastAPI, WebSocket
 
@@ -533,6 +585,7 @@ async def websocket_endpoint(websocket: WebSocket):
 ```
 
 **2. Asyncpg (Fast Async PostgreSQL)**
+
 ```python
 import asyncpg
 
@@ -544,6 +597,7 @@ async def get_trades():
 ```
 
 **3. Pydantic (Data Validation)**
+
 ```python
 from pydantic import BaseModel, validator
 
@@ -551,7 +605,7 @@ class Signal(BaseModel):
     symbol: str
     direction: str
     entry_price: float
-    
+
     @validator('direction')
     def validate_direction(cls, v):
         if v not in ['LONG', 'SHORT']:
@@ -560,6 +614,7 @@ class Signal(BaseModel):
 ```
 
 **4. Tenacity (Retry Logic)**
+
 ```python
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -576,11 +631,12 @@ async def fetch_price(symbol):
 ### **💡 ПАТТЕРНЫ:**
 
 **1. Repository Pattern**
+
 ```python
 class TradeRepository:
     async def save(self, trade: Trade):
         pass
-    
+
     async def find_by_symbol(self, symbol: str):
         pass
 
@@ -591,14 +647,15 @@ class SQLiteTradeRepository(TradeRepository):
 ```
 
 **2. Event-Driven Architecture**
+
 ```python
 class EventBus:
     def __init__(self):
         self.subscribers = {}
-    
+
     def subscribe(self, event_type, handler):
         self.subscribers.setdefault(event_type, []).append(handler)
-    
+
     async def publish(self, event):
         for handler in self.subscribers.get(event.type, []):
             await handler(event)
@@ -635,24 +692,28 @@ await bus.publish(SignalEvent(symbol='BTCUSDT', ...))
 ### **📖 КНИГИ:**
 
 **1. "The Phoenix Project" (2013)**
-   - DevOps philosophy
-   - 🌟 Must read для DevOps культуры
+
+- DevOps philosophy
+- 🌟 Must read для DevOps культуры
 
 **2. "Kubernetes: Up and Running" (3rd Ed, 2022)**
-   - Container orchestration
-   - Production deployment
+
+- Container orchestration
+- Production deployment
 
 **3. "Site Reliability Engineering" (Google, 2016)**
-   - SRE practices
-   - Monitoring, alerting
+
+- SRE practices
+- Monitoring, alerting
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ:**
 
 **1. Docker + Docker Compose**
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   atra:
     build: .
@@ -664,6 +725,7 @@ services:
 ```
 
 **2. GitHub Actions (CI/CD)**
+
 ```yaml
 name: Deploy
 on:
@@ -680,6 +742,7 @@ jobs:
 ```
 
 **3. Prometheus + Grafana**
+
 ```python
 from prometheus_client import Counter, Gauge
 
@@ -713,18 +776,21 @@ ml_probability.set(0.75)
 ### **📖 КНИГИ:**
 
 **1. "Python Testing with pytest" (2nd Ed, 2022)**
-   - Автор: Brian Okken
-   - Modern testing practices
+
+- Автор: Brian Okken
+- Modern testing practices
 
 **2. "The Art of Software Testing" (3rd Ed, 2011)**
-   - Testing fundamentals
-   - Test design
+
+- Testing fundamentals
+- Test design
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ:**
 
 **1. Pytest + Fixtures**
+
 ```python
 import pytest
 
@@ -743,6 +809,7 @@ def test_ml_prediction():
 ```
 
 **2. Hypothesis (Property Testing)**
+
 ```python
 from hypothesis import given, strategies as st
 
@@ -753,6 +820,7 @@ def test_risk_calculation(risk_pct):
 ```
 
 **3. Locust (Load Testing)**
+
 ```python
 from locust import HttpUser, task
 
@@ -784,30 +852,35 @@ class TradingBotUser(HttpUser):
 ### **📖 КНИГИ:**
 
 **1. "Observability Engineering" (2022)**
-   - Авторы: Charity Majors et al.
-   - Modern observability practices
+
+- Авторы: Charity Majors et al.
+- Modern observability practices
 
 **2. "The Art of Monitoring" (2016)**
-   - Monitoring strategies
-   - Alerting best practices
+
+- Monitoring strategies
+- Alerting best practices
 
 ---
 
 ### **🛠️ ИНСТРУМЕНТЫ:**
 
 **1. Grafana Dashboards**
-   - Real-time metrics
-   - Alerts
-   - Visualizations
+
+- Real-time metrics
+- Alerts
+- Visualizations
 
 **2. ELK Stack (Elasticsearch + Logstash + Kibana)**
-   - Log aggregation
-   - Log analysis
-   - Searching
+
+- Log aggregation
+- Log analysis
+- Searching
 
 **3. PagerDuty / Opsgenie**
-   - Incident management
-   - On-call rotation
+
+- Incident management
+- On-call rotation
 
 ---
 
@@ -831,16 +904,19 @@ class TradingBotUser(HttpUser):
 ### **📖 КНИГИ:**
 
 **1. "The Manager's Path" (2017)**
-   - Автор: Camille Fournier
-   - Engineering leadership
+
+- Автор: Camille Fournier
+- Engineering leadership
 
 **2. "Team Topologies" (2019)**
-   - Team structures
-   - Communication patterns
+
+- Team structures
+- Communication patterns
 
 **3. "An Elegant Puzzle: Systems of Engineering Management" (2019)**
-   - Scaling teams
-   - Technical debt
+
+- Scaling teams
+- Technical debt
 
 ---
 
@@ -862,6 +938,7 @@ class TradingBotUser(HttpUser):
 ## 📊 СУММАРНАЯ ПРОГРАММА
 
 ### **Timeline:**
+
 ```
 🎓 КОМАНДА ОБУЧАЕТСЯ 12 НЕДЕЛЬ ПАРАЛЛЕЛЬНО:
 
@@ -879,6 +956,7 @@ class TradingBotUser(HttpUser):
 ## 📚 ОБЩИЕ РЕСУРСЫ ДЛЯ ВСЕХ:
 
 ### **Блоги и сайты:**
+
 1. **Towards Data Science** (Medium) - ML и data science
 2. **Real Python** - Python best practices
 3. **Two Sigma** - Quant research
@@ -888,17 +966,20 @@ class TradingBotUser(HttpUser):
 7. **CoinMetrics** - Crypto analytics
 
 ### **Подкасты:**
+
 1. **Chat With Traders** - Trading insights
 2. **Python Bytes** - Python news
 3. **The Changelog** - Software engineering
 
 ### **YouTube каналы:**
+
 1. **ArjanCodes** - Python best practices
 2. **mCoding** - Advanced Python
 3. **Tech With Tim** - Python projects
 4. **QuantInsti** - Algorithmic trading
 
 ### **Newsletters:**
+
 1. **Python Weekly**
 2. **DataCamp Newsletter**
 3. **Quantocracy** - Quant finance links
@@ -908,13 +989,14 @@ class TradingBotUser(HttpUser):
 ## 🎯 ИТОГОВАЯ ЦЕЛЬ
 
 **Виктор (Team Lead):**
+
 > **Через 12 недель:**
-> 
+>
 > ✅ Вся команда на уровне ⭐⭐⭐⭐⭐ Guru
 > ✅ ATRA - система мирового уровня
 > ✅ Публикации и open-source вклад
 > ✅ Команда экспертов международного класса
-> 
+>
 > **Мы не просто учимся - мы становимся лучшими!** 🚀
 
 ---
@@ -946,6 +1028,7 @@ class TradingBotUser(HttpUser):
 ## 🎉 ЗАКЛЮЧЕНИЕ
 
 **Команда получила:**
+
 - ✅ 50+ книг по специализациям
 - ✅ 30+ онлайн курсов
 - ✅ 100+ статей и paper'ов
@@ -958,4 +1041,3 @@ class TradingBotUser(HttpUser):
 ---
 
 **#ContinuousLearning #TeamGrowth #WorldClass** 📚🎓🚀
-

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 📊 МОНИТОРИНГ DASHBOARD ДЛЯ СИСТЕМЫ СИГНАЛОВ
 Простой веб-интерфейс для мониторинга pipeline генерации сигналов
@@ -7,15 +6,18 @@
 
 import logging
 from datetime import datetime
+
+from flask import Flask, jsonify, render_template_string
+
 from src.shared.utils.datetime_utils import get_utc_now
-from flask import Flask, render_template_string, jsonify
 
 logger = logging.getLogger(__name__)
 
 # Импортируем мониторинг из исправленной системы
 try:
-    from signal_live_hybrid_fixed import pipeline_monitor
     from hybrid_data_manager import hybrid_data_manager
+    from signal_live_hybrid_fixed import pipeline_monitor
+
     MONITORING_AVAILABLE = True
 except ImportError as e:
     logger.error("Не удалось импортировать системы мониторинга: %s", e)
@@ -136,7 +138,8 @@ DASHBOARD_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
+
+@app.route("/")
 def dashboard():
     """Главная страница dashboard"""
     if not MONITORING_AVAILABLE:
@@ -145,47 +148,49 @@ def dashboard():
     try:
         # Получаем статистику из pipeline монитора
         pipeline_stats = pipeline_monitor.get_stats()
-        
+
         # Получаем статистику из data manager
         data_stats = hybrid_data_manager.get_stats()
-        
+
         # Формируем общую статистику
-        total_signals = sum(stage['total'] for stage in pipeline_stats.values())
-        passed_signals = sum(stage['passed'] for stage in pipeline_stats.values())
+        total_signals = sum(stage["total"] for stage in pipeline_stats.values())
+        passed_signals = sum(stage["passed"] for stage in pipeline_stats.values())
         success_rate = (passed_signals / total_signals * 100) if total_signals > 0 else 0
-        
-        filters_passed = pipeline_stats.get('risk_filter', {}).get('passed', 0)
-        filters_blocked = sum(stage['blocked'] for stage in pipeline_stats.values())
-        
-        telegram_sent = pipeline_stats.get('telegram', {}).get('passed', 0)
-        telegram_errors = pipeline_stats.get('telegram', {}).get('blocked', 0)
-        
-        avg_response_time = data_stats.get('data_manager', {}).get('average_response_time', 0)
-        cache_hit_rate = data_stats.get('data_manager', {}).get('cache_hit_rate', 0)
-        
-        top_symbols = data_stats.get('performance', {}).get('top_symbols', {})
-        
-        return render_template_string(DASHBOARD_TEMPLATE,
+
+        filters_passed = pipeline_stats.get("risk_filter", {}).get("passed", 0)
+        filters_blocked = sum(stage["blocked"] for stage in pipeline_stats.values())
+
+        telegram_sent = pipeline_stats.get("telegram", {}).get("passed", 0)
+        telegram_errors = pipeline_stats.get("telegram", {}).get("blocked", 0)
+
+        avg_response_time = data_stats.get("data_manager", {}).get("average_response_time", 0)
+        cache_hit_rate = data_stats.get("data_manager", {}).get("cache_hit_rate", 0)
+
+        top_symbols = data_stats.get("performance", {}).get("top_symbols", {})
+
+        return render_template_string(
+            DASHBOARD_TEMPLATE,
             stats={
-                'total_signals': total_signals,
-                'success_rate': round(success_rate, 1),
-                'filters_passed': filters_passed,
-                'filters_blocked': filters_blocked,
-                'telegram_sent': telegram_sent,
-                'telegram_errors': telegram_errors,
-                'avg_response_time': round(avg_response_time, 2),
-                'cache_hit_rate': round(cache_hit_rate, 1)
+                "total_signals": total_signals,
+                "success_rate": round(success_rate, 1),
+                "filters_passed": filters_passed,
+                "filters_blocked": filters_blocked,
+                "telegram_sent": telegram_sent,
+                "telegram_errors": telegram_errors,
+                "avg_response_time": round(avg_response_time, 2),
+                "cache_hit_rate": round(cache_hit_rate, 1),
             },
             stage_stats=pipeline_stats,
             top_symbols=top_symbols,
-            timestamp=get_utc_now().strftime('%Y-%m-%d %H:%M:%S')
+            timestamp=get_utc_now().strftime("%Y-%m-%d %H:%M:%S"),
         )
-        
+
     except Exception as e:
         logger.error("Ошибка в dashboard: %s", e)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/stats')
+
+@app.route("/api/stats")
 def api_stats():
     """API endpoint для получения статистики"""
     if not MONITORING_AVAILABLE:
@@ -194,18 +199,21 @@ def api_stats():
     try:
         pipeline_stats = pipeline_monitor.get_stats()
         data_stats = hybrid_data_manager.get_stats()
-        
-        return jsonify({
-            "pipeline": pipeline_stats,
-            "data_manager": data_stats,
-            "timestamp": get_utc_now().isoformat()
-        })
-        
+
+        return jsonify(
+            {
+                "pipeline": pipeline_stats,
+                "data_manager": data_stats,
+                "timestamp": get_utc_now().isoformat(),
+            }
+        )
+
     except Exception as e:
         logger.error("Ошибка в API stats: %s", e)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/reset')
+
+@app.route("/api/reset")
 def api_reset():
     """API endpoint для сброса статистики"""
     if not MONITORING_AVAILABLE:
@@ -214,14 +222,15 @@ def api_reset():
     try:
         pipeline_monitor.reset_stats()
         hybrid_data_manager.reset_performance_stats()
-        
+
         return jsonify({"status": "success", "message": "Статистика сброшена"})
-        
+
     except Exception as e:
         logger.error("Ошибка при сбросе статистики: %s", e)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/trace/<trace_id>')
+
+@app.route("/api/trace/<trace_id>")
 def api_trace(trace_id):
     """API endpoint для получения истории trace ID"""
     if not MONITORING_AVAILABLE:
@@ -229,30 +238,29 @@ def api_trace(trace_id):
 
     try:
         trace_history = pipeline_monitor.get_trace_history(trace_id)
-        return jsonify({
-            "trace_id": trace_id,
-            "history": trace_history,
-            "timestamp": get_utc_now().isoformat()
-        })
-        
+        return jsonify(
+            {"trace_id": trace_id, "history": trace_history, "timestamp": get_utc_now().isoformat()}
+        )
+
     except Exception as e:
         logger.error("Ошибка при получении trace: %s", e)
         return jsonify({"error": str(e)}), 500
 
-def run_monitoring_dashboard(host='0.0.0.0', port=8080, debug=False):
+
+def run_monitoring_dashboard(host="0.0.0.0", port=8080, debug=False):
     """Запуск мониторинг dashboard"""
     logger.info("🚀 Запуск мониторинг dashboard на http://%s:%d", host, port)
-    
+
     try:
         app.run(host=host, port=port, debug=debug, threaded=True)
     except Exception as e:
         logger.error("Ошибка запуска dashboard: %s", e)
 
+
 if __name__ == "__main__":
     # Настройка логирования
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    
+
     run_monitoring_dashboard(debug=True)

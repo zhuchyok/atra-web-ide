@@ -31,15 +31,11 @@ class PatternGeneratorBacktest(AdvancedBacktest):
         self.ai_learning = AILearningSystem()
         logger.info(
             "🤖 PatternGeneratorBacktest инициализирован. Текущих паттернов: %d",
-            len(self.ai_learning.patterns)
+            len(self.ai_learning.patterns),
         )
 
     def close_position(
-        self,
-        position: Dict[str, Any],
-        exit_price: float,
-        exit_reason: str,
-        timestamp: pd.Timestamp
+        self, position: Dict[str, Any], exit_price: float, exit_reason: str, timestamp: pd.Timestamp
     ) -> None:
         """Закрывает позицию и сохраняет её как паттерн для обучения."""
         # Вызываем базовый метод для статистики
@@ -57,9 +53,9 @@ class PatternGeneratorBacktest(AdvancedBacktest):
             # Мы сохранили rsi, macd, volume_ratio в объекте position при открытии
 
             # Определяем результат (WIN/LOSS/NEUTRAL)
-            if trade['pnl_percent'] > 0.5:  # Минимум 0.5% прибыли для WIN
+            if trade["pnl_percent"] > 0.5:  # Минимум 0.5% прибыли для WIN
                 result = "WIN"
-            elif trade['pnl_percent'] < -0.5:  # Минимум 0.5% убытка для LOSS
+            elif trade["pnl_percent"] < -0.5:  # Минимум 0.5% убытка для LOSS
                 result = "LOSS"
             else:
                 result = "NEUTRAL"
@@ -67,8 +63,11 @@ class PatternGeneratorBacktest(AdvancedBacktest):
             # Собираем индикаторы
             bb_upper = position.get("bb_upper", 1)
             bb_lower = position.get("bb_lower", 0)
-            bb_pos = (position.get("entry_price", 0) - bb_lower) / (bb_upper - bb_lower) \
-                if "bb_upper" in position else 0.5
+            bb_pos = (
+                (position.get("entry_price", 0) - bb_lower) / (bb_upper - bb_lower)
+                if "bb_upper" in position
+                else 0.5
+            )
 
             indicators = {
                 "rsi": position.get("rsi", 50.0),
@@ -76,40 +75,40 @@ class PatternGeneratorBacktest(AdvancedBacktest):
                 "volume_ratio": position.get("volume_ratio", 1.0),
                 "volatility": position.get("volatility", 0.0),
                 "trend_strength": position.get("trend_strength", 0.0),
-                "bb_position": bb_pos
+                "bb_position": bb_pos,
             }
 
             # Добавляем в систему обучения
-            entry_time = trade['entry_time']
-            if hasattr(entry_time, 'to_pydatetime'):
+            entry_time = trade["entry_time"]
+            if hasattr(entry_time, "to_pydatetime"):
                 pattern_timestamp = entry_time.to_pydatetime()
             else:
                 pattern_timestamp = entry_time
 
             pattern = TradingPattern(
-                symbol=trade['symbol'],
+                symbol=trade["symbol"],
                 timestamp=pattern_timestamp,
-                signal_type=trade['direction'],
-                entry_price=trade['entry_price'],
-                tp1=position.get('tp1_price', trade['entry_price'] * 1.02),
-                tp2=position.get('tp2_price', trade['entry_price'] * 1.04),
+                signal_type=trade["direction"],
+                entry_price=trade["entry_price"],
+                tp1=position.get("tp1_price", trade["entry_price"] * 1.02),
+                tp2=position.get("tp2_price", trade["entry_price"] * 1.04),
                 risk_pct=self.risk_per_trade,
-                leverage=position.get('leverage_used', self.leverage),
+                leverage=position.get("leverage_used", self.leverage),
                 indicators=indicators,
                 market_conditions={
                     "btc_trend": position.get("btc_trend"),
-                    "exit_reason": exit_reason
+                    "exit_reason": exit_reason,
                 },
                 result=result,
-                profit_pct=trade['pnl_percent']
+                profit_pct=trade["pnl_percent"],
             )
 
             self.ai_learning.add_pattern(pattern)
             logger.debug(
                 "📥 Паттерн добавлен: %s %s (PnL: %.2f%%)",
-                trade['symbol'],
+                trade["symbol"],
                 result,
-                trade['pnl_percent']
+                trade["pnl_percent"],
             )
 
         except Exception as e:
@@ -140,11 +139,7 @@ async def main():
         data_dict = await loader.load_multiple_symbols(symbols, interval="1h", days=args.days)
 
     # 2. Запуск бектеста-генератора
-    backtest = PatternGeneratorBacktest(
-        initial_balance=10000.0,
-        risk_per_trade=2.0,
-        leverage=2.0
-    )
+    backtest = PatternGeneratorBacktest(initial_balance=10000.0, risk_per_trade=2.0, leverage=2.0)
 
     for symbol in symbols:
         if symbol not in data_dict or data_dict[symbol].empty:

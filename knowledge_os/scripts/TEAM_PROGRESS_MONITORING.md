@@ -10,11 +10,13 @@
 ### Автоматические проверки
 
 #### 1. Скрипт проверки прогресса
+
 ```bash
 python3 scripts/team_progress_tracker.py
 ```
 
 **Что проверяет:**
+
 - ✅ Логирование фильтров в БД (записи в `filter_checks`)
 - ✅ Запись `quality_score` (значения > 0)
 - ✅ Наличие файлов кода (filter_logger.py)
@@ -22,6 +24,7 @@ python3 scripts/team_progress_tracker.py
 - ✅ Наличие отчетов
 
 #### 2. Быстрая проверка
+
 ```bash
 bash scripts/check_team_progress.sh
 ```
@@ -31,12 +34,14 @@ bash scripts/check_team_progress.sh
 ## 📋 ЧЕКЛИСТ ВЫПОЛНЕНИЯ ЗАДАЧ
 
 ### Сотрудник 1: Аналитик данных
+
 - [ ] Отчет о текущем состоянии создан
 - [ ] Список всех фильтров составлен
 - [ ] Места для логирования найдены
 - [ ] Документация обновлена
 
 **Проверка:**
+
 ```bash
 # Проверить наличие отчета
 ls -la scripts/reports/analysis_report.md
@@ -45,12 +50,14 @@ ls -la scripts/reports/analysis_report.md
 ---
 
 ### Сотрудник 2: Backend (БД) - Логирование фильтров
+
 - [ ] Файл `src/utils/filter_logger.py` создан
 - [ ] Функция `log_filter_check()` работает
 - [ ] Логирование добавлено во все фильтры
 - [ ] Таблица `filter_checks` заполняется данными
 
 **Проверка:**
+
 ```bash
 # Проверить наличие файла
 ls -la src/utils/filter_logger.py
@@ -73,12 +80,14 @@ conn.close()
 ---
 
 ### Сотрудник 3: Backend (Качество) - quality_score
+
 - [ ] Функция расчета `quality_score` найдена
 - [ ] Проблема с записью исправлена
 - [ ] `quality_score` записывается в БД
 - [ ] Значения > 0 (не все 0.00)
 
 **Проверка:**
+
 ```bash
 python3 -c "
 import sqlite3
@@ -101,12 +110,14 @@ conn.close()
 ---
 
 ### Сотрудник 4: QA - Тестирование
+
 - [ ] Тесты для логирования созданы
 - [ ] Тесты для quality_score созданы
 - [ ] Все тесты проходят
 - [ ] Данные записываются корректно
 
 **Проверка:**
+
 ```bash
 # Проверить наличие тестов
 ls -la tests/test_filter_logging.py
@@ -122,12 +133,14 @@ python3 -m pytest tests/test_quality_score.py -v
 ---
 
 ### Сотрудник 5: Frontend - Отчеты
+
 - [ ] `full_signal_report.py` обновлен
 - [ ] Дашборд создан
 - [ ] Визуализация работает
 - [ ] Отчеты показывают статистику по фильтрам
 
 **Проверка:**
+
 ```bash
 # Проверить наличие отчетов
 ls -la scripts/full_signal_report.py
@@ -142,12 +155,14 @@ python3 scripts/full_signal_report.py
 ---
 
 ### Сотрудник 6: DevOps - Мониторинг
+
 - [ ] Мониторинг настроен
 - [ ] Алерты работают
 - [ ] Дашборд показывает данные
 - [ ] Автоматические проверки работают
 
 **Проверка:**
+
 ```bash
 # Проверить скрипты мониторинга
 ls -la scripts/monitor_filter_logging.py
@@ -159,12 +174,14 @@ ls -la scripts/check_data_quality.py
 ---
 
 ### Сотрудник 7: Техлид - Координация
+
 - [ ] Все изменения интегрированы
 - [ ] Код-ревью пройден
 - [ ] Деплой выполнен
 - [ ] Работа проверена на продакшене
 
 **Проверка:**
+
 ```bash
 # Проверить статус git
 git status
@@ -178,11 +195,13 @@ ssh root@185.177.216.15 "cd /root/atra && python3 scripts/team_progress_tracker.
 ## 🔄 РЕГУЛЯРНЫЕ ПРОВЕРКИ
 
 ### Ежедневно (10:00 и 18:00)
+
 ```bash
 python3 scripts/team_progress_tracker.py
 ```
 
 ### На сервере
+
 ```bash
 ssh root@185.177.216.15 "cd /root/atra && python3 scripts/team_progress_tracker.py"
 ```
@@ -218,11 +237,13 @@ ssh root@185.177.216.15 "cd /root/atra && python3 scripts/team_progress_tracker.
 ## 🚨 АЛЕРТЫ
 
 ### Критические проблемы:
+
 - ❌ Нет записей в `filter_checks` более 2 часов
 - ❌ Все `quality_score = 0.00` более 24 часов
 - ❌ Тесты не проходят
 
 ### Предупреждения:
+
 - ⚠️ Мало записей в `filter_checks` (< 10 за час)
 - ⚠️ Меньше 30% сигналов имеют `quality_score > 0`
 
@@ -231,11 +252,11 @@ ssh root@185.177.216.15 "cd /root/atra && python3 scripts/team_progress_tracker.
 ## 📝 ОТЧЕТЫ
 
 ### Ежедневный отчет:
+
 - Автоматически генерируется скриптом
 - Сохраняется в `scripts/reports/team_progress_report.md`
 - Отправляется в Telegram группу (если настроено)
 
 ---
 
-*Система мониторинга создана для отслеживания прогресса команды*
-
+_Система мониторинга создана для отслеживания прогресса команды_

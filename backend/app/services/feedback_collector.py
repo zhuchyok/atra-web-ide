@@ -107,20 +107,11 @@ class FeedbackCollector:
         """Классификация проблемы на основе отзыва."""
         if comment:
             comment_lower = comment.lower()
-            if any(
-                w in comment_lower
-                for w in ["неправильно", "ошибка", "incorrect", "wrong"]
-            ):
+            if any(w in comment_lower for w in ["неправильно", "ошибка", "incorrect", "wrong"]):
                 return "incorrect"
-            if any(
-                w in comment_lower
-                for w in ["не по теме", "irrelevant", "off-topic"]
-            ):
+            if any(w in comment_lower for w in ["не по теме", "irrelevant", "off-topic"]):
                 return "irrelevant"
-            if any(
-                w in comment_lower
-                for w in ["неполный", "мало информации", "incomplete"]
-            ):
+            if any(w in comment_lower for w in ["неполный", "мало информации", "incomplete"]):
                 return "incomplete"
         return "confusing" if rating == 2 else "incorrect"
 

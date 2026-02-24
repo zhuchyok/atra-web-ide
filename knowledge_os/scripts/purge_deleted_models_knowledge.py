@@ -4,6 +4,7 @@
 Запускать после миграции purge_deleted_models_data.sql по желанию.
 Использование: DATABASE_URL=... python scripts/purge_deleted_models_knowledge.py
 """
+
 import asyncio
 import os
 import sys

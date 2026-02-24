@@ -1,0 +1,75 @@
+# Commitlint CI
+# Based on Element Plus lint-commit-message
+# Validates commit messages on PR
+
+name: Lint Commit Messages
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  commitlint:
+    name: Validate Commit Messages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      
+      - name: Install commitlint
+        run: |
+          npm install --save-dev @commitlint/cli @commitlint/config-conventional
+      
+      - name: Validate PR commits
+        run: |
+          # Get all commits in this PR
+          commits=$(git log --format=%H ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          
+          echo "📝 Validating commits:"
+          echo "$commits"
+          echo ""
+          
+          failed=0
+          for commit in $commits; do
+            message=$(git log --format=%B -n 1 $commit)
+            echo "Checking: $commit"
+            echo "Message: $message"
+            
+            if echo "$message" | npx commitlint --config .commitlintrc.json; then
+              echo "✅ Valid"
+            else
+              echo "❌ Invalid"
+              failed=$((failed + 1))
+            fi
+            echo ""
+          done
+          
+          if [ $failed -gt 0 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "❌ $failed commit(s) failed validation"
+            echo ""
+            echo "Commit message format: <type>(<scope>): <subject>"
+            echo ""
+            echo "Examples:"
+            echo "  feat(backend): add new API endpoint"
+            echo "  fix(frontend): resolve chat rendering issue"
+            echo "  docs: update README with new instructions"
+            echo ""
+            echo "Valid types: feat, fix, docs, style, refactor,"
+            echo "             perf, test, build, ci, chore, revert"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 1
+          fi
+          
+          echo "✅ All commits are valid!"

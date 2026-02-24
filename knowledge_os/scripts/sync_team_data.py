@@ -10,13 +10,13 @@
 - Общие данные команды
 """
 
+import json
 import os
 import shutil
 import subprocess
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
-from datetime import datetime, timezone
 
 # Конфигурация синхронизации
 SYNC_CONFIG = {
@@ -64,7 +64,7 @@ class TeamDataSync:
 
         git_dir = self.local_dir / ".git"
         if not git_dir.exists():
-            print(f"🔧 Инициализация Git репозитория...")
+            print("🔧 Инициализация Git репозитория...")
             try:
                 subprocess.run(
                     ["git", "init"],
@@ -107,9 +107,7 @@ class TeamDataSync:
         learning_dir = self.project_root / "scripts" / "learning_programs"
         if learning_dir.exists():
             for file in learning_dir.glob("*_program.md"):
-                files["learning_programs"].append(
-                    str(file.relative_to(self.project_root))
-                )
+                files["learning_programs"].append(str(file.relative_to(self.project_root)))
 
         # Правила
         rules_file = self.project_root / ".cursorrules"
@@ -131,9 +129,7 @@ class TeamDataSync:
                         "best_practices",
                     ]
                 ):
-                    files["management"].append(
-                        str(file.relative_to(self.project_root))
-                    )
+                    files["management"].append(str(file.relative_to(self.project_root)))
 
         return files
 
@@ -225,7 +221,7 @@ class TeamDataSync:
             print("❌ Индекс данных не найден")
             return False
 
-        with open(index_file, "r", encoding="utf-8") as f:
+        with open(index_file, encoding="utf-8") as f:
             index_data = json.load(f)
 
         # Копирование файлов обратно в проект
@@ -246,7 +242,9 @@ class TeamDataSync:
         """Показывает статус синхронизации."""
         status = {
             "local_repo_exists": self.local_dir.exists(),
-            "git_initialized": (self.local_dir / ".git").exists() if self.local_dir.exists() else False,
+            "git_initialized": (self.local_dir / ".git").exists()
+            if self.local_dir.exists()
+            else False,
             "files_count": 0,
             "last_sync": None,
         }
@@ -254,7 +252,7 @@ class TeamDataSync:
         if self.local_dir.exists():
             index_file = self.local_dir / "team_data_index.json"
             if index_file.exists():
-                with open(index_file, "r", encoding="utf-8") as f:
+                with open(index_file, encoding="utf-8") as f:
                     index_data = json.load(f)
                     status["last_sync"] = index_data.get("last_sync")
                     status["files_count"] = sum(
@@ -315,4 +313,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Экспорт метрик Sharpe/Sortino/MaxDD и др. по торговым режимам (live/backfill/futures).
 """
@@ -8,20 +7,20 @@ import argparse
 import json
 import logging
 import sys
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Optional
-
-from src.shared.utils.datetime_utils import get_utc_now
+from typing import List, Optional
 
 import numpy as np
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from performance_metrics_calculator import PerformanceMetricsCalculator
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,8 +63,12 @@ def _json_default(value):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Экспорт метрик производительности по торговым режимам")
-    parser.add_argument("--db", default="trading.db", help="Путь к БД SQLite (по умолчанию trading.db)")
+    parser = argparse.ArgumentParser(
+        description="Экспорт метрик производительности по торговым режимам"
+    )
+    parser.add_argument(
+        "--db", default="trading.db", help="Путь к БД SQLite (по умолчанию trading.db)"
+    )
     parser.add_argument(
         "--output",
         default="data/reports/performance_live_vs_backfill.json",
@@ -121,4 +124,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

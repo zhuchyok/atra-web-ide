@@ -11,6 +11,7 @@
 ## **🔍 ПРОБЛЕМА**
 
 ### **Пользователь запросил:**
+
 > "пройдись по другим типам сообщениям и проверь формат там тоже"
 
 **Проблема:** Многие сообщения в системе использовали HTML форматирование вместо единого Markdown стиля.
@@ -20,6 +21,7 @@
 ## **🎯 СТАНДАРТИЗИРОВАННЫЙ ФОРМАТ**
 
 ### **Единый стиль для всех сообщений:**
+
 - ✅ **Markdown форматирование** вместо HTML
 - ✅ **Эмодзи-навигация** для быстрого поиска информации
 - ✅ **Код-блоки** для важных данных: `` `значение` ``
@@ -33,6 +35,7 @@
 ### **1. 📝 КОМАНДА /HELP**
 
 #### **БЫЛО:**
+
 ```python
 text = (
     "<b>Доступные команды:</b>\n"
@@ -45,6 +48,7 @@ await update.message.reply_text(text, parse_mode="HTML")
 ```
 
 #### **СТАЛО:**
+
 ```python
 text = (
     "🤖 *ДОСТУПНЫЕ КОМАНДЫ*\n\n"
@@ -58,6 +62,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ### **2. 💰 КОМАНДА /BALANCE**
 
 #### **БЫЛО:**
+
 ```python
 msg = (
     f"💰 <b>ВАШ БАЛАНС</b>\n\n"
@@ -69,6 +74,7 @@ await update.message.reply_text(msg, parse_mode='HTML')
 ```
 
 #### **СТАЛО:**
+
 ```python
 msg = (
     f"💰 *ВАШ БАЛАНС*\n\n"
@@ -82,12 +88,14 @@ await update.message.reply_text(msg, parse_mode='Markdown')
 ### **3. 📊 КОМАНДА /STATUS**
 
 #### **БЫЛО:**
+
 ```python
 status += f"Сигналов за сегодня: <b>{n_signals}</b>\n"
 await update.message.reply_text(status, parse_mode="HTML")
 ```
 
 #### **СТАЛО:**
+
 ```python
 status += f"📊 **Сигналов за сегодня:** `{n_signals}`\n"
 await update.message.reply_text(status, parse_mode="Markdown")
@@ -96,6 +104,7 @@ await update.message.reply_text(status, parse_mode="Markdown")
 ### **4. 🤖 КОМАНДА /HEALTH**
 
 #### **БЫЛО:**
+
 ```python
 text = "<b>Статус бота:</b>\n"
 text += "Работает ✅\n"
@@ -104,6 +113,7 @@ await update.message.reply_text(text, parse_mode="HTML")
 ```
 
 #### **СТАЛО:**
+
 ```python
 text = "🤖 *СТАТУС БОТА*\n\n"
 text += "✅ **Работает**\n"
@@ -114,6 +124,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ### **5. 🤖 КОМАНДА /ML_REPORT**
 
 #### **БЫЛО:**
+
 ```python
 text = "<b>ML-отчёт (бета):</b>\n"
 text += "<b>Топ-5 лучших сделок:</b>\n"
@@ -122,6 +133,7 @@ await update.message.reply_text(text, parse_mode="HTML")
 ```
 
 #### **СТАЛО:**
+
 ```python
 text = "🤖 *ML-ОТЧЁТ (БЕТА)*\n\n"
 text += "🏆 **Топ-5 лучших сделок:**\n"
@@ -132,6 +144,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ### **6. 📊 КОМАНДА /POSITIONS**
 
 #### **БЫЛО:**
+
 ```python
 await update.message.reply_text("📊 Нет открытых позиций.")
 text = f"📊 <b>Открытые позиции ({len(open_positions)}):</b>\n\n"
@@ -141,6 +154,7 @@ await update.message.reply_text(text, parse_mode="HTML")
 ```
 
 #### **СТАЛО:**
+
 ```python
 await update.message.reply_text("📊 Нет открытых позиций.", parse_mode="Markdown")
 text = f"📊 *Открытые позиции ({len(open_positions)}):*\n\n"
@@ -154,24 +168,28 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ## **📊 КЛЮЧЕВЫЕ УЛУЧШЕНИЯ**
 
 ### **1. 🎨 Визуальная консистентность:**
+
 - ✅ **Единый стиль** для всех команд
 - ✅ **Markdown форматирование** вместо HTML
 - ✅ **Эмодзи-навигация** для быстрого поиска
 - ✅ **Код-блоки** для важных данных
 
 ### **2. 📱 Улучшенная читаемость:**
+
 - ✅ **Структурированная информация** с эмодзи
 - ✅ **Код-блоки** для команд и значений
 - ✅ **Жирный текст** для заголовков
 - ✅ **Курсив** для секций
 
 ### **3. 🔧 Технические улучшения:**
+
 - ✅ **Переход с HTML на Markdown** - более современный формат
 - ✅ **Единообразные эмодзи** - консистентность
 - ✅ **Правильные отступы** - улучшенная структура
 - ✅ **Копируемые команды** - удобство использования
 
 ### **4. 📊 Информативность:**
+
 - ✅ **Полные данные** во всех сообщениях
 - ✅ **Структурированная подача** информации
 - ✅ **Эмодзи для навигации** - легко найти нужное
@@ -182,6 +200,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ## **✅ РЕЗУЛЬТАТ**
 
 ### **Стандартизированные команды:**
+
 1. ✅ **`/help`** - полная стандартизация
 2. ✅ **`/balance`** - полная стандартизация
 3. ✅ **`/status`** - полная стандартизация
@@ -191,6 +210,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 7. ✅ **`/open_trades`** - полная стандартизация
 
 ### **Преимущества нового формата:**
+
 - 🎯 **Профессиональный вид** - современный дизайн
 - 📱 **Мобильная оптимизация** - удобно на всех устройствах
 - 🔍 **Быстрая навигация** - эмодзи для поиска информации
@@ -204,6 +224,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 **✅ ЗАДАЧА ВЫПОЛНЕНА ПОЛНОСТЬЮ**
 
 Все основные команды приведены к единому стандарту:
+
 - Markdown форматирование ✅
 - Эмодзи-навигация ✅
 - Код-блоки для важных данных ✅
@@ -217,6 +238,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ## **📋 ПРИМЕРЫ РЕЗУЛЬТАТА**
 
 ### **Команда /help:**
+
 ```
 🤖 *ДОСТУПНЫЕ КОМАНДЫ*
 
@@ -234,6 +256,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ```
 
 ### **Команда /balance:**
+
 ```
 💰 *ВАШ БАЛАНС*
 
@@ -248,6 +271,7 @@ await update.message.reply_text(text, parse_mode="Markdown")
 ```
 
 ### **Команда /health:**
+
 ```
 🤖 *СТАТУС БОТА*
 

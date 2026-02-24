@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Проверка восстановления из последнего backup/trading.db_*.
 Создаёт временный каталог, копирует свежий бэкап, проверяет наличие таблиц и закрывает соединение.
@@ -33,7 +32,9 @@ def required_tables(conn: sqlite3.Connection) -> List[str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Тест восстановления из последнего backup/trading.db_*")
+    parser = argparse.ArgumentParser(
+        description="Тест восстановления из последнего backup/trading.db_*"
+    )
     parser.add_argument("--backups-dir", default="backups")
     parser.add_argument("--required", nargs="+", default=["trades", "signals_log", "risk_flags"])
     args = parser.parse_args()
@@ -59,4 +60,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

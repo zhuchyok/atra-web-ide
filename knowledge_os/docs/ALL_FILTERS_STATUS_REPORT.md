@@ -8,25 +8,25 @@
 
 ### 📋 Список всех фильтров (17 фильтров)
 
-| № | Фильтр | Статус | Интеграция | Метрики |
-|---|--------|--------|------------|---------|
-| 1 | BTC Trend Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 2 | ETH Trend Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 3 | SOL Trend Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 4 | Dominance Trend Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 5 | Interest Zone Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 6 | Fibonacci Zone Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 7 | Volume Imbalance Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 8 | Volume Profile Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 9 | VWAP Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 10 | Order Flow Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 11 | Exhaustion Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 12 | Microstructure Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 13 | Momentum Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 14 | Trend Strength Filter | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть |
-| 15 | **AMT Filter** | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
-| 16 | **Market Profile Filter** | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
-| 17 | **Institutional Patterns Filter** | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
+| №   | Фильтр                            | Статус     | Интеграция      | Метрики       |
+| --- | --------------------------------- | ---------- | --------------- | ------------- |
+| 1   | BTC Trend Filter                  | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 2   | ETH Trend Filter                  | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 3   | SOL Trend Filter                  | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 4   | Dominance Trend Filter            | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 5   | Interest Zone Filter              | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 6   | Fibonacci Zone Filter             | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 7   | Volume Imbalance Filter           | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 8   | Volume Profile Filter             | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 9   | VWAP Filter                       | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 10  | Order Flow Filter                 | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 11  | Exhaustion Filter                 | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 12  | Microstructure Filter             | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 13  | Momentum Filter                   | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 14  | Trend Strength Filter             | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Есть       |
+| 15  | **AMT Filter**                    | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
+| 16  | **Market Profile Filter**         | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
+| 17  | **Institutional Patterns Filter** | ✅ ВКЛЮЧЕН | ✅ Интегрирован | ✅ Prometheus |
 
 ---
 
@@ -37,6 +37,7 @@
 **Статус:** ✅ Полностью интегрирован
 
 **Интеграция:**
+
 - ✅ Импортирован в `src/signals/core.py`
 - ✅ Проверяется в `strict_entry_signal()` (LONG и SHORT)
 - ✅ Проверяется в `soft_entry_signal()` (LONG и SHORT)
@@ -44,11 +45,13 @@
 - ✅ Конфигурация `AMT_FILTER_CONFIG` определена
 
 **Метрики:**
+
 - ✅ `record_amt_phase()` - записывается при определении фазы
 - ✅ `record_filter_check()` - записывается при каждой проверке
 - ✅ `record_indicator_processing_time()` - записывается время обработки
 
 **Файлы:**
+
 - `src/analysis/auction_market_theory.py` - анализатор
 - `src/filters/amt_filter.py` - фильтр
 - `tests/unit/test_amt.py` - unit-тесты
@@ -61,6 +64,7 @@
 **Статус:** ✅ Полностью интегрирован
 
 **Интеграция:**
+
 - ✅ Импортирован в `src/signals/core.py`
 - ✅ Проверяется в `strict_entry_signal()` (LONG и SHORT)
 - ✅ Проверяется в `soft_entry_signal()` (LONG и SHORT)
@@ -68,11 +72,13 @@
 - ✅ Конфигурация `MARKET_PROFILE_FILTER_CONFIG` определена
 
 **Метрики:**
+
 - ✅ `record_tpo_poc()` - записывается при обнаружении TPO POC
 - ✅ `record_filter_check()` - записывается при каждой проверке
 - ✅ `record_indicator_processing_time()` - записывается время обработки
 
 **Файлы:**
+
 - `src/analysis/market_profile.py` - анализатор TPO
 - `src/filters/market_profile_filter.py` - фильтр
 - `tests/unit/test_market_profile.py` - unit-тесты
@@ -85,17 +91,20 @@
 **Статус:** ✅ Полностью интегрирован
 
 **Интеграция:**
+
 - ✅ Импортирован в `signal_live.py`
 - ✅ Проверяется в функции `check_new_filters()`
 - ✅ Флаг `USE_INSTITUTIONAL_PATTERNS_FILTER` используется
 - ✅ Конфигурация `INSTITUTIONAL_PATTERNS_FILTER_CONFIG` определена
 
 **Метрики:**
+
 - ✅ `record_institutional_pattern()` - записывается при обнаружении паттернов
 - ✅ `record_filter_check()` - записывается при каждой проверке
 - ✅ `record_indicator_processing_time()` - записывается время обработки
 
 **Файлы:**
+
 - `src/analysis/institutional_patterns.py` - детектор паттернов
 - `src/filters/institutional_patterns_filter.py` - фильтр
 - `ml/features/institutional_patterns_features.py` - ML features
@@ -124,6 +133,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 ### src/signals/core.py
 
 **AMT Filter:**
+
 - ✅ Импорт: `from src.filters.amt_filter import check_amt_filter`
 - ✅ Проверка доступности: `AMT_FILTER_AVAILABLE`
 - ✅ Проверка флага: `USE_AMT_FILTER`
@@ -131,6 +141,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 - ✅ Вызовы в soft режиме (LONG и SHORT)
 
 **Market Profile Filter:**
+
 - ✅ Импорт: `from src.filters.market_profile_filter import check_market_profile_filter`
 - ✅ Проверка доступности: `MARKET_PROFILE_FILTER_AVAILABLE`
 - ✅ Проверка флага: `USE_MARKET_PROFILE_FILTER`
@@ -140,6 +151,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 ### signal_live.py
 
 **Institutional Patterns Filter:**
+
 - ✅ Импорт: `from src.filters.institutional_patterns_filter import check_institutional_patterns_filter`
 - ✅ Проверка доступности: `INSTITUTIONAL_PATTERNS_FILTER_AVAILABLE`
 - ✅ Проверка флага: `USE_INSTITUTIONAL_PATTERNS_FILTER`
@@ -174,18 +186,21 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 ### Использование метрик в фильтрах:
 
 **AMT Filter:**
+
 - ✅ Импорт метрик
 - ✅ `record_amt_phase()` вызывается
 - ✅ `record_filter_check()` вызывается во всех местах возврата
 - ✅ `record_indicator_processing_time()` вызывается
 
 **Market Profile Filter:**
+
 - ✅ Импорт метрик
 - ✅ `record_tpo_poc()` вызывается
 - ✅ `record_filter_check()` вызывается во всех местах возврата
 - ✅ `record_indicator_processing_time()` вызывается
 
 **Institutional Patterns Filter:**
+
 - ✅ Импорт метрик
 - ✅ `record_institutional_pattern()` вызывается
 - ✅ `record_filter_check()` вызывается во всех местах возврата
@@ -232,6 +247,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 ✅ **Система полностью готова к использованию**
 
 Все фильтры:
+
 - Включены в конфигурации
 - Интегрированы в код
 - Имеют метрики Prometheus
@@ -253,4 +269,3 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER
 **Версия отчета:** 1.0  
 **Дата:** 2024  
 **Статус:** ✅ ВСЕ ФИЛЬТРЫ ВКЛЮЧЕНЫ И ПРОВЕРЕНЫ
-

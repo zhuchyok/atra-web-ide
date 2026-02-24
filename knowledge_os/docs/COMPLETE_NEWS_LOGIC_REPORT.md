@@ -3,6 +3,7 @@
 ## 🎯 **ОБЩАЯ СХЕМА:**
 
 ### **📊 Режимы новостей:**
+
 ```python
 NEWS_FILTER_MODES = {
     "conservative": {
@@ -19,6 +20,7 @@ NEWS_FILTER_MODES = {
 ```
 
 ### **💰 Режимы торговли:**
+
 - **SPOT** - только LONG позиции, без плеча (1x)
 - **FUTURES** - LONG и SHORT позиции, динамическое плечо (0.5x-5x)
 
@@ -29,6 +31,7 @@ NEWS_FILTER_MODES = {
 ### **1️⃣ SPOT ПОЛЬЗОВАТЕЛИ:**
 
 #### **📰 Conservative режим новостей:**
+
 ```
 ✅ ПОЗИТИВНЫЕ НОВОСТИ:
    • Генерируют LONG сигналы
@@ -42,6 +45,7 @@ NEWS_FILTER_MODES = {
 ```
 
 #### **📰 Aggressive режим новостей:**
+
 ```
 ✅ ПОЗИТИВНЫЕ НОВОСТИ:
    • Генерируют LONG сигналы
@@ -57,6 +61,7 @@ NEWS_FILTER_MODES = {
 ### **2️⃣ FUTURES ПОЛЬЗОВАТЕЛИ:**
 
 #### **📰 Conservative режим новостей:**
+
 ```
 ✅ ПОЗИТИВНЫЕ НОВОСТИ:
    • Генерируют LONG сигналы
@@ -72,6 +77,7 @@ NEWS_FILTER_MODES = {
 ```
 
 #### **📰 Aggressive режим новостей:**
+
 ```
 ✅ ПОЗИТИВНЫЕ НОВОСТИ:
    • Генерируют LONG сигналы
@@ -91,6 +97,7 @@ NEWS_FILTER_MODES = {
 ## 🔄 **АЛГОРИТМ ОБРАБОТКИ НОВОСТЕЙ:**
 
 ### **1. Проверка негативных новостей:**
+
 ```python
 if news_blocked is True:  # Обнаружены негативные новости
     for user_id, user_data in user_data_dict.items():
@@ -113,6 +120,7 @@ if news_blocked is True:  # Обнаружены негативные новос
 ```
 
 ### **2. Проверка позитивных новостей:**
+
 ```python
 positive_news_found, positive_news_post = await is_positive_news(symbol)
 if positive_news_found:
@@ -121,6 +129,7 @@ if positive_news_found:
 ```
 
 ### **3. Генерация сигналов:**
+
 ```python
 # Для каждого пользователя:
 if positive_news_flag:
@@ -140,18 +149,19 @@ if negative_news_flag and user_data.get('trade_mode') == 'futures':
 
 ## 📋 **ТАБЛИЦА ПОВЕДЕНИЯ:**
 
-| Режим торговли | Режим новостей | Позитивные новости | Негативные новости |
-|----------------|----------------|-------------------|-------------------|
-| **SPOT** | Conservative | ✅ LONG сигналы | ❌ Блокирует все |
-| **SPOT** | Aggressive | ✅ LONG сигналы | ✅ Технические сигналы |
-| **FUTURES** | Conservative | ✅ LONG, ❌ SHORT | ✅ SHORT, ❌ LONG |
-| **FUTURES** | Aggressive | ✅ LONG, ✅ SHORT | ✅ SHORT, ✅ LONG |
+| Режим торговли | Режим новостей | Позитивные новости | Негативные новости     |
+| -------------- | -------------- | ------------------ | ---------------------- |
+| **SPOT**       | Conservative   | ✅ LONG сигналы    | ❌ Блокирует все       |
+| **SPOT**       | Aggressive     | ✅ LONG сигналы    | ✅ Технические сигналы |
+| **FUTURES**    | Conservative   | ✅ LONG, ❌ SHORT  | ✅ SHORT, ❌ LONG      |
+| **FUTURES**    | Aggressive     | ✅ LONG, ✅ SHORT  | ✅ SHORT, ✅ LONG      |
 
 ---
 
 ## 🎯 **ПРИМЕРЫ СЦЕНАРИЕВ:**
 
 ### **Сценарий 1: XRPUSDT + Негативные новости**
+
 ```
 Пользователь 958930260:
 • Режим торговли: FUTURES
@@ -160,6 +170,7 @@ if negative_news_flag and user_data.get('trade_mode') == 'futures':
 ```
 
 ### **Сценарий 2: BTCUSDT + Позитивные новости**
+
 ```
 Пользователь 556251171:
 • Режим торговли: SPOT
@@ -168,6 +179,7 @@ if negative_news_flag and user_data.get('trade_mode') == 'futures':
 ```
 
 ### **Сценарий 3: ETHUSDT + Негативные новости**
+
 ```
 Пользователь 556251171:
 • Режим торговли: SPOT
@@ -180,12 +192,14 @@ if negative_news_flag and user_data.get('trade_mode') == 'futures':
 ## 🔧 **ТЕХНИЧЕСКАЯ РЕАЛИЗАЦИЯ:**
 
 ### **Ключевые переменные:**
+
 - `negative_news_flag` - флаг негативных новостей
 - `positive_news_flag` - флаг позитивных новостей
 - `news_blocked` - статус блокировки по новостям
 - `block_until` - время до снятия блокировки
 
 ### **Функции новостей:**
+
 - `is_negative_news(symbol)` - проверка негативных новостей
 - `is_positive_news(symbol)` - проверка позитивных новостей
 - `create_news_summary(title)` - создание краткого описания
@@ -196,12 +210,15 @@ if negative_news_flag and user_data.get('trade_mode') == 'futures':
 ## 📊 **ИТОГ:**
 
 ### **✅ SPOT пользователи:**
+
 - **Conservative**: защита от негативных новостей
 - **Aggressive**: активная торговля без блокировок
 
 ### **✅ FUTURES пользователи:**
+
 - **Conservative**: строгий контроль по новостям
 - **Aggressive**: максимальная активность торговли
 
 ### **🎯 Главный принцип:**
+
 **Для фьючерсов негативные новости ВСЕГДА усиливают SHORT сигналы, независимо от режима новостей!**

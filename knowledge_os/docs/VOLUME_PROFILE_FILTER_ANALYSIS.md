@@ -11,6 +11,7 @@ USE_VWAP_FILTER = os.getenv("USE_VWAP_FILTER", "true").lower() in ("1", "true", 
 ```
 
 **Текущее состояние:**
+
 - `USE_VP_FILTER`: По умолчанию `true` (включен)
 - `USE_VWAP_FILTER`: По умолчанию `true` (включен)
 - `DISABLE_EXTRA_FILTERS`: Контролирует другие фильтры (Order Flow, Microstructure, Momentum, Trend Strength, AMT)
@@ -56,6 +57,7 @@ value_area_pct = max(0.5, min(0.8, 0.5 + volume_profile_threshold * 0.2))
 ```
 
 **Формулы:**
+
 - `tolerance_pct = (1.0 / threshold) * 3.0` (инвертированная зависимость)
 - `value_area_pct = 0.5 + threshold * 0.2` (прямая зависимость)
 
@@ -70,16 +72,16 @@ if side.lower() == "long":
         distance_from_val_pct = abs(current_price - val) / current_price * 100
         if distance_from_val_pct <= tolerance_pct:
             return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 2. Проверка: цена ниже POC
     if current_price <= poc:
         return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 3. Проверка: цена в пределах Value Area (только в мягком режиме)
     if not strict_mode and vah and val:
         if val <= current_price <= vah:
             return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 4. Если ничего не подошло - БЛОКИРУЕТ
     return False, "LONG: цена не вблизи VAL или ниже POC"
 ```
@@ -93,16 +95,16 @@ if side.lower() == "short":
         distance_from_vah_pct = abs(current_price - vah) / current_price * 100
         if distance_from_vah_pct <= tolerance_pct:
             return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 2. Проверка: цена выше POC
     if current_price >= poc:
         return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 3. Проверка: цена в пределах Value Area (только в мягком режиме)
     if not strict_mode and vah and val:
         if val <= current_price <= vah:
             return True, None  # ✅ ПРОПУСКАЕТ
-    
+
     # 4. Если ничего не подошло - БЛОКИРУЕТ
     return False, "SHORT: цена не вблизи VAH или выше POC"
 ```
@@ -112,6 +114,7 @@ if side.lower() == "short":
 **Файл:** `src/analysis/volume_profile.py`, класс `VolumeProfileAnalyzer`
 
 **Алгоритм:**
+
 1. **Lookback период:** 30 свечей (soft mode) или 50 свечей (strict mode)
 2. **Распределение объема:** Объем каждой свечи распределяется по 3-5 точкам внутри диапазона цены
 3. **Бины:** 50 бинов для гистограммы
@@ -119,6 +122,7 @@ if side.lower() == "short":
 5. **Value Area:** Зона, содержащая `value_area_pct` (50%-70%) от общего объема
 
 **Формула Value Area:**
+
 ```python
 target_volume = total_volume * value_area_pct
 # Находим бины с наибольшим объемом до достижения target_volume
@@ -151,6 +155,7 @@ volume_profile = {
 ### 3.2. Пример проверки сигнала
 
 **Входные данные:**
+
 ```python
 symbol = "BTCUSDT"
 current_price = 43100.0
@@ -160,12 +165,14 @@ strict_mode = False
 ```
 
 **Расчет параметров:**
+
 ```python
 tolerance_pct = (1.0 / 0.6) * 3.0 = 5.0%  # Допустимое отклонение
 value_area_pct = 0.5 + 0.6 * 0.2 = 0.62 = 62%  # Размер Value Area
 ```
 
 **Проверка:**
+
 ```python
 # 1. Проверка расстояния от VAL
 val = 43000.0
@@ -220,6 +227,7 @@ current_results = {
 **Гипотеза 1: Фильтр слишком мягкий в soft mode**
 
 В строке 128-130 `check_volume_profile_filter()`:
+
 ```python
 # Если цена выше POC, но в пределах Value Area - OK в мягком режиме
 if not strict_mode and vah and val:
@@ -232,6 +240,7 @@ if not strict_mode and vah and val:
 **Гипотеза 2: Параметр threshold не влияет на основную логику**
 
 Параметр `threshold` влияет только на:
+
 - `tolerance_pct` (расстояние от VAL/VAH)
 - `value_area_pct` (размер Value Area)
 
@@ -283,6 +292,7 @@ if not strict_mode and vah and val:
 **Проблема 3: Не учитывается сила Volume Profile**
 
 Текущий фильтр не учитывает:
+
 - Силу POC (объем в POC)
 - Концентрацию объема
 - Динамику изменения Volume Profile
@@ -290,6 +300,7 @@ if not strict_mode and vah and val:
 ### 6.3. Альтернативный подход
 
 Вместо блокировки сигналов, использовать Volume Profile для:
+
 1. **Корректировки размера позиции** (меньше позиция в зонах низкой ликвидности)
 2. **Корректировки TP/SL** (ближе к POC/Value Area)
 3. **Приоритизации сигналов** (выше приоритет для сигналов в Value Area)
@@ -333,6 +344,7 @@ if not strict_mode and vah and val:
 - **Пропущено:** 70 (2.8%)
 
 **Причины отклонений:**
+
 - Цена не вблизи VAL/VAH: ~60%
 - Цена не ниже/выше POC: ~30%
 - Цена слишком далеко от Value Area: ~10%
@@ -390,4 +402,3 @@ print(f"Результат: {vp_ok}, Причина: {reason}")
 **Дата анализа:** 2025-11-29  
 **Версия:** 1.0  
 **Статус:** ❌ Фильтр ухудшает результаты, рекомендуется отключить
-

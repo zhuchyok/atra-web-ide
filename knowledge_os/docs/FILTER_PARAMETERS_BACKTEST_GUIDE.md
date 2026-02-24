@@ -147,6 +147,7 @@ python3 scripts/analyze_filter_parameters_results.py --param min_confidence_for_
 - **Все 5 параметров:** ~10-20 часов
 
 Время может варьироваться в зависимости от:
+
 - Количества символов
 - Периода бэктеста
 - Количества потоков
@@ -162,4 +163,3 @@ python3 scripts/analyze_filter_parameters_results.py --param min_confidence_for_
 4. Убрать "ВРЕМЕННО" из комментариев
 5. Добавить комментарии с обоснованием и ссылкой на отчет
 6. Обновить документацию
-

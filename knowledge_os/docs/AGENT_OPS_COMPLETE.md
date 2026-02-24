@@ -12,6 +12,7 @@
 **Файл:** `observability/metrics.py`
 
 **Метрики:**
+
 - ✅ `agent_missions_total` - общее количество миссий
 - ✅ `agent_missions_success_total` - успешные миссии
 - ✅ `agent_missions_failed_total` - неудачные миссии
@@ -26,11 +27,13 @@
 ### 2. Автоматический сбор метрик
 
 **Интеграция:**
+
 - ✅ Автоматический сбор из `observability.tracing`
 - ✅ Обработка всех trace событий через `MetricsCollector`
 - ✅ Не блокирует trace если метрики не работают
 
 **Собираемые события:**
+
 - `mission_start` → запись начала миссии
 - `mission_complete` → запись завершения миссии с duration
 - `think/act/observe` → запись длительности шагов
@@ -40,11 +43,13 @@
 ### 3. Экспорт в Prometheus формат
 
 **Файлы:**
+
 - ✅ `scripts/export_agent_metrics.py` - CLI для экспорта метрик
 - ✅ `metrics/agent_metrics.prom` - файл с метриками в Prometheus формате
 - ✅ Автоматический экспорт в `risk_monitor` после каждого сканирования
 
 **Формат:**
+
 ```prometheus
 # HELP agent_missions_total Total number of agent missions
 # TYPE agent_missions_total counter
@@ -58,6 +63,7 @@ agent_missions_total{agent="signal_live",mission="BTCUSDT:LONG",status="success"
 ### Автоматический сбор:
 
 1. **Агент выполняет действие:**
+
    ```python
    trace = tracer.start(agent="signal_live", mission="BTCUSDT:LONG")
    trace.record(step="think", name="signal_init")
@@ -65,6 +71,7 @@ agent_missions_total{agent="signal_live",mission="BTCUSDT:LONG",status="success"
    ```
 
 2. **Trace событие автоматически обрабатывается:**
+
    ```python
    # В observability/tracing.py
    _write_event(payload)  # Записывает в лог
@@ -92,6 +99,7 @@ python3 scripts/export_agent_metrics.py --output metrics/custom.prom
 ### Автоматический экспорт:
 
 Метрики автоматически экспортируются после каждого запуска `risk_monitor`:
+
 ```python
 # В scripts/run_risk_monitor.py
 agent_metrics = get_agent_metrics()
@@ -107,26 +115,29 @@ agent_metrics.export_to_file()  # metrics/agent_metrics.prom
 ```yaml
 # prometheus.yml
 scrape_configs:
-  - job_name: 'atra_agents'
+  - job_name: "atra_agents"
     file_sd_configs:
       - files:
-        - 'metrics/agent_metrics.prom'
+          - "metrics/agent_metrics.prom"
     scrape_interval: 30s
 ```
 
 ### Примеры запросов для Grafana:
 
 **Успешность миссий:**
+
 ```promql
 rate(agent_missions_success_total[5m]) / rate(agent_missions_total[5m]) * 100
 ```
 
 **Среднее время миссии:**
+
 ```promql
 rate(agent_mission_duration_seconds_sum[5m]) / rate(agent_mission_duration_seconds_count[5m])
 ```
 
 **Количество загрузок промптов:**
+
 ```promql
 sum(rate(agent_prompt_loaded_total[5m])) by (agent)
 ```
@@ -152,6 +163,6 @@ sum(rate(agent_prompt_loaded_total[5m])) by (agent)
 ---
 
 **См. также:**
+
 - [AGENT_DEVELOPMENT_ROADMAP.md](./AGENT_DEVELOPMENT_ROADMAP.md) - полный план развития
 - [CONTEXT_ENGINEERING_COMPLETE.md](./CONTEXT_ENGINEERING_COMPLETE.md) - Context Engineering
-

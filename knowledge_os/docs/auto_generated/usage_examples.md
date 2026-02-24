@@ -96,7 +96,6 @@ related = await client.call_tool(
 )
 ```
 
-
 # Примеры использования через curl
 
 ## 1. Аутентификация

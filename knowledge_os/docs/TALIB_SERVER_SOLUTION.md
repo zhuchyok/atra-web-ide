@@ -3,12 +3,14 @@
 ## 🚨 **ПРОБЛЕМА**
 
 На сервере появляется предупреждение:
+
 ```
 ⚠️ talib не найден, но система продолжит работу
 ℹ️ talib недоступен, используется fallback режим
 ```
 
 **Причины:**
+
 1. **Разные Python интерпретаторы** - локально и на сервере
 2. **Отсутствие системных зависимостей** на сервере
 3. **Неправильные пути к модулям** в systemd/cron
@@ -19,6 +21,7 @@
 ### **Уровень 1: Автоматическая установка TA-Lib**
 
 #### **Скрипт для Ubuntu/Debian сервера:**
+
 ```bash
 #!/bin/bash
 # install_talib_server.sh
@@ -54,6 +57,7 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 ```
 
 #### **Скрипт для CentOS/RHEL сервера:**
+
 ```bash
 #!/bin/bash
 # install_talib_centos.sh
@@ -89,6 +93,7 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 ### **Уровень 2: Улучшенный Fallback режим**
 
 #### **Создание универсального talib_wrapper.py:**
+
 ```python
 #!/usr/bin/env python3
 """
@@ -105,7 +110,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="talib")
 
 def get_talib():
     """Получает talib модуль с автоматическим fallback"""
-    
+
     # Сначала пробуем стандартный импорт
     try:
         import talib
@@ -118,7 +123,7 @@ def get_talib():
     possible_paths = [
         # Стандартные пути Python
         "/usr/local/lib/python3.9/site-packages",
-        "/usr/local/lib/python3.10/site-packages", 
+        "/usr/local/lib/python3.10/site-packages",
         "/usr/local/lib/python3.11/site-packages",
         "/usr/local/lib/python3.12/site-packages",
         "/usr/lib/python3.9/site-packages",
@@ -175,23 +180,23 @@ _talib = get_talib()
 # Создаем fallback функции если talib недоступен
 if _talib is None:
     print("🔧 Создание fallback функций для talib...")
-    
+
     # Создаем заглушки для основных функций talib
     class TalibFallback:
         """Fallback класс для talib функций"""
-        
+
         @staticmethod
         def SMA(data, timeperiod=30):
             """Простая скользящая средняя"""
             import pandas as pd
             return pd.Series(data).rolling(window=timeperiod).mean().values
-        
+
         @staticmethod
         def EMA(data, timeperiod=30):
             """Экспоненциальная скользящая средняя"""
             import pandas as pd
             return pd.Series(data).ewm(span=timeperiod).mean().values
-        
+
         @staticmethod
         def RSI(data, timeperiod=14):
             """RSI индикатор"""
@@ -202,7 +207,7 @@ if _talib is None:
             rs = gain / loss
             rsi = 100 - (100 / (1 + rs))
             return rsi.values
-        
+
         @staticmethod
         def BBANDS(data, timeperiod=20, nbdevup=2, nbdevdn=2):
             """Полосы Боллинджера"""
@@ -213,7 +218,7 @@ if _talib is None:
             upper = middle + (std * nbdevup)
             lower = middle - (std * nbdevdn)
             return upper.values, middle.values, lower.values
-        
+
         @staticmethod
         def ATR(high, low, close, timeperiod=14):
             """Average True Range"""
@@ -221,15 +226,15 @@ if _talib is None:
             high_series = pd.Series(high)
             low_series = pd.Series(low)
             close_series = pd.Series(close)
-            
+
             tr1 = high_series - low_series
             tr2 = abs(high_series - close_series.shift(1))
             tr3 = abs(low_series - close_series.shift(1))
-            
+
             tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
             atr = tr.rolling(window=timeperiod).mean()
             return atr.values
-    
+
     # Заменяем talib на fallback
     _talib = TalibFallback()
     print("✅ Fallback режим активирован")
@@ -243,6 +248,7 @@ if _talib is not None:
 ### **Уровень 3: Автоматический патч в main.py**
 
 #### **Модификация main.py для автоматического исправления:**
+
 ```python
 # ПАТЧ ДЛЯ TALIB - АВТОМАТИЧЕСКОЕ ИСПРАВЛЕНИЕ
 try:
@@ -260,6 +266,7 @@ except ImportError:
 ### **Уровень 4: Systemd сервис с исправлениями**
 
 #### **Создание systemd сервиса:**
+
 ```ini
 [Unit]
 Description=ATRA Trading System with Talib Fix
@@ -293,6 +300,7 @@ WantedBy=multi-user.target
 ## 🚀 **ИНСТРУКЦИИ ДЛЯ СЕРВЕРА**
 
 ### **Вариант 1: Автоматическая установка (рекомендуется)**
+
 ```bash
 # 1. Копируем скрипт на сервер
 scp install_talib_server.sh root@your-server:/root/
@@ -305,6 +313,7 @@ ssh root@your-server "systemctl restart atra.service"
 ```
 
 ### **Вариант 2: Ручная установка**
+
 ```bash
 # 1. Подключаемся к серверу
 ssh root@your-server
@@ -334,6 +343,7 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 ```
 
 ### **Вариант 3: Использование fallback режима**
+
 ```bash
 # Если установка TA-Lib не удается, система автоматически переключится на fallback режим
 # Никаких дополнительных действий не требуется
@@ -342,6 +352,7 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 ## 🔍 **ДИАГНОСТИКА**
 
 ### **Проверка установки TA-Lib:**
+
 ```bash
 # 1. Проверяем, что TA-Lib установлен
 python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
@@ -354,6 +365,7 @@ echo $LD_LIBRARY_PATH
 ```
 
 ### **Проверка fallback режима:**
+
 ```bash
 # 1. Проверяем логи на предупреждения talib
 tail -50 system_improved.log | grep -i talib
@@ -365,16 +377,19 @@ python3 -c "from talib_wrapper import get_talib; talib = get_talib(); print('tal
 ## 📊 **ПРЕИМУЩЕСТВА РЕШЕНИЯ**
 
 ### ✅ **Надежность:**
+
 - **4 уровня защиты** от ошибки talib
 - Автоматический fallback при отсутствии talib
 - Работает с любым Python интерпретатором
 
 ### ✅ **Универсальность:**
+
 - Поддерживает Ubuntu, CentOS, Debian
 - Работает в Docker, systemd, cron
 - Совместим с виртуальными окружениями
 
 ### ✅ **Простота:**
+
 - Одна команда для установки
 - Автоматическая диагностика
 - Подробные инструкции
@@ -384,6 +399,7 @@ python3 -c "from talib_wrapper import get_talib; talib = get_talib(); print('tal
 **ПРОБЛЕМА TALIB НА СЕРВЕРЕ ПОЛНОСТЬЮ РЕШЕНА!**
 
 ### **Быстрый старт:**
+
 ```bash
 # 1. Устанавливаем TA-Lib
 ./install_talib_server.sh
@@ -396,6 +412,7 @@ systemctl status atra.service
 ```
 
 ### **Для fallback режима:**
+
 ```bash
 # Система автоматически переключится на fallback режим
 # Никаких дополнительных действий не требуется

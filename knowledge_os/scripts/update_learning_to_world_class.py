@@ -11,9 +11,9 @@
 """
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
-from datetime import datetime, timezone
 
 # Маппинг имен
 NAME_MAPPING = {
@@ -556,22 +556,22 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
     if not kb_path.exists():
         print(f"⚠️ База знаний не найдена: {kb_path}")
         return False
-    
-    content = kb_path.read_text(encoding='utf-8')
-    
+
+    content = kb_path.read_text(encoding="utf-8")
+
     # Получаем продвинутые материалы
     advanced = ADVANCED_MATERIALS.get(role, {})
     cases = REAL_CASES.get(role, [])
-    
+
     # Добавляем секцию продвинутых материалов
     if "## 🚀 ПРОДВИНУТЫЕ МАТЕРИАЛЫ (МИРОВОЙ УРОВЕНЬ)" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после лучших практик
             if "## 🌐 ЛУЧШИЕ ПРАКТИКИ ИЗ ИНТЕРНЕТА" in line:
                 # Пропускаем до следующего заголовка уровня 2
@@ -579,49 +579,49 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем продвинутые материалы
                 if not inserted:
                     updated_lines.append("")
                     updated_lines.append("## 🚀 ПРОДВИНУТЫЕ МАТЕРИАЛЫ (МИРОВОЙ УРОВЕНЬ)")
                     updated_lines.append("")
-                    
+
                     if advanced.get("advanced_books"):
                         updated_lines.append("### 📚 Продвинутые книги:")
                         updated_lines.append("")
                         for book in advanced["advanced_books"]:
                             updated_lines.append(f"- {book}")
                         updated_lines.append("")
-                    
+
                     if advanced.get("expert_practices"):
                         updated_lines.append("### 🎯 Экспертные практики:")
                         updated_lines.append("")
                         for practice in advanced["expert_practices"]:
                             updated_lines.append(f"- {practice}")
                         updated_lines.append("")
-                    
+
                     if advanced.get("certifications"):
                         updated_lines.append("### 🏆 Сертификации:")
                         updated_lines.append("")
                         for cert in advanced["certifications"]:
                             updated_lines.append(f"- {cert}")
                         updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Добавляем секцию реальных кейсов
     if "## 💼 РЕАЛЬНЫЕ КЕЙСЫ ИЗ ПРОЕКТА ATRA" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после метрик обучения
             if "## 📊 МЕТРИКИ ОБУЧЕНИЯ" in line:
                 # Пропускаем до следующего заголовка уровня 2
@@ -629,7 +629,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем реальные кейсы
                 if not inserted and cases:
                     updated_lines.append("")
@@ -640,18 +640,18 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     for case in cases:
                         updated_lines.append(f"- ✅ {case}")
                     updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Обновляем метрики до экспертного уровня
     if "## 📊 МЕТРИКИ ОБУЧЕНИЯ" in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
-        
+
         for line in lines:
             if "**Всего задач выполнено:**" in line and "10+" not in line:
                 updated_lines.append("- **Всего задач выполнено:** 50+")
@@ -663,11 +663,11 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 updated_lines.append("- **Новых знаний получено:** 100+")
             else:
                 updated_lines.append(line)
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Сохраняем обновленную базу знаний
-    kb_path.write_text(content, encoding='utf-8')
+    kb_path.write_text(content, encoding="utf-8")
     return True
 
 
@@ -676,14 +676,14 @@ def update_learning_program(name: str, role: str, program_path: Path):
     if not program_path.exists():
         print(f"⚠️ Программа обучения не найдена: {program_path}")
         return False
-    
-    content = program_path.read_text(encoding='utf-8')
-    
+
+    content = program_path.read_text(encoding="utf-8")
+
     # Добавляем секцию экспертного уровня
     if "## 🌟 ЭКСПЕРТНЫЙ УРОВЕНЬ (МИРОВОЙ КЛАСС)" not in content:
         advanced = ADVANCED_MATERIALS.get(role, {})
-        
-        expert_section = f"""
+
+        expert_section = """
 ---
 
 ## 🌟 ЭКСПЕРТНЫЙ УРОВЕНЬ (МИРОВОЙ КЛАСС)
@@ -707,11 +707,11 @@ def update_learning_program(name: str, role: str, program_path: Path):
 
 ### Сертификации:
 """
-        
+
         if advanced.get("certifications"):
             for cert in advanced["certifications"]:
                 expert_section += f"- ✅ {cert}\n"
-        
+
         expert_section += """
 ### Экспертные навыки:
 - ✅ Продвинутые техники в области экспертизы
@@ -727,25 +727,25 @@ def update_learning_program(name: str, role: str, program_path: Path):
 - **Новых знаний получено:** 100+
 - **Уровень экспертизы:** ⭐⭐⭐⭐⭐ Мировой класс
 """
-        
+
         # Добавляем в конец файла
         content = content.rstrip() + "\n" + expert_section
-    
+
     # Отмечаем все задачи как выполненные
     content = content.replace("- [ ]", "- [x]")
-    
+
     # Сохраняем обновленную программу
-    program_path.write_text(content, encoding='utf-8')
+    program_path.write_text(content, encoding="utf-8")
     return True
 
 
 def main():
     """Главная функция"""
     print("🚀 Обновление обучения до мирового уровня экспертов...")
-    
+
     scripts_dir = Path(__file__).parent
     learning_programs_dir = scripts_dir / "learning_programs"
-    
+
     TEAM_MEMBERS = [
         ("Виктория", "Team Lead"),
         ("Дмитрий", "ML Engineer"),
@@ -769,31 +769,30 @@ def main():
         ("Юлия", "Legal Counsel"),
         ("Артем", "Code Reviewer"),
     ]
-    
+
     updated_kb = 0
     updated_programs = 0
-    
+
     for name, role in TEAM_MEMBERS:
         file_name = NAME_MAPPING.get(name, name.lower())
         kb_path = scripts_dir / f"{file_name}_knowledge.md"
         program_path = learning_programs_dir / f"{file_name}_program.md"
-        
+
         if update_knowledge_base(name, role, kb_path):
             updated_kb += 1
             print(f"✅ Обновлена база знаний: {name} ({role})")
-        
+
         if update_learning_program(name, role, program_path):
             updated_programs += 1
             print(f"✅ Обновлена программа: {name} ({role})")
-    
+
     print(f"\n✅ Обновлено баз знаний: {updated_kb}/{len(TEAM_MEMBERS)}")
     print(f"✅ Обновлено программ: {updated_programs}/{len(TEAM_MEMBERS)}")
     print("🌟 Все сотрудники достигли уровня мировых экспертов!")
     print("📊 Теперь запустите: python3 scripts/check_learning_progress.py")
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

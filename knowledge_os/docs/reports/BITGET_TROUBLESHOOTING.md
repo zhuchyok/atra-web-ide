@@ -13,12 +13,14 @@
 ```
 
 **Должно быть:**
+
 ```
 🤖 Режим торговли: AUTO
 🔐 Ключи Bitget: ✅ Подключены
 ```
 
 **Если показывает MANUAL или ключи НЕ подключены:**
+
 ```
 /connect_bitget <api_key> <secret> <passphrase>
 /mode_set auto
@@ -29,6 +31,7 @@
 ### **ШАГ 2: Проверьте логи**
 
 Ищите в логах строки:
+
 ```
 🔍 [AUTO CHECK] user_id=<ваш_id>
 🔍 [AUTO CHECK] <SYMBOL> режим: auto
@@ -37,6 +40,7 @@
 ```
 
 **Если НЕТ этих строк:**
+
 - Режим не auto
 - user_id не передаётся
 - Сигнал не дошёл до auto-исполнения
@@ -46,6 +50,7 @@
 ### **ШАГ 3: Проверьте ключи в БД**
 
 Проверьте что ключи сохранены:
+
 ```python
 import sqlite3
 conn = sqlite3.connect('trading.db')
@@ -56,6 +61,7 @@ conn.close()
 ```
 
 **Должно быть:**
+
 ```
 [(your_user_id, 'bitget', 1)]
 ```
@@ -70,6 +76,7 @@ print(ccxt.__version__)
 ```
 
 **Если ошибка:**
+
 ```bash
 pip install ccxt
 ```
@@ -79,6 +86,7 @@ pip install ccxt
 ### **ШАГ 5: Проверьте API ключи на Bitget**
 
 Тестовый скрипт:
+
 ```python
 import ccxt
 
@@ -120,11 +128,13 @@ except Exception as e:
 ### **1. Режим Manual вместо Auto**
 
 **Проблема:**
+
 ```
 /mode показывает: 👤 MANUAL
 ```
 
 **Решение:**
+
 ```
 /mode_set auto
 ```
@@ -134,11 +144,13 @@ except Exception as e:
 ### **2. Ключи не подключены**
 
 **Проблема:**
+
 ```
 🔐 Ключи Bitget: ❌ Не подключены
 ```
 
 **Решение:**
+
 ```
 /connect_bitget <api_key> <secret> <passphrase>
 ```
@@ -148,11 +160,13 @@ except Exception as e:
 ### **3. ccxt не установлен**
 
 **Проблема:**
+
 ```
 Логи: "ccxt недоступен или ошибка инициализации"
 ```
 
 **Решение:**
+
 ```bash
 pip install ccxt
 ```
@@ -162,11 +176,13 @@ pip install ccxt
 ### **4. Неверные права API ключа**
 
 **Проблема:**
+
 ```
 Логи: "Bitget API error: insufficient permissions"
 ```
 
 **Решение:**
+
 - Пересоздайте API ключ на Bitget
 - Убедитесь что включены Read + Trade
 - Отключите Transfer и Withdraw
@@ -176,11 +192,13 @@ pip install ccxt
 ### **5. IP whitelist на Bitget**
 
 **Проблема:**
+
 ```
 Логи: "Bitget API error: IP not whitelisted"
 ```
 
 **Решение:**
+
 - Зайдите в Bitget API Management
 - Измените IP whitelist на "All IPs" (для теста)
 - Или добавьте ваш IP сервера
@@ -190,11 +208,13 @@ pip install ccxt
 ### **6. Недостаточный баланс**
 
 **Проблема:**
+
 ```
 Логи: "Bitget API error: insufficient balance"
 ```
 
 **Решение:**
+
 - Пополните баланс на Bitget
 - Минимум: 50-100 USDT для тестов
 
@@ -203,6 +223,7 @@ pip install ccxt
 ## 📊 ЧТО ПРОВЕРИТЬ В ЛОГАХ
 
 ### **Успешное авто-исполнение:**
+
 ```
 🔍 [AUTO CHECK] user_id=123456789
 🔍 [AUTO CHECK] BTCUSDT режим: auto
@@ -213,6 +234,7 @@ pip install ccxt
 ```
 
 ### **Проблема с режимом:**
+
 ```
 🔍 [AUTO CHECK] user_id=123456789
 🔍 [AUTO CHECK] BTCUSDT режим: manual  ← ПРОБЛЕМА!
@@ -222,6 +244,7 @@ pip install ccxt
 **Решение:** `/mode_set auto`
 
 ### **Проблема с ключами:**
+
 ```
 🤖 [AUTO] BTCUSDT: запуск автоисполнения
 ❌ Ошибка получения ключей bitget для 123456789  ← ПРОБЛЕМА!
@@ -243,7 +266,7 @@ pip install ccxt
 
 3. Смотрите логи:
    grep "AUTO" logs/atra.log
-   
+
 4. Если нет строк [AUTO] — режим не auto
 
 5. Если есть [AUTO] но ошибки — проверьте ключи
@@ -256,10 +279,10 @@ pip install ccxt
 ## ✅ ПОСЛЕ ИСПРАВЛЕНИЯ
 
 **Должны видеть:**
+
 1. В логах: `✅ [AUTO] BTCUSDT успешно открыт`
 2. В Bitget → Positions: открытая позиция
 3. В боте → /positions: позиция отображается
 4. Синхронизация каждые 3 мин
 
 **ПРОВЕРЬТЕ ВСЕ ШАГИ ВЫШЕ!** 🎯
-

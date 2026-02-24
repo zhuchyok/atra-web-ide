@@ -6,45 +6,45 @@
 CREATE TABLE IF NOT EXISTS board_decisions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Источник запроса
     source TEXT NOT NULL CHECK (source IN ('chat', 'api', 'nightly', 'dashboard')),
-    
+
     -- Идентификаторы для трассировки
     correlation_id TEXT,  -- Связь с запросом чата/задачи
     session_id TEXT,      -- ID сессии (для чата)
     user_id TEXT,         -- ID пользователя (для чата)
-    
+
     -- Вопрос и контекст
     question TEXT NOT NULL,
     context_snapshot JSONB,  -- Краткий контекст (OKR, метрики) на момент решения
-    
+
     -- Решение Совета
     directive_text TEXT NOT NULL,  -- Полный текст решения/директивы
     structured_decision JSONB,     -- Структурированное решение (decision, rationale, risks, confidence)
-    
+
     -- Оценка риска
     risk_level TEXT CHECK (risk_level IN ('low', 'medium', 'high')),
     recommend_human_review BOOLEAN DEFAULT FALSE
 );
 
 -- Индексы для быстрого поиска
-CREATE INDEX IF NOT EXISTS idx_board_decisions_created_at 
+CREATE INDEX IF NOT EXISTS idx_board_decisions_created_at
     ON board_decisions (created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_board_decisions_source 
+CREATE INDEX IF NOT EXISTS idx_board_decisions_source
     ON board_decisions (source);
 
-CREATE INDEX IF NOT EXISTS idx_board_decisions_correlation_id 
-    ON board_decisions (correlation_id) 
+CREATE INDEX IF NOT EXISTS idx_board_decisions_correlation_id
+    ON board_decisions (correlation_id)
     WHERE correlation_id IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_board_decisions_risk_level 
-    ON board_decisions (risk_level) 
+CREATE INDEX IF NOT EXISTS idx_board_decisions_risk_level
+    ON board_decisions (risk_level)
     WHERE risk_level IS NOT NULL;
 
 -- GIN индекс для поиска по structured_decision
-CREATE INDEX IF NOT EXISTS idx_board_decisions_structured 
+CREATE INDEX IF NOT EXISTS idx_board_decisions_structured
     ON board_decisions USING GIN (structured_decision);
 
 -- Комментарии для документации

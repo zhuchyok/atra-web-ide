@@ -23,6 +23,7 @@
    - Показывала пустые данные или данные по умолчанию
 
 ### **Корень проблемы:**
+
 ```python
 # В функции signal_stats_cmd - БЫЛО:
 async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,6 +56,7 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 📊 **Тестирование**
 
 ### **Проверка отображения стороны позиции:**
+
 ```
 === Тест отображения стороны позиции в статистике сигналов ===
 ✅ Тестовые данные созданы
@@ -81,6 +83,7 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 ### **Проверка форматирования статистики:**
+
 ```
 === Тест форматирования статистики ===
 ✅ Тестовые данные созданы
@@ -95,6 +98,7 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 ### **Проверка валидации стороны:**
+
 ```
 === Тест валидации стороны позиции ===
 🔍 Проверка различных вариантов стороны:
@@ -137,9 +141,11 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🔧 **Технические детали**
 
 ### **Файлы изменены:**
+
 - `telegram_bot.py` (строка 5041) - добавлена загрузка данных в функцию `signal_stats_cmd`
 
 ### **Функции затронуты:**
+
 - `signal_stats_cmd()` - добавлена загрузка данных из файла
 - `load_user_data()` - уже работала правильно
 
@@ -157,6 +163,7 @@ pos_str = f"{side_emoji} <code>{symbol}</code> {side.upper()}\n"
 ```
 
 ### **Поддерживаемые стороны:**
+
 - `"short"` → 🔴 SHORT
 - `"long"` → 🟢 LONG
 - `None` или `""` → 🟢 LONG (по умолчанию)
@@ -164,6 +171,7 @@ pos_str = f"{side_emoji} <code>{symbol}</code> {side.upper()}\n"
 ## 🎯 **Результат**
 
 ### **✅ Что исправлено:**
+
 1. **Загрузка данных:** Теперь `signal_stats_cmd` загружает данные из файла перед отображением статистики
 2. **Отображение стороны:** SHORT позиции теперь правильно отображаются как 🔴 SHORT
 3. **Актуальность данных:** Статистика показывает реальные данные из файла `user_data.json`
@@ -171,12 +179,14 @@ pos_str = f"{side_emoji} <code>{symbol}</code> {side.upper()}\n"
 ### **📱 Пример правильного отображения:**
 
 **До исправления:**
+
 ```
 🟢 ОТКРЫТЫЕ ПОЗИЦИИ:
 🟢 <code>BTCUSDT</code> LONG  # ❌ Неправильно для SHORT позиции
 ```
 
 **После исправления:**
+
 ```
 🟢 ОТКРЫТЫЕ ПОЗИЦИИ:
 🔴 <code>BTCUSDT</code> SHORT  # ✅ Правильно для SHORT позиции

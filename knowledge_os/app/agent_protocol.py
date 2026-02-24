@@ -4,28 +4,30 @@ Agent Communication Protocol - A2A/ACP-style протокол для комму�
 """
 
 import asyncio
-import logging
 import json
+import logging
 import uuid
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ProtocolVerb(Enum):
     """Глаголы протокола (µACP: 4 глагола достаточно)"""
-    PING = "ping"      # Проверка доступности
-    TELL = "tell"      # Передача информации
-    ASK = "ask"        # Запрос информации
+
+    PING = "ping"  # Проверка доступности
+    TELL = "tell"  # Передача информации
+    ASK = "ask"  # Запрос информации
     OBSERVE = "observe"  # Наблюдение за состоянием
 
 
 @dataclass
 class AgentMessage:
     """Сообщение между агентами"""
+
     message_id: str
     from_agent: str
     to_agent: str
@@ -39,6 +41,7 @@ class AgentMessage:
 @dataclass
 class AgentCapabilities:
     """Возможности агента"""
+
     agent_name: str
     capabilities: List[str]
     status: str = "available"  # available, busy, offline
@@ -48,14 +51,14 @@ class AgentCapabilities:
 class AgentProtocol:
     """
     Agent Communication Protocol
-    
+
     Реализует 4 глагола µACP:
     - PING: проверка доступности
     - TELL: передача информации
     - ASK: запрос информации
     - OBSERVE: наблюдение за состоянием
     """
-    
+
     def __init__(self, agent_name: str):
         self.agent_name = agent_name
         self.capabilities = AgentCapabilities(agent_name=agent_name, capabilities=[])
@@ -63,15 +66,15 @@ class AgentProtocol:
         self.message_handlers: Dict[ProtocolVerb, callable] = {}
         self.registered_agents: Dict[str, AgentCapabilities] = {}
         self.pending_requests: Dict[str, asyncio.Future] = {}
-    
+
     async def ping(self, target_agent: str, timeout: float = 5.0) -> bool:
         """
         PING - проверить доступность агента
-        
+
         Args:
             target_agent: Имя целевого агента
             timeout: Таймаут ожидания ответа
-        
+
         Returns:
             True если агент доступен
         """
@@ -81,32 +84,33 @@ class AgentProtocol:
             to_agent=target_agent,
             verb=ProtocolVerb.PING,
             payload={},
-            requires_response=True
+            requires_response=True,
         )
-        
+
         # Отправляем PING
         await self._send_message(message)
-        
+
         # Ждем ответ
         try:
             response = await asyncio.wait_for(
-                self._wait_for_response(message.message_id),
-                timeout=timeout
+                self._wait_for_response(message.message_id), timeout=timeout
             )
             return response is not None
         except asyncio.TimeoutError:
             logger.warning(f"⏱️ PING timeout для {target_agent}")
             return False
-    
-    async def tell(self, target_agent: str, information: Dict[str, Any], require_ack: bool = False) -> bool:
+
+    async def tell(
+        self, target_agent: str, information: Dict[str, Any], require_ack: bool = False
+    ) -> bool:
         """
         TELL - передать информацию агенту
-        
+
         Args:
             target_agent: Имя целевого агента
             information: Информация для передачи
             require_ack: Требовать ли подтверждение
-        
+
         Returns:
             True если отправлено успешно
         """
@@ -116,32 +120,31 @@ class AgentProtocol:
             to_agent=target_agent,
             verb=ProtocolVerb.TELL,
             payload=information,
-            requires_response=require_ack
+            requires_response=require_ack,
         )
-        
+
         await self._send_message(message)
-        
+
         if require_ack:
             try:
                 response = await asyncio.wait_for(
-                    self._wait_for_response(message.message_id),
-                    timeout=10.0
+                    self._wait_for_response(message.message_id), timeout=10.0
                 )
                 return response is not None
             except asyncio.TimeoutError:
                 return False
-        
+
         return True
-    
+
     async def ask(self, target_agent: str, question: str, timeout: float = 30.0) -> Optional[Dict]:
         """
         ASK - запросить информацию у агента
-        
+
         Args:
             target_agent: Имя целевого агента
             question: Вопрос или запрос
             timeout: Таймаут ожидания ответа
-        
+
         Returns:
             Ответ агента или None
         """
@@ -151,28 +154,27 @@ class AgentProtocol:
             to_agent=target_agent,
             verb=ProtocolVerb.ASK,
             payload={"question": question},
-            requires_response=True
+            requires_response=True,
         )
-        
+
         await self._send_message(message)
-        
+
         try:
             response = await asyncio.wait_for(
-                self._wait_for_response(message.message_id),
-                timeout=timeout
+                self._wait_for_response(message.message_id), timeout=timeout
             )
             return response
         except asyncio.TimeoutError:
             logger.warning(f"⏱️ ASK timeout для {target_agent}")
             return None
-    
+
     async def observe(self, target_agent: str) -> Optional[Dict]:
         """
         OBSERVE - наблюдать за состоянием агента
-        
+
         Args:
             target_agent: Имя целевого агента
-        
+
         Returns:
             Состояние агента или None
         """
@@ -182,36 +184,37 @@ class AgentProtocol:
             to_agent=target_agent,
             verb=ProtocolVerb.OBSERVE,
             payload={},
-            requires_response=True
+            requires_response=True,
         )
-        
+
         await self._send_message(message)
-        
+
         try:
             response = await asyncio.wait_for(
-                self._wait_for_response(message.message_id),
-                timeout=10.0
+                self._wait_for_response(message.message_id), timeout=10.0
             )
             return response
         except asyncio.TimeoutError:
             return None
-    
+
     async def register_capabilities(self, capabilities: List[str], metadata: Dict = None):
         """Зарегистрировать возможности агента"""
         self.capabilities.capabilities = capabilities
         if metadata:
             self.capabilities.metadata = metadata
-        
+
         # Уведомляем других агентов (через discovery mechanism)
         logger.info(f"✅ [{self.agent_name}] Зарегистрированы возможности: {capabilities}")
-    
+
     async def handle_message(self, message: AgentMessage) -> Optional[Dict]:
         """Обработать входящее сообщение"""
-        logger.debug(f"📥 [{self.agent_name}] Получено сообщение: {message.verb.value} от {message.from_agent}")
-        
+        logger.debug(
+            f"📥 [{self.agent_name}] Получено сообщение: {message.verb.value} от {message.from_agent}"
+        )
+
         # Находим обработчик
         handler = self.message_handlers.get(message.verb)
-        
+
         if handler:
             try:
                 response = await handler(message)
@@ -222,36 +225,38 @@ class AgentProtocol:
         else:
             # Дефолтная обработка
             return await self._default_handler(message)
-    
+
     async def _default_handler(self, message: AgentMessage) -> Dict:
         """Дефолтный обработчик сообщений"""
         if message.verb == ProtocolVerb.PING:
             return {"status": "pong", "agent": self.agent_name}
-        
+
         elif message.verb == ProtocolVerb.TELL:
             return {"status": "acknowledged"}
-        
+
         elif message.verb == ProtocolVerb.ASK:
             # Дефолтный ответ на вопрос
             return {"answer": "I received your question but don't have a specific handler"}
-        
+
         elif message.verb == ProtocolVerb.OBSERVE:
             return {
                 "status": self.capabilities.status,
                 "capabilities": self.capabilities.capabilities,
-                "metadata": self.capabilities.metadata
+                "metadata": self.capabilities.metadata,
             }
-        
+
         return {"status": "unknown_verb"}
-    
+
     def register_handler(self, verb: ProtocolVerb, handler: callable):
         """Зарегистрировать обработчик для глагола"""
         self.message_handlers[verb] = handler
         logger.debug(f"✅ Зарегистрирован обработчик для {verb.value}")
-    
+
     async def _send_message(self, message: AgentMessage):
         """Отправить сообщение: direct dispatch по реестру агентов, при необходимости — Event Bus."""
-        logger.debug(f"📤 [{self.agent_name}] Отправка сообщения {message.verb.value} → {message.to_agent}")
+        logger.debug(
+            f"📤 [{self.agent_name}] Отправка сообщения {message.verb.value} → {message.to_agent}"
+        )
         target = get_agent(message.to_agent)
         if target:
             try:
@@ -265,33 +270,44 @@ class AgentProtocol:
         else:
             try:
                 try:
-                    from app.event_bus import get_event_bus, Event, EventType
+                    from app.event_bus import Event, EventType, get_event_bus
                 except ImportError:
-                    from event_bus import get_event_bus, Event, EventType
+                    from event_bus import Event, EventType, get_event_bus
                 event_bus = get_event_bus()
-                await event_bus.publish(Event(
-                    event_id=message.message_id,
-                    event_type=EventType.AGENT_MESSAGE,
-                    payload={"verb": message.verb.value, "from_agent": message.from_agent, "to_agent": message.to_agent, "payload": message.payload, "message_id": message.message_id, "requires_response": message.requires_response},
-                    source=self.agent_name,
-                    correlation_id=message.correlation_id,
-                ))
+                await event_bus.publish(
+                    Event(
+                        event_id=message.message_id,
+                        event_type=EventType.AGENT_MESSAGE,
+                        payload={
+                            "verb": message.verb.value,
+                            "from_agent": message.from_agent,
+                            "to_agent": message.to_agent,
+                            "payload": message.payload,
+                            "message_id": message.message_id,
+                            "requires_response": message.requires_response,
+                        },
+                        source=self.agent_name,
+                        correlation_id=message.correlation_id,
+                    )
+                )
             except ImportError:
                 pass
             if message.requires_response:
-                self._complete_request(message.message_id, {"status": "no_agent", "to_agent": message.to_agent})
-    
+                self._complete_request(
+                    message.message_id, {"status": "no_agent", "to_agent": message.to_agent}
+                )
+
     async def _wait_for_response(self, message_id: str) -> Optional[Dict]:
         """Ждать ответа на сообщение"""
         future = asyncio.Future()
         self.pending_requests[message_id] = future
-        
+
         try:
             response = await future
             return response
         finally:
             self.pending_requests.pop(message_id, None)
-    
+
     def _complete_request(self, message_id: str, response: Dict):
         """Завершить ожидающий запрос"""
         if message_id in self.pending_requests:
@@ -318,34 +334,32 @@ async def main():
     # Создаем протоколы для агентов
     victoria_protocol = AgentProtocol("Виктория")
     veronica_protocol = AgentProtocol("Вероника")
-    
+
     # Регистрируем
     register_agent("Виктория", victoria_protocol)
     register_agent("Вероника", veronica_protocol)
-    
+
     # Регистрируем возможности
     await victoria_protocol.register_capabilities(
-        ["planning", "coordination", "analysis"],
-        {"role": "team_lead"}
+        ["planning", "coordination", "analysis"], {"role": "team_lead"}
     )
-    
+
     await veronica_protocol.register_capabilities(
-        ["execution", "file_operations", "code_generation"],
-        {"role": "developer"}
+        ["execution", "file_operations", "code_generation"], {"role": "developer"}
     )
-    
+
     # Примеры использования
     # PING
     is_available = await victoria_protocol.ping("Вероника")
     print(f"Veronica доступна: {is_available}")
-    
+
     # TELL
     await victoria_protocol.tell("Вероника", {"task": "Выполни задачу X"})
-    
+
     # ASK
     answer = await victoria_protocol.ask("Вероника", "Какой статус задачи?")
     print(f"Ответ: {answer}")
-    
+
     # OBSERVE
     status = await victoria_protocol.observe("Вероника")
     print(f"Статус Veronica: {status}")

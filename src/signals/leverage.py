@@ -3,11 +3,13 @@ Unified Leverage Manager - Единая система расчета плеча
 """
 
 import logging
-from typing import Tuple, Optional, Dict, Any
 from decimal import Decimal
+from typing import Any, Dict, Optional, Tuple
+
 import pandas as pd
 import ta
-from ..core.config import MAX_LEVERAGE, DEFAULT_LEVERAGE
+
+from ..core.config import DEFAULT_LEVERAGE, MAX_LEVERAGE
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ class LeverageManager:
         df: pd.DataFrame,
         i: int,
         base_leverage: Optional[float] = None,
-        market_condition: str = "normal"
+        market_condition: str = "normal",
     ) -> float:
         """
         Расчет динамического плеча на основе всех факторов
@@ -54,14 +56,16 @@ class LeverageManager:
             trend_factor = Decimal(str(self._calculate_trend_factor(df, i)))
             volatility_factor = Decimal(str(self._calculate_volatility_factor(df, i)))
             volume_factor = Decimal(str(self._calculate_volume_factor(df, i)))
-            market_condition_factor = Decimal(str(self._get_market_condition_factor(market_condition)))
+            market_condition_factor = Decimal(
+                str(self._get_market_condition_factor(market_condition))
+            )
 
             # Комбинированный фактор
             combined_factor = (
-                trend_factor * Decimal("0.4") +
-                volatility_factor * Decimal("0.3") +
-                volume_factor * Decimal("0.2") +
-                market_condition_factor * Decimal("0.1")
+                trend_factor * Decimal("0.4")
+                + volatility_factor * Decimal("0.3")
+                + volume_factor * Decimal("0.2")
+                + market_condition_factor * Decimal("0.1")
             )
 
             # Применение фактора к базовому плечу
@@ -159,7 +163,7 @@ class LeverageManager:
 
             # Расчет среднего объема
             current_volume = Decimal(str(df["volume"].iloc[i]))
-            avg_volume = Decimal(str(df["volume"].iloc[i-20:i].mean()))
+            avg_volume = Decimal(str(df["volume"].iloc[i - 20 : i].mean()))
 
             if avg_volume > Decimal("0"):
                 volume_ratio = current_volume / avg_volume
@@ -185,20 +189,17 @@ class LeverageManager:
         Получение фактора рыночных условий
         """
         factors = {
-            "bull": 1.2,      # Бычий рынок - выше плечо
-            "bear": 0.8,      # Медвежий рынок - ниже плечо
+            "bull": 1.2,  # Бычий рынок - выше плечо
+            "bear": 0.8,  # Медвежий рынок - ниже плечо
             "volatile": 0.7,  # Волатильный рынок - ниже плечо
             "sideways": 1.0,  # Боковой рынок - нормальное плечо
-            "normal": 1.0     # Нормальный рынок - нормальное плечо
+            "normal": 1.0,  # Нормальный рынок - нормальное плечо
         }
 
         return factors.get(market_condition.lower(), 1.0)
 
     def calculate_risk_based_leverage(
-        self,
-        risk_pct: float,
-        distance_pct: float,
-        current_price: float
+        self, risk_pct: float, distance_pct: float, current_price: float
     ) -> float:
         """
         Расчет плеча на основе риска и дистанции до стоп-лосса (Decimal precision)
@@ -245,7 +246,7 @@ class LeverageManager:
         self,
         current_leverage: float,
         previous_leverage: Optional[float],
-        smoothing_factor: float = 0.3
+        smoothing_factor: float = 0.3,
     ) -> float:
         """
         Сглаживание изменения плеча
@@ -276,9 +277,7 @@ class LeverageManager:
             return current_leverage
 
     def get_adaptive_leverage_limits(
-        self,
-        market_condition: str,
-        volatility_pct: float
+        self, market_condition: str, volatility_pct: float
     ) -> Tuple[float, float]:
         """
         Получение адаптивных лимитов плеча (Decimal precision)
@@ -319,6 +318,7 @@ def calculate_leverage_smoothing(current: float, previous: float, factor: float 
     return leverage_manager.get_leverage_smoothing(current, previous, factor)
 
 
-def get_adaptive_leverage_limits(market_condition: str, volatility_pct: float) -> Tuple[float, float]:
+def get_adaptive_leverage_limits(
+    market_condition: str, volatility_pct: float
+) -> Tuple[float, float]:
     return leverage_manager.get_adaptive_leverage_limits(market_condition, volatility_pct)
-

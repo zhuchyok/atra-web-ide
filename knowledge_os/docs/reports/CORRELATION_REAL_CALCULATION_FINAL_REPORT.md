@@ -4,11 +4,13 @@
 
 ### **1. Реальный расчет корреляции** ✅
 
-**До:** 
+**До:**
+
 - ❌ Заглушка с оценкой по символу
 - ❌ Статическая логика без реальных данных
 
 **После:**
+
 - ✅ Получение реальных OHLC данных через `get_ohlc_with_fallback`
 - ✅ Вычисление корреляции по формуле `np.corrcoef(returns1, returns2)`
 - ✅ Fallback на оценку при отсутствии данных
@@ -16,6 +18,7 @@
 ### **2. Асинхронная архитектура** ✅
 
 **Добавлено:**
+
 - ✅ `async def calculate_correlation()` - асинхронный расчет
 - ✅ `async def _get_ohlc_data()` - получение данных
 - ✅ `async def get_symbol_group_async()` - определение группы
@@ -25,6 +28,7 @@
 ### **3. Интеграция в signal_live.py** ✅
 
 **Изменения:**
+
 ```python
 # Было (синхронное):
 risk_check = correlation_manager.check_correlation_risk(...)
@@ -110,7 +114,7 @@ correlation = np.corrcoef(DOGE_returns, BTC_returns)[0, 1]
 ```python
 def _estimate_correlation_from_symbol(symbol, base_symbol):
     """Fallback если данных нет"""
-    
+
     if base_symbol == 'BTC':
         # Основные альты
         if 'ETH', 'SOL', 'ADA', 'DOT' in symbol:
@@ -123,7 +127,7 @@ def _estimate_correlation_from_symbol(symbol, base_symbol):
             return 0.30
         else:
             return 0.50
-    
+
     elif base_symbol == 'ETH':
         # DeFi на ETH
         if 'UNI', 'AAVE', 'LINK' in symbol:
@@ -133,7 +137,7 @@ def _estimate_correlation_from_symbol(symbol, base_symbol):
             return 0.75
         else:
             return 0.50
-    
+
     elif base_symbol == 'SOL':
         # Экосистема SOL
         if 'RAY', 'SRM', 'FIDA' in symbol:
@@ -189,11 +193,13 @@ UNKNOWNUSDT → расчет корреляции к BTC
 ## 🎯 **ПРЕИМУЩЕСТВА РЕАЛЬНОЙ КОРРЕЛЯЦИИ**
 
 ### **До (заглушка):**
+
 - ❌ Статические оценки без учета реального поведения
 - ❌ Одинаковые значения для одинаковых типов монет
 - ❌ Нет учета текущей рыночной ситуации
 
 ### **После (реальный расчет):**
+
 - ✅ **Точные значения** на основе реальных данных
 - ✅ **Адаптация к рынку** - корреляция меняется со временем
 - ✅ **Учет волатильности** - более волатильные монеты имеют другую корреляцию
@@ -203,6 +209,7 @@ UNKNOWNUSDT → расчет корреляции к BTC
 ## 📈 **КОНФИГУРАЦИЯ**
 
 **Параметры:**
+
 ```python
 # Минимум данных для расчета
 MIN_BARS_FOR_CORRELATION = 50
@@ -235,15 +242,15 @@ sector_limits = {
 async def _get_ohlc_data(self, symbol):
     # Попытка 1: Асинхронный fallback
     ohlc_data = await get_ohlc_with_fallback(symbol, "1h", 200)
-    
+
     # Попытка 2: Синхронный fallback
     if not ohlc_data:
         ohlc_data = get_ohlc_binance_sync(symbol, "1h", 200)
-    
+
     # Конвертация в DataFrame
     if ohlc_data and len(ohlc_data) >= 50:
         return pd.DataFrame(ohlc_data)
-    
+
     return None
 ```
 
@@ -271,6 +278,7 @@ correlation = np.corrcoef(symbol_returns, base_returns)[0, 1]
 ## ✅ **СТАТУС: ГОТОВО К ПРОДАКШЕНУ**
 
 **Система полностью реализована с:**
+
 - ✅ Реальным расчетом корреляции
 - ✅ Асинхронной архитектурой
 - ✅ Множественными fallback-механизмами

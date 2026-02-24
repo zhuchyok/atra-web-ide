@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 ML-оптимизатор фильтров на основе 50K паттернов
 Использует машинное обучение для адаптивной настройки параметров фильтров
 """
 
-import logging
 import json
+import logging
 import os
 import sqlite3
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 # ML библиотеки (опционально)
 try:
+    import joblib
     from sklearn.ensemble import GradientBoostingRegressor
     from sklearn.model_selection import train_test_split
     from sklearn.preprocessing import StandardScaler
-    import joblib
+
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -51,12 +52,14 @@ class MLFilterOptimizer:
                 logger.warning("⚠️ Файл паттернов не найден: %s", self.patterns_file)
                 return 0
 
-            with open(self.patterns_file, 'r', encoding='utf-8') as f:
+            with open(self.patterns_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             if isinstance(data, list):
                 self.patterns = data
-                logger.info("✅ Загружено %d паттернов из %s", len(self.patterns), self.patterns_file)
+                logger.info(
+                    "✅ Загружено %d паттернов из %s", len(self.patterns), self.patterns_file
+                )
                 return len(self.patterns)
             else:
                 logger.error("❌ Некорректный формат паттернов: ожидается список")
@@ -89,8 +92,8 @@ class MLFilterOptimizer:
                 features.append(feature_vector)
 
                 # Target: успешность сигнала (1 = WIN, 0 = LOSS)
-                result = pattern.get('result', '')
-                target = 1 if result == 'WIN' else 0
+                result = pattern.get("result", "")
+                target = 1 if result == "WIN" else 0
                 targets.append(target)
 
             if not features:
@@ -103,7 +106,8 @@ class MLFilterOptimizer:
 
             logger.info(
                 "✅ Подготовлено %d samples с %d features",
-                len(features_array), features_array.shape[1]
+                len(features_array),
+                features_array.shape[1],
             )
             return features_array, targets_array
 
@@ -117,29 +121,33 @@ class MLFilterOptimizer:
             features = []
 
             # Индикаторы
-            indicators = pattern.get('indicators', {})
-            features.append(indicators.get('rsi', 50.0))
-            features.append(indicators.get('ema_fast', 0.0))
-            features.append(indicators.get('ema_slow', 0.0))
-            features.append(indicators.get('macd', 0.0))
-            features.append(indicators.get('bb_upper', 0.0))
-            features.append(indicators.get('bb_lower', 0.0))
+            indicators = pattern.get("indicators", {})
+            features.append(indicators.get("rsi", 50.0))
+            features.append(indicators.get("ema_fast", 0.0))
+            features.append(indicators.get("ema_slow", 0.0))
+            features.append(indicators.get("macd", 0.0))
+            features.append(indicators.get("bb_upper", 0.0))
+            features.append(indicators.get("bb_lower", 0.0))
 
             # Рыночные условия
-            market = pattern.get('market_conditions', {})
-            features.append(1.0 if market.get('btc_trend', False) else 0.0)
-            features.append(market.get('volume_ratio', 1.0))
-            features.append(market.get('volatility', 0.0))
+            market = pattern.get("market_conditions", {})
+            features.append(1.0 if market.get("btc_trend", False) else 0.0)
+            features.append(market.get("volume_ratio", 1.0))
+            features.append(market.get("volatility", 0.0))
 
             # Параметры сигнала
-            features.append(pattern.get('risk_pct', 2.0))
-            features.append(pattern.get('leverage', 1.0))
+            features.append(pattern.get("risk_pct", 2.0))
+            features.append(pattern.get("leverage", 1.0))
 
             # Время (hour of day, day of week)
-            timestamp = pattern.get('timestamp', '')
+            timestamp = pattern.get("timestamp", "")
             if timestamp:
                 try:
-                    dt = datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp
+                    dt = (
+                        datetime.fromisoformat(timestamp)
+                        if isinstance(timestamp, str)
+                        else timestamp
+                    )
                     features.append(dt.hour)
                     features.append(dt.weekday())
                 except Exception:
@@ -163,7 +171,10 @@ class MLFilterOptimizer:
             # Загружаем паттерны
             pattern_count = self.load_patterns()
             if pattern_count < 100:
-                logger.warning("⚠️ Недостаточно паттернов для обучения (нужно минимум 100, есть %d)", pattern_count)
+                logger.warning(
+                    "⚠️ Недостаточно паттернов для обучения (нужно минимум 100, есть %d)",
+                    pattern_count,
+                )
                 return False
 
             # Подготавливаем данные
@@ -183,10 +194,7 @@ class MLFilterOptimizer:
 
             # Обучаем модель
             self.model = GradientBoostingRegressor(
-                n_estimators=100,
-                learning_rate=0.1,
-                max_depth=5,
-                random_state=42
+                n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42
             )
             self.model.fit(x_train_scaled, y_train)
 
@@ -194,7 +202,9 @@ class MLFilterOptimizer:
             train_score = self.model.score(x_train_scaled, y_train)
             test_score = self.model.score(x_test_scaled, y_test)
 
-            logger.info("✅ Модель обучена: train_score=%.3f, test_score=%.3f", train_score, test_score)
+            logger.info(
+                "✅ Модель обучена: train_score=%.3f, test_score=%.3f", train_score, test_score
+            )
             self.is_trained = True
 
             return True
@@ -204,8 +214,7 @@ class MLFilterOptimizer:
             return False
 
     def optimize_filter_parameters(
-        self,
-        current_market_conditions: Dict[str, Any]
+        self, current_market_conditions: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Оптимизирует параметры фильтров для текущих рыночных условий
@@ -223,11 +232,11 @@ class MLFilterOptimizer:
         try:
             # Подготавливаем features для текущих условий
             pattern_template = {
-                'indicators': current_market_conditions.get('indicators', {}),
-                'market_conditions': current_market_conditions.get('market_conditions', {}),
-                'risk_pct': current_market_conditions.get('risk_pct', 2.0),
-                'leverage': current_market_conditions.get('leverage', 1.0),
-                'timestamp': datetime.now().isoformat()
+                "indicators": current_market_conditions.get("indicators", {}),
+                "market_conditions": current_market_conditions.get("market_conditions", {}),
+                "risk_pct": current_market_conditions.get("risk_pct", 2.0),
+                "leverage": current_market_conditions.get("leverage", 1.0),
+                "timestamp": datetime.now().isoformat(),
             }
 
             feature_vector = self._extract_features(pattern_template)
@@ -248,29 +257,29 @@ class MLFilterOptimizer:
             if predicted_success > 0.6:
                 # Хорошие условия - можно ослабить фильтры
                 return {
-                    'min_volume_ratio': 0.7,  # 🔧 ОСЛАБЛЕНО для интрадей (было 0.8)
-                    'require_volume_confirmation': False,
-                    'confidence_threshold': 0.58,  # 🔧 ОСЛАБЛЕНО (было 0.60)
-                    'false_breakout_threshold': 0.15,  # 🆕 ML оптимизация false_breakout (было 0.20)
-                    'false_breakout_weights': optimal_weights  # 🆕 ML оптимизация весов
+                    "min_volume_ratio": 0.7,  # 🔧 ОСЛАБЛЕНО для интрадей (было 0.8)
+                    "require_volume_confirmation": False,
+                    "confidence_threshold": 0.58,  # 🔧 ОСЛАБЛЕНО (было 0.60)
+                    "false_breakout_threshold": 0.15,  # 🆕 ML оптимизация false_breakout (было 0.20)
+                    "false_breakout_weights": optimal_weights,  # 🆕 ML оптимизация весов
                 }
             elif predicted_success < 0.4:
                 # Плохие условия - умеренно ужесточаем фильтры (для интрадей не слишком строго)
                 return {
-                    'min_volume_ratio': 0.9,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.1)
-                    'require_volume_confirmation': False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение в плохих условиях
-                    'confidence_threshold': 0.70,  # 🔧 ОСЛАБЛЕНО (было 0.75)
-                    'false_breakout_threshold': 0.25,  # 🆕 ML оптимизация false_breakout (было 0.20)
-                    'false_breakout_weights': optimal_weights  # 🆕 ML оптимизация весов
+                    "min_volume_ratio": 0.9,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.1)
+                    "require_volume_confirmation": False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение в плохих условиях
+                    "confidence_threshold": 0.70,  # 🔧 ОСЛАБЛЕНО (было 0.75)
+                    "false_breakout_threshold": 0.25,  # 🆕 ML оптимизация false_breakout (было 0.20)
+                    "false_breakout_weights": optimal_weights,  # 🆕 ML оптимизация весов
                 }
             else:
                 # Средние условия - стандартные параметры (ослаблены для интрадей)
                 return {
-                    'min_volume_ratio': 0.8,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.0)
-                    'require_volume_confirmation': False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение в средних условиях
-                    'confidence_threshold': 0.65,  # 🔧 ОСЛАБЛЕНО (было 0.68)
-                    'false_breakout_threshold': 0.20,  # 🆕 ML оптимизация false_breakout (стандарт)
-                    'false_breakout_weights': optimal_weights  # 🆕 ML оптимизация весов
+                    "min_volume_ratio": 0.8,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.0)
+                    "require_volume_confirmation": False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение в средних условиях
+                    "confidence_threshold": 0.65,  # 🔧 ОСЛАБЛЕНО (было 0.68)
+                    "false_breakout_threshold": 0.20,  # 🆕 ML оптимизация false_breakout (стандарт)
+                    "false_breakout_weights": optimal_weights,  # 🆕 ML оптимизация весов
                 }
 
         except Exception as e:
@@ -312,7 +321,10 @@ class MLFilterOptimizer:
             conn.close()
 
             if len(rows) < 50:
-                logger.debug("⚠️ Недостаточно данных для оптимизации порогов ML (нужно минимум 50, есть %d)", len(rows))
+                logger.debug(
+                    "⚠️ Недостаточно данных для оптимизации порогов ML (нужно минимум 50, есть %d)",
+                    len(rows),
+                )
                 return self._get_default_ml_thresholds()
 
             # Анализируем результаты
@@ -325,22 +337,22 @@ class MLFilterOptimizer:
 
             for row in rows:
                 result, net_profit, entry, _tp1, _tp2, _stop = row
-                result_upper = str(result).upper() if result else ''
+                result_upper = str(result).upper() if result else ""
 
                 # Определяем WIN/LOSS
                 is_win = False
                 profit_pct = 0.0
 
-                if 'TP2' in result_upper:
+                if "TP2" in result_upper:
                     is_win = True
                     profit_pct = 4.0
-                elif 'TP1' in result_upper:
+                elif "TP1" in result_upper:
                     is_win = True
                     profit_pct = 2.0
-                elif 'SL' in result_upper and 'BE' not in result_upper:
+                elif "SL" in result_upper and "BE" not in result_upper:
                     is_win = False
                     profit_pct = -2.0
-                elif result_upper == 'CLOSED' and net_profit:
+                elif result_upper == "CLOSED" and net_profit:
                     is_win = net_profit > 0
                     if entry:
                         profit_pct = (float(net_profit) / (float(entry) * 100)) * 100
@@ -371,7 +383,10 @@ class MLFilterOptimizer:
 
             logger.info(
                 "📊 [ML_THRESHOLDS] Анализ: Win Rate=%.1f%%, Avg Win=%.2f%%, Avg Loss=%.2f%%, Profit Factor=%.2f",
-                win_rate * 100, avg_win, avg_loss, profit_factor
+                win_rate * 100,
+                avg_win,
+                avg_loss,
+                profit_factor,
             )
 
             # Оптимизируем пороги на основе метрик
@@ -383,7 +398,9 @@ class MLFilterOptimizer:
                 min_success_prob = 0.35  # Было 0.4
                 min_expected_profit = 0.25  # Было 0.3
                 min_combined_score = 0.12  # Было 0.15
-                logger.info("✅ [ML_THRESHOLDS] Хорошие результаты - ослабляем пороги для большего количества сигналов")
+                logger.info(
+                    "✅ [ML_THRESHOLDS] Хорошие результаты - ослабляем пороги для большего количества сигналов"
+                )
             elif win_rate < 0.4 or profit_factor < 1.0:
                 # Плохие результаты - ужесточаем пороги для качества
                 min_success_prob = 0.50  # Было 0.4
@@ -398,9 +415,9 @@ class MLFilterOptimizer:
                 logger.info("📊 [ML_THRESHOLDS] Средние результаты - используем стандартные пороги")
 
             return {
-                'min_success_prob': min_success_prob,
-                'min_expected_profit': min_expected_profit,
-                'min_combined_score': min_combined_score
+                "min_success_prob": min_success_prob,
+                "min_expected_profit": min_expected_profit,
+                "min_combined_score": min_combined_score,
             }
 
         except Exception as e:
@@ -409,30 +426,23 @@ class MLFilterOptimizer:
 
     def _get_default_ml_thresholds(self) -> Dict[str, float]:
         """Возвращает дефолтные пороги ML фильтра"""
-        return {
-            'min_success_prob': 0.4,
-            'min_expected_profit': 0.3,
-            'min_combined_score': 0.15
-        }
+        return {"min_success_prob": 0.4, "min_expected_profit": 0.3, "min_combined_score": 0.15}
 
     def _get_default_parameters(self) -> Dict[str, Any]:
         """Возвращает дефолтные параметры фильтров (ослаблены для интрадей)"""
         return {
-            'min_volume_ratio': 0.7,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.0)
-            'require_volume_confirmation': False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение по умолчанию
-            'confidence_threshold': 0.65,  # 🔧 ОСЛАБЛЕНО (было 0.68)
-            'false_breakout_threshold': 0.20,  # 🆕 ML оптимизация false_breakout
-            'false_breakout_weights': {  # 🆕 ML оптимизация весов
-                'volume': 0.40,
-                'momentum': 0.30,
-                'level': 0.30
-            }
+            "min_volume_ratio": 0.7,  # 🔧 ДОПОЛНИТЕЛЬНО ОСЛАБЛЕНО для интрадей (было 1.0)
+            "require_volume_confirmation": False,  # 🔧 ОСЛАБЛЕНО: не требуем подтверждение по умолчанию
+            "confidence_threshold": 0.65,  # 🔧 ОСЛАБЛЕНО (было 0.68)
+            "false_breakout_threshold": 0.20,  # 🆕 ML оптимизация false_breakout
+            "false_breakout_weights": {  # 🆕 ML оптимизация весов
+                "volume": 0.40,
+                "momentum": 0.30,
+                "level": 0.30,
+            },
         }
 
-    def get_optimal_weights(
-        self,
-        market_conditions: Dict[str, Any]
-    ) -> Dict[str, float]:
+    def get_optimal_weights(self, market_conditions: Dict[str, Any]) -> Dict[str, float]:
         """
         🆕 ML-оптимизация весов для FalseBreakoutDetector
 
@@ -450,43 +460,39 @@ class MLFilterOptimizer:
         """
         try:
             # Извлекаем ключевые параметры
-            regime = market_conditions.get('regime', 'UNKNOWN')
-            volatility = market_conditions.get('volatility', 0.0)
-            trend_strength = market_conditions.get('trend_strength', 0.5)
+            regime = market_conditions.get("regime", "UNKNOWN")
+            volatility = market_conditions.get("volatility", 0.0)
+            trend_strength = market_conditions.get("trend_strength", 0.5)
 
             # 🔧 ЭВРИСТИЧЕСКАЯ ЛОГИКА (работает всегда, даже без обученной модели)
             # В трендовом рынке: больше веса momentum
             # В волатильном: больше веса volume
             # В боковике: больше веса level
 
-            if regime in ('BULL_TREND', 'BEAR_TREND'):
+            if regime in ("BULL_TREND", "BEAR_TREND"):
                 # Трендовый рынок: momentum важнее
                 weights = {
-                    'volume': 0.30,
-                    'momentum': 0.45,  # 🆕 Больше веса в тренде
-                    'level': 0.25
+                    "volume": 0.30,
+                    "momentum": 0.45,  # 🆕 Больше веса в тренде
+                    "level": 0.25,
                 }
             elif volatility > 1.5:  # 🔧 Исправлено: волатильность в процентах (1.5% = высокая)
                 # Высокая волатильность: volume важнее
                 weights = {
-                    'volume': 0.50,  # 🆕 Больше веса при волатильности
-                    'momentum': 0.25,
-                    'level': 0.25
+                    "volume": 0.50,  # 🆕 Больше веса при волатильности
+                    "momentum": 0.25,
+                    "level": 0.25,
                 }
             elif trend_strength < 0.3:
                 # Боковик: level важнее
                 weights = {
-                    'volume': 0.30,
-                    'momentum': 0.20,
-                    'level': 0.50  # 🆕 Больше веса в боковике
+                    "volume": 0.30,
+                    "momentum": 0.20,
+                    "level": 0.50,  # 🆕 Больше веса в боковике
                 }
             else:
                 # Стандартные веса
-                weights = {
-                    'volume': 0.40,
-                    'momentum': 0.30,
-                    'level': 0.30
-                }
+                weights = {"volume": 0.40, "momentum": 0.30, "level": 0.30}
 
             # Нормализуем веса (сумма = 1.0)
             total = sum(weights.values())
@@ -495,18 +501,18 @@ class MLFilterOptimizer:
 
             logger.debug(
                 "🤖 [ML_WEIGHTS] Оптимальные веса для режима %s (vol=%.2f): volume=%.2f, momentum=%.2f, level=%.2f",
-                regime, volatility, weights['volume'], weights['momentum'], weights['level']
+                regime,
+                volatility,
+                weights["volume"],
+                weights["momentum"],
+                weights["level"],
             )
 
             return weights
 
         except Exception as e:
             logger.debug("⚠️ [ML_WEIGHTS] Ошибка оптимизации весов, используем стандартные: %s", e)
-            return {
-                'volume': 0.40,
-                'momentum': 0.30,
-                'level': 0.30
-            }
+            return {"volume": 0.40, "momentum": 0.30, "level": 0.30}
 
     def save_model(self, model_path: str = "ai_learning_data/ml_filter_model.pkl"):
         """Сохраняет обученную модель"""
@@ -516,10 +522,7 @@ class MLFilterOptimizer:
 
         try:
             os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            joblib.dump({
-                'model': self.model,
-                'scaler': self.scaler
-            }, model_path)
+            joblib.dump({"model": self.model, "scaler": self.scaler}, model_path)
             logger.info("✅ Модель сохранена: %s", model_path)
             return True
         except Exception as e:
@@ -537,8 +540,8 @@ class MLFilterOptimizer:
                 return False
 
             data = joblib.load(model_path)
-            self.model = data['model']
-            self.scaler = data['scaler']
+            self.model = data["model"]
+            self.scaler = data["scaler"]
             self.is_trained = True
 
             logger.info("✅ Модель загружена: %s", model_path)
@@ -558,5 +561,3 @@ def get_ml_filter_optimizer() -> MLFilterOptimizer:
     if _ml_optimizer_instance is None:
         _ml_optimizer_instance = MLFilterOptimizer()
     return _ml_optimizer_instance
-
-

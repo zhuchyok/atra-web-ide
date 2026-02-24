@@ -38,14 +38,14 @@ echo "🔍 Проверка работы Victoria Enhanced..."
 
 if curl -s http://localhost:8010/health > /dev/null 2>&1; then
     echo "✅ Victoria работает на http://localhost:8010"
-    
+
     # Проверяем что Enhanced режим активен
     echo ""
     echo "📊 Тестируем Enhanced режим..."
     response=$(curl -s -X POST http://localhost:8010/run \
         -H "Content-Type: application/json" \
         -d '{"goal": "Тест Victoria Enhanced"}')
-    
+
     if echo "$response" | grep -q "method"; then
         echo "✅ Victoria Enhanced активен!"
         echo "   Ответ содержит информацию о методе"

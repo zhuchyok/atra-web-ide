@@ -26,4 +26,3 @@ COMMENT ON COLUMN real_time_metrics.metric_value IS 'Значение метри
 COMMENT ON COLUMN real_time_metrics.metric_unit IS 'Единица измерения метрики';
 COMMENT ON COLUMN real_time_metrics.source IS 'Источник метрики (local_mac, local_server, cloud, system)';
 COMMENT ON COLUMN real_time_metrics.metadata IS 'Дополнительные данные метрики в формате JSON';
-

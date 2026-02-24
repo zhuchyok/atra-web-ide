@@ -4,13 +4,14 @@ Common Type Definitions
 Shared type definitions used across the application.
 """
 
-from typing import TypedDict, Optional
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
+from typing import Optional, TypedDict
 
 
 class TradingPair(TypedDict):
     """Trading pair representation"""
+
     base: str
     quote: str
     symbol: str
@@ -18,6 +19,7 @@ class TradingPair(TypedDict):
 
 class MarketData(TypedDict):
     """Market data snapshot"""
+
     symbol: str
     price: Decimal
     volume: Decimal
@@ -29,6 +31,7 @@ class MarketData(TypedDict):
 
 class OrderRequest(TypedDict):
     """Order request"""
+
     symbol: str
     side: str  # "buy" or "sell"
     quantity: Decimal
@@ -38,6 +41,7 @@ class OrderRequest(TypedDict):
 
 class OrderResponse(TypedDict):
     """Order response"""
+
     order_id: str
     symbol: str
     side: str
@@ -50,9 +54,9 @@ class OrderResponse(TypedDict):
 
 class RiskMetrics(TypedDict):
     """Risk metrics"""
+
     total_risk_percentage: float
     max_drawdown_percentage: float
     total_exposure: float
     total_pnl: float
     open_positions_count: int
-

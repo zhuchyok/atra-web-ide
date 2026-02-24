@@ -4,34 +4,34 @@
 
 ### ✅ **РАБОТАЮТ СЕЙЧАС (18 систем):**
 
-| # | Система | Статус | Описание |
-|---|---------|--------|----------|
-| 1 | **Telegram Bot** | ✅ | Команды, кнопки, сообщения |
-| 2 | **Optimization System** | ✅ | Оптимизация параметров |
-| 3 | **Background Updater** | ✅ | Фоновое обновление данных |
-| 4 | **Hybrid Signal System** | ✅ | Генерация сигналов |
-| 5 | **Market Cap Filtering** | ✅ | Фильтр по капитализации |
-| 6 | **AI Learning System** | ✅ | Обучение на 50,000 паттернов |
-| 7 | **Retention Tasks** | ✅ | Очистка старых данных |
-| 8 | **Metrics Feeder** | ✅ | Сбор метрик |
-| 9 | **Soft Blocklist** | ✅ | Адаптивный блоклист |
-| 10 | **Daily Summary** | ✅ | Ежедневные отчеты |
-| 11 | **Market Cap Blacklist** | ✅ | Проверка капитализации |
-| 12 | **Circuit Breaker** | ✅ | Защита от убытков |
-| 13 | **Bandit Tuner** | ✅ | Multi-Armed Bandit оптимизация |
-| 14 | **Weekly Checks** | ✅ | Еженедельные проверки |
-| 15 | **Hourly Pending** | ✅ | Ежечасные проверки |
-| 16 | **Price Monitoring** | ✅ | Отслеживание TP/SL |
-| 17 | **Adaptive Analysis** | ✅ | Адаптивный анализ |
-| 18 | **Pattern Cleanup** | ✅ | Автоочистка паттернов |
+| #   | Система                  | Статус | Описание                       |
+| --- | ------------------------ | ------ | ------------------------------ |
+| 1   | **Telegram Bot**         | ✅     | Команды, кнопки, сообщения     |
+| 2   | **Optimization System**  | ✅     | Оптимизация параметров         |
+| 3   | **Background Updater**   | ✅     | Фоновое обновление данных      |
+| 4   | **Hybrid Signal System** | ✅     | Генерация сигналов             |
+| 5   | **Market Cap Filtering** | ✅     | Фильтр по капитализации        |
+| 6   | **AI Learning System**   | ✅     | Обучение на 50,000 паттернов   |
+| 7   | **Retention Tasks**      | ✅     | Очистка старых данных          |
+| 8   | **Metrics Feeder**       | ✅     | Сбор метрик                    |
+| 9   | **Soft Blocklist**       | ✅     | Адаптивный блоклист            |
+| 10  | **Daily Summary**        | ✅     | Ежедневные отчеты              |
+| 11  | **Market Cap Blacklist** | ✅     | Проверка капитализации         |
+| 12  | **Circuit Breaker**      | ✅     | Защита от убытков              |
+| 13  | **Bandit Tuner**         | ✅     | Multi-Armed Bandit оптимизация |
+| 14  | **Weekly Checks**        | ✅     | Еженедельные проверки          |
+| 15  | **Hourly Pending**       | ✅     | Ежечасные проверки             |
+| 16  | **Price Monitoring**     | ✅     | Отслеживание TP/SL             |
+| 17  | **Adaptive Analysis**    | ✅     | Адаптивный анализ              |
+| 18  | **Pattern Cleanup**      | ✅     | Автоочистка паттернов          |
 
 ### ❌ **ОТКЛЮЧЕНЫ (3 системы):**
 
-| # | Система | Почему отключено |
-|---|---------|------------------|
-| 19 | **Signal Cleanup** | Намеренно (строка 587) |
-| 20 | **System Monitor** | Вызывает автоперезапуски (строка 662) |
-| 21 | **Audit Task** | Условно запускается (строка 682) |
+| #   | Система            | Почему отключено                      |
+| --- | ------------------ | ------------------------------------- |
+| 19  | **Signal Cleanup** | Намеренно (строка 587)                |
+| 20  | **System Monitor** | Вызывает автоперезапуски (строка 662) |
+| 21  | **Audit Task**     | Условно запускается (строка 682)      |
 
 ---
 
@@ -39,21 +39,21 @@
 
 ### **НОВЫЕ СИСТЕМЫ:**
 
-| # | Система | Файл | Интегрировано |
-|---|---------|------|---------------|
-| 1 | **Market Regime Detector** | market_regime_detector.py | ✅ Да |
-| 2 | **Composite Signal Engine** | composite_signal_engine.py | ✅ Да |
-| 3 | **Correlation Penalty** | correlation_risk_manager.py | ✅ Да |
-| 4 | **Static Levels Detector** | static_levels_detector.py | ✅ Да |
+| #   | Система                     | Файл                        | Интегрировано |
+| --- | --------------------------- | --------------------------- | ------------- |
+| 1   | **Market Regime Detector**  | market_regime_detector.py   | ✅ Да         |
+| 2   | **Composite Signal Engine** | composite_signal_engine.py  | ✅ Да         |
+| 3   | **Correlation Penalty**     | correlation_risk_manager.py | ✅ Да         |
+| 4   | **Static Levels Detector**  | static_levels_detector.py   | ✅ Да         |
 
 ### **УЛУЧШЕНИЯ СУЩЕСТВУЮЩИХ:**
 
-| Компонент | Улучшение |
-|-----------|-----------|
-| **AI Regulator** | Теперь получает market_regime, composite_score |
-| **Pattern Analyzer** | Анализ по режимам рынка |
-| **Correlation Manager** | Реальная корреляция + penalty multiplier |
-| **Signal Live** | Интеграция всех новых компонентов |
+| Компонент               | Улучшение                                      |
+| ----------------------- | ---------------------------------------------- |
+| **AI Regulator**        | Теперь получает market_regime, composite_score |
+| **Pattern Analyzer**    | Анализ по режимам рынка                        |
+| **Correlation Manager** | Реальная корреляция + penalty multiplier       |
+| **Signal Live**         | Интеграция всех новых компонентов              |
 
 ---
 
@@ -62,27 +62,33 @@
 Проверяю по документам...
 
 ### **1. Arbitrage System** ✅
+
 - **Статус:** ЕСТЬ (строка 682 в main.py)
 - **Файл:** Вызывается через `audit_task()`
 
 ### **2. Price Monitoring** ✅
+
 - **Статус:** ЕСТЬ (строка 590)
 - **Файл:** `price_monitor_system.py`
 - **Функционал:** TP/SL tracking, автозакрытие
 
 ### **3. DCA System** ✅
+
 - **Статус:** ЕСТЬ в signal_live.py
 - **Функционал:** Усреднение позиций
 
 ### **4. Bandit Tuner** ✅
+
 - **Статус:** ЕСТЬ (строка 577)
 - **Функционал:** Multi-Armed Bandit оптимизация
 
 ### **5. Circuit Breaker** ✅
+
 - **Статус:** ЕСТЬ (строка 575)
 - **Функционал:** Защита от чрезмерных убытков
 
 ### **6. Adaptive Analysis** ✅
+
 - **Статус:** ЕСТЬ (строка 605)
 - **Функционал:** Обновление настроек каждые 3 дня
 
@@ -93,8 +99,9 @@
 ### **Что могло быть важного:**
 
 #### **A. MTF (Multi-Timeframe) Confirmation:**
+
 Проверяю...
 
 <function_calls>
 <invoke name="glob_file_search">
-<parameter name="glob_pattern">*mtf*.py
+<parameter name="glob_pattern">_mtf_.py

@@ -4,7 +4,7 @@ description: Consensus Agent - согласование мнений неско�
 category: collaboration
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🤝"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🤝" } }
 ---
 
 # Consensus Agent Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🤝"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Критичных решений, требующих консенсуса
 - Задач с неоднозначными ответами
 - Важных архитектурных решений
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🤝"}}
 ## Методология
 
 Consensus Agent работает через:
+
 1. **Expert Consultation** - Консультация с несколькими экспертами
 2. **Opinion Collection** - Сбор мнений
 3. **Conflict Resolution** - Разрешение конфликтов

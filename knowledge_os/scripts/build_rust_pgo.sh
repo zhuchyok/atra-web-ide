@@ -40,7 +40,7 @@ RUSTFLAGS="-C profile-use=$PGO_DATA_DIR" cargo build --release
 if [ -f "$RUST_DIR/target/release/libatra_rs.so" ] || [ -f "$RUST_DIR/target/release/libatra_rs.dylib" ]; then
     echo "✅ PGO компиляция завершена успешно!"
     echo "📦 Бинарник находится в: $RUST_DIR/target/release/"
-    
+
     # Копируем бинарник в корень проекта (если нужно)
     if [ -f "$RUST_DIR/target/release/libatra_rs.so" ]; then
         cp "$RUST_DIR/target/release/libatra_rs.so" "$PROJECT_ROOT/atra_rs.so"
@@ -65,4 +65,3 @@ else
 fi
 
 echo "🎉 PGO компиляция завершена!"
-

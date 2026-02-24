@@ -42,10 +42,11 @@ bash knowledge_os/scripts/install_pillow.sh
 При ошибке сборки Pillow нужен libjpeg: **macOS** — при необходимости сначала исправить права: `sudo chown -R $(whoami) /opt/homebrew`, затем `brew install jpeg`; **Linux** — `sudo apt install libjpeg-dev`.
 
 ## 📁 Структура
+
 - `/app`: Исходный код API на FastAPI.
 - `/db`: Схема БД и файлы инициализации (seed).
 - `/scripts`: Скрипты для миграции и обслуживания.
 
 ---
-*Created by ATRA Experts Team.*
 
+_Created by ATRA Experts Team._

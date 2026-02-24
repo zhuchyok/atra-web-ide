@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Система мониторинга качества данных.
@@ -10,20 +9,24 @@
 
 import asyncio
 import logging
-import time
 import statistics
-from typing import Dict, List, Optional, Tuple
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from src.shared.utils.datetime_utils import get_utc_now
-from collections import deque
+from typing import Dict, List, Optional, Tuple
+
 import pandas as pd
 
+from src.shared.utils.datetime_utils import get_utc_now
+
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class QualityMetric:
     """Метрика качества данных"""
+
     timestamp: datetime
     symbol: str
     source: str
@@ -33,9 +36,11 @@ class QualityMetric:
     is_healthy: bool
     details: Dict = field(default_factory=dict)
 
+
 @dataclass
 class AnomalyAlert:
     """Алерт об аномалии в данных"""
+
     timestamp: datetime
     symbol: str
     source: str
@@ -44,22 +49,23 @@ class AnomalyAlert:
     message: str
     data: Dict = field(default_factory=dict)
 
+
 class DataQualityMonitor:
     """Монитор качества данных"""
 
     def __init__(self):
         self.metrics_history = deque(maxlen=10000)  # Храним последние 10000 метрик
-        self.alerts_history = deque(maxlen=1000)    # Храним последние 1000 алертов
+        self.alerts_history = deque(maxlen=1000)  # Храним последние 1000 алертов
         self.source_stats = {}  # Статистика по источникам
         self.symbol_stats = {}  # Статистика по символам
 
         # Пороги для детекции аномалий
         self.thresholds = {
-            'price_deviation_pct': 5.0,      # 5% отклонение цены
-            'volume_deviation_pct': 100.0,   # 100% отклонение объема
-            'latency_ms': 5000,              # 5 секунд задержка
-            'missing_data_pct': 10.0,        # 10% пропущенных данных
-            'error_rate_pct': 20.0           # 20% ошибок
+            "price_deviation_pct": 5.0,  # 5% отклонение цены
+            "volume_deviation_pct": 100.0,  # 100% отклонение объема
+            "latency_ms": 5000,  # 5 секунд задержка
+            "missing_data_pct": 10.0,  # 10% пропущенных данных
+            "error_rate_pct": 20.0,  # 20% ошибок
         }
 
         # Конфигурация мониторинга
@@ -76,30 +82,30 @@ class DataQualityMonitor:
         # Обновляем статистику по источникам
         if metric.source not in self.source_stats:
             self.source_stats[metric.source] = {
-                'total_metrics': 0,
-                'healthy_metrics': 0,
-                'last_update': None
+                "total_metrics": 0,
+                "healthy_metrics": 0,
+                "last_update": None,
             }
 
         stats = self.source_stats[metric.source]
-        stats['total_metrics'] += 1
+        stats["total_metrics"] += 1
         if metric.is_healthy:
-            stats['healthy_metrics'] += 1
-        stats['last_update'] = metric.timestamp
+            stats["healthy_metrics"] += 1
+        stats["last_update"] = metric.timestamp
 
         # Обновляем статистику по символам
         if metric.symbol not in self.symbol_stats:
             self.symbol_stats[metric.symbol] = {
-                'total_metrics': 0,
-                'healthy_metrics': 0,
-                'last_update': None
+                "total_metrics": 0,
+                "healthy_metrics": 0,
+                "last_update": None,
             }
 
         stats = self.symbol_stats[metric.symbol]
-        stats['total_metrics'] += 1
+        stats["total_metrics"] += 1
         if metric.is_healthy:
-            stats['healthy_metrics'] += 1
-        stats['last_update'] = metric.timestamp
+            stats["healthy_metrics"] += 1
+        stats["last_update"] = metric.timestamp
 
         # Проверяем на аномалии
         self._check_for_anomalies(metric)
@@ -121,62 +127,70 @@ class DataQualityMonitor:
         logger.warning(f"DATA QUALITY ALERT [{alert.severity.upper()}]: {alert.message}")
 
         # Отправляем критические алерты в Telegram (если настроено)
-        if alert.severity in ['high', 'critical']:
+        if alert.severity in ["high", "critical"]:
             self._send_critical_alert(alert)
 
     def _check_for_anomalies(self, metric: QualityMetric):
         """Проверяет метрику на аномалии"""
         # Проверяем отклонение цены
-        if metric.metric_type == 'price_accuracy':
-            if not metric.is_healthy and metric.value > self.thresholds['price_deviation_pct']:
-                self.add_alert(AnomalyAlert(
-                    timestamp=metric.timestamp,
-                    symbol=metric.symbol,
-                    source=metric.source,
-                    alert_type='price_spike',
-                    severity='medium' if metric.value < 10.0 else 'high',
-                    message=f"Price deviation {metric.value:.2f}% exceeds threshold for {metric.symbol}",
-                    data={'deviation_pct': metric.value, 'threshold': metric.threshold}
-                ))
+        if metric.metric_type == "price_accuracy":
+            if not metric.is_healthy and metric.value > self.thresholds["price_deviation_pct"]:
+                self.add_alert(
+                    AnomalyAlert(
+                        timestamp=metric.timestamp,
+                        symbol=metric.symbol,
+                        source=metric.source,
+                        alert_type="price_spike",
+                        severity="medium" if metric.value < 10.0 else "high",
+                        message=f"Price deviation {metric.value:.2f}% exceeds threshold for {metric.symbol}",
+                        data={"deviation_pct": metric.value, "threshold": metric.threshold},
+                    )
+                )
 
         # Проверяем отклонение объема
-        elif metric.metric_type == 'volume_consistency':
-            if not metric.is_healthy and metric.value > self.thresholds['volume_deviation_pct']:
-                self.add_alert(AnomalyAlert(
-                    timestamp=metric.timestamp,
-                    symbol=metric.symbol,
-                    source=metric.source,
-                    alert_type='volume_anomaly',
-                    severity='medium',
-                    message=f"Volume deviation {metric.value:.2f}% exceeds threshold for {metric.symbol}",
-                    data={'deviation_pct': metric.value, 'threshold': metric.threshold}
-                ))
+        elif metric.metric_type == "volume_consistency":
+            if not metric.is_healthy and metric.value > self.thresholds["volume_deviation_pct"]:
+                self.add_alert(
+                    AnomalyAlert(
+                        timestamp=metric.timestamp,
+                        symbol=metric.symbol,
+                        source=metric.source,
+                        alert_type="volume_anomaly",
+                        severity="medium",
+                        message=f"Volume deviation {metric.value:.2f}% exceeds threshold for {metric.symbol}",
+                        data={"deviation_pct": metric.value, "threshold": metric.threshold},
+                    )
+                )
 
         # Проверяем задержку
-        elif metric.metric_type == 'latency':
-            if not metric.is_healthy and metric.value > self.thresholds['latency_ms']:
-                self.add_alert(AnomalyAlert(
-                    timestamp=metric.timestamp,
-                    symbol=metric.symbol,
-                    source=metric.source,
-                    alert_type='high_latency',
-                    severity='low',
-                    message=f"High latency {metric.value:.0f}ms for {metric.source}",
-                    data={'latency_ms': metric.value, 'threshold': metric.threshold}
-                ))
+        elif metric.metric_type == "latency":
+            if not metric.is_healthy and metric.value > self.thresholds["latency_ms"]:
+                self.add_alert(
+                    AnomalyAlert(
+                        timestamp=metric.timestamp,
+                        symbol=metric.symbol,
+                        source=metric.source,
+                        alert_type="high_latency",
+                        severity="low",
+                        message=f"High latency {metric.value:.0f}ms for {metric.source}",
+                        data={"latency_ms": metric.value, "threshold": metric.threshold},
+                    )
+                )
 
         # Проверяем доступность
-        elif metric.metric_type == 'availability':
+        elif metric.metric_type == "availability":
             if not metric.is_healthy:
-                self.add_alert(AnomalyAlert(
-                    timestamp=metric.timestamp,
-                    symbol=metric.symbol,
-                    source=metric.source,
-                    alert_type='source_down',
-                    severity='high',
-                    message=f"Data source {metric.source} is down",
-                    data={'availability': metric.value}
-                ))
+                self.add_alert(
+                    AnomalyAlert(
+                        timestamp=metric.timestamp,
+                        symbol=metric.symbol,
+                        source=metric.source,
+                        alert_type="source_down",
+                        severity="high",
+                        message=f"Data source {metric.source} is down",
+                        data={"availability": metric.value},
+                    )
+                )
 
     def _send_critical_alert(self, alert: AnomalyAlert):
         """Отправляет критический алерт (логи + опционально Telegram через AlertSystem)."""
@@ -186,9 +200,12 @@ class DataQualityMonitor:
             # Интеграция с системой уведомлений (SRE/мировые практики: единая точка алертинга)
             try:
                 from src.monitoring.alerts import alert_system
+
                 alert_system.create_alert(
                     alert_type="data_quality",
-                    severity=alert.severity if alert.severity in ("low", "medium", "high", "critical") else "critical",
+                    severity=alert.severity
+                    if alert.severity in ("low", "medium", "high", "critical")
+                    else "critical",
                     title=f"Data Quality: {alert.alert_type}",
                     message=alert.message,
                     channels=["telegram"],
@@ -206,14 +223,14 @@ class DataQualityMonitor:
             return 0.0
 
         stats = self.source_stats[source]
-        if stats['total_metrics'] == 0:
+        if stats["total_metrics"] == 0:
             return 0.0
 
-        health_score = stats['healthy_metrics'] / stats['total_metrics']
+        health_score = stats["healthy_metrics"] / stats["total_metrics"]
 
         # Штрафуем за давние обновления
-        if stats['last_update']:
-            time_since_update = get_utc_now() - stats['last_update']
+        if stats["last_update"]:
+            time_since_update = get_utc_now() - stats["last_update"]
             if time_since_update > timedelta(minutes=10):
                 health_score *= 0.5  # 50% штраф за отсутствие обновлений > 10 минут
             elif time_since_update > timedelta(minutes=5):
@@ -227,10 +244,10 @@ class DataQualityMonitor:
             return 0.0
 
         stats = self.symbol_stats[symbol]
-        if stats['total_metrics'] == 0:
+        if stats["total_metrics"] == 0:
             return 0.0
 
-        return stats['healthy_metrics'] / stats['total_metrics']
+        return stats["healthy_metrics"] / stats["total_metrics"]
 
     def get_recent_alerts(self, hours: int = 24) -> List[AnomalyAlert]:
         """Возвращает недавние алерты"""
@@ -245,19 +262,21 @@ class DataQualityMonitor:
         source_health = {}
         for source in self.source_stats:
             source_health[source] = {
-                'health_score': self.get_source_health_score(source),
-                'total_metrics': self.source_stats[source]['total_metrics'],
-                'healthy_metrics': self.source_stats[source]['healthy_metrics'],
-                'last_update': self.source_stats[source]['last_update'].isoformat() if self.source_stats[source]['last_update'] else None
+                "health_score": self.get_source_health_score(source),
+                "total_metrics": self.source_stats[source]["total_metrics"],
+                "healthy_metrics": self.source_stats[source]["healthy_metrics"],
+                "last_update": self.source_stats[source]["last_update"].isoformat()
+                if self.source_stats[source]["last_update"]
+                else None,
             }
 
         # Статистика по символам
         symbol_health = {}
         for symbol in self.symbol_stats:
             symbol_health[symbol] = {
-                'health_score': self.get_symbol_health_score(symbol),
-                'total_metrics': self.symbol_stats[symbol]['total_metrics'],
-                'healthy_metrics': self.symbol_stats[symbol]['healthy_metrics']
+                "health_score": self.get_symbol_health_score(symbol),
+                "total_metrics": self.symbol_stats[symbol]["total_metrics"],
+                "healthy_metrics": self.symbol_stats[symbol]["healthy_metrics"],
             }
 
         # Недавние алерты
@@ -271,19 +290,16 @@ class DataQualityMonitor:
         # Общая оценка здоровья системы
         overall_health = 0.0
         if source_health:
-            overall_health = statistics.mean([s['health_score'] for s in source_health.values()])
+            overall_health = statistics.mean([s["health_score"] for s in source_health.values()])
 
         return {
-            'timestamp': now.isoformat(),
-            'overall_health_score': overall_health,
-            'source_health': source_health,
-            'symbol_health': symbol_health,
-            'recent_alerts_24h': {
-                'total': len(recent_alerts),
-                'by_severity': alerts_by_severity
-            },
-            'monitoring_enabled': self.monitoring_enabled,
-            'thresholds': self.thresholds
+            "timestamp": now.isoformat(),
+            "overall_health_score": overall_health,
+            "source_health": source_health,
+            "symbol_health": symbol_health,
+            "recent_alerts_24h": {"total": len(recent_alerts), "by_severity": alerts_by_severity},
+            "monitoring_enabled": self.monitoring_enabled,
+            "thresholds": self.thresholds,
         }
 
     def update_thresholds(self, new_thresholds: Dict[str, float]):
@@ -302,6 +318,7 @@ class DataQualityMonitor:
         self.alert_cooldown.clear()
         logger.info("Data quality statistics reset")
 
+
 class DataQualityAnalyzer:
     """Анализатор качества данных"""
 
@@ -312,38 +329,42 @@ class DataQualityAnalyzer:
         """Анализирует консистентность цен"""
         cutoff_time = get_utc_now() - timedelta(hours=hours)
         recent_metrics = [
-            m for m in self.monitor.metrics_history
-            if m.symbol == symbol and m.metric_type == 'price_accuracy' and m.timestamp >= cutoff_time
+            m
+            for m in self.monitor.metrics_history
+            if m.symbol == symbol
+            and m.metric_type == "price_accuracy"
+            and m.timestamp >= cutoff_time
         ]
 
         if not recent_metrics:
-            return {'error': 'No price data available'}
+            return {"error": "No price data available"}
 
         deviations = [m.value for m in recent_metrics]
         healthy_count = sum(1 for m in recent_metrics if m.is_healthy)
 
         return {
-            'symbol': symbol,
-            'period_hours': hours,
-            'total_measurements': len(recent_metrics),
-            'healthy_measurements': healthy_count,
-            'health_rate': healthy_count / len(recent_metrics) if recent_metrics else 0,
-            'avg_deviation': statistics.mean(deviations) if deviations else 0,
-            'max_deviation': max(deviations) if deviations else 0,
-            'min_deviation': min(deviations) if deviations else 0,
-            'std_deviation': statistics.stdev(deviations) if len(deviations) > 1 else 0
+            "symbol": symbol,
+            "period_hours": hours,
+            "total_measurements": len(recent_metrics),
+            "healthy_measurements": healthy_count,
+            "health_rate": healthy_count / len(recent_metrics) if recent_metrics else 0,
+            "avg_deviation": statistics.mean(deviations) if deviations else 0,
+            "max_deviation": max(deviations) if deviations else 0,
+            "min_deviation": min(deviations) if deviations else 0,
+            "std_deviation": statistics.stdev(deviations) if len(deviations) > 1 else 0,
         }
 
     def analyze_source_reliability(self, source: str, hours: int = 24) -> Dict:
         """Анализирует надежность источника"""
         cutoff_time = get_utc_now() - timedelta(hours=hours)
         recent_metrics = [
-            m for m in self.monitor.metrics_history
+            m
+            for m in self.monitor.metrics_history
             if m.source == source and m.timestamp >= cutoff_time
         ]
 
         if not recent_metrics:
-            return {'error': 'No data available'}
+            return {"error": "No data available"}
 
         # Группируем по типам метрик
         metrics_by_type = {}
@@ -354,37 +375,36 @@ class DataQualityAnalyzer:
 
         # Анализируем каждый тип
         analysis = {
-            'source': source,
-            'period_hours': hours,
-            'total_measurements': len(recent_metrics),
-            'metrics_by_type': {}
+            "source": source,
+            "period_hours": hours,
+            "total_measurements": len(recent_metrics),
+            "metrics_by_type": {},
         }
 
         for metric_type, metrics in metrics_by_type.items():
             healthy_count = sum(1 for m in metrics if m.is_healthy)
             values = [m.value for m in metrics]
 
-            analysis['metrics_by_type'][metric_type] = {
-                'total': len(metrics),
-                'healthy': healthy_count,
-                'health_rate': healthy_count / len(metrics) if metrics else 0,
-                'avg_value': statistics.mean(values) if values else 0,
-                'std_value': statistics.stdev(values) if len(values) > 1 else 0
+            analysis["metrics_by_type"][metric_type] = {
+                "total": len(metrics),
+                "healthy": healthy_count,
+                "health_rate": healthy_count / len(metrics) if metrics else 0,
+                "avg_value": statistics.mean(values) if values else 0,
+                "std_value": statistics.stdev(values) if len(values) > 1 else 0,
             }
 
         # Общая оценка надежности
         overall_healthy = sum(1 for m in recent_metrics if m.is_healthy)
-        analysis['overall_reliability'] = overall_healthy / len(recent_metrics) if recent_metrics else 0
+        analysis["overall_reliability"] = (
+            overall_healthy / len(recent_metrics) if recent_metrics else 0
+        )
 
         return analysis
 
     def detect_trending_issues(self, hours: int = 24) -> List[Dict]:
         """Детектирует нарастающие проблемы"""
         cutoff_time = get_utc_now() - timedelta(hours=hours)
-        recent_metrics = [
-            m for m in self.monitor.metrics_history
-            if m.timestamp >= cutoff_time
-        ]
+        recent_metrics = [m for m in self.monitor.metrics_history if m.timestamp >= cutoff_time]
 
         # Группируем по источникам и символам
         source_issues = {}
@@ -409,58 +429,70 @@ class DataQualityAnalyzer:
             if len(issues) >= 5:  # Минимум 5 проблем за период
                 issue_rate = len(issues) / hours  # Проблем в час
                 if issue_rate >= 0.5:  # Более 0.5 проблем в час
-                    trending_issues.append({
-                        'type': 'source_degradation',
-                        'entity': source,
-                        'issue_count': len(issues),
-                        'issue_rate_per_hour': issue_rate,
-                        'severity': 'high' if issue_rate >= 2.0 else 'medium'
-                    })
+                    trending_issues.append(
+                        {
+                            "type": "source_degradation",
+                            "entity": source,
+                            "issue_count": len(issues),
+                            "issue_rate_per_hour": issue_rate,
+                            "severity": "high" if issue_rate >= 2.0 else "medium",
+                        }
+                    )
 
         # Анализируем символы с проблемами
         for symbol, issues in symbol_issues.items():
             if len(issues) >= 3:  # Минимум 3 проблемы за период
                 issue_rate = len(issues) / hours
                 if issue_rate >= 0.3:  # Более 0.3 проблем в час
-                    trending_issues.append({
-                        'type': 'symbol_issues',
-                        'entity': symbol,
-                        'issue_count': len(issues),
-                        'issue_rate_per_hour': issue_rate,
-                        'severity': 'high' if issue_rate >= 1.0 else 'medium'
-                    })
+                    trending_issues.append(
+                        {
+                            "type": "symbol_issues",
+                            "entity": symbol,
+                            "issue_count": len(issues),
+                            "issue_rate_per_hour": issue_rate,
+                            "severity": "high" if issue_rate >= 1.0 else "medium",
+                        }
+                    )
 
         return trending_issues
+
 
 # Глобальный экземпляр монитора
 data_quality_monitor = DataQualityMonitor()
 
+
 # Удобные функции
-def add_price_accuracy_metric(symbol: str, source: str, deviation_pct: float, threshold: float = 1.0):
+def add_price_accuracy_metric(
+    symbol: str, source: str, deviation_pct: float, threshold: float = 1.0
+):
     """Добавляет метрику точности цены"""
     metric = QualityMetric(
         timestamp=get_utc_now(),
         symbol=symbol,
         source=source,
-        metric_type='price_accuracy',
+        metric_type="price_accuracy",
         value=deviation_pct,
         threshold=threshold,
-        is_healthy=deviation_pct <= threshold
+        is_healthy=deviation_pct <= threshold,
     )
     data_quality_monitor.add_metric(metric)
 
-def add_volume_consistency_metric(symbol: str, source: str, deviation_pct: float, threshold: float = 50.0):
+
+def add_volume_consistency_metric(
+    symbol: str, source: str, deviation_pct: float, threshold: float = 50.0
+):
     """Добавляет метрику консистентности объема"""
     metric = QualityMetric(
         timestamp=get_utc_now(),
         symbol=symbol,
         source=source,
-        metric_type='volume_consistency',
+        metric_type="volume_consistency",
         value=deviation_pct,
         threshold=threshold,
-        is_healthy=deviation_pct <= threshold
+        is_healthy=deviation_pct <= threshold,
     )
     data_quality_monitor.add_metric(metric)
+
 
 def add_latency_metric(symbol: str, source: str, latency_ms: float, threshold: float = 1000.0):
     """Добавляет метрику задержки"""
@@ -468,12 +500,13 @@ def add_latency_metric(symbol: str, source: str, latency_ms: float, threshold: f
         timestamp=get_utc_now(),
         symbol=symbol,
         source=source,
-        metric_type='latency',
+        metric_type="latency",
         value=latency_ms,
         threshold=threshold,
-        is_healthy=latency_ms <= threshold
+        is_healthy=latency_ms <= threshold,
     )
     data_quality_monitor.add_metric(metric)
+
 
 def add_availability_metric(symbol: str, source: str, is_available: bool):
     """Добавляет метрику доступности"""
@@ -481,16 +514,18 @@ def add_availability_metric(symbol: str, source: str, is_available: bool):
         timestamp=get_utc_now(),
         symbol=symbol,
         source=source,
-        metric_type='availability',
+        metric_type="availability",
         value=1.0 if is_available else 0.0,
         threshold=0.5,
-        is_healthy=is_available
+        is_healthy=is_available,
     )
     data_quality_monitor.add_metric(metric)
+
 
 def get_health_report() -> Dict:
     """Возвращает отчет о здоровье данных"""
     return data_quality_monitor.get_health_report()
+
 
 def get_source_health_score(source: str) -> float:
     """Возвращает оценку здоровья источника"""

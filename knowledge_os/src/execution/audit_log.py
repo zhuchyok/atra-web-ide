@@ -1,8 +1,9 @@
-import sqlite3
 import logging
 import os
+import sqlite3
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from src.database.fetch_optimizer import fetch_all_optimized
 
 logger = logging.getLogger(__name__)
@@ -179,15 +180,20 @@ class OrderAuditLog:
             logger.error("❌ Ошибка проверки order_exists: %s", exc)
             return False
 
-    async def log_key_operation(self, user_id: int, operation: str, exchange: str, success: bool = True) -> bool:
+    async def log_key_operation(
+        self, user_id: int, operation: str, exchange: str, success: bool = True
+    ) -> bool:
         """Логирует операцию с ключами (save/delete/update)."""
         try:
             with self._get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO key_operations_log(user_id, operation, exchange, success)
                     VALUES(?, ?, ?, ?)
-                """, (int(user_id), operation, exchange, 1 if success else 0))
+                """,
+                    (int(user_id), operation, exchange, 1 if success else 0),
+                )
                 conn.commit()
                 return True
         except Exception as e:
@@ -203,4 +209,3 @@ def get_audit_log() -> OrderAuditLog:
     if _audit_log_instance is None:
         _audit_log_instance = OrderAuditLog()
     return _audit_log_instance
-

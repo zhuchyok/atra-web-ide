@@ -17,11 +17,13 @@
 ### Проверка логики генерации сигналов:
 
 ✅ **Логика генерации SHORT сигналов работает корректно** в функциях:
+
 - `strict_entry_signal()` - строгий режим
 - `soft_entry_signal()` - мягкий режим
 - `ultra_soft_entry_signal()` - ультра-мягкий режим
 
 ✅ **Условия для SHORT сигналов определены правильно**:
+
 - Касание верхней полосы Боллинджера
 - Нисходящий тренд (EMA7 < EMA25)
 - Перекупленность (RSI > 62)
@@ -38,6 +40,7 @@
 **Строки**: 3097-3100
 
 **Было**:
+
 ```python
 if signal_type == "SHORT" and trade_mode == 'spot':
     print(f"[DEBUG] Пропускаем SHORT сигнал для пользователя {user_id} (режим: {trade_mode})")
@@ -45,6 +48,7 @@ if signal_type == "SHORT" and trade_mode == 'spot':
 ```
 
 **Стало**:
+
 ```python
 # Убираем блокировку SHORT сигналов для spot торговли
 # SHORT сигналы теперь разрешены для всех режимов торговли
@@ -56,6 +60,7 @@ if signal_type == "SHORT" and trade_mode == 'spot':
 **Строки**: 3143-3146
 
 **Было**:
+
 ```python
 if signal_type == "SHORT" and user_data.get('trade_mode', 'spot') == 'spot':
     print(f"[DEBUG] {symbol}: Пропускаем SHORT сигнал для пользователя {user_id} (режим: spot)")
@@ -63,6 +68,7 @@ if signal_type == "SHORT" and user_data.get('trade_mode', 'spot') == 'spot':
 ```
 
 **Стало**:
+
 ```python
 # Дополнительная проверка режима торговли для SHORT сигналов
 # Убираем блокировку SHORT сигналов для spot торговли
@@ -76,11 +82,13 @@ if signal_type == "SHORT" and user_data.get('trade_mode', 'spot') == 'spot':
 Тест подтвердил, что SHORT сигналы генерируются корректно:
 
 ✅ **Результаты тестирования**:
+
 - **STRICT режим**: 7 SHORT сигналов из 10 проверенных свечей
 - **ULTRA_SOFT режим**: 1 SHORT сигнал из 10 проверенных свечей
 - **SOFT режим**: 0 SHORT сигналов (более строгие условия)
 
 ### Примеры сгенерированных SHORT сигналов:
+
 - Свеча #90: ✅ STRICT: SHORT сигнал по цене 90.6989
 - Свеча #91: ✅ STRICT: SHORT сигнал по цене 91.1688
 - Свеча #92: ✅ STRICT: SHORT сигнал по цене 90.3516

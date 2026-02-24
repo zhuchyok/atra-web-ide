@@ -12,10 +12,10 @@ CURSOR_SETTINGS_DIR = CURSOR_SETTINGS.parent
 
 def setup_mcp_in_cursor():
     """Добавляет VictoriaATRA MCP сервер в Cursor settings.json"""
-    
+
     # Создаём директорию, если её нет
     CURSOR_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     # Читаем существующие настройки
     if CURSOR_SETTINGS.exists():
         try:
@@ -26,24 +26,24 @@ def setup_mcp_in_cursor():
             settings = {}
     else:
         settings = {}
-    
+
     # Добавляем/обновляем MCP сервер
     if "mcp.servers" not in settings:
         settings["mcp.servers"] = {}
-    
+
     victoria_config = {
         "type": "sse",
         "url": "http://localhost:8012/sse"
     }
-    
+
     # Проверяем, нужно ли обновить
     if settings["mcp.servers"].get("VictoriaATRA") != victoria_config:
         settings["mcp.servers"]["VictoriaATRA"] = victoria_config
-        
+
         # Сохраняем
         with open(CURSOR_SETTINGS, 'w', encoding='utf-8') as f:
             json.dump(settings, f, indent=2, ensure_ascii=False)
-        
+
         print(f"✅ VictoriaATRA добавлен в Cursor settings: {CURSOR_SETTINGS}")
         print(f"   Перезапусти Cursor, чтобы применить изменения.")
         return True

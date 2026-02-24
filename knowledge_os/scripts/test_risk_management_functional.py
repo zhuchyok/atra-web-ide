@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Функциональные тесты управления рисками
 Проверяет trailing stop, перенос SL в безубыток, управление позициями
 """
 
 import sys
-from pathlib import Path
-from typing import Dict, Any, Optional
 from datetime import datetime
-import pandas as pd
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import numpy as np
+import pandas as pd
 
 from src.shared.utils.datetime_utils import get_utc_now
 
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.test_utils import (
-    TestResult, TestStatus, measure_time
-)
+from scripts.test_utils import TestResult, TestStatus, measure_time
 
 
 @measure_time
@@ -30,13 +28,14 @@ def test_trailing_stop_manager_structure() -> TestResult:
 
         # Проверяем наличие ключевых методов
         required_methods = [
-            'get_adaptive_progress_ratio',
-            '_analyze_volatility',
-            '_analyze_trend_strength'
+            "get_adaptive_progress_ratio",
+            "_analyze_volatility",
+            "_analyze_trend_strength",
         ]
 
         missing_methods = [
-            method for method in required_methods
+            method
+            for method in required_methods
             if not hasattr(AdvancedTrailingStopManager, method)
         ]
 
@@ -45,16 +44,11 @@ def test_trailing_stop_manager_structure() -> TestResult:
                 name="Структура Trailing Stop Manager",
                 status=TestStatus.WARNING,
                 message=f"Отсутствуют методы: {', '.join(missing_methods)}",
-                details={"missing_methods": missing_methods}
+                details={"missing_methods": missing_methods},
             )
 
         # Проверяем инициализацию
-        test_config = {
-            'tp1_sl_progress_ratio': 1.0,
-            'ADAPTIVE_TRAILING_CONFIG': {
-                'enabled': True
-            }
-        }
+        test_config = {"tp1_sl_progress_ratio": 1.0, "ADAPTIVE_TRAILING_CONFIG": {"enabled": True}}
 
         try:
             manager = AdvancedTrailingStopManager(test_config)
@@ -62,14 +56,14 @@ def test_trailing_stop_manager_structure() -> TestResult:
                 name="Структура Trailing Stop Manager",
                 status=TestStatus.PASS,
                 message="Trailing Stop Manager доступен и инициализируется корректно",
-                details={"methods_available": required_methods}
+                details={"methods_available": required_methods},
             )
         except Exception as e:
             return TestResult(
                 name="Структура Trailing Stop Manager",
                 status=TestStatus.WARNING,
                 message=f"Ошибка инициализации: {str(e)}",
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
 
     except ImportError:
@@ -77,13 +71,13 @@ def test_trailing_stop_manager_structure() -> TestResult:
             name="Структура Trailing Stop Manager",
             status=TestStatus.WARNING,
             message="Модуль trailing_stop_manager не найден",
-            recommendations=["Проверьте наличие trailing_stop_manager.py"]
+            recommendations=["Проверьте наличие trailing_stop_manager.py"],
         )
     except Exception as e:
         return TestResult(
             name="Структура Trailing Stop Manager",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -98,9 +92,7 @@ def test_breakeven_calculation() -> TestResult:
         # Тестируем расчет для LONG позиции
         entry_price_long = 50000.0
         breakeven_long = monitor.calculate_breakeven_sl(
-            entry_price=entry_price_long,
-            side="long",
-            taker_fee=0.001
+            entry_price=entry_price_long, side="long", taker_fee=0.001
         )
 
         # Для LONG: SL должен быть выше entry_price (с учетом комиссий)
@@ -112,16 +104,14 @@ def test_breakeven_calculation() -> TestResult:
                 details={
                     "entry_price": entry_price_long,
                     "breakeven_sl": breakeven_long,
-                    "expected": "> entry_price"
-                }
+                    "expected": "> entry_price",
+                },
             )
 
         # Тестируем расчет для SHORT позиции
         entry_price_short = 50000.0
         breakeven_short = monitor.calculate_breakeven_sl(
-            entry_price=entry_price_short,
-            side="short",
-            taker_fee=0.001
+            entry_price=entry_price_short, side="short", taker_fee=0.001
         )
 
         # Для SHORT: SL должен быть ниже entry_price (с учетом комиссий)
@@ -133,8 +123,8 @@ def test_breakeven_calculation() -> TestResult:
                 details={
                     "entry_price": entry_price_short,
                     "breakeven_sl": breakeven_short,
-                    "expected": "< entry_price"
-                }
+                    "expected": "< entry_price",
+                },
             )
 
         return TestResult(
@@ -145,8 +135,8 @@ def test_breakeven_calculation() -> TestResult:
                 "long_entry": entry_price_long,
                 "long_breakeven": breakeven_long,
                 "short_entry": entry_price_short,
-                "short_breakeven": breakeven_short
-            }
+                "short_breakeven": breakeven_short,
+            },
         )
 
     except ImportError:
@@ -154,13 +144,13 @@ def test_breakeven_calculation() -> TestResult:
             name="Расчет безубытка",
             status=TestStatus.WARNING,
             message="Модуль price_monitor_system не найден",
-            recommendations=["Проверьте наличие price_monitor_system.py"]
+            recommendations=["Проверьте наличие price_monitor_system.py"],
         )
     except Exception as e:
         return TestResult(
             name="Расчет безубытка",
             status=TestStatus.FAIL,
-            message=f"Ошибка при тестировании: {str(e)}"
+            message=f"Ошибка при тестировании: {str(e)}",
         )
 
 
@@ -173,26 +163,30 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
         # Пытаемся получить значение из config, если не найдено - используем по умолчанию
         try:
             from config import TP1_SL_PROGRESS_RATIO
-            progress_ratio = TP1_SL_PROGRESS_RATIO if hasattr(TP1_SL_PROGRESS_RATIO, '__float__') else 1.0
+
+            progress_ratio = (
+                TP1_SL_PROGRESS_RATIO if hasattr(TP1_SL_PROGRESS_RATIO, "__float__") else 1.0
+            )
         except (ImportError, AttributeError):
             # Используем значение по умолчанию из trailing_stop_manager
             progress_ratio = 1.0
 
         # Создаем тестовые данные
-        dates = pd.date_range(end=get_utc_now(), periods=100, freq='1h')
-        test_df = pd.DataFrame({
-            'open': np.random.uniform(40000, 50000, 100),
-            'high': np.random.uniform(50000, 51000, 100),
-            'low': np.random.uniform(39000, 40000, 100),
-            'close': np.random.uniform(40000, 50000, 100),
-            'volume': np.random.uniform(1000000, 5000000, 100)
-        }, index=dates)
+        dates = pd.date_range(end=get_utc_now(), periods=100, freq="1h")
+        test_df = pd.DataFrame(
+            {
+                "open": np.random.uniform(40000, 50000, 100),
+                "high": np.random.uniform(50000, 51000, 100),
+                "low": np.random.uniform(39000, 40000, 100),
+                "close": np.random.uniform(40000, 50000, 100),
+                "volume": np.random.uniform(1000000, 5000000, 100),
+            },
+            index=dates,
+        )
 
         test_config = {
-            'tp1_sl_progress_ratio': progress_ratio,
-            'ADAPTIVE_TRAILING_CONFIG': {
-                'enabled': True
-            }
+            "tp1_sl_progress_ratio": progress_ratio,
+            "ADAPTIVE_TRAILING_CONFIG": {"enabled": True},
         }
 
         manager = AdvancedTrailingStopManager(test_config)
@@ -200,10 +194,7 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
         # Тестируем для LONG позиции
         current_price = 51000.0
         ratio_long = manager.get_adaptive_progress_ratio(
-            df=test_df,
-            symbol="BTCUSDT",
-            direction="LONG",
-            current_price=current_price
+            df=test_df, symbol="BTCUSDT", direction="LONG", current_price=current_price
         )
 
         # Проверяем, что коэффициент в разумных пределах
@@ -212,18 +203,12 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
                 name="Адаптивный trailing stop",
                 status=TestStatus.WARNING,
                 message=f"Коэффициент вне разумных пределов: {ratio_long}",
-                details={
-                    "ratio": ratio_long,
-                    "expected_range": "0.0 - 2.0"
-                }
+                details={"ratio": ratio_long, "expected_range": "0.0 - 2.0"},
             )
 
         # Тестируем для SHORT позиции
         ratio_short = manager.get_adaptive_progress_ratio(
-            df=test_df,
-            symbol="BTCUSDT",
-            direction="SHORT",
-            current_price=current_price
+            df=test_df, symbol="BTCUSDT", direction="SHORT", current_price=current_price
         )
 
         if not (0.0 <= ratio_short <= 2.0):
@@ -231,10 +216,7 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
                 name="Адаптивный trailing stop",
                 status=TestStatus.WARNING,
                 message=f"Коэффициент для SHORT вне разумных пределов: {ratio_short}",
-                details={
-                    "ratio": ratio_short,
-                    "expected_range": "0.0 - 2.0"
-                }
+                details={"ratio": ratio_short, "expected_range": "0.0 - 2.0"},
             )
 
         return TestResult(
@@ -244,8 +226,8 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
             details={
                 "long_ratio": ratio_long,
                 "short_ratio": ratio_short,
-                "base_ratio": test_config['tp1_sl_progress_ratio']
-            }
+                "base_ratio": test_config["tp1_sl_progress_ratio"],
+            },
         )
 
     except ImportError as e:
@@ -253,13 +235,13 @@ def test_trailing_stop_adaptive_ratio() -> TestResult:
             name="Адаптивный trailing stop",
             status=TestStatus.WARNING,
             message=f"Не удалось импортировать модули: {str(e)}",
-            recommendations=["Проверьте наличие trailing_stop_manager.py"]
+            recommendations=["Проверьте наличие trailing_stop_manager.py"],
         )
     except Exception as e:
         return TestResult(
             name="Адаптивный trailing stop",
             status=TestStatus.FAIL,
-            message=f"Ошибка при тестировании: {str(e)}"
+            message=f"Ошибка при тестировании: {str(e)}",
         )
 
 
@@ -268,17 +250,15 @@ def test_position_management_structure() -> TestResult:
     """Проверяет структуру модулей управления позициями"""
     try:
         modules_to_check = {
-            "price_monitor_system": ["PriceMonitorSystem"],  # check_all_active_signals - это метод, не отдельный класс
+            "price_monitor_system": [
+                "PriceMonitorSystem"
+            ],  # check_all_active_signals - это метод, не отдельный класс
             "partial_profit_manager": ["PartialProfitManager"],
             "correlation_risk_manager": ["CorrelationRiskManager"],
             "improved_position_manager": ["ImprovedPositionManager"],  # Добавляем этот модуль
         }
 
-        results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        results = {"found": [], "missing": [], "details": {}}
 
         for module_name, items in modules_to_check.items():
             try:
@@ -304,22 +284,22 @@ def test_position_management_structure() -> TestResult:
                 details=results["details"],
                 recommendations=[
                     "Проверьте наличие всех модулей управления позициями",
-                    "Некоторые модули могут быть опциональными"
-                ]
+                    "Некоторые модули могут быть опциональными",
+                ],
             )
 
         return TestResult(
             name="Структура управления позициями",
             status=TestStatus.PASS,
             message=f"Все модули управления позициями найдены ({len(results['found'])})",
-            details=results["details"]
+            details=results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Структура управления позициями",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -332,36 +312,37 @@ def test_tp1_tp2_split_logic() -> TestResult:
 
         try:
             from price_monitor_system import PriceMonitorSystem
+
             monitor = PriceMonitorSystem()
 
             # Проверяем наличие метода для частичного закрытия
-            if hasattr(monitor, 'close_signal_at_tp1'):
+            if hasattr(monitor, "close_signal_at_tp1"):
                 return TestResult(
                     name="Логика разделения TP1/TP2",
                     status=TestStatus.PASS,
                     message="Метод частичного закрытия на TP1 найден",
-                    details={"method": "close_signal_at_tp1"}
+                    details={"method": "close_signal_at_tp1"},
                 )
             else:
                 return TestResult(
                     name="Логика разделения TP1/TP2",
                     status=TestStatus.WARNING,
                     message="Метод частичного закрытия не найден",
-                    recommendations=["Проверьте реализацию close_signal_at_tp1"]
+                    recommendations=["Проверьте реализацию close_signal_at_tp1"],
                 )
 
         except ImportError:
             return TestResult(
                 name="Логика разделения TP1/TP2",
                 status=TestStatus.WARNING,
-                message="Модуль price_monitor_system не найден"
+                message="Модуль price_monitor_system не найден",
             )
 
     except Exception as e:
         return TestResult(
             name="Логика разделения TP1/TP2",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -372,7 +353,7 @@ def run_all_risk_management_functional_tests() -> list:
         test_breakeven_calculation,
         test_trailing_stop_adaptive_ratio,
         test_position_management_structure,
-        test_tp1_tp2_split_logic
+        test_tp1_tp2_split_logic,
     ]
 
     results = []
@@ -382,11 +363,13 @@ def run_all_risk_management_functional_tests() -> list:
             results.append(result)
             print(result)
         except Exception as e:
-            results.append(TestResult(
-                name=test_func.__name__,
-                status=TestStatus.FAIL,
-                message=f"Исключение при выполнении: {str(e)}"
-            ))
+            results.append(
+                TestResult(
+                    name=test_func.__name__,
+                    status=TestStatus.FAIL,
+                    message=f"Исключение при выполнении: {str(e)}",
+                )
+            )
 
     return results
 
@@ -399,5 +382,5 @@ if __name__ == "__main__":
     results = run_all_risk_management_functional_tests()
 
     from scripts.test_utils import print_test_summary
-    print_test_summary(results)
 
+    print_test_summary(results)

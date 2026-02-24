@@ -2,9 +2,10 @@
 Маршрутизатор запросов: делегирование Veronica по HTTP, fallback на Enhanced.
 Используется в run_task при task_type == 'veronica' для прямого вызова Veronica Agent.
 """
+
 import logging
 import os
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger("victoria_bridge")
 
@@ -18,7 +19,10 @@ _logged_url = False
 def _log_delegation_url_once():
     global _logged_url
     if not _logged_url:
-        logger.info("[DELEGATION] VERONICA_URL=%s (из контейнера Victoria должен быть http://veronica-agent:8000)", VERONICA_URL)
+        logger.info(
+            "[DELEGATION] VERONICA_URL=%s (из контейнера Victoria должен быть http://veronica-agent:8000)",
+            VERONICA_URL,
+        )
         _logged_url = True
 
 
@@ -36,7 +40,13 @@ async def delegate_to_veronica(
         return None
     _log_delegation_url_once()
     url = f"{VERONICA_URL}/run"
-    logger.info("[DELEGATION] VERONICA_URL=%s goal=%s correlation_id=%s timeout=%s", VERONICA_URL, (goal or "")[:50], (correlation_id or "")[:8], DELEGATE_VERONICA_TIMEOUT)
+    logger.info(
+        "[DELEGATION] VERONICA_URL=%s goal=%s correlation_id=%s timeout=%s",
+        VERONICA_URL,
+        (goal or "")[:50],
+        (correlation_id or "")[:8],
+        DELEGATE_VERONICA_TIMEOUT,
+    )
     payload: Dict[str, Any] = {
         "goal": goal,
         "project_context": project_context or os.getenv("MAIN_PROJECT", "atra-web-ide"),
@@ -49,6 +59,7 @@ async def delegate_to_veronica(
 
     try:
         import aiohttp
+
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 url,
@@ -60,7 +71,8 @@ async def delegate_to_veronica(
                     body = await response.text()
                     logger.warning(
                         "[DELEGATION] Veronica HTTP status=%s body=%s",
-                        response.status, (body or "")[:300]
+                        response.status,
+                        (body or "")[:300],
                     )
                     return None
                 data = await response.json()
@@ -69,7 +81,9 @@ async def delegate_to_veronica(
                     return None
                 status = data.get("status")
                 has_success = status == "success"
-                logger.info("[DELEGATION] Veronica HTTP 200 status=%s has_success=%s", status, has_success)
+                logger.info(
+                    "[DELEGATION] Veronica HTTP 200 status=%s has_success=%s", status, has_success
+                )
                 return {
                     "status": status or "success",
                     "output": data.get("output", ""),
@@ -79,10 +93,13 @@ async def delegate_to_veronica(
     except Exception as e:
         err_msg = str(e)
         if "Timeout" in type(e).__name__ or "timeout" in err_msg.lower():
-            logger.warning("[DELEGATION] Delegate timeout VERONICA_URL=%s timeout=%s", VERONICA_URL, DELEGATE_VERONICA_TIMEOUT)
+            logger.warning(
+                "[DELEGATION] Delegate timeout VERONICA_URL=%s timeout=%s",
+                VERONICA_URL,
+                DELEGATE_VERONICA_TIMEOUT,
+            )
         else:
             logger.warning(
-                "[DELEGATION] error=%s — проверьте VERONICA_URL и что Veronica запущена",
-                e
+                "[DELEGATION] error=%s — проверьте VERONICA_URL и что Veronica запущена", e
             )
         return None

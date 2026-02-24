@@ -30,4 +30,3 @@ COMMENT ON COLUMN prompt_optimization_logs.confidence IS 'Уверенность
 COMMENT ON COLUMN prompt_optimization_logs.applied IS 'Было ли улучшение применено';
 COMMENT ON COLUMN prompt_optimization_logs.performance_before IS 'Performance score до применения улучшения';
 COMMENT ON COLUMN prompt_optimization_logs.performance_after IS 'Performance score после применения улучшения';
-

@@ -1,7 +1,9 @@
 # Отчет об исправлении Graceful Shutdown
 
 ## Проблема
+
 Система не могла корректно завершаться, что приводило к принудительному убийству процессов systemd через SIGKILL после таймаута. В логах видно:
+
 ```
 Oct 06 21:31:36 systemd[1]: myproject.service: Killing process 1755 (python) with signal SIGKILL.
 Oct 06 21:31:36 systemd[1]: myproject.service: Failed with result 'timeout'.
@@ -10,31 +12,35 @@ Oct 06 21:31:36 systemd[1]: myproject.service: Failed with result 'timeout'.
 ## Анализ проблем
 
 ### 1. Проблемы с обработчиком сигналов
+
 - **Проблема**: Для SIGINT поднимался `KeyboardInterrupt()`, что могло не работать правильно в asyncio контексте
 - **Решение**: Убрал `raise KeyboardInterrupt()` и использую graceful shutdown для всех сигналов
 
 ### 2. Проблемы с веб-серверами
+
 - **Проблема**: Flask серверы запускались в отдельных потоках, но их остановка не была синхронизирована
 - **Решение**: Улучшил доступ к глобальным переменным `API_SERVER` и `DASHBOARD_SERVER`
 
 ### 3. Проблемы с таймаутами
+
 - **Проблема**: systemd ждет 90 секунд по умолчанию, но код мог не завершиться вовремя
 - **Решение**: Увеличил таймауты graceful shutdown с 5 до 10 секунд
 
 ## Внесенные исправления
 
 ### 1. main.py - Обработчик сигналов
+
 ```python
 def signal_handler(signum, _frame):
     """Обработчик сигналов для корректного завершения"""
     logger.info("📡 Получен сигнал %s, завершение работы...", signum)
-    
+
     # ... остановка подсистем ...
-    
+
     # Для всех сигналов используем graceful shutdown
     logger.info("🛑 Сигнал %s получен, начинаем graceful shutdown...", signum)
     shutdown_manager.request_shutdown()
-    
+
     # Для SIGTERM (systemd) даем больше времени на завершение
     if signum == signal.SIGTERM:
         logger.info("🛑 SIGTERM получен, systemd ожидает завершения...")
@@ -43,6 +49,7 @@ def signal_handler(signum, _frame):
 ```
 
 ### 2. main.py - Основной цикл
+
 ```python
 # Улучшена обработка критических ошибок
 if isinstance(exception, (SystemExit, KeyboardInterrupt)):
@@ -61,14 +68,15 @@ await asyncio.wait_for(
 ```
 
 ### 3. cleanup.py - Graceful shutdown
+
 ```python
 async def graceful_shutdown(tasks, timeout: float = 10.0):
     """Грациозное завершение с увеличенным таймаутом"""
-    
+
     # Исправлен доступ к глобальным переменным
     api_server = getattr(main, 'API_SERVER', None)
     dashboard_server = getattr(main, 'DASHBOARD_SERVER', None)
-    
+
     # Увеличен таймаут с 5 до 10 секунд
     await asyncio.wait_for(
         asyncio.gather(*(all_tasks + other_tasks), return_exceptions=True),
@@ -77,6 +85,7 @@ async def graceful_shutdown(tasks, timeout: float = 10.0):
 ```
 
 ### 4. main.py - Finally блок
+
 ```python
 finally:
     # Грациозное завершение с улучшенным логированием
@@ -95,14 +104,16 @@ finally:
         logger.info("✅ Финальная очистка завершена")
     except Exception as e:
         logger.warning("⚠️ Ошибка cleanup: %s", e)
-    
+
     logger.info("🏁 Система корректно завершена")
 ```
 
 ## Дополнительные улучшения
 
 ### 1. Улучшенный systemd service файл
+
 Создан `myproject.service` с оптимизированными настройками:
+
 ```ini
 [Service]
 Type=simple
@@ -113,6 +124,7 @@ ExecStop=/bin/kill -TERM $MAINPID
 ```
 
 ### 2. Скрипт тестирования
+
 Создан `test_graceful_shutdown.py` для автоматического тестирования graceful shutdown.
 
 ## Ожидаемые результаты
@@ -124,17 +136,20 @@ ExecStop=/bin/kill -TERM $MAINPID
 ## Инструкции по развертыванию
 
 1. **Обновить systemd service**:
+
    ```bash
    sudo cp myproject.service /etc/systemd/system/
    sudo systemctl daemon-reload
    ```
 
 2. **Перезапустить сервис**:
+
    ```bash
    sudo systemctl restart myproject.service
    ```
 
 3. **Протестировать graceful shutdown**:
+
    ```bash
    python test_graceful_shutdown.py
    ```
@@ -147,6 +162,7 @@ ExecStop=/bin/kill -TERM $MAINPID
 ## Мониторинг
 
 После развертывания следите за логами на предмет:
+
 - `🛑 Сигнал получен, начинаем graceful shutdown...`
 - `✅ Все задачи корректно завершены`
 - `🏁 Система корректно завершена`

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 🤖 Автоматическая генерация тестов для Python модулей
 
@@ -13,13 +12,13 @@
     python scripts/auto_generate_tests.py --all --output tests/unit/
 """
 
-import ast
-import os
 import argparse
+import ast
 import logging
-from pathlib import Path
-from typing import List, Dict, Set, Optional
+import os
 import re
+from pathlib import Path
+from typing import Dict, List, Optional, Set
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,22 +26,22 @@ logger = logging.getLogger(__name__)
 
 class TestGenerator:
     """Генератор тестов для Python модулей"""
-    
+
     def __init__(self, module_path: str, output_dir: str = "tests/unit"):
         self.module_path = Path(module_path)
         self.output_dir = Path(output_dir)
         self.module_name = self.module_path.stem
         self.test_file_path = self.output_dir / f"test_{self.module_name}.py"
-        
+
         # Парсим модуль
         try:
-            with open(self.module_path, 'r', encoding='utf-8') as f:
+            with open(self.module_path, encoding="utf-8") as f:
                 self.source_code = f.read()
             self.tree = ast.parse(self.source_code)
         except Exception as e:
             logger.error(f"❌ Ошибка парсинга модуля {module_path}: {e}")
             raise
-    
+
     def extract_classes(self) -> List[Dict]:
         """Извлекает классы из модуля"""
         classes = []
@@ -51,34 +50,41 @@ class TestGenerator:
                 methods = []
                 for item in node.body:
                     if isinstance(item, ast.FunctionDef):
-                        methods.append({
-                            'name': item.name,
-                            'args': [arg.arg for arg in item.args.args if arg.arg != 'self'],
-                            'is_async': isinstance(item, ast.AsyncFunctionDef)
-                        })
-                
-                classes.append({
-                    'name': node.name,
-                    'methods': methods,
-                    'bases': [base.id for base in node.bases if isinstance(base, ast.Name)]
-                })
+                        methods.append(
+                            {
+                                "name": item.name,
+                                "args": [arg.arg for arg in item.args.args if arg.arg != "self"],
+                                "is_async": isinstance(item, ast.AsyncFunctionDef),
+                            }
+                        )
+
+                classes.append(
+                    {
+                        "name": node.name,
+                        "methods": methods,
+                        "bases": [base.id for base in node.bases if isinstance(base, ast.Name)],
+                    }
+                )
         return classes
-    
+
     def extract_functions(self) -> List[Dict]:
         """Извлекает функции из модуля"""
         functions = []
         for node in ast.walk(self.tree):
             if isinstance(node, ast.FunctionDef) and not any(
-                isinstance(parent, ast.ClassDef) for parent in ast.walk(self.tree)
-                if node in getattr(parent, 'body', [])
+                isinstance(parent, ast.ClassDef)
+                for parent in ast.walk(self.tree)
+                if node in getattr(parent, "body", [])
             ):
-                functions.append({
-                    'name': node.name,
-                    'args': [arg.arg for arg in node.args.args],
-                    'is_async': isinstance(node, ast.AsyncFunctionDef)
-                })
+                functions.append(
+                    {
+                        "name": node.name,
+                        "args": [arg.arg for arg in node.args.args],
+                        "is_async": isinstance(node, ast.AsyncFunctionDef),
+                    }
+                )
         return functions
-    
+
     def generate_imports(self) -> str:
         """Генерирует импорты для тестов"""
         imports = [
@@ -96,135 +102,136 @@ class TestGenerator:
             "from unittest.mock import MagicMock, patch, AsyncMock",
             "",
         ]
-        
+
         # Добавляем импорт модуля
-        module_import_path = str(self.module_path).replace('/', '.').replace('\\', '.').replace('.py', '')
+        module_import_path = (
+            str(self.module_path).replace("/", ".").replace("\\", ".").replace(".py", "")
+        )
         imports.append(f"from {module_import_path} import *")
         imports.append("")
-        
+
         return "\n".join(imports)
-    
+
     def generate_class_tests(self, classes: List[Dict]) -> str:
         """Генерирует тесты для классов"""
         tests = []
-        
+
         for cls in classes:
-            class_name = cls['name']
+            class_name = cls["name"]
             test_class_name = f"Test{class_name}"
-            
+
             tests.append(f"class {test_class_name}:")
             tests.append(f'    """Tests for {class_name} class"""')
             tests.append("")
-            
+
             # Test __init__
-            tests.append(f"    def test_init(self):")
-            tests.append(f'        """Test initialization"""')
-            tests.append(f"        # TODO: Implement test")
-            tests.append(f"        pass")
+            tests.append("    def test_init(self):")
+            tests.append('        """Test initialization"""')
+            tests.append("        # TODO: Implement test")
+            tests.append("        pass")
             tests.append("")
-            
+
             # Test methods
-            for method in cls['methods']:
-                method_name = method['name']
-                if method_name.startswith('_') and not method_name.startswith('__'):
+            for method in cls["methods"]:
+                method_name = method["name"]
+                if method_name.startswith("_") and not method_name.startswith("__"):
                     continue  # Skip private methods
-                
+
                 test_method_name = f"test_{method_name}"
                 tests.append(f"    def {test_method_name}(self):")
                 tests.append(f'        """Test {method_name} method"""')
-                
-                if method['is_async']:
-                    tests.append(f"        # TODO: Implement async test")
-                    tests.append(f"        # Use pytest.mark.asyncio")
+
+                if method["is_async"]:
+                    tests.append("        # TODO: Implement async test")
+                    tests.append("        # Use pytest.mark.asyncio")
                 else:
-                    tests.append(f"        # TODO: Implement test")
-                
-                tests.append(f"        pass")
+                    tests.append("        # TODO: Implement test")
+
+                tests.append("        pass")
                 tests.append("")
-        
+
         return "\n".join(tests)
-    
+
     def generate_function_tests(self, functions: List[Dict]) -> str:
         """Генерирует тесты для функций"""
         tests = []
-        
+
         for func in functions:
-            func_name = func['name']
-            if func_name.startswith('_'):
+            func_name = func["name"]
+            if func_name.startswith("_"):
                 continue  # Skip private functions
-            
+
             test_func_name = f"test_{func_name}"
             tests.append(f"def {test_func_name}():")
             tests.append(f'    """Test {func_name} function"""')
-            
-            if func['is_async']:
-                tests.append(f"    # TODO: Implement async test")
-                tests.append(f"    # Use pytest.mark.asyncio")
+
+            if func["is_async"]:
+                tests.append("    # TODO: Implement async test")
+                tests.append("    # Use pytest.mark.asyncio")
             else:
-                tests.append(f"    # TODO: Implement test")
-            
-            tests.append(f"    pass")
+                tests.append("    # TODO: Implement test")
+
+            tests.append("    pass")
             tests.append("")
-        
+
         return "\n".join(tests)
-    
+
     def generate_test_file(self) -> str:
         """Генерирует полный файл тестов"""
         classes = self.extract_classes()
         functions = self.extract_functions()
-        
+
         content = []
         content.append(self.generate_imports())
         content.append("")
-        
+
         if classes:
             content.append(self.generate_class_tests(classes))
             content.append("")
-        
+
         if functions:
             content.append(self.generate_function_tests(functions))
-        
+
         return "\n".join(content)
-    
+
     def save_test_file(self) -> bool:
         """Сохраняет файл тестов"""
         try:
             # Создаём директорию если не существует
             self.output_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Проверяем, существует ли уже файл
             if self.test_file_path.exists():
                 logger.warning(f"⚠️ Файл {self.test_file_path} уже существует. Пропускаем.")
                 return False
-            
+
             # Генерируем и сохраняем
             test_content = self.generate_test_file()
-            with open(self.test_file_path, 'w', encoding='utf-8') as f:
+            with open(self.test_file_path, "w", encoding="utf-8") as f:
                 f.write(test_content)
-            
+
             logger.info(f"✅ Тесты созданы: {self.test_file_path}")
             return True
-        
+
         except Exception as e:
             logger.error(f"❌ Ошибка сохранения тестов: {e}")
             return False
-    
+
     def check_coverage(self) -> Dict:
         """Проверяет покрытие тестами (базовая версия)"""
         classes = self.extract_classes()
         functions = self.extract_functions()
-        
-        total_methods = sum(len(cls['methods']) for cls in classes) + len(functions)
+
+        total_methods = sum(len(cls["methods"]) for cls in classes) + len(functions)
         public_methods = sum(
-            len([m for m in cls['methods'] if not m['name'].startswith('_')])
-            for cls in classes
-        ) + len([f for f in functions if not f['name'].startswith('_')])
-        
+            len([m for m in cls["methods"] if not m["name"].startswith("_")]) for cls in classes
+        ) + len([f for f in functions if not f["name"].startswith("_")])
+
         return {
-            'total_methods': total_methods,
-            'public_methods': public_methods,
-            'classes': len(classes),
-            'functions': len(functions)
+            "total_methods": total_methods,
+            "public_methods": public_methods,
+            "classes": len(classes),
+            "functions": len(functions),
         }
 
 
@@ -232,42 +239,42 @@ def find_python_modules(directory: str = ".") -> List[Path]:
     """Находит все Python модули в директории"""
     modules = []
     directory_path = Path(directory)
-    
+
     # Исключаем директории
-    exclude_dirs = {'tests', '__pycache__', '.git', 'venv', '.venv', 'node_modules'}
-    
+    exclude_dirs = {"tests", "__pycache__", ".git", "venv", ".venv", "node_modules"}
+
     for py_file in directory_path.rglob("*.py"):
         # Пропускаем тесты и специальные файлы
-        if 'test_' in py_file.name or py_file.name.startswith('_'):
+        if "test_" in py_file.name or py_file.name.startswith("_"):
             continue
-        
+
         # Пропускаем исключённые директории
         if any(excluded in py_file.parts for excluded in exclude_dirs):
             continue
-        
+
         modules.append(py_file)
-    
+
     return modules
 
 
 def main():
     """Главная функция"""
     parser = argparse.ArgumentParser(description="Автоматическая генерация тестов")
-    parser.add_argument('--module', type=str, help='Путь к модулю для тестирования')
-    parser.add_argument('--all', action='store_true', help='Генерировать тесты для всех модулей')
-    parser.add_argument('--output', type=str, default='tests/unit', help='Директория для тестов')
-    parser.add_argument('--check-coverage', action='store_true', help='Проверить покрытие')
-    
+    parser.add_argument("--module", type=str, help="Путь к модулю для тестирования")
+    parser.add_argument("--all", action="store_true", help="Генерировать тесты для всех модулей")
+    parser.add_argument("--output", type=str, default="tests/unit", help="Директория для тестов")
+    parser.add_argument("--check-coverage", action="store_true", help="Проверить покрытие")
+
     args = parser.parse_args()
-    
+
     if args.all:
         # Генерируем тесты для всех модулей
         modules = find_python_modules()
         logger.info(f"📊 Найдено {len(modules)} модулей")
-        
+
         generated = 0
         skipped = 0
-        
+
         for module_path in modules:
             try:
                 generator = TestGenerator(str(module_path), args.output)
@@ -278,27 +285,26 @@ def main():
             except Exception as e:
                 logger.error(f"❌ Ошибка для {module_path}: {e}")
                 skipped += 1
-        
+
         logger.info(f"✅ Создано тестов: {generated}")
         logger.info(f"⚠️ Пропущено: {skipped}")
-    
+
     elif args.module:
         # Генерируем тесты для одного модуля
         generator = TestGenerator(args.module, args.output)
-        
+
         if args.check_coverage:
             coverage = generator.check_coverage()
             logger.info(f"📊 Покрытие для {args.module}:")
             logger.info(f"   Классов: {coverage['classes']}")
             logger.info(f"   Функций: {coverage['functions']}")
             logger.info(f"   Публичных методов: {coverage['public_methods']}")
-        
+
         generator.save_test_file()
-    
+
     else:
         parser.print_help()
 
 
 if __name__ == "__main__":
     main()
-

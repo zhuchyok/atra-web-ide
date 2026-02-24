@@ -4,7 +4,7 @@ description: Streaming - потоковая генерация ответов д
 category: ux
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🌊"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🌊" } }
 ---
 
 # Streaming Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🌊"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Длинных ответов
 - Улучшения UX
 - Интерактивных задач
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🌊"}}
 ## Методология
 
 Streaming работает через:
+
 1. **Chunk Generation** - Генерация по частям
 2. **Immediate Delivery** - Немедленная доставка
 3. **Progressive Display** - Постепенное отображение

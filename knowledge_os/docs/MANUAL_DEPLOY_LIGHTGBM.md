@@ -2,7 +2,7 @@
 
 ## ⚠️ ПРОБЛЕМА С АВТОМАТИЧЕСКИМ ДЕПЛОЕМ
 
-Автоматический деплой через SSH не работает без интерактивной сессии. 
+Автоматический деплой через SSH не работает без интерактивной сессии.
 **Нужно выполнить команды вручную на сервере.**
 
 ---
@@ -26,6 +26,7 @@ git pull origin insight
 ```
 
 **Если git push не прошел и изменений нет на сервере:**
+
 - Нужно сначала отправить изменения локально через GitHub UI или другой способ
 - Или использовать альтернативный способ (см. ниже)
 
@@ -52,6 +53,7 @@ python3 train_lightgbm_models.py
 ```
 
 **Ожидаемый результат:**
+
 ```
 ✅ Классификатор обучен: ROC-AUC=1.0000, Accuracy=99.72%
 ✅ Регрессор обучен: MAE=0.0521%, R²=0.9639
@@ -100,6 +102,7 @@ ls -lh ai_learning_data/lightgbm_models/
 **Вариант 1: Скопировать файлы напрямую**
 
 На локальной машине:
+
 ```bash
 # Создать архив с файлами
 tar -czf lightgbm_files.tar.gz \
@@ -113,6 +116,7 @@ scp lightgbm_files.tar.gz root@185.177.216.15:/root/atra/
 ```
 
 На сервере:
+
 ```bash
 cd /root/atra
 tar -xzf lightgbm_files.tar.gz
@@ -152,6 +156,7 @@ rm lightgbm_files.tar.gz
 ```
 
 При генерации сигналов:
+
 ```
 🤖 [ML PREDICTION] BTCUSDT BUY: success_prob=75.23%, expected_profit=2.45%, combined_score=1.842, recommendation=BUY
 ✅ [ML PASS] BTCUSDT LONG CLASSIC: ML фильтр пройден
@@ -161,4 +166,3 @@ rm lightgbm_files.tar.gz
 
 **Статус**: ⚠️ Требуется ручной деплой
 **Дата**: 2025-01-XX
-

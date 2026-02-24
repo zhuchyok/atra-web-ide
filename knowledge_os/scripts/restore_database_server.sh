@@ -21,14 +21,14 @@ expect {
     "# " {
         send "cd /root/atra\r"
         expect "# "
-        
+
         send "echo '=================================================================================='\r"
         expect "# "
         send "echo '🔧 ВОССТАНОВЛЕНИЕ БАЗЫ ДАННЫХ'\r"
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         # Проверка существования БД
         send "echo ''\r"
         expect "# "
@@ -36,7 +36,7 @@ expect {
         expect "# "
         send "if [ -f /root/atra/trading.db ]; then echo '✅ БД найдена'; ls -lh /root/atra/trading.db; else echo '❌ БД не найдена'; fi\r"
         expect "# "
-        
+
         # Создание бэкапа
         send "echo ''\r"
         expect "# "
@@ -46,7 +46,7 @@ expect {
         expect "# "
         send "cp /root/atra/trading.db /root/atra/backups/trading.db.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null && echo '✅ Бэкап создан' || echo '⚠️ Ошибка создания бэкапа'\r"
         expect "# "
-        
+
         # Попытка восстановления через Python
         send "echo ''\r"
         expect "# "
@@ -54,7 +54,7 @@ expect {
         expect "# "
         send "cd /root/atra && python3 scripts/restore_database.py 2>&1 | tail -30\r"
         expect "# "
-        
+
         # Проверка результата
         send "echo ''\r"
         expect "# "
@@ -76,7 +76,7 @@ expect {
         send "    print(f'❌ Ошибка: {e}')\r"
         send "PYEOF\r"
         expect "# "
-        
+
         send "echo ''\r"
         expect "# "
         send "echo '=================================================================================='\r"
@@ -85,7 +85,7 @@ expect {
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         send "exit\r"
         expect eof
     }
@@ -96,4 +96,3 @@ expect {
 }
 
 wait
-

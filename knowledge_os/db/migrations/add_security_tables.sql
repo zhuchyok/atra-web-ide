@@ -72,4 +72,3 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE users IS 'Пользователи системы с ролями и правами доступа';
 COMMENT ON TABLE audit_logs IS 'Логи аудита всех действий пользователей';
 COMMENT ON TABLE revoked_tokens IS 'Отозванные JWT токены';
-

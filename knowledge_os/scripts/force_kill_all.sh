@@ -9,16 +9,16 @@ if [ -z "$PIDS" ]; then
     echo "✅ Нет процессов main.py для остановки"
 else
     echo "🗑️ Найдено процессов: $(echo $PIDS | wc -w)"
-    
+
     # Убиваем все процессы
     for pid in $PIDS; do
         echo "💀 Убиваем процесс $pid..."
         kill -9 $pid 2>/dev/null || true
     done
-    
+
     # Ждем
     sleep 3
-    
+
     # Проверяем остались ли процессы
     REMAINING=$(ps aux | grep "python.*main.py" | grep -v grep | wc -l)
     if [ $REMAINING -gt 0 ]; then

@@ -3,8 +3,9 @@
 ## ✅ ВЫПОЛНЕНО
 
 ### 1. Обновлены лимиты корреляционных групп
+
 - **BTC_HIGH**: 2 → **5** сигналов
-- **ETH_HIGH**: 2 → **5** сигналов  
+- **ETH_HIGH**: 2 → **5** сигналов
 - **SOL_HIGH**: 4 → **5** сигналов
 
 **Файл**: `correlation_risk_manager.py` (строки 98, 102, 106)
@@ -12,20 +13,24 @@
 ### 2. Созданы скрипты для годового бектеста
 
 #### `scripts/yearly_backtest_with_tp1_trailing.py`
+
 - Годовой бектест для одной монеты
 - С новыми исправлениями: TP1 trailing SL, breakeven SL
 
 #### `scripts/mass_screening_by_correlation_groups.py`
+
 - Массовый скрининг всех монет с группировкой по корреляции
 - Вычисляет корреляцию к BTC/ETH/SOL
 - Группирует монеты по корреляционным группам
 - Выбирает топ-5 монет из каждой группы (BTC_HIGH, ETH_HIGH, SOL_HIGH)
 
 #### `scripts/optimize_symbol_parameters.py`
+
 - Оптимизация параметров для новых монет
 - Проверка существующих параметров
 
 #### `scripts/run_final_yearly_backtest.py`
+
 - Финальный годовой бектест на портфеле из 15 монет
 - Агрегирует результаты по всему портфелю
 
@@ -38,11 +43,13 @@
 **Цель**: Выбрать топ-5 монет из каждой группы (BTC_HIGH, ETH_HIGH, SOL_HIGH)
 
 **Команда**:
+
 ```bash
 python3 scripts/mass_screening_by_correlation_groups.py
 ```
 
 **Что делает**:
+
 1. Загружает все CSV файлы из `data/backtest_data/`
 2. Вычисляет корреляцию каждой монеты к BTC, ETH, SOL
 3. Группирует монеты по корреляционным группам
@@ -51,6 +58,7 @@ python3 scripts/mass_screening_by_correlation_groups.py
    - Win Rate × Profit Factor × PnL%
 
 **Результаты**:
+
 - `data/reports/correlation_groups_screening_YYYYMMDD_HHMMSS.json` - полные результаты
 - `data/reports/correlation_groups_top5_YYYYMMDD_HHMMSS.csv` - топ-5 по группам
 
@@ -63,14 +71,17 @@ python3 scripts/mass_screening_by_correlation_groups.py
 **Цель**: Проверить существующие параметры и подобрать оптимальные для новых монет
 
 **Для существующих монет** (AVAXUSDT, LINKUSDT, SOLUSDT, SUIUSDT, DOGEUSDT):
+
 - Параметры уже настроены в `src/core/config.py` (строки 298-333)
 - Проверить их эффективность на годовых данных
 
 **Для новых монет** (из топ-5 каждой группы):
+
 - Подобрать оптимальные параметры через `scripts/optimize_symbol_parameters.py`
 - Добавить в `SYMBOL_SPECIFIC_CONFIG` в `src/core/config.py`
 
 **Команда** (пример):
+
 ```bash
 python3 scripts/optimize_symbol_parameters.py
 ```
@@ -82,11 +93,13 @@ python3 scripts/optimize_symbol_parameters.py
 **Цель**: Запустить годовой бектест на финальном портфеле из 15 монет
 
 **Портфель**:
+
 - 5 монет из BTC_HIGH (топ-5 по результатам скрининга)
 - 5 монет из ETH_HIGH (топ-5 по результатам скрининга)
 - 5 монет из SOL_HIGH (топ-5 по результатам скрининга)
 
 **Команда**:
+
 ```bash
 # 1. Обновить список портфеля в scripts/run_final_yearly_backtest.py
 # 2. Запустить бектест
@@ -94,10 +107,12 @@ python3 scripts/run_final_yearly_backtest.py
 ```
 
 **Результаты**:
+
 - `data/reports/final_yearly_backtest_YYYYMMDD_HHMMSS.json` - полные результаты
 - Сводка в консоли с метриками портфеля
 
 **Метрики для анализа**:
+
 - Total PnL (%)
 - Win Rate (%)
 - Profit Factor
@@ -129,17 +144,20 @@ python3 scripts/run_final_yearly_backtest.py
 ## 🔧 НОВЫЕ ИСПРАВЛЕНИЯ В БЕКТЕСТЕ
 
 ### 1. Подтягивание SL к TP1
+
 - **Файл**: `trailing_stop_manager.py`
 - **Логика**: Консервативное подтягивание SL по мере движения к TP1
 - **Активация**: При 50% пути к TP1
 - **Подтягивание**: 30% от пройденного пути
 
 ### 2. Автоматический перенос SL в безубыток после TP1
+
 - **Файл**: `price_monitor_system.py`
 - **Логика**: После достижения TP1 (50% закрытие) SL автоматически переносится в безубыток
 - **Учет комиссий**: Безубыток рассчитывается с учетом комиссий (0.2%)
 
 ### 3. Мониторинг позиций TP1_PARTIAL
+
 - **Файл**: `price_monitor_system.py`
 - **Логика**: Позиции с статусом `TP1_PARTIAL` продолжают мониториться для достижения TP2
 
@@ -148,11 +166,13 @@ python3 scripts/run_final_yearly_backtest.py
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### После массового скрининга:
+
 - Топ-5 монет из BTC_HIGH (высокая корреляция к Bitcoin)
 - Топ-5 монет из ETH_HIGH (высокая корреляция к Ethereum)
 - Топ-5 монет из SOL_HIGH (высокая корреляция к Solana)
 
 ### После финального годового бектеста:
+
 - Общий PnL портфеля за год
 - Win Rate портфеля
 - Profit Factor портфеля
@@ -174,6 +194,7 @@ python3 scripts/run_final_yearly_backtest.py
 ## 📞 ПОДДЕРЖКА
 
 Если возникнут вопросы или проблемы:
+
 1. Проверьте логи в консоли
 2. Убедитесь, что все CSV файлы присутствуют в `data/backtest_data/`
 3. Проверьте, что данные BTCUSDT, ETHUSDT, SOLUSDT загружены
@@ -183,4 +204,3 @@ python3 scripts/run_final_yearly_backtest.py
 
 **Дата создания**: 2025-01-XX  
 **Статус**: Готово к запуску
-

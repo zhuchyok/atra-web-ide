@@ -4,7 +4,7 @@ description: Code Analysis - глубокий анализ кода, поиск 
 category: development
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔍"}}
+metadata: { "clawdbot": { "requires": { "bins": ["python"] }, "emoji": "🔍" } }
 ---
 
 # Code Analysis Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔍"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Поиска багов и уязвимостей
 - Оптимизации производительности
 - Рефакторинга кода
@@ -23,6 +24,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔍"}}
 ## Методология
 
 Code Analysis работает через:
+
 1. **Static Analysis** - Статический анализ кода
 2. **Pattern Detection** - Обнаружение паттернов и антипаттернов
 3. **Performance Analysis** - Анализ производительности

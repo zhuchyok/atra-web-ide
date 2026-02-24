@@ -10,7 +10,6 @@ from .mfi import MoneyFlowIndex
 from .stoch_rsi import StochasticRSI
 
 __all__ = [
-    'MoneyFlowIndex',
-    'StochasticRSI',
+    "MoneyFlowIndex",
+    "StochasticRSI",
 ]
-

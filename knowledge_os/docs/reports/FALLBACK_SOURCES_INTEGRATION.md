@@ -28,26 +28,26 @@ try:
     exchange = ccxt.binance()
     tickers = exchange.fetch_tickers()
     # ... обработка
-    
+
 except (Timeout, RequestTimeout) as e:
     logging.warning("⚠️ Таймаут Binance: %s", e)
     logging.info("🔄 Пробуем получить данные с Bybit...")
-    
+
     try:
         # 2. Пробуем Bybit
         exchange_bybit = ccxt.bybit()
         tickers_bybit = exchange_bybit.fetch_tickers()
         # ... обработка
-        
+
         if len(result) >= limit // 2:
             logging.info("✅ Используем данные с Bybit: %d монет", len(result))
             return result
         else:
             raise Exception("Недостаточно данных")
-            
+
     except Exception as bybit_error:
         logging.warning("⚠️ Bybit fallback не сработал: %s", bybit_error)
-    
+
     # 3. Используем дефолтный список
     logging.info("📋 Используем дефолтный список монет")
     return default_pairs[:limit]
@@ -78,17 +78,19 @@ except (Timeout, RequestTimeout) as e:
 ## 🎯 **РЕЗУЛЬТАТ:**
 
 ### **До изменений:**
+
 ```
 Binance timeout → ❌ Система падает
 ```
 
 ### **После изменений:**
+
 ```
-Binance timeout → 
+Binance timeout →
   → Bybit успешно → ✅ Работаем с Bybit
-  → Bybit timeout → 
+  → Bybit timeout →
     → Есть кэш (<1 час)? → ⚠️ Работаем с ПРЕДУПРЕЖДЕНИЕМ
-    → Нет кэша → 
+    → Нет кэша →
       → Попытка 1/3 → ждем 30 сек
       → Попытка 2/3 → ждем 30 сек
       → Попытка 3/3 → все неудачно
@@ -116,9 +118,9 @@ Binance timeout →
 ## 🚀 **СЛЕДУЮЩИЕ ШАГИ:**
 
 Система готова к работе. При следующем запуске:
+
 - ✅ Попробует Binance
 - ✅ При таймауте переключится на Bybit
 - ✅ При отсутствии обоих - использует дефолтный список
 
 **Резервные источники теперь работают корректно!** ✅
-

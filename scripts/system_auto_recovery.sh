@@ -88,7 +88,7 @@ fi
 if ! docker info >/dev/null 2>&1; then
     log "⚠️ Docker daemon не запущен, запускаю Docker Desktop..."
     open -a Docker 2>/dev/null || true
-    
+
     # Ждем запуска Docker (до 60 секунд)
     MAX_WAIT=60
     WAITED=0
@@ -172,56 +172,64 @@ MLX_RUNNING=false
 # Порт MLX API Server (можно изменить через MLX_API_PORT)
 MLX_PORT=${MLX_API_PORT:-11435}
 
+# 5.0. Проверка блокировки macOS (Documents access)
+# См. docs/MLX_CRASH_ACCOUNTABILITY.md §5
+check_mlx_launchd() {
+    local status
+    status=$(launchctl list gui/$(id -u) 2>/dev/null | grep "com.atra.mlx-api-server" | awk '{print $2}' || echo "0")
+    if [[ "$status" == "126" || "$status" == "127" ]]; then
+        log "⚠️ Обнаружена блокировка launchd (код $status). Исправляю..."
+        bash scripts/setup_mlx_autostart.sh >> "$LOG_FILE" 2>&1 || true
+        sleep 5
+        return 1
+    fi
+    return 0
+}
+
 # Проверяем MLX на порту
-if curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/api/tags" >/dev/null 2>&1; then
+if curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/health" >/dev/null 2>&1; then
     log "✅ MLX API Server (${MLX_PORT}): работает"
     MLX_RUNNING=true
 else
     log "❌ MLX API Server (${MLX_PORT}): не работает"
-    
+
+    # Пробуем исправить launchd если нужно
+    check_mlx_launchd || true
+
     # Проверяем, запущен ли процесс
     if pgrep -f "mlx_api_server\|mlx.*api" > /dev/null; then
         log "⚠️ Процесс MLX найден, но сервер не отвечает. Перезапускаю..."
         pkill -f "mlx_api_server\|mlx.*api" 2>/dev/null || true
         sleep 2
     fi
-    
-    # Запускаем MLX API Server (ошибки запуска — в ERROR_LOG)
-    log "🚀 Запускаю MLX API Server (ошибки: $ERROR_LOG)..."
-    if [ -f "scripts/start_mlx_api_server.sh" ]; then
-        # Используем venv проекта, если есть (launchd иначе может взять системный python без uvicorn)
-        if [ -x "knowledge_os/.venv/bin/python" ]; then
-            export MLX_PYTHON="$ROOT/knowledge_os/.venv/bin/python"
-            log "   Python: knowledge_os/.venv"
-        elif [ -x "backend/.venv/bin/python" ]; then
-            export MLX_PYTHON="$ROOT/backend/.venv/bin/python"
-            log "   Python: backend/.venv"
-        fi
-        export PATH
-        nohup bash scripts/start_mlx_api_server.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" &
-        MLX_PID=$!
-        log "   Запущен процесс MLX API Server (PID: $MLX_PID)"
-        
-        # Ждем запуска (до 30 секунд)
-        log "   ⏳ Ожидание запуска MLX API Server (до 30 секунд)..."
-        MAX_WAIT=30
-        WAITED=0
-        while [ $WAITED -lt $MAX_WAIT ]; do
-            if curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/api/tags" >/dev/null 2>&1; then
-                log "   ✅ MLX API Server запустился и работает"
-                MLX_RUNNING=true
-                break
+
+    # Запускаем MLX API Server
+    log "🚀 Запускаю MLX API Server..."
+    # Сначала пробуем через launchd (так как мы его починили выше)
+    launchctl kickstart -k "gui/$(id -u)/com.atra.mlx-api-server" 2>/dev/null || \
+    launchctl start com.atra.mlx-api-server 2>/dev/null || true
+
+    sleep 10
+
+    # Если через launchd не поднялся, используем прямой запуск как fallback
+    if ! curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/health" >/dev/null 2>&1; then
+        log "⚠️ launchd не помог, пробую прямой запуск через start_mlx_api_server.sh..."
+        if [ -f "scripts/start_mlx_api_server.sh" ]; then
+            # Используем venv проекта, если есть
+            if [ -x "knowledge_os/.venv/bin/python" ]; then
+                export MLX_PYTHON="$ROOT/knowledge_os/.venv/bin/python"
             fi
-            sleep 2
-            WAITED=$((WAITED + 2))
-        done
-        
-        if [ "$MLX_RUNNING" = "false" ]; then
-            log_error "   ❌ MLX API Server не запустился за $MAX_WAIT секунд"
-            log_error "   Проверьте логи: $ERROR_LOG"
+            nohup bash scripts/start_mlx_api_server.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+            sleep 10
         fi
+    fi
+
+    # Финальная проверка
+    if curl -s -f --connect-timeout 3 "http://localhost:${MLX_PORT}/health" >/dev/null 2>&1; then
+        log "   ✅ MLX API Server запустился и работает"
+        MLX_RUNNING=true
     else
-        log_error "   ❌ Скрипт start_mlx_api_server.sh не найден"
+        log_error "   ❌ MLX API Server не запустился"
     fi
 fi
 
@@ -266,7 +274,7 @@ check_service() {
     local url=$2
     local max_retries=3
     local retry=0
-    
+
     while [ $retry -lt $max_retries ]; do
         if curl -s -f --connect-timeout 5 "$url" >/dev/null 2>&1; then
             log "   ✅ $name: работает"
@@ -275,7 +283,7 @@ check_service() {
         retry=$((retry + 1))
         sleep 2
     done
-    
+
     log "   ❌ $name: недоступен после $max_retries попыток"
     return 1
 }
@@ -415,7 +423,7 @@ log "[8/10] Проверка устойчивости к потере интер
 
 if [ "$INTERNET_AVAILABLE" = "false" ]; then
     log "⚠️ Интернет недоступен, проверяю работу в режиме только локальных моделей..."
-    
+
     # MLX и Ollama критичны для работы без интернета
     MLX_PORT=${MLX_API_PORT:-11435}
     OLLAMA_PORT=${OLLAMA_PORT:-11434}

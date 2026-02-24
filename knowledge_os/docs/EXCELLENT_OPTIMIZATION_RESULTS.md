@@ -12,14 +12,14 @@
 
 ### 🏆 **ОТЛИЧНЫЕ МЕТРИКИ:**
 
-| Метрика | Значение | Статус |
-|---------|----------|--------|
-| **Сигналов** | 76 | ✅ |
-| **Сделок** | 76 | ✅ |
-| **Win Rate** | **100.0%** | ✅ **ОТЛИЧНО** |
+| Метрика           | Значение         | Статус         |
+| ----------------- | ---------------- | -------------- |
+| **Сигналов**      | 76               | ✅             |
+| **Сделок**        | 76               | ✅             |
+| **Win Rate**      | **100.0%**       | ✅ **ОТЛИЧНО** |
 | **Profit Factor** | **∞ (infinity)** | ✅ **ОТЛИЧНО** |
-| **Return/сигнал** | **32.60%** | ✅ **ОТЛИЧНО** |
-| **Общий return** | **2,477.88%** | ✅ **ОТЛИЧНО** |
+| **Return/сигнал** | **32.60%**       | ✅ **ОТЛИЧНО** |
+| **Общий return**  | **2,477.88%**    | ✅ **ОТЛИЧНО** |
 
 ### 📊 **Ключевые достижения:**
 
@@ -36,10 +36,12 @@
 ### ✅ **ГРУППА 1: Базовые фильтры (оптимизированы ранее)**
 
 #### 1. 🔵 Order Flow Filter
+
 **Файл:** `src/filters/order_flow_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 required_confirmations: 0  # Только проверка Pressure Ratio
 pr_threshold: 0.5          # Порог Pressure Ratio
@@ -50,10 +52,12 @@ pr_threshold: 0.5          # Порог Pressure Ratio
 ---
 
 #### 2. 🟢 Microstructure Filter
+
 **Файл:** `src/filters/microstructure_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 tolerance_pct: 2.5    # Допустимое расстояние до уровня (было 2.0)
 min_strength: 0.1     # Минимальная сила уровня (было 0.3)
@@ -65,10 +69,12 @@ lookback: 30          # Период анализа (было 50)
 ---
 
 #### 3. 🟡 Momentum Filter
+
 **Файл:** `src/filters/momentum_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 mfi_long: 50      # Порог MFI для LONG (было 40)
 mfi_short: 50     # Порог MFI для SHORT (было 60)
@@ -81,10 +87,12 @@ stoch_short: 50   # Порог Stoch RSI для SHORT (было 70)
 ---
 
 #### 4. 🟣 Trend Strength Filter
+
 **Файл:** `src/filters/trend_strength_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 adx_threshold: 15           # Порог силы тренда (было 20)
 require_direction: false     # Не требовать направления тренда
@@ -97,15 +105,18 @@ require_direction: false     # Не требовать направления т
 ### ✅ **ГРУППА 2: Новые фильтры (оптимизированы в этой сессии)**
 
 #### 5. 📊 Volume Profile (VP) Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 volume_profile_threshold: 0.6  # Оптимизировано (было 1.0)
 ```
 
 **Применено:**
+
 - `config.py`: `VP_FILTER_CONFIG["volume_profile_threshold"] = 0.6`
 - Код читает из `os.environ['volume_profile_threshold']`
 
@@ -114,15 +125,18 @@ volume_profile_threshold: 0.6  # Оптимизировано (было 1.0)
 ---
 
 #### 6. 📈 VWAP Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 vwap_threshold: 0.6  # Оптимизировано (было 0.8)
 ```
 
 **Применено:**
+
 - `config.py`: `VWAP_FILTER_CONFIG["vwap_threshold"] = 0.6`
 - Код читает из `os.environ['vwap_threshold']`
 
@@ -131,10 +145,12 @@ vwap_threshold: 0.6  # Оптимизировано (было 0.8)
 ---
 
 #### 7. 🎯 AMT (Auction Market Theory) Filter
+
 **Файл:** `src/filters/amt_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 lookback: 20                    # Период для анализа
 balance_threshold: 0.3          # Порог для определения баланса
@@ -142,6 +158,7 @@ imbalance_threshold: 0.5        # Порог для определения ди�
 ```
 
 **Применено:**
+
 - `src/filters/amt_filter.py`: `imbalance_threshold=0.5` (для всех режимов)
 - `config.py`: `AMT_FILTER_CONFIG` обновлен
 
@@ -150,15 +167,18 @@ imbalance_threshold: 0.5        # Порог для определения ди�
 ---
 
 #### 8. 📉 Market Profile (TPO) Filter
+
 **Файл:** `src/filters/market_profile_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 tolerance_pct: 1.5  # Допустимое отклонение от Value Area (было 1.0)
 ```
 
 **Применено:**
+
 - `src/filters/market_profile_filter.py`: `tolerance_pct: float = 1.5` (дефолт)
 - `config.py`: `MARKET_PROFILE_FILTER_CONFIG["tolerance_pct"] = 1.5`
 
@@ -167,15 +187,18 @@ tolerance_pct: 1.5  # Допустимое отклонение от Value Area 
 ---
 
 #### 9. 🏛️ Institutional Patterns Filter
+
 **Файл:** `src/filters/institutional_patterns_filter.py`  
 **Статус:** ✅ Оптимизирован и применен
 
 **Оптимальные параметры:**
+
 ```python
 min_quality_score: 0.6  # Минимальный балл качества сигнала (уже было оптимальным)
 ```
 
 **Применено:**
+
 - `src/filters/institutional_patterns_filter.py`: `min_quality_score: float = 0.6` (дефолт)
 - `config.py`: `INSTITUTIONAL_PATTERNS_FILTER_CONFIG["min_quality_score"] = 0.6`
 
@@ -199,6 +222,7 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 10. **Institutional Patterns Filter** - после baseline
 
 **Логика:**
+
 - VP и VWAP являются **обязательными** фильтрами - если они не проходят, сигнал сразу отклоняется
 - Если VP и VWAP проходят, применяется **ослабленный baseline** (70% условий)
 - После baseline применяются остальные фильтры последовательно
@@ -209,6 +233,7 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 ## 📊 СРАВНЕНИЕ РЕЗУЛЬТАТОВ
 
 ### Первая оптимизация (4 фильтра):
+
 - Сигналов: 251
 - Сделок: 251
 - Win Rate: 100.0%
@@ -216,6 +241,7 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 - Общий return: 107,598.68%
 
 ### Вторая оптимизация (все 9 фильтров):
+
 - Сигналов: 76
 - Сделок: 76
 - Win Rate: 100.0%
@@ -225,11 +251,13 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 ### Анализ изменений:
 
 **Положительные:**
+
 - ✅ Win Rate остался 100% - все сделки прибыльны
 - ✅ Profit Factor остался ∞ - нет убыточных сделок
 - ✅ Качество сигналов улучшилось - фильтры правильно отсекают плохие сигналы
 
 **Изменения:**
+
 - ⚠️ Количество сигналов уменьшилось (251 → 76) - фильтры стали строже
 - ⚠️ Return/сигнал снизился (428.68% → 32.60%) - но это нормально при меньшем количестве сигналов
 - ✅ Общий return все еще очень высокий (2,477.88%)
@@ -242,13 +270,14 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 
 ### Сравнение с другими комбинациями:
 
-| Комбинация | Сигналов | Return/сигнал | Win Rate | Profit Factor |
-|------------|----------|---------------|----------|---------------|
-| **Оптимальная** | **76** | **32.60%** | **100%** | **∞** |
-| Вторая лучшая | 75 | 31.20% | 100% | ∞ |
-| Третья лучшая | 74 | 30.50% | 100% | ∞ |
+| Комбинация      | Сигналов | Return/сигнал | Win Rate | Profit Factor |
+| --------------- | -------- | ------------- | -------- | ------------- |
+| **Оптимальная** | **76**   | **32.60%**    | **100%** | **∞**         |
+| Вторая лучшая   | 75       | 31.20%        | 100%     | ∞             |
+| Третья лучшая   | 74       | 30.50%        | 100%     | ∞             |
 
 **Выводы:**
+
 - Все топ-3 комбинации имеют 100% Win Rate
 - Оптимальная комбинация дает максимальный Return/сигнал
 - Разница в количестве сигналов минимальна (74-76)
@@ -260,20 +289,25 @@ min_quality_score: 0.6  # Минимальный балл качества си�
 ### Параметры оптимизации:
 
 **Volume Profile:**
+
 - `volume_profile_threshold`: [0.6, 0.8, 1.0]
 
 **VWAP:**
+
 - `vwap_threshold`: [0.6, 0.8, 1.0]
 
 **AMT:**
+
 - `lookback`: [20] (фиксирован)
 - `balance_threshold`: [0.3] (фиксирован)
 - `imbalance_threshold`: [0.5, 0.6]
 
 **Market Profile:**
+
 - `tolerance_pct`: [1.0, 1.5]
 
 **Institutional Patterns:**
+
 - `min_quality_score`: [0.6, 0.7]
 
 **Всего комбинаций:** 3 × 3 × 2 × 2 × 2 = **72 комбинации**  
@@ -364,6 +398,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 ## 📊 СРАВНЕНИЕ С БАЗОВОЙ СИСТЕМОЙ
 
 ### До оптимизации:
+
 - Параметры были установлены интуитивно
 - Некоторые фильтры были слишком строгими или слишком мягкими
 - Win Rate: ~85-90%
@@ -371,6 +406,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 - Profit Factor: ~1.5-2.0
 
 ### После полной оптимизации:
+
 - Параметры оптимизированы на данных
 - Все 9 фильтров настроены оптимально
 - Win Rate: **100%** ✅
@@ -378,6 +414,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 - Profit Factor: **∞** ✅
 
 **Улучшение:**
+
 - Win Rate: +10-15%
 - Profit Factor: +∞ (было ~1.5-2.0)
 - Return/сигнал: +12-17% (при меньшем количестве сигналов, но лучшем качестве)
@@ -389,6 +426,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 Для повторной оптимизации в будущем:
 
 1. **Запустить скрипт:**
+
    ```bash
    python3 scripts/optimize_all_filters_comprehensive.py
    ```
@@ -399,6 +437,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
    - Комбинаций: 72 (для новых фильтров)
 
 3. **Применить результаты:**
+
    ```bash
    python3 scripts/apply_optimized_filters.py
    ```
@@ -415,7 +454,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 - **Скрипт оптимизации:** `scripts/optimize_all_filters_comprehensive.py`
 - **Скрипт применения:** `scripts/apply_optimized_filters.py`
 - **Результаты:** `backtests/all_filters_optimization_results.json`
-- **Документация:** 
+- **Документация:**
   - `docs/COMPREHENSIVE_FILTERS_OPTIMIZATION_RESULTS.md` - результаты первой оптимизации
   - `docs/ALL_FILTERS_IN_SYSTEM.md` - полный список всех фильтров
   - `docs/ALL_FILTERS_OPTIMIZATION_COMPLETE.md` - полный отчет о второй оптимизации
@@ -439,10 +478,10 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 ## 🎉 ЗАКЛЮЧЕНИЕ
 
 Система оптимизирована и показывает **ОТЛИЧНЫЕ** результаты:
+
 - ✅ **100% Win Rate** - все сделки прибыльны
 - ✅ **Profit Factor = ∞** - нет убыточных сделок
 - ✅ **Высокая доходность** - 32.60% на сигнал
 - ✅ **Все фильтры работают** - 9 фильтров успешно отсекают убыточные сделки
 
 **Система готова к продакшену!** 🚀
-

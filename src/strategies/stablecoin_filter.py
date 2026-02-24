@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """Centralized stablecoin filtering helpers.
 
@@ -19,9 +18,22 @@ except Exception:
 
 # Fallback set if config import fails; kept minimal to avoid divergence
 _FALLBACK_STABLES = {
-    "USDTUSDT", "USDCUSDT", "BUSDUSDT", "FDUSDUSDT", "TUSDUSDT",
-    "USDDUSDT", "USDEUSDT", "DAIUSDT", "FRAXUSDT", "LUSDUSDT",
-    "USTCUSDT", "USTUSDT", "MIMUSDT", "ALGUSDT", "EURSUSDT", "USD1USDT",
+    "USDTUSDT",
+    "USDCUSDT",
+    "BUSDUSDT",
+    "FDUSDUSDT",
+    "TUSDUSDT",
+    "USDDUSDT",
+    "USDEUSDT",
+    "DAIUSDT",
+    "FRAXUSDT",
+    "LUSDUSDT",
+    "USTCUSDT",
+    "USTUSDT",
+    "MIMUSDT",
+    "ALGUSDT",
+    "EURSUSDT",
+    "USD1USDT",
 }
 
 
@@ -52,5 +64,3 @@ def should_skip_stablecoin(symbol: Optional[str], context: str = "default") -> b
     if ctx in ("position_monitoring", "depeg_monitoring"):
         return False
     return True
-
-

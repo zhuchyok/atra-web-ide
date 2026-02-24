@@ -4,12 +4,12 @@ Generate Signal Use Case
 This use case handles signal generation business logic.
 """
 
-from typing import Protocol
 from decimal import Decimal
-from src.shared.utils.datetime_utils import get_utc_now
+from typing import Protocol
 
 from src.domain.entities.signal import Signal, SignalSide, SignalStatus
 from src.domain.repositories.signal_repository import SignalRepository
+from src.shared.utils.datetime_utils import get_utc_now
 
 
 class MarketDataProvider(Protocol):
@@ -18,20 +18,10 @@ class MarketDataProvider(Protocol):
     async def get_current_price(self, symbol: str) -> Decimal:
         """Get current market price"""
 
-    async def calculate_take_profit(
-        self,
-        symbol: str,
-        entry: Decimal,
-        side: SignalSide
-    ) -> Decimal:
+    async def calculate_take_profit(self, symbol: str, entry: Decimal, side: SignalSide) -> Decimal:
         """Calculate take profit level"""
 
-    async def calculate_stop_loss(
-        self,
-        symbol: str,
-        entry: Decimal,
-        side: SignalSide
-    ) -> Decimal:
+    async def calculate_stop_loss(self, symbol: str, entry: Decimal, side: SignalSide) -> Decimal:
         """Calculate stop loss level"""
 
 
@@ -69,12 +59,8 @@ class GenerateSignalUseCase:
         entry_price = await self._market_data.get_current_price(symbol)
 
         # Calculate TP/SL
-        take_profit = await self._market_data.calculate_take_profit(
-            symbol, entry_price, side
-        )
-        stop_loss = await self._market_data.calculate_stop_loss(
-            symbol, entry_price, side
-        )
+        take_profit = await self._market_data.calculate_take_profit(symbol, entry_price, side)
+        stop_loss = await self._market_data.calculate_stop_loss(symbol, entry_price, side)
 
         # Create signal entity
         signal = Signal(

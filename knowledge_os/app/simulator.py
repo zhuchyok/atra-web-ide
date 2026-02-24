@@ -1,9 +1,10 @@
 import asyncio
-import os
-import asyncpg
 import json
-import httpx
 import logging
+import os
+
+import asyncpg
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -11,28 +12,37 @@ logger = logging.getLogger(__name__)
 MLX_API_URL = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 
+
 async def run_simulation(simulation_id: int):
     """Запускает симуляцию бизнес-идеи через локальные модели"""
     pool = await asyncpg.create_pool(DB_URL, min_size=1, max_size=5)
-    
+
     async with pool.acquire() as conn:
         idea = await conn.fetchval("SELECT idea FROM simulations WHERE id = $1", simulation_id)
         if not idea:
             logger.error(f"Симуляция {simulation_id} не найдена")
             await pool.close()
             return
-            
+
         logger.info(f"🚀 Simulating Idea: {idea}")
-        
+
         # Шаг 1: Собираем контекст из базы знаний
-        context_nodes = await conn.fetch("""
-            SELECT content FROM knowledge_nodes 
+        context_nodes = await conn.fetch(
+            """
+            SELECT content FROM knowledge_nodes
             WHERE content ILIKE $1 OR content ILIKE $2
             ORDER BY confidence_score DESC LIMIT 10
-        """, f"%{idea.split()[0] if idea.split() else ''}%", f"%{idea}%")
-        
-        context = "\n---\n".join([r['content'] for r in context_nodes]) if context_nodes else "Контекст не найден"
-        
+        """,
+            f"%{idea.split()[0] if idea.split() else ''}%",
+            f"%{idea}%",
+        )
+
+        context = (
+            "\n---\n".join([r["content"] for r in context_nodes])
+            if context_nodes
+            else "Контекст не найден"
+        )
+
         # Шаг 2: Формируем промпт с мировыми практиками бизнес-анализа
         prompt = f"""ТЫ - ЭКСПЕРТ ПО СТРАТЕГИЧЕСКОМУ ПЛАНИРОВАНИЮ И БИЗНЕС-АНАЛИЗУ. Используй ВСЕ мировые практики для максимально глубокого анализа бизнес-идеи.
 
@@ -285,34 +295,43 @@ async def run_simulation(simulation_id: int):
                         "options": {
                             "temperature": 0.7,
                             "top_p": 0.9,
-                            "num_predict": 4000  # Увеличено для детального анализа с мировыми практиками
-                        }
-                    }
+                            "num_predict": 4000,  # Увеличено для детального анализа с мировыми практиками
+                        },
+                    },
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
-                    analysis = result.get('response', 'Ошибка: ответ не получен')
-                    await conn.execute("UPDATE simulations SET result = $1 WHERE id = $2", analysis, simulation_id)
+                    analysis = result.get("response", "Ошибка: ответ не получен")
+                    await conn.execute(
+                        "UPDATE simulations SET result = $1 WHERE id = $2", analysis, simulation_id
+                    )
                     logger.info(f"✅ Simulation {simulation_id} completed and saved.")
                 else:
                     error_msg = f"MLX API Error: {response.status_code} - {response.text}"
-                    await conn.execute("UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id)
+                    await conn.execute(
+                        "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
+                    )
                     logger.error(f"❌ Simulation {simulation_id} failed: {error_msg}")
-                    
+
         except httpx.TimeoutException:
             error_msg = "Ошибка: Превышено время ожидания ответа от модели (180 сек)"
-            await conn.execute("UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id)
+            await conn.execute(
+                "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
+            )
             logger.error(f"❌ Simulation {simulation_id} timed out")
         except Exception as e:
             error_msg = f"Internal Error: {str(e)}"
-            await conn.execute("UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id)
+            await conn.execute(
+                "UPDATE simulations SET result = $1 WHERE id = $2", error_msg, simulation_id
+            )
             logger.error(f"❌ Simulation {simulation_id} failed: {e}")
 
     await pool.close()
 
+
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1:
         asyncio.run(run_simulation(int(sys.argv[1])))
-

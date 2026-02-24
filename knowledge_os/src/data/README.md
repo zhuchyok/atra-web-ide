@@ -17,18 +17,22 @@ src/data/
 ## 🔌 Провайдеры данных (providers.py)
 
 ### DataProvider
+
 Абстрактный базовый класс для всех провайдеров данных.
 
 **Возможности:**
+
 - Rate limiting
 - Retry стратегия с exponential backoff
 - Обработка ошибок HTTP
 - Автоматическое кэширование
 
 ### CoinGeckoProvider
+
 Провайдер данных CoinGecko API.
 
 **Методы:**
+
 ```python
 # Получение списка монет
 coin_list = coingecko.get_coin_list()
@@ -44,9 +48,11 @@ trending = coingecko.get_trending_coins()
 ```
 
 ### TradingViewProvider
+
 Провайдер данных TradingView для технического анализа.
 
 **Методы:**
+
 ```python
 # Получение технического анализа
 ta_data = tradingview.get_technical_analysis('BTCUSDT')
@@ -55,9 +61,11 @@ ta_data = tradingview.get_technical_analysis('BTCUSDT')
 ## 💾 Система кэширования (cache.py)
 
 ### DataCache
+
 Базовый класс для всех типов кэша с TTL.
 
 **Возможности:**
+
 - Автоматическое истечение TTL
 - Статистика hit/miss/eviction
 - Ограничение размера
@@ -97,14 +105,17 @@ print(f"Memory usage: {stats['total_size_bytes']} bytes")
 ## 🔍 Валидация данных (validation.py)
 
 ### DataValidator
+
 Базовый класс для всех валидаторов.
 
 **Возможности:**
+
 - Отслеживание ошибок и предупреждений
 - Структурированные сообщения об ошибках
 - Статистика валидации
 
 ### PriceValidator
+
 Валидация ценовых данных.
 
 ```python
@@ -126,14 +137,17 @@ if not is_valid:
 ```
 
 ### VolumeValidator
+
 Валидация данных объемов.
 
 ### NewsValidator
+
 Валидация новостных данных.
 
 ## 📊 Технические индикаторы (technical.py)
 
 ### TechnicalIndicators
+
 Централизованный класс для расчета всех технических индикаторов.
 
 ```python
@@ -157,16 +171,16 @@ all_indicators = technical_indicators.get_all_technical_indicators(ohlc_data)
 
 ### Доступные индикаторы
 
-| Индикатор | Описание | Параметры |
-|-----------|----------|-----------|
-| RSI | Relative Strength Index | period=14 |
-| Momentum | Momentum | period=10 |
-| Volume Ratio | Соотношение объема к среднему | - |
-| Fear/Greed Index | Индекс страха/жадности | - |
-| Bollinger Bands | Полосы Боллинджера | period=20, std_dev=2.0 |
-| Moving Averages | Скользящие средние | periods=[10,20,50,200] |
-| Trend Strength | Сила тренда | sma_short=20, sma_long=50 |
-| Volume Profile | Профиль объема | num_bins=10 |
+| Индикатор        | Описание                      | Параметры                 |
+| ---------------- | ----------------------------- | ------------------------- |
+| RSI              | Relative Strength Index       | period=14                 |
+| Momentum         | Momentum                      | period=10                 |
+| Volume Ratio     | Соотношение объема к среднему | -                         |
+| Fear/Greed Index | Индекс страха/жадности        | -                         |
+| Bollinger Bands  | Полосы Боллинджера            | period=20, std_dev=2.0    |
+| Moving Averages  | Скользящие средние            | periods=[10,20,50,200]    |
+| Trend Strength   | Сила тренда                   | sma_short=20, sma_long=50 |
+| Volume Profile   | Профиль объема                | num_bins=10               |
 
 ## 🚀 Использование
 
@@ -324,5 +338,5 @@ from src.data import get_coingecko_data, calculate_rsi
 
 ---
 
-*Модуль данных ATRA v1.0*
-*Централизованное управление данными с 2024 г.*
+_Модуль данных ATRA v1.0_
+_Централизованное управление данными с 2024 г._

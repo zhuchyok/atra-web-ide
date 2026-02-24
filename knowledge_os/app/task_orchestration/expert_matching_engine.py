@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -35,7 +36,9 @@ except ImportError:
         ModelRegistry = None
 
 
-DEFAULT_DB_URL = os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+DEFAULT_DB_URL = (
+    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+)
 
 # Маппинг категории задачи (coding/reasoning/general/fast) → роли экспертов из configs/experts (team.md, employees.md).
 # Подбор экспертов учитывает роли: для категории выбираются только эксперты с подходящей ролью.
@@ -117,23 +120,37 @@ CATEGORY_TO_ROLES = {
 
 async def _get_expert_workload(conn, expert_id: str) -> Dict[str, Any]:
     """Current workload for an expert (active tasks, success rate, avg duration)."""
-    active_tasks = await conn.fetchval("""
+    active_tasks = (
+        await conn.fetchval(
+            """
         SELECT count(*)
         FROM tasks
         WHERE assignee_expert_id = $1
         AND status IN ('pending', 'in_progress')
-    """, expert_id) or 0
+    """,
+            expert_id,
+        )
+        or 0
+    )
 
-    avg_duration = await conn.fetchval("""
+    avg_duration = (
+        await conn.fetchval(
+            """
         SELECT AVG(actual_duration_minutes)
         FROM tasks
         WHERE assignee_expert_id = $1
         AND status = 'completed'
         AND actual_duration_minutes IS NOT NULL
         AND completed_at > NOW() - INTERVAL '30 days'
-    """, expert_id) or 60.0
+    """,
+            expert_id,
+        )
+        or 60.0
+    )
 
-    success_rate = await conn.fetchval("""
+    success_rate = (
+        await conn.fetchval(
+            """
         SELECT
             CASE
                 WHEN count(*) = 0 THEN 1.0
@@ -142,14 +159,14 @@ async def _get_expert_workload(conn, expert_id: str) -> Dict[str, Any]:
         FROM tasks
         WHERE assignee_expert_id = $1
         AND created_at > NOW() - INTERVAL '30 days'
-    """, expert_id) or 1.0
+    """,
+            expert_id,
+        )
+        or 1.0
+    )
 
     workload_score = active_tasks * 10 + (avg_duration / 10)
-    score = (
-        workload_score * 0.5
-        + (1.0 - success_rate) * 100 * 0.3
-        + (avg_duration / 10) * 0.2
-    )
+    score = workload_score * 0.5 + (1.0 - success_rate) * 100 * 0.3 + (avg_duration / 10) * 0.2
     return {
         "active_tasks": active_tasks,
         "avg_duration_minutes": round(avg_duration, 1),
@@ -270,14 +287,17 @@ class ExpertMatchingEngine:
         """Experts by expert_specializations.category; fallback to experts by department/role."""
         # Try expert_specializations first
         try:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(
+                """
                 SELECT e.id, e.name, e.role, e.department, es.proficiency_score
                 FROM experts e
                 INNER JOIN expert_specializations es ON es.expert_id = e.id
                 WHERE es.category = $1
                 AND (e.is_active = true OR e.is_active IS NULL)
                 ORDER BY es.proficiency_score DESC NULLS LAST
-            """, required_category)
+            """,
+                required_category,
+            )
             if rows:
                 return [dict(r) for r in rows]
         except Exception as e:
@@ -293,7 +313,9 @@ class ExpertMatchingEngine:
             roles_for_category = list(CATEGORY_TO_ROLES.get("general", []))
         if required_category == "general":
             try:
-                db_roles = await conn.fetch("SELECT DISTINCT role FROM experts WHERE role IS NOT NULL AND role != ''")
+                db_roles = await conn.fetch(
+                    "SELECT DISTINCT role FROM experts WHERE role IS NOT NULL AND role != ''"
+                )
                 for row in db_roles:
                     r = row.get("role") if hasattr(row, "get") else row["role"]
                     if r and r not in roles_for_category:
@@ -302,27 +324,37 @@ class ExpertMatchingEngine:
                 pass
         if roles_for_category:
             try:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT id, name, role, department
                     FROM experts
                     WHERE (is_active = true OR is_active IS NULL)
                     AND role = ANY($1::text[])
                     ORDER BY RANDOM()
                     LIMIT 50
-                """, roles_for_category)
+                """,
+                    roles_for_category,
+                )
                 if rows:
-                    logger.debug("Expert matching by roles for category %s: %s experts", required_category, len(rows))
+                    logger.debug(
+                        "Expert matching by roles for category %s: %s experts",
+                        required_category,
+                        len(rows),
+                    )
                     return [dict(r) for r in rows]
             except Exception as e:
                 if "is_active" in str(e).lower():
                     try:
-                        rows = await conn.fetch("""
+                        rows = await conn.fetch(
+                            """
                             SELECT id, name, role, department
                             FROM experts
                             WHERE role = ANY($1::text[])
                             ORDER BY RANDOM()
                             LIMIT 50
-                        """, roles_for_category)
+                        """,
+                            roles_for_category,
+                        )
                         if rows:
                             return [dict(r) for r in rows]
                     except Exception:
@@ -332,7 +364,8 @@ class ExpertMatchingEngine:
         # Fallback: experts by department or role (ILIKE для произвольной категории/строки)
         try:
             pattern = f"%{required_category}%"
-            rows = await conn.fetch("""
+            rows = await conn.fetch(
+                """
                 SELECT id, name, role, department
                 FROM experts
                 WHERE (is_active = true OR is_active IS NULL)
@@ -342,18 +375,23 @@ class ExpertMatchingEngine:
                 )
                 ORDER BY RANDOM()
                 LIMIT 50
-            """, pattern)
+            """,
+                pattern,
+            )
             if rows:
                 return [dict(r) for r in rows]
         except Exception as e:
             if "is_active" in str(e).lower():
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT id, name, role, department
                     FROM experts
                     WHERE department ILIKE $1 OR role ILIKE $1
                     ORDER BY RANDOM()
                     LIMIT 50
-                """, pattern)
+                """,
+                    pattern,
+                )
                 if rows:
                     return [dict(r) for r in rows]
             logger.debug("experts fallback query failed: %s", e)
@@ -397,9 +435,21 @@ class ExpertMatchingEngine:
         try:
             for item in subtasks:
                 st_id = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
-                desc = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
-                category = item.get("category", "general") if isinstance(item, dict) else getattr(item, "category", "general")
-                required_models = item.get("required_models") if isinstance(item, dict) else getattr(item, "required_models", None)
+                desc = (
+                    item.get("description")
+                    if isinstance(item, dict)
+                    else getattr(item, "description", "")
+                )
+                category = (
+                    item.get("category", "general")
+                    if isinstance(item, dict)
+                    else getattr(item, "category", "general")
+                )
+                required_models = (
+                    item.get("required_models")
+                    if isinstance(item, dict)
+                    else getattr(item, "required_models", None)
+                )
                 if not st_id:
                     continue
                 best = await self.find_best_expert_for_task(

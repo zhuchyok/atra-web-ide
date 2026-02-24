@@ -2,9 +2,10 @@
 Реестр проектов корпорации: загрузка из БД (таблица projects) с fallback на env и хардкод.
 Используется Victoria и Veronica для валидации project_context и детерминированного маппинга (безопасность).
 """
-import os
+
 import logging
-from typing import Dict, List, Tuple, Any
+import os
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,9 @@ DEFAULT_PROJECT_CONFIGS: Dict[str, Dict[str, Any]] = {
 _registry_cache: Tuple[List[str], Dict[str, Dict[str, Any]]] | None = None
 
 
-async def load_projects_registry(database_url: str | None = None) -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
+async def load_projects_registry(
+    database_url: str | None = None,
+) -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
     """
     Загружает реестр проектов из БД (таблица projects, is_active=true).
     Возвращает (allowed_slugs, configs_by_slug).
@@ -41,6 +44,7 @@ async def load_projects_registry(database_url: str | None = None) -> Tuple[List[
     if url:
         try:
             import asyncpg
+
             conn = await asyncpg.connect(url, timeout=5)
             try:
                 row = await conn.fetchrow(
@@ -78,7 +82,9 @@ async def load_projects_registry(database_url: str | None = None) -> Tuple[List[
     return (allowed_env, configs)
 
 
-async def get_projects_registry(force_reload: bool = False) -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
+async def get_projects_registry(
+    force_reload: bool = False,
+) -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
     """
     Возвращает кэшированный реестр (allowed_slugs, configs_by_slug).
     При первом вызове или force_reload загружает из БД с fallback на env/hardcoded.

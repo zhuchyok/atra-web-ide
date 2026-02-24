@@ -4,6 +4,7 @@
 
 **Дата:** 13 ноября 2025 (ночь)  
 **Симптомы:**
+
 - Сигналы приходят в Telegram ✅
 - Позиции НЕ открываются на бирже ❌
 
@@ -12,14 +13,16 @@
 ### ✅ Проверено:
 
 1. **Режим пользователя:**
+
    ```sql
    SELECT user_id, trade_mode FROM user_settings WHERE user_id = 556251171;
    -- Результат: 556251171|auto ✅
    ```
 
 2. **Ключи API:**
+
    ```sql
-   SELECT user_id, exchange_name, COUNT(*) FROM user_exchange_keys 
+   SELECT user_id, exchange_name, COUNT(*) FROM user_exchange_keys
    WHERE user_id = 556251171 AND exchange_name = 'bitget';
    -- Результат: 556251171|bitget|1 ✅
    ```
@@ -63,7 +66,7 @@
 ```python
 # В signal_live.py, строка 3757
 logger.info("🔍 [AUTO CHECK] Начало проверки автоисполнения для %s", symbol)
-logger.info("🔍 [AUTO CHECK] user_id=%s, entry_amount_usdt=%s, leverage=%s", 
+logger.info("🔍 [AUTO CHECK] user_id=%s, entry_amount_usdt=%s, leverage=%s",
            user_id_local, entry_amount_usdt, leverage)
 ```
 
@@ -118,7 +121,7 @@ grep -E "❌.*AUTO|ERROR.*auto_execution" logs/system.log | tail -50
 ## 🎯 Ожидаемый результат
 
 После исправлений:
+
 - Все сигналы в режиме `auto` должны автоматически открываться на бирже
 - Детальные логи помогут быстро диагностировать проблемы
 - Мониторинг покажет процент успешных автоисполнений
-

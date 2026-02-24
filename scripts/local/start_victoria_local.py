@@ -63,14 +63,14 @@ logger.info(f"Port: {PORT}")
 
 class SimpleVictoriaAgent:
     """Упрощённая версия Victoria Agent для локального запуска."""
-    
+
     def __init__(self, model: str = MODEL, base_url: str = LLM_URL):
         self.model = model
         self.base_url = base_url
         self.name = "Виктория"
         self.memory = []
         self.project_knowledge = {}
-        
+
         self.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA. ТЫ ИСПОЛЬЗУЕШЬ VICTORIA ENHANCED.
 
 🌟 ТВОИ VICTORIA ENHANCED ВОЗМОЖНОСТИ:
@@ -96,7 +96,7 @@ class SimpleVictoriaAgent:
 - Если нужно выполнить действие — опиши что нужно сделать
 - Используй русский язык
 """
-    
+
     async def check_llm_health(self) -> dict:
         """Проверяет доступность LLM"""
         try:
@@ -109,26 +109,26 @@ class SimpleVictoriaAgent:
                     return {"status": "error", "code": resp.status}
         except Exception as e:
             return {"status": "offline", "error": str(e), "url": self.base_url}
-    
+
     async def run(self, goal: str, max_steps: int = 500) -> str:
         """Выполняет задачу"""
         logger.info(f"🚀 Задача: {goal[:100]}...")
-        
+
         # Проверяем доступность LLM
         health = await self.check_llm_health()
         if health.get("status") == "offline":
             return f"❌ LLM недоступен: {health.get('error')}\nURL: {self.base_url}\n\nЗапустите Ollama: ollama serve"
-        
+
         # Формируем запрос
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": goal}
         ]
-        
+
         # Добавляем историю если есть
         if self.memory:
             messages = [messages[0]] + self.memory[-6:] + [messages[-1]]
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 payload = {
@@ -137,7 +137,7 @@ class SimpleVictoriaAgent:
                     "stream": False,
                     "options": {"temperature": 0.7}
                 }
-                
+
                 async with session.post(
                     f"{self.base_url}/api/chat",
                     json=payload,
@@ -146,17 +146,17 @@ class SimpleVictoriaAgent:
                     if resp.status == 200:
                         result = await resp.json()
                         content = result.get("message", {}).get("content", "")
-                        
+
                         # Сохраняем в память
                         self.memory.append({"role": "user", "content": goal})
                         self.memory.append({"role": "assistant", "content": content})
-                        
+
                         logger.info(f"✅ Ответ получен ({len(content)} символов)")
                         return content
                     else:
                         error_text = await resp.text()
                         return f"❌ Ошибка LLM: HTTP {resp.status}\n{error_text}"
-                        
+
         except asyncio.TimeoutError:
             return "❌ Таймаут: LLM не ответил за 120 секунд"
         except Exception as e:
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 ║    POST /run        — выполнить задачу                       ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
-    
+
     uvicorn.run(
         app,
         host="0.0.0.0",

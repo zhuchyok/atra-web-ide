@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "knowledge_os"))
 async def test_victoria_initiative():
     """Тест Victoria Initiative"""
     print("🚀 Тестирование Victoria Initiative and Self-Extension\n")
-    
+
     # 1. Проверка импортов
     print("1️⃣ Проверка импортов...")
     try:
@@ -27,7 +27,7 @@ async def test_victoria_initiative():
     except Exception as e:
         print(f"   ❌ Ошибка импорта: {e}\n")
         return False
-    
+
     # 2. Инициализация Victoria Enhanced
     print("2️⃣ Инициализация Victoria Enhanced...")
     try:
@@ -36,7 +36,7 @@ async def test_victoria_initiative():
     except Exception as e:
         print(f"   ❌ Ошибка инициализации: {e}\n")
         return False
-    
+
     # 3. Проверка компонентов
     print("3️⃣ Проверка компонентов...")
     components = {
@@ -45,12 +45,12 @@ async def test_victoria_initiative():
         "Skill Loader": victoria.skill_loader is not None,
         "Event Handlers": victoria.event_handlers is not None,
     }
-    
+
     for name, status in components.items():
         status_icon = "✅" if status else "❌"
         print(f"   {status_icon} {name}: {'Доступен' if status else 'Недоступен'}")
     print()
-    
+
     # 4. Запуск мониторинга
     print("4️⃣ Запуск мониторинга...")
     try:
@@ -59,7 +59,7 @@ async def test_victoria_initiative():
     except Exception as e:
         print(f"   ⚠️ Ошибка запуска мониторинга: {e}\n")
         print("   (Это нормально, если некоторые компоненты недоступны)\n")
-    
+
     # 5. Проверка статуса
     print("5️⃣ Проверка статуса...")
     try:
@@ -72,7 +72,7 @@ async def test_victoria_initiative():
         print()
     except Exception as e:
         print(f"   ⚠️ Ошибка получения статуса: {e}\n")
-    
+
     # 6. Проверка Skills
     print("6️⃣ Проверка Skills...")
     try:
@@ -86,7 +86,7 @@ async def test_victoria_initiative():
             print()
     except Exception as e:
         print(f"   ⚠️ Ошибка проверки skills: {e}\n")
-    
+
     # 7. Остановка
     print("7️⃣ Остановка мониторинга...")
     try:
@@ -94,7 +94,7 @@ async def test_victoria_initiative():
         print("   ✅ Мониторинг остановлен\n")
     except Exception as e:
         print(f"   ⚠️ Ошибка остановки: {e}\n")
-    
+
     print("✅ Тест завершен!")
     return True
 

@@ -87,7 +87,7 @@ if [ $? -eq 0 ]; then
     echo "🚀 Выполнение на сервере..."
     sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER" "chmod +x /tmp/start_atra.sh && bash /tmp/start_atra.sh" 2>&1
     EXIT_CODE=$?
-    
+
     if [ $EXIT_CODE -eq 0 ]; then
         echo ""
         echo "✅✅✅ СИСТЕМА УСПЕШНО ЗАПУЩЕНА НА ПРОДАКШН! ✅✅✅"
@@ -106,4 +106,3 @@ fi
 
 # Удаляем временный файл
 rm -f /tmp/start_atra.sh
-

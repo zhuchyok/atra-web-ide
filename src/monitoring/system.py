@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Система мониторинга и алертинга для торгового бота.
@@ -36,6 +35,7 @@ logger = logging.getLogger(__name__)
 # Импорты для системных метрик
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
@@ -44,20 +44,25 @@ except ImportError:
 # Импорт базы данных
 try:
     from src.database.db import Database
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
     logger.warning("Модуль db недоступен, метрики будут ограничены")
 
+
 class AlertSeverity(Enum):
     """Уровни серьезности алертов"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
+
 class AlertType(Enum):
     """Типы алертов"""
+
     SYSTEM_ERROR = "system_error"
     PERFORMANCE_DEGRADATION = "performance_degradation"
     RISK_LIMIT_EXCEEDED = "risk_limit_exceeded"
@@ -68,9 +73,11 @@ class AlertType(Enum):
     HIGH_DRAWDOWN = "high_drawdown"
     SIGNAL_QUALITY_DROPPED = "signal_quality_dropped"
 
+
 @dataclass
 class Alert:
     """Структура алерта"""
+
     id: str
     timestamp: datetime
     type: AlertType
@@ -85,23 +92,28 @@ class Alert:
     acknowledged_by: Optional[str] = None
     acknowledged_at: Optional[datetime] = None
 
+
 @dataclass
 class Metric:
     """Метрика для мониторинга"""
+
     name: str
     value: float
     timestamp: datetime
     unit: str = ""
     tags: Dict[str, str] = field(default_factory=dict)
 
+
 @dataclass
 class SystemHealth:
     """Состояние здоровья системы"""
+
     timestamp: datetime
     overall_status: str  # "healthy", "degraded", "critical"
     components: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     alerts_count: int = 0
     critical_alerts_count: int = 0
+
 
 class MetricsCollector:
     """Сборщик метрик"""
@@ -147,12 +159,12 @@ class MetricsCollector:
         values = [m.value for m in history]
 
         return {
-            'count': len(values),
-            'min': min(values),
-            'max': max(values),
-            'avg': statistics.mean(values),
-            'median': statistics.median(values),
-            'std': statistics.stdev(values) if len(values) > 1 else 0
+            "count": len(values),
+            "min": min(values),
+            "max": max(values),
+            "avg": statistics.mean(values),
+            "median": statistics.median(values),
+            "std": statistics.stdev(values) if len(values) > 1 else 0,
         }
 
     def get_all_metrics_summary(self, hours: int = 1) -> Dict[str, Dict[str, float]]:
@@ -163,6 +175,7 @@ class MetricsCollector:
             summary[metric_name] = self.get_metric_statistics(metric_name, hours)
 
         return summary
+
 
 class AlertManager:
     """Менеджер алертов"""
@@ -197,7 +210,9 @@ class AlertManager:
         self.alerts.append(alert)
         self.active_alerts[alert.id] = alert
 
-        logger.warning("ALERT [%s] %s: %s", alert.severity.value.upper(), alert.type.value, alert.title)
+        logger.warning(
+            "ALERT [%s] %s: %s", alert.severity.value.upper(), alert.type.value, alert.title
+        )
 
         # Отправляем уведомления
         asyncio.create_task(self._send_notifications(alert))
@@ -267,22 +282,22 @@ class AlertManager:
 
     def _evaluate_rule(self, rule: Dict[str, Any], metrics: Dict[str, Any]) -> bool:
         """Оценивает правило алерта"""
-        metric_name = rule.get('metric')
-        condition = rule.get('condition')
-        threshold = rule.get('threshold')
+        metric_name = rule.get("metric")
+        condition = rule.get("condition")
+        threshold = rule.get("threshold")
 
         if metric_name not in metrics:
             return False
 
         metric_value = metrics[metric_name]
 
-        if condition == 'greater_than':
+        if condition == "greater_than":
             return metric_value > threshold
-        elif condition == 'less_than':
+        elif condition == "less_than":
             return metric_value < threshold
-        elif condition == 'equals':
+        elif condition == "equals":
             return metric_value == threshold
-        elif condition == 'not_equals':
+        elif condition == "not_equals":
             return metric_value != threshold
 
         return False
@@ -292,15 +307,16 @@ class AlertManager:
         alert = Alert(
             id=f"rule_{rule['id']}_{int(time.time())}",
             timestamp=get_utc_now(),
-            type=AlertType(rule.get('type', 'system_error')),
-            severity=AlertSeverity(rule.get('severity', 'medium')),
-            title=rule.get('title', 'Rule-based alert'),
-            message=rule.get('message', 'Alert triggered by rule'),
-            source=rule.get('source', 'monitoring_system'),
-            data={'rule': rule, 'metrics': metrics}
+            type=AlertType(rule.get("type", "system_error")),
+            severity=AlertSeverity(rule.get("severity", "medium")),
+            title=rule.get("title", "Rule-based alert"),
+            message=rule.get("message", "Alert triggered by rule"),
+            source=rule.get("source", "monitoring_system"),
+            data={"rule": rule, "metrics": metrics},
         )
 
         self.add_alert(alert)
+
 
 class NotificationChannel:
     """Базовый класс для каналов уведомлений"""
@@ -308,6 +324,7 @@ class NotificationChannel:
     async def send_alert(self, alert: Alert):
         """Отправляет алерт"""
         raise NotImplementedError
+
 
 class TelegramNotificationChannel(NotificationChannel):
     """Канал уведомлений через Telegram"""
@@ -332,11 +349,7 @@ class TelegramNotificationChannel(NotificationChannel):
             # Отправляем сообщение
             async with aiohttp.ClientSession() as session:
                 url = f"{self.base_url}/sendMessage"
-                data = {
-                    'chat_id': self.chat_id,
-                    'text': message,
-                    'parse_mode': 'Markdown'
-                }
+                data = {"chat_id": self.chat_id, "text": message, "parse_mode": "Markdown"}
 
                 async with session.post(url, json=data) as response:
                     if response.status != 200:
@@ -351,14 +364,17 @@ class TelegramNotificationChannel(NotificationChannel):
             AlertSeverity.LOW: "ℹ️",
             AlertSeverity.MEDIUM: "⚠️",
             AlertSeverity.HIGH: "🚨",
-            AlertSeverity.CRITICAL: "🔥"
+            AlertSeverity.CRITICAL: "🔥",
         }
         return emoji_map.get(severity, "❓")
+
 
 class EmailNotificationChannel(NotificationChannel):
     """Канал уведомлений через Email"""
 
-    def __init__(self, smtp_server: str, smtp_port: int, username: str, password: str, to_emails: List[str]):
+    def __init__(
+        self, smtp_server: str, smtp_port: int, username: str, password: str, to_emails: List[str]
+    ):
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.username = username
@@ -370,9 +386,9 @@ class EmailNotificationChannel(NotificationChannel):
         try:
             # Создаем сообщение
             msg = MIMEMultipart()
-            msg['From'] = self.username
-            msg['To'] = ', '.join(self.to_emails)
-            msg['Subject'] = f"[{alert.severity.value.upper()}] {alert.title}"
+            msg["From"] = self.username
+            msg["To"] = ", ".join(self.to_emails)
+            msg["Subject"] = f"[{alert.severity.value.upper()}] {alert.title}"
 
             # Тело сообщения
             body = f"""
@@ -382,12 +398,12 @@ Alert Details:
 - Type: {alert.type.value}
 - Severity: {alert.severity.value}
 - Source: {alert.source}
-- Time: {alert.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+- Time: {alert.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
 
 Data: {json.dumps(alert.data, indent=2)}
             """
 
-            msg.attach(MIMEText(body, 'plain'))
+            msg.attach(MIMEText(body, "plain"))
 
             # Отправляем email
             server = smtplib.SMTP(self.smtp_server, self.smtp_port)
@@ -403,6 +419,7 @@ Data: {json.dumps(alert.data, indent=2)}
         except Exception as e:
             logger.error("Error sending email alert: %s", e)
 
+
 class MonitoringSystem:
     """Главная система мониторинга"""
 
@@ -414,11 +431,11 @@ class MonitoringSystem:
 
         # Компоненты системы
         self.components = {
-            'database': {'status': 'unknown', 'last_check': None},
-            'telegram_bot': {'status': 'unknown', 'last_check': None},
-            'signal_generator': {'status': 'unknown', 'last_check': None},
-            'data_sources': {'status': 'unknown', 'last_check': None},
-            'risk_manager': {'status': 'unknown', 'last_check': None}
+            "database": {"status": "unknown", "last_check": None},
+            "telegram_bot": {"status": "unknown", "last_check": None},
+            "signal_generator": {"status": "unknown", "last_check": None},
+            "data_sources": {"status": "unknown", "last_check": None},
+            "risk_manager": {"status": "unknown", "last_check": None},
         }
 
         # Настройки мониторинга
@@ -436,49 +453,49 @@ class MonitoringSystem:
         """Настраивает правила алертов по умолчанию"""
         default_rules = [
             {
-                'id': 'high_error_rate',
-                'metric': 'error_rate_pct',
-                'condition': 'greater_than',
-                'threshold': 10.0,
-                'type': 'system_error',
-                'severity': 'high',
-                'title': 'High Error Rate',
-                'message': 'System error rate exceeds 10%',
-                'source': 'monitoring_system'
+                "id": "high_error_rate",
+                "metric": "error_rate_pct",
+                "condition": "greater_than",
+                "threshold": 10.0,
+                "type": "system_error",
+                "severity": "high",
+                "title": "High Error Rate",
+                "message": "System error rate exceeds 10%",
+                "source": "monitoring_system",
             },
             {
-                'id': 'low_winrate',
-                'metric': 'signal_winrate',
-                'condition': 'less_than',
-                'threshold': 0.35,
-                'type': 'signal_quality_dropped',
-                'severity': 'medium',
-                'title': 'Low Signal Winrate',
-                'message': 'Signal winrate dropped below 35%',
-                'source': 'signal_monitor'
+                "id": "low_winrate",
+                "metric": "signal_winrate",
+                "condition": "less_than",
+                "threshold": 0.35,
+                "type": "signal_quality_dropped",
+                "severity": "medium",
+                "title": "Low Signal Winrate",
+                "message": "Signal winrate dropped below 35%",
+                "source": "signal_monitor",
             },
             {
-                'id': 'high_drawdown',
-                'metric': 'portfolio_drawdown_pct',
-                'condition': 'greater_than',
-                'threshold': 15.0,
-                'type': 'high_drawdown',
-                'severity': 'high',
-                'title': 'High Portfolio Drawdown',
-                'message': 'Portfolio drawdown exceeds 15%',
-                'source': 'risk_manager'
+                "id": "high_drawdown",
+                "metric": "portfolio_drawdown_pct",
+                "condition": "greater_than",
+                "threshold": 15.0,
+                "type": "high_drawdown",
+                "severity": "high",
+                "title": "High Portfolio Drawdown",
+                "message": "Portfolio drawdown exceeds 15%",
+                "source": "risk_manager",
             },
             {
-                'id': 'low_balance',
-                'metric': 'account_balance',
-                'condition': 'less_than',
-                'threshold': 100.0,
-                'type': 'balance_low',
-                'severity': 'critical',
-                'title': 'Low Account Balance',
-                'message': 'Account balance is critically low',
-                'source': 'account_monitor'
-            }
+                "id": "low_balance",
+                "metric": "account_balance",
+                "condition": "less_than",
+                "threshold": 100.0,
+                "type": "balance_low",
+                "severity": "critical",
+                "title": "Low Account Balance",
+                "message": "Account balance is critically low",
+                "source": "account_monitor",
+            },
         ]
 
         for rule in default_rules:
@@ -497,7 +514,7 @@ class MonitoringSystem:
         self.monitoring_tasks = [
             asyncio.create_task(self._health_checker()),
             asyncio.create_task(self._metrics_monitor()),
-            asyncio.create_task(self._alert_checker())
+            asyncio.create_task(self._alert_checker()),
         ]
 
         try:
@@ -564,75 +581,76 @@ class MonitoringSystem:
                 # Пока используем заглушки
                 health_status = await self._check_component_health(component_name)
 
-                component_data['status'] = health_status['status']
-                component_data['last_check'] = get_utc_now()
-                component_data['details'] = health_status.get('details', {})
+                component_data["status"] = health_status["status"]
+                component_data["last_check"] = get_utc_now()
+                component_data["details"] = health_status.get("details", {})
 
             except Exception as e:
                 logger.error("Error checking health of %s: %s", component_name, e)
-                component_data['status'] = 'error'
-                component_data['last_check'] = get_utc_now()
+                component_data["status"] = "error"
+                component_data["last_check"] = get_utc_now()
 
         # Обновляем общее состояние системы
         self._update_overall_health()
 
     async def _check_component_health(self, component_name: str) -> Dict[str, Any]:
         """Проверяет здоровье конкретного компонента"""
-        if component_name == 'database':
+        if component_name == "database":
             return await self._check_database_health()
-        elif component_name == 'telegram_bot':
+        elif component_name == "telegram_bot":
             return await self._check_telegram_bot_health()
-        elif component_name == 'signal_generator':
+        elif component_name == "signal_generator":
             return await self._check_signal_generator_health()
-        elif component_name == 'data_sources':
+        elif component_name == "data_sources":
             return await self._check_data_sources_health()
-        elif component_name == 'risk_manager':
+        elif component_name == "risk_manager":
             return await self._check_risk_manager_health()
         else:
-            return {'status': 'unknown'}
+            return {"status": "unknown"}
 
     async def _check_database_health(self) -> Dict[str, Any]:
         """Проверяет здоровье базы данных"""
         try:
-            return {'status': 'healthy', 'details': {'response_time_ms': 5}}
+            return {"status": "healthy", "details": {"response_time_ms": 5}}
         except Exception as e:
-            return {'status': 'unhealthy', 'details': {'error': str(e)}}
+            return {"status": "unhealthy", "details": {"error": str(e)}}
 
     async def _check_telegram_bot_health(self) -> Dict[str, Any]:
         """Проверяет здоровье Telegram бота"""
         try:
-            return {'status': 'healthy', 'details': {'last_update': get_utc_now()}}
+            return {"status": "healthy", "details": {"last_update": get_utc_now()}}
         except Exception as e:
-            return {'status': 'unhealthy', 'details': {'error': str(e)}}
+            return {"status": "unhealthy", "details": {"error": str(e)}}
 
     async def _check_signal_generator_health(self) -> Dict[str, Any]:
         """Проверяет здоровье генератора сигналов"""
         try:
-            return {'status': 'healthy', 'details': {'last_signal': get_utc_now()}}
+            return {"status": "healthy", "details": {"last_signal": get_utc_now()}}
         except Exception as e:
-            return {'status': 'unhealthy', 'details': {'error': str(e)}}
+            return {"status": "unhealthy", "details": {"error": str(e)}}
 
     async def _check_data_sources_health(self) -> Dict[str, Any]:
         """Проверяет здоровье источников данных"""
         try:
-            return {'status': 'healthy', 'details': {'available_sources': 4}}
+            return {"status": "healthy", "details": {"available_sources": 4}}
         except Exception as e:
-            return {'status': 'unhealthy', 'details': {'error': str(e)}}
+            return {"status": "unhealthy", "details": {"error": str(e)}}
 
     async def _check_risk_manager_health(self) -> Dict[str, Any]:
         """Проверяет здоровье менеджера рисков"""
         try:
-            return {'status': 'healthy', 'details': {'active_positions': 0}}
+            return {"status": "healthy", "details": {"active_positions": 0}}
         except Exception as e:
-            return {'status': 'unhealthy', 'details': {'error': str(e)}}
+            return {"status": "unhealthy", "details": {"error": str(e)}}
 
     def _update_overall_health(self):
         """Обновляет общее состояние здоровья системы"""
         self.system_health.timestamp = get_utc_now()
 
         # Подсчитываем количество нездоровых компонентов
-        unhealthy_count = sum(1 for comp in self.components.values()
-                            if comp['status'] in ['unhealthy', 'error'])
+        unhealthy_count = sum(
+            1 for comp in self.components.values() if comp["status"] in ["unhealthy", "error"]
+        )
 
         # Определяем общий статус
         if unhealthy_count == 0:
@@ -657,15 +675,15 @@ class MonitoringSystem:
         metrics = {}
 
         # Метрики производительности
-        metrics['error_rate_pct'] = self._calculate_error_rate()
-        metrics['signal_winrate'] = self._calculate_signal_winrate()
-        metrics['portfolio_drawdown_pct'] = self._calculate_portfolio_drawdown()
-        metrics['account_balance'] = self._get_account_balance()
+        metrics["error_rate_pct"] = self._calculate_error_rate()
+        metrics["signal_winrate"] = self._calculate_signal_winrate()
+        metrics["portfolio_drawdown_pct"] = self._calculate_portfolio_drawdown()
+        metrics["account_balance"] = self._get_account_balance()
 
         # Метрики системы
-        metrics['active_connections'] = self._get_active_connections_count()
-        metrics['memory_usage_pct'] = self._get_memory_usage()
-        metrics['cpu_usage_pct'] = self._get_cpu_usage()
+        metrics["active_connections"] = self._get_active_connections_count()
+        metrics["memory_usage_pct"] = self._get_memory_usage()
+        metrics["cpu_usage_pct"] = self._get_cpu_usage()
 
         return metrics
 
@@ -807,7 +825,7 @@ class MonitoringSystem:
                 if row and row[0]:
                     try:
                         user_data = json.loads(row[0])
-                        balance = user_data.get('deposit', 0.0)
+                        balance = user_data.get("deposit", 0.0)
                         # Считаем активные позиции
                         cur2 = db.conn.execute(
                             """
@@ -838,7 +856,7 @@ class MonitoringSystem:
                 try:
                     process = psutil.Process()
                     connections = process.connections()
-                    return len([c for c in connections if c.status == 'ESTABLISHED'])
+                    return len([c for c in connections if c.status == "ESTABLISHED"])
                 except Exception:
                     pass
 
@@ -895,20 +913,15 @@ class MonitoringSystem:
 
         for alert in active_alerts:
             # Авторазрешение алертов старше 1 часа (кроме критических)
-            if (alert.severity != AlertSeverity.CRITICAL and
-                (current_time - alert.timestamp).total_seconds() > 3600):
-
+            if (
+                alert.severity != AlertSeverity.CRITICAL
+                and (current_time - alert.timestamp).total_seconds() > 3600
+            ):
                 self.alert_manager.resolve_alert(alert.id, "auto_resolution")
 
     def add_metric(self, name: str, value: float, unit: str = "", tags: Dict[str, str] = None):
         """Добавляет метрику"""
-        metric = Metric(
-            name=name,
-            value=value,
-            timestamp=get_utc_now(),
-            unit=unit,
-            tags=tags or {}
-        )
+        metric = Metric(name=name, value=value, timestamp=get_utc_now(), unit=unit, tags=tags or {})
         self.metrics_collector.add_metric(metric)
 
     def add_alert(
@@ -917,7 +930,7 @@ class MonitoringSystem:
         severity: AlertSeverity,
         title: str,
         message: str,
-        source: str = "system"
+        source: str = "system",
     ):
         """Добавляет алерт"""
         alert = Alert(
@@ -927,7 +940,7 @@ class MonitoringSystem:
             severity=severity,
             title=title,
             message=message,
-            source=source
+            source=source,
         )
         self.alert_manager.add_alert(alert)
 
@@ -938,11 +951,11 @@ class MonitoringSystem:
     def get_system_health(self) -> Dict[str, Any]:
         """Возвращает состояние здоровья системы"""
         return {
-            'timestamp': self.system_health.timestamp.isoformat(),
-            'overall_status': self.system_health.overall_status,
-            'components': self.system_health.components,
-            'alerts_count': self.system_health.alerts_count,
-            'critical_alerts_count': self.system_health.critical_alerts_count
+            "timestamp": self.system_health.timestamp.isoformat(),
+            "overall_status": self.system_health.overall_status,
+            "components": self.system_health.components,
+            "alerts_count": self.system_health.alerts_count,
+            "critical_alerts_count": self.system_health.critical_alerts_count,
         }
 
     def get_metrics_summary(self, hours: int = 1) -> Dict[str, Any]:
@@ -959,54 +972,55 @@ class MonitoringSystem:
             alerts_by_severity[alert.severity.value] += 1
 
         return {
-            'recent_alerts_count': len(recent_alerts),
-            'active_alerts_count': len(active_alerts),
-            'alerts_by_severity': dict(alerts_by_severity),
-            'recent_alerts': [
+            "recent_alerts_count": len(recent_alerts),
+            "active_alerts_count": len(active_alerts),
+            "alerts_by_severity": dict(alerts_by_severity),
+            "recent_alerts": [
                 {
-                    'id': alert.id,
-                    'type': alert.type.value,
-                    'severity': alert.severity.value,
-                    'title': alert.title,
-                    'timestamp': alert.timestamp.isoformat(),
-                    'resolved': alert.resolved,
-                    'acknowledged': alert.acknowledged
+                    "id": alert.id,
+                    "type": alert.type.value,
+                    "severity": alert.severity.value,
+                    "title": alert.title,
+                    "timestamp": alert.timestamp.isoformat(),
+                    "resolved": alert.resolved,
+                    "acknowledged": alert.acknowledged,
                 }
                 for alert in recent_alerts[-10:]  # Последние 10 алертов
-            ]
+            ],
         }
 
     def get_monitoring_report(self) -> Dict[str, Any]:
         """Возвращает полный отчет мониторинга"""
         return {
-            'timestamp': get_utc_now().isoformat(),
-            'system_health': self.get_system_health(),
-            'metrics_summary': self.get_metrics_summary(1),
-            'alerts_summary': self.get_alerts_summary(24),
-            'monitoring_status': 'running' if self.is_running else 'stopped'
+            "timestamp": get_utc_now().isoformat(),
+            "system_health": self.get_system_health(),
+            "metrics_summary": self.get_metrics_summary(1),
+            "alerts_summary": self.get_alerts_summary(24),
+            "monitoring_status": "running" if self.is_running else "stopped",
         }
+
 
 # Глобальный экземпляр системы мониторинга
 monitoring_system = MonitoringSystem()
+
 
 # Удобные функции
 async def start_monitoring():
     """Запускает систему мониторинга"""
     await monitoring_system.start_monitoring()
 
+
 def add_metric(name: str, value: float, unit: str = "", tags: Dict[str, str] = None):
     """Добавляет метрику"""
     monitoring_system.add_metric(name, value, unit, tags)
 
+
 def add_alert(
-    alert_type: AlertType,
-    severity: AlertSeverity,
-    title: str,
-    message: str,
-    source: str = "system"
+    alert_type: AlertType, severity: AlertSeverity, title: str, message: str, source: str = "system"
 ):
     """Добавляет алерт"""
     monitoring_system.add_alert(alert_type, severity, title, message, source)
+
 
 def get_monitoring_report() -> Dict[str, Any]:
     """Возвращает отчет мониторинга"""

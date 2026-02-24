@@ -19,17 +19,16 @@ if str(PROJECT_ROOT) not in sys.path:
 from observability.knowledge_base import update_knowledge_base
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 def main():
     logger.info("📚 Обновление базы знаний команды...")
-    
+
     success = update_knowledge_base()
-    
+
     if success:
         logger.info("✅ База знаний успешно обновлена!")
         return 0
@@ -40,4 +39,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

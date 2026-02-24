@@ -9,38 +9,38 @@ from pathlib import Path
 
 def check_status():
     """Проверить статус последнего теста"""
-    
+
     # Находим последний лог
     log_files = sorted(
         glob.glob('logs/task_trace_*.log'),
         key=os.path.getmtime,
         reverse=True
     )
-    
+
     if not log_files:
         print("❌ Логи не найдены")
         return
-    
+
     latest_log = log_files[0]
     print(f"📄 Последний лог: {latest_log}\n")
-    
+
     # Читаем последние строки
     with open(latest_log, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-    
+
     # Показываем последние 30 строк
     print("=" * 80)
     print("ПОСЛЕДНИЕ СОБЫТИЯ:")
     print("=" * 80)
     for line in lines[-30:]:
         print(line.rstrip())
-    
+
     # Ищем ключевые слова
     content = ''.join(lines)
-    
+
     if '✅ ТЕСТИРОВАНИЕ ЗАВЕРШЕНО' in content:
         print("\n✅ ТЕСТ ЗАВЕРШЕН!")
-        
+
         # Ищем результат
         if '📄 РЕЗУЛЬТАТ:' in content:
             result_start = content.find('📄 РЕЗУЛЬТАТ:')
@@ -51,7 +51,7 @@ def check_status():
             print(result_section[:1500])
             if len(result_section) > 1500:
                 print(f"\n... (еще {len(result_section) - 1500} символов)")
-        
+
         # Ищем сохраненные файлы
         result_files = list(Path('logs').glob('website*.html')) + list(Path('logs').glob('website*.txt'))
         if result_files:

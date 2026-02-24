@@ -3,6 +3,7 @@
 ## 🎯 ЦЕЛЬ
 
 Создать архитектуру мирового уровня, соответствующую:
+
 - ✅ Clean Architecture (Robert C. Martin)
 - ✅ Domain-Driven Design (Eric Evans)
 - ✅ SOLID принципам
@@ -14,6 +15,7 @@
 ## 📐 АРХИТЕКТУРНЫЕ ПРИНЦИПЫ
 
 ### 1. Clean Architecture (Onion Architecture)
+
 ```
 ┌─────────────────────────────────────┐
 │         Presentation Layer          │  ← Telegram, REST API, CLI
@@ -27,11 +29,13 @@
 ```
 
 ### 2. Dependency Rule
+
 - Внутренние слои не зависят от внешних
 - Зависимости направлены внутрь
 - Внешние слои зависят от внутренних
 
 ### 3. Separation of Concerns
+
 - Domain Logic отделена от Infrastructure
 - Business Rules независимы от фреймворков
 - Тестируемость на всех уровнях
@@ -190,22 +194,26 @@ atra/
 ## 🎯 КЛЮЧЕВЫЕ ПРИНЦИПЫ
 
 ### 1. Domain Layer (Ядро)
+
 - ✅ Чистый Python, без зависимостей
 - ✅ Бизнес-логика и правила
 - ✅ Независимость от фреймворков
 - ✅ Легко тестировать
 
 ### 2. Application Layer
+
 - ✅ Use Cases (один use case = одна операция)
 - ✅ Оркестрация Domain объектов
 - ✅ Транзакции и координация
 
 ### 3. Infrastructure Layer
+
 - ✅ Реализация интерфейсов из Domain
 - ✅ Работа с внешними системами
 - ✅ Database, APIs, File System
 
 ### 4. Presentation Layer
+
 - ✅ Интерфейсы для пользователей
 - ✅ Валидация входных данных
 - ✅ Форматирование вывода
@@ -215,6 +223,7 @@ atra/
 ## 🔄 DEPENDENCY INJECTION
 
 Использовать Dependency Injection для:
+
 - ✅ Репозиториев
 - ✅ Внешних сервисов
 - ✅ Конфигурации
@@ -249,27 +258,32 @@ atra/
 ## 🚀 ПЛАН ВНЕДРЕНИЯ
 
 ### Phase 1: Domain Layer
+
 1. Создать структуру Domain
 2. Выделить Entities
 3. Создать Value Objects
 4. Определить Repository Interfaces
 
 ### Phase 2: Application Layer
+
 1. Создать Use Cases
 2. Реализовать Application Services
 3. Создать DTOs
 
 ### Phase 3: Infrastructure Layer
+
 1. Реализовать Repositories
 2. Интегрировать External Services
 3. Настроить Database
 
 ### Phase 4: Presentation Layer
+
 1. Реализовать Telegram Bot
 2. Создать CLI (если нужен)
 3. Настроить API (если нужен)
 
 ### Phase 5: Testing & Documentation
+
 1. Написать Unit тесты
 2. Написать Integration тесты
 3. Создать документацию
@@ -294,4 +308,3 @@ atra/
 - Domain-Driven Design (Eric Evans)
 - Python Best Practices
 - Trading System Architecture
-

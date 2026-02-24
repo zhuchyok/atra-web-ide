@@ -8,6 +8,7 @@
 ## ✅ РЕАЛЬНЫЙ БОТ РАБОТАЕТ
 
 ### Статус:
+
 - ✅ Бот запущен на сервере (PID 9786, 11035)
 - ✅ Все фильтры включены
 - ✅ Трендовые фильтры используются для блокировки сигналов
@@ -19,6 +20,7 @@
 ### 1. **`check_all_trend_alignments()` - ГЛАВНАЯ ФУНКЦИЯ**
 
 **Вызывается в 10 местах в `_generate_signal_impl()`:**
+
 - Строка 2293: `if not await check_all_trend_alignments(symbol, signal_type, df):`
 - Строка 2329: `trend_result = await check_all_trend_alignments(symbol, signal_type, df)`
 - Строка 2673: `if not await check_all_trend_alignments(symbol, signal_type, df):`
@@ -31,6 +33,7 @@
 - Строка 3402: `if not await check_all_trend_alignments(symbol, signal_type, df):`
 
 **Логика:**
+
 ```python
 async def check_all_trend_alignments(symbol: str, signal_type: str, df: Any = None) -> bool:
     # 1. Использует SmartTrendFilter если доступен
@@ -41,6 +44,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str, df: Any = No
 ### 2. **`check_btc_alignment()` - БЛОКИРУЕТ СИГНАЛЫ**
 
 **Реальная блокировка (строки 5617-5657):**
+
 ```python
 # Блокирует LONG если BTC в сильном медвежьем тренде (>1% разница)
 if signal_type == "BUY" and btc_trend == "SELL":
@@ -58,11 +62,13 @@ if signal_type == "SELL" and btc_trend == "BUY":
 ### 3. **`check_eth_alignment()` и `check_sol_alignment()`**
 
 **Импортируются из `src.signals.filters`:**
+
 ```python
 from src.signals.filters import check_eth_alignment, check_sol_alignment
 ```
 
 **Вызываются в `check_all_trend_alignments()`:**
+
 ```python
 # Проверка ETH (всегда активна)
 if not await check_eth_alignment(symbol, signal_type):
@@ -78,6 +84,7 @@ if not await check_sol_alignment(symbol, signal_type):
 ## ⚠️ ВАЖНОЕ ЗАМЕЧАНИЕ
 
 ### Проблема с HybridDataManager:
+
 - ❌ `HYBRID_DATA_MANAGER_AVAILABLE: False` на сервере
 - ⚠️ Это означает, что тренды рассчитываются через прямой доступ к API
 - ✅ Но фильтры все равно работают через `check_btc_alignment()`, `check_eth_alignment()`, `check_sol_alignment()`
@@ -112,8 +119,8 @@ if not await check_sol_alignment(symbol, signal_type):
 ## 📊 ПРОВЕРКА В ЛОГАХ
 
 Для проверки работы фильтров в реальном боте, ищите в логах:
+
 - `🚫 [BTC FILTER]` - блокировка по BTC тренду
 - `🚫 [ETH FILTER]` - блокировка по ETH тренду
 - `🚫 [SOL FILTER]` - блокировка по SOL тренду
 - `check_all_trend_alignments` - вызовы проверки трендов
-

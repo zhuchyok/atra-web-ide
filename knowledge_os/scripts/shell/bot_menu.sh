@@ -85,11 +85,11 @@ start_bot() {
         read -p "Нажмите Enter для продолжения..."
         return
     fi
-    
+
     echo -e "${YELLOW}🚀 Запуск бота...${NC}"
     nohup python3 main.py > bot.log 2>&1 &
     sleep 2
-    
+
     if check_bot_status > /dev/null 2>&1; then
         echo -e "${GREEN}✅ Бот запущен${NC}"
     else
@@ -121,7 +121,7 @@ view_logs() {
     echo "5) Последние 50 строк"
     echo "6) Поиск по тексту"
     read -p "Выбор [1-6]: " log_choice
-    
+
     case $log_choice in
         1)
             tail -f bot.log
@@ -156,13 +156,13 @@ update_code() {
     show_header
     echo -e "${CYAN}🔄 ОБНОВЛЕНИЕ КОДА${NC}"
     echo ""
-    
+
     if [ ! -d ".git" ]; then
         echo -e "${RED}❌ Директория не является git репозиторием${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
-    
+
     echo -e "${YELLOW}Текущая ветка:${NC}"
     git branch --show-current
     echo ""
@@ -175,7 +175,7 @@ update_code() {
     echo "3) Показать git log"
     echo "4) Отменить"
     read -p "Выбор [1-4]: " update_choice
-    
+
     case $update_choice in
         1)
             echo -e "${YELLOW}Обновление кода...${NC}"
@@ -218,20 +218,20 @@ system_status() {
     show_header
     echo -e "${CYAN}📊 СТАТУС СИСТЕМЫ${NC}"
     echo ""
-    
+
     echo -e "${YELLOW}Статус бота:${NC}"
     check_bot_status
     echo ""
-    
+
     echo -e "${YELLOW}Процессы:${NC}"
     ps aux | grep -E "python.*main.py|uvicorn|flask" | grep -v grep | awk '{print "  PID: "$2", CPU: "$3"%, MEM: "$4"%, CMD: "$11" "$12" "$13}'
     echo ""
-    
+
     echo -e "${YELLOW}Использование ресурсов:${NC}"
     echo "  CPU: $(top -l 1 | grep "CPU usage" | awk '{print $3}')"
     echo "  MEM: $(top -l 1 | grep "PhysMem" | awk '{print $2" "$3}')"
     echo ""
-    
+
     echo -e "${YELLOW}Логи:${NC}"
     if [ -f "bot.log" ]; then
         local log_size=$(du -h bot.log | awk '{print $1}')
@@ -243,7 +243,7 @@ system_status() {
         echo "  Лог файл не найден"
     fi
     echo ""
-    
+
     echo -e "${YELLOW}База данных:${NC}"
     if [ -f "trading.db" ]; then
         local db_size=$(du -h trading.db | awk '{print $1}')
@@ -252,7 +252,7 @@ system_status() {
         echo "  База данных не найдена"
     fi
     echo ""
-    
+
     read -p "Нажмите Enter для продолжения..."
 }
 
@@ -283,13 +283,13 @@ install_dependencies() {
     show_header
     echo -e "${CYAN}📦 УСТАНОВКА ЗАВИСИМОСТЕЙ${NC}"
     echo ""
-    
+
     if [ ! -f "requirements.txt" ]; then
         echo -e "${RED}❌ Файл requirements.txt не найден${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
-    
+
     echo -e "${YELLOW}Обновление зависимостей...${NC}"
     pip3 install -r requirements.txt --upgrade
     echo ""
@@ -316,13 +316,13 @@ check_database() {
     show_header
     echo -e "${CYAN}🗄️  ПРОВЕРКА БАЗЫ ДАННЫХ${NC}"
     echo ""
-    
+
     if [ ! -f "trading.db" ]; then
         echo -e "${RED}❌ База данных не найдена${NC}"
         read -p "Нажмите Enter для продолжения..."
         return
     fi
-    
+
     echo -e "${YELLOW}Статистика:${NC}"
     sqlite3 trading.db <<EOF
 SELECT 'Пользователи в авто-режиме:' as info, COUNT(*) as count FROM user_settings WHERE trade_mode = 'auto';
@@ -330,7 +330,7 @@ SELECT 'Активные позиции:' as info, COUNT(*) as count FROM active
 SELECT 'Всего сигналов:' as info, COUNT(*) as count FROM accepted_signals;
 SELECT 'Pending сигналы:' as info, COUNT(*) as count FROM accepted_signals WHERE status = 'pending';
 EOF
-    
+
     echo ""
     read -p "Нажмите Enter для продолжения..."
 }
@@ -340,15 +340,15 @@ main_menu() {
     while true; do
         clear_screen
         show_header
-        
+
         # Статус бота
         echo "Статус:"
         check_bot_status
         echo ""
-        
+
         # Быстрый просмотр логов
         quick_logs
-        
+
         # Опции меню
         echo "Выберите действие:"
         echo ""
@@ -364,9 +364,9 @@ main_menu() {
         echo " 10) 📊 Статистика фильтров (таблица срезов)"
         echo "  0) ❌ Выход"
         echo ""
-        
+
         read -p "Ваш выбор [0-9]: " choice
-        
+
         case $choice in
             1)
                 start_bot
@@ -412,4 +412,3 @@ main_menu() {
 
 # Запуск меню
 main_menu
-

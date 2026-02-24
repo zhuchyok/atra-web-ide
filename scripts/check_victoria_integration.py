@@ -11,7 +11,7 @@ def check_file(file_path, patterns):
     """Проверить наличие паттернов в файле"""
     if not os.path.exists(file_path):
         return False, f"Файл не найден: {file_path}"
-    
+
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -29,9 +29,9 @@ def check_file(file_path, patterns):
 def main():
     """Проверка всех интеграций"""
     print("🔍 Проверка интеграции Victoria Initiative\n")
-    
+
     checks = []
-    
+
     # 1. Victoria Server
     print("1️⃣ Проверка Victoria Server...")
     patterns = [
@@ -47,7 +47,7 @@ def main():
         print(f"   ⚠️ Отсутствуют: {result.get('missing', [])}")
     checks.append(("Victoria Server", ok))
     print()
-    
+
     # 2. Docker Compose
     print("2️⃣ Проверка Docker Compose...")
     patterns = [
@@ -62,7 +62,7 @@ def main():
         print(f"   ⚠️ Отсутствуют: {result.get('missing', [])}")
     checks.append(("Docker Compose", ok))
     print()
-    
+
     # 3. .env файл
     print("3️⃣ Проверка .env...")
     if os.path.exists(".env"):
@@ -78,7 +78,7 @@ def main():
         print("   ⚠️ .env файл не найден")
         checks.append((".env", False))
     print()
-    
+
     # 4. Файлы компонентов
     print("4️⃣ Проверка файлов компонентов...")
     files = [
@@ -99,7 +99,7 @@ def main():
             all_exist = False
     checks.append(("Компоненты", all_exist))
     print()
-    
+
     # 5. Миграция БД
     print("5️⃣ Проверка миграции БД...")
     if os.path.exists("knowledge_os/db/migrations/add_skills_tables.sql"):
@@ -109,7 +109,7 @@ def main():
         print("   ❌ Миграция не найдена")
         checks.append(("Миграция БД", False))
     print()
-    
+
     # Итог
     print("=" * 50)
     print("📊 Итоговый статус:")
@@ -120,13 +120,13 @@ def main():
         print(f"   {icon} {name}")
         if not status:
             all_ok = False
-    
+
     print()
     if all_ok:
         print("✅ Все проверки пройдены! Интеграция завершена.")
     else:
         print("⚠️ Некоторые проверки не пройдены. Проверьте выше.")
-    
+
     return 0 if all_ok else 1
 
 if __name__ == "__main__":

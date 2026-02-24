@@ -44,13 +44,16 @@ amt = AuctionMarketTheory(
 Рассчитывает баланс между покупателями и продавцами.
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `i`: Индекс текущей свечи
 
 **Возвращает:**
+
 - Баланс от 0 до 1 (0.5 = равновесие), или `None` при ошибке
 
 **Пример:**
+
 ```python
 balance = amt.calculate_balance_score(df, len(df) - 1)
 # balance = 0.65  # Преобладание покупателей
@@ -61,15 +64,18 @@ balance = amt.calculate_balance_score(df, len(df) - 1)
 Определяет фазу рынка (auction/balance/imbalance).
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `i`: Индекс текущей свечи
 
 **Возвращает:**
+
 - Tuple[фаза, детали], где:
   - `фаза`: `MarketPhase.AUCTION`, `MarketPhase.BALANCE`, или `MarketPhase.IMBALANCE`
   - `детали`: Dict с `balance_score`, `balance_deviation`, `volatility`, `price_change`, `phase`
 
 **Пример:**
+
 ```python
 phase, details = amt.detect_market_phase(df, len(df) - 1)
 # phase = MarketPhase.IMBALANCE
@@ -87,13 +93,16 @@ phase, details = amt.detect_market_phase(df, len(df) - 1)
 Определяет уровни аукциона (точки контроля).
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `i`: Индекс текущей свечи
 
 **Возвращает:**
+
 - Dict с уровнями: `high`, `low`, `mid`, `value_area_high`, `value_area_low`
 
 **Пример:**
+
 ```python
 levels = amt.get_auction_levels(df, len(df) - 1)
 # levels = {
@@ -110,13 +119,16 @@ levels = amt.get_auction_levels(df, len(df) - 1)
 Определяет торговый сигнал на основе AMT.
 
 **Параметры:**
+
 - `df`: DataFrame с данными
 - `i`: Индекс текущей свечи
 
 **Возвращает:**
+
 - `'long'`, `'short'` или `None`
 
 **Пример:**
+
 ```python
 signal = amt.get_signal(df, len(df) - 1)
 # signal = 'long'  # или 'short', или None
@@ -144,17 +156,20 @@ passed, reason = check_amt_filter(
 ```
 
 **Параметры:**
+
 - `df`: DataFrame с данными OHLCV
 - `i`: Индекс текущей свечи
 - `side`: "long" или "short"
 - `strict_mode`: True для строгого режима (более жесткие фильтры)
 
 **Возвращает:**
+
 - Tuple[passed, reason], где:
   - `passed`: `True` если фильтр пройден, `False` если заблокирован
   - `reason`: Причина блокировки или `None`
 
 **Логика:**
+
 - **Balance**: блокирует все входы (консолидация)
 - **Imbalance**: разрешает входы в направлении дисбаланса
 - **Auction**: в строгом режиме блокирует, в мягком разрешает
@@ -190,10 +205,12 @@ tpo = TimePriceOpportunity(
 Рассчитывает TPO профиль для заданного периода.
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `lookback_periods`: Количество свечей для анализа
 
 **Возвращает:**
+
 - Dict с информацией о TPO профиле:
   - `tpo_poc`: TPO Point of Control
   - `tpo_value_area_high`: Value Area High
@@ -202,6 +219,7 @@ tpo = TimePriceOpportunity(
   - `total_time`: Общее время
 
 **Пример:**
+
 ```python
 profile = tpo.calculate_tpo_profile(df, lookback_periods=100)
 # profile = {
@@ -218,10 +236,12 @@ profile = tpo.calculate_tpo_profile(df, lookback_periods=100)
 Получает TPO POC (Point of Control на основе времени).
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `lookback_periods`: Количество свечей для анализа
 
 **Возвращает:**
+
 - TPO POC цена или `None`
 
 ##### `combine_with_volume_profile(volume_profile: Dict[str, Any], tpo_profile: Dict[str, Any], weight_volume: float = 0.6, weight_time: float = 0.4) -> Dict[str, Any]`
@@ -229,12 +249,14 @@ profile = tpo.calculate_tpo_profile(df, lookback_periods=100)
 Комбинирует Volume Profile и TPO Profile для более точного POC.
 
 **Параметры:**
+
 - `volume_profile`: Результат Volume Profile
 - `tpo_profile`: Результат TPO Profile
 - `weight_volume`: Вес Volume Profile (по умолчанию 0.6)
 - `weight_time`: Вес TPO Profile (по умолчанию 0.4)
 
 **Возвращает:**
+
 - Комбинированный профиль с улучшенным POC
 
 ### Фильтр: `check_market_profile_filter`
@@ -256,6 +278,7 @@ passed, reason = check_market_profile_filter(
 ```
 
 **Логика:**
+
 - **LONG**: цена должна быть близка к Value Area Low или ниже
 - **SHORT**: цена должна быть близка к Value Area High или выше
 
@@ -296,13 +319,16 @@ detector = InstitutionalPatternDetector(
 Обнаруживает все институциональные паттерны.
 
 **Параметры:**
+
 - `df`: DataFrame с OHLCV данными
 - `i`: Индекс текущей свечи
 
 **Возвращает:**
+
 - Список обнаруженных паттернов (`PatternDetection`)
 
 **Пример:**
+
 ```python
 patterns = detector.detect_patterns(df, len(df) - 1)
 # patterns = [
@@ -320,11 +346,13 @@ patterns = detector.detect_patterns(df, len(df) - 1)
 Оценивает качество сигнала на основе обнаруженных паттернов.
 
 **Параметры:**
+
 - `df`: DataFrame с данными
 - `i`: Индекс текущей свечи
 - `side`: "long" или "short"
 
 **Возвращает:**
+
 - Dict с оценкой качества:
   - `quality_score`: Балл качества (0.0-1.0)
   - `patterns_detected`: Список типов обнаруженных паттернов
@@ -350,6 +378,7 @@ passed, reason = check_institutional_patterns_filter(
 ```
 
 **Логика:**
+
 - **Spoofing обнаружен**: блокирует сигнал (ложные заявки)
 - **Iceberg обнаружен**: может подтверждать или ослаблять сигнал
 - **Низкое качество**: блокирует в строгом режиме
@@ -643,6 +672,7 @@ pytest tests/integration/test_amt_filter.py -v
 - VWT: ~5-10ms на свечу
 
 Время обработки зависит от:
+
 - Количества свечей в lookback периоде
 - Количества бинов для профилей
 - Сложности паттернов

@@ -17,6 +17,7 @@
 ## 📊 ОЖИДАЕМЫЕ ЗАПИСИ В ЛОГАХ
 
 ### **Обнаружение SHORT паттернов:**
+
 ```
 🔍 [SHORT CLASSIC] EURUSDT: Обнаружен классический медвежий EMA кроссовер (режим=spot)
 🔍 [SHORT Alt-1] ARUSDT: Обнаружен альтернативный паттерн 1 (режим=futures)
@@ -25,6 +26,7 @@
 ```
 
 ### **Блокировки по режиму:**
+
 ```
 🚫 [SHORT CLASSIC BLOCK] EURUSDT: SHORT сигнал пропущен (режим: spot, требуется: futures)
 🚫 [SHORT Alt-1 BLOCK] ARUSDT: SHORT сигнал пропущен (режим: spot, требуется: futures)
@@ -33,6 +35,7 @@
 ```
 
 ### **Успешные генерации:**
+
 ```
 ✅ [SHORT Alt-2] ARUSDT: Режим проверен (futures), продолжаем генерацию сигнала
 ✅ [SIGNAL GENERATED] ARUSDT SHORT Alt-2: Сигнал успешно сгенерирован!
@@ -43,21 +46,25 @@
 ## 🔍 КОМАНДЫ ДЛЯ МОНИТОРИНГА
 
 ### **Проверка SHORT паттернов в реальном времени:**
+
 ```bash
 tail -f bot.log | grep -E '\[SHORT|SHORT.*BLOCK'
 ```
 
 ### **Подсчет SHORT паттернов:**
+
 ```bash
 tail -10000 bot.log | grep -c '\[SHORT'
 ```
 
 ### **Последние записи о SHORT:**
+
 ```bash
 tail -10000 bot.log | grep -E '\[SHORT|SHORT.*BLOCK' | tail -20
 ```
 
 ### **Статистика блокировок:**
+
 ```bash
 tail -10000 bot.log | grep -c 'SHORT.*BLOCK'
 ```
@@ -88,4 +95,3 @@ tail -10000 bot.log | grep -c 'SHORT.*BLOCK'
 2. ⏳ Ожидание генерации SHORT паттернов
 3. 📊 Мониторинг логов на наличие `[SHORT ...]` записей
 4. 📈 Анализ статистики блокировок и успешных генераций
-

@@ -15,6 +15,7 @@
 #### **✅ КРИТИЧЕСКИЕ ОШИБКИ (4 → 0):**
 
 **1. Line 1872: Неправильные аргументы метода (ERROR)**
+
 ```python
 # ❌ БЫЛО:
 await ai_integration.record_position_result(
@@ -28,6 +29,7 @@ await ai_integration.record_position_result(
     _exit_price=current_price,
 )
 ```
+
 **Причина:** Метод `record_position_result` принимает параметры с подчеркиванием: `_entry_price`, `_exit_price`.
 
 ---
@@ -35,6 +37,7 @@ await ai_integration.record_position_result(
 #### **✅ ПРЕДУПРЕЖДЕНИЯ (7 → 2):**
 
 **2. Line 671: Catching too general exception**
+
 ```python
 # ❌ БЫЛО:
 except Exception as e:
@@ -44,6 +47,7 @@ except (asyncio.TimeoutError, RuntimeError, OSError, ValueError) as e:
 ```
 
 **3. Line 692: Unused argument 'step_seconds'**
+
 ```python
 # ❌ БЫЛО:
 async def start_accept_button_countdown(..., step_seconds: int = 5)
@@ -51,9 +55,11 @@ async def start_accept_button_countdown(..., step_seconds: int = 5)
 # ✅ СТАЛО:
 async def start_accept_button_countdown(..., _step_seconds: int = 5)
 ```
+
 **Причина:** Параметр не используется, добавлен `_` в начало.
 
 **4. Line 1596: Catching too general exception**
+
 ```python
 # ❌ БЫЛО:
 except Exception as e:
@@ -63,6 +69,7 @@ except (RuntimeError, ValueError, TypeError, AttributeError) as e:
 ```
 
 **5. Line 1859: Catching too general exception**
+
 ```python
 # ❌ БЫЛО:
 except Exception as e:
@@ -72,6 +79,7 @@ except (RuntimeError, OSError, ValueError, TypeError) as e:
 ```
 
 **6. Line 1882: Catching too general exception**
+
 ```python
 # ❌ БЫЛО:
 except Exception as e:
@@ -81,6 +89,7 @@ except (RuntimeError, ValueError, TypeError, AttributeError) as e:
 ```
 
 **7. Line 2030: Use lazy % formatting in logging**
+
 ```python
 # ❌ БЫЛО:
 logging.info(f"[DCA] {symbol}: Обновлены TP после усреднения: "
@@ -92,9 +101,10 @@ logging.info(f"[DCA] {symbol}: Обновлены TP после усреднен
 logging.info("[DCA] %s: Обновлены TP после усреднения: "
              "TP1: %.6f → %.6f, "
              "TP2: %.6f → %.6f, "
-             "Средняя цена: %.6f", 
+             "Средняя цена: %.6f",
              symbol, old_tp1, tp1_price_new, old_tp2, tp2_price_new, avg_price_new)
 ```
+
 **Причина:** В логах предпочтительнее использовать % форматирование для производительности.
 
 ---
@@ -102,12 +112,15 @@ logging.info("[DCA] %s: Обновлены TP после усреднения: "
 #### **⚠️ ОСТАЮТСЯ (2 предупреждения - это нормально):**
 
 **8. Line 25: Using the global statement**
+
 ```python
 global _last_api_call
 ```
+
 **Причина:** Необходимо для работы `rate_limit_api_call()` - это нормальная практика для rate limiter.
 
 **9. Line 2030: Use lazy % formatting** (ложное срабатывание)
+
 ```python
 # Линтер может показывать это как предупреждение, но код уже исправлен
 ```
@@ -119,6 +132,7 @@ global _last_api_call
 #### **✅ ПРЕДУПРЕЖДЕНИЯ (1 → 0):**
 
 **1. Line 132: Unused import threading**
+
 ```python
 # ❌ БЫЛО:
 try:
@@ -136,6 +150,7 @@ except ImportError:
 #     THREADING_AVAILABLE = False
 THREADING_AVAILABLE = False
 ```
+
 **Причина:** `threading` не используется в `main.py`, импорт закомментирован.
 
 ---
@@ -145,6 +160,7 @@ THREADING_AVAILABLE = False
 ```
 ✅ НЕТ ОШИБОК!
 ```
+
 **Причина:** Dashboard отключен, но код чистый.
 
 ---
@@ -152,29 +168,33 @@ THREADING_AVAILABLE = False
 ## 📊 ИТОГОВАЯ СТАТИСТИКА:
 
 ### **telegram_handlers.py:**
-| Тип | Было | Стало | Статус |
-|-----|------|-------|--------|
-| **ERRORS** | 4 | 0 | ✅ ИСПРАВЛЕНО |
-| **WARNINGS** | 7 | 2 | ✅ ИСПРАВЛЕНО |
-| **TOTAL** | 11 | 2 | ✅ 82% улучшение |
+
+| Тип          | Было | Стало | Статус           |
+| ------------ | ---- | ----- | ---------------- |
+| **ERRORS**   | 4    | 0     | ✅ ИСПРАВЛЕНО    |
+| **WARNINGS** | 7    | 2     | ✅ ИСПРАВЛЕНО    |
+| **TOTAL**    | 11   | 2     | ✅ 82% улучшение |
 
 ### **main.py:**
-| Тип | Было | Стало | Статус |
-|-----|------|-------|--------|
-| **WARNINGS** | 1 | 0 | ✅ ИСПРАВЛЕНО |
-| **TOTAL** | 1 | 0 | ✅ 100% исправлено |
+
+| Тип          | Было | Стало | Статус             |
+| ------------ | ---- | ----- | ------------------ |
+| **WARNINGS** | 1    | 0     | ✅ ИСПРАВЛЕНО      |
+| **TOTAL**    | 1    | 0     | ✅ 100% исправлено |
 
 ### **web/dashboard.py:**
-| Тип | Было | Стало | Статус |
-|-----|------|-------|--------|
-| **ERRORS** | 0 | 0 | ✅ БЕЗ ОШИБОК |
-| **WARNINGS** | 0 | 0 | ✅ БЕЗ ОШИБОК |
+
+| Тип          | Было | Стало | Статус        |
+| ------------ | ---- | ----- | ------------- |
+| **ERRORS**   | 0    | 0     | ✅ БЕЗ ОШИБОК |
+| **WARNINGS** | 0    | 0     | ✅ БЕЗ ОШИБОК |
 
 ---
 
 ## 🎯 ОБЩИЙ РЕЗУЛЬТАТ:
 
 ### **До исправлений:**
+
 ```
 ❌ Критические ошибки: 4
 ⚠️ Предупреждения: 8
@@ -182,6 +202,7 @@ THREADING_AVAILABLE = False
 ```
 
 ### **После исправлений:**
+
 ```
 ✅ Критические ошибки: 0
 ⚠️ Предупреждения: 2 (оправданы)
@@ -223,4 +244,3 @@ THREADING_AVAILABLE = False
 - ✅ Код соответствует стандартам
 
 **КОД ГОТОВ К ПРОДАКШЕНУ!** 🎉
-

@@ -107,7 +107,7 @@ enable_component() {
         echo "  - auto_restart (автоперезапуск)"
         exit 1
     fi
-    
+
     log_info "Включение компонента: $component"
     python3 "$MANAGER_SCRIPT" enable --component "$component" --config "$CONFIG_FILE"
 }
@@ -130,7 +130,7 @@ disable_component() {
         echo "  - auto_restart (автоперезапуск)"
         exit 1
     fi
-    
+
     log_info "Отключение компонента: $component"
     python3 "$MANAGER_SCRIPT" disable --component "$component" --config "$CONFIG_FILE"
 }
@@ -174,7 +174,7 @@ show_help() {
 main() {
     check_python
     check_manager
-    
+
     case "${1:-help}" in
         "start")
             start_server

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Отправляет оперативный risk-отчёт в Telegram.
 
@@ -73,23 +72,29 @@ def _build_message(data) -> str:
         "",
     ]
     if active_flags:
-        message_lines.extend([
-            "⚠️ Активны критические флаги:",
-            *[f"• {name}" for name in active_flags],
+        message_lines.extend(
+            [
+                "⚠️ Активны критические флаги:",
+                *[f"• {name}" for name in active_flags],
+                "",
+            ]
+        )
+    message_lines.extend(
+        [
+            "*Метрики:*",
+            f"• MaxDD: {data['max_drawdown_pct']:.2f}%"
+            if data["max_drawdown_pct"] is not None
+            else "• MaxDD: n/a",
+            f"• Дневной убыток ({data['hours']}ч): {data['daily_loss_pct']:.2f}%",
+            f"• WEAK_SETUP подряд (>{data['weak_limit']}): {'да' if data['weak_setup_streak'] else 'нет'}",
             "",
-        ])
-    message_lines.extend([
-        "*Метрики:*",
-        f"• MaxDD: {data['max_drawdown_pct']:.2f}%" if data['max_drawdown_pct'] is not None else "• MaxDD: n/a",
-        f"• Дневной убыток ({data['hours']}ч): {data['daily_loss_pct']:.2f}%",
-        f"• WEAK_SETUP подряд (>{data['weak_limit']}): {'да' if data['weak_setup_streak'] else 'нет'}",
-        "",
-        "*Live-сигналы:*",
-        f"• Всего: {live_stats['total_live_signals']}",
-        f"• Последний: {live_stats['last_live_entry'] or '—'} ({live_stats['last_live_symbol'] or '—'})",
-        "",
-        "*Депозиты:*",
-    ])
+            "*Live-сигналы:*",
+            f"• Всего: {live_stats['total_live_signals']}",
+            f"• Последний: {live_stats['last_live_entry'] or '—'} ({live_stats['last_live_symbol'] or '—'})",
+            "",
+            "*Депозиты:*",
+        ]
+    )
     for user_id, deposit in deposits.items():
         warning = " ⚠️" if deposit <= 0 else ""
         message_lines.append(f"• {user_id}: {deposit} USDT{warning}")
@@ -145,12 +150,8 @@ def _format_infra_short(data: Dict[str, Any]) -> str:
     cron = data.get("cron", {})
     if "entries" in cron:
         lines.append(f"Cron: {len(cron['entries'])} записей")
-        lines.append(
-            f"  run_daily_quality_report.sh: {_flag(cron.get('contains_quality', False))}"
-        )
-        lines.append(
-            f"  run_risk_status_report.sh: {_flag(cron.get('contains_risk', False))}"
-        )
+        lines.append(f"  run_daily_quality_report.sh: {_flag(cron.get('contains_quality', False))}")
+        lines.append(f"  run_risk_status_report.sh: {_flag(cron.get('contains_risk', False))}")
     else:
         lines.append(f"Cron: {cron.get('error', 'нет данных')}")
 
@@ -166,7 +167,12 @@ def main() -> None:
     )
     parser.add_argument("--hours", type=int, default=24)
     parser.add_argument("--weak-limit", type=int, default=10)
-    parser.add_argument("--user-id", type=int, default=None, help="ID получателя в Telegram (по умолчанию берём из user_data)")
+    parser.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="ID получателя в Telegram (по умолчанию берём из user_data)",
+    )
     parser.add_argument(
         "--include-infra",
         action="store_true",
@@ -207,7 +213,9 @@ def main() -> None:
 
     user_id = args.user_id if args.user_id is not None else _load_default_user_id()
     if user_id is None:
-        raise SystemExit("Не удалось определить user_id. Передайте --user-id или настройте user_data.json.")
+        raise SystemExit(
+            "Не удалось определить user_id. Передайте --user-id или настройте user_data.json."
+        )
     asyncio.run(_send(int(user_id), message))
     print(f"✅ Risk status отправлен пользователю {user_id}")
 
@@ -215,4 +223,3 @@ def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
-

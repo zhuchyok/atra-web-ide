@@ -2,6 +2,7 @@
 Тесты fallback стратегий эмбеддингов (Фаза 3, день 3–4).
 Запуск: cd backend && python -m pytest app/tests/test_embedding_fallback.py -v
 """
+
 from app.services.embedding_fallback import EmbeddingFallback
 
 

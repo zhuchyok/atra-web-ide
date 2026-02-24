@@ -7,12 +7,14 @@
 ## 🔍 ДИАГНОСТИКА
 
 ### 1. Проверка версии python-telegram-bot:
+
 ```bash
 pip show python-telegram-bot
 # Результат: Version: 13.15
 ```
 
 ### 2. Обнаруженная проблема:
+
 - В `telegram_bot.py` использовался код для версии 20.x (`Application`, `ContextTypes`)
 - Установлена версия 13.15, которая использует `Updater` и `CallbackContext`
 
@@ -21,6 +23,7 @@ pip show python-telegram-bot
 ### 1. Обновлены импорты для версии 13.15:
 
 **Было:**
+
 ```python
 from telegram.ext import (
     Application,
@@ -34,6 +37,7 @@ from telegram.ext import (
 ```
 
 **Стало:**
+
 ```python
 from telegram.ext import (
     Updater,
@@ -48,6 +52,7 @@ from telegram.ext import (
 ### 2. Исправлены импорты ошибок:
 
 **Было:**
+
 ```python
 from telegram.constants import ParseMode
 from telegram.error import (
@@ -61,6 +66,7 @@ from telegram.error import (
 ```
 
 **Стало:**
+
 ```python
 from telegram import ParseMode
 from telegram.error import (
@@ -75,6 +81,7 @@ from telegram.error import (
 ### 3. Обновлен блок запуска бота:
 
 **Было (Application для версии 20.x):**
+
 ```python
 _application = (
     Application.builder()
@@ -95,6 +102,7 @@ await _application.updater.start_polling(
 ```
 
 **Стало (Updater для версии 13.x):**
+
 ```python
 _application = Updater(token=TOKEN, use_context=True)
 
@@ -111,12 +119,14 @@ _application.idle()
 ### 4. Исправлены фильтры:
 
 **Было:**
+
 ```python
 filters.TEXT & ~filters.COMMAND
 filters.ALL
 ```
 
 **Стало:**
+
 ```python
 filters.Filters.text & ~filters.Filters.command
 filters.Filters.all
@@ -125,11 +135,13 @@ filters.Filters.all
 ### 5. Массовая замена типов контекста:
 
 **Было:**
+
 ```python
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 **Стало:**
+
 ```python
 async def button_callback(update: Update, context: CallbackContext):
 ```
@@ -137,11 +149,13 @@ async def button_callback(update: Update, context: CallbackContext):
 ### 6. Исправлен доступ к user_data:
 
 **Было:**
+
 ```python
 context.application.user_data
 ```
 
 **Стало:**
+
 ```python
 context.user_data
 ```
@@ -149,6 +163,7 @@ context.user_data
 ### 7. Обновлена функция load_user_data:
 
 **Было:**
+
 ```python
 if hasattr(context_or_app, "application"):
     user_data = context_or_app.application.user_data
@@ -156,6 +171,7 @@ if hasattr(context_or_app, "application"):
 ```
 
 **Стало:**
+
 ```python
 if hasattr(context_or_app, "dispatcher"):
     user_data = context_or_app.dispatcher.user_data
@@ -165,6 +181,7 @@ if hasattr(context_or_app, "dispatcher"):
 ### 8. Изменена функция запуска:
 
 **Было:**
+
 ```python
 async def run_telegram_bot():
     # async код
@@ -175,6 +192,7 @@ if __name__ == "__main__":
 ```
 
 **Стало:**
+
 ```python
 def run_telegram_bot():
     # синхронный код
@@ -187,18 +205,22 @@ if __name__ == "__main__":
 ## ✅ КЛЮЧЕВЫЕ РЕШЕНИЯ
 
 ### 1. Настройка allowed_updates:
+
 Добавлена явная настройка `allowed_updates` для получения `callback_query`:
+
 ```python
 _application.bot.set_webhook(url="", allowed_updates=["message", "callback_query", ...])
 _application.bot.delete_webhook()
 ```
 
 ### 2. Правильная структура для версии 13.15:
+
 - Использование `Updater` вместо `Application`
 - Использование `dispatcher` для добавления обработчиков
 - Использование `CallbackContext` вместо `ContextTypes.DEFAULT_TYPE`
 
 ### 3. Синхронный запуск:
+
 - Убраны `async/await` из основной функции запуска
 - Использование `_application.idle()` для поддержания работы бота
 
@@ -217,6 +239,7 @@ _application.bot.delete_webhook()
 4. **Проверить все функции** бота
 
 ---
+
 **Дата:** 2025-08-14
 **Статус:** ✅ ИСПРАВЛЕНО
 **Готовность:** ✅ К ТЕСТИРОВАНИЮ

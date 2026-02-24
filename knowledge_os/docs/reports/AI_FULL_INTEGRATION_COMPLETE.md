@@ -7,6 +7,7 @@
 ## 📊 **ЧТО ПЕРЕДАЕТСЯ В AI-РЕГУЛЯТОР:**
 
 ### **Было (старая версия):**
+
 ```python
 await ai_regulator.process_signal_generation(
     symbol, pattern_type, signal_type, signal_price, df
@@ -14,6 +15,7 @@ await ai_regulator.process_signal_generation(
 ```
 
 ### **Стало (новая версия с полными данными):**
+
 ```python
 await ai_regulator.process_signal_generation(
     symbol=symbol,
@@ -78,12 +80,13 @@ await ai_regulator.process_signal_generation(
 ## 🎯 **ЧТО ТЕПЕРЬ УМЕЕТ AI-СИСТЕМА:**
 
 ### **1. Анализ по рыночным режимам** ✅
+
 ```python
 # AI знает что:
 В BULL_TREND:
   - Pattern "classic_ema" WinRate: 72%
   - Pattern "alternative_1" WinRate: 58%
-  
+
 В BEAR_TREND:
   - Pattern "classic_ema" WinRate: 45% ❌ (плохо!)
   - Pattern "alternative_1" WinRate: 62% ✅ (лучше!)
@@ -92,12 +95,13 @@ await ai_regulator.process_signal_generation(
 ```
 
 ### **2. Анализ composite signals** ✅
+
 ```python
 # AI знает что:
 Сигналы с composite_confidence > 0.8:
   - WinRate: 78%
   - Profit Factor: 2.1
-  
+
 Сигналы с composite_confidence < 0.5:
   - WinRate: 52%
   - Profit Factor: 1.1
@@ -106,12 +110,13 @@ await ai_regulator.process_signal_generation(
 ```
 
 ### **3. Комбинированная оптимизация** ✅
+
 ```python
 # AI анализирует:
 BULL_TREND + composite_confidence > 0.8:
   - WinRate: 85% 🚀
   - Avg Profit: +4.2%
-  
+
 BEAR_TREND + composite_confidence > 0.8:
   - WinRate: 68%
   - Avg Profit: +2.8%
@@ -124,6 +129,7 @@ BEAR_TREND + composite_confidence > 0.8:
 ## 📈 **НОВЫЕ ВОЗМОЖНОСТИ ОБУЧЕНИЯ:**
 
 ### **TradeResult теперь содержит:**
+
 ```python
 @dataclass
 class TradeResult:
@@ -132,18 +138,18 @@ class TradeResult:
     pattern_type: str
     signal_type: str
     entry_price: float
-    
+
     # Результаты
     pnl_pct: float
     is_winner: bool
     duration_hours: float
-    
+
     # AI данные (РАСШИРЕНО!)
     ai_score: float                    # AI Score
     market_regime: str                 # ⭐ BULL/BEAR/RANGE/CRASH
     composite_score: float             # ⭐ Composite signal
     composite_confidence: float        # ⭐ Confidence
-    
+
     # Рыночные условия
     volume_usd: float
     volatility_pct: float
@@ -154,17 +160,18 @@ class TradeResult:
 ## 🧠 **КАК AI ИСПОЛЬЗУЕТ НОВЫЕ ДАННЫЕ:**
 
 ### **1. PatternEffectivenessAnalyzer:**
+
 ```python
 # Теперь анализирует:
 for trade in trade_results:
     pattern = trade.pattern_type
     regime = trade.market_regime
     composite_conf = trade.composite_confidence
-    
+
     # Статистика ПО РЕЖИМАМ
     stats[pattern][regime]['winrate'] = ...
     stats[pattern][regime]['avg_composite_conf'] = ...
-    
+
     # Корреляция composite_confidence с WinRate
     if composite_conf > 0.8:
         high_conf_trades.append(trade)
@@ -172,6 +179,7 @@ for trade in trade_results:
 ```
 
 ### **2. ParameterOptimizer:**
+
 ```python
 # Оптимизирует:
 1. Пороги score ПО РЕЖИМАМ
@@ -180,13 +188,14 @@ for trade in trade_results:
 
 2. Требования к composite_confidence
    - Если WinRate низкий → повысить min_composite_conf
-   
+
 3. Веса паттернов в разных режимах
    - BULL: classic_ema weight = 1.5x
    - BEAR: alternative_1 weight = 1.2x
 ```
 
 ### **3. AdaptiveParameterController:**
+
 ```python
 # Применяет оптимизацию:
 if current_regime == 'BULL_TREND':
@@ -231,7 +240,7 @@ BULL_TREND (300 сделок):
     - WinRate: 75%
     - Avg composite_conf: 0.82
     - Profit Factor: 1.8
-    
+
   Alternative 1:
     - WinRate: 62%
     - Avg composite_conf: 0.65
@@ -242,7 +251,7 @@ BEAR_TREND (200 сделок):
     - WinRate: 48% ❌
     - Avg composite_conf: 0.55
     - Profit Factor: 0.9
-    
+
   Alternative 1:
     - WinRate: 68% ✅
     - Avg composite_conf: 0.78
@@ -260,6 +269,7 @@ AI РЕШЕНИЯ:
 ## ✅ **ИНТЕГРАЦИЯ ЗАВЕРШЕНА!**
 
 **Все компоненты взаимодействуют:**
+
 - ✅ Market Regime → AI Regulator
 - ✅ Composite Signal → AI Regulator
 - ✅ AI Regulator → Parameter Optimizer
@@ -267,6 +277,7 @@ AI РЕШЕНИЯ:
 - ✅ Adaptive Controller → Signal Generation
 
 **Система самообучается с учетом:**
+
 - 🎯 Рыночных режимов
 - 🎯 Composite signal confidence
 - 🎯 Корреляций портфеля
@@ -275,4 +286,3 @@ AI РЕШЕНИЯ:
 ## 🚀 **ГОТОВО К ЗАПУСКУ!**
 
 AI-система уровня **хедж-фондов** с полной интеграцией всех компонентов! 💎
-

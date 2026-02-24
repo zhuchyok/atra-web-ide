@@ -2,7 +2,7 @@
 name: example-skill
 description: Пример skill в формате AgentSkills для демонстрации
 version: 1.0.0
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "📝"}}
+metadata: { "clawdbot": { "requires": { "bins": ["python"] }, "emoji": "📝" } }
 ---
 
 # Example Skill

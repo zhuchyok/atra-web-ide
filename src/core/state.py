@@ -10,11 +10,10 @@ MANUAL_INTERVAL = None
 LAST_USER_ACTION = None  # 'confirm', 'decline', None
 LAST_ACTION_TIME = 0
 
-import time
 import asyncio
 import random
+import time
 from collections import defaultdict, deque
-
 
 
 # Продвинутая система контроля частоты отправки сообщений
@@ -42,11 +41,11 @@ class AdvancedNotificationLimiter:
 
         # Статистика
         self.stats = {
-            'total_messages': 0,
-            'rate_limited_messages': 0,
-            'batches_sent': 0,
-            'backoff_activations': 0,
-            'last_reset': time.time()
+            "total_messages": 0,
+            "rate_limited_messages": 0,
+            "batches_sent": 0,
+            "backoff_activations": 0,
+            "last_reset": time.time(),
         }
 
     def get_user_backoff_delay(self, user_id):
@@ -57,8 +56,8 @@ class AdvancedNotificationLimiter:
             return 0
 
         backoff_data = self.user_backoff[user_id]
-        retry_after = backoff_data.get('retry_after', 0)
-        attempts = backoff_data.get('attempts', 0)
+        retry_after = backoff_data.get("retry_after", 0)
+        attempts = backoff_data.get("attempts", 0)
 
         # Если время retry_after прошло, сбрасываем backoff
         if time.time() > retry_after:
@@ -68,7 +67,7 @@ class AdvancedNotificationLimiter:
         # Увеличиваем задержку с каждым попыткой
         delay = retry_after - time.time()
         if attempts > 0:
-            delay *= (self.BACKOFF_MULTIPLIER ** (attempts - 1))
+            delay *= self.BACKOFF_MULTIPLIER ** (attempts - 1)
 
         return max(0, delay)
 
@@ -79,15 +78,17 @@ class AdvancedNotificationLimiter:
         current_time = time.time()
         if user_id not in self.user_backoff:
             self.user_backoff[user_id] = {
-                'retry_after': current_time + retry_after_seconds,
-                'attempts': 1
+                "retry_after": current_time + retry_after_seconds,
+                "attempts": 1,
             }
         else:
-            self.user_backoff[user_id]['attempts'] += 1
-            self.user_backoff[user_id]['retry_after'] = current_time + retry_after_seconds
+            self.user_backoff[user_id]["attempts"] += 1
+            self.user_backoff[user_id]["retry_after"] = current_time + retry_after_seconds
 
-        self.stats['backoff_activations'] += 1
-        print(f"[Backoff] Пользователь {user_id}: retry_after={retry_after_seconds}с, попыток={self.user_backoff[user_id]['attempts']}")
+        self.stats["backoff_activations"] += 1
+        print(
+            f"[Backoff] Пользователь {user_id}: retry_after={retry_after_seconds}с, попыток={self.user_backoff[user_id]['attempts']}"
+        )
 
     def clear_user_backoff(self, user_id):
         """
@@ -106,16 +107,20 @@ class AdvancedNotificationLimiter:
         if chat_id is not None:
             backoff_delay = self.get_user_backoff_delay(chat_id)
             if backoff_delay > 0:
-                print(f"[RateLimit] Backoff для пользователя {chat_id}, ожидание {backoff_delay:.2f} сек")
-                self.stats['rate_limited_messages'] += 1
+                print(
+                    f"[RateLimit] Backoff для пользователя {chat_id}, ожидание {backoff_delay:.2f} сек"
+                )
+                self.stats["rate_limited_messages"] += 1
                 await asyncio.sleep(backoff_delay)
                 current_time = time.time()
 
         # Проверяем глобальный лимит (30 сообщений/сек)
         if len(self.global_message_times) > 0:
             # Удаляем старые сообщения из окна
-            while (len(self.global_message_times) > 0 and
-                   current_time - self.global_message_times[0] > self.GLOBAL_WINDOW):
+            while (
+                len(self.global_message_times) > 0
+                and current_time - self.global_message_times[0] > self.GLOBAL_WINDOW
+            ):
                 self.global_message_times.popleft()
 
             # Если превышен глобальный лимит, ждем
@@ -123,7 +128,7 @@ class AdvancedNotificationLimiter:
                 wait_time = self.global_message_times[0] + self.GLOBAL_WINDOW - current_time
                 if wait_time > 0:
                     print(f"[RateLimit] Глобальный лимит превышен, ожидание {wait_time:.2f} сек")
-                    self.stats['rate_limited_messages'] += 1
+                    self.stats["rate_limited_messages"] += 1
                     await asyncio.sleep(wait_time)
                     current_time = time.time()
 
@@ -133,8 +138,10 @@ class AdvancedNotificationLimiter:
                 time_since_last = current_time - self.chat_last_message[chat_id]
                 if time_since_last < self.CHAT_RATE_LIMIT:
                     wait_time = self.CHAT_RATE_LIMIT - time_since_last
-                    print(f"[RateLimit] Лимит чата {chat_id} превышен, ожидание {wait_time:.2f} сек")
-                    self.stats['rate_limited_messages'] += 1
+                    print(
+                        f"[RateLimit] Лимит чата {chat_id} превышен, ожидание {wait_time:.2f} сек"
+                    )
+                    self.stats["rate_limited_messages"] += 1
                     await asyncio.sleep(wait_time)
                     current_time = time.time()
 
@@ -145,11 +152,13 @@ class AdvancedNotificationLimiter:
             self.chat_message_times[chat_id].append(current_time)
 
             # Очищаем старые записи для чата (оставляем только за последние 10 секунд)
-            while (len(self.chat_message_times[chat_id]) > 0 and
-                   current_time - self.chat_message_times[chat_id][0] > 10):
+            while (
+                len(self.chat_message_times[chat_id]) > 0
+                and current_time - self.chat_message_times[chat_id][0] > 10
+            ):
                 self.chat_message_times[chat_id].popleft()
 
-        self.stats['total_messages'] += 1
+        self.stats["total_messages"] += 1
 
     def create_batches(self, user_ids, batch_size=None):
         """
@@ -160,7 +169,7 @@ class AdvancedNotificationLimiter:
 
         batches = []
         for i in range(0, len(user_ids), batch_size):
-            batch = user_ids[i:i + batch_size]
+            batch = user_ids[i : i + batch_size]
             batches.append(batch)
 
         return batches
@@ -195,7 +204,7 @@ class AdvancedNotificationLimiter:
                 print(f"[Batch] Ошибка отправки пользователю {user_id}: {e}")
                 results.append((user_id, None))
 
-        self.stats['batches_sent'] += 1
+        self.stats["batches_sent"] += 1
         return results
 
     async def send_mass_notification(self, user_ids, send_func, **kwargs):
@@ -206,12 +215,16 @@ class AdvancedNotificationLimiter:
 
         # Разбиваем на батчи
         batches = self.create_batches(user_ids)
-        print(f"[MassNotification] Создано {len(batches)} батчей по {self.BATCH_SIZE} пользователей")
+        print(
+            f"[MassNotification] Создано {len(batches)} батчей по {self.BATCH_SIZE} пользователей"
+        )
 
         all_results = []
 
         for i, batch in enumerate(batches):
-            print(f"[MassNotification] Отправка батча {i+1}/{len(batches)} ({len(batch)} пользователей)")
+            print(
+                f"[MassNotification] Отправка батча {i + 1}/{len(batches)} ({len(batch)} пользователей)"
+            )
 
             # Отправляем батч
             batch_results = await self.send_batch_with_jitter(batch, send_func, **kwargs)
@@ -224,7 +237,7 @@ class AdvancedNotificationLimiter:
                 # Дополнительная задержка между батчами для лучшего распределения
                 await asyncio.sleep(0.2)
 
-        print(f"[MassNotification] ✅ Массовая отправка завершена")
+        print("[MassNotification] ✅ Массовая отправка завершена")
         return all_results
 
     def get_stats(self):
@@ -234,19 +247,21 @@ class AdvancedNotificationLimiter:
         current_time = time.time()
 
         # Очищаем старые данные для актуальной статистики
-        while (len(self.global_message_times) > 0 and
-               current_time - self.global_message_times[0] > self.GLOBAL_WINDOW):
+        while (
+            len(self.global_message_times) > 0
+            and current_time - self.global_message_times[0] > self.GLOBAL_WINDOW
+        ):
             self.global_message_times.popleft()
 
         return {
-            'total_messages': self.stats['total_messages'],
-            'rate_limited_messages': self.stats['rate_limited_messages'],
-            'current_global_rate': len(self.global_message_times),
-            'active_chats': len(self.chat_last_message),
-            'batches_sent': self.stats['batches_sent'],
-            'backoff_activations': self.stats['backoff_activations'],
-            'users_in_backoff': len(self.user_backoff),
-            'uptime_hours': (current_time - self.stats['last_reset']) / 3600
+            "total_messages": self.stats["total_messages"],
+            "rate_limited_messages": self.stats["rate_limited_messages"],
+            "current_global_rate": len(self.global_message_times),
+            "active_chats": len(self.chat_last_message),
+            "batches_sent": self.stats["batches_sent"],
+            "backoff_activations": self.stats["backoff_activations"],
+            "users_in_backoff": len(self.user_backoff),
+            "uptime_hours": (current_time - self.stats["last_reset"]) / 3600,
         }
 
     def reset_stats(self):
@@ -254,11 +269,11 @@ class AdvancedNotificationLimiter:
         Сбрасывает статистику
         """
         self.stats = {
-            'total_messages': 0,
-            'rate_limited_messages': 0,
-            'batches_sent': 0,
-            'backoff_activations': 0,
-            'last_reset': time.time()
+            "total_messages": 0,
+            "rate_limited_messages": 0,
+            "batches_sent": 0,
+            "backoff_activations": 0,
+            "last_reset": time.time(),
         }
 
     def clear_all_backoffs(self):
@@ -277,9 +292,10 @@ BALANCE_FILE = "balance.txt"
 TRADING_HOURS_FILE = "trading_hours.txt"
 
 import logging
-import shutil
 import os
+import shutil
 from datetime import datetime
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 BACKUP_DIR = "backups"
@@ -288,7 +304,7 @@ BACKUP_DIR = "backups"
 def backup_file(filepath, backup_dir=BACKUP_DIR, max_backups: int = 10):
     """
     Создает бэкап файла с автоматической ротацией старых бэкапов.
-    
+
     Args:
         filepath: Путь к файлу для бэкапа
         backup_dir: Директория для хранения бэкапов
@@ -301,18 +317,19 @@ def backup_file(filepath, backup_dir=BACKUP_DIR, max_backups: int = 10):
         backup_path = os.path.join(backup_dir, backup_filename)
         shutil.copy(filepath, backup_path)
         logging.info(f"Бэкап {filepath} -> {backup_path}")
-        
+
         # Ротация: удаляем старые бэкапы, оставляем только последние max_backups
         try:
             # Находим все бэкапы этого файла
             base_name = os.path.basename(filepath)
             backup_pattern = os.path.join(backup_dir, f"{base_name}_*")
             import glob
+
             existing_backups = glob.glob(backup_pattern)
-            
+
             # Сортируем по времени модификации (новые первыми)
             existing_backups.sort(key=os.path.getmtime, reverse=True)
-            
+
             # Удаляем лишние бэкапы
             if len(existing_backups) > max_backups:
                 for old_backup in existing_backups[max_backups:]:
@@ -327,7 +344,7 @@ def backup_file(filepath, backup_dir=BACKUP_DIR, max_backups: int = 10):
 
 def get_balance():
     try:
-        with open(BALANCE_FILE, "r") as f:
+        with open(BALANCE_FILE) as f:
             return float(f.read())
     except Exception as e:
         logging.error(e, exc_info=True)
@@ -354,7 +371,7 @@ def set_trading_hours(start, end):
 
 def get_trading_hours():
     try:
-        with open(TRADING_HOURS_FILE, "r") as f:
+        with open(TRADING_HOURS_FILE) as f:
             s, e = f.read().split()
             return int(s), int(e)
     except Exception as e:

@@ -1,24 +1,25 @@
 """Обёртка для работы с биржами через ccxt (Bitget по умолчанию)."""
 
-import logging
-import time
-import re
 import inspect
+import logging
+import re
+import time
 from typing import Any, Callable, Dict, Optional, cast
 
 try:
     import ccxt.async_support as ccxt  # type: ignore
+
     CCXT_LIB = ccxt
 except ModuleNotFoundError:  # pragma: no cover
     CCXT_LIB = None  # type: ignore
 
 from src.core.exceptions import (
+    AuthenticationError,
     ExchangeAPIError,
     NetworkError,
-    RateLimitError,
-    AuthenticationError,
-    OrderExecutionError,
     OrderCancellationError,
+    OrderExecutionError,
+    RateLimitError,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,11 +117,11 @@ class ExchangeAdapter:
 
             if self.sandbox and hasattr(self.client, "set_sandbox_mode"):
                 # Для асинхронного клиента ccxt в __init__ нельзя использовать await
-                # В данном проекте используется async ccxt, поэтому sandbox режим 
+                # В данном проекте используется async ccxt, поэтому sandbox режим
                 # должен устанавливаться в методах или через инициализатор.
                 # Пока отключаем прямую установку здесь, чтобы избежать SyntaxError.
                 pass
-                # self.client.set_sandbox_mode(True) 
+                # self.client.set_sandbox_mode(True)
                 logger.info("🧪 [EXCHANGE] Sandbox режим затребован (но не активирован в __init__)")
         except (ImportError, AttributeError, KeyError) as exc:
             logger.error(
@@ -147,12 +148,12 @@ class ExchangeAdapter:
         """
         if not self._ensure():
             return None
-        
+
         method = getattr(self.client, method_name, None)
         if method is None:
             logger.warning("⚠️ [EXCHANGE] Метод %s не найден у клиента ccxt", method_name)
             return None
-            
+
         start_time = time.perf_counter()
         try:
             result = method(*args, **kwargs)
@@ -160,45 +161,113 @@ class ExchangeAdapter:
                 response = await result
             else:
                 response = result
-            
+
             latency = (time.perf_counter() - start_time) * 1000  # в миллисекундах
             logger.info("⏱️ [LATENCY] %s call took %.2f ms", method_name, latency)
-            
+
             # Сохраняем латентность в БД для анализа (если доступен DatabaseSingleton)
             try:
                 from src.database.db import DatabaseSingleton
+
                 db = DatabaseSingleton()
                 db.log_api_latency(self.exchange_name, method_name, latency)
             except (ImportError, AttributeError):
                 pass  # БД недоступна - не критично
-                
+
             return response
         except Exception as e:
             latency = (time.perf_counter() - start_time) * 1000
             error_msg = str(e).lower()
-            
+
             # Определяем тип ошибки по сообщению (ccxt использует разные исключения)
-            if CCXT_LIB and hasattr(CCXT_LIB, 'NetworkError') and isinstance(e, CCXT_LIB.NetworkError):
-                logger.error("❌ [EXCHANGE] Ошибка сети при вызове %s (%.2f ms): %s", method_name, latency, e)
-                raise NetworkError(f"Network error in {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
-            elif CCXT_LIB and hasattr(CCXT_LIB, 'RateLimitExceeded') and isinstance(e, CCXT_LIB.RateLimitExceeded):
-                logger.error("❌ [EXCHANGE] Превышен лимит запросов для %s (%.2f ms): %s", method_name, latency, e)
-                raise RateLimitError(f"Rate limit exceeded for {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
-            elif CCXT_LIB and hasattr(CCXT_LIB, 'AuthenticationError') and isinstance(e, CCXT_LIB.AuthenticationError):
-                logger.error("❌ [EXCHANGE] Ошибка аутентификации для %s (%.2f ms): %s", method_name, latency, e)
-                raise AuthenticationError(f"Authentication error for {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
-            elif 'network' in error_msg or 'connection' in error_msg or 'timeout' in error_msg:
-                logger.error("❌ [EXCHANGE] Ошибка сети при вызове %s (%.2f ms): %s", method_name, latency, e)
-                raise NetworkError(f"Network error in {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
-            elif 'rate limit' in error_msg or 'too many requests' in error_msg:
-                logger.error("❌ [EXCHANGE] Превышен лимит запросов для %s (%.2f ms): %s", method_name, latency, e)
-                raise RateLimitError(f"Rate limit exceeded for {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
-            elif 'authentication' in error_msg or 'unauthorized' in error_msg or 'api key' in error_msg:
-                logger.error("❌ [EXCHANGE] Ошибка аутентификации для %s (%.2f ms): %s", method_name, latency, e)
-                raise AuthenticationError(f"Authentication error for {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
+            if (
+                CCXT_LIB
+                and hasattr(CCXT_LIB, "NetworkError")
+                and isinstance(e, CCXT_LIB.NetworkError)
+            ):
+                logger.error(
+                    "❌ [EXCHANGE] Ошибка сети при вызове %s (%.2f ms): %s", method_name, latency, e
+                )
+                raise NetworkError(
+                    f"Network error in {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
+            elif (
+                CCXT_LIB
+                and hasattr(CCXT_LIB, "RateLimitExceeded")
+                and isinstance(e, CCXT_LIB.RateLimitExceeded)
+            ):
+                logger.error(
+                    "❌ [EXCHANGE] Превышен лимит запросов для %s (%.2f ms): %s",
+                    method_name,
+                    latency,
+                    e,
+                )
+                raise RateLimitError(
+                    f"Rate limit exceeded for {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
+            elif (
+                CCXT_LIB
+                and hasattr(CCXT_LIB, "AuthenticationError")
+                and isinstance(e, CCXT_LIB.AuthenticationError)
+            ):
+                logger.error(
+                    "❌ [EXCHANGE] Ошибка аутентификации для %s (%.2f ms): %s",
+                    method_name,
+                    latency,
+                    e,
+                )
+                raise AuthenticationError(
+                    f"Authentication error for {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
+            elif "network" in error_msg or "connection" in error_msg or "timeout" in error_msg:
+                logger.error(
+                    "❌ [EXCHANGE] Ошибка сети при вызове %s (%.2f ms): %s", method_name, latency, e
+                )
+                raise NetworkError(
+                    f"Network error in {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
+            elif "rate limit" in error_msg or "too many requests" in error_msg:
+                logger.error(
+                    "❌ [EXCHANGE] Превышен лимит запросов для %s (%.2f ms): %s",
+                    method_name,
+                    latency,
+                    e,
+                )
+                raise RateLimitError(
+                    f"Rate limit exceeded for {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
+            elif (
+                "authentication" in error_msg
+                or "unauthorized" in error_msg
+                or "api key" in error_msg
+            ):
+                logger.error(
+                    "❌ [EXCHANGE] Ошибка аутентификации для %s (%.2f ms): %s",
+                    method_name,
+                    latency,
+                    e,
+                )
+                raise AuthenticationError(
+                    f"Authentication error for {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
             else:
-                logger.error("❌ [EXCHANGE] Ошибка биржи при вызове %s (%.2f ms): %s", method_name, latency, e, exc_info=True)
-                raise ExchangeAPIError(f"Exchange API error in {method_name}: {e}", context={"method": method_name, "latency_ms": latency}) from e
+                logger.error(
+                    "❌ [EXCHANGE] Ошибка биржи при вызове %s (%.2f ms): %s",
+                    method_name,
+                    latency,
+                    e,
+                    exc_info=True,
+                )
+                raise ExchangeAPIError(
+                    f"Exchange API error in {method_name}: {e}",
+                    context={"method": method_name, "latency_ms": latency},
+                ) from e
 
     async def set_leverage(self, symbol: str, leverage: int) -> bool:
         """
@@ -225,9 +294,7 @@ class ExchangeAdapter:
             if hasattr(self.client, "set_leverage"):
                 # Для Bitget CCXT требует params={'marginMode': 'isolated'|'cross'}
                 # По умолчанию используем isolated если не задано
-                params = {
-                    'marginMode': 'isolated'
-                }
+                params = {"marginMode": "isolated"}
                 result = await self.client.set_leverage(leverage, symbol, params=params)
                 logger.info("✅ [BITGET] Плечо установлено: %s", result)
                 return True
@@ -336,10 +403,12 @@ class ExchangeAdapter:
             # Уже обработано в _call_client, просто пробрасываем дальше
             raise
         except Exception as exc:
-            logger.error("❌ [BITGET] Неожиданная ошибка create_limit_order: %s", exc, exc_info=True)
+            logger.error(
+                "❌ [BITGET] Неожиданная ошибка create_limit_order: %s", exc, exc_info=True
+            )
             raise OrderExecutionError(
                 f"Failed to create limit order: {exc}",
-                context={"symbol": symbol, "side": side, "amount": amount, "price": price}
+                context={"symbol": symbol, "side": side, "amount": amount, "price": price},
             ) from exc
 
     async def create_market_order(
@@ -393,10 +462,12 @@ class ExchangeAdapter:
             # Уже обработано в _call_client, просто пробрасываем дальше
             raise
         except Exception as exc:
-            logger.error("❌ [BITGET] Неожиданная ошибка create_market_order: %s", exc, exc_info=True)
+            logger.error(
+                "❌ [BITGET] Неожиданная ошибка create_market_order: %s", exc, exc_info=True
+            )
             raise OrderExecutionError(
                 f"Failed to create market order: {exc}",
-                context={"symbol": symbol, "side": side, "amount": amount}
+                context={"symbol": symbol, "side": side, "amount": amount},
             ) from exc
 
     async def wait_for_fill(self, order_id: str, symbol: str, timeout_sec: int = 90) -> bool:
@@ -445,7 +516,12 @@ class ExchangeAdapter:
                 used = float(usdt_balance.get("used", 0) or 0)
                 total = float(usdt_balance.get("total", 0) or 0)
 
-                logger.info("💰 [EXCHANGE] Баланс получен: total=%.2f, free=%.2f, used=%.2f", total, free, used)
+                logger.info(
+                    "💰 [EXCHANGE] Баланс получен: total=%.2f, free=%.2f, used=%.2f",
+                    total,
+                    free,
+                    used,
+                )
 
                 return {
                     "total": total,
@@ -463,7 +539,7 @@ class ExchangeAdapter:
     async def close(self):
         """Закрывает соединение с биржей и освобождает ресурсы."""
         try:
-            if hasattr(self, 'client') and self.client:
+            if hasattr(self, "client") and self.client:
                 # В асинхронном режиме ccxt требует вызова close()
                 await self.client.close()
                 logger.info("✅ [EXCHANGE] Соединение с биржей закрыто")
@@ -482,16 +558,16 @@ class ExchangeAdapter:
     async def is_symbol_available(self, symbol: str) -> bool:
         """
         Проверяет, доступен ли символ на бирже для текущего режима торговли.
-        
+
         Args:
             symbol: Символ (например BTCUSDT).
-            
+
         Returns:
             True если символ доступен.
         """
         try:
             if not self._ensure():
-                return True # Fallback
+                return True  # Fallback
 
             # Загружаем рынки если еще не загружены
             if not self.client.markets:
@@ -501,34 +577,34 @@ class ExchangeAdapter:
             # Для Bitget futures в ccxt символ обычно BTC/USDT:USDT или BTCUSDT
             # Мы ищем совпадение
             symbol_upper = symbol.upper()
-            
+
             # 1. Прямое совпадение
             if symbol_upper in self.client.markets:
                 return True
-                
+
             # 2. Совпадение с разделителем (например BTC/USDT)
             if "/" not in symbol_upper and "USDT" in symbol_upper:
                 alt_symbol = symbol_upper.replace("USDT", "/USDT")
                 if alt_symbol in self.client.markets:
                     return True
-                    
+
             # 3. Совпадение с двоеточием (для свопов, например BTC/USDT:USDT)
             if self.trade_mode == "futures":
                 alt_symbol_futures = f"{symbol_upper.replace('USDT', '/USDT')}:USDT"
                 if alt_symbol_futures in self.client.markets:
                     return True
-            
+
             # 4. Проверка по market id
             for market in self.client.markets.values():
-                if market.get('id') == symbol_upper:
+                if market.get("id") == symbol_upper:
                     return True
-                if market.get('symbol') == symbol_upper:
+                if market.get("symbol") == symbol_upper:
                     return True
-                    
+
             return False
         except Exception as exc:
             logger.warning("⚠️ [EXCHANGE] Ошибка проверки доступности символа %s: %s", symbol, exc)
-            return True # Fallback в случае ошибки
+            return True  # Fallback в случае ошибки
 
     async def place_stop_loss_order(
         self,
@@ -567,7 +643,7 @@ class ExchangeAdapter:
             logger.info(
                 "🛡️ [SL Order] %s → direction=%s, trigger=%.8f, amount=%.4f",
                 symbol,
-                direction_norm or '?',
+                direction_norm or "?",
                 stop_price,
                 position_amount,
             )
@@ -576,8 +652,8 @@ class ExchangeAdapter:
                 # Используем единый механизм план-ордеров (pos_loss), аналогично TP (pos_profit)
                 plan_client_oid = self._generate_client_oid("sl", symbol, pos_side)
                 plan_order = await self.create_plan_order(
-                        symbol=symbol,
-                        side=sl_side,
+                    symbol=symbol,
+                    side=sl_side,
                     size=position_amount,
                     trigger_price=stop_price,
                     plan_type="pos_loss",
@@ -585,7 +661,7 @@ class ExchangeAdapter:
                     pos_side=pos_side,
                     reduce_only=reduce_only,
                     client_oid=plan_client_oid,
-                    )
+                )
                 if plan_order:
                     logger.info("✅ [SL Order] Bitget pos_loss план размещён: %s", plan_order)
                 else:
@@ -602,14 +678,18 @@ class ExchangeAdapter:
             )
 
             if order:
-                logger.info("✅ [SL Order] Reduce-only стоп выставлен: %s, id=%s", symbol, order.get("id"))
+                logger.info(
+                    "✅ [SL Order] Reduce-only стоп выставлен: %s, id=%s", symbol, order.get("id")
+                )
             else:
                 logger.warning("⚠️ [SL Order] Не удалось выставить защитный ордер для %s", symbol)
 
             return order
 
         except Exception as exc:
-            logger.error("❌ [SL Order] Ошибка выставления защитного ордера: %s", exc, exc_info=True)
+            logger.error(
+                "❌ [SL Order] Ошибка выставления защитного ордера: %s", exc, exc_info=True
+            )
             return None
 
     # NOTE: Удалена дублирующаяся и некорректная реализация place_take_profit_order
@@ -635,7 +715,9 @@ class ExchangeAdapter:
                 return None
 
             if self.exchange_name != "bitget":
-                logger.warning("⚠️ [Plan Order] План-ордера поддерживаются только для Bitget, пропускаем")
+                logger.warning(
+                    "⚠️ [Plan Order] План-ордера поддерживаются только для Bitget, пропускаем"
+                )
                 return None
 
             market = None
@@ -669,10 +751,10 @@ class ExchangeAdapter:
                 symbol_param = market_info.get("symbol") or market.get("id") or symbol
                 # Убираем разделители для Bitget V2 raw API
                 symbol_param = str(symbol_param).replace("/", "").replace(":", "").replace("-", "")
-            
+
             if not symbol_param:
                 symbol_param = symbol.replace("/", "").replace(":", "").replace("-", "")
-            
+
             if not product_type:
                 product_type = "umcbl"
             product_type = str(product_type).lower()
@@ -710,7 +792,9 @@ class ExchangeAdapter:
 
             if trigger_type == "limit_price" and execute_price:
                 try:
-                    payload["executePrice"] = str(self.client.price_to_precision(symbol, execute_price))
+                    payload["executePrice"] = str(
+                        self.client.price_to_precision(symbol, execute_price)
+                    )
                 except Exception:
                     payload["executePrice"] = str(execute_price)
 
@@ -725,7 +809,7 @@ class ExchangeAdapter:
                         payload["holdSide"] = pos_side
                         if "posSide" in payload:
                             del payload["posSide"]
-                    
+
                     method_name = "privateMixPostV2MixOrderPlaceTpslOrder"
                     logger.info("📋 [TPSL Order] Bitget V2 request (%s): %s", method_name, payload)
                 else:
@@ -735,7 +819,7 @@ class ExchangeAdapter:
                 plan_method_raw = getattr(self.client, method_name, None)
                 if not callable(plan_method_raw):
                     raise RuntimeError(f"Bitget {method_name} API недоступен в текущей версии ccxt")
-                
+
                 plan_method = cast(Callable[[Dict[str, Any]], Any], plan_method_raw)
                 response = plan_method(payload)
                 if inspect.isawaitable(response):
@@ -814,8 +898,12 @@ class ExchangeAdapter:
                 )
 
                 if order:
-                    logger.info("✅ [TP1 Order] Limit order TP1 выставлен: %s, id=%s, size=%.4f",
-                              symbol, order.get("id"), position_amount)
+                    logger.info(
+                        "✅ [TP1 Order] Limit order TP1 выставлен: %s, id=%s, size=%.4f",
+                        symbol,
+                        order.get("id"),
+                        position_amount,
+                    )
                 else:
                     logger.warning("⚠️ [TP1 Order] Не удалось выставить TP1 для %s", symbol)
 
@@ -840,8 +928,11 @@ class ExchangeAdapter:
                     client_oid=plan_client_oid,
                 )
                 if plan_order:
-                    logger.info("✅ [TP2 Order] Bitget pos_profit план размещён: %s, size=%.4f",
-                              plan_order, position_amount)
+                    logger.info(
+                        "✅ [TP2 Order] Bitget pos_profit план размещён: %s, size=%.4f",
+                        plan_order,
+                        position_amount,
+                    )
                     return plan_order
 
                 # Fallback для TP2: обычный limit order
@@ -860,7 +951,9 @@ class ExchangeAdapter:
             )
 
             if order:
-                logger.info("✅ [TP Order] Reduce-only TP выставлен: %s, id=%s", symbol, order.get("id"))
+                logger.info(
+                    "✅ [TP Order] Reduce-only TP выставлен: %s, id=%s", symbol, order.get("id")
+                )
             else:
                 logger.warning("⚠️ [TP Order] Не удалось выставить TP для %s", symbol)
 
@@ -979,18 +1072,28 @@ class ExchangeAdapter:
                         if isinstance(response, dict):
                             code = response.get("code")
                             if code in (None, "00000", 0):
-                                logger.info("✅ [Cancel Plan] План-ордер %s отменён на Bitget", order_id)
+                                logger.info(
+                                    "✅ [Cancel Plan] План-ордер %s отменён на Bitget", order_id
+                                )
                                 return True
                             else:
-                                logger.warning("⚠️ [Cancel Plan] Bitget отклонил отмену: %s", response)
+                                logger.warning(
+                                    "⚠️ [Cancel Plan] Bitget отклонил отмену: %s", response
+                                )
                         else:
-                            logger.info("✅ [Cancel Plan] План-ордер %s отменён (ответ: %s)", order_id, response)
+                            logger.info(
+                                "✅ [Cancel Plan] План-ордер %s отменён (ответ: %s)",
+                                order_id,
+                                response,
+                            )
                             return True
                     except Exception as e:
                         logger.debug("⚠️ [Cancel Plan] Метод %s не сработал: %s", method_name, e)
                         continue
 
-            logger.warning("⚠️ [Cancel Plan] Не удалось отменить план-ордер %s через Bitget API", order_id)
+            logger.warning(
+                "⚠️ [Cancel Plan] Не удалось отменить план-ордер %s через Bitget API", order_id
+            )
             return False
 
         except Exception as exc:

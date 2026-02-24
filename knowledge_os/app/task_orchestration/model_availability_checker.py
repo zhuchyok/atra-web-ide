@@ -35,6 +35,7 @@ class ModelAvailabilityChecker:
         """Return True if the service at url responds (e.g. /api/tags or /health)."""
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=timeout) as client:
                 for path in ("/api/tags", "/health", "/"):
                     try:

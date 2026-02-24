@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Генерация исторических сигналов и сделок на основе простого пересечения EMA
 для расширения таблиц signals_log и trades.
@@ -12,9 +11,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import List, Tuple
 
 import pandas as pd
 
@@ -23,21 +23,35 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import ccxt  # noqa: E402
+
 from src.database.db import Database  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Генерация исторических сигналов (EMA-cross) для backfill")
-    parser.add_argument("--days", type=int, default=120, help="Глубина истории в днях (по умолчанию 120)")
+    parser = argparse.ArgumentParser(
+        description="Генерация исторических сигналов (EMA-cross) для backfill"
+    )
+    parser.add_argument(
+        "--days", type=int, default=120, help="Глубина истории в днях (по умолчанию 120)"
+    )
     parser.add_argument(
         "--symbols",
         nargs="+",
         default=["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "AVAX/USDT"],
         help="Список символов Binance (формат SYMBOL/USDT)",
     )
-    parser.add_argument("--amount", type=float, default=1000.0, help="Размер позиции в USDT (по умолчанию 1000)")
-    parser.add_argument("--max-hold", type=int, default=12, help="Максимальное количество баров в сделке (по умолчанию 12)")
-    parser.add_argument("--fee-pct", type=float, default=0.0004, help="Комиссия (по умолчанию 0.04%)")
+    parser.add_argument(
+        "--amount", type=float, default=1000.0, help="Размер позиции в USDT (по умолчанию 1000)"
+    )
+    parser.add_argument(
+        "--max-hold",
+        type=int,
+        default=12,
+        help="Максимальное количество баров в сделке (по умолчанию 12)",
+    )
+    parser.add_argument(
+        "--fee-pct", type=float, default=0.0004, help="Комиссия (по умолчанию 0.04%)"
+    )
     return parser.parse_args()
 
 
@@ -63,7 +77,9 @@ def fetch_ohlc(exchange: ccxt.Exchange, symbol: str, days: int) -> pd.DataFrame:
     return df
 
 
-def ema_cross_signals(ema_fast: pd.Series, ema_slow: pd.Series) -> Iterable[Tuple[pd.Timestamp, str]]:
+def ema_cross_signals(
+    ema_fast: pd.Series, ema_slow: pd.Series
+) -> Iterable[Tuple[pd.Timestamp, str]]:
     df_index = ema_fast.index
     start_idx = max(ema_fast.first_valid_index(), ema_slow.first_valid_index())
     if start_idx is None:
@@ -270,4 +286,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

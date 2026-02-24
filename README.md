@@ -1,5 +1,10 @@
 # ATRA Web IDE
 
+![Lint & Security](https://github.com/bikos/atra-web-ide/actions/workflows/lint-security.yml/badge.svg)
+![Coverage](https://github.com/bikos/atra-web-ide/actions/workflows/coverage.yml/badge.svg)
+![Tests](https://github.com/bikos/atra-web-ide/actions/workflows/pytest-knowledge-os.yml/badge.svg)
+[![codecov](https://codecov.io/gh/bikos/atra-web-ide/branch/main/graph/badge.svg)](https://codecov.io/gh/bikos/atra-web-ide)
+
 Браузерная оболочка для работы с AI-агентами корпорации ATRA.
 
 **Архитектура проекта (структура, порты, запуск, API, метрики, Cursor, команда):** **`docs/PROJECT_ARCHITECTURE_AND_GUIDE.md`**.  
@@ -18,18 +23,19 @@
 
 ## 🤖 Модели на Mac Studio (MLX Server - 8 моделей)
 
-| # | Модель | Размер | Назначение |
-|---|--------|--------|------------|
-| 1 | `command-r-plus:104b` | 104B | **Архитектор** - сложная логика |
-| 2 | `deepseek-r1-distill-llama:70b` | 70B | Глубокий аудит/Reasoning |
-| 3 | `llama3.3:70b` | 70B | Универсальная |
-| 4 | `phi3.5:3.8b` | 3.8B | Быстрые задачи |
-| 5 | `phi3:mini-4k` | ~3B | Лёгкая |
-| 6 | `qwen2.5-coder:32b` | 32B | **Вероника PRO** - код |
-| 7 | `qwen2.5:3b` | 3B | Быстрые задачи |
-| 8 | `tinyllama:1.1b-chat` | 1.1B | Очень быстрая |
+| #   | Модель                          | Размер | Назначение                      |
+| --- | ------------------------------- | ------ | ------------------------------- |
+| 1   | `command-r-plus:104b`           | 104B   | **Архитектор** - сложная логика |
+| 2   | `deepseek-r1-distill-llama:70b` | 70B    | Глубокий аудит/Reasoning        |
+| 3   | `llama3.3:70b`                  | 70B    | Универсальная                   |
+| 4   | `phi3.5:3.8b`                   | 3.8B   | Быстрые задачи                  |
+| 5   | `phi3:mini-4k`                  | ~3B    | Лёгкая                          |
+| 6   | `qwen2.5-coder:32b`             | 32B    | **Вероника PRO** - код          |
+| 7   | `qwen2.5:3b`                    | 3B     | Быстрые задачи                  |
+| 8   | `tinyllama:1.1b-chat`           | 1.1B   | Очень быстрая                   |
 
 **Распределение по задачам:**
+
 - 🏗️ Архитектура → `command-r-plus:104b`
 - 🔍 Аудит/Reasoning → `deepseek-r1-distill-llama:70b`
 - 💻 Код → `qwen2.5-coder:32b` (Вероника)
@@ -39,13 +45,13 @@
 
 ## 🏗 Технологии
 
-| Компонент | Технология |
-|-----------|------------|
-| Frontend | Svelte + Tailwind CSS |
-| Backend | FastAPI (Python) |
-| Редактор | CodeMirror 6 |
-| AI | Ollama (Mac Studio) |
-| Стриминг | Server-Sent Events |
+| Компонент | Технология            |
+| --------- | --------------------- |
+| Frontend  | Svelte + Tailwind CSS |
+| Backend   | FastAPI (Python)      |
+| Редактор  | CodeMirror 6          |
+| AI        | Ollama (Mac Studio)   |
+| Стриминг  | Server-Sent Events    |
 
 ## 🚀 Быстрый старт
 
@@ -95,11 +101,11 @@ http://localhost:5173
 
 ## 🔗 MCP Серверы
 
-| Сервер | URL | Описание |
-|--------|-----|----------|
-| Ollama | http://192.168.1.43:11434 | AI модели на Mac Studio |
-| VictoriaATRA | http://localhost:8012/sse | Team Lead агент |
-| Filesystem | MCP | Доступ к файлам |
+| Сервер       | URL                       | Описание                |
+| ------------ | ------------------------- | ----------------------- |
+| Ollama       | http://192.168.1.43:11434 | AI модели на Mac Studio |
+| VictoriaATRA | http://localhost:8012/sse | Team Lead агент         |
+| Filesystem   | MCP                       | Доступ к файлам         |
 
 ## 📁 Структура проекта
 

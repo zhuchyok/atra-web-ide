@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS contextual_patterns (
     last_used_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(context_hash, pattern_type)
 );
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     confidence FLOAT DEFAULT 0.5, -- Уверенность в предпочтении
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(user_identifier, preference_type, preference_key)
 );
 
@@ -98,8 +98,8 @@ CREATE OR REPLACE FUNCTION extract_context_hash(
 BEGIN
     -- Простой хеш контекста (в реальности можно использовать более сложную логику)
     RETURN encode(digest(
-        COALESCE(query_text, '') || 
-        COALESCE(domain_name, '') || 
+        COALESCE(query_text, '') ||
+        COALESCE(domain_name, '') ||
         COALESCE(expert_name, ''),
         'sha256'
     ), 'hex');
@@ -121,7 +121,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         cp.id,
         cp.pattern_data,
         cp.success_score,
@@ -155,10 +155,10 @@ CREATE TABLE IF NOT EXISTS knowledge_links (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Уникальность: одна связь одного типа между двумя узлами
     UNIQUE(source_node_id, target_node_id, link_type),
-    
+
     -- Проверка: узел не может быть связан сам с собой
     CHECK (source_node_id != target_node_id)
 );
@@ -171,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_links_strength ON knowledge_links (stre
 CREATE INDEX IF NOT EXISTS idx_knowledge_links_metadata ON knowledge_links USING GIN (metadata);
 
 -- Композитный индекс для быстрого поиска связей
-CREATE INDEX IF NOT EXISTS idx_knowledge_links_source_type 
+CREATE INDEX IF NOT EXISTS idx_knowledge_links_source_type
     ON knowledge_links (source_node_id, link_type);
 
 -- Триггер для обновления updated_at
@@ -182,7 +182,7 @@ CREATE TRIGGER update_knowledge_links_updated_at
 
 -- Представление для удобного доступа к связям с информацией об узлах
 CREATE OR REPLACE VIEW knowledge_graph_view AS
-SELECT 
+SELECT
     kl.id as link_id,
     kl.source_node_id,
     kl.target_node_id,
@@ -244,7 +244,7 @@ BEGIN
     RETURN QUERY
     WITH RECURSIVE knowledge_path AS (
         -- Базовый случай: начальный узел
-        SELECT 
+        SELECT
             kl.target_node_id as node_id,
             kl.link_type,
             1 as depth,
@@ -253,11 +253,11 @@ BEGIN
         WHERE kl.source_node_id = p_node_id
           AND kl.link_type = ANY(link_types)
           AND kl.strength >= min_strength
-        
+
         UNION ALL
-        
+
         -- Рекурсивный случай: связанные узлы
-        SELECT 
+        SELECT
             kl.target_node_id as node_id,
             kl.link_type,
             kp.depth + 1,
@@ -305,7 +305,7 @@ CREATE TABLE IF NOT EXISTS knowledge_translations (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(knowledge_node_id, language_code)
 );
 
@@ -323,7 +323,7 @@ CREATE TABLE IF NOT EXISTS ui_translations (
     context VARCHAR(100), -- 'dashboard', 'api', 'telegram', etc.
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(language_code, translation_key, context)
 );
 
@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS user_language_preferences (
     search_language VARCHAR(10) DEFAULT 'auto', -- 'auto' = автоматическое определение
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     PRIMARY KEY (user_id)
 );
 
@@ -375,7 +375,7 @@ BEGIN
     FROM knowledge_translations
     WHERE knowledge_node_id = node_id
       AND language_code = lang_code;
-    
+
     -- Если перевода нет, возвращаем оригинал
     IF translated IS NULL THEN
         SELECT content INTO original_content
@@ -383,7 +383,7 @@ BEGIN
         WHERE id = node_id;
         RETURN original_content;
     END IF;
-    
+
     RETURN translated;
 END;
 $$ LANGUAGE plpgsql;
@@ -411,9 +411,9 @@ BEGIN
             lang_code := 'en';
         END IF;
     END IF;
-    
+
     RETURN QUERY
-    SELECT 
+    SELECT
         k.id as node_id,
         COALESCE(kt.translated_content, k.content) as content,
         COALESCE(kt.language_code, 'original') as language_code,
@@ -421,9 +421,9 @@ BEGIN
         d.name as domain_name
     FROM knowledge_nodes k
     JOIN domains d ON k.domain_id = d.id
-    LEFT JOIN knowledge_translations kt ON k.id = kt.knowledge_node_id 
+    LEFT JOIN knowledge_translations kt ON k.id = kt.knowledge_node_id
         AND kt.language_code = lang_code
-    WHERE 
+    WHERE
         k.content ILIKE '%' || search_query || '%'
         OR kt.translated_content ILIKE '%' || search_query || '%'
     ORDER BY k.confidence_score DESC
@@ -453,7 +453,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_updated ON knowledge_nodes (updated_at 
 CREATE INDEX IF NOT EXISTS idx_knowledge_verified ON knowledge_nodes (is_verified) WHERE is_verified = TRUE;
 
 -- Композитный индекс для частого запроса: поиск по домену и confidence
-CREATE INDEX IF NOT EXISTS idx_knowledge_domain_confidence 
+CREATE INDEX IF NOT EXISTS idx_knowledge_domain_confidence
     ON knowledge_nodes (domain_id, confidence_score DESC);
 
 -- Индексы для tasks
@@ -466,7 +466,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks (completed_at DESC) WHERE completed_at IS NOT NULL;
 
 -- Композитный индекс для частого запроса: задачи по статусу и приоритету
-CREATE INDEX IF NOT EXISTS idx_tasks_status_priority 
+CREATE INDEX IF NOT EXISTS idx_tasks_status_priority
     ON tasks (status, priority DESC, created_at ASC);
 
 -- Индексы для interaction_logs
@@ -475,7 +475,7 @@ CREATE INDEX IF NOT EXISTS idx_interaction_created ON interaction_logs (created_
 CREATE INDEX IF NOT EXISTS idx_interaction_feedback ON interaction_logs (feedback_score) WHERE feedback_score IS NOT NULL;
 
 -- Композитный индекс для частого запроса: логи по эксперту и дате
-CREATE INDEX IF NOT EXISTS idx_interaction_expert_created 
+CREATE INDEX IF NOT EXISTS idx_interaction_expert_created
     ON interaction_logs (expert_id, created_at DESC);
 
 -- Индексы для experts
@@ -504,12 +504,12 @@ BEGIN
         current_date := start_date;
         WHILE current_date <= end_date LOOP
             partition_name := 'knowledge_nodes_' || to_char(current_date, 'YYYY_MM');
-            
+
             EXECUTE format('
                 CREATE TABLE IF NOT EXISTS %I PARTITION OF knowledge_nodes
                 FOR VALUES FROM (%L) TO (%L)
             ', partition_name, current_date, current_date + INTERVAL '1 month');
-            
+
             current_date := current_date + INTERVAL '1 month';
         END LOOP;
     END IF;
@@ -529,12 +529,12 @@ BEGIN
         current_date := start_date;
         WHILE current_date <= end_date LOOP
             partition_name := 'tasks_' || to_char(current_date, 'YYYY_MM');
-            
+
             EXECUTE format('
                 CREATE TABLE IF NOT EXISTS %I PARTITION OF tasks
                 FOR VALUES FROM (%L) TO (%L)
             ', partition_name, current_date, current_date + INTERVAL '1 month');
-            
+
             current_date := current_date + INTERVAL '1 month';
         END LOOP;
     END IF;
@@ -546,7 +546,7 @@ END $$;
 
 -- Материализованное представление для статистики по доменам
 CREATE MATERIALIZED VIEW IF NOT EXISTS domain_stats_cache AS
-SELECT 
+SELECT
     d.id as domain_id,
     d.name as domain_name,
     count(k.id) as knowledge_count,
@@ -562,7 +562,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_stats_domain ON domain_stats_cache 
 
 -- Материализованное представление для статистики экспертов
 CREATE MATERIALIZED VIEW IF NOT EXISTS expert_stats_cache AS
-SELECT 
+SELECT
     e.id as expert_id,
     e.name as expert_name,
     e.role,
@@ -602,7 +602,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         query,
         calls,
         total_exec_time,
@@ -768,7 +768,7 @@ CREATE TRIGGER update_tasks_updated_at
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'usage_count'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN usage_count INTEGER DEFAULT 0;
@@ -779,7 +779,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'is_verified'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
@@ -790,7 +790,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'department'
     ) THEN
         ALTER TABLE experts ADD COLUMN department VARCHAR(255);
@@ -801,7 +801,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'last_learned_at'
     ) THEN
         ALTER TABLE experts ADD COLUMN last_learned_at TIMESTAMP WITH TIME ZONE;
@@ -812,7 +812,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'experts' AND column_name = 'version'
     ) THEN
         ALTER TABLE experts ADD COLUMN version INTEGER DEFAULT 1;
@@ -905,4 +905,3 @@ CREATE TRIGGER update_webhooks_updated_at
 -- Комментарии
 COMMENT ON TABLE webhooks IS 'Webhooks для интеграции с внешними системами (Slack, Discord, Telegram, Custom)';
 COMMENT ON TABLE webhook_logs IS 'Логи отправки webhooks для отладки и мониторинга';
-

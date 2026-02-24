@@ -209,7 +209,9 @@ async def main() -> None:
     print("--------------------------------------------------------------------------------")
     print("По монетам:")
     print("--------------------------------------------------------------------------------")
-    for res in sorted(summary["results_by_symbol"], key=lambda r: r.get("total_pnl", 0), reverse=True):
+    for res in sorted(
+        summary["results_by_symbol"], key=lambda r: r.get("total_pnl", 0), reverse=True
+    ):
         if "error" in res:
             print(f"{res['symbol']:10s} | ❌ Ошибка: {res['error']}")
         else:
@@ -224,5 +226,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-

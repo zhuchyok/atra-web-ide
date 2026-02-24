@@ -41,10 +41,12 @@ cat .env
 ### 1. Сервис не запускается
 
 **Симптомы:**
+
 - `systemctl status myproject.service` показывает `inactive`
 - Логи показывают ошибки запуска
 
 **Решение:**
+
 ```bash
 # Запустите сервис
 sudo systemctl start myproject.service
@@ -56,10 +58,12 @@ sudo systemctl status myproject.service
 ### 2. Ошибка токена бота
 
 **Симптомы:**
+
 - `❌ Ошибка токена бота`
 - `❌ HTTP ошибка: 401`
 
 **Решение:**
+
 ```bash
 # Проверьте токен в .env
 cat .env | grep TELEGRAM_TOKEN
@@ -71,10 +75,12 @@ nano .env
 ### 3. Ошибка webhook
 
 **Симптомы:**
+
 - `❌ Ошибка webhook`
 - `❌ Описание ошибки: ...`
 
 **Решение:**
+
 ```bash
 # Очистите webhook
 curl -X POST "https://api.telegram.org/bot<YOUR_TOKEN>/deleteWebhook"
@@ -86,10 +92,12 @@ sudo systemctl restart myproject.service
 ### 4. Ошибка обработчиков
 
 **Симптомы:**
+
 - `❌ Ошибка обработчиков`
 - `❌ Ошибка импорта telegram_handlers`
 
 **Решение:**
+
 ```bash
 # Проверьте файлы
 ls -la telegram_handlers.py telegram_commands.py
@@ -102,10 +110,12 @@ python3 -m py_compile telegram_commands.py
 ### 5. Ошибка callback кнопок
 
 **Симптомы:**
+
 - Кнопки не нажимаются
 - `❌ Callback функции не найдены`
 
 **Решение:**
+
 ```bash
 # Проверьте функции в telegram_handlers.py
 grep -n "def button" telegram_handlers.py
@@ -144,6 +154,7 @@ sudo systemctl status myproject.service
 ## 📊 Сравнение с локальной средой
 
 ### Локальная среда (работает):
+
 - ✅ main.py запущен
 - ✅ Бот подключен
 - ✅ Команды зарегистрированы (24 шт.)
@@ -151,6 +162,7 @@ sudo systemctl status myproject.service
 - ✅ Callback функции работают
 
 ### Серверная среда (проблемы):
+
 - ❌ Требуется диагностика
 - ❌ Кнопки не нажимаются
 - ❌ Команды не реагируют
@@ -158,18 +170,21 @@ sudo systemctl status myproject.service
 ## 🚀 Пошаговое исправление
 
 ### Шаг 1: Диагностика
+
 ```bash
 cd /root/atra
 python3 test_server_telegram.py
 ```
 
 ### Шаг 2: Проверка сервиса
+
 ```bash
 sudo systemctl status myproject.service
 journalctl -u myproject.service -n 20
 ```
 
 ### Шаг 3: Проверка конфигурации
+
 ```bash
 # Проверьте токен
 python3 -c "from config import TOKEN; print('Token:', TOKEN[:10] + '...' if TOKEN else 'None')"
@@ -179,6 +194,7 @@ cat .env
 ```
 
 ### Шаг 4: Перезапуск
+
 ```bash
 sudo systemctl restart myproject.service
 sleep 10
@@ -186,6 +202,7 @@ sudo systemctl status myproject.service
 ```
 
 ### Шаг 5: Тестирование
+
 ```bash
 # Отправьте команду /start боту
 # Проверьте, что бот отвечает

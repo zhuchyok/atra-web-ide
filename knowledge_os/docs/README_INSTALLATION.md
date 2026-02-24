@@ -11,6 +11,7 @@
 ### 1. 🏆 РЕКОМЕНДУЕМЫЙ СПОСОБ: Виртуальное окружение
 
 #### Быстрая установка (macOS/Linux):
+
 ```bash
 # Сделать скрипт исполняемым (если еще не сделано)
 chmod +x setup_venv.sh
@@ -20,6 +21,7 @@ chmod +x setup_venv.sh
 ```
 
 #### Пошаговая установка:
+
 ```bash
 # 1. Создать виртуальное окружение
 python3 -m venv venv
@@ -39,11 +41,13 @@ pip install -r requirements.txt
 ### 2. 🔧 ИНТЕРАКТИВНАЯ УСТАНОВКА
 
 Запустите интерактивный скрипт установки:
+
 ```bash
 python3 install_dependencies.py
 ```
 
 Выберите один из вариантов:
+
 - **1** - Создать виртуальное окружение (РЕКОМЕНДУЕТСЯ)
 - **2** - Установить в глобальное окружение
 - **3** - Проверить текущую установку
@@ -58,6 +62,7 @@ pip install -r requirements.txt
 ## 📦 ЗАВИСИМОСТИ
 
 ### Критически важные:
+
 - **pandas** - обработка данных
 - **numpy** - численные вычисления
 - **requests** - HTTP запросы
@@ -67,6 +72,7 @@ pip install -r requirements.txt
 - **python-telegram-bot** - Telegram бот
 
 ### Дополнительные:
+
 - **scikit-learn** - машинное обучение
 - **matplotlib** - визуализация
 - **redis** - кэширование
@@ -75,6 +81,7 @@ pip install -r requirements.txt
 ## 🚀 ЗАПУСК СИСТЕМЫ
 
 ### В виртуальном окружении:
+
 ```bash
 # 1. Активировать виртуальное окружение
 source venv/bin/activate  # macOS/Linux
@@ -86,6 +93,7 @@ python main.py
 ```
 
 ### В глобальном окружении:
+
 ```bash
 python3 main.py
 ```
@@ -93,32 +101,38 @@ python3 main.py
 ## 🔧 НАСТРОЙКА
 
 ### 1. Конфигурация Telegram бота
+
 Отредактируйте файл `config.py`:
+
 ```python
 TOKEN = "ваш_токен_бота"
 ```
 
 ### 2. Настройка пользователей
+
 Отредактируйте файл `user_data.json`:
+
 ```json
 {
-    "user_id": {
-        "trade_mode": "spot",
-        "filter_mode": "strict",
-        "deposit": 1000,
-        "leverage": 1
-    }
+  "user_id": {
+    "trade_mode": "spot",
+    "filter_mode": "strict",
+    "deposit": 1000,
+    "leverage": 1
+  }
 }
 ```
 
 ## 🛠️ УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Ошибка "pip не найден":
+
 ```bash
 python3 -m ensurepip --upgrade
 ```
 
 ### Ошибка "Permission denied":
+
 ```bash
 # Использовать sudo (Linux/macOS)
 sudo pip install -r requirements.txt
@@ -128,6 +142,7 @@ pip install --user -r requirements.txt
 ```
 
 ### Ошибка "Python не найден":
+
 ```bash
 # macOS
 brew install python3
@@ -141,6 +156,7 @@ sudo apt install python3 python3-pip
 ```
 
 ### Проблемы с виртуальным окружением:
+
 ```bash
 # Удалить и пересоздать
 rm -rf venv
@@ -167,12 +183,14 @@ atra/
 ## 🔍 ПРОВЕРКА УСТАНОВКИ
 
 ### Проверить установку зависимостей:
+
 ```bash
 python3 install_dependencies.py
 # Выберите опцию 3 - "Проверить текущую установку"
 ```
 
 ### Проверить работу системы:
+
 ```bash
 # Запустить систему
 python main.py
@@ -184,10 +202,12 @@ tail -f system_improved.log
 ## 📞 ПОДДЕРЖКА
 
 ### Логи системы:
+
 - `system_improved.log` - основные логи
 - `telegram_bot.log` - логи Telegram бота
 
 ### Полезные команды:
+
 ```bash
 # Просмотр логов в реальном времени
 tail -f system_improved.log
@@ -204,6 +224,7 @@ python3 cache_restore_system.py cleanup
 После успешной установки система ATRA готова к работе!
 
 ### Следующие шаги:
+
 1. ✅ Настроить конфигурацию в `config.py`
 2. ✅ Добавить пользователей в `user_data.json`
 3. ✅ Запустить систему: `python main.py`

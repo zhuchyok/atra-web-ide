@@ -6,14 +6,16 @@
 """
 
 import json
+import logging
 import os
 import sys
-import logging
+
 # from datetime import datetime  # Не используется в этом модуле
 
 # Импорты для работы с базой данных
 try:
     from src.database.db import Database
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
@@ -21,6 +23,7 @@ except ImportError:
 # Импорт для инициализации базы данных
 try:
     from src.utils import db_init
+
     DB_INIT_AVAILABLE = True
 except ImportError:
     DB_INIT_AVAILABLE = False
@@ -35,7 +38,10 @@ async def initialize_database_on_startup():
         try:
             from src.monitoring.db_health import auto_fix_database, get_db_health_status
         except ImportError:
-            from db_health_monitor import auto_fix_database, get_db_health_status  # pylint: disable=import-outside-toplevel
+            from db_health_monitor import (  # pylint: disable=import-outside-toplevel
+                auto_fix_database,
+                get_db_health_status,
+            )
 
         logger.info("🔍 Проверка целостности БД перед запуском...")
         health = get_db_health_status()
@@ -50,7 +56,7 @@ async def initialize_database_on_startup():
             logger.info("✅ БД в порядке (%.2f MB)", health["size_mb"])
     except ImportError:
         logger.warning("⚠️ Модуль db_health_monitor недоступен, пропускаем проверку целостности")
-    except (ValueError, TypeError, KeyError, RuntimeError, OSError, IOError) as e:
+    except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
         logger.warning("⚠️ Ошибка проверки целостности БД: %s", e)
 
     try:
@@ -92,7 +98,14 @@ async def initialize_database_on_startup():
             else:
                 logger.error("❌ Модуль db недоступен, не удается инициализировать базу данных")
                 sys.exit(1)
-        except (ValueError, TypeError, KeyError, RuntimeError, OSError, ConnectionError) as db_error:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            OSError,
+            ConnectionError,
+        ) as db_error:
             logger.error("❌ Ошибка инициализации базы данных: %s", db_error)
             sys.exit(1)
     except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -119,7 +132,7 @@ async def sync_user_data_from_json_to_db():
             return False
 
         # Загружаем данные из файла
-        with open(user_data_file, 'r', encoding='utf-8') as file:
+        with open(user_data_file, encoding="utf-8") as file:
             file_data = json.load(file)
 
         if not file_data:
@@ -129,24 +142,38 @@ async def sync_user_data_from_json_to_db():
         # Определяем формат данных и извлекаем пользователей
         if isinstance(file_data, dict):
             # Сначала проверяем, есть ли пользователи на верхнем уровне (прямой формат)
-            direct_users = {k: v for k, v in file_data.items() 
-                           if k not in ['users', 'settings'] and not k.startswith('trader_') 
-                           and isinstance(v, dict) and k.isdigit()}
-            
+            direct_users = {
+                k: v
+                for k, v in file_data.items()
+                if k not in ["users", "settings"]
+                and not k.startswith("trader_")
+                and isinstance(v, dict)
+                and k.isdigit()
+            }
+
             # Проверяем, есть ли ключ "users" (вложенный формат)
             nested_users = {}
             if "users" in file_data and isinstance(file_data["users"], dict):
-                nested_users = {k: v for k, v in file_data["users"].items() 
-                               if isinstance(v, dict) and k.isdigit()}
-            
+                nested_users = {
+                    k: v
+                    for k, v in file_data["users"].items()
+                    if isinstance(v, dict) and k.isdigit()
+                }
+
             # Объединяем оба источника (прямой формат имеет приоритет)
             all_user_data = {**nested_users, **direct_users}
-            
+
             if nested_users and direct_users:
-                logger.info("📋 Обнаружен смешанный формат: %d вложенных + %d прямых = %d всего", 
-                           len(nested_users), len(direct_users), len(all_user_data))
+                logger.info(
+                    "📋 Обнаружен смешанный формат: %d вложенных + %d прямых = %d всего",
+                    len(nested_users),
+                    len(direct_users),
+                    len(all_user_data),
+                )
             elif nested_users:
-                logger.info("📋 Обнаружен вложенный формат (users): %d пользователей", len(all_user_data))
+                logger.info(
+                    "📋 Обнаружен вложенный формат (users): %d пользователей", len(all_user_data)
+                )
             elif direct_users:
                 logger.info("📋 Обнаружен прямой формат: %d пользователей", len(all_user_data))
         else:
@@ -165,7 +192,7 @@ async def sync_user_data_from_json_to_db():
 
         for user_id, user_data in all_user_data.items():
             # Пропускаем тестовых пользователей и служебные ключи
-            if user_id.startswith('trader_') or user_id in ['users', 'settings']:
+            if user_id.startswith("trader_") or user_id in ["users", "settings"]:
                 skipped_count += 1
                 logger.debug("⏭️ Пропускаем служебный ключ: %s", user_id)
                 continue
@@ -206,7 +233,8 @@ async def sync_user_data_from_json_to_db():
 
         logger.info(
             "🎉 Синхронизация завершена: %d пользователей синхронизировано, %d пропущено",
-            synced_count, skipped_count
+            synced_count,
+            skipped_count,
         )
         return synced_count > 0
 

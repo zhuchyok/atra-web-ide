@@ -10,12 +10,14 @@
 ### 1. Централизованная система промптов
 
 **Файлы:**
+
 - `observability/prompt_manager.py` - менеджер промптов
 - `configs/agents/signal_live.yaml` - промпт для генератора сигналов
 - `configs/agents/auto_execution.yaml` - промпт для исполнения ордеров
 - `configs/agents/risk_monitor.yaml` - промпт для мониторинга рисков
 
 **Функциональность:**
+
 - ✅ Загрузка промптов из YAML файлов
 - ✅ Кэширование промптов
 - ✅ Генерация полного промпта с контекстом
@@ -24,16 +26,19 @@
 ### 2. Интеграция в агенты
 
 **signal_live:**
+
 - ✅ Загрузка промпта при генерации сигнала
 - ✅ Логирование в trace (`prompt_loaded`)
 - ✅ Контекст включает: symbol, signal_type, signal_price, user_id, trade_mode
 
 **auto_execution:**
+
 - ✅ Загрузка промпта при исполнении ордера
 - ✅ Логирование в trace (`prompt_loaded`)
 - ✅ Контекст включает: symbol, direction, entry_price, user_id, trade_mode, quantity_usdt, leverage
 
 **risk_monitor:**
+
 - ✅ Загрузка промпта при сканировании рисков
 - ✅ Логирование в trace (`prompt_loaded`)
 - ✅ Контекст включает: db, check_bitget_stoploss, hours
@@ -78,12 +83,14 @@ metadata:
 ## 🔄 Как это работает
 
 1. **При старте миссии агента:**
+
    ```python
    prompt_manager = get_prompt_manager()
    agent_prompt = prompt_manager.load_prompt("signal_live")
    ```
 
 2. **Генерация полного промпта:**
+
    ```python
    context = {"symbol": "BTCUSDT", "signal_type": "LONG", ...}
    full_prompt = agent_prompt.get_full_prompt(context)
@@ -119,6 +126,6 @@ metadata:
 ---
 
 **См. также:**
+
 - [AGENT_DEVELOPMENT_ROADMAP.md](./AGENT_DEVELOPMENT_ROADMAP.md) - полный план развития
 - [agents_inventory.md](./agents_inventory.md) - реестр агентов
-

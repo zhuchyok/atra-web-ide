@@ -18,4 +18,3 @@ pip install -q fastapi uvicorn pydantic httpx aiohttp duckduckgo-search
 # Запуск сервера
 echo "🚀 Запуск Вероники (Bridge API) на порту 8000..."
 python3 -m src.agents.bridge.server
-

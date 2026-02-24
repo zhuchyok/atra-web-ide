@@ -3,8 +3,9 @@
 При фразах «как вчера», «как с X», «повтори» подставляется перед understand_goal,
 чтобы LLM мог переформулировать цель с опорой на недавние задачи.
 """
-import os
+
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ async def get_recent_completed_tasks_context(
     """
     try:
         import asyncpg
+
         db_url = os.getenv("DATABASE_URL")
         if not db_url:
             return ""
@@ -86,7 +88,10 @@ async def get_recent_completed_tasks_context(
                     else (str(updated)[:16] if updated else "")
                 )
                 parts.append(f"- {title} ({updated_str})")
-            out = "Пользователь отсылает к предыдущему действию. Контекст последних завершённых задач:\n" + "\n".join(parts)
+            out = (
+                "Пользователь отсылает к предыдущему действию. Контекст последних завершённых задач:\n"
+                + "\n".join(parts)
+            )
             return out[:max_chars]
         finally:
             await conn.close()

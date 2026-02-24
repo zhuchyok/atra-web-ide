@@ -39,28 +39,33 @@ journalctl -u myproject.service -f
 ## 🔍 Диагностика проблем
 
 ### Проверьте статус сервиса:
+
 ```bash
 sudo systemctl status myproject.service
 ```
 
 **Ожидаемый результат:**
+
 ```
 ● myproject.service - Trading bot
    Active: active (running)
 ```
 
 ### Проверьте логи:
+
 ```bash
 journalctl -u myproject.service -n 20
 ```
 
 **Ищите ошибки:**
+
 - `❌ Ошибка подключения к Telegram API`
 - `❌ Ошибка токена бота`
 - `❌ Ошибка webhook`
 - `❌ Ошибка обработчиков`
 
 ### Проверьте конфигурацию:
+
 ```bash
 # Проверьте токен бота
 grep -i "token" config.py
@@ -76,6 +81,7 @@ cat config.py | grep -i "telegram"
 **Проблема:** `systemctl status myproject.service` показывает `inactive`
 
 **Решение:**
+
 ```bash
 # Запустите сервис
 sudo systemctl start myproject.service
@@ -89,6 +95,7 @@ sudo systemctl status myproject.service
 **Проблема:** `❌ Ошибка токена бота`
 
 **Решение:**
+
 ```bash
 # Проверьте токен в config.py
 grep -i "token" config.py
@@ -102,6 +109,7 @@ nano config.py
 **Проблема:** `❌ Ошибка webhook`
 
 **Решение:**
+
 ```bash
 # Очистите webhook
 curl -X POST "https://api.telegram.org/bot<YOUR_TOKEN>/deleteWebhook"
@@ -115,6 +123,7 @@ sudo systemctl restart myproject.service
 **Проблема:** `❌ Ошибка обработчиков`
 
 **Решение:**
+
 ```bash
 # Проверьте файлы
 ls -la telegram_handlers.py telegram_commands.py
@@ -131,6 +140,7 @@ python -m py_compile telegram_commands.py
 Отправьте команду `/start` боту в Telegram.
 
 **Ожидаемый результат:**
+
 - Бот должен ответить приветственным сообщением
 - Должны появиться кнопки меню
 
@@ -141,6 +151,7 @@ journalctl -u myproject.service -f
 ```
 
 **Ищите сообщения:**
+
 - `✅ Бот запущен`
 - `✅ Обработчики зарегистрированы`
 - `✅ Команды зарегистрированы`
@@ -148,6 +159,7 @@ journalctl -u myproject.service -f
 ### 3. Проверьте команды:
 
 Попробуйте команды:
+
 - `/start` - запуск бота
 - `/help` - помощь
 - `/status` - статус системы
@@ -158,11 +170,13 @@ journalctl -u myproject.service -f
 ### Если бот полностью не отвечает:
 
 1. **Проверьте токен:**
+
    ```bash
    python -c "import requests; print(requests.get('https://api.telegram.org/bot<YOUR_TOKEN>/getMe').json())"
    ```
 
 2. **Проверьте интернет:**
+
    ```bash
    ping api.telegram.org
    ```
@@ -175,11 +189,13 @@ journalctl -u myproject.service -f
 ### Если сервис не запускается:
 
 1. **Проверьте логи:**
+
    ```bash
    journalctl -u myproject.service -n 50
    ```
 
 2. **Проверьте зависимости:**
+
    ```bash
    source .venv/bin/activate
    pip list | grep -i telegram

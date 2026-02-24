@@ -44,6 +44,7 @@ bash scripts/deploy_enhancements.sh
 ```
 
 **Скрипт автоматически:**
+
 - ✅ Проверит подключение к серверу
 - ✅ Создаст необходимые директории
 - ✅ Загрузит все файлы
@@ -222,6 +223,7 @@ psql -U admin -d knowledge_os -c "SELECT count(*) FROM tasks;"
 ### **Проблема: SSH подключение не работает**
 
 **Решение:**
+
 ```bash
 # Использовать пароль при подключении
 ssh -o PreferredAuthentications=password root@185.177.216.15
@@ -233,6 +235,7 @@ ssh-copy-id root@185.177.216.15
 ### **Проблема: Миграция БД не применяется**
 
 **Решение:**
+
 ```bash
 # Применить вручную
 psql -U admin -d knowledge_os -f db/migrations/add_tasks_table.sql
@@ -244,6 +247,7 @@ psql -U admin -d knowledge_os -c "\d tasks"
 ### **Проблема: Модули не найдены**
 
 **Решение:**
+
 ```bash
 # Проверить импорты
 python3 -c "from enhanced_search import EnhancedAnalytics"
@@ -260,4 +264,3 @@ pip3 install psutil asyncpg httpx redis
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

@@ -8,9 +8,10 @@ import json
 import logging
 import shutil
 import sys
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -49,11 +50,19 @@ DEFAULT_RULE = {"direction": "higher", "rel": 10.0, "abs": 2.0}
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Nightly Agent Gym regression checker.")
-    parser.add_argument("--scenarios", type=Path, default=DEFAULT_SCENARIOS, help="Путь к JSON со сценариями.")
+    parser.add_argument(
+        "--scenarios", type=Path, default=DEFAULT_SCENARIOS, help="Путь к JSON со сценариями."
+    )
     parser.add_argument("--db", type=Path, default=Path("trading.db"), help="Путь к trading.db.")
-    parser.add_argument("--output", type=Path, default=DEFAULT_REPORT, help="Файл отчёта текущего прогона.")
-    parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE, help="Базовый отчёт для сравнения.")
-    parser.add_argument("--diff-output", type=Path, default=DEFAULT_DIFF, help="Файл для сохранения diff.")
+    parser.add_argument(
+        "--output", type=Path, default=DEFAULT_REPORT, help="Файл отчёта текущего прогона."
+    )
+    parser.add_argument(
+        "--baseline", type=Path, default=DEFAULT_BASELINE, help="Базовый отчёт для сравнения."
+    )
+    parser.add_argument(
+        "--diff-output", type=Path, default=DEFAULT_DIFF, help="Файл для сохранения diff."
+    )
     parser.add_argument(
         "--metrics-output",
         type=Path,
@@ -121,7 +130,9 @@ def evaluate_delta(
     return delta, delta_pct, rule
 
 
-def assess_change(delta: float, delta_pct: Optional[float], rule: Dict[str, Any]) -> Tuple[bool, bool]:
+def assess_change(
+    delta: float, delta_pct: Optional[float], rule: Dict[str, Any]
+) -> Tuple[bool, bool]:
     """Возвращает флаги (regression, improvement) согласно правилу."""
     direction = rule.get("direction", "higher")
     rel_threshold = float(rule.get("rel", DEFAULT_RULE["rel"]))
@@ -134,11 +145,19 @@ def assess_change(delta: float, delta_pct: Optional[float], rule: Dict[str, Any]
         rel_flag = abs(delta_pct) >= rel_threshold
 
     if direction == "higher":
-        regression = delta < 0 and (abs_flag or (delta_pct is not None and delta_pct <= -rel_threshold))
-        improvement = delta > 0 and (abs_flag or (delta_pct is not None and delta_pct >= rel_threshold))
+        regression = delta < 0 and (
+            abs_flag or (delta_pct is not None and delta_pct <= -rel_threshold)
+        )
+        improvement = delta > 0 and (
+            abs_flag or (delta_pct is not None and delta_pct >= rel_threshold)
+        )
     else:  # lower is better
-        regression = delta > 0 and (abs_flag or (delta_pct is not None and delta_pct >= rel_threshold))
-        improvement = delta < 0 and (abs_flag or (delta_pct is not None and delta_pct <= -rel_threshold))
+        regression = delta > 0 and (
+            abs_flag or (delta_pct is not None and delta_pct >= rel_threshold)
+        )
+        improvement = delta < 0 and (
+            abs_flag or (delta_pct is not None and delta_pct <= -rel_threshold)
+        )
     return regression, improvement
 
 
@@ -159,9 +178,7 @@ def compare_reports(
     if not baseline_report:
         return diff
 
-    baseline_map = {
-        item.get("name"): item for item in baseline_report.get("results", [])
-    }
+    baseline_map = {item.get("name"): item for item in baseline_report.get("results", [])}
     new_map = {item.get("name"): item for item in new_report.get("results", [])}
 
     # Новые сценарии
@@ -328,5 +345,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

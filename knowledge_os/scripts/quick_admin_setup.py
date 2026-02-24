@@ -4,7 +4,9 @@
 """
 
 import sys
+
 from src.database.db import Database
+
 
 def quick_setup_admins():
     """
@@ -16,11 +18,7 @@ def quick_setup_admins():
         # Пользователь 556251171 - Супер администратор
         user_data_556 = db.get_user_data(556251171)
         if user_data_556:
-            user_data_556.update({
-                "role": "super_admin",
-                "is_admin": True,
-                "is_super_admin": True
-            })
+            user_data_556.update({"role": "super_admin", "is_admin": True, "is_super_admin": True})
             db.save_user_data(556251171, user_data_556)
             print("✅ Пользователь 556251171 назначен супер администратором")
         else:
@@ -29,11 +27,7 @@ def quick_setup_admins():
         # Пользователь 958930260 - Администратор
         user_data_958 = db.get_user_data(958930260)
         if user_data_958:
-            user_data_958.update({
-                "role": "admin",
-                "is_admin": True,
-                "is_super_admin": False
-            })
+            user_data_958.update({"role": "admin", "is_admin": True, "is_super_admin": False})
             db.save_user_data(958930260, user_data_958)
             print("✅ Пользователь 958930260 назначен администратором")
         else:
@@ -43,6 +37,7 @@ def quick_setup_admins():
 
     except Exception as e:
         print(f"❌ Ошибка настройки администраторов: {e}")
+
 
 def show_admin_status():
     """
@@ -73,6 +68,7 @@ def show_admin_status():
 
     except Exception as e:
         print(f"❌ Ошибка получения статуса: {e}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "status":

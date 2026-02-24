@@ -44,16 +44,19 @@
 ### Priority 1 (Безопасно удалить):
 
 1. **Логи в корне** (~50+ файлов):
+
    ```bash
    rm -f *.log bot*.log system*.log
    ```
 
 2. **Backup файлы** (~10+ файлов):
+
    ```bash
    rm -f *.bak *.bak2 *.bak3
    ```
 
 3. **Старые JSON отчеты** (~30+ файлов):
+
    ```bash
    mkdir -p archive/reports
    mv system_integration_report_*.json archive/reports/
@@ -70,6 +73,7 @@
 ### Priority 2 (Переместить):
 
 5. **Документация в корне** (~150+ .md файлов):
+
    ```bash
    mkdir -p docs/reports
    mv *.md docs/reports/ 2>/dev/null || true
@@ -77,6 +81,7 @@
    ```
 
 6. **Shell скрипты** (~20+ .sh файлов):
+
    ```bash
    mkdir -p scripts/shell
    mv *.sh scripts/shell/ 2>/dev/null || true
@@ -91,12 +96,14 @@
 ### Priority 3 (Проверить и удалить):
 
 8. **Пустые директории**:
+
    ```bash
    rmdir metrics locales cache logs configs 2>/dev/null || true
    rmdir ai_learning_data ai_tp_data ai_reports 2>/dev/null || true
    ```
 
 9. **Экспериментальные файлы**:
+
    ```bash
    # Проверить и удалить, если не нужны
    # rm -rf archive/experimental/
@@ -111,6 +118,7 @@
 ## 📊 ЭКОНОМИЯ МЕСТА
 
 После полной очистки:
+
 - ✅ **-50+ log файлов** (удалить)
 - ✅ **-10+ backup файлов** (удалить)
 - ✅ **-30+ JSON отчетов** (архивировать)
@@ -127,6 +135,7 @@
 ## ✅ ЧТО ОСТАВИТЬ В КОРНЕ
 
 Только самое необходимое:
+
 - ✅ `main.py`
 - ✅ `signal_live.py`
 - ✅ `config.py`
@@ -191,9 +200,9 @@ echo "✅ Очистка завершена!"
 ## ✅ ИТОГ
 
 **После очистки:**
+
 - ✅ В корне останется только ~10-15 файлов
 - ✅ Все файлы будут организованы
 - ✅ Проект будет чистым и понятным
 
 **Оценка после очистки:** 🟢 **10/10** - Идеальная организация!
-

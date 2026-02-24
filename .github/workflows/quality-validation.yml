@@ -3,16 +3,16 @@ name: Quality Validation
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Каждый день в 2:00 UTC
+    - cron: "0 2 * * *" # Каждый день в 2:00 UTC
   pull_request:
     paths:
-      - 'backend/app/services/rag_light.py'
-      - 'backend/app/services/reranking.py'
-      - 'backend/app/services/query_rewriter.py'
-      - 'backend/app/services/query_expansion.py'
-      - 'backend/app/evaluation/**'
-      - 'backend/app/services/validation_pipeline.py'
-      - 'data/validation_queries.json'
+      - "backend/app/services/rag_light.py"
+      - "backend/app/services/reranking.py"
+      - "backend/app/services/query_rewriter.py"
+      - "backend/app/services/query_expansion.py"
+      - "backend/app/evaluation/**"
+      - "backend/app/services/validation_pipeline.py"
+      - "data/validation_queries.json"
 
 jobs:
   validate-quality:
@@ -39,7 +39,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |

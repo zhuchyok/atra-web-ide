@@ -20,14 +20,14 @@ expect {
     "# " {
         send "cd /root/atra\r"
         expect "# "
-        
+
         send "echo '=================================================================================='\r"
         expect "# "
         send "echo '🔄 ПЕРЕЗАПУСК БОТА И ПРОВЕРКА РАБОТЫ'\r"
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         # Останавливаем бота
         send "echo ''\r"
         expect "# "
@@ -41,11 +41,11 @@ expect {
         expect "# "
         send "sleep 3\r"
         expect "# "
-        
+
         # Проверяем, что остановлен
         send "ps aux | grep -E '(signal_live|main\\.py)' | grep -v grep || echo '✅ Бот остановлен'\r"
         expect "# "
-        
+
         # Запускаем бота
         send "echo ''\r"
         expect "# "
@@ -55,7 +55,7 @@ expect {
         expect "# "
         send "sleep 5\r"
         expect "# "
-        
+
         # Проверяем процессы
         send "echo ''\r"
         expect "# "
@@ -63,7 +63,7 @@ expect {
         expect "# "
         send "ps aux | grep -E '(signal_live|main\\.py)' | grep -v grep || echo '❌ Бот не запущен'\r"
         expect "# "
-        
+
         # Проверяем логи (первые 30 строк)
         send "echo ''\r"
         expect "# "
@@ -71,7 +71,7 @@ expect {
         expect "# "
         send "tail -30 /root/atra/signal_live.log 2>/dev/null | tail -20\r"
         expect "# "
-        
+
         # Проверяем конфигурацию
         send "echo ''\r"
         expect "# "
@@ -121,7 +121,7 @@ expect {
         expect "# "
         send "PYEOF\r"
         expect "# "
-        
+
         # Проверяем отбор монет
         send "echo ''\r"
         expect "# "
@@ -155,7 +155,7 @@ expect {
         expect "# "
         send "PYEOF\r"
         expect "# "
-        
+
         # Проверяем базу данных
         send "echo ''\r"
         expect "# "
@@ -207,7 +207,7 @@ expect {
         expect "# "
         send "PYEOF\r"
         expect "# "
-        
+
         send "echo ''\r"
         expect "# "
         send "echo '=================================================================================='\r"
@@ -216,7 +216,7 @@ expect {
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         send "exit\r"
         expect eof
     }
@@ -227,4 +227,3 @@ expect {
 }
 
 wait
-

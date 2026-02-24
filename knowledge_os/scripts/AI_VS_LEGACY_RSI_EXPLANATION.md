@@ -27,6 +27,7 @@ def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
 ```
 
 **Результат:**
+
 - BTCUSDT → группа A (Smart RSI)
 - ETHUSDT → группа B (Legacy)
 - SOLUSDT → группа A (Smart RSI)
@@ -39,6 +40,7 @@ def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
 **Файл:** `signal_live.py` строка 1832
 
 **Логика:**
+
 ```python
 if group == "A":  # Smart режим
     result = SMART_RSI_FILTER.evaluate(
@@ -53,6 +55,7 @@ if group == "A":  # Smart режим
 ```
 
 **Что учитывает AI:**
+
 - ✅ RSI значение
 - ✅ Сила тренда (trend_strength)
 - ✅ Объем (volume_ratio)
@@ -60,6 +63,7 @@ if group == "A":  # Smart режим
 - ✅ BTC alignment (согласованность с BTC)
 
 **Примеры решений:**
+
 - RSI 68 + сильный тренд + высокий объем → **разрешить LONG** ✅
 - RSI 68 + слабый тренд + низкий объем → **блокировать LONG** ❌
 - RSI 32 + AI уверенность 0.15 → **блокировать SHORT** ❌
@@ -71,6 +75,7 @@ if group == "A":  # Smart режим
 **Файл:** `signal_live.py` строка 5792
 
 **Логика:**
+
 ```python
 if group != "A":  # Legacy режим
     if signal_type == "BUY" and rsi_value > 70:  # 📊 Фиксированный порог
@@ -81,6 +86,7 @@ if group != "A":  # Legacy режим
 ```
 
 **Что учитывает Legacy:**
+
 - ✅ RSI значение
 - ❌ Сила тренда (не учитывается)
 - ❌ Объем (не учитывается)
@@ -88,6 +94,7 @@ if group != "A":  # Legacy режим
 - ❌ BTC alignment (не учитывается)
 
 **Примеры решений:**
+
 - RSI 68 → **разрешить LONG** ✅
 - RSI 72 → **блокировать LONG** ❌
 - RSI 32 → **блокировать SHORT** ❌
@@ -100,6 +107,7 @@ if group != "A":  # Legacy режим
 ### Проблема была в Legacy группе (B):
 
 **Было (слишком строго):**
+
 ```python
 if signal_type == "BUY" and rsi_value > 65:  # ❌ 48.2% блокировок!
     return False
@@ -108,6 +116,7 @@ if signal_type == "SELL" and rsi_value < 35:  # ❌ Слишком строго
 ```
 
 **Исправлено:**
+
 ```python
 if signal_type == "BUY" and rsi_value > 70:  # ✅ Стандартный порог
     return False
@@ -120,6 +129,7 @@ if signal_type == "SELL" and rsi_value < 30:  # ✅ Стандартный по�
 ## 📊 СТАТИСТИКА
 
 ### Сегодня (до исправления):
+
 - **Группа A (Smart RSI):** ~50% символов
   - AI регулирует динамически
   - Блокировок: умеренно
@@ -128,6 +138,7 @@ if signal_type == "SELL" and rsi_value < 30:  # ✅ Стандартный по�
   - **Блокировок: 48.2%!** ❌
 
 ### Сегодня (после исправления):
+
 - **Группа A (Smart RSI):** ~50% символов
   - AI регулирует динамически
   - Блокировок: умеренно
@@ -142,27 +153,31 @@ if signal_type == "SELL" and rsi_value < 30:  # ✅ Стандартный по�
 ### Да, у нас есть AI регулировка RSI! 🤖
 
 **Но:**
+
 1. **50% символов** используют Smart RSI Filter (AI) 🤖
    - Динамическая оценка
    - Учитывает контекст (тренд, объем, AI уверенность)
-   
 2. **50% символов** используют Legacy (фиксированные пороги) 📊
    - Простые пороги 70/30
    - Не учитывает контекст
    - **Это группа, которая блокировала 48.2%!**
 
 ### Исправление:
+
 - Для Legacy группы (B): вернули пороги с 65/35 на 70/30
 - Для Smart RSI группы (A): не требуется изменений (AI работает правильно)
 
 ### Рекомендация:
+
 Можно рассмотреть **перевод всех символов на группу A (Smart RSI)**:
+
 ```python
 # В функции get_rsi_experiment_group:
 return "A"  # Все символы используют Smart RSI
 ```
 
 Это даст:
+
 - ✅ AI регулировка для всех символов
 - ✅ Меньше ложных блокировок
 - ✅ Лучшая адаптация к рынку
@@ -171,5 +186,4 @@ return "A"  # Все символы используют Smart RSI
 
 ---
 
-*Анализ на основе кода signal_live.py*
-
+_Анализ на основе кода signal_live.py_

@@ -8,8 +8,7 @@
 """
 
 __all__ = [
-    'PrometheusMetrics',
-    'AlertSystem',
-    'MonitoringSystem',
+    "PrometheusMetrics",
+    "AlertSystem",
+    "MonitoringSystem",
 ]
-

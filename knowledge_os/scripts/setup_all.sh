@@ -45,4 +45,3 @@ echo "📝 Следующие шаги:"
 echo "  1. Отредактируйте .env файл и укажите реальные токены"
 echo "  2. Запустите систему: bash knowledge_os/scripts/start_singularity.sh"
 echo ""
-

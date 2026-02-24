@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Flash crash stress-test runner.
 
@@ -51,7 +50,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Запуск стресс-теста flash crash (падение цены на X% за ограниченное время).",
     )
-    parser.add_argument("--symbol", default="BTCUSDT", help="Тестируемый символ (по умолчанию BTCUSDT)")
+    parser.add_argument(
+        "--symbol", default="BTCUSDT", help="Тестируемый символ (по умолчанию BTCUSDT)"
+    )
     parser.add_argument(
         "--drop-pct",
         type=float,
@@ -162,4 +163,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

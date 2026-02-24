@@ -9,7 +9,7 @@ spawn ssh ${user}@${server}
 
 expect {
     "password:" { send "${password}\r" }
-    "yes/no" { 
+    "yes/no" {
         send "yes\r"
         expect "password:"
         send "${password}\r"
@@ -65,7 +65,7 @@ try:
     user_ids = db.get_all_users()
     print(f'get_all_users() вернул: {len(user_ids)} пользователей')
     print(f'ID пользователей: {user_ids}')
-    
+
     # Проверяем каждого пользователя
     if user_ids:
         for uid in user_ids:
@@ -96,4 +96,3 @@ expect "# "
 
 send "exit\r"
 expect eof
-

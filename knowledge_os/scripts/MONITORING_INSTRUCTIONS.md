@@ -8,16 +8,19 @@
 ## 🎯 БЫСТРЫЙ СТАРТ
 
 ### Проверка прогресса (локально):
+
 ```bash
 python3 scripts/team_progress_tracker.py
 ```
 
 ### Проверка прогресса (на сервере):
+
 ```bash
 ssh root@185.177.216.15 "cd /root/atra && python3 scripts/team_progress_tracker.py"
 ```
 
 ### Быстрая проверка:
+
 ```bash
 bash scripts/check_team_progress.sh
 ```
@@ -27,23 +30,28 @@ bash scripts/check_team_progress.sh
 ## 📋 ЧТО ПРОВЕРЯЕТСЯ
 
 ### 1. Логирование фильтров
+
 - ✅ Количество записей в `filter_checks` за последний час
 - ✅ Критерий успеха: > 0 записей
 
 ### 2. Quality Score
+
 - ✅ Процент сигналов с `quality_score > 0`
 - ✅ Средний `quality_score`
 - ✅ Критерий успеха: > 50% сигналов имеют score > 0
 
 ### 3. Изменения в коде
+
 - ✅ Наличие файла `src/utils/filter_logger.py`
 - ✅ Изменения в `signal_live.py`
 
 ### 4. Тесты
+
 - ✅ Наличие тестов для логирования
 - ✅ Наличие тестов для quality_score
 
 ### 5. Отчеты
+
 - ✅ Наличие обновленных отчетов
 - ✅ Работа скриптов генерации отчетов
 
@@ -52,10 +60,12 @@ bash scripts/check_team_progress.sh
 ## 🔄 РЕГУЛЯРНЫЕ ПРОВЕРКИ
 
 ### Ежедневно (2 раза в день):
+
 - **10:00** - утренняя проверка
 - **18:00** - вечерняя проверка
 
 ### Команда для автоматизации:
+
 ```bash
 # Добавить в crontab для автоматических проверок
 0 10,18 * * * cd /path/to/atra && python3 scripts/team_progress_tracker.py >> logs/progress_check.log 2>&1
@@ -66,16 +76,19 @@ bash scripts/check_team_progress.sh
 ## 📊 ИНТЕРПРЕТАЦИЯ РЕЗУЛЬТАТОВ
 
 ### ✅ Все задачи выполнены:
+
 - Логирование фильтров работает (> 0 записей)
 - Quality_score работает (> 50% с score > 0)
 - Тесты созданы и проходят
 - Отчеты обновлены
 
 ### 🟡 Выполнено частично:
+
 - Некоторые задачи выполнены
 - Некоторые задачи еще в работе
 
 ### ❌ Задачи не выполнены:
+
 - Логирование не работает
 - Quality_score не работает
 - Тесты не созданы
@@ -85,10 +98,12 @@ bash scripts/check_team_progress.sh
 ## 🚨 АЛЕРТЫ И ПРОБЛЕМЫ
 
 ### Критические проблемы:
+
 - ❌ Нет записей в `filter_checks` более 2 часов
 - ❌ Все `quality_score = 0.00` более 24 часов
 
 ### Предупреждения:
+
 - ⚠️ Мало записей в `filter_checks` (< 10 за час)
 - ⚠️ Меньше 30% сигналов имеют `quality_score > 0`
 
@@ -97,10 +112,12 @@ bash scripts/check_team_progress.sh
 ## 📝 ОТЧЕТЫ
 
 ### Где найти отчеты:
+
 - `scripts/reports/team_progress_report.md` - автоматический отчет
 - `scripts/reports/full_signal_report.md` - полный отчет о сигналах
 
 ### Как обновить отчеты:
+
 ```bash
 # Обновить отчет о прогрессе
 python3 scripts/team_progress_tracker.py
@@ -114,6 +131,7 @@ python3 scripts/full_signal_report.py
 ## ✅ КРИТЕРИИ УСПЕХА
 
 ### Все задачи выполнены, если:
+
 1. ✅ Записей в `filter_checks` > 100 за 24 часа
 2. ✅ > 50% сигналов имеют `quality_score > 0`
 3. ✅ Все тесты проходят
@@ -122,5 +140,4 @@ python3 scripts/full_signal_report.py
 
 ---
 
-*Система мониторинга готова к использованию*
-
+_Система мониторинга готова к использованию_

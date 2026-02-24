@@ -11,6 +11,7 @@
 **Проблема**: Единый источник данных (только Binance), отсутствие валидации качества.
 
 **Решение**:
+
 - Множественные источники данных (Binance, Bybit, OKX, CoinGecko, CoinMarketCap)
 - Cross-checking между источниками с валидацией консистентности
 - Автоматическое переключение при сбоях
@@ -18,6 +19,7 @@
 - Детекция аномалий в данных
 
 **Ключевые функции**:
+
 ```python
 # Получение цены с валидацией
 price_data = await data_sources_manager.get_price_robust("BTCUSDT")
@@ -31,6 +33,7 @@ health_status = await data_sources_manager.health_check()
 **Проблема**: Отсутствие контроля качества данных.
 
 **Решение**:
+
 - Реальное время мониторинг качества данных
 - Метрики: точность цен, консистентность объемов, задержки
 - Автоматическая детекция аномалий
@@ -38,6 +41,7 @@ health_status = await data_sources_manager.health_check()
 - Статистика по источникам
 
 **Ключевые функции**:
+
 ```python
 # Добавление метрики качества
 add_price_accuracy_metric("BTCUSDT", "binance", deviation_pct=0.5)
@@ -51,6 +55,7 @@ health_report = get_health_report()
 **Проблема**: Смешанное использование print() и logging, отсутствие агрегации.
 
 **Решение**:
+
 - Централизованное логирование с ротацией
 - Агрегация и анализ логов
 - Метрики производительности
@@ -58,6 +63,7 @@ health_report = get_health_report()
 - Детекция аномалий в логах
 
 **Ключевые функции**:
+
 ```python
 # Получение логгера
 logger = get_logger(__name__)
@@ -73,6 +79,7 @@ log_performance("signal_generation", "signals")
 **Проблема**: Низкий winrate (36-45%), избыточная сложность фильтров.
 
 **Решение**:
+
 - Анализ эффективности каждого фильтра
 - Удаление неэффективных фильтров
 - Оптимизация параметров (Grid Search, Genetic Algorithm)
@@ -80,6 +87,7 @@ log_performance("signal_generation", "signals")
 - Анализ по фазам рынка
 
 **Ключевые функции**:
+
 ```python
 # Оптимизация системы фильтров
 report = await filter_optimizer.optimize_filter_system(
@@ -92,6 +100,7 @@ report = await filter_optimizer.optimize_filter_system(
 **Проблема**: Статичные лимиты позиций, отсутствие защиты от маржин-колла.
 
 **Решение**:
+
 - Динамические лимиты позиций на основе баланса
 - Анализ корреляций между активами
 - Защита от маржин-колла
@@ -99,6 +108,7 @@ report = await filter_optimizer.optimize_filter_system(
 - Мониторинг просадки в реальном времени
 
 **Ключевые функции**:
+
 ```python
 # Проверка лимитов риска
 can_open = check_risk_limits("BTCUSDT", "long", 0.1, 45000)
@@ -112,6 +122,7 @@ risk_report = get_risk_report()
 **Проблема**: Отсутствие валидации на свежих данных.
 
 **Решение**:
+
 - Тестирование стратегий в реальном времени
 - Сравнение с результатами backtesting
 - Валидация эффективности
@@ -119,6 +130,7 @@ risk_report = get_risk_report()
 - Детальная отчетность
 
 **Ключевые функции**:
+
 ```python
 # Запуск forward-testing
 results = await run_forward_test(signal_generator, price_feed, config)
@@ -132,6 +144,7 @@ validation = validate_forward_test_results(results, backtest_results)
 **Проблема**: Отсутствие централизованного мониторинга.
 
 **Решение**:
+
 - Real-time мониторинг всех компонентов
 - Автоматические алерты при проблемах
 - Интеграция с Telegram и Email
@@ -139,6 +152,7 @@ validation = validate_forward_test_results(results, backtest_results)
 - Управление здоровьем системы
 
 **Ключевые функции**:
+
 ```python
 # Добавление метрики
 add_metric("signal_winrate", 0.45, "%")
@@ -152,6 +166,7 @@ add_alert(AlertType.SYSTEM_ERROR, AlertSeverity.HIGH, "Title", "Message")
 **Проблема**: Разрозненные компоненты без интеграции.
 
 **Решение**:
+
 - Единая точка инициализации всех систем
 - Автоматическая интеграция между компонентами
 - Централизованное управление здоровьем
@@ -170,6 +185,7 @@ pip install aiohttp aiofiles numpy pandas scikit-learn
 ### Шаг 2: Конфигурация
 
 1. **Настройте источники данных** в `config.py`:
+
 ```python
 # Добавьте API ключи для новых источников
 COINMARKETCAP_API_KEY = "your_api_key"
@@ -177,6 +193,7 @@ CRYPTOCOMPARE_API_KEY = "your_api_key"
 ```
 
 2. **Настройте алерты** в `monitoring_system.py`:
+
 ```python
 # Добавьте Telegram бота для алертов
 TELEGRAM_ALERT_BOT_TOKEN = "your_bot_token"
@@ -228,6 +245,7 @@ python improved_cli.py alerts ack --alert-id 12345
 ### Веб-дашборд (планируется)
 
 В будущих версиях планируется добавление веб-дашборда для:
+
 - Real-time мониторинга метрик
 - Управления алертами
 - Просмотра отчетов
@@ -236,18 +254,21 @@ python improved_cli.py alerts ack --alert-id 12345
 ## 🎯 Ожидаемые результаты
 
 ### Краткосрочные (1-2 недели):
+
 - ✅ Повышение надежности получения данных на 95%+
 - ✅ Снижение количества ложных сигналов на 30%
 - ✅ Улучшение качества логирования и диагностики
 - ✅ Автоматические алерты при проблемах
 
 ### Среднесрочные (1-3 месяца):
+
 - ✅ Повышение winrate до 50-60%
 - ✅ Снижение максимальной просадки на 40%
 - ✅ Автоматическая оптимизация параметров
 - ✅ Forward-testing всех стратегий
 
 ### Долгосрочные (3-12 месяцев):
+
 - ✅ Winrate 60%+ с стабильной прибыльностью
 - ✅ Полная автоматизация управления рисками
 - ✅ Масштабируемая архитектура
@@ -258,21 +279,25 @@ python improved_cli.py alerts ack --alert-id 12345
 ### Проверка работы систем
 
 1. **Проверка источников данных**:
+
 ```bash
 python improved_cli.py status --component data_sources
 ```
 
 2. **Проверка качества данных**:
+
 ```bash
 python improved_cli.py analyze quality --hours 1
 ```
 
 3. **Проверка логирования**:
+
 ```bash
 python improved_cli.py status --component logging
 ```
 
 4. **Проверка риск-менеджмента**:
+
 ```bash
 python improved_cli.py status --component risk
 ```
@@ -309,6 +334,7 @@ python improved_cli.py status --component risk
 ## 🎉 Заключение
 
 Реализованные улучшения обеспечивают:
+
 - **Надежность**: Множественные источники данных и автоматическое восстановление
 - **Качество**: Валидация данных и мониторинг в реальном времени
 - **Эффективность**: Оптимизация фильтров и адаптивное управление рисками

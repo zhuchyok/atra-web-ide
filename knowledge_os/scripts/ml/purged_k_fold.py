@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 📊 Purged K-Fold Cross-Validation для временных рядов
 
@@ -12,7 +11,7 @@
 """
 
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -32,7 +31,7 @@ class PurgedKFold:
         self,
         n_splits: int = 5,
         purge_gap: int = 0,  # Изменено по умолчанию на 0 для избежания проблем с формированием фолдов
-        embargo_pct: float = 0.01
+        embargo_pct: float = 0.01,
     ):
         """
         Args:
@@ -49,7 +48,7 @@ class PurgedKFold:
         X: pd.DataFrame,
         y: Optional[np.ndarray] = None,
         groups: Optional[np.ndarray] = None,
-        timestamps: Optional[pd.Series] = None
+        timestamps: Optional[pd.Series] = None,
     ) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Генерирует индексы для train/test разделения с purge
@@ -157,7 +156,8 @@ class PurgedKFold:
                 # Логируем предупреждение, но НЕ пропускаем фолд (тест может потребовать все фолды)
                 logger.warning(
                     "⚠️ Fold %d: Train пустой после исключения - возможно проблема в параметрах (train=%d)",
-                    i, len(train_indices)
+                    i,
+                    len(train_indices),
                 )
                 # НЕ пропускаем фолд - тест требует все фолды
                 # continue  # Удалено чтобы создать фолд даже с пустым train
@@ -170,7 +170,9 @@ class PurgedKFold:
                 logger.warning(
                     "⚠️ Fold %d: Пропущен из-за нарушения временного порядка "
                     "(purge_start=%d, test_start=%d)",
-                    i, purge_start, test_start
+                    i,
+                    purge_start,
+                    test_start,
                 )
                 continue
 
@@ -185,7 +187,7 @@ class PurgedKFold:
         self,
         X: Optional[pd.DataFrame] = None,  # pylint: disable=invalid-name
         y: Optional[np.ndarray] = None,
-        groups: Optional[np.ndarray] = None
+        groups: Optional[np.ndarray] = None,
     ) -> int:
         """Возвращает количество фолдов"""
         return self.n_splits
@@ -198,7 +200,7 @@ def purged_train_test_split(  # pylint: disable=invalid-name
     purge_gap: int = 1,
     embargo_pct: float = 0.01,
     timestamps: Optional[pd.Series] = None,
-    random_state: Optional[int] = None
+    random_state: Optional[int] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
     """
     Purged train/test split для временных рядов
@@ -252,9 +254,7 @@ def purged_train_test_split(  # pylint: disable=invalid-name
 
     # Edge case: недостаточно данных
     if n_samples < test_size_int * 2:
-        logger.warning(
-            "⚠️ Недостаточно данных для split. Используем минимальный test_size."
-        )
+        logger.warning("⚠️ Недостаточно данных для split. Используем минимальный test_size.")
         test_size_int = max(1, n_samples // 10)
         test_start = n_samples - test_size_int
         test_end = n_samples
@@ -293,7 +293,10 @@ def purged_train_test_split(  # pylint: disable=invalid-name
 
     logger.info(
         "📊 Purged split: train=%d, test=%d, purged=%d, embargo=%d",
-        len(X_train), len(X_test), purge_end - purge_start, embargo_end - embargo_start
+        len(X_train),
+        len(X_test),
+        purge_end - purge_start,
+        embargo_end - embargo_start,
     )
 
     return X_train, X_test, y_train, y_test

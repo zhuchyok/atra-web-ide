@@ -3,4 +3,3 @@
 # Требуется активное виртуальное окружение .venv и доступ к Bitget ключам в env.
 
 0 2 * * * cd /Users/zhuchyok/Documents/GITHUB/atra/atra && /bin/bash scripts/run_nightly_bitget_checks.sh >> logs/test_results.log 2>&1
-

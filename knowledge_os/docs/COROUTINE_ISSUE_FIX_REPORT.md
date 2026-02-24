@@ -7,6 +7,7 @@
 ## 📋 **ПРОБЛЕМА**
 
 В логах системы наблюдалась ошибка:
+
 ```
 [DEBUG] DOTUSDT: Ошибка при обработке пользователя 958930260: cannot reuse already awaited coroutine
 ```
@@ -24,6 +25,7 @@
 ### **1. Исправлена функция `notify_user` в `telegram_handlers.py`:**
 
 **БЫЛО:**
+
 ```python
 async def notify_user(user_id, text, **kwargs):
     """Отправляет уведомление пользователю"""
@@ -36,6 +38,7 @@ async def notify_user(user_id, text, **kwargs):
 ```
 
 **СТАЛО:**
+
 ```python
 async def notify_user(user_id, text, **kwargs):
     """Отправляет уведомление пользователю"""
@@ -51,6 +54,7 @@ async def notify_user(user_id, text, **kwargs):
 ### **2. Исправлена функция `notify_all` в `telegram_handlers.py`:**
 
 **БЫЛО:**
+
 ```python
 async def notify_all(text, **kwargs):
     """Отправляет уведомление всем пользователям"""
@@ -68,6 +72,7 @@ async def notify_all(text, **kwargs):
 ```
 
 **СТАЛО:**
+
 ```python
 async def notify_all(text, **kwargs):
     """Отправляет уведомление всем пользователям"""
@@ -133,16 +138,19 @@ notify_user из signal_live: ✅ ПРОЙДЕН
 ## 📊 **АНАЛИЗ РЕЗУЛЬТАТОВ**
 
 ### **До исправления:**
+
 - ❌ Функция `notify_user` возвращала `None`
 - ❌ Логи показывали "ошибка в notify_user"
 - ❌ Система не могла определить успешность отправки
 
 ### **После исправления:**
+
 - ✅ Функция `notify_user` возвращает `True/False`
 - ✅ Логи корректно отображают статус отправки
 - ✅ Система может определить успешность отправки
 
 ### **Пример корректных логов:**
+
 ```
 [DEBUG] 🚀 Отправляем сигнал SHORT для DOTUSDT пользователю 958930260...
 [DEBUG] ✅ Сигнал SHORT для DOTUSDT успешно отправлен пользователю 958930260
@@ -156,6 +164,7 @@ notify_user из signal_live: ✅ ПРОЙДЕН
 
 1. **Неправильное возвращаемое значение:** Функция `notify_user` возвращала `None`
 2. **Логика проверки в `signal_live.py`:**
+
    ```python
    result = await notify_user(int(user_id), msg, reply_markup=keyboard)
    if result:  # result был None, поэтому условие не выполнялось
@@ -167,6 +176,7 @@ notify_user из signal_live: ✅ ПРОЙДЕН
 3. **Возможное повторное использование:** Где-то в коде корутина могла сохраняться и использоваться повторно
 
 ### **Исправление:**
+
 - ✅ Функция теперь возвращает `True` при успешной отправке
 - ✅ Функция возвращает `False` при ошибке
 - ✅ Логика проверки работает корректно

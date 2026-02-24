@@ -57,4 +57,4 @@ build-rust-pgo:
 install-rust: build-rust
 	cd rust-atra && pip install -e .
 
-all: init db fees run 
+all: init db fees run

@@ -8,11 +8,13 @@
 ## 🎯 РЕАЛИЗОВАНО
 
 ### **1. Хранение режима пользователя**
+
 - Таблица `user_settings` с полем `trade_mode` (manual|auto)
 - По умолчанию: `manual`
 - Методы: `get_user_mode()`, `set_user_mode()`
 
 ### **2. Telegram команды**
+
 - `/mode` — показать текущий режим
 - `/mode_set manual` — ручной режим
 - `/mode_set auto` — автоматический режим
@@ -20,12 +22,14 @@
 - `/disconnect_bitget` — отключить ключи
 
 ### **3. Статусы сигналов**
+
 - **PENDING** — отправлен, ожидает действия (manual) или fill (auto)
 - **OPEN** — принят/исполнен
 - **EXPIRED** — истёк по TTL (60 мин)
 - **CLOSED** — позиция закрыта
 
 ### **4. Manual режим**
+
 ```
 Сигнал отправлен → PENDING
   ↓
@@ -37,6 +41,7 @@
 ```
 
 ### **5. Auto режим**
+
 ```
 Сигнал отправлен → PENDING
   ↓
@@ -52,21 +57,25 @@ AutoExecutionService создаёт ордер на бирже
 ```
 
 ### **6. Биржевая интеграция**
+
 - `ExchangeAdapter` через ccxt (Bitget/Binance)
 - Методы: `create_limit_order`, `create_market_order`, `wait_for_fill`, `fetch_positions`
 - Хранение ключей: таблица `user_exchange_keys`
 
 ### **7. Синхронизация позиций (auto)**
+
 - Каждые 3 минуты: fetch_positions с биржи
 - Обновление локальных позиций
 - Закрытие позиций, которых нет на бирже → signals_log: OPEN → CLOSED
 
 ### **8. TTL для PENDING**
+
 - Фоновая задача каждые 5 минут
 - PENDING старше 60 минут → EXPIRED
 - EXPIRED не блокирует корреляцией
 
 ### **9. Корреляционная проверка по режимам**
+
 - **Manual:** учитывает только `signals_log.result='OPEN'`
 - **Auto:** учитывает реальные позиции из `active_positions` (синхронизированные с биржей)
 - PENDING не блокирует в обоих режимах
@@ -78,41 +87,50 @@ AutoExecutionService создаёт ордер на бирже
 ### **Файлы:**
 
 #### **acceptance_database.py**
+
 - `user_settings` (trade_mode)
 - `user_exchange_keys` (api_key, secret, passphrase)
 - Методы: `get/set_user_mode`, `save/get_exchange_keys`, `expire_pending_signals`
 - `create_active_position`, `upsert_active_position`, `close_active_position_by_symbol`
 
 #### **exchange_adapter.py**
+
 - `ExchangeAdapter` класс
 - Поддержка Bitget/Binance через ccxt
 - Грейсфул fallback если ccxt недоступен
 
 #### **auto_execution.py**
+
 - `AutoExecutionService.execute_and_open()`
 - Создание ордеров, ожидание fill, fallback на маркет
 - Обновление signals_log и active_positions после fill
 
 #### **signal_live.py**
+
 - После успешной отправки сигнала: проверка режима пользователя
 - Если auto → автоматический вызов `AutoExecutionService`
 
 #### **correlation_risk_manager.py**
+
 - `_get_user_open_positions()`: определяет режим пользователя
 - Manual: `signals_log.result='OPEN'`
 - Auto: `active_positions.status='open'`
 
 #### **telegram_handlers.py**
+
 - Команды: `mode_cmd`, `mode_set_cmd`, `connect_bitget_cmd`, `disconnect_bitget_cmd`
 
 #### **telegram_bot_core.py**
+
 - Регистрация всех команд в боте
 
 #### **main.py**
+
 - Фоновая задача: `expire_pending_periodically()` (TTL)
 - Фоновая задача: `sync_positions_periodically()` (синхронизация с биржей для auto)
 
 #### **db.py**
+
 - Изменено: `INSERT signals_log` теперь `result='PENDING'` (было `'OPEN'`)
 
 ---
@@ -154,21 +172,26 @@ AutoExecutionService создаёт ордер на бирже
 ## 🛡️ ЗАЩИТЫ И ПРОВЕРКИ
 
 ### **1. Идемпотентность**
+
 - `signal_key` уникален для каждого сигнала
 - Дубли не создаются
 
 ### **2. Противоположные сигналы**
+
 - Блокировка LONG+SHORT на один актив (correlation_risk_manager)
 
 ### **3. TTL PENDING**
+
 - Автоматическое истечение через 60 минут
 - EXPIRED не участвуют в корреляции
 
 ### **4. Синхронизация с биржей (auto)**
+
 - Расхождения автоматически исправляются каждые 3 минуты
 - Закрытые на бирже позиции закрываются локально
 
 ### **5. Fallback при ошибках**
+
 - Если ccxt недоступен → работает в режиме без реальных ордеров
 - Если биржа недоступна → локальная БД продолжает работать
 - Корреляция работает даже при сбоях внешних систем
@@ -178,12 +201,14 @@ AutoExecutionService создаёт ордер на бирже
 ## 📈 ПРЕИМУЩЕСТВА
 
 ### **Manual режим:**
+
 - ✅ Полный контроль пользователя
 - ✅ Не требует ключей биржи
 - ✅ Сигналы не блокируются до принятия
 - ✅ TTL автоматически очищает старые PENDING
 
 ### **Auto режим:**
+
 - ✅ Автоматическое исполнение
 - ✅ Реальная торговля на бирже
 - ✅ Синхронизация с биржей (источник правды)
@@ -191,6 +216,7 @@ AutoExecutionService создаёт ордер на бирже
 - ✅ Корреляция по реальным позициям
 
 ### **Общие:**
+
 - ✅ Безопасное переключение режимов
 - ✅ Персональные настройки для каждого пользователя
 - ✅ Корреляция адаптируется под режим
@@ -201,6 +227,7 @@ AutoExecutionService создаёт ордер на бирже
 ## 🧪 ТЕСТИРОВАНИЕ
 
 ### **Manual режим:**
+
 ```bash
 /mode_set manual
 # Ожидание: сигнал приходит, статус PENDING
@@ -209,6 +236,7 @@ AutoExecutionService создаёт ордер на бирже
 ```
 
 ### **Auto режим:**
+
 ```bash
 /connect_bitget <api_key> <secret> <passphrase>
 /mode_set auto
@@ -218,12 +246,14 @@ AutoExecutionService создаёт ордер на бирже
 ```
 
 ### **TTL:**
+
 ```bash
 # Отправить сигнал, не принимать 60+ минут
 # Результат: автоматически EXPIRED
 ```
 
 ### **Корреляция:**
+
 ```bash
 # Manual: открыта позиция BTCUSDT → блокируется ETHUSDT (если корреляция > 0.75)
 # Auto: реальная позиция BTCUSDT на бирже → блокируется ETHUSDT
@@ -234,6 +264,7 @@ AutoExecutionService создаёт ордер на бирже
 ## 🚀 ГОТОВО К PRODUCTION
 
 **Все этапы завершены:**
+
 - ✅ Хранение режима пользователя
 - ✅ Telegram команды
 - ✅ PENDING/OPEN/EXPIRED/CLOSED статусы
@@ -246,6 +277,7 @@ AutoExecutionService создаёт ордер на бирже
 - ✅ Защиты и fallback
 
 **Система работает как живой организм:**
+
 - Автоматическое истечение старых сигналов
 - Синхронизация с биржей
 - Адаптация корреляции под режим
@@ -254,4 +286,3 @@ AutoExecutionService создаёт ордер на бирже
 ---
 
 **СТАТУС: ГОТОВО К ЗАПУСКУ** ✅🚀
-

@@ -3,6 +3,7 @@
 ## 🎯 **ИЗМЕНЕНИЯ ПРИМЕНЕНЫ:**
 
 ### ✅ **Автоматическая привязка:**
+
 - **Строгий (balanced)** → **Консервативный (conservative)**
 - **Мягкий (soft)** → **Агрессивный (aggressive)**
 
@@ -11,6 +12,7 @@
 ### 📋 **telegram_bot.py:**
 
 #### 🎯 **Обработчики кнопок:**
+
 ```python
 # filter_mode_balanced
 elif action == "filter_mode_balanced":
@@ -28,6 +30,7 @@ elif action == "filter_mode_soft":
 ```
 
 #### 🎯 **Обработчики настройки:**
+
 ```python
 # setup_filter_mode_balanced
 elif action == "setup_filter_mode_balanced":
@@ -41,6 +44,7 @@ elif action == "setup_filter_mode_soft":
 ```
 
 #### 🎯 **Команды:**
+
 ```python
 # set_filter_balanced_cmd
 async def set_filter_balanced_cmd(update, context):
@@ -56,6 +60,7 @@ async def set_filter_soft_cmd(update, context):
 ```
 
 #### 🎯 **Добавление пользователей:**
+
 ```python
 # add_user_cmd
 async def add_user_cmd(update, context):
@@ -70,6 +75,7 @@ async def add_user_cmd(update, context):
 ### 📋 **manage_users.py:**
 
 #### 🎯 **Функция add_user:**
+
 ```python
 def add_user(user_id: str, deposit: float = 1000,
              trade_mode: str = "spot", filter_mode: str = "balanced",
@@ -84,6 +90,7 @@ def add_user(user_id: str, deposit: float = 1000,
 ```
 
 #### 🎯 **Обновленная справка:**
+
 ```python
 news_mode - Режим новостей: conservative, aggressive (автоматически по режиму фильтров)
 ```
@@ -91,6 +98,7 @@ news_mode - Режим новостей: conservative, aggressive (автома�
 ## 🎯 **ЛОГИКА ПРИВЯЗКИ:**
 
 ### 📊 **Строгий режим (balanced) → Консервативный (conservative):**
+
 - ✅ **Блокирует SHORT** при позитивных новостях
 - ✅ **Усиливает LONG** позитивными новостями
 - ✅ **Блокирует spot** при негативных новостях
@@ -98,6 +106,7 @@ news_mode - Режим новостей: conservative, aggressive (автома�
 - 🎯 **Результат:** Максимальная безопасность
 
 ### 📊 **Мягкий режим (soft) → Агрессивный (aggressive):**
+
 - ❌ **НЕ блокирует SHORT** при позитивных новостях
 - ✅ **Усиливает LONG** позитивными новостями
 - ❌ **НЕ блокирует** по негативным новостям
@@ -107,16 +116,19 @@ news_mode - Режим новостей: conservative, aggressive (автома�
 ## 🎯 **ПРЕИМУЩЕСТВА АВТОМАТИЧЕСКОЙ ПРИВЯЗКИ:**
 
 ### ✅ **Упрощение интерфейса:**
+
 - **Один выбор** вместо двух
 - **Логичная связь** между режимами
 - **Меньше путаницы** для пользователей
 
 ### ✅ **Консистентность:**
+
 - **Строгий фильтр** + **Консервативные новости** = Безопасность
 - **Мягкий фильтр** + **Агрессивные новости** = Активность
 - **Автоматическая синхронизация**
 
 ### ✅ **Обратная совместимость:**
+
 - **Существующие пользователи** получают правильные режимы
 - **Graceful fallback** для старых настроек
 - **Нет потери функциональности**
@@ -124,6 +136,7 @@ news_mode - Режим новостей: conservative, aggressive (автома�
 ## 🔧 **ОБРАТНАЯ СОВМЕСТИМОСТЬ:**
 
 ### ✅ **Автоматическая миграция:**
+
 ```python
 # Если у пользователя был technical_only или news_only:
 news_mode = user_data.get('news_filter_mode', 'conservative')
@@ -132,6 +145,7 @@ mode_settings = NEWS_FILTER_MODES.get(news_mode, NEWS_FILTER_MODES['conservative
 ```
 
 ### ✅ **Безопасность:**
+
 - **Нет ошибок** при загрузке старых настроек
 - **Graceful fallback** на conservative
 - **Сохранение функциональности**
@@ -139,6 +153,7 @@ mode_settings = NEWS_FILTER_MODES.get(news_mode, NEWS_FILTER_MODES['conservative
 ## 📊 **ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ:**
 
 ### 🎯 **При выборе "Строгий" режим:**
+
 ```
 🎯 СТРОГИЙ режим фильтров установлен!
 
@@ -151,6 +166,7 @@ mode_settings = NEWS_FILTER_MODES.get(news_mode, NEWS_FILTER_MODES['conservative
 ```
 
 ### 🎯 **При выборе "Мягкий" режим:**
+
 ```
 🎯 МЯГКИЙ режим фильтров установлен!
 
@@ -167,17 +183,20 @@ mode_settings = NEWS_FILTER_MODES.get(news_mode, NEWS_FILTER_MODES['conservative
 **✅ Автоматическая привязка успешно реализована!**
 
 ### 📊 **Результат:**
+
 - **Упрощен интерфейс** - один выбор вместо двух
 - **Логичная связь** между режимами фильтров и новостей
 - **Автоматическая синхронизация** настроек
 - **Обратная совместимость** сохранена
 
 ### 🚀 **Готово к использованию:**
+
 - **Строгий** → **Консервативный** (безопасная торговля)
 - **Мягкий** → **Агрессивный** (активная торговля)
 - **Автоматическая привязка** работает везде
 
 ---
+
 **Статус:** ✅ Автоматическая привязка завершена
 **Дата:** 2024-01-27
 **Файлы изменены:** telegram_bot.py, manage_users.py

@@ -64,21 +64,21 @@
 
 ---
 
-
 ## 🌐 ЛУЧШИЕ ПРАКТИКИ ИЗ ИНТЕРНЕТА
 
 **Дата поиска:** 2025-12-13 16:46:06 UTC
 
 ### Walk-Forward Analysis
+
 - **Описание:** Использование walk-forward analysis для валидации ML моделей на финансовых данных
 - **Источник:** Advances in Financial Machine Learning - Marcos López de Prado
 - **Категория:** ML Validation
 
 ### Sample Weights для Class Imbalance
+
 - **Описание:** Применение sample weights в LightGBM для борьбы с дисбалансом классов (WIN vs LOSS)
 - **Источник:** ML Best Practices 2024
 - **Категория:** ML Optimization
-
 
 ### ✅ Что уже знаю:
 
@@ -101,7 +101,6 @@
 ### ⚠️ Проблемы и решения:
 
 ---
-
 
 ## 🚀 ПРОДВИНУТЫЕ МАТЕРИАЛЫ (МИРОВОЙ УРОВЕНЬ)
 
@@ -125,19 +124,19 @@
 - AWS Machine Learning Specialty
 - Google Cloud Professional ML Engineer
 
-
 **Дата поиска:** 2025-12-13 16:46:06 UTC
 
 ### Walk-Forward Analysis
+
 - **Описание:** Использование walk-forward analysis для валидации ML моделей на финансовых данных
 - **Источник:** Advances in Financial Machine Learning - Marcos López de Prado
 - **Категория:** ML Validation
 
 ### Sample Weights для Class Imbalance
+
 - **Описание:** Применение sample weights в LightGBM для борьбы с дисбалансом классов (WIN vs LOSS)
 - **Источник:** ML Best Practices 2024
 - **Категория:** ML Optimization
-
 
 ### ✅ Что уже знаю:
 
@@ -161,7 +160,6 @@
 
 ---
 
-
 ## 🚀 ИННОВАЦИОННЫЕ ТЕХНИКИ (МАКСИМУМ)
 
 ### 💡 Передовые технологии:
@@ -171,7 +169,6 @@
 - AutoML 2.0
 - Explainable AI для trading
 - Reinforcement learning для стратегий
-
 
 ### 📚 Продвинутые книги:
 
@@ -193,19 +190,19 @@
 - AWS Machine Learning Specialty
 - Google Cloud Professional ML Engineer
 
-
 **Дата поиска:** 2025-12-13 16:46:06 UTC
 
 ### Walk-Forward Analysis
+
 - **Описание:** Использование walk-forward analysis для валидации ML моделей на финансовых данных
 - **Источник:** Advances in Financial Machine Learning - Marcos López de Prado
 - **Категория:** ML Validation
 
 ### Sample Weights для Class Imbalance
+
 - **Описание:** Применение sample weights в LightGBM для борьбы с дисбалансом классов (WIN vs LOSS)
 - **Источник:** ML Best Practices 2024
 - **Категория:** ML Optimization
-
 
 ### ✅ Что уже знаю:
 
@@ -250,7 +247,6 @@
 
 ---
 
-
 ## 💼 РЕАЛЬНЫЕ КЕЙСЫ ИЗ ПРОЕКТА ATRA
 
 ### ✅ Успешно реализованные проекты:
@@ -259,14 +255,12 @@
 - ✅ Добавление sample weights в LightGBM для class imbalance
 - ✅ Walk-forward analysis для валидации моделей
 
-
 - **Всего задач выполнено:** 100+
 - **Успешных решений:** 95+
 - **Ошибок исправлено:** 50+
 - **Новых знаний получено:** 200+
 
 ---
-
 
 ## 📝 ПУБЛИКАЦИИ И ИССЛЕДОВАНИЯ
 
@@ -274,13 +268,11 @@
 - Исследование: 'Sample Weights для Class Imbalance в Trading ML'
 - Контрибуция: Open source ML библиотеки
 
-
 ### ✅ Успешно реализованные проекты:
 
 - ✅ Исправление Sharpe Ratio (sqrt(252) → sqrt(365)) для крипто
 - ✅ Добавление sample weights в LightGBM для class imbalance
 - ✅ Walk-forward analysis для валидации моделей
-
 
 - **Всего задач выполнено:** 100+
 - **Успешных решений:** 95+
@@ -288,7 +280,6 @@
 - **Новых знаний получено:** 200+
 
 ---
-
 
 ## 👨‍🏫 МЕНТОРСТВО И ОБУЧЕНИЕ
 
@@ -296,18 +287,15 @@
 - Проведение: ML воркшопы
 - Консультирование: Feature engineering
 
-
 - Публикация: 'Walk-Forward Analysis для криптовалютных стратегий'
 - Исследование: 'Sample Weights для Class Imbalance в Trading ML'
 - Контрибуция: Open source ML библиотеки
-
 
 ### ✅ Успешно реализованные проекты:
 
 - ✅ Исправление Sharpe Ratio (sqrt(252) → sqrt(365)) для крипто
 - ✅ Добавление sample weights в LightGBM для class imbalance
 - ✅ Walk-forward analysis для валидации моделей
-
 
 - **Всего задач выполнено:** 100+
 - **Успешных решений:** 95+
@@ -316,30 +304,25 @@
 
 ---
 
-
 ## 🏆 НАГРАДЫ И ПРИЗНАНИЕ
 
 - 🏆 Лучший ML Engineer
 - 🌟 Инноватор в ML для trading
 - ⭐ Эксперт в feature engineering
 
-
 - Менторство: ML для trading
 - Проведение: ML воркшопы
 - Консультирование: Feature engineering
 
-
 - Публикация: 'Walk-Forward Analysis для криптовалютных стратегий'
 - Исследование: 'Sample Weights для Class Imbalance в Trading ML'
 - Контрибуция: Open source ML библиотеки
-
 
 ### ✅ Успешно реализованные проекты:
 
 - ✅ Исправление Sharpe Ratio (sqrt(252) → sqrt(365)) для крипто
 - ✅ Добавление sample weights в LightGBM для class imbalance
 - ✅ Walk-forward analysis для валидации моделей
-
 
 - **Всего задач выполнено:** 100+
 - **Успешных решений:** 95+

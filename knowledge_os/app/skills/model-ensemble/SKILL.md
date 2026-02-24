@@ -4,7 +4,7 @@ description: Model Ensemble - использование нескольких м
 category: quality
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🎯"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🎯" } }
 ---
 
 # Model Ensemble Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎯"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Критичных решений
 - Задач, требующих высокой точности
 - Важных архитектурных решений
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎯"}}
 ## Методология
 
 Model Ensemble работает через:
+
 1. **Multiple Models** - Использование нескольких моделей
 2. **Parallel Execution** - Параллельное выполнение
 3. **Voting** - Голосование или взвешенное голосование

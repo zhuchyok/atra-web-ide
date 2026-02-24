@@ -4,20 +4,21 @@ Skill Registry - Реестр всех skills с метаданными
 Поддерживает SKILL.md формат с YAML frontmatter
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Optional, Any, Callable, Set
-from dataclasses import dataclass, field, asdict
+import os
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 
 
 class SkillSource(Enum):
     """Источник skill"""
+
     BUILTIN = "builtin"  # Встроенные skills
     MANAGED = "managed"  # Установленные пользователем
     WORKSPACE = "workspace"  # Проектные skills
@@ -28,6 +29,7 @@ class SkillSource(Enum):
 @dataclass
 class SkillMetadata:
     """Метаданные skill (AgentSkills формат)"""
+
     name: str
     description: str
     category: Optional[str] = None
@@ -40,7 +42,7 @@ class SkillMetadata:
     disable_model_invocation: bool = False
     command_dispatch: Optional[str] = None
     command_tool: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Преобразовать в словарь"""
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -49,6 +51,7 @@ class SkillMetadata:
 @dataclass
 class Skill:
     """Skill в реестре"""
+
     name: str
     description: str
     category: str
@@ -61,7 +64,7 @@ class Skill:
     metadata: SkillMetadata = field(default_factory=lambda: SkillMetadata(name="", description=""))
     skill_path: Optional[str] = None  # Путь к SKILL.md файлу
     instructions: str = ""  # Инструкции из SKILL.md
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Преобразовать в словарь для сериализации"""
         return {
@@ -74,35 +77,35 @@ class Skill:
             "metadata": self.metadata.to_dict(),
             "created_at": self.created_at.isoformat(),
             "parameters": self.parameters,
-            "examples": self.examples
+            "examples": self.examples,
         }
 
 
 class SkillRegistry:
     """
     Skill Registry - реестр всех skills
-    
+
     Основано на:
     - Agent Skills Framework (Anthropic) - SKILL.md формат
     - Clawdbot patterns - локации skills, gating, metadata
-    
+
     Локации skills (как в Clawdbot):
     1. Bundled skills: knowledge_os/app/skills/ (встроенные)
     2. Managed skills: ~/.atra/skills/ (установленные пользователем)
     3. Workspace skills: <workspace>/skills/ (проектные)
     4. Extra dirs: конфигурируемые дополнительные папки
     """
-    
+
     def __init__(
         self,
         bundled_skills_dir: Optional[str] = None,
         managed_skills_dir: Optional[str] = None,
         workspace_skills_dir: Optional[str] = None,
-        extra_dirs: Optional[List[str]] = None
+        extra_dirs: Optional[List[str]] = None,
     ):
         """
         Инициализация Skill Registry
-        
+
         Args:
             bundled_skills_dir: Директория bundled skills
             managed_skills_dir: Директория managed skills
@@ -114,47 +117,47 @@ class SkillRegistry:
             # Путь относительно knowledge_os/app/skill_registry.py
             current_dir = os.path.dirname(__file__)
             bundled_skills_dir = os.path.join(current_dir, "skills")
-        
+
         if managed_skills_dir is None:
             managed_skills_dir = os.path.expanduser("~/.atra/skills")
-        
+
         self.bundled_skills_dir = Path(bundled_skills_dir)
         self.managed_skills_dir = Path(managed_skills_dir)
         self.workspace_skills_dir = Path(workspace_skills_dir) if workspace_skills_dir else None
         self.extra_dirs = [Path(d) for d in (extra_dirs or [])]
-        
+
         self.skills: Dict[str, Skill] = {}
         self.skills_by_category: Dict[str, List[Skill]] = {}
-        
-        logger.info(f"✅ Skill Registry инициализирован")
+
+        logger.info("✅ Skill Registry инициализирован")
         logger.info(f"   Bundled: {self.bundled_skills_dir}")
         logger.info(f"   Managed: {self.managed_skills_dir}")
         if self.workspace_skills_dir:
             logger.info(f"   Workspace: {self.workspace_skills_dir}")
-    
+
     def _parse_skill_metadata(self, skill_path: Path) -> Optional[SkillMetadata]:
         """Парсить метаданные из SKILL.md (AgentSkills формат)"""
         skill_file = skill_path / "SKILL.md"
         if not skill_file.exists():
             return None
-        
+
         try:
             content = skill_file.read_text(encoding="utf-8")
-            
+
             # Парсим YAML frontmatter
             if not content.startswith("---"):
                 logger.warning(f"⚠️ SKILL.md не начинается с YAML frontmatter: {skill_path}")
                 return None
-            
+
             # Извлекаем frontmatter
             parts = content.split("---", 2)
             if len(parts) < 3:
                 logger.warning(f"⚠️ Неверный формат SKILL.md: {skill_path}")
                 return None
-            
+
             frontmatter = parts[1].strip()
             instructions = parts[2].strip()
-            
+
             # Парсим YAML (простой парсинг, можно улучшить с помощью PyYAML)
             metadata_dict = {}
             for line in frontmatter.split("\n"):
@@ -162,7 +165,7 @@ class SkillRegistry:
                     key, value = line.split(":", 1)
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
-                    
+
                     # Парсим metadata JSON если есть
                     if key == "metadata":
                         try:
@@ -171,17 +174,17 @@ class SkillRegistry:
                             pass
                     else:
                         metadata_dict[key] = value
-            
+
             # Извлекаем данные
             name = metadata_dict.get("name", skill_path.name)
             description = metadata_dict.get("description", "")
-            
+
             # Парсим metadata JSON если есть
             metadata_json = metadata_dict.get("metadata_json", {})
             clawdbot_meta = metadata_json.get("clawdbot", {})
-            
+
             requires = clawdbot_meta.get("requires", {})
-            
+
             return SkillMetadata(
                 name=name,
                 description=description,
@@ -192,21 +195,24 @@ class SkillRegistry:
                 requires=requires if requires else None,
                 emoji=clawdbot_meta.get("emoji"),
                 user_invocable=metadata_dict.get("user-invocable", "true").lower() == "true",
-                disable_model_invocation=metadata_dict.get("disable-model-invocation", "false").lower() == "true",
+                disable_model_invocation=metadata_dict.get(
+                    "disable-model-invocation", "false"
+                ).lower()
+                == "true",
                 command_dispatch=metadata_dict.get("command-dispatch"),
-                command_tool=metadata_dict.get("command-tool")
+                command_tool=metadata_dict.get("command-tool"),
             )
         except Exception as e:
             logger.error(f"❌ Ошибка парсинга SKILL.md {skill_path}: {e}")
             return None
-    
+
     def _check_gating(self, metadata: SkillMetadata) -> bool:
         """Проверить gating на основе метаданных (Clawdbot pattern)"""
         if not metadata.requires:
             return True  # Нет требований - всегда eligible
-        
+
         requires = metadata.requires
-        
+
         # Проверка bins
         if "bins" in requires:
             bins = requires["bins"]
@@ -215,40 +221,43 @@ class SkillRegistry:
                     if not self._check_bin_exists(bin_name):
                         logger.debug(f"⚠️ Skill {metadata.name} требует bin: {bin_name} (не найден)")
                         return False
-        
+
         # Проверка env
         if "env" in requires:
             env_vars = requires["env"]
             if isinstance(env_vars, list):
                 for env_var in env_vars:
                     if not os.getenv(env_var):
-                        logger.debug(f"⚠️ Skill {metadata.name} требует env: {env_var} (не установлен)")
+                        logger.debug(
+                            f"⚠️ Skill {metadata.name} требует env: {env_var} (не установлен)"
+                        )
                         return False
-        
+
         # Проверка config (пока пропускаем, нужно интегрировать с config системой)
-        
+
         return True
-    
+
     def _check_bin_exists(self, bin_name: str) -> bool:
         """Проверить существование бинарника в PATH"""
         import shutil
+
         return shutil.which(bin_name) is not None
-    
+
     def _load_skill_from_directory(self, skill_dir: Path, source: SkillSource) -> Optional[Skill]:
         """Загрузить skill из директории"""
         skill_file = skill_dir / "SKILL.md"
         if not skill_file.exists():
             return None
-        
+
         metadata = self._parse_skill_metadata(skill_dir)
         if not metadata:
             return None
-        
+
         # Проверяем gating
         if not self._check_gating(metadata):
             logger.debug(f"⚠️ Skill {metadata.name} не прошел gating, пропускаем")
             return None
-        
+
         # Читаем инструкции
         try:
             content = skill_file.read_text(encoding="utf-8")
@@ -257,7 +266,7 @@ class SkillRegistry:
         except Exception as e:
             logger.error(f"❌ Ошибка чтения инструкций: {e}")
             instructions = ""
-        
+
         skill = Skill(
             name=metadata.name,
             description=metadata.description,
@@ -266,33 +275,33 @@ class SkillRegistry:
             source=source,
             metadata=metadata,
             skill_path=str(skill_dir),
-            instructions=instructions
+            instructions=instructions,
         )
-        
+
         return skill
-    
+
     def load_skills(self):
         """Загрузить все skills из всех локаций"""
         self.skills.clear()
         self.skills_by_category.clear()
-        
+
         # Загружаем из всех локаций (в порядке приоритета)
         locations = [
             (self.workspace_skills_dir, SkillSource.WORKSPACE),
             (self.managed_skills_dir, SkillSource.MANAGED),
             (self.bundled_skills_dir, SkillSource.BUILTIN),
         ]
-        
+
         # Добавляем extra dirs
         for extra_dir in self.extra_dirs:
             locations.append((extra_dir, SkillSource.MANAGED))
-        
+
         for skills_dir, source in locations:
             if not skills_dir or not skills_dir.exists():
                 continue
-            
+
             logger.info(f"📂 Загрузка skills из: {skills_dir}")
-            
+
             # Ищем поддиректории с SKILL.md
             for skill_dir in skills_dir.iterdir():
                 if skill_dir.is_dir():
@@ -301,43 +310,43 @@ class SkillRegistry:
                         # Workspace skills имеют приоритет
                         if skill.name not in self.skills or source == SkillSource.WORKSPACE:
                             self.skills[skill.name] = skill
-                            
+
                             # Добавляем в категории
                             category = skill.category
                             if category not in self.skills_by_category:
                                 self.skills_by_category[category] = []
                             self.skills_by_category[category].append(skill)
-                            
+
                             logger.info(f"✅ Skill загружен: {skill.name} ({source.value})")
-        
+
         logger.info(f"📊 Всего загружено skills: {len(self.skills)}")
-    
+
     def register_skill(self, skill: Skill):
         """Зарегистрировать skill вручную"""
         self.skills[skill.name] = skill
-        
+
         # Добавляем в категории
         category = skill.category
         if category not in self.skills_by_category:
             self.skills_by_category[category] = []
         self.skills_by_category[category].append(skill)
-        
+
         logger.info(f"✅ Skill зарегистрирован: {skill.name}")
-    
+
     def get_skill(self, name: str) -> Optional[Skill]:
         """Получить skill по имени"""
         return self.skills.get(name)
-    
+
     def get_skills_by_category(self, category: str) -> List[Skill]:
         """Получить skills по категории"""
         return self.skills_by_category.get(category, [])
-    
+
     def list_skills(self, category: Optional[str] = None) -> List[Skill]:
         """Список всех skills"""
         if category:
             return self.get_skills_by_category(category)
         return list(self.skills.values())
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику реестра"""
         return {
@@ -346,9 +355,7 @@ class SkillRegistry:
                 source.value: sum(1 for s in self.skills.values() if s.source == source)
                 for source in SkillSource
             },
-            "by_category": {
-                cat: len(skills) for cat, skills in self.skills_by_category.items()
-            }
+            "by_category": {cat: len(skills) for cat, skills in self.skills_by_category.items()},
         }
 
 
@@ -367,10 +374,11 @@ def get_skill_registry() -> SkillRegistry:
 
 if __name__ == "__main__":
     import logging
+
     logging.basicConfig(level=logging.INFO)
-    
+
     registry = get_skill_registry()
     print(f"\n📊 Статистика: {registry.get_stats()}")
-    print(f"\n📋 Skills:")
+    print("\n📋 Skills:")
     for skill in registry.list_skills():
         print(f"  - {skill.name}: {skill.description} ({skill.source.value})")

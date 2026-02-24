@@ -2,15 +2,18 @@
 Chat Tab Module - Modular chat interface for Victoria agent.
 Follows Singularity 10.0 microservices standards.
 """
-import streamlit as st
-import httpx
+
 import asyncio
+import json
 import logging
 import os
 import sys
-import json
-from typing import List, Dict, Optional, AsyncGenerator
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
+import httpx
+import streamlit as st
 
 # Add app directory to path for RedisManager import
 _DASHBOARD_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,8 +34,9 @@ logger = logging.getLogger(__name__)
 # Victoria Agent URL (через Docker-сеть или localhost)
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://victoria-agent:8000")
 # Fallback для локального запуска вне Docker
-if not os.path.exists('/.dockerenv') and VICTORIA_URL == "http://victoria-agent:8000":
+if not os.path.exists("/.dockerenv") and VICTORIA_URL == "http://victoria-agent:8000":
     VICTORIA_URL = "http://localhost:8010"
+
 
 def _initialize_chat_session():
     """Инициализация состояния чата."""
@@ -40,17 +44,21 @@ def _initialize_chat_session():
         st.session_state.chat_messages = []
     if "chat_session_id" not in st.session_state:
         import uuid
+
         st.session_state.chat_session_id = str(uuid.uuid4())
 
-async def _send_message_to_victoria(message: str, history: List[Dict] = None) -> AsyncGenerator[str, None]:
+
+async def _send_message_to_victoria(
+    message: str, history: List[Dict] = None
+) -> AsyncGenerator[str, None]:
     """Отправка сообщения в Victoria и получение потокового ответа."""
     payload = {
         "goal": message,
         "chat_history": history or [],
-        "async_mode": False, # Для стриминга в UI используем синхронный вызов с генератором
-        "project_context": "atra-web-ide"
+        "async_mode": False,  # Для стриминга в UI используем синхронный вызов с генератором
+        "project_context": "atra-web-ide",
     }
-    
+
     try:
         async with httpx.AsyncClient(timeout=600.0) as client:
             # Используем эндпоинт стриминга если он есть, иначе обычный /run
@@ -66,12 +74,13 @@ async def _send_message_to_victoria(message: str, history: List[Dict] = None) ->
         logger.error(f"Error communicating with Victoria: {e}")
         yield f"❌ Ошибка связи с Victoria: {str(e)}"
 
+
 def render_chat_tab():
     """Рендеринг вкладки чата."""
     st.header("💬 Чат с Викторией (Team Lead)")
-    
+
     _initialize_chat_session()
-    
+
     # Отображение истории
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
@@ -88,29 +97,33 @@ def render_chat_tab():
         with st.chat_message("assistant"):
             response_placeholder = st.empty()
             full_response = ""
-            
+
             # Запуск асинхронного получения ответа
             async def get_response():
                 nonlocal full_response
                 # В данной версии используем упрощенный вызов (не SSE)
-                async for chunk in _send_message_to_victoria(prompt, st.session_state.chat_messages[:-1]):
+                async for chunk in _send_message_to_victoria(
+                    prompt, st.session_state.chat_messages[:-1]
+                ):
                     full_response += chunk
                     response_placeholder.markdown(full_response + "▌")
                 response_placeholder.markdown(full_response)
 
             asyncio.run(get_response())
-            
+
             # Сохраняем ответ
             st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
-            
+
             # Сохраняем в Redis для персистентности (опционально)
             if redis_manager:
+
                 async def save_to_redis():
                     await redis_manager.set_cache(
                         f"chat_history:{st.session_state.chat_session_id}",
                         st.session_state.chat_messages,
-                        ttl=3600*24
+                        ttl=3600 * 24,
                     )
+
                 try:
                     asyncio.run(save_to_redis())
                 except Exception as e:

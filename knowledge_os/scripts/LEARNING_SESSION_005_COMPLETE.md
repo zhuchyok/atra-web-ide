@@ -72,16 +72,19 @@
 ## 🎯 ДОСТИЖЕНИЯ
 
 ### **ML & Trading:**
+
 - ✅ Model ensembling для улучшения предсказаний
 - ✅ Advanced risk metrics (CVaR, MAE, Calmar, Omega)
 - ✅ Улучшение метрик на 10-15%
 
 ### **Architecture & Scalability:**
+
 - ✅ Event-driven architecture
 - ✅ Distributed tracing
 - ✅ Улучшение scalability
 
 ### **Quality & Testing:**
+
 - ✅ Property-based testing
 - ✅ Нахождение edge cases
 - ✅ Улучшение качества тестов
@@ -91,16 +94,19 @@
 ## 📈 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **ML Модели:**
+
 - ✅ Улучшение метрик на 10-15%
 - ✅ Более надёжные предсказания
 - ✅ Model ensembling работает
 
 ### **Risk Management:**
+
 - ✅ Продвинутые метрики риска
 - ✅ Лучшее понимание рисков
 - ✅ Улучшение risk management
 
 ### **Система:**
+
 - ✅ Event-driven архитектура
 - ✅ Distributed tracing
 - ✅ Улучшение observability
@@ -119,7 +125,6 @@
 
 ---
 
-*Отчёт подготовлен: Виктор (Team Lead) + все эксперты*  
-*Дата: November 23, 2025*  
-*Статус: ✅ СЕССИЯ ЗАВЕРШЕНА*
-
+_Отчёт подготовлен: Виктор (Team Lead) + все эксперты_  
+_Дата: November 23, 2025_  
+_Статус: ✅ СЕССИЯ ЗАВЕРШЕНА_

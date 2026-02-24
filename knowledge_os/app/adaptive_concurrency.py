@@ -3,20 +3,25 @@
 Согласовано с ADAPTIVE_WORKER_CONCURRENCY_PLAN.md, рекомендациями Backend/SRE/Performance.
 Мировые практики: adaptive concurrency (Uber Cinnamon, Netflix), resource-based limits, backpressure.
 """
+
 import asyncio
-import os
 import logging
+import os
 import time
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Пороги (конфиг через env)
 ADAPTIVE_HOST_RAM_THRESHOLD = float(os.getenv("ADAPTIVE_HOST_RAM_THRESHOLD", "0.85"))  # 85%
 ADAPTIVE_HOST_CPU_THRESHOLD = float(os.getenv("ADAPTIVE_HOST_CPU_THRESHOLD", "0.85"))  # 85%
-ADAPTIVE_RAM_CRITICAL = float(os.getenv("ADAPTIVE_RAM_CRITICAL", "0.90"))  # 90% — агрессивно снижать
+ADAPTIVE_RAM_CRITICAL = float(
+    os.getenv("ADAPTIVE_RAM_CRITICAL", "0.90")
+)  # 90% — агрессивно снижать
 ADAPTIVE_CALC_INTERVAL_SEC = int(os.getenv("ADAPTIVE_CALC_INTERVAL_SEC", "15"))
-ADAPTIVE_OLLAMA_MAX = int(os.getenv("ADAPTIVE_OLLAMA_MAX", "10"))  # оценка слотов Ollama при здоровье
+ADAPTIVE_OLLAMA_MAX = int(
+    os.getenv("ADAPTIVE_OLLAMA_MAX", "10")
+)  # оценка слотов Ollama при здоровье
 # Потолок одновременных запросов к MLX со стороны воркера (MLX нестабилен при высоком параллелизме — вылеты)
 ADAPTIVE_MLX_SAFE_MAX = int(os.getenv("ADAPTIVE_MLX_SAFE_MAX", "2"))
 
@@ -28,6 +33,7 @@ def _get_monitor():
     """Ленивый импорт resource_monitor (может быть недоступен в тестах)."""
     try:
         from resource_monitor import get_resource_monitor
+
         return get_resource_monitor()
     except ImportError:
         return None
@@ -144,16 +150,16 @@ def is_model_heavy(model_name: Optional[str]) -> bool:
 async def check_backends_overload() -> Tuple[bool, str]:
     """
     Проверка перегрузки MLX и Ollama для backpressure (SRE, Елена).
-    
+
     Возвращает (is_overloaded, reason).
     Если ОБА бэкенда перегружены — воркер не должен брать новые задачи.
-    
+
     Мировые практики: Netflix concurrency-limits, Uber backpressure.
     """
     monitor = _get_monitor()
     if monitor is None:
         return False, ""  # Нет монитора — продолжать работу
-    
+
     try:
         mlx_health, ollama_health = await asyncio.gather(
             monitor.get_mlx_health(),
@@ -162,7 +168,7 @@ async def check_backends_overload() -> Tuple[bool, str]:
     except Exception as e:
         logger.debug("Backpressure check failed: %s", e)
         return False, ""  # При ошибке — продолжать работу
-    
+
     # Проверяем MLX
     mlx_overloaded = False
     mlx_reason = ""
@@ -178,7 +184,7 @@ async def check_backends_overload() -> Tuple[bool, str]:
         if mlx_active >= mlx_max:
             mlx_overloaded = True
             mlx_reason = f"MLX на пределе ({mlx_active}/{mlx_max})"
-    
+
     # Проверяем Ollama
     ollama_overloaded = False
     ollama_reason = ""
@@ -187,17 +193,17 @@ async def check_backends_overload() -> Tuple[bool, str]:
         ollama_reason = "Ollama недоступен"
     elif ollama_health.get("is_overloaded", False):
         ollama_overloaded = True
-        ollama_reason = f"Ollama перегружен"
+        ollama_reason = "Ollama перегружен"
     else:
         ollama_active = ollama_health.get("active_processes", 0) or 0
         if ollama_active >= ADAPTIVE_OLLAMA_MAX:
             ollama_overloaded = True
             ollama_reason = f"Ollama на пределе ({ollama_active}/{ADAPTIVE_OLLAMA_MAX})"
-    
+
     # Backpressure только если ОБА бэкенда перегружены
     if mlx_overloaded and ollama_overloaded:
         combined_reason = f"{mlx_reason}; {ollama_reason}"
         return True, combined_reason
-    
+
     # Если хотя бы один бэкенд свободен — продолжать работу
     return False, ""

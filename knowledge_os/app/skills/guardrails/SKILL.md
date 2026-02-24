@@ -4,7 +4,15 @@ description: Guardrails - работа в рамках ограничений и
 category: safety
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🛡️", "homepage": "https://platform.openai.com/docs/guides/agents"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🛡️",
+        "homepage": "https://platform.openai.com/docs/guides/agents",
+      },
+  }
 ---
 
 # Guardrails Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🛡️", "homepage": "https:/
 ## Когда использовать
 
 Используй этот навык для:
+
 - Проверки безопасности действий
 - Валидации перед выполнением
 - Соблюдения правил проекта
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🛡️", "homepage": "https:/
 ## Методология
 
 Guardrails работает через:
+
 1. **Rule Definition** - Определение правил
 2. **Pre-Execution Check** - Проверка перед выполнением
 3. **Validation** - Валидация действий

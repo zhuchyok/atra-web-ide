@@ -6,7 +6,7 @@ Interest Zone Filter - фильтр зон скопления ликвиднос
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class InterestZone:
     """Зона интереса (скопление ликвидности)"""
+
     low: float
     high: float
     volume_cluster: float  # Объем в зоне
@@ -49,7 +50,7 @@ class InterestZoneFilter(BaseFilter):
         super().__init__(
             name="InterestZoneFilter",
             enabled=enabled,
-            priority=4  # Низкий приоритет (после других фильтров)
+            priority=4,  # Низкий приоритет (после других фильтров)
         )
         self.lookback_periods = lookback_periods
         self.min_volume_cluster = min_volume_cluster
@@ -103,7 +104,9 @@ class InterestZoneFilter(BaseFilter):
             for level, volume_sum in volume_by_level.items():
                 volume_ratio = volume_sum / avg_volume if avg_volume > 0 else 0
                 if volume_ratio >= self.min_volume_cluster:
-                    strength = min(volume_ratio / 3.0, 1.0)  # Нормализуем силу (макс 3x среднего = 1.0)
+                    strength = min(
+                        volume_ratio / 3.0, 1.0
+                    )  # Нормализуем силу (макс 3x среднего = 1.0)
                     clusters.append((level, volume_sum, strength))
 
             # Сортируем по объему (убывание)
@@ -149,13 +152,15 @@ class InterestZoneFilter(BaseFilter):
                 else:
                     zone_type = "neutral"
 
-                zones.append(InterestZone(
-                    low=zone_low,
-                    high=zone_high,
-                    volume_cluster=volume_sum,
-                    zone_type=zone_type,
-                    strength=strength
-                ))
+                zones.append(
+                    InterestZone(
+                        low=zone_low,
+                        high=zone_high,
+                        volume_cluster=volume_sum,
+                        zone_type=zone_type,
+                        strength=strength,
+                    )
+                )
 
             return zones
 
@@ -193,7 +198,7 @@ class InterestZoneFilter(BaseFilter):
         if not self.enabled:
             return FilterResult(passed=True, reason="FILTER_DISABLED")
 
-        self.filter_stats['total_checked'] += 1
+        self.filter_stats["total_checked"] += 1
 
         try:
             direction = signal_data.get("direction", "").upper()
@@ -214,7 +219,7 @@ class InterestZoneFilter(BaseFilter):
 
             if not zones:
                 # Нет зон - разрешаем сигнал (не блокируем)
-                self.filter_stats['passed'] += 1
+                self.filter_stats["passed"] += 1
                 return FilterResult(passed=True, reason="NO_ZONES_DETECTED")
 
             # Проверяем, находится ли цена в зоне интереса
@@ -231,75 +236,75 @@ class InterestZoneFilter(BaseFilter):
 
             if not in_zone:
                 # Цена не в зоне - разрешаем (не блокируем, но снижаем приоритет)
-                self.filter_stats['passed'] += 1
+                self.filter_stats["passed"] += 1
                 return FilterResult(
                     passed=True,
                     reason="PRICE_OUTSIDE_ZONES",
                     details={
                         "zones_count": len(zones),
-                        "nearest_zone": zones[0].zone_type if zones else None
-                    }
+                        "nearest_zone": zones[0].zone_type if zones else None,
+                    },
                 )
 
             # Цена в зоне - проверяем соответствие направлению
             if direction == "LONG":
                 # LONG: разрешаем в зонах поддержки
                 if zone_type == "support":
-                    self.filter_stats['passed'] += 1
+                    self.filter_stats["passed"] += 1
                     return FilterResult(
                         passed=True,
                         reason="IN_SUPPORT_ZONE",
                         details={
                             "zone_type": zone_type,
                             "zone_strength": zone_strength,
-                            "zone_range": (zones[0].low, zones[0].high)
-                        }
+                            "zone_range": (zones[0].low, zones[0].high),
+                        },
                     )
                 else:
                     # LONG в зоне сопротивления - блокируем
-                    self.filter_stats['blocked'] += 1
+                    self.filter_stats["blocked"] += 1
                     return FilterResult(
                         passed=False,
                         reason="IN_RESISTANCE_ZONE",
                         details={
                             "zone_type": zone_type,
                             "zone_strength": zone_strength,
-                            "message": "LONG сигнал в зоне сопротивления"
-                        }
+                            "message": "LONG сигнал в зоне сопротивления",
+                        },
                     )
 
             elif direction == "SHORT":
                 # SHORT: разрешаем в зонах сопротивления
                 if zone_type == "resistance":
-                    self.filter_stats['passed'] += 1
+                    self.filter_stats["passed"] += 1
                     return FilterResult(
                         passed=True,
                         reason="IN_RESISTANCE_ZONE",
                         details={
                             "zone_type": zone_type,
                             "zone_strength": zone_strength,
-                            "zone_range": (zones[0].low, zones[0].high)
-                        }
+                            "zone_range": (zones[0].low, zones[0].high),
+                        },
                     )
                 else:
                     # SHORT в зоне поддержки - блокируем
-                    self.filter_stats['blocked'] += 1
+                    self.filter_stats["blocked"] += 1
                     return FilterResult(
                         passed=False,
                         reason="IN_SUPPORT_ZONE",
                         details={
                             "zone_type": zone_type,
                             "zone_strength": zone_strength,
-                            "message": "SHORT сигнал в зоне поддержки"
-                        }
+                            "message": "SHORT сигнал в зоне поддержки",
+                        },
                     )
 
             # Неизвестное направление - разрешаем
-            self.filter_stats['passed'] += 1
+            self.filter_stats["passed"] += 1
             return FilterResult(passed=True, reason="UNKNOWN_DIRECTION")
 
         except Exception as e:
             logger.error("❌ Ошибка в InterestZoneFilter: %s", e)
-            self.filter_stats['errors'] += 1
+            self.filter_stats["errors"] += 1
             # При ошибке разрешаем сигнал (graceful degradation)
             return FilterResult(passed=True, reason="ERROR_FALLBACK", details={"error": str(e)})

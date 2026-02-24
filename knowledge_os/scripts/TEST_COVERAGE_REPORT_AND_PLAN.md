@@ -9,12 +9,14 @@
 ## 📈 CURRENT STATUS
 
 ### **Текущее покрытие:**
+
 ```
 БЫЛО:   1% (163,178 строк, 161,451 не покрыто)
 СТАЛО: 53% (587 строк config+lightgbm, 274 не покрыто)
 ```
 
 ### **Прогресс за сессию:**
+
 ```
 ✅ Создано unit tests:
    - config.py: 24 теста ✅ (100% pass)
@@ -153,19 +155,19 @@ from <module_name> import <ClassOrFunction>
 
 class Test<ClassName>:
     """Тесты для <ClassName>"""
-    
+
     def test_initialization(self):
         """Проверка инициализации"""
         obj = <ClassName>()
         assert obj is not None
         assert hasattr(obj, 'attribute')
-    
+
     def test_method_basic(self):
         """Проверка базового функционала"""
         obj = <ClassName>()
         result = obj.method(input)
         assert result == expected
-    
+
     def test_method_edge_cases(self):
         """Проверка граничных случаев"""
         obj = <ClassName>()
@@ -176,7 +178,7 @@ class Test<ClassName>:
         # Test invalid
         with pytest.raises(ValueError):
             obj.method(invalid_input)
-    
+
     @patch('<module_name>.external_dependency')
     def test_method_with_mock(self, mock_dependency):
         """Проверка с мокированием зависимостей"""
@@ -221,15 +223,18 @@ Priority 3 (Nice to Have):
 ### **Реалистичный план:**
 
 **Неделя 1 (Priority 1):**
+
 - День 1-2: signal_live.py (50+ тестов)
 - День 3: risk_manager.py (20+ тестов)
 - День 4: exchange_adapter.py (30+ тестов)
 - День 5: telegram_bot_core.py (25+ тестов)
 
 **Неделя 2 (Priority 2):**
+
 - По 1-2 модуля в день
 
 **Неделя 3 (Priority 3 + Refinement):**
+
 - Утилиты + исправление failing tests
 
 **Результат через 3 недели: 80%+ покрытие** ✅
@@ -239,6 +244,7 @@ Priority 3 (Nice to Have):
 ## 🚀 QUICK WINS (Для немедленного прогресса)
 
 ### **1. Исправить 3 failing теста (30 мин)**
+
 ```bash
 tests/unit/test_exchange_adapter_bitget.py:
 - test_bitget_stoploss_creates_plan_order
@@ -250,6 +256,7 @@ tests/unit/test_exchange_adapter_bitget.py:
 ```
 
 ### **2. Добавить тесты для validation.py (1 час)**
+
 ```python
 # tests/unit/test_validation.py уже существует!
 # 20 тестов, 100% pass
@@ -257,6 +264,7 @@ tests/unit/test_exchange_adapter_bitget.py:
 ```
 
 ### **3. Добавить тесты для hybrid_mtf.py (1 час)**
+
 ```python
 # tests/unit/test_hybrid_mtf.py уже существует!
 # 13 тестов, 100% pass
@@ -264,6 +272,7 @@ tests/unit/test_exchange_adapter_bitget.py:
 ```
 
 ### **4. Добавить тесты для core.py (1 час)**
+
 ```python
 # tests/unit/test_core.py уже существует!
 # 10 тестов, 100% pass
@@ -277,6 +286,7 @@ tests/unit/test_exchange_adapter_bitget.py:
 ## 📝 BEST PRACTICES ДЛЯ UNIT TESTS
 
 ### **1. Naming Convention:**
+
 ```
 test_<module_name>.py
   TestClassName
@@ -286,20 +296,22 @@ test_<module_name>.py
 ```
 
 ### **2. Test Structure (AAA):**
+
 ```python
 def test_something():
     # Arrange
     obj = MyClass()
     input_data = prepare_data()
-    
+
     # Act
     result = obj.method(input_data)
-    
+
     # Assert
     assert result == expected
 ```
 
 ### **3. Coverage Goals:**
+
 ```
 - Critical modules: 90%+
 - Important modules: 80%+
@@ -308,6 +320,7 @@ def test_something():
 ```
 
 ### **4. Mock External Dependencies:**
+
 ```python
 @patch('module.requests.get')
 @patch('module.Database.connect')
@@ -319,6 +332,7 @@ def test_with_mocks(mock_db, mock_requests):
 ```
 
 ### **5. Parametrize Tests:**
+
 ```python
 @pytest.mark.parametrize("input,expected", [
     (0, 0),
@@ -335,6 +349,7 @@ def test_square(input, expected):
 ## 🎯 ИТОГИ ТЕКУЩЕЙ СЕССИИ
 
 ### **✅ Выполнено:**
+
 ```
 1. ✅ Установлено pytest-cov
 2. ✅ Создано 24 теста для config.py (100% pass)
@@ -347,6 +362,7 @@ def test_square(input, expected):
 ```
 
 ### **📊 Метрики:**
+
 ```
 Время работы: 10 минут
 Тесты созданы: 41
@@ -362,52 +378,60 @@ Coverage улучшено: +52% (1% → 53%)
 ### **Для достижения 80% покрытия:**
 
 **1. Следовать приоритетам:**
-   - Priority 1 (Must Have) → 80%+ для критичных модулей
-   - Priority 2 (Important) → 70%+ для поддерживающих модулей
-   - Priority 3 (Nice to Have) → 60%+ для утилит
+
+- Priority 1 (Must Have) → 80%+ для критичных модулей
+- Priority 2 (Important) → 70%+ для поддерживающих модулей
+- Priority 3 (Nice to Have) → 60%+ для утилит
 
 **2. Использовать команду:**
-   - Анна (QA): координация, review тестов
-   - Дмитрий (ML): тесты для ML модулей
-   - Игорь (Backend): тесты для core logic
+
+- Анна (QA): координация, review тестов
+- Дмитрий (ML): тесты для ML модулей
+- Игорь (Backend): тесты для core logic
 
 **3. Автоматизация:**
-   ```bash
-   # Pre-commit hook для проверки coverage
-   pytest --cov=. --cov-fail-under=80
-   ```
+
+```bash
+# Pre-commit hook для проверки coverage
+pytest --cov=. --cov-fail-under=80
+```
 
 **4. CI/CD Integration:**
-   ```yaml
-   # .github/workflows/tests.yml
-   - name: Run tests with coverage
-     run: |
-       pytest --cov=. --cov-report=xml
-       coverage report --fail-under=80
-   ```
+
+```yaml
+# .github/workflows/tests.yml
+- name: Run tests with coverage
+  run: |
+    pytest --cov=. --cov-report=xml
+    coverage report --fail-under=80
+```
 
 **5. Регулярный мониторинг:**
-   ```bash
-   # Еженедельный coverage report
-   pytest --cov=. --cov-report=html
-   open htmlcov/index.html
-   ```
+
+```bash
+# Еженедельный coverage report
+pytest --cov=. --cov-report=html
+open htmlcov/index.html
+```
 
 ---
 
 ## 📚 ПОЛЕЗНЫЕ РЕСУРСЫ
 
 **Документация:**
+
 - pytest: https://docs.pytest.org/
 - pytest-cov: https://pytest-cov.readthedocs.io/
 - unittest.mock: https://docs.python.org/3/library/unittest.mock.html
 
 **Best Practices:**
+
 - "Python Testing with pytest" (Brian Okken)
 - "The Art of Unit Testing" (Roy Osherove)
 - Google Testing Blog: https://testing.googleblog.com/
 
 **Tools:**
+
 - Coverage.py: https://coverage.readthedocs.io/
 - pytest-asyncio: для async tests
 - pytest-mock: simplified mocking
@@ -418,21 +442,25 @@ Coverage улучшено: +52% (1% → 53%)
 ## 🎉 NEXT STEPS
 
 ### **Immediate (Today):**
+
 1. ✅ Commit созданные тесты
 2. ⬜ Исправить 3 failing теста в test_exchange_adapter_bitget.py
 3. ⬜ Запустить полный coverage report
 
 ### **Short-term (This Week):**
+
 1. ⬜ Создать тесты для signal_live.py (50+ тестов)
 2. ⬜ Создать тесты для risk_manager.py (20+ тестов)
 3. ⬜ Создать тесты для exchange_adapter.py (30+ тестов)
 
 ### **Medium-term (2-3 Weeks):**
+
 1. ⬜ Покрыть все Priority 1 модули (80%+)
 2. ⬜ Покрыть Priority 2 модули (70%+)
 3. ⬜ Достичь общего coverage > 80%
 
 ### **Long-term (1-2 Months):**
+
 1. ⬜ Интеграция в CI/CD
 2. ⬜ Pre-commit hooks для coverage
 3. ⬜ Мониторинг coverage в production
@@ -440,18 +468,19 @@ Coverage улучшено: +52% (1% → 53%)
 ---
 
 **Виктор (Team Lead):**
+
 > 🎉 **ОТЛИЧНАЯ РАБОТА, КОМАНДА!**
-> 
+>
 > За 10 минут:
+>
 > - Покрытие с 1% → 53% для критичных модулей ✅
 > - 41 новый тест, 100% pass ✅
 > - Comprehensive roadmap для 80% ✅
-> 
+>
 > **Следующие шаги:** Исправить 3 failing теста, затем продолжить по roadmap!
-> 
+>
 > **Через 3 недели у нас будет 80%+ покрытие!** 🚀
 
 ---
 
 **#TestCoverage #UnitTests #QualityAssurance** ✅🧪📊
-

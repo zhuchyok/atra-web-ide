@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Liquidity crisis stress-test runner.
 
@@ -49,7 +48,9 @@ class LiquidityCrisisResult:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Запуск стресс-теста liquidity crisis.")
-    parser.add_argument("--symbol", default="BTCUSDT", help="Тестируемый символ (по умолчанию BTCUSDT)")
+    parser.add_argument(
+        "--symbol", default="BTCUSDT", help="Тестируемый символ (по умолчанию BTCUSDT)"
+    )
     parser.add_argument(
         "--volume-drop-pct",
         type=float,
@@ -156,6 +157,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-

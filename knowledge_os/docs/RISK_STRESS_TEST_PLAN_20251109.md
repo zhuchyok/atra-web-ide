@@ -85,4 +85,3 @@ from datetime import datetime, timedelta
 - Проверка и утверждение: **@system_architect**, **@risk_manager**.
 
 ---
-

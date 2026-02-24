@@ -32,6 +32,7 @@ def check_volume_profile_filter(df, i, side):
 ```
 
 **Проблемы:**
+
 1. ❌ Невозможно использовать функцию в разных контекстах
 2. ❌ Сложно тестировать (скрытое состояние)
 3. ❌ Конфликты при параллельном использовании
@@ -47,14 +48,15 @@ def check_volume_profile_filter(
 ):
     if filter_state is None:
         filter_state = FilterState()
-    
+
     if symbol not in filter_state.cache:
         filter_state.cache[symbol] = calculate_profile(df)
-    
+
     return result, filter_state
 ```
 
 **Преимущества:**
+
 1. ✅ Переиспользуемость в любом контексте
 2. ✅ Легко тестировать (явное состояние)
 3. ✅ Безопасно для параллельного использования
@@ -69,6 +71,7 @@ def check_volume_profile_filter(
 **Правило:** Функции не должны использовать модульные переменные для накопления состояния.
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # Модульная переменная для кэша
 _price_cache = {}
@@ -76,13 +79,14 @@ _price_cache = {}
 def get_price(symbol: str) -> float:
     if symbol in _price_cache:
         return _price_cache[symbol]
-    
+
     price = fetch_price_from_api(symbol)
     _price_cache[symbol] = price
     return price
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 def get_price(
     symbol: str,
@@ -90,11 +94,11 @@ def get_price(
 ) -> Tuple[float, CacheManager]:
     if cache_manager is None:
         cache_manager = CacheManager()
-    
+
     cached = cache_manager.get(f"price:{symbol}")
     if cached:
         return cached, cache_manager
-    
+
     price = fetch_price_from_api(symbol)
     cache_manager.set(f"price:{symbol}", price, ttl=60)
     return price, cache_manager
@@ -105,6 +109,7 @@ def get_price(
 **Правило:** Использовать классы-менеджеры кэша вместо модульных словарей.
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # Модульные кэши
 _symbol_info_cache = {}
@@ -117,18 +122,19 @@ def get_symbol_info(symbol: str):
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 class CacheManager:
     """Явный менеджер кэша"""
     def __init__(self):
         self._cache: Dict[str, CacheEntry] = {}
-    
+
     def get(self, key: str) -> Optional[Any]:
         entry = self._cache.get(key)
         if entry and not entry.is_expired():
             return entry.value
         return None
-    
+
     def set(self, key: str, value: Any, ttl: Optional[int] = None):
         self._cache[key] = CacheEntry(value, ttl=ttl)
 
@@ -150,6 +156,7 @@ def get_symbol_info(
 **Правило:** Предыдущие значения индикаторов передаются через параметры, а не хранятся в модульных переменных.
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # Модульные переменные для предыдущих значений
 _prev_rsi = None
@@ -158,17 +165,18 @@ _prev_ema = None
 
 def calculate_indicators(df: pd.DataFrame, i: int):
     global _prev_rsi, _prev_macd, _prev_ema
-    
+
     rsi = calculate_rsi(df, i, _prev_rsi)
     _prev_rsi = rsi
-    
+
     macd = calculate_macd(df, i, _prev_macd)
     _prev_macd = macd
-    
+
     return {'rsi': rsi, 'macd': macd}
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 @dataclass
 class IndicatorState:
@@ -185,17 +193,17 @@ def calculate_indicators(
     """Возвращает (результат, новое_состояние)"""
     if state is None:
         state = IndicatorState()
-    
+
     rsi = calculate_rsi(df, i, state.prev_rsi)
     macd = calculate_macd(df, i, state.prev_macd)
-    
+
     result = {'rsi': rsi, 'macd': macd}
     new_state = IndicatorState(
         prev_rsi=rsi,
         prev_macd=macd,
         prev_ema=state.prev_ema
     )
-    
+
     return result, new_state
 ```
 
@@ -204,6 +212,7 @@ def calculate_indicators(
 **Правило:** Фильтры используют контейнеры состояния вместо модульных переменных.
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # Модульные переменные для фильтров
 _vp_cache = {}
@@ -214,20 +223,21 @@ _vp_stats = {
 
 def check_volume_profile_filter(df, i, side):
     _vp_stats['total_checked'] += 1
-    
+
     if symbol not in _vp_cache:
         _vp_cache[symbol] = calculate_profile(df)
     # ...
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 @dataclass
 class FilterState:
     """Контейнер состояния для фильтров"""
     cache: Dict[str, Any] = None
     stats: Dict[str, int] = None
-    
+
     def __post_init__(self):
         if self.cache is None:
             self.cache = {}
@@ -246,14 +256,14 @@ def check_volume_profile_filter(
     """Возвращает (passed, reason, новое_состояние)"""
     if filter_state is None:
         filter_state = FilterState()
-    
+
     filter_state.stats['total_checked'] += 1
-    
+
     if symbol not in filter_state.cache:
         filter_state.cache[symbol] = calculate_profile(df)
-    
+
     # ... логика фильтра
-    
+
     return passed, reason, filter_state
 ```
 
@@ -264,6 +274,7 @@ def check_volume_profile_filter(
 ### Пример 1: Кэширование данных
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # src/utils/cache_manager.py
 _price_cache = {}
@@ -272,22 +283,23 @@ _symbol_info_cache = {}
 def get_symbol_info(symbol: str):
     if symbol in _symbol_info_cache:
         return _symbol_info_cache[symbol]
-    
+
     info = fetch_symbol_info(symbol)
     _symbol_info_cache[symbol] = info
     return info
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 # src/infrastructure/cache/stateless_cache.py
 class StatelessCacheManager:
     def __init__(self):
         self._cache: Dict[str, CacheEntry] = {}
-    
+
     def get(self, key: str) -> Optional[Any]:
         # ...
-    
+
     def set(self, key: str, value: Any, ttl: Optional[int] = None):
         # ...
 
@@ -299,7 +311,7 @@ def get_symbol_info(
     cached = cache_manager.get(f"symbol_info:{symbol}")
     if cached:
         return cached
-    
+
     info = fetch_symbol_info(symbol)
     cache_manager.set(f"symbol_info:{symbol}", info, ttl=3600)
     return info
@@ -308,6 +320,7 @@ def get_symbol_info(
 ### Пример 2: Индикаторы с предыдущими значениями
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # src/signals/indicators.py
 _prev_rsi = None
@@ -316,17 +329,18 @@ _prev_ema_39 = None
 
 def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     global _prev_rsi, _prev_ema_12, _prev_ema_39
-    
+
     for i in range(len(df)):
         rsi = calculate_rsi(df, i, _prev_rsi)
         _prev_rsi = rsi
-        
+
         ema_12 = calculate_ema(df, i, 12, _prev_ema_12)
         _prev_ema_12 = ema_12
         # ...
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 # src/signals/state_container.py
 @dataclass
@@ -342,21 +356,22 @@ def add_technical_indicators(
 ) -> Tuple[pd.DataFrame, IndicatorState]:
     if state is None:
         state = IndicatorState()
-    
+
     for i in range(len(df)):
         rsi = calculate_rsi(df, i, state.prev_rsi)
         state.prev_rsi = rsi
-        
+
         ema_12 = calculate_ema(df, i, 12, state.prev_ema_12)
         state.prev_ema_12 = ema_12
         # ...
-    
+
     return df, state
 ```
 
 ### Пример 3: Фильтры с кэшем
 
 **❌ НЕПРАВИЛЬНО:**
+
 ```python
 # src/signals/filters_volume_vwap.py
 _vp_cache = {}
@@ -364,7 +379,7 @@ _vp_stats = {}
 
 def check_volume_profile_filter(df, i, side):
     _vp_stats['total_checked'] = _vp_stats.get('total_checked', 0) + 1
-    
+
     cache_key = f"{symbol}:{i}"
     if cache_key not in _vp_cache:
         _vp_cache[cache_key] = calculate_profile(df, i)
@@ -372,13 +387,14 @@ def check_volume_profile_filter(df, i, side):
 ```
 
 **✅ ПРАВИЛЬНО:**
+
 ```python
 # src/signals/filters_volume_vwap.py
 @dataclass
 class FilterState:
     cache: Dict[str, Any] = None
     stats: Dict[str, int] = None
-    
+
     def __post_init__(self):
         if self.cache is None:
             self.cache = {}
@@ -393,14 +409,14 @@ def check_volume_profile_filter(
 ) -> Tuple[bool, Optional[str], FilterState]:
     if filter_state is None:
         filter_state = FilterState()
-    
+
     filter_state.stats['total_checked'] += 1
-    
+
     cache_key = f"{symbol}:{i}"
     if cache_key not in filter_state.cache:
         filter_state.cache[cache_key] = calculate_profile(df, i)
     # ...
-    
+
     return passed, reason, filter_state
 ```
 
@@ -411,6 +427,7 @@ def check_volume_profile_filter(
 ### Шаг 1: Выявить модульные переменные состояния
 
 **Команда для поиска:**
+
 ```bash
 # Найти все модульные переменные-словари
 grep -r "^_[a-z].*=.*{}" src/
@@ -421,6 +438,7 @@ grep -r "global " src/
 ```
 
 **Примеры найденных проблем:**
+
 - `_vp_cache = {}` в `filters_volume_vwap.py`
 - `_price_cache = {}` в `cache_manager.py`
 - `SENT_SIGNALS_CACHE = {}` в `config.py`
@@ -428,6 +446,7 @@ grep -r "global " src/
 ### Шаг 2: Создать класс-менеджер состояния
 
 **Для кэшей:**
+
 ```python
 # src/infrastructure/cache/stateless_cache.py
 class StatelessCacheManager:
@@ -437,6 +456,7 @@ class StatelessCacheManager:
 ```
 
 **Для фильтров:**
+
 ```python
 # src/signals/state_container.py
 @dataclass
@@ -449,6 +469,7 @@ class FilterState:
 ### Шаг 3: Рефакторить функции
 
 **Было:**
+
 ```python
 _vp_cache = {}
 
@@ -459,6 +480,7 @@ def check_volume_profile_filter(df, i, side):
 ```
 
 **Стало:**
+
 ```python
 def check_volume_profile_filter(
     df, i, side,
@@ -466,23 +488,25 @@ def check_volume_profile_filter(
 ):
     if filter_state is None:
         filter_state = FilterState()
-    
+
     if symbol not in filter_state.cache:
         filter_state.cache[symbol] = calculate_profile(df)
     # ...
-    
+
     return result, filter_state
 ```
 
 ### Шаг 4: Обновить все места использования
 
 **Было:**
+
 ```python
 # Вызов функции
 passed = check_volume_profile_filter(df, i, side)
 ```
 
 **Стало:**
+
 ```python
 # Создать экземпляр состояния
 filter_state = FilterState()
@@ -500,17 +524,17 @@ def test_check_volume_profile_filter_stateless():
     """Тест stateless функции"""
     df = create_test_dataframe()
     filter_state = FilterState()
-    
+
     # Первый вызов
     passed1, reason1, state1 = check_volume_profile_filter(
         df, 0, 'long', filter_state
     )
-    
+
     # Второй вызов с тем же состоянием
     passed2, reason2, state2 = check_volume_profile_filter(
         df, 1, 'long', state1
     )
-    
+
     # Проверяем, что состояние обновляется
     assert state2.stats['total_checked'] == 2
 ```
@@ -564,12 +588,12 @@ def check_filter(
 ) -> Tuple[bool, Optional[str], FilterState]:
     """
     Проверяет фильтр на данных.
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         filter_state: Состояние фильтра (создается автоматически, если None)
-    
+
     Returns:
         Tuple[passed, reason, новое_состояние]
     """
@@ -595,6 +619,7 @@ def process(
 ### Q: Когда допустимо использовать модульные переменные?
 
 **A:** Только для:
+
 - Конфигурационных констант (`CONFIG_VALUE = 100`)
 - Типов и классов (`SignalData = Dict[str, Any]`)
 - Singleton для приложения (через явный класс, не модульную переменную)
@@ -625,7 +650,7 @@ _ai_instances = {}
 # ✅ ПРАВИЛЬНО:
 class AISystemManager:
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -636,6 +661,7 @@ class AISystemManager:
 ### Q: Как мигрировать большой код?
 
 **A:** Поэтапно:
+
 1. Создать класс-менеджер состояния
 2. Рефакторить одну функцию за раз
 3. Обновить места использования
@@ -645,6 +671,7 @@ class AISystemManager:
 ### Q: Влияет ли это на производительность?
 
 **A:** Нет, наоборот:
+
 - Явное управление состоянием проще оптимизировать
 - Кэши работают эффективнее
 - Параллелизм безопаснее
@@ -677,4 +704,3 @@ class AISystemManager:
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 1.0
-

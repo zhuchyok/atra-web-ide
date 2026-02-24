@@ -4,7 +4,15 @@ description: Tree of Thoughts - поиск оптимального решени
 category: planning
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🌳", "homepage": "https://arxiv.org/abs/2305.10601"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🌳",
+        "homepage": "https://arxiv.org/abs/2305.10601",
+      },
+  }
 ---
 
 # Tree of Thoughts Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🌳", "homepage": "https://ar
 ## Когда использовать
 
 Используй этот навык для:
+
 - Сложных задач планирования
 - Задач с множеством возможных решений
 - Задач, где нужно найти оптимальный путь
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🌳", "homepage": "https://ar
 ## Методология
 
 Tree of Thoughts работает через:
+
 1. **Generate** - Генерация множества вариантов решения
 2. **Evaluate** - Оценка каждого варианта
 3. **Prune** - Отсечение слабых ветвей

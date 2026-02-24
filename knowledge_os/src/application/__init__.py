@@ -11,4 +11,3 @@ This layer depends on Domain Layer only.
 """
 
 __all__ = []
-

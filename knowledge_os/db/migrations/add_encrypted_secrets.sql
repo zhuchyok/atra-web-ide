@@ -22,4 +22,3 @@ CREATE INDEX IF NOT EXISTS idx_encrypted_secrets_expires_at ON encrypted_secrets
 COMMENT ON TABLE encrypted_secrets IS 'Зашифрованные секреты (API ключи, пароли, токены)';
 COMMENT ON COLUMN encrypted_secrets.encrypted_value IS 'Зашифрованное значение (base64)';
 COMMENT ON COLUMN encrypted_secrets.rotation_days IS 'Интервал ротации ключа в днях (по умолчанию 90)';
-

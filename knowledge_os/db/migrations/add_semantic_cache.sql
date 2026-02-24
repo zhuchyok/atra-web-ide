@@ -13,4 +13,3 @@ CREATE TABLE IF NOT EXISTS semantic_ai_cache (
 
 CREATE INDEX IF NOT EXISTS idx_semantic_cache_embedding ON semantic_ai_cache USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX IF NOT EXISTS idx_semantic_cache_expert ON semantic_ai_cache (expert_name);
-

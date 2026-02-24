@@ -1,4 +1,5 @@
 """ATRA Web IDE - Routers"""
-from app.routers import chat, files, experts, preview, domains, knowledge
+
+from app.routers import chat, domains, experts, files, knowledge, preview
 
 __all__ = ["chat", "files", "experts", "preview", "domains", "knowledge"]

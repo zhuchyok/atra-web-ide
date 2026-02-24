@@ -31,4 +31,3 @@ CREATE INDEX IF NOT EXISTS idx_user_feedback_processed ON user_feedback(processe
 COMMENT ON TABLE user_feedback IS 'Явный feedback от пользователей (👍/👎) для улучшения промптов';
 COMMENT ON COLUMN user_feedback.feedback_type IS 'Тип feedback: positive (👍) или negative (👎)';
 COMMENT ON COLUMN user_feedback.processed IS 'Обработан ли feedback для оптимизации промптов';
-

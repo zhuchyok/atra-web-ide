@@ -42,13 +42,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    
+
     metrics = get_agent_metrics()
-    
+
     # Экспортируем метрики
     output_path = metrics.export_to_file(args.output)
     logger.info("✅ Метрики экспортированы в %s", output_path)
-    
+
     if args.summary:
         summary = metrics.get_metrics_summary()
         logger.info("📊 Сводка метрик:")
@@ -58,4 +58,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

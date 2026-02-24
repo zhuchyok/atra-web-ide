@@ -67,4 +67,3 @@ Authorization: Bearer <your_jwt_token>
 **Responses:**
 
 - `200`: Authentication successful
-

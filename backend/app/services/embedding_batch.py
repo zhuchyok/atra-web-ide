@@ -2,6 +2,7 @@
 Батчинг запросов эмбеддингов к Ollama (Фаза 3, день 3–4).
 Группирует запросы и выполняет параллельные вызовы.
 """
+
 import asyncio
 import logging
 from typing import Dict, List, Optional
@@ -84,9 +85,7 @@ class EmbeddingBatchProcessor:
         finally:
             self.processing = False
 
-    async def _call_ollama_batch(
-        self, texts: List[str]
-    ) -> List[Optional[List[float]]]:
+    async def _call_ollama_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
         """Параллельные запросы к Ollama (Ollama не поддерживает один батч)."""
         tasks = [self._call_ollama_single(t) for t in texts]
         results = await asyncio.gather(*tasks, return_exceptions=True)

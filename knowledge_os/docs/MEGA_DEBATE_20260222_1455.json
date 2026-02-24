@@ -1,0 +1,172 @@
+{
+  "topic": "Стратегия развития Эры Мудрости: полная автономия Виктории и дистилляция знаний гигантов",
+  "total_experts": 20,
+  "by_department": {
+    "Agent Architecture / Workflow Management": [
+      {
+        "name": "Артур",
+        "role": "Principal Agent Architecture & Workflow Systems Architect",
+        "department": "Agent Architecture / Workflow Management",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "AI Coordination": [
+      {
+        "name": "Alex",
+        "role": "Principal AI Coordination Architect",
+        "department": "AI Coordination",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "AI Systems": [
+      {
+        "name": "Александр Нейман",
+        "role": "Principal AI Systems Architect & Technical Fellow",
+        "department": "AI Systems",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Architecture": [
+      {
+        "name": "Александр",
+        "role": "System Architect",
+        "department": "Architecture",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Константин",
+        "role": "Technical Lead",
+        "department": "Architecture",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Backend": [
+      {
+        "name": "Даниил",
+        "role": "Principal Backend Architect",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Денис",
+        "role": "Backend Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Игорь",
+        "role": "Backend Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Илья",
+        "role": "Full-stack Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Кирилл",
+        "role": "Backend Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Марк",
+        "role": "Backend Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Никита",
+        "role": "Full-stack Developer",
+        "department": "Backend",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Coding": [
+      {
+        "name": "Алекс Ковальски",
+        "role": "Principal Software Architect & Engineering Lead",
+        "department": "Coding",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Competitive Intelligence": [
+      {
+        "name": "Натан",
+        "role": "Director of Competitive Intelligence",
+        "department": "Competitive Intelligence",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Consulting": [
+      {
+        "name": "Евгения",
+        "role": "PR-директор / Бренд-менеджер",
+        "department": "Consulting",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Database": [
+      {
+        "name": "Владимир",
+        "role": "Data Engineer",
+        "department": "Database",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Роман",
+        "role": "Database Engineer",
+        "department": "Database",
+        "pro": "",
+        "against": ""
+      },
+      {
+        "name": "Станислав",
+        "role": "Database Engineer",
+        "department": "Database",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "Development": [
+      {
+        "name": "Вероника",
+        "role": "Local Developer (Agent)",
+        "department": "Development",
+        "pro": "",
+        "against": ""
+      }
+    ],
+    "DevOps/Infra": [
+      {
+        "name": "Борис",
+        "role": "Infrastructure Engineer",
+        "department": "DevOps/Infra",
+        "pro": "",
+        "against": ""
+      }
+    ]
+  },
+  "all_pros": [],
+  "all_against": [],
+  "timestamp": "2026-02-22T11:55:14.397939+00:00",
+  "synthesis": ""
+}

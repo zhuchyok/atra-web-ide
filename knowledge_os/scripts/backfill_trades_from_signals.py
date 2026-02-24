@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Создаёт записи в таблице trades на основе сигналов,
 импортированных из паттернов (user_id='backfill_patterns').
@@ -56,7 +55,20 @@ def main() -> None:
         ).fetchall()
 
         for row in rows:
-            signal_id, symbol, entry, stop, entry_time, exit_time, net_profit, entry_amount_usd, trade_mode, result, leverage, risk_pct = row
+            (
+                signal_id,
+                symbol,
+                entry,
+                stop,
+                entry_time,
+                exit_time,
+                net_profit,
+                entry_amount_usd,
+                trade_mode,
+                result,
+                leverage,
+                risk_pct,
+            ) = row
 
             if not symbol or entry is None or entry_amount_usd is None:
                 skipped += 1
@@ -145,4 +157,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

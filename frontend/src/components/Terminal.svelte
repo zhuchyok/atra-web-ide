@@ -29,7 +29,9 @@
     clearConnectionTimeout()
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}/api/terminal/pty`
+      // Используем порт 8081 для Rust Gateway и новый эндпоинт /api/terminal/ws
+      const wsUrl = `${protocol}//${window.location.hostname}:8081/api/terminal/ws`
+      console.log('Connecting to Rust Terminal:', wsUrl)
       ws = new WebSocket(wsUrl)
 
       connectionTimeoutId = setTimeout(() => {
@@ -37,7 +39,7 @@
           ws.close()
           connectionTimeoutId = null
           term.writeln('\r\n\x1b[31m❌ Подключение к PTY превысило время ожидания\x1b[0m')
-          term.writeln('\x1b[90mПроверьте, что бэкенд запущен (порт 8080). Повторить: введите help и Enter.\x1b[0m\r\n')
+          term.writeln('\x1b[90mПроверьте, что Rust Gateway запущен (порт 8081). Повторить: введите help и Enter.\x1b[0m\r\n')
           term.write('$ ')
         }
       }, PTY_CONNECT_TIMEOUT_MS)
@@ -76,11 +78,11 @@
       isConnected = false
     }
   }
-  
+
   async function askVictoria(t, goal) {
     t.writeln('\r\n\x1b[33m🤖 Victoria...\x1b[0m')
     try {
-      const r = await fetch('/api/terminal/ask', {
+      const r = await fetch(`http://${window.location.hostname}:8081/api/terminal/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: goal }),
@@ -151,17 +153,19 @@
     term.writeln('')
     writeln(term, 'ATRA Web IDE — Terminal (xterm.js)')
     writeln(term, 'Подключение к PTY...')
-    
+
     // Подключаемся к PTY
     connectPTY()
-    
+
     // Отправляем resize при изменении размера
     const ro = new ResizeObserver(() => {
       fitAddon?.fit()
       if (ws && ws.readyState === WebSocket.OPEN) {
         const cols = term.cols
         const rows = term.rows
-        ws.send(JSON.stringify({ type: 'resize', cols, rows }))
+        // Наш Rust Gateway пока не обрабатывает JSON resize,
+        // но мы оставляем структуру для будущего расширения
+        // ws.send(JSON.stringify({ type: 'resize', cols, rows }))
       }
     })
     ro.observe(container)
@@ -191,7 +195,7 @@
         }
       }
     })
-    
+
     return () => {
       if (ws) {
         ws.close()

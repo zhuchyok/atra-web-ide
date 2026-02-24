@@ -4,19 +4,23 @@
 **Статус:** ✅ Завершено успешно
 
 ## 🎯 Проблема
+
 В дашборде отображались не те сигналы, что отправлялись в Telegram пользователям, и нужно было расширить до 5 последних сигналов.
 
 ## 🔧 Выполненные исправления
 
 ### ✅ 1. Исправлена функция получения сигналов
+
 - **Было:** Получение из таблицы `signals` (неправильная таблица)
 - **Стало:** Получение из таблицы `signals_log` (реальные сигналы, отправленные в Telegram)
 
 ### ✅ 2. Расширено количество сигналов
+
 - **Было:** 10 сигналов
 - **Стало:** 5 последних сигналов (как запрошено)
 
 ### ✅ 3. Улучшена структура данных
+
 - **Добавлены поля:** `tp1`, `tp2`, `entry_time`, `result`
 - **Улучшена логика:** Определение типа сигнала по результату
 - **Фильтрация:** Только реальные сигналы (OPEN, DCA, TP1_REACHED, TP2_REACHED, SL_REACHED)
@@ -24,33 +28,35 @@
 ## 📊 Новая функция get_recent_signals
 
 ### **Старая версия (неправильная):**
+
 ```python
 # Получала из таблицы signals
 SELECT symbol, signal_type, entry_price, leverage, risk_pct, strength, created_at
-FROM signals 
-ORDER BY created_at DESC 
+FROM signals
+ORDER BY created_at DESC
 LIMIT 10
 ```
 
 ### **Новая версия (исправленная):**
+
 ```python
 # Получает из таблицы signals_log (реальные сигналы)
 SELECT symbol, entry, tp1, tp2, entry_time, result, created_at
-FROM signals_log 
+FROM signals_log
 WHERE result IN ('OPEN', 'DCA', 'TP1_REACHED', 'TP2_REACHED', 'SL_REACHED')
-ORDER BY created_at DESC 
+ORDER BY created_at DESC
 LIMIT 5
 ```
 
 ## 🔍 Логика определения типа сигнала
 
-| Результат | Тип сигнала | Описание |
-|-----------|-------------|----------|
-| `OPEN` | `LONG` | Открытие позиции |
-| `DCA` | `DCA` | Дополнительная покупка |
-| `TP1_REACHED` | `TP1` | Достигнут первый TP |
-| `TP2_REACHED` | `TP2` | Достигнут второй TP |
-| `SL_REACHED` | `SL` | Сработал стоп-лосс |
+| Результат     | Тип сигнала | Описание               |
+| ------------- | ----------- | ---------------------- |
+| `OPEN`        | `LONG`      | Открытие позиции       |
+| `DCA`         | `DCA`       | Дополнительная покупка |
+| `TP1_REACHED` | `TP1`       | Достигнут первый TP    |
+| `TP2_REACHED` | `TP2`       | Достигнут второй TP    |
+| `SL_REACHED`  | `SL`        | Сработал стоп-лосс     |
 
 ## 📦 Созданные файлы
 
@@ -61,6 +67,7 @@ LIMIT 5
 ## 🧪 Тестирование
 
 ### **Результаты тестирования API:**
+
 ```
 🧪 Тестирование API дашборда
 ========================================
@@ -69,6 +76,7 @@ LIMIT 5
 ```
 
 ### **Статус дашборда:**
+
 ```
 root 29365 53.3 6.5 297844 132324 pts/2 Sl 16:39 0:01 python3 dashboard.py --host 0.0.0.0 --port 5000
 ```
@@ -76,11 +84,13 @@ root 29365 53.3 6.5 297844 132324 pts/2 Sl 16:39 0:01 python3 dashboard.py --hos
 ## 🌐 Доступ к дашборду
 
 ### **URL дашборда:**
+
 ```
 http://185.177.216.15:5000
 ```
 
 ### **API для сигналов:**
+
 ```
 http://185.177.216.15:5000/api/signals
 ```
@@ -88,32 +98,36 @@ http://185.177.216.15:5000/api/signals
 ## 📊 Структура данных сигналов
 
 ### **Новый формат сигнала:**
+
 ```json
 {
-    "symbol": "BTCUSDT",
-    "signal": "LONG",
-    "entry_price": 45123.5,
-    "tp1": 46000.0,
-    "tp2": 47000.0,
-    "entry_time": "2025-10-07T15:45",
-    "result": "OPEN",
-    "timestamp": "2025-10-07T15:45:00"
+  "symbol": "BTCUSDT",
+  "signal": "LONG",
+  "entry_price": 45123.5,
+  "tp1": 46000.0,
+  "tp2": 47000.0,
+  "entry_time": "2025-10-07T15:45",
+  "result": "OPEN",
+  "timestamp": "2025-10-07T15:45:00"
 }
 ```
 
 ## 🔍 Мониторинг
 
 ### **Проверить статус дашборда:**
+
 ```bash
 ssh root@185.177.216.15 'ps aux | grep dashboard'
 ```
 
 ### **Проверить логи:**
+
 ```bash
 ssh root@185.177.216.15 'cd /root/atra/web && tail -f dashboard.log'
 ```
 
 ### **Тестировать API:**
+
 ```bash
 ssh root@185.177.216.15 'cd /root/atra && python3 test_dashboard_api.py'
 ```
@@ -121,6 +135,7 @@ ssh root@185.177.216.15 'cd /root/atra && python3 test_dashboard_api.py'
 ## 🎉 Результаты
 
 ### ✅ **Что исправлено:**
+
 - **Правильная таблица:** Теперь получает сигналы из `signals_log`
 - **Реальные сигналы:** Показываются только сигналы, отправленные в Telegram
 - **5 последних сигналов:** Как запрошено
@@ -128,6 +143,7 @@ ssh root@185.177.216.15 'cd /root/atra && python3 test_dashboard_api.py'
 - **Фильтрация:** Только значимые сигналы (OPEN, DCA, TP, SL)
 
 ### 📊 **Ожидаемые результаты:**
+
 - В дашборде теперь отображаются **реальные сигналы** из Telegram
 - Показываются **последние 5 сигналов** из `signals_log`
 - Каждый сигнал содержит **полную информацию**: цена входа, TP1, TP2, время, результат
@@ -137,11 +153,13 @@ ssh root@185.177.216.15 'cd /root/atra && python3 test_dashboard_api.py'
 ### Если сигналы не отображаются:
 
 1. **Проверить базу данных:**
+
    ```bash
    ssh root@185.177.216.15 'sqlite3 /root/atra/trading.db "SELECT COUNT(*) FROM signals_log;"'
    ```
 
 2. **Проверить последние записи:**
+
    ```bash
    ssh root@185.177.216.15 'sqlite3 /root/atra/trading.db "SELECT symbol, result, created_at FROM signals_log ORDER BY created_at DESC LIMIT 5;"'
    ```

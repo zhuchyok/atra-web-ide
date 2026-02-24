@@ -64,15 +64,15 @@ create_tunnel() {
     local name=$1
     local server_port=$2
     local local_port=$3
-    
+
     echo "   📡 $name: порт $server_port → localhost:$local_port"
-    
+
     # Убиваем старый туннель если есть
     $SSH_CMD -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
         $SERVER_USER@$SERVER_IP "pkill -f 'ssh.*-R.*$server_port:localhost:$local_port' || true" 2>/dev/null || true
-    
+
     sleep 1
-    
+
     # Создаем новый туннель с GatewayPorts (чтобы слушал на всех интерфейсах)
     if [ "$SSH_CMD" = "ssh" ]; then
         ssh -f -N -o StrictHostKeyChecking=no \
@@ -87,7 +87,7 @@ create_tunnel() {
             -R *:$server_port:localhost:$local_port \
             $SERVER_USER@$SERVER_IP" 2>/dev/null
     fi
-    
+
     if [ $? -eq 0 ]; then
         echo "      ✅ Туннель создан"
     else

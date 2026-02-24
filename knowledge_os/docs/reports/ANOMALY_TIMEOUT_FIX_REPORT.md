@@ -8,6 +8,7 @@
 ## 🔴 **ПРОБЛЕМА**
 
 ### **Что происходило:**
+
 ```
 ⚠️ Ошибка проверки аномалий для XRPUSDT: . Сигнал разрешен (fallback)
                                            ↑
@@ -15,6 +16,7 @@
 ```
 
 ### **В логах:**
+
 - Система выбрасывала `asyncio.TimeoutError` с пустым сообщением
 - Проверка аномалий не успевала завершиться за 3 секунды
 - Fallback механизм срабатывал, но информация терялась
@@ -24,6 +26,7 @@
 ## 🔍 **ГЛУБОКИЙ АНАЛИЗ ПРИЧИНЫ**
 
 ### **1. ОБЩИЙ ТАЙМАУТ - 3 СЕКУНДЫ**
+
 ```python
 # signal_live.py, строка 1587-1590
 circles_count, _, _, anomaly_data_ok = await asyncio.wait_for(
@@ -77,6 +80,7 @@ circles_count, _, _, anomaly_data_ok = await asyncio.wait_for(
 ```
 
 **Почему 8 секунд?**
+
 - SourcesHub: 2-3 секунды (market_cap + volume)
 - Fallback CoinGecko: до 5 секунд
 - Fallback CoinLore: до 3 секунд (если CoinGecko failed)
@@ -91,6 +95,7 @@ circles_count, _, _, anomaly_data_ok = await asyncio.wait_for(
 **Файл:** `signal_live.py`, строки 427, 447, 467
 
 #### **До:**
+
 ```python
 # CoinGecko
 async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:  # ← 10 сек
@@ -103,6 +108,7 @@ async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as resp:  #
 ```
 
 #### **После:**
+
 ```python
 # CoinGecko (приоритетный)
 async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:   # ← 5 сек
@@ -115,6 +121,7 @@ async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as resp:   #
 ```
 
 **Итого:**
+
 - SourcesHub: 2-3 сек
 - CoinGecko: до 5 сек
 - CoinLore: до 3 сек
@@ -129,6 +136,7 @@ async with session.get(url, timeout=aiohttp.ClientTimeout(total=3)) as resp:   #
 **Файл:** `signal_live.py`, строка 1627-1631
 
 #### **До:**
+
 ```python
 except Exception as e:
     error_msg = str(e) if e else "Unknown error"
@@ -137,16 +145,18 @@ except Exception as e:
 ```
 
 #### **После:**
+
 ```python
 except Exception as e:
     error_type = type(e).__name__  # TimeoutError, ValueError и т.д.
     error_msg = str(e) if str(e).strip() else "Пустое сообщение ошибки"
-    logger.debug("⚠️ Проверка аномалий для %s: %s - %s. ...", 
+    logger.debug("⚠️ Проверка аномалий для %s: %s - %s. ...",
                 symbol, error_type, error_msg)
     # Результат: "⚠️ Проверка аномалий для XRPUSDT: TimeoutError - Пустое сообщение ошибки"
 ```
 
 **Преимущества:**
+
 - ✅ Видим тип ошибки (`TimeoutError`)
 - ✅ Видим что сообщение пустое
 - ✅ Уровень `debug` вместо `warning` (не захламляем логи)
@@ -188,6 +198,7 @@ except Exception as e:
 ## 📈 **ОЖИДАЕМЫЙ ЭФФЕКТ**
 
 ### **До исправления:**
+
 ```
 ❌ Таймауты: ~60-70% запросов к аномалиям
 ❌ Fallback не успевал сработать
@@ -196,6 +207,7 @@ except Exception as e:
 ```
 
 ### **После исправления:**
+
 ```
 ✅ Таймауты: ~5-10% запросов (только при реальных проблемах)
 ✅ Fallback успевает пройти всю цепочку
@@ -210,6 +222,7 @@ except Exception as e:
 **Проблема решена!**
 
 **Изменения:**
+
 1. ✅ Общий таймаут: 3 → 8 секунд (строка 1589)
 2. ✅ CoinGecko timeout: 10 → 5 секунд (строка 429)
 3. ✅ CoinLore timeout: 10 → 3 секунды (строка 448)
@@ -219,6 +232,7 @@ except Exception as e:
 **Файл изменен:** `signal_live.py`
 
 **Теперь система:**
+
 - ✅ Успевает пройти полную fallback цепочку
 - ✅ Показывает информативные сообщения ошибок
 - ✅ Не захламляет логи (уровень debug)
@@ -230,4 +244,3 @@ except Exception as e:
 
 **Дата исправления:** 2025-01-28  
 **Статус:** ✅ **ГОТОВО К PRODUCTION**
-

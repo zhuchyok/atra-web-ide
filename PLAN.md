@@ -5,13 +5,14 @@
 > **54+ компонентов** | **+70-100% качества** | **Самообучающаяся система** | **Victoria & Veronica Enhanced + Collaboration + HITL + RL**  
 > Подробнее: `docs/mac-studio/SUPER_CORPORATION_STATUS.md` | `ALL_WORLD_PRACTICES_COMPLETE.md`
 
-> Обновлено: 29.01.2026 | Victoria Agent + Enhanced + Initiative — все три слоя запускаются при старте ✅ | Инсайты из чатов в PLAN ✅ | watchdog, _env_bool, lifespan paths исправлены ✅ | **Улучшения архитектуры и чата (янв. 2026):** Correlation ID, кэш LocalAIRouter, уточняющие вопросы, фильтрация галлюцинаций в чате ✅
+> Обновлено: 29.01.2026 | Victoria Agent + Enhanced + Initiative — все три слоя запускаются при старте ✅ | Инсайты из чатов в PLAN ✅ | watchdog, \_env_bool, lifespan paths исправлены ✅ | **Улучшения архитектуры и чата (янв. 2026):** Correlation ID, кэш LocalAIRouter, уточняющие вопросы, фильтрация галлюцинаций в чате ✅
 
 ---
 
 ## 🎯 Миссия проекта
 
 **ATRA Web IDE** — браузерная оболочка для самоэволюционирующей ИИ-корпорации:
+
 - Чат с Victoria (Team Lead) и командой 58+ экспертов
 - Редактор кода с AI-ассистентом
 - Интеграция с **Singularity 9.0** (Knowledge OS)
@@ -56,15 +57,15 @@
 
 ### Эволюция Singularity (полная история)
 
-| Версия | Фокус | Ключевые компоненты |
-|--------|-------|---------------------|
-| 2.0 | Оценка качества | LM Judge, CoT Tracer, Agent Gym |
-| 3.0 | Автономность | Expert Generator, Meta-Architect, Swarm War-Room |
-| 4.5 | Стабильность | 15 улучшений (бэкапы, поиск, граф знаний) |
-| 5.0 | Производительность | ML Router, Streaming, Vision, экономия 95% токенов |
-| 6.0 | Надёжность | Circuit Breaker, SLA, Disaster Recovery |
-| 7.5 | Наблюдаемость | Auto Model Manager, Anomaly Detection |
-| 8.0 | Безопасность | Parallel Processing, Threat Detection |
+| Версия  | Фокус              | Ключевые компоненты                                         |
+| ------- | ------------------ | ----------------------------------------------------------- |
+| 2.0     | Оценка качества    | LM Judge, CoT Tracer, Agent Gym                             |
+| 3.0     | Автономность       | Expert Generator, Meta-Architect, Swarm War-Room            |
+| 4.5     | Стабильность       | 15 улучшений (бэкапы, поиск, граф знаний)                   |
+| 5.0     | Производительность | ML Router, Streaming, Vision, экономия 95% токенов          |
+| 6.0     | Надёжность         | Circuit Breaker, SLA, Disaster Recovery                     |
+| 7.5     | Наблюдаемость      | Auto Model Manager, Anomaly Detection                       |
+| 8.0     | Безопасность       | Parallel Processing, Threat Detection                       |
 | **9.0** | Понимание человека | Tacit Knowledge, Emotional Modulation, Code Smell Predictor |
 
 > Полная документация: `docs/SINGULARITY_ALL_VERSIONS_2_TO_9.md`
@@ -75,25 +76,27 @@
 
 ### Mac Studio (192.168.1.43)
 
-| Сервис | Порт | Описание | Автозапуск |
-|--------|------|----------|------------|
-| Victoria Agent | 8000/8010 | Team Lead, планирование | ✅ Docker restart: always | ✅ Enhanced | ✅ Initiative & Self-Extension | ✅ Без конфликтов с atra |
-| Veronica Agent | 8011 | Локальный разработчик | ✅ Docker restart: always | ✅ Enhanced | ✅ Без конфликтов с atra |
-| Victoria MCP | 8012 | MCP для Cursor (SSE) | ✅ launchd |
-| Ollama | 11434 | LLM модели (fallback) | ✅ brew services |
-| MLX API Server | 11435 | MLX модели (приоритет) | ✅ Python uvicorn |
-| Moondream Station | 2020 | Vision модели (MLX) | ✅ Автозапуск (system_auto_recovery) |
-| Prometheus | 9090 | Метрики | ✅ Docker restart: unless-stopped |
-| Grafana | 3001 | Визуализация | ✅ Docker restart: unless-stopped |
-| Elasticsearch | 9200 | Логи | ✅ Docker restart: unless-stopped |
-| Kibana | 5601 | Анализ логов | ✅ Docker restart: unless-stopped |
+| Сервис            | Порт      | Описание                | Автозапуск                           |
+| ----------------- | --------- | ----------------------- | ------------------------------------ | ----------- | ------------------------------ | ------------------------ |
+| Victoria Agent    | 8000/8010 | Team Lead, планирование | ✅ Docker restart: always            | ✅ Enhanced | ✅ Initiative & Self-Extension | ✅ Без конфликтов с atra |
+| Veronica Agent    | 8011      | Локальный разработчик   | ✅ Docker restart: always            | ✅ Enhanced | ✅ Без конфликтов с atra       |
+| Victoria MCP      | 8012      | MCP для Cursor (SSE)    | ✅ launchd                           |
+| Ollama            | 11434     | LLM модели (fallback)   | ✅ brew services                     |
+| MLX API Server    | 11435     | MLX модели (приоритет)  | ✅ Python uvicorn                    |
+| Moondream Station | 2020      | Vision модели (MLX)     | ✅ Автозапуск (system_auto_recovery) |
+| Prometheus        | 9090      | Метрики                 | ✅ Docker restart: unless-stopped    |
+| Grafana           | 3001      | Визуализация            | ✅ Docker restart: unless-stopped    |
+| Elasticsearch     | 9200      | Логи                    | ✅ Docker restart: unless-stopped    |
+| Kibana            | 5601      | Анализ логов            | ✅ Docker restart: unless-stopped    |
 
 #### Оркестратор и Veronica — разные контуры
 
 **Enhanced Orchestrator** (cron/внутри Victoria) **не связан с Veronica.** Он работает отдельно:
+
 - Находит задачи без исполнителя в БД → выбирает **эксперта из таблицы `experts`** (58 экспертов, 27 отделов) → назначает задачу в БД → **Smart Worker** обрабатывает задачу (вызов LLM по промпту эксперта). Цепочка: **Orchestrator → БД experts → Smart Worker.**
 
 **Veronica** (порт 8011) — отдельный агент-исполнитель:
+
 - Получает задачи **только от Victoria**: чат, делегирование (файлы, исследование, разработка). Не участвует в распределении задач оркестратором и не числится в таблице экспертов как исполнитель оркестратора. Цепочка: **Пользователь/чат → Victoria → Veronica (HTTP 8011).**
 
 Итого: оркестратор распределяет по экспертам в БД и Smart Worker; Veronica работает только через Victoria.
@@ -101,15 +104,18 @@
 #### Чат с Victoria и управление корпорацией
 
 **Через чат с Victoria ты управляешь корпорацией в реальном времени:**
+
 - Ты пишешь в чат (терминал `scripts/chat_victoria.sh` или веб) → запрос идёт в Victoria (8010).
 - Victoria решает: ответить сама (simple/ReAct/extended thinking), **делегировать Veronica** (файлы, исследование, код) или **задействовать экспертов** (Swarm, оркестрация в рамках одного запроса).
 - Veronica и эксперты (58 человек в БД) **уже в работе**, когда Victoria их вызывает: делегирование на 8011 или выбор экспертов и синтез ответа в том же запросе.
 
 **Откуда оркестратор получает данные — не Victoria:**
+
 - **Enhanced Orchestrator** запускается по расписанию (например каждые 5 минут). Он **читает только БД**: задачи без исполнителя, список экспертов. Ему никто «не передаёт» данные — он сам подключается к БД и раздаёт задачи.
 - Задачи в БД появляются от: **Curiosity Engine**, **Scout**, **Streaming Orchestrator** (гипотезы), **Debate Processor**, **дашборд** (ручное создание), и т.д. Чат с Victoria **не пишет** задачи в БД (если не добавить отдельно команду «создать задачу»).
 
 **Два параллельных контура:**
+
 1. **Чат → Victoria → (при необходимости) Veronica + эксперты** — ответ в том же запросе; корпорация «в работе» в момент диалога.
 2. **БД (задачи от cron/дашборда) → Enhanced Orchestrator → назначение экспертам → Smart Worker** — фоновая обработка очереди задач. Чтобы эта очередь пополнялась, должны крутиться Curiosity Engine, Scout и др. или создание задач через дашборд.
 
@@ -119,13 +125,14 @@
 
 **Один сервис** `victoria-agent` (порт 8010) объединяет три слоя. При старте **все три должны быть активны** — проверять через `GET /status` → `victoria_enhanced.enabled: true`, `monitoring_started: true`.
 
-| Слой | Что это | Обязательно |
-|------|---------|-------------|
-| **Victoria Agent** | Базовый агент: чат с LLM, ответы на запросы | ✅ Всегда |
-| **Victoria Enhanced** | ReAct, Extended Thinking, Swarm, Consensus, Tree of Thoughts, оркестрация | ✅ Да |
-| **Victoria Initiative** | Проактивность: Event Bus, File Watcher, Service Monitor, Skill Registry, саморасширение | ✅ Да |
+| Слой                    | Что это                                                                                 | Обязательно |
+| ----------------------- | --------------------------------------------------------------------------------------- | ----------- |
+| **Victoria Agent**      | Базовый агент: чат с LLM, ответы на запросы                                             | ✅ Всегда   |
+| **Victoria Enhanced**   | ReAct, Extended Thinking, Swarm, Consensus, Tree of Thoughts, оркестрация               | ✅ Да       |
+| **Victoria Initiative** | Проактивность: Event Bus, File Watcher, Service Monitor, Skill Registry, саморасширение | ✅ Да       |
 
 **Как включить:** при запуске контейнера Victoria должны быть установлены:
+
 - `USE_VICTORIA_ENHANCED=true`
 - `ENABLE_EVENT_MONITORING=true`
 
@@ -136,11 +143,13 @@
 **Проверка:** `curl -s http://localhost:8010/status | jq .victoria_enhanced` — должны быть `enabled: true`, `monitoring_started: true`, `event_bus_available: true`, `skill_registry_available: true`, `file_watcher_available: true`, `service_monitor_available: true`.
 
 **Чат с Victoria в терминале:**
+
 ```bash
 bash scripts/chat_victoria.sh
 # или
 python3 scripts/victoria_chat.py
 ```
+
 Команды в чате: `/status`, `/health`, `/project <name>`, `/help`, `exit`. Подробнее: `docs/mac-studio/VICTORIA_TERMINAL_CHAT.md`.
 
 **Если Victoria отвечает шаблоном («Получила ваш запрос…» или «Сейчас не могу подключиться к моделям»):** см. **`docs/VICTORIA_CHAT_WORKING.md`** — пошаговый рабочий вариант. Кратко: 1) запусти Ollama (11434) или MLX (11435); 2) перезапусти Victoria; 3) проверка: `python3 scripts/test_victoria_chat_works.py`.
@@ -148,12 +157,14 @@ python3 scripts/victoria_chat.py
 **Автозапуск:** ✅ Все настроено! При перезагрузке Mac Studio все запустится автоматически.
 
 **⚠️ ВАЖНО (2026-01-25):** После перезагрузки Mac Studio необходимо вручную запустить Docker контейнеры:
+
 ```bash
 cd ~/Documents/atra-web-ide
 bash scripts/start_all_on_mac_studio.sh
 # ИЛИ
 bash .mac_studio_auto_start
 ```
+
 Скрипт автоматически проверит Docker, создаст сеть, проверит MLX/Ollama, импортирует данные (если есть), запустит все контейнеры и проверит доступность.
 
 ### Модели Ollama/MLX (Mac Studio M4 Max)
@@ -163,7 +174,7 @@ bash .mac_studio_auto_start
 
 ## 🧠 АКТУАЛЬНЫЕ МОДЕЛИ OLLAMA/MLX (29.01.2026)
 
-**Статус:** ✅ MLX API Server настроен на порту **11435** (приоритет над Ollama). *Живая проверка:* `bash scripts/check_local_models.sh` или `curl -s http://localhost:11435/health` — если порт не отвечает, задачи идут только в Ollama.  
+**Статус:** ✅ MLX API Server настроен на порту **11435** (приоритет над Ollama). _Живая проверка:_ `bash scripts/check_local_models.sh` или `curl -s http://localhost:11435/health` — если порт не отвечает, задачи идут только в Ollama.  
 **Расположение MLX моделей:** `~/mlx-models/`  
 **Victoria Enhanced:** Использует MLX API Server с приоритетом, fallback на Ollama (11434)  
 **Vision модели:** Moondream Station (MLX, порт 2020) → Ollama (moondream/llava:7b) → Fallback
@@ -171,6 +182,7 @@ bash .mac_studio_auto_start
 #### Конфигурация в коде (`knowledge_os/app/local_router.py`)
 
 **MLX модели (приоритетные, порт 11435):**
+
 ```python
 MODEL_MAP = {
     'coding': 'qwen2.5-coder:32b',      # Модель для кодинга
@@ -181,6 +193,7 @@ MODEL_MAP = {
 ```
 
 **Ollama модели (fallback, порт 11434):**
+
 ```python
 OLLAMA_MODELS = {
     'fast': 'phi3.5:3.8b',
@@ -195,6 +208,7 @@ OLLAMA_MODELS = {
 #### Приоритеты по категориям (`knowledge_os/app/available_models_scanner.py`)
 
 **Ollama приоритеты (OLLAMA_PRIORITY_BY_CATEGORY):**
+
 - **fast:** `phi3.5:3.8b`, `tinyllama:1.1b-chat`, `qwen2.5:3b`, `moondream:latest`, `qwen2.5-coder:32b`
 - **default:** `phi3.5:3.8b`, `tinyllama:1.1b-chat`, `qwen2.5-coder:32b`
 - **general:** `qwen2.5-coder:32b`, `phi3.5:3.8b`, `qwq:32b`, `glm-4.7-flash:q8_0`, `tinyllama:1.1b-chat`
@@ -203,6 +217,7 @@ OLLAMA_MODELS = {
 - **complex:** `qwen2.5-coder:32b`, `qwq:32b`, `glm-4.7-flash:q8_0`
 
 **Victoria "лучшая сначала" (VICTORIA_BEST_FIRST, MLX):**
+
 1. `command-r-plus:104b` — максимальная мощность
 2. `deepseek-r1-distill-llama:70b` — reasoning
 3. `llama3.3:70b` — complex/general
@@ -214,29 +229,29 @@ OLLAMA_MODELS = {
 
 #### MLX модели (8 моделей, приоритетные)
 
-| Модель | Размер | RAM | Загрузка | Всегда запущена | Назначение | Автовыбор | MLX путь |
-|--------|--------|-----|----------|-----------------|------------|-----------|----------|
-| command-r-plus:104b | ~65GB | 70–75GB | 90-150с | ❌ Нет | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise | `~/mlx-models/command-r-plus` |
-| deepseek-r1-distill-llama:70b | ~40GB | 45–50GB | 60-90с | ❌ Нет | Reasoning, планирование (distilled) | ✅ reasoning | `~/mlx-models/deepseek-r1-distill-llama-70b` |
-| llama3.3:70b | ~40GB | 45–50GB | 60-90с | ❌ Нет | Максимальное качество, общие задачи | ✅ complex | `~/mlx-models/llama3.3-70b` |
-| **qwen2.5-coder:32b** | **~20GB** | **22–25GB** | **25-40с** | **✅ Предзагрузка** | Качественный код, рефакторинг | ✅ coding, default | `~/mlx-models/qwen2.5-coder-32b` |
-| phi3.5:3.8b | ~2.5GB | 3–4GB | 5-10с | ✅ Предзагрузка | Быстрые задачи, общие | ✅ fast, general | `~/mlx-models/phi3.5-mini-4k` |
-| phi3:mini-4k | ~2GB | 2.5–3GB | 4-8с | ❌ Нет | Быстрые ответы, легкие задачи | ✅ fast (lightweight) | `~/mlx-models/phi3-mini-4k` |
-| qwen2.5:3b | ~2GB | 2.5–3GB | 4-8с | ❌ Нет | Быстрые ответы, общие задачи | ✅ fast, default | `~/mlx-models/qwen2.5-3b` |
-| tinyllama:1.1b-chat | ~700MB | 1–1.5GB | 2-5с | ✅ Предзагрузка | Очень быстрые ответы | ✅ fast (ultra-lightweight) | `~/mlx-models/tinyllama-1.1b-chat` |
+| Модель                        | Размер    | RAM         | Загрузка   | Всегда запущена     | Назначение                                  | Автовыбор                   | MLX путь                                     |
+| ----------------------------- | --------- | ----------- | ---------- | ------------------- | ------------------------------------------- | --------------------------- | -------------------------------------------- |
+| command-r-plus:104b           | ~65GB     | 70–75GB     | 90-150с    | ❌ Нет              | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise      | `~/mlx-models/command-r-plus`                |
+| deepseek-r1-distill-llama:70b | ~40GB     | 45–50GB     | 60-90с     | ❌ Нет              | Reasoning, планирование (distilled)         | ✅ reasoning                | `~/mlx-models/deepseek-r1-distill-llama-70b` |
+| llama3.3:70b                  | ~40GB     | 45–50GB     | 60-90с     | ❌ Нет              | Максимальное качество, общие задачи         | ✅ complex                  | `~/mlx-models/llama3.3-70b`                  |
+| **qwen2.5-coder:32b**         | **~20GB** | **22–25GB** | **25-40с** | **✅ Предзагрузка** | Качественный код, рефакторинг               | ✅ coding, default          | `~/mlx-models/qwen2.5-coder-32b`             |
+| phi3.5:3.8b                   | ~2.5GB    | 3–4GB       | 5-10с      | ✅ Предзагрузка     | Быстрые задачи, общие                       | ✅ fast, general            | `~/mlx-models/phi3.5-mini-4k`                |
+| phi3:mini-4k                  | ~2GB      | 2.5–3GB     | 4-8с       | ❌ Нет              | Быстрые ответы, легкие задачи               | ✅ fast (lightweight)       | `~/mlx-models/phi3-mini-4k`                  |
+| qwen2.5:3b                    | ~2GB      | 2.5–3GB     | 4-8с       | ❌ Нет              | Быстрые ответы, общие задачи                | ✅ fast, default            | `~/mlx-models/qwen2.5-3b`                    |
+| tinyllama:1.1b-chat           | ~700MB    | 1–1.5GB     | 2-5с       | ✅ Предзагрузка     | Очень быстрые ответы                        | ✅ fast (ultra-lightweight) | `~/mlx-models/tinyllama-1.1b-chat`           |
 
 **Примечания MLX:** Алиасы API — reasoning, coding, fast, tiny, default, qwen_3b, phi3_mini. Предзагрузка `MLX_PRELOAD_MODELS=default,fast,tiny` (~30.5GB RAM, 24% от 128GB). Приоритет: MLX (11435) → Ollama (11434) → Облако.
 
 #### Ollama модели (fallback, 6 моделей)
 
-| Модель | Размер | Назначение | Категория | Приоритет |
-|--------|--------|------------|-----------|-----------|
-| **qwq:32b** | ~20GB | Качественные ответы, общие задачи | general, coding, reasoning | Высокий |
-| **qwen2.5-coder:32b** | ~20GB | Генерация и рефакторинг кода | coding, default | Высокий |
-| **glm-4.7-flash:q8_0** | ~4.7GB | Быстрые рассуждения и кодинг | reasoning, coding | Средний |
-| **phi3.5:3.8b** | ~2.5GB | Быстрые общие задачи | fast, default | Высокий |
-| **llava:7b** | ~4.7GB | Обработка PDF и документов | vision_pdf | Средний |
-| **moondream:latest** | ~1.6GB | Скриншоты и изображения | vision | Высокий |
+| Модель                 | Размер | Назначение                        | Категория                  | Приоритет |
+| ---------------------- | ------ | --------------------------------- | -------------------------- | --------- |
+| **qwq:32b**            | ~20GB  | Качественные ответы, общие задачи | general, coding, reasoning | Высокий   |
+| **qwen2.5-coder:32b**  | ~20GB  | Генерация и рефакторинг кода      | coding, default            | Высокий   |
+| **glm-4.7-flash:q8_0** | ~4.7GB | Быстрые рассуждения и кодинг      | reasoning, coding          | Средний   |
+| **phi3.5:3.8b**        | ~2.5GB | Быстрые общие задачи              | fast, default              | Высокий   |
+| **llava:7b**           | ~4.7GB | Обработка PDF и документов        | vision_pdf                 | Средний   |
+| **moondream:latest**   | ~1.6GB | Скриншоты и изображения           | vision                     | Высокий   |
 
 Дополнительно: tinyllama:1.1b-chat (637 MB), qwen2.5:3b (~2GB).
 
@@ -251,10 +266,12 @@ OLLAMA_MODELS = {
 #### Система автоматического выбора моделей
 
 **Приоритет источников:**
+
 - **Текстовые задачи:** MLX API Server (11435) → Ollama (11434) → Облако
 - **Vision задачи:** Moondream Station (2020, MLX) → Ollama (moondream/llava:7b) → Облако
 
 **Категории задач и выбор моделей:**
+
 - **Reasoning:** `deepseek-r1-distill-llama:70b` (MLX) → `glm-4.7-flash:q8_0` (Ollama)
 - **Coding:** `qwen2.5-coder:32b` (MLX) → `glm-4.7-flash:q8_0` (Ollama)
 - **Fast / Default:** `phi3.5:3.8b` (MLX/Ollama)
@@ -263,76 +280,76 @@ OLLAMA_MODELS = {
 
 #### Переменные окружения
 
-| Переменная | По умолчанию | Описание |
-|------------|--------------|----------|
-| OLLAMA_URL | http://localhost:11434 | URL Ollama API |
-| MLX_API_URL / MAC_LLM_URL | http://localhost:11435 | URL MLX API Server |
-| VICTORIA_MODEL | qwen2.5-coder:32b | Основная модель для Victoria |
-| VICTORIA_PLANNER_MODEL | phi3.5:3.8b | Модель для планирования |
-| DEFAULT_MODEL (backend) | qwen2.5-coder:32b | Модель по умолчанию в backend |
-| MODEL_CODING | qwen2.5-coder:32b | Категория coding (local_router) |
-| MODEL_REASONING | deepseek-r1-distill-llama:70b | Категория reasoning |
-| MODEL_FAST | phi3.5:3.8b | Категория fast |
-| MODEL_DEFAULT | phi3.5:3.8b | Модель по умолчанию (local_router) |
-| MLX_PRELOAD_MODELS | default,fast,tiny | Предзагрузка при старте MLX |
+| Переменная                | По умолчанию                  | Описание                           |
+| ------------------------- | ----------------------------- | ---------------------------------- |
+| OLLAMA_URL                | http://localhost:11434        | URL Ollama API                     |
+| MLX_API_URL / MAC_LLM_URL | http://localhost:11435        | URL MLX API Server                 |
+| VICTORIA_MODEL            | qwen2.5-coder:32b             | Основная модель для Victoria       |
+| VICTORIA_PLANNER_MODEL    | phi3.5:3.8b                   | Модель для планирования            |
+| DEFAULT_MODEL (backend)   | qwen2.5-coder:32b             | Модель по умолчанию в backend      |
+| MODEL_CODING              | qwen2.5-coder:32b             | Категория coding (local_router)    |
+| MODEL_REASONING           | deepseek-r1-distill-llama:70b | Категория reasoning                |
+| MODEL_FAST                | phi3.5:3.8b                   | Категория fast                     |
+| MODEL_DEFAULT             | phi3.5:3.8b                   | Модель по умолчанию (local_router) |
+| MLX_PRELOAD_MODELS        | default,fast,tiny             | Предзагрузка при старте MLX        |
 
 #### Скрипты для работы с моделями
 
 **Запуск и мониторинг MLX:**
 
-| Скрипт | Назначение |
-|--------|------------|
-| `scripts/start_mlx_api_server.sh` | Запуск MLX API Server (порт 11435) |
-| `scripts/start_mlx_server.sh` | Запуск MLX-сервера |
-| `scripts/start_mlx_with_supervisor.py` | Запуск MLX с супервизором |
-| `scripts/AUTO_START_MLX.sh` | Автозапуск MLX |
-| `scripts/setup_mlx_autostart.sh` | Настройка автозапуска MLX |
-| `scripts/check_mlx_status.sh` | Проверка статуса MLX |
-| `scripts/check_mlx_status_simple.sh` | Упрощённая проверка MLX |
-| `scripts/monitor_mlx_api_server.sh` | Мониторинг MLX API Server |
+| Скрипт                                 | Назначение                         |
+| -------------------------------------- | ---------------------------------- |
+| `scripts/start_mlx_api_server.sh`      | Запуск MLX API Server (порт 11435) |
+| `scripts/start_mlx_server.sh`          | Запуск MLX-сервера                 |
+| `scripts/start_mlx_with_supervisor.py` | Запуск MLX с супервизором          |
+| `scripts/AUTO_START_MLX.sh`            | Автозапуск MLX                     |
+| `scripts/setup_mlx_autostart.sh`       | Настройка автозапуска MLX          |
+| `scripts/check_mlx_status.sh`          | Проверка статуса MLX               |
+| `scripts/check_mlx_status_simple.sh`   | Упрощённая проверка MLX            |
+| `scripts/monitor_mlx_api_server.sh`    | Мониторинг MLX API Server          |
 
 **Сканирование и отчёты:**
 
-| Скрипт | Назначение |
-|--------|------------|
-| `scripts/scan_available_models.py` | Сканирование MLX + Ollama, вывод/обновление списка моделей |
-| `scripts/check_local_models.sh` | Проверка доступных локальных моделей |
-| `scripts/scan_models_mac_studio.sh` | Сканирование моделей на Mac Studio |
-| `scripts/scan_models_mac_studio_python.py` | Сканирование моделей на Mac Studio (Python) |
-| `scripts/auto_detect_new_models.sh` | Автоопределение новых моделей |
-| `scripts/model_usage_report.py` | Отчёт по использованию моделей |
-| `scripts/monitor_models.sh` | Мониторинг моделей |
+| Скрипт                                     | Назначение                                                 |
+| ------------------------------------------ | ---------------------------------------------------------- |
+| `scripts/scan_available_models.py`         | Сканирование MLX + Ollama, вывод/обновление списка моделей |
+| `scripts/check_local_models.sh`            | Проверка доступных локальных моделей                       |
+| `scripts/scan_models_mac_studio.sh`        | Сканирование моделей на Mac Studio                         |
+| `scripts/scan_models_mac_studio_python.py` | Сканирование моделей на Mac Studio (Python)                |
+| `scripts/auto_detect_new_models.sh`        | Автоопределение новых моделей                              |
+| `scripts/model_usage_report.py`            | Отчёт по использованию моделей                             |
+| `scripts/monitor_models.sh`                | Мониторинг моделей                                         |
 
 **Ollama и миграция:**
 
-| Скрипт | Назначение |
-|--------|------------|
-| `scripts/setup_ollama_for_docker.sh` | Настройка Ollama для Docker |
+| Скрипт                                | Назначение                  |
+| ------------------------------------- | --------------------------- |
+| `scripts/setup_ollama_for_docker.sh`  | Настройка Ollama для Docker |
 | `scripts/setup_mlx_instead_ollama.sh` | Настройка MLX вместо Ollama |
 
 **Дополнительные скрипты:**
 
-| Скрипт | Назначение |
-|--------|------------|
-| `scripts/start_model_tracker.sh` | Запуск трекера моделей |
+| Скрипт                                  | Назначение                       |
+| --------------------------------------- | -------------------------------- |
+| `scripts/start_model_tracker.sh`        | Запуск трекера моделей           |
 | `scripts/test_mlx_queue_and_routing.py` | Тест очереди и маршрутизации MLX |
-| `scripts/install_models_mac_studio.sh` | Установка моделей на Mac Studio |
-| `scripts/monitor_glm_download.sh` | Мониторинг загрузки GLM |
-| `scripts/check_glm_download.sh` | Проверка загрузки GLM |
-| `scripts/warm_up_models.py` | Прогрев моделей |
-| `scripts/finetune_model.sh` | Файнтюнинг модели |
+| `scripts/install_models_mac_studio.sh`  | Установка моделей на Mac Studio  |
+| `scripts/monitor_glm_download.sh`       | Мониторинг загрузки GLM          |
+| `scripts/check_glm_download.sh`         | Проверка загрузки GLM            |
+| `scripts/warm_up_models.py`             | Прогрев моделей                  |
+| `scripts/finetune_model.sh`             | Файнтюнинг модели                |
 
 #### Ключевые конфигурационные файлы
 
-| Файл | Содержание |
-|------|------------|
-| knowledge_os/app/local_router.py | MODEL_MAP, OLLAMA_MODELS, узлы (MLX/Ollama/Server) |
+| Файл                                         | Содержание                                                     |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| knowledge_os/app/local_router.py             | MODEL_MAP, OLLAMA_MODELS, узлы (MLX/Ollama/Server)             |
 | knowledge_os/app/available_models_scanner.py | OLLAMA_PRIORITY_BY_CATEGORY, VICTORIA_BEST_FIRST, сканирование |
-| backend/app/config.py | ollama_url, default_model, таймауты |
-| .env | OLLAMA_URL, VICTORIA_MODEL, VICTORIA_PLANNER_MODEL |
-| docs/CURRENT_MODELS_LIST.md | Актуальный список моделей Ollama/MLX |
-| docs/MLX_MODELS_SPECIFICATIONS.md | Спецификации MLX моделей |
-| docs/ACTUAL_MODELS_AND_SCRIPTS.md | Модели, переменные, скрипты (сводка) |
+| backend/app/config.py                        | ollama_url, default_model, таймауты                            |
+| .env                                         | OLLAMA_URL, VICTORIA_MODEL, VICTORIA_PLANNER_MODEL             |
+| docs/CURRENT_MODELS_LIST.md                  | Актуальный список моделей Ollama/MLX                           |
+| docs/MLX_MODELS_SPECIFICATIONS.md            | Спецификации MLX моделей                                       |
+| docs/ACTUAL_MODELS_AND_SCRIPTS.md            | Модели, переменные, скрипты (сводка)                           |
 
 #### Важные изменения (29.01.2026)
 
@@ -350,11 +367,11 @@ OLLAMA_MODELS = {
 
 #### 1. Три быстрые победы (внедрены)
 
-| Улучшение | Где | Что сделано |
-|-----------|-----|-------------|
-| **Correlation ID** | `src/agents/bridge/victoria_server.py` | Заголовок `X-Correlation-ID`, поле в `TaskResponse`, в ответе 202 и GET `/run/status/{task_id}`; логи с префиксом `correlation_id[:8]`. |
-| **Кэш в LocalAIRouter** | `knowledge_os/app/local_router.py` | Кэш по ключу (prompt, category, model), TTL 30 мин, max 500 записей; возвращается кортеж (result, routing_source); LRU при переполнении. |
-| **Уточняющие вопросы** | `victoria_server.py` | `_check_ambiguity`, `_generate_clarification_questions`, `_understand_goal_with_clarification`; при неоднозначности — ответ `status: needs_clarification` и `clarification_questions`; далее везде используется `restated_goal`. |
+| Улучшение               | Где                                    | Что сделано                                                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Correlation ID**      | `src/agents/bridge/victoria_server.py` | Заголовок `X-Correlation-ID`, поле в `TaskResponse`, в ответе 202 и GET `/run/status/{task_id}`; логи с префиксом `correlation_id[:8]`.                                                                                          |
+| **Кэш в LocalAIRouter** | `knowledge_os/app/local_router.py`     | Кэш по ключу (prompt, category, model), TTL 30 мин, max 500 записей; возвращается кортеж (result, routing_source); LRU при переполнении.                                                                                         |
+| **Уточняющие вопросы**  | `victoria_server.py`                   | `_check_ambiguity`, `_generate_clarification_questions`, `_understand_goal_with_clarification`; при неоднозначности — ответ `status: needs_clarification` и `clarification_questions`; далее везде используется `restated_goal`. |
 
 #### 2. Архитектура: что уже есть и что рекомендовано
 
@@ -383,6 +400,7 @@ OLLAMA_MODELS = {
 **Что можно улучшить для каждой модели:**
 
 #### 1. **command-r-plus:104b** (Enterprise)
+
 - ✅ **Prompt Caching** - кэширование промптов (экономия до 90% токенов)
 - ✅ **Оптимальные параметры:** temperature=0.6, top_p=0.95 (для точности)
 - ✅ **Batch size:** 1 (большие модели работают по одному)
@@ -390,17 +408,20 @@ OLLAMA_MODELS = {
 - ✅ **Использовать для:** сложные enterprise задачи, RAG, мультиязычность
 
 #### 2. **deepseek-r1-distill-llama:70b** (Reasoning)
+
 - ✅ **Prompt Caching** - критично для reasoning задач
 - ✅ **Оптимальные параметры:** temperature=0.5, repetition_penalty=1.2
 - ✅ **Max tokens:** 4096 (reasoning требует больше токенов)
 - ✅ **Использовать для:** планирование, сложные рассуждения, анализ
 
 #### 3. **llama3.3:70b** (Complex)
+
 - ✅ **Prompt Caching** - ускорение повторяющихся запросов
 - ✅ **Оптимальные параметры:** temperature=0.7, top_p=0.9
 - ✅ **Использовать для:** максимальное качество, сложные задачи
 
 #### 4. **qwen2.5-coder:32b** (Coding)
+
 - ✅ **Prompt Caching** - кэширование часто используемых паттернов кода
 - ✅ **Оптимальные параметры:** temperature=0.3 (детерминированный код), max_tokens=8192
 - ✅ **Batch size:** 2 (можно батчить средние модели)
@@ -408,31 +429,37 @@ OLLAMA_MODELS = {
 - ✅ **Использовать для:** генерация кода, рефакторинг, code review
 
 #### 5. **phi3.5:3.8b** (Fast)
+
 - ✅ **Batch size:** 4 (маленькие модели можно батчить)
 - ✅ **Оптимальные параметры:** temperature=0.7, max_tokens=2048
 - ✅ **Quantization:** Q4 (агрессивное для скорости)
 - ✅ **Использовать для:** быстрые ответы, общие задачи
 
 #### 6. **phi3:mini-4k** (Fast Lightweight)
+
 - ✅ **Batch size:** 8 (максимальный батч для tiny)
 - ✅ **Оптимальные параметры:** temperature=0.8, max_tokens=1024
 - ✅ **Использовать для:** очень быстрые ответы, легкие задачи
 
 #### 7. **qwen2.5:3b** (Fast Default)
+
 - ✅ **Batch size:** 8
 - ✅ **Оптимальные параметры:** temperature=0.7, max_tokens=2048
 - ✅ **Использовать для:** быстрые ответы, общие задачи
 
 #### 8. **tinyllama:1.1b-chat** (Ultra-Lightweight)
+
 - ✅ **Batch size:** 16 (максимальный батч)
 - ✅ **Оптимальные параметры:** temperature=0.9, max_tokens=512
 - ✅ **Использовать для:** очень быстрые короткие ответы
 
 **Компоненты оптимизации:**
+
 - **Model Optimizer** (`knowledge_os/app/model_optimizer.py`) - оптимальные настройки для каждой модели
 - **Prompt Cache** (`knowledge_os/app/prompt_cache.py`) - кэширование промптов (экономия до 90% токенов)
 
 **Методы оптимизации:**
+
 1. ✅ **Prompt Caching** - кэширование повторяющихся промптов
 2. ✅ **Оптимальные параметры** - temperature, top_p, top_k для каждой модели
 3. ✅ **Batch Processing** - батчинг для маленьких моделей
@@ -449,30 +476,35 @@ OLLAMA_MODELS = {
 **Новые компоненты для максимального качества:**
 
 #### 1. **Self-Consistency Engine** (`knowledge_os/app/model_enhancer.py`)
+
 - ✅ **Множественные генерации** - генерирует 5 вариантов ответа
 - ✅ **Выбор лучшего** - автоматически выбирает наиболее согласованный ответ
 - ✅ **Улучшение качества:** +15-30% для reasoning задач
 - ✅ **Использование:** Сложные reasoning задачи, когда нужна максимальная точность
 
 #### 2. **Speculative Decoding Engine** (`knowledge_os/app/model_enhancer.py`)
+
 - ✅ **Draft модель** - быстрая маленькая модель генерирует черновик
 - ✅ **Target модель** - большая модель проверяет и дополняет
 - ✅ **Ускорение:** 1.5-2x для больших моделей
 - ✅ **Использование:** Когда нужна скорость без потери качества
 
 #### 3. **Enhanced RAG Engine** (`knowledge_os/app/model_enhancer.py`)
+
 - ✅ **Реранкинг контекста** - улучшенный поиск релевантной информации
 - ✅ **Фильтрация по уверенности** - только проверенные знания
 - ✅ **Оптимальная длина контекста** - автоматический выбор лучших фрагментов
 - ✅ **Улучшение качества:** +20-40% точности ответов
 
 #### 4. **Model Ensemble** (`knowledge_os/app/model_enhancer.py`)
+
 - ✅ **Комбинирование моделей** - несколько моделей работают вместе
 - ✅ **Стратегии:** vote (голосование), best (лучший), average (средний)
 - ✅ **Улучшение качества:** +10-25% для критичных задач
 - ✅ **Использование:** Максимальное качество, когда можно ждать
 
 #### 5. **Adaptive Prompter** (`knowledge_os/app/adaptive_prompter.py`)
+
 - ✅ **Обратная связь** - учится на успешных/неудачных промптах
 - ✅ **Динамическая оптимизация** - автоматически улучшает промпты
 - ✅ **История успехов** - использует паттерны из прошлых успешных ответов
@@ -504,13 +536,13 @@ result = await enhancer.enhance_response(
 
 **Ожидаемые улучшения:**
 
-| Метод | Улучшение качества | Улучшение скорости | Когда использовать |
-|-------|-------------------|-------------------|-------------------|
-| **Self-Consistency** | +15-30% | -50% (медленнее) | Reasoning, критичные задачи |
-| **Speculative Decoding** | +0-5% | +50-100% (быстрее) | Когда нужна скорость |
-| **Enhanced RAG** | +20-40% | -10% (немного медленнее) | Всегда, когда есть контекст |
-| **Ensemble** | +10-25% | -60% (медленнее) | Максимальное качество |
-| **Adaptive Prompter** | +10-20% | 0% | После накопления истории |
+| Метод                    | Улучшение качества | Улучшение скорости       | Когда использовать          |
+| ------------------------ | ------------------ | ------------------------ | --------------------------- |
+| **Self-Consistency**     | +15-30%            | -50% (медленнее)         | Reasoning, критичные задачи |
+| **Speculative Decoding** | +0-5%              | +50-100% (быстрее)       | Когда нужна скорость        |
+| **Enhanced RAG**         | +20-40%            | -10% (немного медленнее) | Всегда, когда есть контекст |
+| **Ensemble**             | +10-25%            | -60% (медленнее)         | Максимальное качество       |
+| **Adaptive Prompter**    | +10-20%            | 0%                       | После накопления истории    |
 
 **Подробнее:** `docs/mac-studio/ADVANCED_MODEL_ENHANCEMENT.md`
 
@@ -574,18 +606,21 @@ result = await enhancer.enhance_response(
 **Предложения по внедрению:**
 
 #### Приоритет 1 (Критичные):
+
 - ✅ **ReAct Framework** для Victoria/Veronica (+30-40% качества)
 - ✅ **State Machines** для оркестрации (LangGraph-style)
 - ✅ **Extended Thinking Mode** (+20-30% на reasoning)
 - ✅ **VICTORIA.md / VERONICA.md** файлы для контекста
 
 #### Приоритет 2 (Важные):
+
 - ✅ **ReCAP Framework** для multi-step reasoning (+32%)
 - ✅ **Self-Learning Agents** (Google DeepMind-style)
 - ✅ **Event-Driven Architecture** (AutoGen-style)
 - ✅ **Tree of Thoughts** для planning (+40-50%)
 
 #### Приоритет 3 (Дополнительные):
+
 - ✅ **Observability** с OpenTelemetry
 - ✅ **Human-in-the-Loop** patterns
 - ✅ **Checkpoint и Persistence**
@@ -600,12 +635,14 @@ result = await enhancer.enhance_response(
 **Статус:** ✅ **РЕАЛИЗОВАНО**
 
 #### 1. ✅ **ReAct Framework** (`knowledge_os/app/react_agent.py`)
+
 - ✅ **Think → Act → Observe → Reflect** цикл
 - ✅ Автоматическое рассуждение и выполнение
 - ✅ Ожидаемое улучшение: +30-40% качества на сложных задачах
 - ✅ Интеграция с Victoria и Veronica
 
 **Использование:**
+
 ```python
 from knowledge_os.app.react_agent import ReActAgent
 
@@ -614,12 +651,14 @@ result = await agent.run("Реши сложную задачу...")
 ```
 
 #### 2. ✅ **Extended Thinking Mode** (`knowledge_os/app/extended_thinking.py`)
+
 - ✅ Внутреннее пошаговое рассуждение перед ответом
 - ✅ Итеративное мышление для сложных задач
 - ✅ Ожидаемое улучшение: +20-30% на reasoning задачах
 - ✅ Настраиваемый бюджет токенов для рассуждения
 
 **Использование:**
+
 ```python
 from knowledge_os.app.extended_thinking import ExtendedThinkingEngine
 
@@ -628,12 +667,14 @@ result = await engine.think("Сложная reasoning задача...", use_iter
 ```
 
 #### 3. ✅ **State Machines** (`knowledge_os/app/state_machine.py`)
+
 - ✅ LangGraph-style оркестрация агентов
 - ✅ Conditional edges для ветвления
 - ✅ Checkpoint для восстановления после ошибок
 - ✅ Управление workflow через граф состояний
 
 **Использование:**
+
 ```python
 from knowledge_os.app.state_machine import StateGraph, AgentState
 
@@ -645,12 +686,14 @@ result = await graph.run(initial_state)
 ```
 
 #### 4. ✅ **VICTORIA.md / VERONICA.md** файлы
+
 - ✅ Автоматическая инъекция контекста проекта
 - ✅ Правила работы и приоритеты
 - ✅ Частые задачи и инструменты
 - ✅ Стиль ответов и форматирование
 
 **Расположение:**
+
 - `VICTORIA.md` - контекст для Victoria
 - `VERONICA.md` - контекст для Veronica
 
@@ -663,6 +706,7 @@ result = await graph.run(initial_state)
 **Статус:** ✅ **РЕАЛИЗОВАНО**
 
 #### 1. ✅ **ReCAP Framework** (`knowledge_os/app/recap_framework.py`)
+
 - ✅ **Recursive Context-Aware Reasoning and Planning**
 - ✅ Plan-ahead decomposition (high → mid → low level)
 - ✅ Structured context re-injection
@@ -670,6 +714,7 @@ result = await graph.run(initial_state)
 - ✅ Ожидаемое улучшение: **+32%** на multi-step reasoning
 
 **Использование:**
+
 ```python
 from knowledge_os.app.recap_framework import ReCAPFramework
 
@@ -678,12 +723,14 @@ result = await framework.solve("Сложная многошаговая зада
 ```
 
 #### 2. ✅ **Self-Learning Agents** (`knowledge_os/app/self_learning_agent.py`)
+
 - ✅ **Генерация задач для обучения** (Google DeepMind SIMA 2 style)
 - ✅ Self-reward система
 - ✅ Адаптация на основе результатов
 - ✅ Непрерывный цикл обучения
 
 **Использование:**
+
 ```python
 from knowledge_os.app.self_learning_agent import SelfLearningAgent
 
@@ -694,6 +741,7 @@ adaptations = await agent.adapt_from_learning(session)
 ```
 
 #### 3. ✅ **Event-Driven Architecture** (`knowledge_os/app/event_bus.py`)
+
 - ✅ **Асинхронная обработка событий** (Microsoft AutoGen v0.4 style)
 - ✅ Publish/Subscribe паттерн
 - ✅ Request/Response паттерн
@@ -706,6 +754,7 @@ adaptations = await agent.adapt_from_learning(session)
 - ✅ **Victoria Event Handlers** (`victoria_event_handlers.py`) - обработчики событий с LangGraph state machines 🆕
 
 **Использование:**
+
 ```python
 from knowledge_os.app.event_bus import get_event_bus, EventType, Event
 
@@ -721,6 +770,7 @@ await bus.publish(event)
 ```
 
 #### 4. ✅ **Tree of Thoughts** (`knowledge_os/app/tree_of_thoughts.py`)
+
 - ✅ **Структурированное планирование** с multi-branch exploration
 - ✅ Prompter Agent - контекстно-адаптивные промпты
 - ✅ Checker Module - валидация кандидатов
@@ -729,6 +779,7 @@ await bus.publish(event)
 - ✅ Ожидаемое улучшение: **+40-50%** на сложных planning задачах
 
 **Использование:**
+
 ```python
 from knowledge_os.app.tree_of_thoughts import TreeOfThoughts
 
@@ -745,23 +796,22 @@ result = await tot.solve("Сложная planning задача...")
 **✅ ВСЕ КОМПОНЕНТЫ ПРОВЕРЕНЫ И ПРИМЕНЕНЫ:**
 
 **Приоритет 1 (4 компонента):**
+
 1. ✅ ReAct Framework (+30-40% качества) - `react_agent.py` (438 строк)
 2. ✅ Extended Thinking Mode (+20-30% на reasoning) - `extended_thinking.py` (384 строки)
 3. ✅ State Machines (оркестрация) - `state_machine.py`
 4. ✅ VICTORIA.md / VERONICA.md (контекст) - файлы созданы
 
-**Приоритет 2 (4 компонента):**
-5. ✅ ReCAP Framework (+32% на multi-step reasoning) - `recap_framework.py`
-6. ✅ Self-Learning Agents (самообучение) - `self_learning_agent.py`
-7. ✅ Event-Driven Architecture (масштабируемость) - `event_bus.py`
-8. ✅ Tree of Thoughts (+40-50% на planning) - `tree_of_thoughts.py`
+**Приоритет 2 (4 компонента):** 5. ✅ ReCAP Framework (+32% на multi-step reasoning) - `recap_framework.py` 6. ✅ Self-Learning Agents (самообучение) - `self_learning_agent.py` 7. ✅ Event-Driven Architecture (масштабируемость) - `event_bus.py` 8. ✅ Tree of Thoughts (+40-50% на planning) - `tree_of_thoughts.py`
 
 **Приоритет 3 (46+ дополнительных компонентов):**
+
 - ✅ Все компоненты из Singularity 2.0-9.0
 - ✅ Все компоненты от мировых лидеров (OpenAI, DeepMind, Anthropic, Meta, Microsoft)
 - ✅ Все компоненты проверены в коде (191 Python файл в knowledge_os/app/)
 
 **Ожидаемый общий эффект:**
+
 - **Качество:** +70-100% на сложных задачах
 - **Скорость:** +40-60% через оптимизацию
 - **Надежность:** +50-70% через self-learning и адаптацию
@@ -769,7 +819,8 @@ result = await tot.solve("Сложная planning задача...")
 - **Экономия токенов:** до 95% (ML Router + Prompt Cache)
 - **Latency:** -40% (Parallel) + -30% (Predictive Compression)
 
-**Подробнее:** 
+**Подробнее:**
+
 - `docs/mac-studio/WORLD_BEST_PRACTICES_ANALYSIS.md` - анализ практик
 - `ALL_WORLD_PRACTICES_COMPLETE.md` - **ПОЛНЫЙ КАТАЛОГ ВСЕХ 54+ КОМПОНЕНТОВ** ✅
 - `WORLD_PRACTICES_IMPLEMENTED.md` - детальный отчет о внедрении
@@ -782,17 +833,20 @@ result = await tot.solve("Сложная planning задача...")
 **Новые находки от гигантов ИИ:**
 
 #### 1. **Agent Communication Protocols**
+
 - ✅ **A2A (Google)** - 50+ компаний поддержки, enterprise coordination
 - ✅ **ACP (IBM)** - lightweight messaging, trustable access
 - ✅ **µACP (2026)** - 4 глагола (PING, TELL, ASK, OBSERVE), 34ms latency
 - ✅ **MCP (Anthropic)** - tool access, широко принят
 
 **Внедрено:**
+
 - ✅ **Agent Protocol** (`knowledge_os/app/agent_protocol.py`) - A2A/ACP-style протокол
 - ✅ 4 глагола µACP для коммуникации агентов
 - ✅ Реестр агентов для discovery
 
 #### 2. **Swarm Intelligence**
+
 - ✅ **Коллективный интеллект** (Nature 2025) - meta-heuristic + consensus
 - ✅ **LLM-Powered Swarm** - emergent behaviors через LLM prompts
 - ✅ **Оптимальный размер:** ~16 агентов для сложных задач
@@ -800,36 +854,43 @@ result = await tot.solve("Сложная planning задача...")
 **Гипотеза:** Swarm из 16 экспертов даст +50-70% на сложных задачах
 
 #### 3. **Consensus Mechanisms**
+
 - ✅ **CONSENSAGENT (2025)** - mitigation sycophancy, dynamic prompt refinement
 - ✅ **Aegean (2025)** - quorum convergence, 1.2-20× latency reduction
 - ✅ **Результаты:** +20-30% accuracy, -40% sycophancy
 
 **Внедрено:**
+
 - ✅ **Consensus Agent** (`knowledge_os/app/consensus_agent.py`)
 - ✅ Sycophancy detection и mitigation
 - ✅ Quorum convergence (Aegean-style)
 
 #### 4. **Collective Intelligence**
+
 - ✅ **Anthropic Multi-Agent Research** - +90.2% vs single-agent
 - ✅ **Google MASS** - оптимизация prompts и топологий
 - ✅ **Результаты:** 45% faster resolution, 60% more accurate
 
 #### 5. **Hierarchical Orchestration**
+
 - ✅ **OrchVis (2025)** - human-centered, transparent visualization
 - ✅ **AgentOrchestra** - central planning + specialized agents
 - ✅ **Результаты:** Лучший контроль, меньше ошибок
 
 #### 6. **Emergent Behavior**
+
 - ✅ **Collective Memory** - +68.7% performance через stigmergy
 - ✅ **Hierarchy Emergence** - динамическое формирование иерархий
 - ✅ **Large-Scale** - сложные behaviors в 60,000+ агентах
 
 #### 7. **Multi-Agent Reinforcement Learning (MARL)**
+
 - ✅ **DMCG** - graph convolutional networks для координации
 - ✅ **Oryx (NeurIPS 2025)** - state-of-the-art на 80% benchmarks
 - ✅ **Применение:** Offline learning координации
 
 **Проверяемые гипотезы:**
+
 1. Swarm Mode улучшает сложные задачи на +50-70%
 2. Consensus снижает ошибки на +20-30% accuracy
 3. Collective Memory улучшает координацию на +68.7%
@@ -844,6 +905,7 @@ result = await tot.solve("Сложная planning задача...")
 **Статус:** ✅ **РЕАЛИЗОВАНО И ПОДКЛЮЧЕНО**
 
 #### Victoria & Veronica Enhanced (`knowledge_os/app/victoria_enhanced.py`)
+
 - ✅ **Автоматический выбор метода** на основе категории задачи
 - ✅ **Интеграция всех 54+ компонентов** супер-корпорации
 - ✅ **Подключение к Victoria Server** через `USE_VICTORIA_ENHANCED=true`
@@ -851,6 +913,7 @@ result = await tot.solve("Сложная planning задача...")
 - ✅ **Тестовый скрипт** для проверки работы
 
 **Автоматический выбор:**
+
 - **Reasoning** → Extended Thinking + ReCAP + Self-Consistency (+40-60%)
 - **Planning** → Tree of Thoughts + Hierarchical + ReCAP (+50-70%)
 - **Complex** → Swarm + Consensus + Collective Memory (+50-70%)
@@ -861,6 +924,7 @@ result = await tot.solve("Сложная planning задача...")
 - **Human-Like** → Emotional Modulation + Tacit Knowledge + Code Smell Predictor
 
 **Использование:**
+
 ```python
 from knowledge_os.app.victoria_enhanced import VictoriaEnhanced
 
@@ -869,18 +933,21 @@ result = await victoria.solve("Задача...")  # Автоматический
 ```
 
 **Через Victoria Server:**
+
 ```bash
 export USE_VICTORIA_ENHANCED=true
 python src/agents/bridge/victoria_server.py
 ```
 
 **Через Veronica Server:**
+
 ```bash
 export USE_VERONICA_ENHANCED=true
 python src/agents/bridge/server.py
 ```
 
 **Тестирование:**
+
 ```bash
 python scripts/test_victoria_enhanced.py
 ```
@@ -888,6 +955,7 @@ python scripts/test_victoria_enhanced.py
 **Включение Enhanced режима:**
 
 **Для Victoria:**
+
 ```bash
 # Автоматически через скрипт
 bash scripts/enable_victoria_enhanced.sh
@@ -898,6 +966,7 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent
 ```
 
 **Для Veronica:**
+
 ```bash
 # В docker-compose.yml уже установлено USE_VERONICA_ENHANCED=true
 # Или вручную
@@ -908,6 +977,7 @@ docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent
 **Статус:** ✅ **ВКЛЮЧЕН И РАБОТАЕТ** - `USE_VICTORIA_ENHANCED=true` и `USE_VERONICA_ENHANCED=true` установлены в docker-compose.yml
 
 **Последние обновления (2026-01-25):**
+
 - ✅ **Исправлена инициализация observability** в VictoriaEnhanced (добавлена безопасная проверка `hasattr` и обработка ошибок)
 - ✅ **Обновлен Victoria MCP Server** - автоматическое определение URL Victoria:
   - Приоритет: `VICTORIA_URL` env var → `localhost:8010` (локальный Docker) → `192.168.1.43:8010` (Mac Studio fallback)
@@ -925,6 +995,7 @@ docker-compose -f knowledge_os/docker-compose.yml restart veronica-agent
   - Enhanced Cache ✅
 
 **Проверка работы:**
+
 ```bash
 # Проверка статуса
 curl http://localhost:8010/status
@@ -935,7 +1006,8 @@ curl -X POST http://localhost:8010/run \
   -d '{"goal": "Реши задачу: 2+2*2"}'
 ```
 
-**Подробнее:** 
+**Подробнее:**
+
 - `docs/mac-studio/VICTORIA_ENHANCED_INTEGRATION.md` - руководство по интеграции
 - `docs/mac-studio/VICTORIA_ENHANCED_ENABLED.md` - статус включения Victoria
 - `docs/mac-studio/ENHANCED_AGENTS_COMPARISON.md` - сравнение Victoria и Veronica Enhanced
@@ -950,6 +1022,7 @@ curl -X POST http://localhost:8010/run \
 **Статус:** ✅ **РЕАЛИЗОВАНО**
 
 #### 4. ✅ **Multi-Agent Collaboration** (`knowledge_os/app/multi_agent_collaboration.py`)
+
 - ✅ **Автоматическое делегирование** задач между Victoria и Veronica
 - ✅ **Координация сложных задач** - Victoria планирует, Veronica выполняет
 - ✅ **Разрешение конфликтов** через консенсус
@@ -957,6 +1030,7 @@ curl -X POST http://localhost:8010/run \
 - ✅ **Ожидаемое улучшение:** +40-60% эффективности на сложных задачах
 
 **Использование:**
+
 ```python
 from app.multi_agent_collaboration import get_collaboration
 from app.task_delegation import get_task_delegator
@@ -974,6 +1048,7 @@ result = await collab.coordinate_complex_task("Разработай и прот�
 **Подробнее:** `docs/mac-studio/MULTI_AGENT_COLLABORATION.md`
 
 #### 5. ✅ **Human-in-the-Loop** (`knowledge_os/app/human_in_the_loop.py`)
+
 - ✅ **Критические одобрения** - запрос подтверждения для опасных действий
 - ✅ **Интерактивная коррекция** - возможность исправить решение агента
 - ✅ **Feedback loops** - обучение на основе человеческого фидбека
@@ -981,6 +1056,7 @@ result = await collab.coordinate_complex_task("Разработай и прот�
 - ✅ **Ожидаемое улучшение:** +15-20% accuracy на критических задачах
 
 **Использование:**
+
 ```python
 from app.human_in_the_loop import get_hitl
 
@@ -994,6 +1070,7 @@ approval = await hitl.request_approval(
 ```
 
 #### 6. ✅ **Checkpoint & Persistence** (`knowledge_os/app/checkpoint_manager.py`, `state_persistence.py`)
+
 - ✅ **State persistence** - сохранение состояния между сессиями
 - ✅ **Checkpoint system** - точки восстановления для длительных задач
 - ✅ **Resume capability** - продолжение прерванных задач
@@ -1001,6 +1078,7 @@ approval = await hitl.request_approval(
 - ✅ **Ожидаемый эффект:** Надежность на длительных задачах, восстановление после сбоев
 
 **Использование:**
+
 ```python
 from app.checkpoint_manager import get_checkpoint_manager
 
@@ -1023,6 +1101,7 @@ checkpoint = await manager.create_checkpoint(
 **Статус:** ✅ **РЕАЛИЗОВАНО**
 
 #### 7. ✅ **Reinforcement Learning** (`knowledge_os/app/reinforcement_learning.py`)
+
 - ✅ **Self-reward система** - агенты учатся на своих результатах
 - ✅ **Q-learning** - обновление Q-values на основе наград
 - ✅ **Policy optimization** - оптимизация стратегий выполнения задач
@@ -1030,6 +1109,7 @@ checkpoint = await manager.create_checkpoint(
 - ✅ **Ожидаемый эффект:** Постоянное улучшение без вмешательства
 
 **Использование:**
+
 ```python
 from app.reinforcement_learning import get_rl
 
@@ -1039,12 +1119,14 @@ reward = await rl.self_reward(action_id, result)
 ```
 
 #### 8. ✅ **Adaptive Agent** (`knowledge_os/app/adaptive_agent.py`)
+
 - ✅ **Adaptive behavior** - адаптация к новым типам задач
 - ✅ **Feedback-based adaptation** - адаптация на основе feedback
 - ✅ **Performance metrics** - отслеживание метрик производительности
 - ✅ **Ожидаемый эффект:** Адаптация к новым задачам автоматически
 
 **Использование:**
+
 ```python
 from app.adaptive_agent import get_adaptive_agent
 
@@ -1053,12 +1135,14 @@ adaptation = await agent.adapt_from_feedback(action_id, "correction", 0.8)
 ```
 
 #### 9. ✅ **Emergent Hierarchy** (`knowledge_os/app/emergent_hierarchy.py`)
+
 - ✅ **Динамическое формирование иерархий** - агенты сами определяют структуру
 - ✅ **Self-organization** - самоорганизация команды
 - ✅ **Role emergence** - появление новых ролей на основе задач
 - ✅ **Ожидаемый эффект:** Гибкость и адаптивность системы
 
 **Использование:**
+
 ```python
 from app.emergent_hierarchy import get_emergent_hierarchy
 
@@ -1067,6 +1151,7 @@ hierarchy_structure = await hierarchy.form_hierarchy_for_task(task, agents)
 ```
 
 #### 10. ✅ **Advanced Model Ensembles** (`knowledge_os/app/advanced_ensemble.py`, `model_specialization.py`)
+
 - ✅ **Dynamic ensemble selection** - выбор моделей на основе задачи
 - ✅ **Weighted voting** - взвешенное голосование между моделями
 - ✅ **Confidence-based routing** - маршрутизация по уверенности
@@ -1074,6 +1159,7 @@ hierarchy_structure = await hierarchy.form_hierarchy_for_task(task, agents)
 - ✅ **Ожидаемый эффект:** +10-15% дополнительного улучшения качества
 
 **Использование:**
+
 ```python
 from app.advanced_ensemble import get_advanced_ensemble
 
@@ -1093,6 +1179,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 Комплексный аудит и улучшение проекта ATRA Web IDE для production использования.
 
 #### 11. ✅ **Улучшенная Конфигурация** (`backend/app/config.py`)
+
 - ✅ **Валидация настроек** - проверка всех параметров при старте
 - ✅ **Pydantic Settings v2** - type-safe конфигурация
 - ✅ **Безопасные значения по умолчанию**
@@ -1100,6 +1187,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 - ✅ **Предупреждения** о небезопасных настройках
 
 **Новые параметры:**
+
 - `rate_limit_enabled`, `rate_limit_per_minute`, `rate_limit_per_hour`
 - `max_file_size`, `allowed_file_extensions`
 - `cache_enabled`, `cache_ttl`
@@ -1109,30 +1197,35 @@ result = await ensemble.weighted_voting(model_results, weights)
 #### 12. ✅ **Middleware Компоненты** (`backend/app/middleware/`)
 
 **12.1 Error Handler** (`error_handler.py`)
+
 - ✅ Централизованная обработка ошибок
 - ✅ Единый формат ответов об ошибках
 - ✅ Структурированные логи исключений
 - ✅ Обработка HTTP, валидации и общих исключений
 
 **12.2 Rate Limiter** (`rate_limiter.py`)
+
 - ✅ In-memory rate limiting
 - ✅ Лимиты на минуту и час
 - ✅ Автоматическая очистка старых записей
 - ✅ Исключения для health checks
 
 **12.3 Structured Logging** (`logging_middleware.py`)
+
 - ✅ JSON логирование для production
 - ✅ Логирование всех запросов и ответов
 - ✅ Метрики времени обработки
 - ✅ Заголовок `X-Process-Time` в ответах
 
 #### 13. ✅ **Кэширование** (`backend/app/services/cache.py`)
+
 - ✅ **LRU Cache с TTL** - автоматическая очистка истекших записей
 - ✅ **Генерация ключей кэша** - MD5 hash от параметров
 - ✅ **Настраиваемый размер и TTL**
 - ✅ **Использование в роутерах** - эксперты, модели
 
 **Кэширование:**
+
 - Список экспертов: 5 минут
 - Информация об эксперте: 10 минут
 - Список моделей Ollama: 1 минута
@@ -1140,6 +1233,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 #### 14. ✅ **Улучшенные Роутеры**
 
 **14.1 Files Router** (`backend/app/routers/files.py`)
+
 - ✅ **Валидация путей** - защита от path traversal
 - ✅ **Проверка расширений** - whitelist разрешенных файлов
 - ✅ **Ограничение размера** - максимальный размер файла (10MB)
@@ -1147,12 +1241,14 @@ result = await ensemble.weighted_voting(model_results, weights)
 - ✅ **Защита workspace root** - нельзя удалить корень
 
 **14.2 Chat Router** (`backend/app/routers/chat.py`)
+
 - ✅ **Валидация входных данных** - Pydantic с лимитами
 - ✅ **Кэширование списка моделей**
 - ✅ **Улучшенная обработка ошибок**
 - ✅ **Лимиты на длину сообщений** (10,000 символов)
 
 **14.3 Experts Router** (`backend/app/routers/experts.py`)
+
 - ✅ **Кэширование списка экспертов**
 - ✅ **Кэширование информации об эксперте**
 - ✅ **Fallback** при недоступности БД
@@ -1160,24 +1256,28 @@ result = await ensemble.weighted_voting(model_results, weights)
 #### 15. ✅ **Улучшенные Сервисы**
 
 **15.1 Knowledge OS Client** (`backend/app/services/knowledge_os.py`)
+
 - ✅ **Connection pooling** - asyncpg с настраиваемым пулом
 - ✅ **Health check** для БД
 - ✅ **Улучшенная обработка ошибок**
 - ✅ **Настраиваемый размер пула** (min/max)
 
 **15.2 Victoria Client** (`backend/app/services/victoria.py`)
+
 - ✅ **Retry logic** - экспоненциальная задержка
 - ✅ **Настраиваемые таймауты**
 - ✅ **Улучшенная обработка ошибок**
 - ✅ **Health check**
 
 **15.3 Ollama Client** (`backend/app/services/ollama.py`)
+
 - ✅ **Retry logic** - повторные попытки при ошибках
 - ✅ **Улучшенная обработка ошибок**
 - ✅ **Health check**
 - ✅ **Настраиваемые таймауты**
 
 #### 16. ✅ **Главное Приложение** (`backend/app/main.py`)
+
 - ✅ **Проверка зависимостей при старте** - Victoria, Ollama
 - ✅ **Улучшенный health check** - проверка всех зависимостей
 - ✅ **Структурированное логирование**
@@ -1185,6 +1285,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 - ✅ **Обработчики ошибок**
 
 **Health Check Endpoint:**
+
 ```json
 {
   "status": "healthy|degraded|unhealthy",
@@ -1198,6 +1299,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 ```
 
 #### 17. ✅ **Victoria Enhanced - Улучшения** (`knowledge_os/app/victoria_enhanced.py`)
+
 - ✅ **Инициализация Observability** - безопасная проверка доступности
 - ✅ **Инициализация Enhanced Cache** - с fallback при ошибках
 - ✅ **Улучшенная обработка ошибок** - try/except для всех observability вызовов
@@ -1209,21 +1311,22 @@ result = await ensemble.weighted_voting(model_results, weights)
 
 ## 📊 Метрики улучшений Singularity 9.0
 
-| Компонент | До | После | Улучшение |
-|-----------|-----|-------|-----------|
-| **Безопасность** | Базовая | Полная валидация | **+200%** |
-| **Производительность** | Без кэша | LRU Cache + Pool | **+50%** |
-| **Надежность** | Без retry | Retry logic | **+80%** |
-| **Observability** | Простое логирование | Structured JSON | **+100%** |
-| **Обработка ошибок** | Разрозненная | Централизованная | **+100%** |
-| **Rate Limiting** | Нет | Есть | **+∞** |
-| **Connection Pooling** | Нет | Есть | **+40%** БД производительность |
+| Компонент              | До                  | После            | Улучшение                      |
+| ---------------------- | ------------------- | ---------------- | ------------------------------ |
+| **Безопасность**       | Базовая             | Полная валидация | **+200%**                      |
+| **Производительность** | Без кэша            | LRU Cache + Pool | **+50%**                       |
+| **Надежность**         | Без retry           | Retry logic      | **+80%**                       |
+| **Observability**      | Простое логирование | Structured JSON  | **+100%**                      |
+| **Обработка ошибок**   | Разрозненная        | Централизованная | **+100%**                      |
+| **Rate Limiting**      | Нет                 | Есть             | **+∞**                         |
+| **Connection Pooling** | Нет                 | Есть             | **+40%** БД производительность |
 
 ---
 
 ## 🔒 Безопасность (Singularity 9.0)
 
 ### Реализовано:
+
 - ✅ Валидация путей (защита от path traversal)
 - ✅ Whitelist расширений файлов
 - ✅ Ограничение размера файлов
@@ -1238,6 +1341,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 ## 🚀 Производительность (Singularity 9.0)
 
 ### Оптимизации:
+
 - ✅ Кэширование часто запрашиваемых данных (LRU + TTL)
 - ✅ Connection pooling для БД (asyncpg)
 - ✅ Retry logic для внешних сервисов
@@ -1249,6 +1353,7 @@ result = await ensemble.weighted_voting(model_results, weights)
 ## 📝 Production Рекомендации
 
 ### Переменные окружения:
+
 ```bash
 # Безопасность
 SECRET_KEY=<strong-random-key>
@@ -1271,11 +1376,13 @@ OLLAMA_URL=http://host.docker.internal:11434
 ```
 
 ### Мониторинг:
+
 - Настроить сбор логов (ELK, Loki, CloudWatch)
 - Настроить метрики (Prometheus, Datadog)
 - Настроить алерты на health checks
 
 ### Безопасность:
+
 - Использовать HTTPS в production
 - Настроить firewall
 - Регулярно обновлять зависимости
@@ -1284,12 +1391,14 @@ OLLAMA_URL=http://host.docker.internal:11434
 ---
 
 #### 1. ✅ **Swarm Intelligence** (`knowledge_os/app/swarm_intelligence.py`)
+
 - ✅ **Коллективный интеллект** (Nature 2025: meta-heuristic + consensus)
 - ✅ **Оптимальный размер:** ~16 агентов
 - ✅ **LLM-Powered** для emergent behaviors
 - ✅ **Ожидаемое улучшение:** +50-70% на сложных задачах
 
 **Использование:**
+
 ```python
 from knowledge_os.app.swarm_intelligence import SwarmIntelligence
 
@@ -1298,11 +1407,13 @@ result = await swarm.solve("Сложная задача требующая ко�
 ```
 
 #### 2. ✅ **Collective Memory** (`knowledge_os/app/collective_memory.py`)
+
 - ✅ **Stigmergy** - environmental traces для координации
 - ✅ **Individual + Environmental** память
 - ✅ **Ожидаемое улучшение:** +68.7% performance improvement
 
 **Использование:**
+
 ```python
 from knowledge_os.app.collective_memory import CollectiveMemorySystem
 
@@ -1312,12 +1423,14 @@ context = await memory.get_enhanced_context("Игорь", "location")
 ```
 
 #### 3. ✅ **Hierarchical Orchestration** (`knowledge_os/app/hierarchical_orchestration.py`)
+
 - ✅ **OrchVis-style** - human-centered, transparent visualization
 - ✅ **Hierarchical goal alignment**
 - ✅ **Automated verification**
 - ✅ **Inter-agent dependencies tracking**
 
 **Использование:**
+
 ```python
 from knowledge_os.app.hierarchical_orchestration import HierarchicalOrchestrator
 
@@ -1332,94 +1445,44 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 **Всего компонентов:** **54+** ✅
 
 **🏗️ ФУНДАМЕНТ (4 компонента):**
+
 1. ✅ ReAct Framework (`react_agent.py` - 438 строк)
 2. ✅ Extended Thinking Mode (`extended_thinking.py` - 384 строки)
 3. ✅ State Machines (`state_machine.py`)
 4. ✅ CLAUDE.md файлы (`VICTORIA.md`, `VERONICA.md`)
 
-**🚀 ПРОДВИНУТЫЕ МЕТОДЫ (5 компонентов):**
-5. ✅ ReCAP Framework (`recap_framework.py`)
-6. ✅ Self-Learning Agents (`self_learning_agent.py`)
-7. ✅ Event-Driven Architecture (`event_bus.py`)
-8. ✅ Tree of Thoughts (`tree_of_thoughts.py`)
-9. ✅ Hierarchical Orchestration (`hierarchical_orchestration.py`)
+**🚀 ПРОДВИНУТЫЕ МЕТОДЫ (5 компонентов):** 5. ✅ ReCAP Framework (`recap_framework.py`) 6. ✅ Self-Learning Agents (`self_learning_agent.py`) 7. ✅ Event-Driven Architecture (`event_bus.py`) 8. ✅ Tree of Thoughts (`tree_of_thoughts.py`) 9. ✅ Hierarchical Orchestration (`hierarchical_orchestration.py`)
 
-**🤝 КОЛЛЕКТИВНЫЕ МЕТОДЫ (4 компонента):**
-10. ✅ Swarm Intelligence (`swarm_intelligence.py`)
-11. ✅ Consensus Agent (`consensus_agent.py`)
-12. ✅ Collective Memory (`collective_memory.py`)
-13. ✅ Agent Protocol (`agent_protocol.py`)
+**🤝 КОЛЛЕКТИВНЫЕ МЕТОДЫ (4 компонента):** 10. ✅ Swarm Intelligence (`swarm_intelligence.py`) 11. ✅ Consensus Agent (`consensus_agent.py`) 12. ✅ Collective Memory (`collective_memory.py`) 13. ✅ Agent Protocol (`agent_protocol.py`)
 
-**🎨 МОДЕЛЬНЫЕ УЛУЧШЕНИЯ (5 компонентов):**
-14. ✅ Self-Consistency Engine (`model_enhancer.py`)
-15. ✅ Speculative Decoding (`model_enhancer.py`)
-16. ✅ Enhanced RAG Engine (`model_enhancer.py`)
-17. ✅ Model Ensemble (`model_enhancer.py`)
-18. ✅ Adaptive Prompter (`adaptive_prompter.py`)
+**🎨 МОДЕЛЬНЫЕ УЛУЧШЕНИЯ (5 компонентов):** 14. ✅ Self-Consistency Engine (`model_enhancer.py`) 15. ✅ Speculative Decoding (`model_enhancer.py`) 16. ✅ Enhanced RAG Engine (`model_enhancer.py`) 17. ✅ Model Ensemble (`model_enhancer.py`) 18. ✅ Adaptive Prompter (`adaptive_prompter.py`)
 
-**🔍 НАБЛЮДАЕМОСТЬ И БЕЗОПАСНОСТЬ (4 компонента):**
-19. ✅ Observability (OpenTelemetry) (`observability.py`)
-20. ✅ Human-in-the-Loop (`human_in_the_loop.py`)
-21. ✅ Guardrails (`guardrails.py`)
-22. ✅ Self-Correction (`self_correction.py`)
+**🔍 НАБЛЮДАЕМОСТЬ И БЕЗОПАСНОСТЬ (4 компонента):** 19. ✅ Observability (OpenTelemetry) (`observability.py`) 20. ✅ Human-in-the-Loop (`human_in_the_loop.py`) 21. ✅ Guardrails (`guardrails.py`) 22. ✅ Self-Correction (`self_correction.py`)
 
-**🧬 SINGULARITY 3.0 - АВТОНОМНОСТЬ (3 компонента):**
-23. ✅ Meta-Architect (`meta_architect.py` - 176 строк)
-24. ✅ Expert Generator (`expert_generator.py` - 153 строки)
-25. ✅ Swarm War-Room (`swarm_orchestrator.py`)
+**🧬 SINGULARITY 3.0 - АВТОНОМНОСТЬ (3 компонента):** 23. ✅ Meta-Architect (`meta_architect.py` - 176 строк) 24. ✅ Expert Generator (`expert_generator.py` - 153 строки) 25. ✅ Swarm War-Room (`swarm_orchestrator.py`)
 
-**⚡ SINGULARITY 5.0 - ПРОИЗВОДИТЕЛЬНОСТЬ (4 компонента):**
-26. ✅ ML Router (`ml_router_v2.py` - 161 строка, + 4 файла)
-27. ✅ Streaming (`streaming_worker.py`)
-28. ✅ Vision Processor (`vision_processor.py`)
-    - Moondream Station (MLX) для обработки изображений
-    - Ollama fallback (moondream, llava:7b) при недоступности MLX
-    - Поддержка PDF через llava:7b
-29. ✅ Context Compression (`context_compressor.py`)
+**⚡ SINGULARITY 5.0 - ПРОИЗВОДИТЕЛЬНОСТЬ (4 компонента):** 26. ✅ ML Router (`ml_router_v2.py` - 161 строка, + 4 файла) 27. ✅ Streaming (`streaming_worker.py`) 28. ✅ Vision Processor (`vision_processor.py`) - Moondream Station (MLX) для обработки изображений - Ollama fallback (moondream, llava:7b) при недоступности MLX - Поддержка PDF через llava:7b 29. ✅ Context Compression (`context_compressor.py`)
 
-**🛡️ SINGULARITY 6.0 - НАДЁЖНОСТЬ (3 компонента):**
-30. ✅ Circuit Breaker (`circuit_breaker.py` - 264 строки)
-31. ✅ Disaster Recovery (`disaster_recovery.py` - 243 строки)
-32. ✅ SLA Monitor (через metrics)
+**🛡️ SINGULARITY 6.0 - НАДЁЖНОСТЬ (3 компонента):** 30. ✅ Circuit Breaker (`circuit_breaker.py` - 264 строки) 31. ✅ Disaster Recovery (`disaster_recovery.py` - 243 строки) 32. ✅ SLA Monitor (через metrics)
 
-**👁️ SINGULARITY 7.5 - НАБЛЮДАЕМОСТЬ (3 компонента):**
-33. ✅ Auto Model Manager (`auto_model_manager.py` - 192 строки)
-34. ✅ Anomaly Detection (`threat_detector.py`)
-35. ✅ Telegram Alerter (`telegram_alerter.py`)
+**👁️ SINGULARITY 7.5 - НАБЛЮДАЕМОСТЬ (3 компонента):** 33. ✅ Auto Model Manager (`auto_model_manager.py` - 192 строки) 34. ✅ Anomaly Detection (`threat_detector.py`) 35. ✅ Telegram Alerter (`telegram_alerter.py`)
 
-**⚡ SINGULARITY 8.0 - БЕЗОПАСНОСТЬ (2 компонента):**
-36. ✅ Parallel Request Processor (`parallel_request_processor.py`)
-37. ✅ Advanced Threat Detection (`threat_detector.py` - 157 строк)
+**⚡ SINGULARITY 8.0 - БЕЗОПАСНОСТЬ (2 компонента):** 36. ✅ Parallel Request Processor (`parallel_request_processor.py`) 37. ✅ Advanced Threat Detection (`threat_detector.py` - 157 строк)
 
-**🧬 SINGULARITY 9.0 - ПОНИМАНИЕ ЧЕЛОВЕКА (4 компонента):**
-38. ✅ Tacit Knowledge Extractor (`tacit_knowledge_miner.py`)
-39. ✅ Emotional Response Modulation (`emotion_detector.py` - 331 строка)
-40. ✅ Code Smell Predictor (`code_smell_predictor.py` - 319 строк)
-41. ✅ Predictive Compression (расширение `context_compressor.py`)
+**🧬 SINGULARITY 9.0 - ПОНИМАНИЕ ЧЕЛОВЕКА (4 компонента):** 38. ✅ Tacit Knowledge Extractor (`tacit_knowledge_miner.py`) 39. ✅ Emotional Response Modulation (`emotion_detector.py` - 331 строка) 40. ✅ Code Smell Predictor (`code_smell_predictor.py` - 319 строк) 41. ✅ Predictive Compression (расширение `context_compressor.py`)
 
-**🔧 ОПТИМИЗАЦИЯ И КЭШИРОВАНИЕ (3 компонента):**
-42. ✅ Prompt Cache (`prompt_cache.py` - 228 строк, экономия до 90% токенов)
-43. ✅ Model Optimizer (`model_optimizer.py` - 327 строк)
-44. ✅ Semantic Cache (`semantic_cache.py`)
+**🔧 ОПТИМИЗАЦИЯ И КЭШИРОВАНИЕ (3 компонента):** 42. ✅ Prompt Cache (`prompt_cache.py` - 228 строк, экономия до 90% токенов) 43. ✅ Model Optimizer (`model_optimizer.py` - 327 строк) 44. ✅ Semantic Cache (`semantic_cache.py`)
 
-**🧠 ДОПОЛНИТЕЛЬНЫЕ КОМПОНЕНТЫ (10+ компонентов):**
-45. ✅ Curiosity Engine (`curiosity_engine.py`)
-46. ✅ Memory Consolidator (`memory_consolidator.py`)
-47. ✅ Enhanced Orchestrator (`enhanced_orchestrator.py` — текущие фазы: 0, 0.5, 1–3, 10–16; целевой контур v2: 1–14 шагов с декомпозицией)
-48. ✅ Knowledge Graph (через `enhanced_search.py`)
-49. ✅ Enhanced Immunity (`enhanced_immunity.py`)
-50. ✅ Code Auditor (`code_auditor.py`)
-51. ✅ Distillation Engine (`distillation_engine.py`)
-52. ✅ Reinforcement Learning (`reinforcement_learning.py`)
-53. ✅ Adaptive Agent (`adaptive_agent.py`)
-54. ✅ Advanced Ensemble (`advanced_ensemble.py`)
+**🧠 ДОПОЛНИТЕЛЬНЫЕ КОМПОНЕНТЫ (10+ компонентов):** 45. ✅ Curiosity Engine (`curiosity_engine.py`) 46. ✅ Memory Consolidator (`memory_consolidator.py`) 47. ✅ Enhanced Orchestrator (`enhanced_orchestrator.py` — текущие фазы: 0, 0.5, 1–3, 10–16; целевой контур v2: 1–14 шагов с декомпозицией) 48. ✅ Knowledge Graph (через `enhanced_search.py`) 49. ✅ Enhanced Immunity (`enhanced_immunity.py`) 50. ✅ Code Auditor (`code_auditor.py`) 51. ✅ Distillation Engine (`distillation_engine.py`) 52. ✅ Reinforcement Learning (`reinforcement_learning.py`) 53. ✅ Adaptive Agent (`adaptive_agent.py`) 54. ✅ Advanced Ensemble (`advanced_ensemble.py`)
 
 **📊 Статистика кода:**
+
 - **191 Python файл** в `knowledge_os/app/`
 - **Все компоненты проверены в коде** ✅
 - **Интеграция в Victoria Enhanced** ✅
 
 **Ожидаемый общий эффект:**
+
 - **Качество:** +70-100% на сложных задачах
 - **Скорость:** +40-60% через оптимизацию
 - **Надежность:** +50-70% через self-learning и координацию
@@ -1430,17 +1493,20 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 - **User Satisfaction:** +15% (Emotional Modulation)
 
 **✅ ВСЕ КОМПОНЕНТЫ ПРОВЕРЕНЫ В КОДЕ:**
+
 - Файлы существуют и работают
 - Классы определены и реализованы
 - Интеграция в Victoria Enhanced выполнена
 - Использование через `USE_VICTORIA_ENHANCED=true` и `USE_VERONICA_ENHANCED=true`
 
 **📚 Подробные отчеты:**
+
 - `ALL_WORLD_PRACTICES_COMPLETE.md` - полный каталог всех 54+ компонентов
 - `WORLD_PRACTICES_IMPLEMENTED.md` - детальный отчет о внедрении
 - `REALITY_CHECK.md` - проверка реальности в коде
 
 **Проверка статуса (2026-01-25):**
+
 - ✅ MLX API Server работает на порту **11435** (приоритет над Ollama)
 - ✅ Все 8 моделей из PLAN.md найдены в `~/mlx-models/` и настроены
 - ✅ Victoria Enhanced использует MLX API Server с автоматическим fallback на Ollama
@@ -1449,6 +1515,7 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 - ✅ Проверка MLX: `curl http://localhost:11435/` | Проверка Ollama: `curl http://localhost:11434/api/tags`
 
 **🌐 Удаленный доступ с любой точки мира (2026-01-25):**
+
 - ✅ **Victoria Enhanced** доступна через `http://185.177.216.15:8020` (atra-web-ide) или `http://185.177.216.15:8010` (atra)
 - ✅ **Veronica Enhanced** доступна через `http://185.177.216.15:8021` (atra-web-ide) или `http://185.177.216.15:8011` (atra)
 - ✅ **Victoria MCP** доступен через `http://185.177.216.15:8012/sse`
@@ -1461,12 +1528,14 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 - ✅ Проверка: `curl http://185.177.216.15:8010/health` (Victoria), `curl http://185.177.216.15:8011/health` (Veronica), `curl http://185.177.216.15:11434/api/tags` (Ollama)
 
 **Исправления подключения (2026-01-25):**
+
 - ✅ `backend/app/config.py` - использует `localhost:11434` по умолчанию (вместо 192.168.1.43)
 - ✅ `docker-compose.yml` - использует `host.docker.internal:11434` для Docker контейнеров
 - ✅ `knowledge_os/docker-compose.yml` - правильно настроен `OLLAMA_BASE_URL`
 - ✅ Конфигурация исправлена для работы в Docker и локально
 
 **Настройка Docker на Mac Studio (2026-01-25):**
+
 - ✅ **Создан скрипт:** `scripts/setup_mac_studio_docker.sh` - автоматическая настройка и запуск всех сервисов на Mac Studio
 - ✅ **Документация:** `docs/mac-studio/MAC_STUDIO_DOCKER_SETUP.md` - полное руководство
 - ✅ **Важно:** Docker на Mac Studio и Mac Studio - это разные системы!
@@ -1474,10 +1543,11 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 - ✅ Скрипт автоматически: проверяет Docker, создает сеть, проверяет MLX/Ollama, запускает контейнеры, проверяет доступность
 
 **Миграция Docker с Mac Studio на Mac Studio (2026-01-25):**
+
 - ✅ **Создан скрипт экспорта:** `scripts/migrate_docker_to_mac_studio.sh` - экспорт всех контейнеров и данных с Mac Studio
 - ✅ **Создан скрипт импорта:** `scripts/import_docker_from_Mac Studio.sh` - импорт и запуск на Mac Studio
 - ✅ **Создан скрипт полного запуска:** `scripts/start_all_on_mac_studio.sh` - автоматический запуск всех сервисов на Mac Studio
-- ✅ **Документация:** 
+- ✅ **Документация:**
   - `docs/mac-studio/DOCKER_MIGRATION_Mac Studio_TO_MACSTUDIO.md` - полное руководство по миграции
   - `docs/mac-studio/QUICK_START_MAC_STUDIO.md` - быстрый старт на Mac Studio
 - ✅ **Что переносится:**
@@ -1492,6 +1562,7 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
   4. Выключить Docker на Mac Studio: `docker-compose -f knowledge_os/docker-compose.yml down`
 
 **Singularity 9.0 Улучшения (2026-01-25):**
+
 - ✅ Все компоненты проверены и улучшены
 - ✅ Добавлена централизованная обработка ошибок
 - ✅ Реализован rate limiting
@@ -1505,6 +1576,7 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 - ✅ Подробная документация: `docs/mac-studio/SINGULARITY_9_IMPROVEMENTS.md`
 
 **Автоматическое отслеживание моделей:**
+
 - ✅ **Model Tracker** - автоматически отслеживает доступные модели
 - ✅ Сохраняет информацию о моделях в базу знаний (домен "AI Models")
 - ✅ Отслеживает изменения (новые/удаленные модели)
@@ -1518,14 +1590,14 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 
 **Ваши локальные модели значительно мощнее:**
 
-| Категория | Локальная модель | Облачная Flash | Победитель |
-|-----------|------------------|----------------|------------|
-| **Enterprise** | command-r-plus:104b (104B) | Gemini 3 Flash (~8B) | ✅ **Локальная в 13 раз мощнее** |
-| **Reasoning** | deepseek-r1-distill-llama:70b (70B) | DeepSeek V3 (~7B) | ✅ **Локальная в 10 раз мощнее** |
-| **Качество** | llama3.3:70b (70B) | Gemini 3 Flash (~8B) | ✅ **Локальная в 8-9 раз мощнее** |
-| **Coding** | qwen2.5-coder:32b (32B) | Qwen Flash (~7B) | ✅ **Локальная в 4-5 раз мощнее** |
-| **Стоимость** | **Бесплатно** | $0.19-$1.13 за 1M токенов | ✅ **Локальная** |
-| **Приватность** | **100% локально** | Данные в облаке | ✅ **Локальная** |
+| Категория       | Локальная модель                    | Облачная Flash            | Победитель                        |
+| --------------- | ----------------------------------- | ------------------------- | --------------------------------- |
+| **Enterprise**  | command-r-plus:104b (104B)          | Gemini 3 Flash (~8B)      | ✅ **Локальная в 13 раз мощнее**  |
+| **Reasoning**   | deepseek-r1-distill-llama:70b (70B) | DeepSeek V3 (~7B)         | ✅ **Локальная в 10 раз мощнее**  |
+| **Качество**    | llama3.3:70b (70B)                  | Gemini 3 Flash (~8B)      | ✅ **Локальная в 8-9 раз мощнее** |
+| **Coding**      | qwen2.5-coder:32b (32B)             | Qwen Flash (~7B)          | ✅ **Локальная в 4-5 раз мощнее** |
+| **Стоимость**   | **Бесплатно**                       | $0.19-$1.13 за 1M токенов | ✅ **Локальная**                  |
+| **Приватность** | **100% локально**                   | Данные в облаке           | ✅ **Локальная**                  |
 
 **Вывод:** Ваши локальные модели значительно мощнее и выгоднее для большинства задач. Облачные Flash стоит использовать только для очень большого контекста (1M+) или мультимодальности.
 
@@ -1536,41 +1608,47 @@ state = await orchestrator.orchestrate(user_intent="Задача...", agents=age
 **⚠️ ВАЖНО: RAG vs Fine-Tuning - Правильный подход**
 
 **Виктория и Вероника УЖЕ используют базу знаний через RAG:**
+
 - ✅ Виктория: `_get_knowledge_context()` - получает контекст из базы знаний
 - ✅ Вероника: `search_knowledge()` - векторный поиск через pgvector
 - ✅ Система: RAG добавляет релевантные знания в промпт перед генерацией
 
 **❌ НЕ НУЖНО дообучать на фактах из базы знаний!**
+
 - Факты уже доступны через RAG (динамично, всегда актуально)
 - Дообучение "замораживает" факты в весах модели (устаревают)
 - Дублирование данных между RAG и fine-tuning
 
 **✅ ПРАВИЛЬНО: Дообучать только на паттернах стиля**
 
-| Что | RAG (База знаний) | Fine-Tuning |
-|-----|-------------------|-------------|
-| **Для чего** | Факты, данные | Стиль, паттерны |
-| **Актуальность** | Всегда актуально | Нужно переобучать |
-| **Где хранится** | База знаний (БД) | Веса модели |
-| **Обновление** | Просто обновить БД | Переобучить модель |
+| Что              | RAG (База знаний)  | Fine-Tuning        |
+| ---------------- | ------------------ | ------------------ |
+| **Для чего**     | Факты, данные      | Стиль, паттерны    |
+| **Актуальность** | Всегда актуально   | Нужно переобучать  |
+| **Где хранится** | База знаний (БД)   | Веса модели        |
+| **Обновление**   | Просто обновить БД | Переобучить модель |
 
 **Что дообучать:**
+
 - ✅ Стиль ответов Виктории (структурированные ответы, эмодзи, форматирование)
 - ✅ Паттерны кода (как Виктория пишет код, какие паттерны использует)
 - ✅ Форматы ответов (планы, отчеты, структура)
 - ❌ НЕ факты (они в RAG)
 
 **Компоненты:**
+
 - **Model Fine-Tuner** (`knowledge_os/app/model_finetuner.py`) - дообучение через MLX-LM (LoRA) на паттернах стиля
 - **Anti-Hallucination System** (`knowledge_os/app/anti_hallucination.py`) - снижение галлюцинаций через RAG
 
 **Запуск:**
+
 ```bash
 # Дообучить модель на паттернах стиля (НЕ на фактах!)
 bash scripts/finetune_model.sh qwen2.5-coder:32b
 ```
 
 **Правильная стратегия:**
+
 1. **RAG для фактов** - уже работает, не нужно дообучать
 2. **Fine-Tuning для стиля** - только паттерны и стиль ответов
 3. **Комбинировать** - RAG (факты) + Fine-tuning (стиль) = лучший результат
@@ -1582,6 +1660,7 @@ bash scripts/finetune_model.sh qwen2.5-coder:32b
 ### 🔄 Система отслеживания моделей
 
 **Компоненты:**
+
 1. **Model Tracker** (`knowledge_os/app/model_tracker.py`)
    - Периодически проверяет доступные модели через API
    - Сохраняет информацию в базу знаний (домен "AI Models")
@@ -1593,6 +1672,7 @@ bash scripts/finetune_model.sh qwen2.5-coder:32b
    - Сохраняет уведомления в базу знаний
 
 **Запуск:**
+
 ```bash
 # Ручной запуск
 bash scripts/start_model_tracker.sh
@@ -1603,12 +1683,14 @@ python3 -m app.model_tracker
 ```
 
 **Настройка:**
+
 - `MODEL_TRACKER_INTERVAL` - интервал проверки в секундах (по умолчанию 3600 = 1 час)
 - `MLX_API_URL` - URL MLX API Server (по умолчанию http://localhost:11435) - **приоритет**
 - `OLLAMA_BASE_URL` - URL Ollama API (по умолчанию http://localhost:11434) - **fallback**
 - `DATABASE_URL` - URL базы данных
 
 **Что отслеживается:**
+
 - ✅ Список доступных моделей
 - ✅ Размер и параметры моделей
 - ✅ Категория модели (Coding, Reasoning, Vision, Fast, Complex)
@@ -1616,6 +1698,7 @@ python3 -m app.model_tracker
 - ✅ История обновлений
 
 **Где хранится:**
+
 - База знаний: домен "AI Models"
 - Все модели сохраняются как `knowledge_nodes`
 - Метаданные включают размер, параметры, категорию, дату обновления
@@ -1624,37 +1707,40 @@ python3 -m app.model_tracker
 
 ### Серверы корпорации
 
-| Сервер | IP | Роль |
-|--------|-----|------|
-| Server 1 | 185.177.216.15 | Trading, Redis |
-| Server 2 | 46.149.66.170 | **Knowledge OS**, PostgreSQL |
+| Сервер   | IP             | Роль                         |
+| -------- | -------------- | ---------------------------- |
+| Server 1 | 185.177.216.15 | Trading, Redis               |
+| Server 2 | 46.149.66.170  | **Knowledge OS**, PostgreSQL |
 
 ---
 
 ## ✅ ТЕХНОЛОГИЧЕСКИЙ СТЕК
 
 ### Frontend
-| Компонент | Технология |
-|-----------|------------|
-| Framework | Svelte + Tailwind CSS |
-| Редактор | CodeMirror 6 |
-| Терминал | xterm.js |
-| Стриминг | SSE (Server-Sent Events) |
+
+| Компонент | Технология               |
+| --------- | ------------------------ |
+| Framework | Svelte + Tailwind CSS    |
+| Редактор  | CodeMirror 6             |
+| Терминал  | xterm.js                 |
+| Стриминг  | SSE (Server-Sent Events) |
 
 ### Backend
-| Компонент | Технология |
-|-----------|------------|
-| API | FastAPI (Python) |
-| LLM | MLX API Server (11435, приоритет) / Ollama (11434, fallback) |
-| БД | PostgreSQL + pgvector |
-| Кэш | Redis + Semantic Cache |
-| MCP | fastmcp (SSE) |
+
+| Компонент | Технология                                                   |
+| --------- | ------------------------------------------------------------ |
+| API       | FastAPI (Python)                                             |
+| LLM       | MLX API Server (11435, приоритет) / Ollama (11434, fallback) |
+| БД        | PostgreSQL + pgvector                                        |
+| Кэш       | Redis + Semantic Cache                                       |
+| MCP       | fastmcp (SSE)                                                |
 
 ### Контейнеризация
-| Компонент | Технология |
-|-----------|------------|
+
+| Компонент   | Технология     |
+| ----------- | -------------- |
 | Оркестрация | Docker Compose |
-| Registry | Local / GHCR |
+| Registry    | Local / GHCR   |
 
 ---
 
@@ -1766,15 +1852,16 @@ atra-web-ide/
 
 ### Доступные серверы
 
-| Сервер | URL | Функции |
-|--------|-----|---------|
+| Сервер       | URL                          | Функции                     |
+| ------------ | ---------------------------- | --------------------------- |
 | VictoriaATRA | http://192.168.1.43:8012/sse | Чат, планирование, эксперты |
-| Ollama | http://localhost:11434 | LLM модели |
-| Filesystem | stdio | Работа с файлами |
+| Ollama       | http://localhost:11434       | LLM модели                  |
+| Filesystem   | stdio                        | Работа с файлами            |
 
 ### Инструменты Victoria MCP
 
 **Обновлено (2026-01-25):**
+
 - ✅ Автоматическое определение URL Victoria (localhost:8010 или Mac Studio)
 - ✅ Безопасная обработка observability в VictoriaEnhanced
 - ✅ Все компоненты Enhanced режима инициализированы и работают
@@ -1788,6 +1875,7 @@ victoria_health()                          # Health check (status, agent name)
 ```
 
 **Использование в Cursor:**
+
 - Victoria автоматически использует Enhanced режим при `USE_VICTORIA_ENHANCED=true`
 - Автоматический выбор метода: Reasoning → Extended Thinking, Planning → Tree of Thoughts, Complex → Swarm, Execution → ReAct
 
@@ -1798,11 +1886,13 @@ victoria_health()                          # Health check (status, agent name)
 ### Этап 1: Интеграция с Singularity (1 неделя)
 
 1. **Импорт Knowledge OS** — база 50,926 знаний
+
    ```bash
    bash scripts/import_knowledge_os.sh
    ```
 
 2. **Запуск Victoria + Veronica**
+
    ```bash
    bash scripts/start_local.sh
    ```
@@ -1886,26 +1976,31 @@ victoria_health()                          # Health check (status, agent name)
 **Статус:** ✅ **ВСЕ КОМПОНЕНТЫ ВНЕДРЕНЫ И ПРОВЕРЕНЫ**
 
 ### Из версии 9.0:
+
 - ✅ **Tacit Knowledge Extractor** — код в стиле пользователя (`tacit_knowledge_miner.py`)
 - ✅ **Emotional Response Modulation** — адаптация под настроение (`emotion_detector.py` - 331 строка)
 - ✅ **Code Smell Predictor** — предсказание багов (`code_smell_predictor.py` - 319 строк)
 - ✅ **Predictive Compression** — ускорение ответов на 30% (расширение `context_compressor.py`)
 
 ### Из версии 8.0:
+
 - ✅ **Parallel Request Processor** — latency -40% (`parallel_request_processor.py`)
 - ✅ **Advanced Threat Detection** — защита от инъекций (`threat_detector.py` - 157 строк)
 
 ### Из версии 7.5:
+
 - ✅ **Auto Model Manager** — умная загрузка моделей (`auto_model_manager.py` - 192 строки)
 - ✅ **Anomaly Detector** — защита от атак (`threat_detector.py`, `anomaly_detector.py`)
 - ✅ **Telegram Alerter** — уведомления (`telegram_alerter.py`)
 
 ### Из версии 6.0:
+
 - ✅ **Circuit Breaker** — отказоустойчивость (`circuit_breaker.py` - 264 строки)
 - ✅ **SLA Monitor** — метрики качества (через `metrics_collector.py`)
 - ✅ **Disaster Recovery** — восстановление (`disaster_recovery.py` - 243 строки)
 
 ### Из версии 5.0:
+
 - ✅ **ML Router** — интеллектуальный роутинг (`ml_router_v2.py` - 161 строка + 4 файла)
 - ✅ **Vision Processor** — анализ скриншотов и PDF (`vision_processor.py`)
   - Поддержка Moondream Station (MLX, порт 2020)
@@ -1917,6 +2012,7 @@ victoria_health()                          # Health check (status, agent name)
 - ✅ **Context Compression** — сжатие контекста (`context_compressor.py`)
 
 ### Из версии 3.0:
+
 - ✅ **Swarm War-Room** — консенсус экспертов (`swarm_orchestrator.py`)
 - ✅ **Meta-Architect** — автоисправление кода (`meta_architect.py` - 176 строк)
 - ✅ **Expert Generator** — автонайм экспертов (`expert_generator.py` - 153 строки)
@@ -1926,6 +2022,7 @@ victoria_health()                          # Health check (status, agent name)
 ## 🚀 БЫСТРЫЙ СТАРТ
 
 ### 1. Импорт базы знаний
+
 ```bash
 # Запустить PostgreSQL
 docker-compose -f knowledge_os/docker-compose.yml up -d db
@@ -1935,17 +2032,20 @@ bash scripts/import_knowledge_os.sh
 ```
 
 ### 2. Запустить агентов
+
 ```bash
 # Victoria + Veronica + MCP
 bash scripts/start_local.sh
 ```
 
 ### 3. Проверить сервисы
+
 ```bash
 bash scripts/check_services.sh
 ```
 
 ### 4. Запустить Web IDE
+
 ```bash
 docker-compose up -d
 open http://localhost:3000
@@ -1956,6 +2056,7 @@ open http://localhost:3000
 ## 👥 КОМАНДА ATRA (58 экспертов)
 
 ### Ключевые роли:
+
 - **Виктория** — Team Lead, координация
 - **Вероника** — Local Dev, код
 - **Дмитрий** — ML Engineer
@@ -1977,50 +2078,50 @@ open http://localhost:3000
 
 ## 📊 МЕТРИКИ УСПЕХА
 
-| Метрика | Цель | Источник |
-|---------|------|----------|
-| Экономия токенов | 95%+ | ML Router v5.0 |
-| Latency p95 | < 2 сек | Parallel v8.0 |
-| Качество ответов | +60% | Distillation v3.0 |
-| Style similarity | > 0.85 | Tacit v9.0 |
-| User satisfaction | +15% | Emotional v9.0 |
-| Bug prediction | precision > 70% | Code Smell v9.0 |
+| Метрика           | Цель            | Источник          |
+| ----------------- | --------------- | ----------------- |
+| Экономия токенов  | 95%+            | ML Router v5.0    |
+| Latency p95       | < 2 сек         | Parallel v8.0     |
+| Качество ответов  | +60%            | Distillation v3.0 |
+| Style similarity  | > 0.85          | Tacit v9.0        |
+| User satisfaction | +15%            | Emotional v9.0    |
+| Bug prediction    | precision > 70% | Code Smell v9.0   |
 
 ---
 
 ## 📚 ДОКУМЕНТАЦИЯ
 
-| Документ | Описание |
-|----------|----------|
-| `docs/SINGULARITY_ALL_VERSIONS_2_TO_9.md` | Полная эволюция Singularity |
-| `docs/singularity_plans/INDEX.md` | Индекс всех планов |
-| `docs/MAC_STUDIO_INDEX.md` | Индекс Mac Studio |
-| `docs/MIGRATION_COMPLETE_2026_01_25.md` | Миграция с серверов |
-| `docs/mac-studio/SETUP_COMPLETE_GUIDE.md` | Полное руководство по мониторингу |
-| `docs/mac-studio/ALL_SERVICES_VERIFIED.md` | Проверка всех сервисов |
-| `docs/mac-studio/FINAL_COMPLETE_STATUS.md` | Финальный статус реализации |
-| `docs/mac-studio/VICTORIA_IMPROVEMENTS_PLAN.md` | План улучшения Victoria Agent |
-| `docs/mac-studio/VICTORIA_IMPROVEMENTS_IMPLEMENTATION.md` | Детальный план реализации улучшений |
-| `docs/mac-studio/VICTORIA_IMPROVEMENTS_COMPLETE.md` | Описание реализованных улучшений |
-| `docs/mac-studio/VICTORIA_DEPLOYMENT_STATUS.md` | Статус развертывания улучшений |
-| `docs/mac-studio/VICTORIA_FINAL_STATUS.md` | Финальный статус всех улучшений |
-| `docs/mac-studio/VICTORIA_VERONICA_TEST_REPORT.md` | Отчет о комплексном тестировании |
-| `docs/VICTORIA_PROCESS_FULL.md` | **Полный процесс Victoria:** запрос → solve → делегирование → оркестратор (п. 6–7) |
-| `scripts/test_victoria_veronica.sh` | Скрипт автоматического тестирования |
-| `README.md` | Быстрый старт |
-| `.cursor_chats_backup/SUMMARY.md` | Сводка истории чатов Cursor |
-| `CHATS_IMPORTANT_FINDINGS.md` | Важные находки из чатов |
-| `CHATS_FULL_STUDY_COMPLETE.md` | Полное изучение чатов — применённые решения |
-| `CHAT_PROCESSING_ISSUE.md` | Проблема «в обработке» (MLX fallback) |
-| `CHATS_VERIFICATION_DETAILED.md` | Детальная проверка изучения чатов |
-| `CHATS_STUDY_REPORT.md` | Отчёт об изучении транскриптов |
-| `.cursor_chats_backup/ATRA_WEB_IDE_ANALYSIS.md` | Анализ проекта из бэкапа чатов |
+| Документ                                                  | Описание                                                                           |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `docs/SINGULARITY_ALL_VERSIONS_2_TO_9.md`                 | Полная эволюция Singularity                                                        |
+| `docs/singularity_plans/INDEX.md`                         | Индекс всех планов                                                                 |
+| `docs/MAC_STUDIO_INDEX.md`                                | Индекс Mac Studio                                                                  |
+| `docs/MIGRATION_COMPLETE_2026_01_25.md`                   | Миграция с серверов                                                                |
+| `docs/mac-studio/SETUP_COMPLETE_GUIDE.md`                 | Полное руководство по мониторингу                                                  |
+| `docs/mac-studio/ALL_SERVICES_VERIFIED.md`                | Проверка всех сервисов                                                             |
+| `docs/mac-studio/FINAL_COMPLETE_STATUS.md`                | Финальный статус реализации                                                        |
+| `docs/mac-studio/VICTORIA_IMPROVEMENTS_PLAN.md`           | План улучшения Victoria Agent                                                      |
+| `docs/mac-studio/VICTORIA_IMPROVEMENTS_IMPLEMENTATION.md` | Детальный план реализации улучшений                                                |
+| `docs/mac-studio/VICTORIA_IMPROVEMENTS_COMPLETE.md`       | Описание реализованных улучшений                                                   |
+| `docs/mac-studio/VICTORIA_DEPLOYMENT_STATUS.md`           | Статус развертывания улучшений                                                     |
+| `docs/mac-studio/VICTORIA_FINAL_STATUS.md`                | Финальный статус всех улучшений                                                    |
+| `docs/mac-studio/VICTORIA_VERONICA_TEST_REPORT.md`        | Отчет о комплексном тестировании                                                   |
+| `docs/VICTORIA_PROCESS_FULL.md`                           | **Полный процесс Victoria:** запрос → solve → делегирование → оркестратор (п. 6–7) |
+| `scripts/test_victoria_veronica.sh`                       | Скрипт автоматического тестирования                                                |
+| `README.md`                                               | Быстрый старт                                                                      |
+| `.cursor_chats_backup/SUMMARY.md`                         | Сводка истории чатов Cursor                                                        |
+| `CHATS_IMPORTANT_FINDINGS.md`                             | Важные находки из чатов                                                            |
+| `CHATS_FULL_STUDY_COMPLETE.md`                            | Полное изучение чатов — применённые решения                                        |
+| `CHAT_PROCESSING_ISSUE.md`                                | Проблема «в обработке» (MLX fallback)                                              |
+| `CHATS_VERIFICATION_DETAILED.md`                          | Детальная проверка изучения чатов                                                  |
+| `CHATS_STUDY_REPORT.md`                                   | Отчёт об изучении транскриптов                                                     |
+| `.cursor_chats_backup/ATRA_WEB_IDE_ANALYSIS.md`           | Анализ проекта из бэкапа чатов                                                     |
 
 ---
 
 ## 📚 ИНСАЙТЫ ИЗ ИСТОРИИ ЧАТОВ (CURSOR)
 
-**Источник:** 32 транскрипта в `.cursor_chats_backup/agent-transcripts/` (8.8 MB), отчёты CHATS_*.md  
+**Источник:** 32 транскрипта в `.cursor_chats_backup/agent-transcripts/` (8.8 MB), отчёты CHATS\_\*.md  
 **Дата анализа:** 26–27.01.2026
 
 ### Ключевые темы из чатов
@@ -2032,13 +2133,13 @@ open http://localhost:3000
 
 ### Критически важные решения (применены)
 
-| Решение | Из чатов | Применено в проекте |
-|--------|----------|----------------------|
-| **БД** | Не создавать новую БД в `knowledge_os/docker-compose.yml` | Используется `knowledge_postgres`, `DATABASE_URL` → `knowledge_postgres:5432`, `depends_on: db` убраны |
-| **Порты** | Не запускать одновременно atra и atra-web-ide | Конфликты 5432, 8010, 8011 задокументированы; при совместной работе — общие агенты через knowledge_os |
-| **Veronica** | Две роли: Research (всегда) и Operator (по умолчанию выкл.) | Research — web + локальные модели; Operator — tools/ssh, allowlist, audit-log |
-| **MAS** | Единый протокол, event-bus, blackboard, оркестратор | `src/agents/mas/` — protocol, registry, event_bus, blackboard, audit-log, идемпотентность |
-| **Knowledge OS** | ~150 модулей, критический путь изучен | Интеграция в Victoria Enhanced; ключевые модули: `ai_core.py`, таск-система, автономные компоненты |
+| Решение          | Из чатов                                                    | Применено в проекте                                                                                    |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **БД**           | Не создавать новую БД в `knowledge_os/docker-compose.yml`   | Используется `knowledge_postgres`, `DATABASE_URL` → `knowledge_postgres:5432`, `depends_on: db` убраны |
+| **Порты**        | Не запускать одновременно atra и atra-web-ide               | Конфликты 5432, 8010, 8011 задокументированы; при совместной работе — общие агенты через knowledge_os  |
+| **Veronica**     | Две роли: Research (всегда) и Operator (по умолчанию выкл.) | Research — web + локальные модели; Operator — tools/ssh, allowlist, audit-log                          |
+| **MAS**          | Единый протокол, event-bus, blackboard, оркестратор         | `src/agents/mas/` — protocol, registry, event_bus, blackboard, audit-log, идемпотентность              |
+| **Knowledge OS** | ~150 модулей, критический путь изучен                       | Интеграция в Victoria Enhanced; ключевые модули: `ai_core.py`, таск-система, автономные компоненты     |
 
 ### Безопасность (из чатов)
 
@@ -2078,8 +2179,8 @@ open http://localhost:3000
 - **25.01.2026** — Проведено комплексное тестирование Victoria и Veronica (оркестрация, промпты, сбор ответов - все работает идеально)
 - **26.01.2026** — Изучены чаты Cursor (32 транскрипта), применены решения: knowledge_postgres, порты, роли Veronica, MAS-core
 - **27.01.2026** — Victoria Initiative полностью реализована; зафиксирована проблема «в обработке» при недоступности MLX (fallback на Ollama)
-- **29.01.2026** — В PLAN.md добавлен раздел «Инсайты из истории чатов» и ссылки на отчёты CHATS_*.md
-- **29.01.2026** — Victoria Agent + Enhanced + Initiative: все три слоя запускаются при старте. Исправлены lifespan (paths, _env_bool для кавычек в env), добавлен watchdog в requirements, раздел «Victoria: три слоя» в PLAN.md.
+- **29.01.2026** — В PLAN.md добавлен раздел «Инсайты из истории чатов» и ссылки на отчёты CHATS\_\*.md
+- **29.01.2026** — Victoria Agent + Enhanced + Initiative: все три слоя запускаются при старте. Исправлены lifespan (paths, \_env_bool для кавычек в env), добавлен watchdog в requirements, раздел «Victoria: три слоя» в PLAN.md.
 
 ---
 
@@ -2093,6 +2194,7 @@ open http://localhost:3000
 **Цель:** Визуализация метрик и мониторинг производительности корпорации ATRA
 
 **Реализовано:**
+
 - ✅ Добавлены контейнеры Prometheus и Grafana в `knowledge_os/docker-compose.yml`
 - ✅ Обновлена конфигурация `infrastructure/monitoring/prometheus.yml` для сбора метрик с:
   - Victoria Agent (atra-victoria-agent:8010/health)
@@ -2107,11 +2209,13 @@ open http://localhost:3000
 - ✅ Dashboard "ATRA Knowledge OS Dashboard" импортирован автоматически
 
 **Доступ:**
+
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3001 (admin/atra2025)
 - Dashboard: http://localhost:3001/d/atra-knowledge-os
 
 **Результат:**
+
 - Метрики собираются в реальном времени
 - Визуализация через Grafana дашборды
 - Готовность к настройке алертов
@@ -2123,6 +2227,7 @@ open http://localhost:3000
 **Цель:** Централизованное логирование и анализ логов корпорации ATRA
 
 **Реализовано:**
+
 - ✅ Добавлены контейнеры Elasticsearch и Kibana в `docker-compose.yml`
 - ✅ Создан полнофункциональный ELKHandler (`knowledge_os/app/elk_handler.py`, 280+ строк):
   - Асинхронная отправка логов (не блокирует работу)
@@ -2142,11 +2247,13 @@ open http://localhost:3000
 - ✅ Тестовый лог создан для проверки работы
 
 **Доступ:**
+
 - Elasticsearch: http://localhost:9200 (status: green)
 - Kibana: http://localhost:5601
 - Discover: http://localhost:5601/app/discover
 
 **Результат:**
+
 - Централизованное хранение всех логов
 - Быстрый поиск по логам через Kibana
 - Готовность к анализу паттернов и трендов
@@ -2158,6 +2265,7 @@ open http://localhost:3000
 **Цель:** Ускорение выполнения простых задач агентами Victoria и Veronica
 
 **Реализовано:**
+
 - ✅ Добавлена логика определения простых задач в `victoria_server.py` и `server.py`
 - ✅ Пропуск планирования для простых задач:
   - Критерии: содержит ключевые слова ("скажи", "привет", "покажи файлы", и т.д.)
@@ -2166,6 +2274,7 @@ open http://localhost:3000
 - ✅ Для сложных задач: используется planner как раньше
 
 **Результат:**
+
 - ⚡ Простые задачи выполняются на 50-60% быстрее
 - 💰 Меньше использование ресурсов
 - 🎯 Более отзывчивые агенты
@@ -2179,32 +2288,38 @@ open http://localhost:3000
 **Реализовано:**
 
 #### 4.1. Интеграция с Knowledge OS
+
 - ✅ Подключение к PostgreSQL через asyncpg pool
 - ✅ Загрузка команды экспертов (58 экспертов)
 - ✅ Поиск релевантных знаний (RAG) для контекста задач
 - ✅ Опциональная интеграция через `USE_KNOWLEDGE_OS=true`
 
 #### 4.2. Автоматический выбор экспертов
+
 - ✅ Категоризация задач (8 категорий: backend, frontend, ml, devops, security, database, performance, general)
 - ✅ Автоматический поиск эксперта по категории
 - ✅ Использование знаний эксперта в промпте планирования
 
 #### 4.3. Кэширование задач
+
 - ✅ Хеширование задач для уникальной идентификации
 - ✅ TTL кэша (24 часа)
 - ✅ Автоматическое сохранение успешных результатов
 - ✅ Опциональное включение через `VICTORIA_USE_CACHE=true`
 
 #### 4.4. Обучение и адаптация
+
 - ✅ Сохранение знаний из выполненных задач в Knowledge OS
 - ✅ Автоматическое добавление в базу знаний
 - ✅ Метаданные (задача, эксперт, timestamp)
 
 **Файлы изменены:**
+
 - `src/agents/bridge/victoria_server.py` — все улучшения реализованы
 - `knowledge_os/docker-compose.yml` — добавлены env vars (`USE_KNOWLEDGE_OS`, `VICTORIA_USE_CACHE`)
 
 **Результат:**
+
 - 📊 Доступ к 50,926 знаний из Knowledge OS
 - 👥 Использование 58 экспертов для специализированных задач
 - ⚡ Ускорение ответов на 30-50% (кэширование)
@@ -2212,6 +2327,7 @@ open http://localhost:3000
 - 📚 Накопление опыта из выполненных задач
 
 **Документация:**
+
 - `docs/mac-studio/VICTORIA_IMPROVEMENTS_PLAN.md` — общий план
 - `docs/mac-studio/VICTORIA_IMPROVEMENTS_IMPLEMENTATION.md` — детальная реализация
 - `docs/mac-studio/VICTORIA_IMPROVEMENTS_COMPLETE.md` — описание реализованных улучшений
@@ -2223,15 +2339,18 @@ open http://localhost:3000
 ## 📁 СОЗДАННЫЕ ФАЙЛЫ
 
 ### Docker конфигурация (1 файл):
+
 - `knowledge_os/docker-compose.yml` — добавлены 4 сервиса мониторинга, ELK переменные для агентов
 
 ### Конфигурация мониторинга (4 файла):
+
 - `infrastructure/monitoring/prometheus.yml` — обновлена
 - `infrastructure/monitoring/grafana/provisioning/datasources/prometheus.yml` — создана
 - `infrastructure/monitoring/grafana/provisioning/dashboards/dashboard.yml` — создана
 - `infrastructure/monitoring/kibana/kibana.yml` — создана
 
 ### Код (5 файлов):
+
 - `knowledge_os/app/main.py` — добавлен `/metrics` endpoint
 - `knowledge_os/app/elk_handler.py` — создан ELK handler (280+ строк)
 - `knowledge_os/src/shared/utils/logger.py` — интеграция ELK
@@ -2239,11 +2358,13 @@ open http://localhost:3000
 - `src/agents/bridge/server.py` — оптимизация + ELK поддержка
 
 ### Скрипты (3 файла):
+
 - `scripts/setup_grafana_complete.sh` — автоматическая настройка Grafana
 - `scripts/setup_kibana_complete.sh` — инструкции по Kibana
 - `scripts/create_kibana_index_pattern.sh` — автоматическое создание index pattern
 
 ### Документация (11 файлов):
+
 - `docs/mac-studio/ELK_GRAFANA_IMPLEMENTATION_PLAN.md` — план реализации
 - `docs/mac-studio/FINAL_IMPLEMENTATION_REPORT.md` — финальный отчет
 - `docs/mac-studio/QUICK_START_MONITORING.md` — быстрый старт
@@ -2269,17 +2390,20 @@ open http://localhost:3000
 ## ✅ ПРЕИМУЩЕСТВА РЕАЛИЗАЦИИ
 
 ### Мониторинг:
+
 - 📊 Визуализация метрик через Grafana дашборды
 - 🔍 Централизованный поиск логов через Kibana
 - 🚨 Готовность к алертам на основе метрик и логов
 - 📈 Анализ производительности и трендов
 
 ### Производительность:
+
 - ⚡ Простые задачи выполняются на 50-60% быстрее
 - 💰 Меньше использование ресурсов
 - 🎯 Более отзывчивые агенты
 
 ### Масштабируемость:
+
 - 🚀 Готовность к росту корпорации
 - 🔧 Централизованное логирование
 - 📊 Полная наблюдаемость системы
@@ -2288,18 +2412,19 @@ open http://localhost:3000
 
 ## 🔗 ДОСТУП К СЕРВИСАМ
 
-| Сервис | URL | Логин | Пароль | Статус |
-|--------|-----|-------|--------|--------|
-| **Prometheus** | http://localhost:9090 | - | - | ✅ Healthy |
-| **Grafana** | http://localhost:3001 | admin | atra2025 | ✅ OK |
-| **Elasticsearch** | http://localhost:9200 | - | - | ✅ Green |
-| **Kibana** | http://localhost:5601 | - | - | ✅ Available |
+| Сервис            | URL                   | Логин | Пароль   | Статус       |
+| ----------------- | --------------------- | ----- | -------- | ------------ |
+| **Prometheus**    | http://localhost:9090 | -     | -        | ✅ Healthy   |
+| **Grafana**       | http://localhost:3001 | admin | atra2025 | ✅ OK        |
+| **Elasticsearch** | http://localhost:9200 | -     | -        | ✅ Green     |
+| **Kibana**        | http://localhost:5601 | -     | -        | ✅ Available |
 
 ---
 
 ## 🎉 ИТОГ
 
 **Корпорация ATRA теперь имеет:**
+
 - ✅ Полный мониторинг (Prometheus + Grafana)
 - ✅ Централизованное логирование (ELK стек)
 - ✅ Оптимизированных агентов (Victoria, Veronica)
@@ -2331,12 +2456,14 @@ open http://localhost:3000
 **⚠️ ВАЖНО: Tailscale заблокирован в России с октября 2024 года!**
 
 **Статус блокировки:**
+
 - ❌ Админ-панель недоступна с российских IP (ошибка 451)
 - ❌ Невозможно скачать клиентское приложение
 - ❌ Мобильные приложения не подключаются
 - ⚠️ Уже установленные клиенты могут работать временно
 
 **Преимущества (для стран без блокировки):**
+
 - ✅ Бесплатно для личного использования
 - ✅ Безопасно (WireGuard под капотом)
 - ✅ Работает из любой точки мира
@@ -2349,6 +2476,7 @@ open http://localhost:3000
 #### **1.1. Headscale (Альтернатива Tailscale для России)** ✅ **РЕКОМЕНДУЕТСЯ ДЛЯ РОССИИ**
 
 **Преимущества:**
+
 - ✅ Самостоятельный сервер (полный контроль)
 - ✅ Использует клиенты Tailscale (совместимость)
 - ✅ Работает в России (нет блокировки)
@@ -2356,6 +2484,7 @@ open http://localhost:3000
 - ✅ Бесплатно и open-source
 
 **Настройка:**
+
 ```bash
 # На сервере (185.177.216.15)
 curl -fsSL https://get.headscale.net | sh
@@ -2369,12 +2498,14 @@ tailscale up --login-server=http://185.177.216.15:8080
 #### **2. Cloudflare Tunnel** ✅
 
 **Преимущества:**
+
 - ✅ Бесплатно
 - ✅ Работает через облако Cloudflare
 - ✅ Не требует настройки роутера
 - ✅ Можно использовать свои домены
 
 **Как работает:**
+
 1. Регистрируетесь на Cloudflare
 2. Устанавливаете `cloudflared` на Mac Studio
 3. Создаете туннель
@@ -2382,6 +2513,7 @@ tailscale up --login-server=http://185.177.216.15:8080
 5. Подключаетесь через домены
 
 **Настройка:**
+
 ```bash
 # На Mac Studio
 brew install cloudflare/cloudflare/cloudflared
@@ -2392,6 +2524,7 @@ cloudflared tunnel run atra-mac-studio
 ```
 
 **Использование:**
+
 - `https://victoria-atra.yourdomain.com` → Victoria
 - `https://veronica-atra.yourdomain.com` → Veronica
 - `https://mcp-atra.yourdomain.com` → MCP
@@ -2403,6 +2536,7 @@ cloudflared tunnel run atra-mac-studio
 **⚠️ ВАЖНО: Использует сервер 185.177.216.15, который может быть недоступен в будущем**
 
 **Преимущества:**
+
 - ✅ Использует существующий сервер (185.177.216.15)
 - ✅ Работает из любой точки мира
 - ✅ Не требует настройки роутера
@@ -2410,27 +2544,32 @@ cloudflared tunnel run atra-mac-studio
 - ✅ Бесплатно
 
 **Недостатки:**
+
 - ⚠️ Зависит от внешнего сервера
 - ⚠️ Если сервер недоступен - не работает
 
 **Как работает:**
+
 1. На Mac Studio создаются SSH туннели к серверу 185.177.216.15
 2. Сервер перенаправляет трафик на Mac Studio
 3. Подключаетесь через сервер из любой точки мира
 
 **Настройка:**
+
 ```bash
 # На Mac Studio (уже настроено)
 bash scripts/setup_ssh_tunnel_for_headscale.sh
 ```
 
 **Использование:**
+
 - `http://185.177.216.15:8080` → Headscale
 - `http://185.177.216.15:8010` → Victoria
 - `http://185.177.216.15:8011` → Veronica
 - `http://185.177.216.15:8012` → MCP
 
 **На Mac Studio подключитесь к Headscale:**
+
 ```bash
 tailscale up --login-server=http://185.177.216.15:8080
 ```
@@ -2438,23 +2577,27 @@ tailscale up --login-server=http://185.177.216.15:8080
 **Статус:** ✅ **НАСТРОЕНО И РАБОТАЕТ - ДОСТУПНО ИЗ ЛЮБОЙ ТОЧКИ МИРА!**
 
 **✅ ПРОВЕРЕНО И РАБОТАЕТ (2026-01-25):**
+
 - ✅ Victoria: `http://185.177.216.15:8010` — доступна из интернета
 - ✅ Veronica: `http://185.177.216.15:8011` — доступна из интернета
 - ✅ Headscale: `http://185.177.216.15:8080` — доступен из интернета
 - ✅ MCP: `http://185.177.216.15:8012` — доступен из интернета
 
 **Автозапуск:**
+
 - ✅ На Mac Studio: SSH туннели запускаются автоматически через `launchd`
 - ✅ На Mac Studio: Подключение к Headscale запускается автоматически через `launchd`
 - ✅ Проверка и переподключение каждые 5 минут
 
 **Доступность:**
+
 - ✅ GatewayPorts настроен на сервере 185.177.216.15
 - ✅ Туннели слушают на всех интерфейсах (0.0.0.0)
 - ✅ **Доступно из любой точки мира через интернет**
 - ✅ Проверено: все сервисы отвечают на запросы из интернета
 
 **Использование из любой точки мира:**
+
 ```bash
 # Victoria
 curl http://185.177.216.15:8010/health
@@ -2471,14 +2614,17 @@ tailscale up --login-server=http://185.177.216.15:8080
 #### **4. Ngrok** ⚠️
 
 **Преимущества:**
+
 - ✅ Быстрая настройка
 - ✅ Хорошо для тестирования
 
 **Недостатки:**
+
 - ⚠️ Бесплатный план имеет ограничения
 - ⚠️ Не рекомендуется для продакшена
 
 **Настройка:**
+
 ```bash
 brew install ngrok/ngrok/ngrok
 ngrok config add-authtoken <token>
@@ -2529,6 +2675,7 @@ bash scripts/update_tailscale_config.sh
 3. **Переменные окружения** — если используются
 
 **Автоматическое обновление:**
+
 ```bash
 bash scripts/update_tailscale_config.sh  # Для Tailscale
 ```
@@ -2555,17 +2702,20 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 ### ✅ РЕЗУЛЬТАТ
 
 **Теперь можно подключаться к Mac Studio:**
+
 - ✅ Из локальной сети (192.168.1.43)
 - ✅ Из удаленного места через Tailscale/Cloudflare/SSH
 - ✅ **Из любой точки мира с интернетом** ✅ **РАБОТАЕТ И ПРОВЕРЕНО!**
 
 **Текущий статус (2026-01-25):**
+
 - ✅ SSH Reverse Tunnel через сервер 185.177.216.15 — **РАБОТАЕТ**
 - ✅ GatewayPorts настроен на сервере
 - ✅ Все сервисы доступны из интернета
 - ✅ Автозапуск настроен на Mac Studio и Mac Studio
 
 **Рекомендации:**
+
 - **Для России:** Используйте **SSH Reverse Tunnel** (через сервер 185.177.216.15) или **Headscale**
 - **Для других стран:** Используйте **Tailscale** — самый простой и безопасный вариант
 
@@ -2574,15 +2724,18 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 ### ⚠️ ВАЖНО: БЛОКИРОВКИ В РОССИИ
 
 #### Tailscale
+
 - ❌ **Заблокирован с октября 2024 года**
 - ❌ Не работает с российских IP
 - ✅ **Альтернатива:** Headscale (самостоятельный сервер)
 
 #### Cloudflare Tunnel
+
 - ⚠️ Может быть заблокирован в будущем
 - ✅ Пока работает, но не гарантируется
 
 #### SSH Reverse Tunnel
+
 - ✅ **Работает всегда** (использует стандартный SSH)
 - ✅ Рекомендуется для России
 
@@ -2607,6 +2760,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 ### ✅ Что запустится автоматически:
 
 #### 1. Docker Desktop
+
 - **Статус:** ✅ Настроен (`StartAtLogin = true`)
 - **Проверка:** `defaults read com.docker.docker StartAtLogin` → `1`
 - **Действие:** Запускается автоматически при входе в систему
@@ -2615,33 +2769,38 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 #### 2. Docker контейнеры (7 контейнеров)
 
 **С `restart: always` (3 контейнера):**
+
 - ✅ **db** (PostgreSQL) — автоматический перезапуск
 - ✅ **victoria-agent** — автоматический перезапуск
 - ✅ **veronica-agent** — автоматический перезапуск
 
 **С `restart: unless-stopped` (4 контейнера):**
+
 - ✅ **prometheus** — запускается автоматически
 - ✅ **grafana** — запускается автоматически
 - ✅ **elasticsearch** — запускается автоматически
 - ✅ **kibana** — запускается автоматически
 
 **Что это значит:**
+
 - При запуске Docker Desktop все контейнеры автоматически запускаются
 - Если контейнер упал, Docker автоматически перезапустит его
 - После перезагрузки Mac все контейнеры запустятся автоматически
 - **Время:** ~30-60 секунд
 
 #### 3. Ollama (LLM модели)
+
 - **Статус:** ✅ Запущен через `brew services`
 - **Проверка:** `brew services list | grep ollama` → `started`
 - **Действие:** Запускается автоматически при загрузке системы
-- **Модели:** 
+- **Модели:**
   - MLX: 8 моделей (qwen2.5-coder:32b, deepseek-r1-distill-llama:70b, и др.)
   - Ollama: 4 модели (moondream, llava:7b, phi3.5:3.8b, tinyllama:1.1b-chat)
   - Vision: Moondream Station (MLX) + Ollama fallback
 - **Fallback:** Автоматически используется при недоступности MLX API Server
 
 #### 4. Moondream Station (Vision модели с MLX)
+
 - **Статус:** ✅ Автозапуск через system_auto_recovery (порт 2020)
 - **Запуск:** `bash scripts/start_moondream_station.sh` или `moondream-station`
 - **Модель:** Moondream 3 Preview (MLX оптимизированная)
@@ -2650,6 +2809,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 - **Время:** ~5-10 секунд
 
 #### 4. Victoria MCP Server
+
 - **Статус:** ✅ Настроен через launchd
 - **Проверка:** `launchctl list | grep victoria-mcp`
 - **Действие:** Запускается автоматически при загрузке системы
@@ -2657,6 +2817,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 - **Время:** ~5 секунд
 
 #### 5. Автономные системы
+
 - **Orchestrator** — запускается автоматически (каждые 5 минут)
 - **Self-Check System** — запускается автоматически (каждую минуту) ✅ **НОВОЕ**
 - **Debate Processor** — запускается автоматически (каждые 2 часа)
@@ -2664,6 +2825,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 - **Smart Worker** — работает в Docker контейнере
 
 #### 6. ✅ SSH Reverse Tunnel для удаленного доступа (НОВОЕ)
+
 - **Скрипт:** `scripts/setup_ssh_tunnel_for_headscale.sh`
 - **Автозапуск:** `com.atra.ssh-tunnel-headscale.plist` (launchd)
 - **Интервал:** Каждые 5 минут (проверка и переподключение)
@@ -2675,6 +2837,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
   - MCP: `http://185.177.216.15:8012`
 
 #### 7. ✅ Model Tracker (НОВОЕ)
+
 - **Скрипт:** `scripts/start_model_tracker.sh`
 - **Автозапуск:** `com.atra.model-tracker.plist` (launchd)
 - **Интервал:** Каждый час (3600 секунд)
@@ -2686,6 +2849,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
   - Уведомляет Викторию и Веронику о новых моделях
 
 #### 8. ✅ Самовосстанавливающаяся система
+
 - **ResilientChannelManager** — дублирование каналов с автоматическим переключением ✅
 - **SelfCheckSystem** — самопроверка всех компонентов ✅
 - **Автоматическое исправление** — перезапуск упавших сервисов ✅
@@ -2696,6 +2860,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 ### 🔄 Процесс автозапуска при перезагрузке:
 
 **На Mac Studio:**
+
 1. Docker Compose сервисы (через `restart: always`)
 2. Victoria MCP Server (через `launchd`)
 3. Автономные системы (через `launchd`)
@@ -2703,6 +2868,7 @@ bash scripts/update_tailscale_config.sh  # Для Tailscale
 5. **SSH Reverse Tunnel для Headscale (НОВОЕ)** (через `launchd`) ✅
 
 **На Mac Studio:**
+
 1. **Автоподключение к Headscale (НОВОЕ)** (через `launchd`)
    - Скрипт: `scripts/setup_Mac Studio_headscale_autostart.sh`
    - Запустите на Mac Studio для настройки автоподключения
@@ -2812,21 +2978,25 @@ bash scripts/setup_complete_autostart.sh
    - Или: `defaults write com.docker.docker 'StartAtLogin' -bool true`
 
 2. **Ollama:**
+
    ```bash
    brew services start ollama
    ```
 
 3. **Victoria MCP Server:**
+
    ```bash
    bash scripts/victoria/quick_victoria_autostart.sh
    ```
 
 4. **SSH Reverse Tunnel (НОВОЕ):**
+
    ```bash
    bash scripts/setup_ssh_tunnel_for_headscale.sh
    ```
 
 5. **Model Tracker (НОВОЕ):**
+
    ```bash
    bash scripts/start_model_tracker.sh
    ```
@@ -2843,6 +3013,7 @@ bash scripts/setup_complete_autostart.sh
 **ДА, при перезагрузке Mac Studio все запустится автоматически!**
 
 **Корпорация ATRA полностью автономна:**
+
 - ✅ Все сервисы запустятся автоматически
 - ✅ Все агенты будут работать
 - ✅ Все системы мониторинга будут доступны
@@ -2850,7 +3021,8 @@ bash scripts/setup_complete_autostart.sh
 
 **Просто перезагрузите Mac Studio и все заработает автоматически!**
 
-**Подробнее:** 
+**Подробнее:**
+
 - `docs/mac-studio/AUTOSTART_COMPLETE.md` — полное руководство
 - `docs/mac-studio/COMPLETE_AUTOSTART_STATUS.md` — детальный статус
 
@@ -2871,12 +3043,14 @@ bash scripts/setup_complete_autostart.sh
 ### 🎯 Рекомендуемая архитектура: Hybrid Hub-and-Spoke
 
 **Принципы:**
+
 - ✅ Victoria координирует, но не блокируется
 - ✅ Параллельная обработка задач (10x быстрее)
 - ✅ Адаптация к типу задачи (simple/complex/multi-dept)
 - ✅ Готовность к облачным моделям
 
 **Архитектура:**
+
 ```
 Victoria (Team Lead / Hub)
 │
@@ -2894,12 +3068,14 @@ Victoria (Team Lead / Hub)
 ### 🔄 Распределение ролей
 
 **Victoria:**
+
 - ✅ Координирует задачи (анализ, выбор стратегии)
 - ✅ Синтезирует результаты
 - ✅ НЕ блокируется (FastAPI асинхронный)
 - ✅ НЕ перегружена (только координация, не выполнение)
 
 **Veronica:**
+
 - ✅ Выполняет простые задачи
 - ✅ Веб-исследования
 - ✅ Локальная разработка
@@ -2908,11 +3084,13 @@ Victoria (Team Lead / Hub)
 ### ☁️ Будущее: облачные модели
 
 **Интеграция:**
+
 - ✅ Victoria анализирует локально (быстро)
 - ✅ Критические задачи → облако (качественно)
 - ✅ Обычные задачи → локально (экономия)
 
 **Подробнее:**
+
 - `docs/mac-studio/OPTIMAL_ARCHITECTURE_ANALYSIS.md` — полный анализ
 - `docs/mac-studio/HOW_ORCHESTRATION_WORKS.md` — как работает сейчас
 - `docs/mac-studio/CORPORATION_ORCHESTRATION_ANALYSIS.md` — анализ оркестрации
@@ -2927,12 +3105,14 @@ Victoria (Team Lead / Hub)
 ### 📊 Реализовано
 
 #### **1. Параллельная обработка задач (Smart Worker v4.0 — целевое имя)**
+
 - ✅ Smart Worker v4.0 — целевой артефакт (расширение smart_worker_autonomous с поддержкой подзадач и параллельного выполнения). Текущая реализация: `smart_worker_autonomous.py` (PARALLEL batch).
 - ✅ Параллельная обработка 10 задач одновременно
 - ✅ Батчинг задач (50 задач за раз)
 - ✅ Ожидаемое ускорение: **10x** (14,335 задач: ~48 минут вместо 8 часов)
 
 #### **2. Victoria как главный оркестратор**
+
 - ✅ Метод `orchestrate_task()` реализован
 - ✅ Endpoint `/orchestrate` создан
 - ✅ Анализ сложности задачи (`_assess_complexity()`)
@@ -2959,6 +3139,7 @@ Victoria (Team Lead / Hub)
 - ✅ Swarm оркестрация: работает
 
 **Подробнее:**
+
 - `docs/mac-studio/OPTIMAL_ARCHITECTURE_ANALYSIS.md` — полный анализ
 - `docs/mac-studio/IMPLEMENTATION_STATUS.md` — статус реализации
 - `docs/mac-studio/TEST_RESULTS_FINAL.md` — результаты тестов
@@ -2984,11 +3165,13 @@ Victoria (Team Lead / Hub)
 ### 🔧 Исправления
 
 #### **Enhanced Orchestrator:**
+
 - **Проблема:** Ошибка подключения к Redis (`localhost:6379`)
 - **Решение:** Исправлен REDIS_URL на `redis://atra-redis:6379`
 - **Результат:** Создает задачи каждые 5 минут
 
 #### **Скрипты запуска:**
+
 - ✅ `scripts/start_autonomous_systems.sh` — обновлен
 - ✅ `scripts/check_all_autonomous_systems.sh` — создан
 - ✅ Все системы перезапущены
@@ -3023,6 +3206,7 @@ Victoria (Team Lead / Hub)
 ### ✅ Компоненты:
 
 #### 1. ResilientChannelManager ✅
+
 - **Назначение:** Менеджер дублированных каналов с автоматическим переключением
 - **Возможности:**
   - Дублирование критических каналов (Ollama, MLX, DB, etc.)
@@ -3033,6 +3217,7 @@ Victoria (Team Lead / Hub)
 - **Файл:** `knowledge_os/app/resilient_channel_manager.py`
 
 #### 2. SelfCheckSystem ✅
+
 - **Назначение:** Система самопроверки всех компонентов
 - **Проверяет:**
   - Victoria Agent
@@ -3051,11 +3236,13 @@ Victoria (Team Lead / Hub)
 - **Автозапуск:** ✅ Настроен через launchd (`com.atra.self-check.plist`)
 
 ### 🔄 Автозапуск:
+
 - ✅ Self-Check System запускается автоматически через `start_autonomous_systems.sh`
 - ✅ Настроен через launchd для автозапуска при перезагрузке
 - ✅ ResilientChannelManager запускается автоматически при использовании
 
 ### 📝 Документация:
+
 - `docs/mac-studio/RESILIENT_SYSTEM_DESIGN.md` — полное описание
 - `docs/mac-studio/SELF_CHECKING_SYSTEM.md` — описание самопроверки
 
@@ -3134,34 +3321,36 @@ Victoria (Team Lead / Hub)
 
 ### 📊 Сводная таблица всех компонентов
 
-| Категория | Компонентов | Статус |
-|-----------|-------------|--------|
-| **Фундамент** | 4 | ✅ Все применены |
-| **Продвинутые методы** | 5 | ✅ Все применены |
-| **Коллективные методы** | 4 | ✅ Все применены |
-| **Модельные улучшения** | 5 | ✅ Все применены |
-| **Наблюдаемость и безопасность** | 4 | ✅ Все применены |
-| **Singularity 3.0** | 3 | ✅ Все применены |
-| **Singularity 5.0** | 4 | ✅ Все применены |
-| **Singularity 6.0** | 3 | ✅ Все применены |
-| **Singularity 7.5** | 3 | ✅ Все применены |
-| **Singularity 8.0** | 2 | ✅ Все применены |
-| **Singularity 9.0** | 4 | ✅ Все применены |
-| **Оптимизация** | 3 | ✅ Все применены |
-| **Дополнительные** | 10+ | ✅ Все применены |
-| **Новые практики 2026** | 5 | ✅ **3 применены, 2 частично** |
-| **Victoria Initiative & Self-Extension** | 10 | ✅ **ВСЕ ПРИМЕНЕНЫ И ЗАПУЩЕНЫ** 🆕 |
-| **ИТОГО** | **69+** | ✅ **ВСЕ ПРИМЕНЕНЫ** |
+| Категория                                | Компонентов | Статус                             |
+| ---------------------------------------- | ----------- | ---------------------------------- |
+| **Фундамент**                            | 4           | ✅ Все применены                   |
+| **Продвинутые методы**                   | 5           | ✅ Все применены                   |
+| **Коллективные методы**                  | 4           | ✅ Все применены                   |
+| **Модельные улучшения**                  | 5           | ✅ Все применены                   |
+| **Наблюдаемость и безопасность**         | 4           | ✅ Все применены                   |
+| **Singularity 3.0**                      | 3           | ✅ Все применены                   |
+| **Singularity 5.0**                      | 4           | ✅ Все применены                   |
+| **Singularity 6.0**                      | 3           | ✅ Все применены                   |
+| **Singularity 7.5**                      | 3           | ✅ Все применены                   |
+| **Singularity 8.0**                      | 2           | ✅ Все применены                   |
+| **Singularity 9.0**                      | 4           | ✅ Все применены                   |
+| **Оптимизация**                          | 3           | ✅ Все применены                   |
+| **Дополнительные**                       | 10+         | ✅ Все применены                   |
+| **Новые практики 2026**                  | 5           | ✅ **3 применены, 2 частично**     |
+| **Victoria Initiative & Self-Extension** | 10          | ✅ **ВСЕ ПРИМЕНЕНЫ И ЗАПУЩЕНЫ** 🆕 |
+| **ИТОГО**                                | **69+**     | ✅ **ВСЕ ПРИМЕНЕНЫ**               |
 
 ### ✅ Проверка применения
 
 **Все компоненты проверены в коде:**
+
 - ✅ **194 Python файл** в `knowledge_os/app/` (191 базовых + 3 новых)
 - ✅ Все классы определены и реализованы
 - ✅ Интеграция в Victoria Enhanced выполнена
 - ✅ Использование через env vars настроено
 
 **Ключевые файлы проверены:**
+
 - ✅ `react_agent.py` - 438 строк (ReAct Framework)
 - ✅ `extended_thinking.py` - 384 строки (Extended Thinking)
 - ✅ `meta_architect.py` - 176 строк (Meta-Architect)
@@ -3199,6 +3388,7 @@ Victoria (Team Lead / Hub)
 ### 🎯 Итоговые результаты
 
 **ATRA Web IDE** теперь является **супер-корпорацией** с:
+
 - ✅ **69+ компонентов** мировых практик (54 базовых + 5 новых 2026 + 10 Victoria Initiative)
 - ✅ **204+ Python файл** в knowledge_os/app/ (191 + 3 новых + 10 Victoria Initiative)
 - ✅ **+70-100% улучшение** качества
@@ -3257,6 +3447,7 @@ Victoria теперь проактивный автономный агент с 
    - Unit тесты для всех новых компонентов
 
 **Файлы:**
+
 - `knowledge_os/app/file_watcher.py` (240 строк)
 - `knowledge_os/app/service_monitor.py` (420 строк)
 - `knowledge_os/app/deadline_tracker.py` (330 строк)
@@ -3271,11 +3462,13 @@ Victoria теперь проактивный автономный агент с 
 - `src/agents/bridge/victoria_server.py` (обновлен, 1140 строк)
 
 **Статистика:**
+
 - **9 файлов** компонентов созданы
 - **3627 строк** кода реализовано
 - **13 файлов** всего (компоненты + интеграция + миграция)
 
 **Текущий статус (2026-01-27):**
+
 - ✅ **Сервер запущен** на порту 8000
 - ✅ **Victoria Enhanced включен**
 - ✅ **Мониторинг запущен**
@@ -3288,6 +3481,7 @@ Victoria теперь проактивный автономный агент с 
 **Основано на:** Clawdbot (38k+ stars), Agent Skills Framework (Anthropic), LangGraph, CrewAI, Microsoft AutoGen v0.4
 
 **Документация:**
+
 - `VICTORIA_INITIATIVE_AND_SELF_EXTENSION_COMPLETE.md` - полная реализация
 - `VICTORIA_INITIATIVE_INTEGRATION_COMPLETE.md` - отчет об интеграции
 - `VICTORIA_COMPATIBILITY_REPORT.md` - совместимость
@@ -3298,6 +3492,6 @@ Victoria теперь проактивный автономный агент с 
 
 ---
 
-*ATRA Web IDE — браузерный интерфейс к самоэволюционирующей ИИ-корпорации*  
-*Обновлено: 29.01.2026 — Victoria Agent + Enhanced + Initiative: все три слоя должны быть запущены (раздел в PLAN.md). Исправлены lifespan, env parsing, watchdog.*  
-*Victoria Initiative полностью реализована, интегрирована и запущена (2026-01-27); при старте контейнера все слои активны (2026-01-29).*
+_ATRA Web IDE — браузерный интерфейс к самоэволюционирующей ИИ-корпорации_  
+_Обновлено: 29.01.2026 — Victoria Agent + Enhanced + Initiative: все три слоя должны быть запущены (раздел в PLAN.md). Исправлены lifespan, env parsing, watchdog._  
+_Victoria Initiative полностью реализована, интегрирована и запущена (2026-01-27); при старте контейнера все слои активны (2026-01-29)._

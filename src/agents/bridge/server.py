@@ -1,15 +1,17 @@
-import os
 import asyncio
 import logging
+import os
 import sys
+from typing import Any, Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Any
-import uvicorn
+
+from src.agents.bridge.project_registry import get_main_project, get_projects_registry
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url
 from src.agents.tools.system_tools import SystemTools, WebTools
-from src.agents.bridge.project_registry import get_projects_registry, get_main_project
 
 # Интеграция с той же базой знаний, что и Виктория (одна БД knowledge_os)
 USE_KNOWLEDGE_OS = os.getenv("USE_KNOWLEDGE_OS", "true").lower() == "true"
@@ -19,9 +21,13 @@ _veronica_db_pool = None
 if USE_KNOWLEDGE_OS:
     try:
         import asyncpg
+
         KNOWLEDGE_OS_AVAILABLE = True
     except ImportError:
-        logging.warning("asyncpg не установлен, Вероника без базы знаний. Установите: pip install asyncpg")
+        logging.warning(
+            "asyncpg не установлен, Вероника без базы знаний. Установите: pip install asyncpg"
+        )
+
 
 async def _get_veronica_db_pool():
     """Пул к той же PostgreSQL knowledge_os, что и у Виктории."""
@@ -30,12 +36,15 @@ async def _get_veronica_db_pool():
         return None
     if _veronica_db_pool is None:
         try:
-            db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            )
             _veronica_db_pool = await asyncpg.create_pool(db_url, min_size=1, max_size=5)
             logger.info("✅ Veronica: пул к Knowledge OS создан")
         except Exception as e:
             logger.warning(f"Veronica: пул Knowledge OS недоступен: {e}")
     return _veronica_db_pool
+
 
 async def get_knowledge_context_veronica(goal: str, limit: int = 5) -> str:
     """Релевантные знания из той же базы (knowledge_nodes)."""
@@ -44,33 +53,43 @@ async def get_knowledge_context_veronica(goal: str, limit: int = 5) -> str:
         return ""
     try:
         async with pool.acquire() as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(
+                """
                 SELECT content, confidence_score
                 FROM knowledge_nodes
                 WHERE confidence_score > 0.3 AND content ILIKE $1
                 ORDER BY confidence_score DESC, usage_count DESC
                 LIMIT $2
-            """, f"%{goal[:50]}%", limit)
+            """,
+                f"%{goal[:50]}%",
+                limit,
+            )
             if not rows:
                 return ""
             out = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ КОРПОРАЦИИ ---\n"
             for row in rows:
-                content = (row["content"][:200] + "...") if len(row["content"]) > 200 else row["content"]
+                content = (
+                    (row["content"][:200] + "...") if len(row["content"]) > 200 else row["content"]
+                )
                 out += f"- {content}\n"
             return out
     except Exception as e:
         logger.debug(f"Veronica: поиск знаний: {e}")
         return ""
 
+
 # Пути для импорта knowledge_os (сканер моделей: from app.available_models_scanner)
 def _veronica_knowledge_os_paths():
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     return [
         "/app/knowledge_os",
         os.path.join(root, "knowledge_os"),
         os.path.join(os.path.dirname(__file__), "../../../knowledge_os"),
         os.path.join(os.path.dirname(__file__), "../../knowledge_os"),
     ]
+
 
 # Настройка логирования с поддержкой ELK
 logging.basicConfig(level=logging.INFO)
@@ -92,8 +111,11 @@ if os.getenv("USE_ELK", "false").lower() in ("true", "1", "yes"):
                     sys.path.insert(0, elk_path)
                 try:
                     from elk_handler import create_elk_handler
+
                     elk_url = os.getenv("ELASTICSEARCH_URL", "http://atra-elasticsearch:9200")
-                    elk_handler = create_elk_handler(elasticsearch_url=elk_url, log_level=logging.INFO)
+                    elk_handler = create_elk_handler(
+                        elasticsearch_url=elk_url, log_level=logging.INFO
+                    )
                     if elk_handler:
                         root_logger = logging.getLogger()
                         root_logger.addHandler(elk_handler)
@@ -109,6 +131,7 @@ if os.getenv("USE_ELK", "false").lower() in ("true", "1", "yes"):
 
 app = FastAPI(title="Veronica ATRA Bridge API")
 
+
 class VeronicaAgent(BaseAgent):
     def __init__(self, name: str = "Вероника", model_name: Optional[str] = None):
         # Автовыбор модели: пустое значение = сканирование Ollama при первом run()
@@ -119,9 +142,15 @@ class VeronicaAgent(BaseAgent):
         # Модели будут выбраны автоматически при первом run() из актуального списка Ollama
         self.planner = OllamaExecutor(model=planner_model, base_url=base)
         self.executor = OllamaExecutor(model=model_name, base_url=base)
-        self._models_resolved = False  # при первом run() сканируем Ollama и подставляем актуальные модели
-        logger.info("Veronica: executor=%s, planner=%s (OLLAMA_BASE_URL=%s) - will auto-select on first request", 
-                   model_name or "auto", planner_model or "auto", base)
+        self._models_resolved = (
+            False  # при первом run() сканируем Ollama и подставляем актуальные модели
+        )
+        logger.info(
+            "Veronica: executor=%s, planner=%s (OLLAMA_BASE_URL=%s) - will auto-select on first request",
+            model_name or "auto",
+            planner_model or "auto",
+            base,
+        )
 
         # Подключаем инструменты
         self.add_tool("read_file", SystemTools.read_project_file)
@@ -161,7 +190,7 @@ class VeronicaAgent(BaseAgent):
 - Execution задачи → ReAct Framework
 
 ПРАВИЛО "ПРИОРИТЕТ ЛОКАЛЬНОСТИ":
-1. Сначала используй `read_file` или `list_directory` ЛОКАЛЬНО. 
+1. Сначала используй `read_file` или `list_directory` ЛОКАЛЬНО.
 2. ЗАПРЕЩЕНО использовать `ssh_run` для файлов проекта, которые есть у тебя на диске.
 
 ПРАВИЛО "БЕЗОПАСНОСТЬ" (Мария, Risk Manager):
@@ -185,13 +214,23 @@ class VeronicaAgent(BaseAgent):
             mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
             ollama_url = getattr(self.executor, "base_url", None) or _ollama_base_url()
             for path in _veronica_knowledge_os_paths():
-                if path and (os.path.exists(path) or path.startswith("/app")) and path not in sys.path:
+                if (
+                    path
+                    and (os.path.exists(path) or path.startswith("/app"))
+                    and path not in sys.path
+                ):
                     sys.path.insert(0, path)
             try:
-                from app.available_models_scanner import get_available_models, pick_best_available_victoria  # type: ignore
+                from app.available_models_scanner import (  # type: ignore
+                    get_available_models,
+                    pick_best_available_victoria,
+                )
             except ImportError:
                 try:
-                    from available_models_scanner import get_available_models, pick_best_available_victoria  # type: ignore
+                    from available_models_scanner import (  # type: ignore
+                        get_available_models,
+                        pick_best_available_victoria,
+                    )
                 except ImportError:
                     self._models_resolved = True
                     return
@@ -209,7 +248,11 @@ class VeronicaAgent(BaseAgent):
                     planner_best = ollama_lower[env_planner.lower()]
                 self.planner.model = planner_best
                 self.executor.model = best
-                logger.info("✅ Veronica: выбраны актуальные модели Ollama — planner=%s, executor=%s", planner_best, best)
+                logger.info(
+                    "✅ Veronica: выбраны актуальные модели Ollama — planner=%s, executor=%s",
+                    planner_best,
+                    best,
+                )
             self._models_resolved = True
         except Exception as e:
             logger.debug("Veronica _ensure_best_available_models: %s, оставляем текущие модели", e)
@@ -220,35 +263,41 @@ class VeronicaAgent(BaseAgent):
         # Простые задачи не требуют планирования
         simple_tasks = ["скажи", "привет", "покажи файлы", "выведи список", "список файлов"]
         goal_lower = goal.lower()
-        
+
         if any(task in goal_lower for task in simple_tasks) and len(goal.split()) <= 10:
             # Для простых задач пропускаем planner
-            enhanced_goal = f"ВЫПОЛНИ ЗАДАЧУ: {goal}\n\nВАЖНО: Выполняй ТОЧНО то что просят, ничего лишнего!"
+            enhanced_goal = (
+                f"ВЫПОЛНИ ЗАДАЧУ: {goal}\n\nВАЖНО: Выполняй ТОЧНО то что просят, ничего лишнего!"
+            )
         else:
             # Для сложных задач используем planner
             detailed_plan = await self.plan(goal)
             enhanced_goal = f"ТВОЙ ПЛАН:\n{detailed_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ: {goal}"
-        
+
         return await super().run(enhanced_goal, max_steps)
+
 
 # Глобальный инстанс агента
 agent = VeronicaAgent()
+
 
 class TaskRequest(BaseModel):
     goal: str
     max_steps: Optional[int] = 500
     project_context: Optional[str] = None  # Контекст проекта (atra-web-ide, atra, и т.д.)
 
+
 class TaskResponse(BaseModel):
     status: str
     output: Any
     knowledge: Optional[dict] = None
 
+
 @app.post("/run", response_model=TaskResponse)
 async def run_task(request: TaskRequest):
     """
     Выполнить задачу через Veronica
-    
+
     project_context: Контекст проекта (atra-web-ide, atra, и т.д.)
     Если не указан, используется MAIN_PROJECT (по умолчанию atra-web-ide)
     """
@@ -257,20 +306,28 @@ async def run_task(request: TaskRequest):
     project_context = request.project_context or main_project
     allowed_list, project_configs = await get_projects_registry()
     if project_context not in allowed_list:
-        logger.warning(f"⚠️ Invalid project_context: {project_context}, using default: {main_project}")
+        logger.warning(
+            f"⚠️ Invalid project_context: {project_context}, using default: {main_project}"
+        )
         project_context = main_project
-    project_config = project_configs.get(project_context, project_configs.get(main_project, {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"}))
+    project_config = project_configs.get(
+        project_context,
+        project_configs.get(
+            main_project,
+            {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"},
+        ),
+    )
     main_config = project_configs.get(main_project, project_config)
-    
+
     # Обновляем системный промпт с безопасным контекстом проекта
     project_prompt = f"""
-🏢 КОНТЕКСТ ПРОЕКТА: {project_config['name']}
-🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config['name']}
+🏢 КОНТЕКСТ ПРОЕКТА: {project_config["name"]}
+🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config["name"]}
 
 ВАЖНО:
-- Ты работаешь в контексте проекта: {project_config['name']}
-- Основной проект корпорации: {main_config['name']}
-- Все файлы, команды и операции должны быть в контексте проекта {project_config['name']}
+- Ты работаешь в контексте проекта: {project_config["name"]}
+- Основной проект корпорации: {main_config["name"]}
+- Все файлы, команды и операции должны быть в контексте проекта {project_config["name"]}
 - При работе с файлами используй пути относительно корня проекта
 
 🧠 БАЗА ЗНАНИЙ (ВСЕГДА ДОСТУПНА ДЛЯ ВСЕХ ПРОЕКТОВ):
@@ -288,14 +345,15 @@ async def run_task(request: TaskRequest):
         knowledge_context = await get_knowledge_context_veronica(request.goal)
         if knowledge_context:
             project_prompt = project_prompt.rstrip() + "\n" + knowledge_context
-    
+
     # Проверяем, включен ли Enhanced режим
     use_enhanced = os.getenv("USE_VERONICA_ENHANCED", "false").lower() == "true"
-    
+
     if use_enhanced:
         # Используем Victoria Enhanced (общий для всех агентов)
         try:
             import sys
+
             enhanced_paths = [
                 "/app/knowledge_os",  # Путь в Docker контейнере
                 os.path.join(os.path.dirname(__file__), "../../../knowledge_os"),
@@ -307,22 +365,29 @@ async def run_task(request: TaskRequest):
                         sys.path.insert(0, path)
                     try:
                         from app.victoria_enhanced import VictoriaEnhanced
+
                         logger.info("🚀 Veronica Enhanced активирован!")
                         enhanced = VictoriaEnhanced()
                         # Передаем контекст проекта в Enhanced (если поддерживается)
                         enhanced_result = await enhanced.solve(request.goal, use_enhancements=True)
-                        logger.info(f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]")
+                        logger.info(
+                            f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
+                        )
                         return TaskResponse(
                             status="success",
                             output=enhanced_result.get("result", ""),
-                            knowledge={"method": enhanced_result.get("method"), "metadata": enhanced_result.get("metadata", {}), "project_context": project_context}
+                            knowledge={
+                                "method": enhanced_result.get("method"),
+                                "metadata": enhanced_result.get("metadata", {}),
+                                "project_context": project_context,
+                            },
                         )
                     except ImportError as e:
                         logger.warning(f"⚠️ Не удалось импортировать VictoriaEnhanced: {e}")
                         break
         except Exception as e:
             logger.warning(f"⚠️ Ошибка использования Enhanced, fallback на стандартный режим: {e}")
-    
+
     # Стандартный режим Вероники
     try:
         logger.info(f"🚀 Получена задача для Вероники [проект: {project_context}]: {request.goal}")
@@ -330,7 +395,7 @@ async def run_task(request: TaskRequest):
         original_prompt = agent.executor.system_prompt
         agent.executor.system_prompt = original_prompt + "\n" + project_prompt
         # Очищаем кратковременную память перед новой задачей (но сохраняем project_knowledge)
-        agent.memory = [] 
+        agent.memory = []
         max_steps = request.max_steps if request.max_steps is not None else 500
         result = await agent.run(request.goal, max_steps=max_steps)
         # Восстанавливаем оригинальный промпт
@@ -338,20 +403,22 @@ async def run_task(request: TaskRequest):
         return TaskResponse(
             status="success",
             output=result,
-            knowledge={**agent.project_knowledge, "project_context": project_context}
+            knowledge={**agent.project_knowledge, "project_context": project_context},
         )
     except Exception as e:
         logger.error(f"❌ Ошибка выполнения задачи: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/status")
 async def get_status():
     return {"status": "online", "agent": agent.name, "knowledge_size": len(agent.project_knowledge)}
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "agent": agent.name}
 
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

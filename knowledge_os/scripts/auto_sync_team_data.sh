@@ -19,4 +19,3 @@ echo "🔄 Автоматическая синхронизация данных 
 python3 scripts/sync_team_data.py sync
 
 echo "✅ Синхронизация завершена"
-

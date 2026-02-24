@@ -8,12 +8,11 @@ Order Flow Indicators - индикаторы потока ордеров для 
 """
 
 from .cumulative_delta import CumulativeDeltaVolume
-from .volume_delta import VolumeDelta
 from .pressure_ratio import PressureRatio
+from .volume_delta import VolumeDelta
 
 __all__ = [
-    'CumulativeDeltaVolume',
-    'VolumeDelta',
-    'PressureRatio',
+    "CumulativeDeltaVolume",
+    "VolumeDelta",
+    "PressureRatio",
 ]
-

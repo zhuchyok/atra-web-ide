@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Интеграционные тесты полного цикла работы
 Проверяет весь путь: Сигнал → Фильтры → Исполнение → Управление
@@ -12,10 +11,8 @@ from typing import List
 # Добавляем корень проекта в путь
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from scripts.test_utils import (
-    TestResult, TestStatus, measure_time, get_db_connection
-)
 from scripts.test_config import DATABASE_PATH
+from scripts.test_utils import TestResult, TestStatus, get_db_connection, measure_time
 
 
 @measure_time
@@ -28,21 +25,23 @@ def test_signal_to_db_flow() -> TestResult:
                 name="Поток сигнал → БД",
                 status=TestStatus.WARNING,
                 message="Не удалось подключиться к БД",
-                recommendations=["Проверьте наличие trading.db"]
+                recommendations=["Проверьте наличие trading.db"],
             )
 
         cursor = conn.cursor()
 
         # Проверяем наличие таблицы signals_log
         try:
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='signals_log'")
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='signals_log'"
+            )
             if not cursor.fetchone():
                 conn.close()
                 return TestResult(
                     name="Поток сигнал → БД",
                     status=TestStatus.FAIL,
                     message="Таблица signals_log не найдена",
-                    recommendations=["Создайте таблицу signals_log в БД"]
+                    recommendations=["Создайте таблицу signals_log в БД"],
                 )
 
             # Проверяем структуру таблицы
@@ -50,7 +49,7 @@ def test_signal_to_db_flow() -> TestResult:
             columns = [row[1] for row in cursor.fetchall()]
             # Проверяем наличие ключевых колонок (используем реальные имена из БД)
             # entry вместо entry_price, direction может отсутствовать
-            required_columns = ['symbol', 'entry', 'created_at']
+            required_columns = ["symbol", "entry", "created_at"]
             missing_columns = [col for col in required_columns if col not in columns]
 
             if missing_columns:
@@ -60,7 +59,7 @@ def test_signal_to_db_flow() -> TestResult:
                     status=TestStatus.WARNING,
                     message=f"Отсутствуют некоторые колонки: {', '.join(missing_columns)}",
                     details={"columns": columns, "missing": missing_columns},
-                    recommendations=["Проверьте структуру таблицы signals_log в БД"]
+                    recommendations=["Проверьте структуру таблицы signals_log в БД"],
                 )
 
             conn.close()
@@ -68,7 +67,7 @@ def test_signal_to_db_flow() -> TestResult:
                 name="Поток сигнал → БД",
                 status=TestStatus.PASS,
                 message="Таблица signals_log готова для записи сигналов",
-                details={"columns": columns}
+                details={"columns": columns},
             )
 
         except Exception as e:
@@ -76,14 +75,14 @@ def test_signal_to_db_flow() -> TestResult:
             return TestResult(
                 name="Поток сигнал → БД",
                 status=TestStatus.FAIL,
-                message=f"Ошибка проверки БД: {str(e)}"
+                message=f"Ошибка проверки БД: {str(e)}",
             )
 
     except Exception as e:
         return TestResult(
             name="Поток сигнал → БД",
             status=TestStatus.FAIL,
-            message=f"Ошибка при тестировании: {str(e)}"
+            message=f"Ошибка при тестировании: {str(e)}",
         )
 
 
@@ -97,11 +96,7 @@ def test_signal_to_telegram_flow() -> TestResult:
             "signal_live": ["send_signal", "callback_build"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name, functions in modules_to_check.items():
             try:
@@ -125,21 +120,21 @@ def test_signal_to_telegram_flow() -> TestResult:
                 status=TestStatus.WARNING,
                 message="Функции отправки в Telegram не найдены",
                 details=test_results["details"],
-                recommendations=["Проверьте наличие telegram_handlers.py и signal_live.py"]
+                recommendations=["Проверьте наличие telegram_handlers.py и signal_live.py"],
             )
 
         return TestResult(
             name="Поток сигнал → Telegram",
             status=TestStatus.PASS,
             message=f"Найдены функции отправки ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Поток сигнал → Telegram",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -154,11 +149,7 @@ def test_order_execution_flow() -> TestResult:
             "auto_execution": ["execute_order", "should_execute"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name, items in components.items():
             try:
@@ -184,22 +175,22 @@ def test_order_execution_flow() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие order_manager.py и exchange_adapter.py",
-                    "Некоторые компоненты могут быть опциональными"
-                ]
+                    "Некоторые компоненты могут быть опциональными",
+                ],
             )
 
         return TestResult(
             name="Поток принятие → ордер",
             status=TestStatus.PASS,
             message=f"Найдены компоненты исполнения ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Поток принятие → ордер",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -214,11 +205,7 @@ def test_position_management_flow() -> TestResult:
             "order_manager": ["OrderManager"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for module_name, items in components.items():
             try:
@@ -241,7 +228,9 @@ def test_position_management_flow() -> TestResult:
         if conn:
             cursor = conn.cursor()
             try:
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='active_positions'")
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='active_positions'"
+                )
                 if cursor.fetchone():
                     test_results["found"].append("active_positions (table)")
                     test_results["details"]["active_positions"] = "OK"
@@ -261,22 +250,22 @@ def test_position_management_flow() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие всех модулей управления позициями",
-                    "Создайте таблицу active_positions если отсутствует"
-                ]
+                    "Создайте таблицу active_positions если отсутствует",
+                ],
             )
 
         return TestResult(
             name="Поток ордер → управление",
             status=TestStatus.PASS,
             message=f"Найдены компоненты управления ({len(test_results['found'])})",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Поток ордер → управление",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -296,11 +285,7 @@ def test_full_cycle_components() -> TestResult:
             "Trailing Stop": ["trailing_stop_manager", "AdvancedTrailingStopManager"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for component_name, (module_name, item_name) in cycle_components.items():
             try:
@@ -326,22 +311,22 @@ def test_full_cycle_components() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие всех необходимых модулей",
-                    "Некоторые компоненты могут быть опциональными"
-                ]
+                    "Некоторые компоненты могут быть опциональными",
+                ],
             )
 
         return TestResult(
             name="Компоненты полного цикла",
             status=TestStatus.PASS,
             message=f"Найдено {len(test_results['found'])}/{len(cycle_components)} компонентов ({success_rate:.1f}%)",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Компоненты полного цикла",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -357,11 +342,7 @@ def test_data_flow_integrity() -> TestResult:
             "Сохранение ордеров": ["order_audit_log", "OrderAuditLog", "log_order"],
         }
 
-        test_results = {
-            "found": [],
-            "missing": [],
-            "details": {}
-        }
+        test_results = {"found": [], "missing": [], "details": {}}
 
         for check_name, (module_name, class_name, method_name) in data_flow_checks.items():
             try:
@@ -390,22 +371,22 @@ def test_data_flow_integrity() -> TestResult:
                 details=test_results["details"],
                 recommendations=[
                     "Проверьте наличие функций работы с данными",
-                    "Некоторые функции могут иметь другие имена"
-                ]
+                    "Некоторые функции могут иметь другие имена",
+                ],
             )
 
         return TestResult(
             name="Целостность передачи данных",
             status=TestStatus.PASS,
             message=f"Найдено функций: {len(test_results['found'])}/{len(data_flow_checks)}",
-            details=test_results["details"]
+            details=test_results["details"],
         )
 
     except Exception as e:
         return TestResult(
             name="Целостность передачи данных",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -417,7 +398,7 @@ def run_all_integration_tests() -> List[TestResult]:
         test_order_execution_flow,
         test_position_management_flow,
         test_full_cycle_components,
-        test_data_flow_integrity
+        test_data_flow_integrity,
     ]
 
     test_results = []
@@ -427,11 +408,13 @@ def run_all_integration_tests() -> List[TestResult]:
             test_results.append(result)
             print(result)
         except Exception as e:
-            test_results.append(TestResult(
-                name=test_func.__name__,
-                status=TestStatus.FAIL,
-                message=f"Исключение при выполнении: {str(e)}"
-            ))
+            test_results.append(
+                TestResult(
+                    name=test_func.__name__,
+                    status=TestStatus.FAIL,
+                    message=f"Исключение при выполнении: {str(e)}",
+                )
+            )
 
     return test_results
 
@@ -444,5 +427,5 @@ if __name__ == "__main__":
     results = run_all_integration_tests()
 
     from scripts.test_utils import print_test_summary
-    print_test_summary(results)
 
+    print_test_summary(results)

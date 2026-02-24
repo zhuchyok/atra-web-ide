@@ -26,7 +26,7 @@ if ! ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${MAC_STUDIO_USER}@${MA
     echo ""
     echo "   🔄 Продолжаем с локальными изменениями..."
     echo ""
-    
+
     # Применяем изменения локально
     echo "   🔧 Применение изменений локально в chat.py..."
     if grep -q "Victoria Enhanced: всегда используем Victoria Enhanced" backend/app/routers/chat.py 2>/dev/null; then
@@ -77,14 +77,14 @@ ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     else
         echo "      ❌ Victoria не работает"
     fi
-    
+
     echo "   Проверка MCP сервера..."
     if curl -s -f http://localhost:8012/sse >/dev/null 2>&1; then
         echo "      ✅ MCP сервер работает"
     else
         echo "      ❌ MCP сервер не работает"
     fi
-    
+
     echo "   Проверка Docker контейнеров..."
     if docker ps | grep -q victoria-agent; then
         echo "      ✅ Victoria контейнер запущен"
@@ -98,7 +98,7 @@ echo ""
 echo "[4/5] Применение изменений в chat.py для Victoria Enhanced..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     # Проверяем, применено ли изменение
     if grep -q "Victoria Enhanced: всегда используем Victoria Enhanced" backend/app/routers/chat.py 2>/dev/null; then
         echo "      ✅ Изменение уже применено"
@@ -106,11 +106,11 @@ ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
         echo "      🔧 Применяем изменение..."
         # Создаем backup
         cp backend/app/routers/chat.py backend/app/routers/chat.py.bak
-        
+
         # Применяем изменение (заменяем строку 155-156)
         sed -i.bak2 's/# Умный роутинг: простые сообщения -> Ollama, сложные -> Victoria/# Victoria Enhanced: всегда используем Victoria Enhanced, если use_victoria=True/' backend/app/routers/chat.py
         sed -i.bak3 's/use_ollama_direct = is_simple_message(message.content) or not message.use_victoria/use_ollama_direct = not message.use_victoria/' backend/app/routers/chat.py
-        
+
         echo "      ✅ Изменение применено"
     fi
 EOF
@@ -120,7 +120,7 @@ echo ""
 echo "[5/5] Перезапуск сервисов (если нужно)..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     # Перезапуск Victoria контейнера
     if docker ps | grep -q victoria-agent; then
         echo "      🔄 Перезапуск Victoria контейнера..."
@@ -128,7 +128,7 @@ ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
         sleep 3
         echo "      ✅ Victoria перезапущена"
     fi
-    
+
     # Перезапуск MCP сервера (если запущен)
     if pgrep -f "victoria_mcp_server" > /dev/null; then
         echo "      🔄 Перезапуск MCP сервера..."

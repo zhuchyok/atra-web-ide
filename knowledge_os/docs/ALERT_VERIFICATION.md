@@ -5,6 +5,7 @@
 ### 1. Функция алерта
 
 **Файл:** `alert_notifications.py` (строки 55-58)
+
 ```python
 async def alert_position_closed_by_exchange(self, user_id: int, symbol: str):
     """Алерт о закрытии позиции на бирже."""
@@ -21,12 +22,13 @@ async def alert_position_closed_by_exchange(self, user_id: int, symbol: str):
 **Файл:** `main.py` (строка 1275)
 
 **Контекст:**
+
 ```python
 # Строка 1240: Закрываем локально те символы, которые более не числятся открытыми на бирже
 try:
     local_open = set(await adb_local.get_user_active_symbols(uid))
     to_close = local_open - open_symbols_remote  # Находим позиции, которых НЕТ на бирже
-    
+
     for sym in to_close:
         # Для auto режима закрываем позиции, если они не найдены на бирже
         await adb_local.close_active_position_by_symbol(uid, sym)  # ← ЗАКРЫТИЕ
@@ -44,13 +46,14 @@ try:
 **Файл:** `main.py` (строки 470-490)
 
 **Контекст:**
+
 ```python
 # Строка 470: Собираем набор символов, которые биржа считает открытыми
 open_symbols_remote = set()
 for p in (positions or []):
     symbol = p.get('symbol')
     contracts = float(p.get('contracts') or 0)
-    
+
     if contracts and abs(contracts) > 0:
         # ...
         await adb_local.upsert_active_position(  # ← ОТКРЫТИЕ/ОБНОВЛЕНИЕ
@@ -67,6 +70,7 @@ for p in (positions or []):
 ### 4. Проверка других мест
 
 **Поиск по коду:**
+
 - ❌ Нет функции `alert_position_opened_by_exchange`
 - ❌ Нет функции `alert_position_created`
 - ❌ Нет вызовов алерта при открытии позиций
@@ -85,7 +89,7 @@ for p in (positions or []):
    - `local_open = {'ETHFIUSDT'}`
    - `open_symbols_remote = {}` (пусто, позиции нет на бирже)
    - `to_close = {'ETHFIUSDT'}`
-4. **Действие:** 
+4. **Действие:**
    - `close_active_position_by_symbol(uid, 'ETHFIUSDT')` ← ЗАКРЫТИЕ
    - `alert_position_closed_by_exchange(uid, 'ETHFIUSDT')` ← АЛЕРТ
 5. **Результат:** ✅ Алерт "Позиция закрыта"
@@ -122,6 +126,7 @@ for p in (positions or []):
 ## 🔍 ВОЗМОЖНАЯ ПРОБЛЕМА
 
 **Пользователь видит два разных формата символа:**
+
 - `ETHFIUSDT`
 - `ETHFI/USDT:USDT`
 
@@ -138,4 +143,3 @@ for p in (positions or []):
 3. **Проблема с форматом символа** (разные форматы: `ETHFIUSDT` vs `ETHFI/USDT:USDT`)
 
 **Но это точно алерт о закрытии, не об открытии!**
-

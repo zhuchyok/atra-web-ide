@@ -39,9 +39,7 @@ class HypothesisTester:
 
         try:
             symbol_patterns = [
-                p
-                for p in ai_learning.patterns
-                if hasattr(p, "symbol") and p.symbol == symbol
+                p for p in ai_learning.patterns if hasattr(p, "symbol") and p.symbol == symbol
             ]
 
             if not symbol_patterns:
@@ -71,8 +69,12 @@ class HypothesisTester:
                 optimal_sl = 2.0
 
             # Win rate для разных направлений
-            long_patterns = [p for p in symbol_patterns if hasattr(p, "signal_type") and p.signal_type == "LONG"]
-            short_patterns = [p for p in symbol_patterns if hasattr(p, "signal_type") and p.signal_type == "SHORT"]
+            long_patterns = [
+                p for p in symbol_patterns if hasattr(p, "signal_type") and p.signal_type == "LONG"
+            ]
+            short_patterns = [
+                p for p in symbol_patterns if hasattr(p, "signal_type") and p.signal_type == "SHORT"
+            ]
 
             long_win_rate = (
                 len([p for p in long_patterns if p.result == "WIN"]) / len(long_patterns) * 100
@@ -123,7 +125,9 @@ class HypothesisTester:
         for category in ["low", "normal", "high", "very_high"]:
             category_trades = trades_df[trades_df["volume_category"] == category]
             if len(category_trades) > 0:
-                win_rates[category] = (category_trades["pnl"] > 0).sum() / len(category_trades) * 100
+                win_rates[category] = (
+                    (category_trades["pnl"] > 0).sum() / len(category_trades) * 100
+                )
 
         return {
             "win_rates": win_rates,
@@ -214,9 +218,15 @@ class OptimizedBacktest(AdvancedBacktest):
 
         # Используем оптимальные значения из паттернов если доступны
         if pattern_analysis:
-            base_tp1_pct = pattern_analysis.get("optimal_tp1", symbol_params.get("optimal_tp1", 2.0))
-            base_tp2_pct = pattern_analysis.get("optimal_tp2", symbol_params.get("optimal_tp2", 4.0))
-            base_sl_pct = pattern_analysis.get("optimal_sl", symbol_params.get("optimal_stop_loss_pct", 2.0))
+            base_tp1_pct = pattern_analysis.get(
+                "optimal_tp1", symbol_params.get("optimal_tp1", 2.0)
+            )
+            base_tp2_pct = pattern_analysis.get(
+                "optimal_tp2", symbol_params.get("optimal_tp2", 4.0)
+            )
+            base_sl_pct = pattern_analysis.get(
+                "optimal_sl", symbol_params.get("optimal_stop_loss_pct", 2.0)
+            )
         else:
             base_tp1_pct = symbol_params.get("optimal_tp1", 2.0)
             base_tp2_pct = symbol_params.get("optimal_tp2", 4.0)
@@ -275,7 +285,9 @@ class OptimizedBacktest(AdvancedBacktest):
             else symbol_params.get("optimal_rsi_oversold", 30)
         )
         rsi_overbought = (
-            self.optimizations.get("rsi_overbought", symbol_params.get("optimal_rsi_overbought", 70))
+            self.optimizations.get(
+                "rsi_overbought", symbol_params.get("optimal_rsi_overbought", 70)
+            )
             if self.optimizations.get("optimize_rsi")
             else symbol_params.get("optimal_rsi_overbought", 70)
         )
@@ -458,7 +470,9 @@ async def main():
     parser = argparse.ArgumentParser(description="Оптимизация и тестирование гипотез")
     parser.add_argument("--top-n", type=int, default=10, help="Количество топ монет")
     parser.add_argument("--days", type=int, default=30, help="Количество дней для анализа")
-    parser.add_argument("--output", default="data/optimization_results.json", help="Путь для сохранения результатов")
+    parser.add_argument(
+        "--output", default="data/optimization_results.json", help="Путь для сохранения результатов"
+    )
     args = parser.parse_args()
 
     logger.info("🚀 Запуск оптимизации и тестирования гипотез...")
@@ -596,10 +610,14 @@ async def main():
                 "metrics": r["metrics"],
                 "improvement": {
                     "win_rate": r["metrics"].get("win_rate", 0) - base_metrics.get("win_rate", 0),
-                    "total_return": r["metrics"].get("total_return", 0) - base_metrics.get("total_return", 0),
-                    "sharpe_ratio": r["metrics"].get("sharpe_ratio", 0) - base_metrics.get("sharpe_ratio", 0),
-                    "profit_factor": r["metrics"].get("profit_factor", 0) - base_metrics.get("profit_factor", 0),
-                    "max_drawdown": base_metrics.get("max_drawdown", 0) - r["metrics"].get("max_drawdown", 0),
+                    "total_return": r["metrics"].get("total_return", 0)
+                    - base_metrics.get("total_return", 0),
+                    "sharpe_ratio": r["metrics"].get("sharpe_ratio", 0)
+                    - base_metrics.get("sharpe_ratio", 0),
+                    "profit_factor": r["metrics"].get("profit_factor", 0)
+                    - base_metrics.get("profit_factor", 0),
+                    "max_drawdown": base_metrics.get("max_drawdown", 0)
+                    - r["metrics"].get("max_drawdown", 0),
                 },
             }
             for r in results
@@ -619,11 +637,31 @@ async def main():
     )
 
     logger.info("🏆 Лучшее решение: %s", best_hypothesis["name"])
-    logger.info("   Win Rate: %.2f%% (+%.2f%%)", best_hypothesis["metrics"].get("win_rate", 0), best_hypothesis["improvement"].get("win_rate", 0))
-    logger.info("   Total Return: %.2f%% (+%.2f%%)", best_hypothesis["metrics"].get("total_return", 0), best_hypothesis["improvement"].get("total_return", 0))
-    logger.info("   Sharpe Ratio: %.2f (+%.2f)", best_hypothesis["metrics"].get("sharpe_ratio", 0), best_hypothesis["improvement"].get("sharpe_ratio", 0))
-    logger.info("   Profit Factor: %.2f (+%.2f)", best_hypothesis["metrics"].get("profit_factor", 0), best_hypothesis["improvement"].get("profit_factor", 0))
-    logger.info("   Max Drawdown: %.2f%% (%.2f%%)", best_hypothesis["metrics"].get("max_drawdown", 0), best_hypothesis["improvement"].get("max_drawdown", 0))
+    logger.info(
+        "   Win Rate: %.2f%% (+%.2f%%)",
+        best_hypothesis["metrics"].get("win_rate", 0),
+        best_hypothesis["improvement"].get("win_rate", 0),
+    )
+    logger.info(
+        "   Total Return: %.2f%% (+%.2f%%)",
+        best_hypothesis["metrics"].get("total_return", 0),
+        best_hypothesis["improvement"].get("total_return", 0),
+    )
+    logger.info(
+        "   Sharpe Ratio: %.2f (+%.2f)",
+        best_hypothesis["metrics"].get("sharpe_ratio", 0),
+        best_hypothesis["improvement"].get("sharpe_ratio", 0),
+    )
+    logger.info(
+        "   Profit Factor: %.2f (+%.2f)",
+        best_hypothesis["metrics"].get("profit_factor", 0),
+        best_hypothesis["improvement"].get("profit_factor", 0),
+    )
+    logger.info(
+        "   Max Drawdown: %.2f%% (%.2f%%)",
+        best_hypothesis["metrics"].get("max_drawdown", 0),
+        best_hypothesis["improvement"].get("max_drawdown", 0),
+    )
 
     # 8. Сохранение результатов
     output_path = Path(args.output)
@@ -677,4 +715,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

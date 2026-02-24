@@ -10,6 +10,7 @@
   # Без Rust (pip uninstall cache_normalizer в venv):
   ../.venv/bin/python benchmark_cache_normalizer.py
 """
+
 import hashlib
 import os
 import sys
@@ -18,16 +19,17 @@ import time
 # Опционально Rust-модуль (без зависимости от embedding_optimizer/asyncpg)
 try:
     from cache_normalizer import normalize_and_hash as do_hash
+
     _USE_RUST = True
 except ImportError:
     _USE_RUST = False
 
     def do_hash(text: str) -> str:
-        normalized = ' '.join(text.lower().split())
+        normalized = " ".join(text.lower().split())
         return hashlib.md5(normalized.encode()).hexdigest()
 
 
-N_TEXTS = int(os.getenv('BENCHMARK_N_TEXTS', '1000'))
+N_TEXTS = int(os.getenv("BENCHMARK_N_TEXTS", "1000"))
 SAMPLE_TEXTS = [
     "Как настроить Victoria для проекта atra?",
     "Explain the architecture of Knowledge OS collective memory system and how traces are stored.",
@@ -46,9 +48,9 @@ def main():
 
     rust_status = "Rust (cache_normalizer)" if _USE_RUST else "Python (fallback)"
     print(f"[benchmark_cache_normalizer] {N_TEXTS} calls, {rust_status}")
-    print(f"  Total: {elapsed:.3f}s, per call: {elapsed/N_TEXTS*1000:.3f} ms")
+    print(f"  Total: {elapsed:.3f}s, per call: {elapsed / N_TEXTS * 1000:.3f} ms")
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

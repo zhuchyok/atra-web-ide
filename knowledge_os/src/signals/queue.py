@@ -4,7 +4,7 @@
 """
 
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 
 class SignalQueue:
@@ -23,7 +23,7 @@ class SignalQueue:
 
         # Ограничиваем размер очереди
         if len(self.queue) > self.max_size:
-            self.queue = self.queue[-self.max_size:]
+            self.queue = self.queue[-self.max_size :]
 
     async def get_next_signal(self) -> Optional[Dict[str, Any]]:
         """Получает следующий сигнал из очереди"""
@@ -43,11 +43,7 @@ class SignalQueue:
 
     def get_queue_stats(self) -> Dict[str, Any]:
         """Возвращает статистику очереди"""
-        return {
-            "queue_size": len(self.queue),
-            "max_size": self.max_size,
-            "ttl": self.ttl
-        }
+        return {"queue_size": len(self.queue), "max_size": self.max_size, "ttl": self.ttl}
 
 
 # Глобальная очередь сигналов

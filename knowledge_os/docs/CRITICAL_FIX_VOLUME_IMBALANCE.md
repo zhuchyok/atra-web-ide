@@ -5,11 +5,13 @@
 ### ❌ ПРОБЛЕМА
 
 В файле `src/signals/core.py` на **строке 183** было **переопределение**:
+
 ```python
 USE_VOLUME_IMBALANCE_FILTER = False
 ```
 
 Это переопределение **блокировало фильтр**, даже когда:
+
 - В `config.py` было `USE_VOLUME_IMBALANCE_FILTER = False` (отключено)
 - В `signal_live.py` была проверка `if volume_imbalance_filter and USE_VOLUME_IMBALANCE_FILTER:`
 
@@ -28,6 +30,7 @@ USE_VOLUME_IMBALANCE_FILTER = False
 ### ✅ РЕШЕНИЕ
 
 **Удалено переопределение** в `src/signals/core.py`:
+
 ```python
 # 🔧 ИСПРАВЛЕНО: Не переопределяем USE_VOLUME_IMBALANCE_FILTER, используем из config
 # USE_VOLUME_IMBALANCE_FILTER = False  # УДАЛЕНО: переопределение блокировало фильтр
@@ -44,4 +47,3 @@ USE_VOLUME_IMBALANCE_FILTER = False
 ## 🎉 РЕЗУЛЬТАТ
 
 Теперь фильтр **полностью отключен**, когда `USE_VOLUME_IMBALANCE_FILTER = False` в `config.py`.
-

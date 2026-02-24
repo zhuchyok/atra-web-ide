@@ -10,6 +10,7 @@
 ### **1. Quality Thresholds**
 
 **Для LONG CLASSIC:**
+
 ```python
 base_quality_threshold = 0.68  # Стандартный порог
 min_quality_threshold = max(0.33, base_quality_threshold + market_adjustment)
@@ -17,11 +18,13 @@ min_quality_threshold = max(0.33, base_quality_threshold + market_adjustment)
 ```
 
 **Для SHORT CLASSIC:**
+
 ```python
 min_quality_for_short = 0.45  # ВРЕМЕННО снижено с 0.50
 ```
 
 **Текущее состояние:**
+
 - ✅ Сигналы генерируются
 - ⚠️ Пороги снижены (может влиять на качество)
 
@@ -30,17 +33,20 @@ min_quality_for_short = 0.45  # ВРЕМЕННО снижено с 0.50
 ### **2. Confidence Thresholds**
 
 **Для LONG CLASSIC:**
+
 ```python
 base_confidence_threshold = 0.60  # Стандартный порог
 min_confidence_threshold = max(0.40, base_confidence_threshold + market_adjustment * 0.7)
 ```
 
 **Для SHORT CLASSIC:**
+
 ```python
 min_confidence_for_short = 0.40  # Снижено с 0.70
 ```
 
 **Текущее состояние:**
+
 - ✅ Сигналы генерируются
 - ⚠️ Порог снижен на 43% (может влиять на качество)
 
@@ -49,12 +55,14 @@ min_confidence_for_short = 0.40  # Снижено с 0.70
 ### **3. MTF Confirmation**
 
 **Параметры:**
+
 ```python
 min_h4_confidence_short = 0.4
 min_h4_confidence_long = 0.4
 ```
 
 **Текущее состояние:**
+
 - ✅ MTF включен для SHORT и LONG
 - ✅ Есть fallback механизм
 - ✅ Улучшенная логика
@@ -68,6 +76,7 @@ market_adjustment -= 0.10  # Базовое снижение для восста
 ```
 
 **Текущее состояние:**
+
 - ✅ Снижает пороги для генерации сигналов
 - ⚠️ Нет обоснования значения
 
@@ -78,11 +87,13 @@ market_adjustment -= 0.10  # Базовое снижение для восста
 ### **1. База данных (trading.db)**
 
 **Проверить:**
+
 - Последние сигналы в `signals_log`
 - Активные сигналы в `active_signals`
 - Количество сигналов за последние 24 часа
 
 **Команда:**
+
 ```bash
 python3 check_signals_status.py
 ```
@@ -92,11 +103,13 @@ python3 check_signals_status.py
 ### **2. Логи системы**
 
 **Проверить:**
+
 - Какие сигналы генерируются
 - Какие фильтры блокируют сигналы
 - Какие параметры используются
 
 **Команда:**
+
 ```bash
 tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 ```
@@ -106,11 +119,13 @@ tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 ### **3. Параметры фильтров**
 
 **Проверить:**
+
 - Текущие значения quality/confidence
 - MTF параметры
 - Market adjustment
 
 **Файлы:**
+
 - `signal_live.py` (строки 2564-2657, 3220-3224)
 - `config.py` (HYBRID_MTF_CONFIG)
 
@@ -119,12 +134,14 @@ tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 ## ⚠️ ВАЖНО: НЕ ЛОМАТЬ РАБОТУЮЩУЮ СИСТЕМУ
 
 ### **Что НЕ делать:**
+
 - ❌ Не менять параметры без обоснования
 - ❌ Не убирать "ВРЕМЕННО" без проверки
 - ❌ Не повышать пороги без бэктестов
 - ❌ Не менять логику MTF без тестирования
 
 ### **Что делать:**
+
 - ✅ Только мониторинг и анализ
 - ✅ Сбор статистики
 - ✅ Проверка качества сигналов
@@ -144,11 +161,13 @@ tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 ## 🎯 ЦЕЛЬ
 
 **Понять:**
+
 - Какие сигналы генерируются
 - Какие параметры работают
 - Что можно улучшить (БЕЗ изменений сейчас)
 
 **НЕ ломать:**
+
 - Работающую систему
 - Текущие параметры
 - Генерацию сигналов
@@ -160,17 +179,20 @@ tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 **Дата:** 2025-12-14
 
 ### **Статус:**
+
 - ⚠️ Бот не запущен на локальной машине
 - ⚠️ В базе данных нет сигналов за последние 24 часа
 - ⚠️ Последний сигнал был 54 дня назад (2025-10-20)
 
 ### **Рекомендации:**
+
 1. ✅ Проверить сигналы на сервере (PROD/DEV)
 2. ✅ Использовать `check_current_signals.py` для безопасной проверки
 3. ✅ Не менять параметры без обоснования
 4. ✅ Документировать текущее состояние
 
 ### **Текущие параметры (работают):**
+
 - ✅ `min_quality_for_short = 0.45` (ВРЕМЕННО снижено)
 - ✅ `min_confidence_for_short = 0.40` (снижено с 0.70)
 - ✅ `min_quality_threshold = max(0.33, base + adjustment)` для LONG
@@ -178,4 +200,3 @@ tail -f logs/system.log | grep -E "SIGNAL|QUALITY|CONFIDENCE|MTF"
 - ✅ `market_adjustment = -0.10` (базовое снижение)
 
 **Важно:** Эти параметры работают и генерируют сигналы. Не менять без обоснования!
-

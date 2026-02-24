@@ -10,6 +10,7 @@
 ## 🎯 ЦЕЛЬ СЕССИИ
 
 Финальное обучение всех сотрудников до 100%:
+
 - Master-level техники
 - Production-ready решения
 - Enterprise patterns
@@ -37,6 +38,7 @@
 ### **1. ДМИТРИЙ (ML Engineer) - +20%**
 
 #### **Изучаем:**
+
 - ✅ **Deep Learning для Trading**
   - LSTM/GRU для временных рядов
   - Transformer models
@@ -49,6 +51,7 @@
   - Feature selection
 
 #### **Задачи:**
+
 1. ✅ Добавить SHAP для интерпретации моделей
 2. ✅ Исследовать LSTM для временных рядов
 3. ✅ Улучшить метрики на 15-20%
@@ -58,6 +61,7 @@
 ### **2. МАКСИМ (Data Analyst) - +20%**
 
 #### **Изучаем:**
+
 - ✅ **Monte Carlo Simulation**
   - Scenario analysis
   - Stress testing
@@ -69,6 +73,7 @@
   - Black-Litterman model
 
 #### **Задачи:**
+
 1. ✅ Реализовать Monte Carlo simulation
 2. ✅ Оптимизировать portfolio allocation
 3. ✅ Улучшить Sharpe на 20-25%
@@ -78,12 +83,14 @@
 ### **3. ИГОРЬ (Backend Developer) - +20%**
 
 #### **Изучаем:**
+
 - ✅ **Performance Optimization Advanced**
   - Cython optimization
   - Numba JIT compilation
   - Memory profiling advanced
 
 #### **Задачи:**
+
 1. ✅ Оптимизировать критичные функции
 2. ✅ Улучшить memory usage
 3. ✅ Улучшить latency на 30-40%
@@ -93,12 +100,14 @@
 ### **4. СЕРГЕЙ (DevOps Engineer) - +20%**
 
 #### **Изучаем:**
+
 - ✅ **Kubernetes Advanced**
   - Auto-scaling
   - Resource management
   - Service mesh
 
 #### **Задачи:**
+
 1. ✅ Настроить auto-scaling
 2. ✅ Оптимизировать ресурсы
 3. ✅ Улучшить reliability на 50%
@@ -108,12 +117,14 @@
 ### **5. АННА (QA Engineer) - +20%**
 
 #### **Изучаем:**
+
 - ✅ **Test Automation Advanced**
   - Self-healing tests
   - AI-powered test generation
   - Flaky test detection
 
 #### **Задачи:**
+
 1. ✅ Внедрить self-healing tests
 2. ✅ Улучшить coverage до 95%+
 3. ✅ Снизить technical debt на 50%
@@ -129,22 +140,27 @@
 ## 🔥 КРИТИЧНЫЕ ЗАДАЧИ (ФИНАЛЬНЫЕ)
 
 ### **1. ДМИТРИЙ: SHAP для интерпретации** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Интерпретация моделей
 
 ### **2. МАКСИМ: Monte Carlo Simulation** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Stress testing
 
 ### **3. ИГОРЬ: Cython Optimization** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Ускорение на 30-40%
 
 ### **4. СЕРГЕЙ: Auto-scaling** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Улучшение reliability
 
 ### **5. АННА: Self-Healing Tests** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Улучшение качества тестов
 
@@ -162,6 +178,5 @@
 
 ---
 
-*Сессия создана: Виктор (Team Lead) + все эксперты*  
-*Прогресс: 100% программы (ФИНАЛЬНАЯ)*
-
+_Сессия создана: Виктор (Team Lead) + все эксперты_  
+_Прогресс: 100% программы (ФИНАЛЬНАЯ)_

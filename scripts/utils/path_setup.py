@@ -26,28 +26,28 @@ _SCRIPTS_ROOT: Optional[Path] = None
 def _find_project_root(start_path: Optional[Path] = None) -> Path:
     """
     Найти корень проекта по маркерам (.git, pyproject.toml, setup.py)
-    
+
     Args:
         start_path: Начальный путь для поиска (по умолчанию - текущий файл)
-    
+
     Returns:
         Path к корню проекта
-    
+
     Raises:
         RuntimeError: Если корень проекта не найден
     """
     if start_path is None:
         start_path = Path(__file__).resolve()
-    
+
     current = start_path.parent if start_path.is_file() else start_path
-    
+
     # Маркеры корня проекта
     markers = ['.git', 'pyproject.toml', 'setup.py', 'PLAN.md']
-    
+
     for parent in [current] + list(current.parents):
         if any((parent / marker).exists() for marker in markers):
             return parent
-    
+
     # Fallback: используем директорию на 2 уровня выше от scripts/utils
     fallback = start_path.parent.parent.parent if 'scripts' in str(start_path) else start_path.parent
     return fallback.resolve()
@@ -103,16 +103,16 @@ def setup_project_paths(
 ) -> List[str]:
     """
     Настроить пути проекта в sys.path и PYTHONPATH
-    
+
     Args:
         paths: Список путей для добавления (по умолчанию - стандартные пути проекта)
         add_to_pythonpath: Добавить пути в PYTHONPATH для дочерних процессов
         check_exists: Проверять существование путей
         verbose: Выводить информацию о добавленных путях
-    
+
     Returns:
         Список добавленных путей (строки)
-    
+
     Examples:
         >>> from scripts.utils.path_setup import setup_project_paths
         >>> added = setup_project_paths(verbose=True)
@@ -125,26 +125,26 @@ def setup_project_paths(
             get_knowledge_os_app(),
             get_scripts_root(),
         ]
-    
+
     added_paths: List[str] = []
     skipped_paths: List[str] = []
-    
+
     # Нормализуем все пути заранее для дедупликации
     normalized_paths: Set[str] = set()
-    
+
     for path in paths:
         try:
             # Нормализуем путь
             resolved_path = path.resolve()
             path_str = str(resolved_path)
-            
+
             # Дедупликация на уровне нормализованных путей
             if path_str in normalized_paths:
                 if verbose:
                     print(f"⏭️  Пропущен (дубликат): {resolved_path}")
                 continue
             normalized_paths.add(path_str)
-            
+
             # Проверяем существование
             if check_exists and not resolved_path.exists():
                 import warnings
@@ -153,7 +153,7 @@ def setup_project_paths(
                 if verbose:
                     print(f"⚠️  Пропущен (не существует): {resolved_path}")
                 continue
-            
+
             # Добавляем в sys.path только если еще нет
             if path_str not in sys.path:
                 sys.path.insert(0, path_str)
@@ -167,15 +167,15 @@ def setup_project_paths(
             import warnings
             warnings.warn(f"Ошибка обработки пути {path}: {e}", UserWarning)
             skipped_paths.append(str(path))
-    
+
     # Обновляем PYTHONPATH для дочерних процессов
     if add_to_pythonpath and added_paths:
         existing_pythonpath = os.environ.get('PYTHONPATH', '')
         existing_paths = existing_pythonpath.split(os.pathsep) if existing_pythonpath else []
-        
+
         # Нормализуем существующие пути для сравнения
         existing_normalized = {str(Path(p).resolve()) for p in existing_paths if p}
-        
+
         # Добавляем только новые пути
         new_paths = [p for p in added_paths if p not in existing_normalized]
         if new_paths:
@@ -183,10 +183,10 @@ def setup_project_paths(
             os.environ['PYTHONPATH'] = os.pathsep.join(all_paths)
             if verbose:
                 print(f"📝 Обновлен PYTHONPATH: добавлено {len(new_paths)} путей")
-    
+
     if verbose and skipped_paths:
         print(f"⚠️  Пропущено путей: {len(skipped_paths)}")
-    
+
     return added_paths
 
 def reset_paths():
@@ -201,9 +201,9 @@ def reset_paths():
 def get_all_project_paths() -> dict[str, Path]:
     """
     Получить все основные пути проекта
-    
+
     Returns:
-        Словарь с ключами: project_root, knowledge_os_root, knowledge_os_app, 
+        Словарь с ключами: project_root, knowledge_os_root, knowledge_os_app,
         scripts_root, backend_root, frontend_root, src_root
     """
     return {
@@ -220,7 +220,7 @@ def get_all_project_paths() -> dict[str, Path]:
 def verify_paths() -> dict[str, bool]:
     """
     Проверить существование всех основных путей проекта
-    
+
     Returns:
         Словарь с результатами проверки для каждого пути
     """

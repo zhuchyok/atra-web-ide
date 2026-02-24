@@ -5,12 +5,14 @@
 ### Основные компоненты:
 
 #### 1. **Функции расчета плеча:**
+
 - **`get_dynamic_leverage(df, i, base_leverage)`** - Динамический расчет плеча
 - **`calculate_risk_based_leverage(deposit, risk_tolerance)`** - Плечо на основе риска
 - **`calculate_base_leverage(deposit)`** - Базовое плечо от депозита
 - **`calculate_user_leverage(deposit, trade_mode, filter_mode)`** - Пользовательское плечо
 
 #### 2. **Интеграция с торговлей:**
+
 - Учитывается в `calculate_position_size_from_risk()`
 - Применяется только для `trade_mode = 'futures'`
 - Отображается в сообщениях сигналов
@@ -18,6 +20,7 @@
 ### 🔧 Анализ логики расчета плеча:
 
 #### **Динамическое плечо (`get_dynamic_leverage`):**
+
 ```python
 def get_dynamic_leverage(df, i, base_leverage=1):
     if i < 21:
@@ -35,10 +38,12 @@ def get_dynamic_leverage(df, i, base_leverage=1):
     dynamic_leverage = max(0.5, min(dynamic_leverage, 20))
     return round(dynamic_leverage, 1)
 ```
+
 - **Плюсы**: Адаптивно к волатильности и тренду
 - **Минусы**: Сложная формула, может быть нестабильной
 
 #### **Базовое плечо (`calculate_base_leverage`):**
+
 ```python
 def calculate_base_leverage(deposit):
     if deposit < 100:
@@ -54,10 +59,12 @@ def calculate_base_leverage(deposit):
     else:
         return 10     # $10000+
 ```
+
 - **Плюсы**: Простая и понятная логика
 - **Минусы**: Ступеньки могут быть слишком резкими
 
 #### **Плечо на основе риска:**
+
 ```python
 def calculate_risk_based_leverage(deposit, risk_tolerance="moderate"):
     base_leverage = calculate_base_leverage(deposit)
@@ -73,26 +80,31 @@ def calculate_risk_based_leverage(deposit, risk_tolerance="moderate"):
     leverage = int(max(1, min(leverage, 20)))
     return leverage
 ```
+
 - **Плюсы**: Учитывает толерантность к риску
 - **Минусы**: Смешивает размер депозита и риск-профиль
 
 ### 🚨 Выявленные проблемы:
 
 #### **Проблема 1: Несогласованность расчетов**
+
 - **`get_dynamic_leverage`** - рассчитывает динамическое плечо на основе рынка
 - **`calculate_risk_based_leverage`** - рассчитывает статическое плечо на основе депозита
 - **Проблема**: Две разные системы работают независимо друг от друга
 
 #### **Проблема 2: Резкие переходы**
+
 ```python
 # В calculate_base_leverage:
 if deposit < 100: return 1
 elif deposit < 500: return 2    # Резкий скачок с 1x на 2x
 elif deposit < 1000: return 3   # +50%
 ```
+
 - **Проблема**: Плечо меняется слишком резко при небольших изменениях депозита
 
 #### **Проблема 3: Отсутствие защиты от экстремальных значений**
+
 ```python
 # В get_dynamic_leverage:
 dynamic_leverage = max(0.5, min(dynamic_leverage, 20))
@@ -102,24 +114,29 @@ dynamic_leverage = max(0.5, min(dynamic_leverage, 20))
 leverage = int(max(1, min(leverage, 20)))
 # Хорошо: ограничено диапазоном 1-20
 ```
+
 - **Плюс**: Есть защита от экстремальных значений
 
 #### **Проблема 4: Разные диапазоны**
+
 - `get_dynamic_leverage`: может вернуть 0.5x (для очень волатильных рынков)
 - `calculate_risk_based_leverage`: минимум 1x
 - **Проблема**: Несогласованность в минимальных значениях
 
 #### **Проблема 5: Отсутствие корреляции с рынком**
+
 ```python
 # calculate_base_leverage учитывает только депозит:
 if deposit < 100: return 1
 # Не учитывает текущую волатильность BTCUSDT!
 ```
+
 - **Проблема**: Плечо не адаптируется к текущим рыночным условиям
 
 ### 🔧 Рекомендации по улучшению:
 
 #### **1. Унификация систем расчета плеча:**
+
 ```python
 class LeverageCalculator:
     def __init__(self, market_conditions=None):
@@ -187,6 +204,7 @@ class LeverageCalculator:
 ```
 
 #### **2. Улучшенная система ограничений:**
+
 ```python
 def validate_leverage(leverage, trade_mode, market_conditions=None):
     """
@@ -219,6 +237,7 @@ def validate_leverage(leverage, trade_mode, market_conditions=None):
 ```
 
 #### **3. Интеграция с системой риска:**
+
 ```python
 def calculate_leverage_with_risk_management(entry_price, stop_loss_price, deposit, risk_tolerance, df=None, current_index=None):
     """
@@ -247,21 +266,25 @@ def calculate_leverage_with_risk_management(entry_price, stop_loss_price, deposi
 ### 📋 План улучшений:
 
 #### **Фаза 1: Консолидация систем**
+
 1. Создать единую систему расчета плеча
 2. Убрать дублирование между `get_dynamic_leverage` и `calculate_risk_based_leverage`
 3. Объединить статический и динамический подходы
 
 #### **Фаза 2: Улучшение адаптивности**
+
 1. Добавить плавные переходы вместо ступенек
 2. Интегрировать рыночные условия в расчет плеча
 3. Улучшить корреляцию с волатильностью
 
 #### **Фаза 3: Интеграция с риском**
+
 1. Связать расчет плеча с системой риск-менеджмента
 2. Автоматически корректировать плечо при изменении условий
 3. Добавить валидацию совместимости параметров
 
 #### **Фаза 4: Тестирование**
+
 1. Добавить unit тесты для функций плеча
 2. Провести бэктестирование разных стратегий плеча
 3. Оптимизировать параметры на исторических данных
@@ -269,20 +292,23 @@ def calculate_leverage_with_risk_management(entry_price, stop_loss_price, deposi
 ### 🎯 Приоритеты:
 
 #### **Высокий приоритет:**
+
 1. Унифицировать системы расчета плеча
 2. Исправить резкие переходы в базовом плече
 3. Добавить валидацию и защиту от экстремальных значений
 
 #### **Средний приоритет:**
+
 1. Интегрировать рыночные условия
 2. Улучшить адаптивность к волатильности
 3. Связать с системой риск-менеджмента
 
 #### **Низкий приоритет:**
+
 1. Добавить профили плеча для разных стратегий
 2. Реализовать динамическое обновление плеча
 3. Добавить расширенную аналитику
 
 ---
 
-*Аудит расчета плеча завершен. Система имеет две параллельные системы расчета, которые требуют консолидации и улучшения адаптивности к рыночным условиям.*
+_Аудит расчета плеча завершен. Система имеет две параллельные системы расчета, которые требуют консолидации и улучшения адаптивности к рыночным условиям._

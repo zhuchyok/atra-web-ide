@@ -3,6 +3,7 @@
 ## 🎯 Проблема
 
 На сервере появляется предупреждение:
+
 ```
 ⚠️ talib не найден, но система продолжит работу
 ℹ️ talib недоступен, используется fallback режим
@@ -15,6 +16,7 @@
 ### 1. Установка системных зависимостей
 
 **Для Ubuntu/Debian:**
+
 ```bash
 sudo apt-get update
 sudo apt-get install build-essential
@@ -22,6 +24,7 @@ sudo apt-get install wget
 ```
 
 **Для CentOS/RHEL:**
+
 ```bash
 sudo yum groupinstall "Development Tools"
 sudo yum install wget
@@ -30,6 +33,7 @@ sudo yum install wget
 ### 2. Установка TA-Lib
 
 **Способ 1: Через pip (рекомендуется)**
+
 ```bash
 # Переходим в директорию проекта
 cd /root/atra
@@ -42,6 +46,7 @@ pip install TA-Lib
 ```
 
 **Способ 2: Ручная установка (если pip не работает)**
+
 ```bash
 # Скачиваем исходники TA-Lib
 cd /tmp
@@ -67,6 +72,7 @@ pip install TA-Lib
 ### 3. Проверка установки
 
 **Создайте тестовый скрипт:**
+
 ```bash
 cat > test_talib.py << 'EOF'
 import talib
@@ -86,6 +92,7 @@ python test_talib.py
 ```
 
 **Ожидаемый результат:**
+
 ```
 TA-Lib работает корректно!
 SMA(3): [nan nan 2. 3. 4. 5. 6. 7. 8. 9.]
@@ -112,6 +119,7 @@ journalctl -u myproject.service -f
 ### Если установка не работает:
 
 **1. Проверьте системные зависимости:**
+
 ```bash
 # Проверьте, что gcc установлен
 gcc --version
@@ -121,18 +129,21 @@ make --version
 ```
 
 **2. Проверьте права доступа:**
+
 ```bash
 # Убедитесь, что у пользователя есть права на установку
 sudo -u root pip install TA-Lib
 ```
 
 **3. Проверьте переменные окружения:**
+
 ```bash
 echo $LD_LIBRARY_PATH
 echo $PATH
 ```
 
 **4. Альтернативная установка через conda:**
+
 ```bash
 # Если pip не работает, попробуйте conda
 conda install -c conda-forge ta-lib
@@ -141,16 +152,19 @@ conda install -c conda-forge ta-lib
 ### Если TA-Lib все еще не работает:
 
 **1. Проверьте, что библиотека найдена:**
+
 ```bash
 python -c "import talib; print('TA-Lib версия:', talib.__version__)"
 ```
 
 **2. Проверьте системные библиотеки:**
+
 ```bash
 ldconfig -p | grep ta-lib
 ```
 
 **3. Переустановите с правами root:**
+
 ```bash
 sudo pip install --force-reinstall TA-Lib
 ```
@@ -158,12 +172,14 @@ sudo pip install --force-reinstall TA-Lib
 ## 📊 Проверка работы
 
 После установки TA-Lib в логах должно появиться:
+
 ```
 ✅ TA-Lib успешно загружен
 ✅ Технические индикаторы доступны
 ```
 
 Вместо:
+
 ```
 ⚠️ talib не найден, но система продолжит работу
 ℹ️ talib недоступен, используется fallback режим

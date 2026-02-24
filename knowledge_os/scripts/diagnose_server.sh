@@ -62,21 +62,21 @@ import sqlite3
 try:
     conn = sqlite3.connect('trading.db')
     cursor = conn.cursor()
-    
+
     cursor.execute('SELECT COUNT(*) FROM telemetry_cycles WHERE datetime(ts) >= datetime(\"now\", \"-1 hours\")')
     cycles = cursor.fetchone()[0]
     print(f'   Циклов проверки: {cycles}')
-    
+
     if cycles == 0:
         print('   ❌ СИСТЕМА НЕ РАБОТАЕТ!')
     else:
         print('   ✅ Система активна')
-    
+
     cursor.execute('SELECT symbol, side, datetime(ts, \"localtime\") FROM signals ORDER BY ts DESC LIMIT 1')
     last = cursor.fetchone()
     if last:
         print(f'   Последний сигнал: {last[0]} {last[1]} в {last[2]}')
-    
+
     conn.close()
 except Exception as e:
     print(f'   ❌ Ошибка БД: {e}')
@@ -88,7 +88,7 @@ echo "6️⃣ ОШИБКИ В ЛОГАХ:"
 if [ -f "system_improved.log" ]; then
     ERROR_COUNT=$(grep -c "ERROR" system_improved.log 2>/dev/null || echo "0")
     echo "   Ошибок найдено: $ERROR_COUNT"
-    
+
     if [ $ERROR_COUNT -gt 0 ]; then
         echo "   Последние 3 ошибки:"
         grep "ERROR" system_improved.log | tail -3
@@ -110,11 +110,11 @@ echo "   Отправлено сигналов: $SIGNALS_TODAY"
 
 if [ $SIGNALS_TODAY -eq 0 ]; then
     echo "   ❌ СИГНАЛЫ НЕ ОТПРАВЛЯЮТСЯ!"
-    
+
     # Проверяем кандидатов
     CANDIDATES=$(grep "candidate" system_improved.log 2>/dev/null | grep "$(date +%Y-%m-%d)" | wc -l)
     echo "   Кандидатов найдено: $CANDIDATES"
-    
+
     TREND_OK=$(grep "trend_ok" system_improved.log 2>/dev/null | grep "$(date +%Y-%m-%d)" | wc -l)
     echo "   Прошли trend_ok: $TREND_OK"
 fi

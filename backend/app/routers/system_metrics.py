@@ -3,8 +3,10 @@
 GET /api/system-metrics — JSON для дашборда и мониторинга.
 Содержит также count_experts, count_knowledge_nodes для алертов (рекомендации экспертов 2026-02-01).
 """
+
 import logging
 import os
+
 from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,10 @@ async def system_metrics():
         # DB metrics для алертов (volume switch detection)
         try:
             import asyncpg
-            db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            )
             conn = await asyncpg.connect(db_url)
             try:
                 experts = await conn.fetchval("SELECT COUNT(*) FROM experts")
@@ -95,16 +100,16 @@ async def system_metrics():
                         deferred_ratio = (tasks_deferred or 0) / total_all
                         failed_ratio = (tasks_failed or 0) / total_all
                         if deferred_ratio > 0.3 or failed_ratio > 0.2:
-                            alert_msg = (
-                                f"High deferred/failed ratio: deferred={deferred_ratio:.0%}, failed={failed_ratio:.0%}"
-                            )
+                            alert_msg = f"High deferred/failed ratio: deferred={deferred_ratio:.0%}, failed={failed_ratio:.0%}"
                             result["tasks_24h"]["alert"] = alert_msg
                             logger.warning(
                                 "Task execution alert: deferred_to_human=%.0f%%, failed=%.0f%%",
-                                deferred_ratio * 100, failed_ratio * 100
+                                deferred_ratio * 100,
+                                failed_ratio * 100,
                             )
                             try:
                                 from app.services.telegram_alerts import send_task_execution_alert
+
                                 await send_task_execution_alert(
                                     deferred_ratio, failed_ratio, alert_msg
                                 )

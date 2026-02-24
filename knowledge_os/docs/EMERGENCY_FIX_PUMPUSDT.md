@@ -24,6 +24,7 @@ python scripts/sync_positions_with_exchange.py
 ```
 
 **Что делает:**
+
 - Находит все реальные позиции на Bitget
 - Добавляет недостающие в `active_positions` (включая PUMPUSDT)
 
@@ -37,6 +38,7 @@ python scripts/emergency_fix_pumpusdt.py
 ```
 
 **Что делает:**
+
 - Находит позицию PUMPUSDT на бирже
 - Добавляет в БД, если отсутствует
 - Устанавливает TP1/TP2/SL по параметрам сигнала
@@ -52,6 +54,7 @@ python scripts/fix_open_positions_tp_sl.py
 ```
 
 **Что делает:**
+
 - Проверяет защиту всех открытых позиций
 - Довешивает TP/SL для позиций без защиты
 
@@ -72,19 +75,21 @@ python scripts/fix_open_positions_tp_sl.py
 ## 🔍 ПРОВЕРКА
 
 ### **На бирже:**
+
 1. Открыть Bitget приложение
 2. Найти позицию PUMPUSDT
 3. Проверить наличие TP1, TP2, SL
 4. Убедиться в распределении объемов 50/50
 
 ### **В БД:**
+
 ```sql
 -- Проверить позицию
 SELECT * FROM active_positions WHERE symbol = 'PUMPUSDT';
 
 -- Проверить ордера
-SELECT * FROM order_audit_log 
-WHERE symbol LIKE '%PUMP%' 
+SELECT * FROM order_audit_log
+WHERE symbol LIKE '%PUMP%'
   AND datetime(created_at) > datetime('now', '-1 hour')
 ORDER BY created_at DESC;
 ```
@@ -106,4 +111,3 @@ ORDER BY created_at DESC;
 1. ✅ Внедрить регулярную синхронизацию (каждые 5 минут)
 2. ✅ Добавить валидацию при старте бота
 3. ✅ Настроить мониторинг незащищенных позиций
-

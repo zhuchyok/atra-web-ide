@@ -25,21 +25,25 @@
 ## 📊 КАК ОТСЛЕЖИВАТЬ ПРОГРЕСС
 
 ### 1. Проверить процесс:
+
 ```bash
 ps aux | grep mass_screening
 ```
 
 ### 2. Проверить результаты:
+
 ```bash
 python3 scripts/monitor_screening_progress.py
 ```
 
 ### 3. Проверить логи (если есть):
+
 ```bash
 tail -f logs/screening.log  # если логирование настроено
 ```
 
 ### 4. Проверить файлы результатов:
+
 ```bash
 ls -lt data/reports/correlation_groups_* | head -5
 ```
@@ -76,4 +80,3 @@ ls -lt data/reports/correlation_groups_* | head -5
 ---
 
 **Обновлено**: 2025-01-XX
-

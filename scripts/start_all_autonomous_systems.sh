@@ -25,15 +25,15 @@ start_system() {
     local name=$1
     local script=$2
     local check_cmd=$3
-    
+
     echo -n "Запуск $name... "
-    
+
     # Проверяем, не запущен ли уже
     if eval "$check_cmd" > /dev/null 2>&1; then
         echo "✅ Уже запущен"
         return 0
     fi
-    
+
     # Запускаем
     if [ -f "$script" ]; then
         nohup python3 "$script" > /dev/null 2>&1 &

@@ -8,6 +8,5 @@ Market Microstructure Indicators - индикаторы микрострукту
 from .absorption import AbsorptionLevels
 
 __all__ = [
-    'AbsorptionLevels',
+    "AbsorptionLevels",
 ]
-

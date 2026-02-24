@@ -7,13 +7,12 @@ Exhaustion Indicators - индикаторы исчерпания движени
 - liquidity_exhaustion: Анализ исчерпания ликвидности
 """
 
-from .volume_exhaustion import VolumeExhaustion
-from .price_patterns import PriceExhaustionPatterns
 from .liquidity_exhaustion import LiquidityExhaustion
+from .price_patterns import PriceExhaustionPatterns
+from .volume_exhaustion import VolumeExhaustion
 
 __all__ = [
-    'VolumeExhaustion',
-    'PriceExhaustionPatterns',
-    'LiquidityExhaustion',
+    "VolumeExhaustion",
+    "PriceExhaustionPatterns",
+    "LiquidityExhaustion",
 ]
-

@@ -111,4 +111,3 @@ echo "  - Настройте Prometheus datasource в Grafana"
 echo ""
 
 echo "✅ Настройка завершена!"
-

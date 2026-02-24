@@ -8,6 +8,7 @@
 ## 📊 РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ
 
 ### Итоговая статистика:
+
 - **Всего проверок:** 5
 - **✅ Успешно:** 5 (100%)
 - **❌ Провалено:** 0
@@ -18,6 +19,7 @@
 ## ✅ ВЫПОЛНЕННЫЕ ТЕСТЫ
 
 ### 1. ETH TrendFilter импорт ✅
+
 - **Статус:** PASS
 - **Результат:** Функция `check_eth_alignment` доступна и является async
 - **Детали:**
@@ -26,6 +28,7 @@
   - Готова к использованию
 
 ### 2. SOL TrendFilter импорт ✅
+
 - **Статус:** PASS
 - **Результат:** Функция `check_sol_alignment` доступна и является async
 - **Детали:**
@@ -34,6 +37,7 @@
   - Готова к использованию
 
 ### 3. ETH TrendFilter логика ✅
+
 - **Статус:** PASS
 - **Результат:** ETH TrendFilter работает корректно (3/3 проверок)
 - **Детали:**
@@ -42,6 +46,7 @@
   - Логика фильтрации работает правильно
 
 ### 4. SOL TrendFilter логика ✅
+
 - **Статус:** PASS
 - **Результат:** SOL TrendFilter работает корректно (3/3 проверок)
 - **Детали:**
@@ -50,6 +55,7 @@
   - Логика фильтрации работает правильно
 
 ### 5. SmartTrendFilter интеграция ✅
+
 - **Статус:** PASS
 - **Результат:** SmartTrendFilter корректно интегрирован с ETH и SOL фильтрами
 - **Детали:**
@@ -67,7 +73,7 @@
 async def check_eth_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду ETH
-    
+
     Логика:
     1. Получает данные ETHUSDT через hybrid_data_manager
     2. Вычисляет EMA (10/22) для определения тренда
@@ -83,7 +89,7 @@ async def check_eth_alignment(symbol: str, signal_type: str) -> bool:
 async def check_sol_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду SOL
-    
+
     Логика:
     1. Получает данные SOLUSDT через hybrid_data_manager
     2. Вычисляет EMA (10/22) для определения тренда
@@ -99,7 +105,7 @@ async def check_sol_alignment(symbol: str, signal_type: str) -> bool:
 class SmartTrendFilter:
     """
     Умный фильтр трендов на основе корреляционных групп
-    
+
     Логика:
     - Определяет корреляционную группу монеты (BTC_HIGH, ETH_HIGH, SOL_HIGH)
     - Проверяет только тренд того актива, с которым монета коррелирует
@@ -114,6 +120,7 @@ class SmartTrendFilter:
 ## ✅ ПРОВЕРЕННЫЕ ФУНКЦИИ
 
 ### 1. `check_eth_alignment(symbol, signal_type)`
+
 - ✅ Импортируется корректно
 - ✅ Является async функцией
 - ✅ Получает данные ETH через hybrid_data_manager
@@ -122,6 +129,7 @@ class SmartTrendFilter:
 - ✅ Разрешает торговлю в боковике
 
 ### 2. `check_sol_alignment(symbol, signal_type)`
+
 - ✅ Импортируется корректно
 - ✅ Является async функцией
 - ✅ Получает данные SOL через hybrid_data_manager
@@ -130,6 +138,7 @@ class SmartTrendFilter:
 - ✅ Разрешает торговлю в боковике
 
 ### 3. `SmartTrendFilter.check_trend_alignment()`
+
 - ✅ Корректно использует check_eth_alignment для ETH групп
 - ✅ Корректно использует check_sol_alignment для SOL групп
 - ✅ Определяет первичный тренд на основе корреляционной группы
@@ -184,5 +193,4 @@ SOL_TREND_EMA_STRICT = 200
 
 ---
 
-*Отчет создан автоматически системой тестирования ATRA*
-
+_Отчет создан автоматически системой тестирования ATRA_

@@ -12,7 +12,7 @@ echo "🚀 Запуск Singularity 14.0..."
 if ! docker info > /dev/null 2>&1; then
     echo "🐳 Docker не запущен. Запускаю Docker Desktop..."
     open -a Docker
-    
+
     # Ожидание запуска Docker (макс 2 минуты)
     COUNTER=0
     while ! docker info > /dev/null 2>&1; do

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Модуль для управления блоклистом монет с низкой капитализацией.
@@ -9,11 +8,13 @@
 """
 
 import logging
-from typing import List, Dict
+from typing import Dict, List
+
 from src.database.db import Database
 
 # Глобальный экземпляр базы данных
 _db_instance = None
+
 
 def get_db():
     """Получает экземпляр базы данных (singleton pattern)."""
@@ -21,6 +22,7 @@ def get_db():
     if _db_instance is None:
         _db_instance = Database()
     return _db_instance
+
 
 class MarketCapBlacklist:
     """Класс для управления блоклистом капитализации."""
@@ -42,7 +44,9 @@ class MarketCapBlacklist:
         """
         return market_cap < self.min_market_cap
 
-    def add_to_blacklist(self, symbol: str, market_cap: float, reason: str = "low_market_cap") -> bool:
+    def add_to_blacklist(
+        self, symbol: str, market_cap: float, reason: str = "low_market_cap"
+    ) -> bool:
         """
         Добавляет монету в блоклист.
 
@@ -59,8 +63,11 @@ class MarketCapBlacklist:
 
         result = self.db.add_to_market_cap_blacklist(symbol, market_cap, reason)
         if result:
-            logging.info("🚫 Монета %s заблокирована (капитализация: $%.0fM < $150M)",
-                       symbol, market_cap / 1_000_000)
+            logging.info(
+                "🚫 Монета %s заблокирована (капитализация: $%.0fM < $150M)",
+                symbol,
+                market_cap / 1_000_000,
+            )
         return result  # pylint: disable=redefined-outer-name
 
     def is_blacklisted(self, symbol: str) -> bool:
@@ -134,11 +141,11 @@ class MarketCapBlacklist:
 
         total_blacklisted = len(blacklist)
         avg_market_cap = 0
-        min_market_cap = float('inf')
+        min_market_cap = float("inf")
         max_market_cap = 0
 
         if blacklist:
-            market_caps = [item['market_cap'] for item in blacklist if item['market_cap']]
+            market_caps = [item["market_cap"] for item in blacklist if item["market_cap"]]
             if market_caps:
                 avg_market_cap = sum(market_caps) / len(market_caps)
                 min_market_cap = min(market_caps)
@@ -147,34 +154,43 @@ class MarketCapBlacklist:
         return {
             "total_blacklisted": total_blacklisted,
             "avg_market_cap": avg_market_cap,
-            "min_market_cap": min_market_cap if min_market_cap != float('inf') else 0,
+            "min_market_cap": min_market_cap if min_market_cap != float("inf") else 0,
             "max_market_cap": max_market_cap,
-            "threshold": self.min_market_cap
+            "threshold": self.min_market_cap,
         }
+
 
 # Глобальный экземпляр для использования в других модулях
 market_cap_blacklist = MarketCapBlacklist()
+
 
 # Удобные функции для быстрого доступа
 def is_market_cap_blacklisted(symbol: str) -> bool:
     """Проверяет, заблокирована ли монета по капитализации."""
     return market_cap_blacklist.is_blacklisted(symbol)
 
-def add_to_market_cap_blacklist(symbol: str, market_cap: float, reason: str = "low_market_cap") -> bool:
+
+def add_to_market_cap_blacklist(
+    symbol: str, market_cap: float, reason: str = "low_market_cap"
+) -> bool:
     """Добавляет монету в блоклист капитализации."""
     return market_cap_blacklist.add_to_blacklist(symbol, market_cap, reason)
+
 
 def unfreeze_market_cap_blacklist() -> int:
     """Размораживает монеты с истекшим сроком блокировки."""
     return market_cap_blacklist.unfreeze_expired()
 
+
 def get_market_cap_blacklist() -> List[Dict]:
     """Получает список заблокированных монет."""
     return market_cap_blacklist.get_blacklist()
 
+
 def get_blacklist_stats() -> Dict:
     """Получает статистику блоклиста."""
     return market_cap_blacklist.get_blacklist_stats()
+
 
 if __name__ == "__main__":
     # Тестирование модуля

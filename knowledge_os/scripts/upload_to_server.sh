@@ -15,14 +15,14 @@ echo "============================"
 upload_file() {
     local file="$1"
     echo "📤 Загрузка $file..."
-    
+
     expect << EOF
 spawn scp -o StrictHostKeyChecking=no $file $SERVER_USER@$SERVER_IP:$SERVER_PATH/
 expect "password:"
 send "$SERVER_PASSWORD\r"
 expect eof
 EOF
-    
+
     if [ $? -eq 0 ]; then
         echo "✅ $file загружен успешно"
     else

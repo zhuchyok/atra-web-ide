@@ -1,0 +1,44 @@
+name: ❓ Question
+description: Ask a question about the project
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Задайте свой вопрос о проекте ATRA Web IDE.
+  
+  - type: textarea
+    id: question
+    attributes:
+      label: Ваш вопрос
+      description: Опишите, что вы хотите узнать
+    validations:
+      required: true
+  
+  - type: dropdown
+    id: area
+    attributes:
+      label: Область вопроса
+      options:
+        - Установка и запуск
+        - Использование API
+        - Конфигурация
+        - Интеграция с Victoria/Veronica
+        - Разработка и вклад
+        - Архитектура проекта
+        - Другое
+    validations:
+      required: true
+  
+  - type: textarea
+    id: context
+    attributes:
+      label: Контекст
+      description: Что вы уже пробовали? Какие документы читали?
+  
+  - type: textarea
+    id: additional
+    attributes:
+      label: Дополнительная информация
+      description: Логи, скриншоты, конфигурация

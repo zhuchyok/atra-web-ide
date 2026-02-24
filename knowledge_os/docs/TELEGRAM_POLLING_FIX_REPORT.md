@@ -38,6 +38,7 @@ await app.updater.start_polling(
 ## 🔧 **Дополнительные улучшения:**
 
 ### **1. Улучшена обработка ошибок:**
+
 ```python
 elif "unexpected keyword argument" in error_msg:
     print("[TelegramBot] 🔍 Неподдерживаемые параметры - используем базовые настройки")
@@ -45,6 +46,7 @@ elif "unexpected keyword argument" in error_msg:
 ```
 
 ### **2. Создан тестовый скрипт:**
+
 - `test_telegram_fix.py` для валидации исправления
 - Проверяет запуск бота без ошибок
 - Анализирует типы ошибок
@@ -52,6 +54,7 @@ elif "unexpected keyword argument" in error_msg:
 ## 📊 **Результаты тестирования:**
 
 ### **✅ Тест пройден успешно:**
+
 ```
 🧪 ТЕСТ ИСПРАВЛЕНИЯ TELEGRAM БОТА
 ==================================================
@@ -70,12 +73,14 @@ elif "unexpected keyword argument" in error_msg:
 ## 🎯 **Статус исправления:**
 
 ### **✅ ИСПРАВЛЕНО:**
+
 - ❌ ~~Ошибка `start_polling() got an unexpected keyword argument 'read_timeout'`~~
 - ✅ Telegram бот запускается без ошибок
 - ✅ Polling работает корректно
 - ✅ Система продолжает функционировать
 
 ### **✅ ПРОТЕСТИРОВАНО:**
+
 - ✅ Импорт модуля telegram_bot
 - ✅ Запуск бота без ошибок
 - ✅ Успешный polling

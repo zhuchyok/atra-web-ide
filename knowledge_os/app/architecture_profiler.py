@@ -3,14 +3,14 @@
 Collects function-level metrics for core modules to identify optimization hot spots.
 """
 
-import inspect
-import time
 import asyncio
-import logging
 import functools
+import inspect
+import logging
 import os
-from typing import Any, Dict, List, Optional
+import time
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 try:
     import asyncpg
@@ -19,32 +19,31 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class ArchitectureProfiler:
     """Tracks execution time, memory, and success rates of core functions."""
-    
+
     def __init__(self, db_url: Optional[str] = None):
-        self.db_url = db_url or os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        self.db_url = db_url or os.getenv(
+            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+        )
         self._pool = None
 
     async def get_pool(self):
         if self._pool is None and asyncpg:
             try:
-                self._pool = await asyncpg.create_pool(
-                    self.db_url,
-                    min_size=1,
-                    max_size=5
-                )
+                self._pool = await asyncpg.create_pool(self.db_url, min_size=1, max_size=5)
             except Exception as e:
                 logger.error(f"Failed to create profiler DB pool: {e}")
         return self._pool
 
     async def log_metric(
-        self, 
-        module_name: str, 
-        function_name: str, 
-        execution_time_ms: float, 
-        success: bool, 
-        metadata: Optional[Dict[str, Any]] = None
+        self,
+        module_name: str,
+        function_name: str,
+        execution_time_ms: float,
+        success: bool,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         """Log a single function execution metric to the database."""
         pool = await self.get_pool()
@@ -66,11 +65,18 @@ class ArchitectureProfiler:
                     );
                     CREATE INDEX IF NOT EXISTS idx_arch_perf_module_func ON architecture_performance_log(module_name, function_name);
                 """)
-                
-                await conn.execute("""
+
+                await conn.execute(
+                    """
                     INSERT INTO architecture_performance_log (module_name, function_name, execution_time_ms, success, metadata)
                     VALUES ($1, $2, $3, $4, $5)
-                """, module_name, function_name, execution_time_ms, success, metadata)
+                """,
+                    module_name,
+                    function_name,
+                    execution_time_ms,
+                    success,
+                    metadata,
+                )
         except Exception as e:
             logger.debug(f"Profiler failed to log metric: {e}")
 
@@ -82,11 +88,12 @@ class ArchitectureProfiler:
 
         try:
             async with pool.acquire() as conn:
-                rows = await conn.fetch("""
-                    SELECT 
-                        module_name, 
-                        function_name, 
-                        AVG(execution_time_ms) as avg_time, 
+                rows = await conn.fetch(
+                    """
+                    SELECT
+                        module_name,
+                        function_name,
+                        AVG(execution_time_ms) as avg_time,
                         COUNT(*) as call_count,
                         COUNT(*) FILTER (WHERE success = false) as failure_count
                     FROM architecture_performance_log
@@ -94,14 +101,18 @@ class ArchitectureProfiler:
                     GROUP BY module_name, function_name
                     ORDER BY avg_time DESC
                     LIMIT $1
-                """, limit)
+                """,
+                    limit,
+                )
                 return [dict(r) for r in rows]
         except Exception as e:
             logger.error(f"Failed to get hot spots: {e}")
             return []
 
+
 def profile_function(module_name: str):
     """Decorator to profile sync/async functions."""
+
     def decorator(func):
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
@@ -115,9 +126,9 @@ def profile_function(module_name: str):
             finally:
                 duration_ms = (time.perf_counter() - start) * 1000
                 profiler = get_profiler()
-                asyncio.create_task(profiler.log_metric(
-                    module_name, func.__name__, duration_ms, success
-                ))
+                asyncio.create_task(
+                    profiler.log_metric(module_name, func.__name__, duration_ms, success)
+                )
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
@@ -135,18 +146,21 @@ def profile_function(module_name: str):
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
-                        loop.create_task(profiler.log_metric(
-                            module_name, func.__name__, duration_ms, success
-                        ))
+                        loop.create_task(
+                            profiler.log_metric(module_name, func.__name__, duration_ms, success)
+                        )
                 except RuntimeError:
-                    pass # Not in event loop
-            
+                    pass  # Not in event loop
+
         if inspect.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
+
     return decorator
 
+
 _profiler_instance = None
+
 
 def get_profiler() -> ArchitectureProfiler:
     global _profiler_instance

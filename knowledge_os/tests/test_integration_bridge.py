@@ -3,6 +3,7 @@
 use_v2=False или отсутствие V2 → existing. Связь с docs/TESTING_FULL_SYSTEM.md.
 Запуск: из knowledge_os: python3 -m pytest tests/test_integration_bridge.py -v
 """
+
 import os
 import sys
 

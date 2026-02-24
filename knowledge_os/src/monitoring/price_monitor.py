@@ -1,4 +1,5 @@
 import time
+
 #!/usr/bin/env python3
 """
 Система мониторинга цен и автоматического закрытия позиций по TP1/TP2
@@ -8,25 +9,35 @@ import asyncio
 import logging
 import sqlite3
 from datetime import datetime, timedelta, timezone
-from src.shared.utils.datetime_utils import get_utc_now
-from typing import Optional, List, Dict, Any
-from src.database.db import Database
+from typing import Any, Dict, List, Optional
+
 from src.database.acceptance import AcceptanceDatabase
+from src.database.db import Database
 from src.execution.exchange_api import get_current_price_robust
 from src.execution.trailing_stop import get_trailing_manager
+from src.shared.utils.datetime_utils import get_utc_now
 
 try:
-    from src.telegram.handlers import notify_user, notify_all
+    from src.telegram.handlers import notify_all, notify_user
 except ImportError:
-    async def notify_user(*args, **kwargs): pass
-    async def notify_all(*args, **kwargs): pass
+
+    async def notify_user(*args, **kwargs):
+        pass
+
+    async def notify_all(*args, **kwargs):
+        pass
+
 
 try:
     from src.execution.trade_tracker import get_trade_tracker
 except ImportError:
-    def get_trade_tracker(): return None
+
+    def get_trade_tracker():
+        return None
+
 
 logger = logging.getLogger(__name__)
+
 
 class PriceMonitorSystem:
     """Система мониторинга цен и автоматического закрытия позиций"""
@@ -34,7 +45,7 @@ class PriceMonitorSystem:
     def __init__(self):
         # Используем AcceptanceDatabase для всех операций с ретраями
         self.adb = AcceptanceDatabase()
-        self.db = Database() # Оставляем для совместимости, но минимизируем использование
+        self.db = Database()  # Оставляем для совместимости, но минимизируем использование
         self.running = False
         self.monitor_interval = 30
         self._sent_notifications = set()
@@ -42,25 +53,38 @@ class PriceMonitorSystem:
         self._last_cache_cleanup = 0
         self._notification_cache_cleanup_interval = 3600
 
-    async def _calculate_trade_fees(self, entry_price: float, exit_price: float, quantity: float,
-                                  trade_mode: str = 'futures', user_id: Optional[str] = None,
-                                  symbol: Optional[str] = None, exchange_adapter=None) -> float:
+    async def _calculate_trade_fees(
+        self,
+        entry_price: float,
+        exit_price: float,
+        quantity: float,
+        trade_mode: str = "futures",
+        user_id: Optional[str] = None,
+        symbol: Optional[str] = None,
+        exchange_adapter=None,
+    ) -> float:
         """Рассчитывает реальные комиссии для сделки"""
         try:
-            fee_rate = 0.001 if trade_mode == 'spot' else 0.0005
+            fee_rate = 0.001 if trade_mode == "spot" else 0.0005
             if user_id and symbol:
                 try:
                     from exchange_fee_manager import get_real_fee_rate
-                    fee_rate = await get_real_fee_rate(str(user_id), symbol, trade_mode, exchange_adapter)
-                except Exception: pass
-            
+
+                    fee_rate = await get_real_fee_rate(
+                        str(user_id), symbol, trade_mode, exchange_adapter
+                    )
+                except Exception:
+                    pass
+
             entry_fee = entry_price * quantity * fee_rate
             exit_fee = exit_price * quantity * fee_rate
             return round(entry_fee + exit_fee, 2)
         except Exception:
             return round((entry_price + exit_price) * quantity * 0.001, 2)
 
-    def calculate_breakeven_sl(self, entry_price: float, side: str, taker_fee: float = 0.001) -> float:
+    def calculate_breakeven_sl(
+        self, entry_price: float, side: str, taker_fee: float = 0.001
+    ) -> float:
         """Рассчитывает SL в безубыток с учетом комиссий"""
         try:
             if side.upper() == "LONG":
@@ -80,7 +104,9 @@ class PriceMonitorSystem:
             self._last_cache_cleanup = current_time
             logger.info("🧹 Кэш уведомлений очищен")
 
-    async def is_position_already_closed(self, symbol: str, entry_time: str, user_id: int = None) -> bool:
+    async def is_position_already_closed(
+        self, symbol: str, entry_time: str, user_id: int = None
+    ) -> bool:
         """Проверяет, была ли позиция уже закрыта (через execute_with_retry)"""
         try:
             if user_id:
@@ -128,7 +154,7 @@ class PriceMonitorSystem:
         """Проверка всех активных сигналов и позиций (последние 7 дней)"""
         try:
             cutoff = (get_utc_now() - timedelta(days=7)).isoformat()
-            
+
             # 1. Получаем активные сигналы
             query_signals = """
                 SELECT symbol, entry_time, result
@@ -137,7 +163,9 @@ class PriceMonitorSystem:
                 AND symbol NOT LIKE 'TEST%'
                 AND created_at > ?
             """
-            active_signals = await self.adb.execute_with_retry(query_signals, (cutoff,), is_write=False)
+            active_signals = await self.adb.execute_with_retry(
+                query_signals, (cutoff,), is_write=False
+            )
 
             # 2. Получаем активные позиции пользователей
             query_positions = """
@@ -158,20 +186,28 @@ class PriceMonitorSystem:
                 ORDER BY s.created_at DESC
                 LIMIT 200
             """
-            active_positions = await self.adb.execute_with_retry(query_positions, (cutoff,), is_write=False)
+            active_positions = await self.adb.execute_with_retry(
+                query_positions, (cutoff,), is_write=False
+            )
 
             if not active_signals and not active_positions:
                 return
 
-            logger.debug("🔍 Проверяем %d сигналов и %d позиций", len(active_signals or []), len(active_positions or []))
+            logger.debug(
+                "🔍 Проверяем %d сигналов и %d позиций",
+                len(active_signals or []),
+                len(active_positions or []),
+            )
 
-            for signal in (active_signals or []):
+            for signal in active_signals or []:
                 symbol, entry_time, _ = signal
                 await self.check_signal_tp_levels(f"{symbol}|{entry_time}", symbol, entry_time)
 
-            for position in (active_positions or []):
+            for position in active_positions or []:
                 user_id, symbol, entry, tp1, tp2, entry_time, _, _, created_at, _, _ = position
-                await self.check_user_position_tp_levels(user_id, symbol, entry, tp1, tp2, entry_time, created_at)
+                await self.check_user_position_tp_levels(
+                    user_id, symbol, entry, tp1, tp2, entry_time, created_at
+                )
 
         except Exception as e:
             logger.error("❌ Ошибка при проверке сигналов и позиций: %s", e)
@@ -180,55 +216,85 @@ class PriceMonitorSystem:
         """Проверка TP для конкретного сигнала"""
         try:
             if not symbol and signal_key:
-                symbol = signal_key.split('|')[0] if '|' in signal_key else None
-            if not symbol: return
+                symbol = signal_key.split("|")[0] if "|" in signal_key else None
+            if not symbol:
+                return
 
-            if await self.is_position_already_closed(symbol, entry_time): return
+            if await self.is_position_already_closed(symbol, entry_time):
+                return
 
             query = "SELECT entry, tp1, tp2, result FROM signals_log WHERE symbol = ? AND entry_time = ?"
             rows = await self.adb.execute_with_retry(query, (symbol, entry_time), is_write=False)
-            if not rows: return
+            if not rows:
+                return
 
             entry_price, tp1, tp2, result = rows[0][0], rows[0][1], rows[0][2], rows[0][3]
-            if isinstance(result, str) and result.upper().startswith(("TP2", "SL")): return
+            if isinstance(result, str) and result.upper().startswith(("TP2", "SL")):
+                return
 
             current_price = await self.get_current_price_safe(symbol)
-            if current_price is None: return
+            if current_price is None:
+                return
 
             if isinstance(result, str) and result.upper().startswith("TP1"):
                 if current_price >= tp2:
-                    await self.close_signal_at_tp2(signal_key, symbol, entry_time, current_price, tp2, entry_price)
+                    await self.close_signal_at_tp2(
+                        signal_key, symbol, entry_time, current_price, tp2, entry_price
+                    )
             else:
                 if current_price >= tp1:
-                    await self.close_signal_at_tp1(signal_key, symbol, entry_time, current_price, tp1, entry_price)
+                    await self.close_signal_at_tp1(
+                        signal_key, symbol, entry_time, current_price, tp1, entry_price
+                    )
                 elif current_price >= tp2:
-                    await self.close_signal_at_tp2(signal_key, symbol, entry_time, current_price, tp2, entry_price)
+                    await self.close_signal_at_tp2(
+                        signal_key, symbol, entry_time, current_price, tp2, entry_price
+                    )
         except Exception as e:
             logger.error("❌ Ошибка check_signal_tp_levels %s: %s", signal_key, e)
 
-    async def check_user_position_tp_levels(self, user_id: int, symbol: str, entry: float, tp1: float, tp2: float, entry_time: str, created_at: str):
+    async def check_user_position_tp_levels(
+        self,
+        user_id: int,
+        symbol: str,
+        entry: float,
+        tp1: float,
+        tp2: float,
+        entry_time: str,
+        created_at: str,
+    ):
         """Проверка TP для активной позиции пользователя"""
         try:
-            if await self.is_position_already_closed(symbol, entry_time, user_id): return
+            if await self.is_position_already_closed(symbol, entry_time, user_id):
+                return
 
             current_price = await self.get_current_price_safe(symbol)
-            if current_price is None: return
+            if current_price is None:
+                return
 
             query = """
                 SELECT result FROM signals_log WHERE user_id=? AND symbol=? AND entry_time=?
                 ORDER BY datetime(created_at) DESC LIMIT 1
             """
-            rows = await self.adb.execute_with_retry(query, (user_id, symbol, entry_time), is_write=False)
+            rows = await self.adb.execute_with_retry(
+                query, (user_id, symbol, entry_time), is_write=False
+            )
             result = rows[0][0] if rows else None
-            
+
             if isinstance(result, str) and result.upper().startswith("TP1"):
                 if current_price >= tp2:
-                    await self.close_user_position_at_tp2(user_id, symbol, entry_time, current_price, tp2, created_at)
+                    await self.close_user_position_at_tp2(
+                        user_id, symbol, entry_time, current_price, tp2, created_at
+                    )
             else:
                 if current_price >= tp1:
-                    await self.close_user_position_at_tp1(user_id, symbol, entry_time, current_price, tp1, created_at)
+                    await self.close_user_position_at_tp1(
+                        user_id, symbol, entry_time, current_price, tp1, created_at
+                    )
                 elif current_price >= tp2:
-                    await self.close_user_position_at_tp2(user_id, symbol, entry_time, current_price, tp2, created_at)
+                    await self.close_user_position_at_tp2(
+                        user_id, symbol, entry_time, current_price, tp2, created_at
+                    )
         except Exception as e:
             logger.error("❌ Ошибка check_user_position_tp_levels %s: %s", symbol, e)
 
@@ -240,23 +306,38 @@ class PriceMonitorSystem:
             logger.error("❌ Ошибка получения цены для %s: %s", symbol, e)
             return None
 
-    async def close_signal_at_tp1(self, signal_key: str, symbol: str, entry_time: str, current_price: float, tp1: float, entry_price: float):
+    async def close_signal_at_tp1(
+        self,
+        signal_key: str,
+        symbol: str,
+        entry_time: str,
+        current_price: float,
+        tp1: float,
+        entry_price: float,
+    ):
         """Автоматическое закрытие 50% позиции при достижении TP1"""
         try:
             check_query = "SELECT result, user_id, direction, stop FROM signals_log WHERE symbol=? AND entry_time=? ORDER BY created_at DESC LIMIT 1"
-            rows = await self.adb.execute_with_retry(check_query, (symbol, entry_time), is_write=False)
-            if not rows or (isinstance(rows[0][0], str) and rows[0][0].upper().startswith(("TP2", "TP1"))):
+            rows = await self.adb.execute_with_retry(
+                check_query, (symbol, entry_time), is_write=False
+            )
+            if not rows or (
+                isinstance(rows[0][0], str) and rows[0][0].upper().startswith(("TP2", "TP1"))
+            ):
                 return
-            
+
             user_id, direction, current_sl = rows[0][1], rows[0][2], rows[0][3]
-            
+
             # 1. Обновляем статус
-            await self.adb.execute_with_retry("UPDATE active_signals SET status = 'tp1_reached', ts = datetime('now') WHERE signal_key = ?", (signal_key,))
+            await self.adb.execute_with_retry(
+                "UPDATE active_signals SET status = 'tp1_reached', ts = datetime('now') WHERE signal_key = ?",
+                (signal_key,),
+            )
 
             profit_50pct = (float(current_price) - float(entry_price)) * 0.5
             direction_str = (direction or "LONG").upper()
             breakeven_sl = self.calculate_breakeven_sl(float(entry_price), direction_str)
-            
+
             # 🔧 НОВОЕ: Используем лучший стоп (между текущим и безубытком)
             final_sl = breakeven_sl
             if current_sl:
@@ -266,62 +347,115 @@ class PriceMonitorSystem:
                     final_sl = min(float(current_sl), breakeven_sl)
 
             # 3. Обновляем результат и SL
-            await self.adb.execute_with_retry("""
+            await self.adb.execute_with_retry(
+                """
                 UPDATE signals_log SET result = 'TP1_PARTIAL', exit_time = datetime('now'), net_profit = ?, stop = ?
                 WHERE symbol = ? AND entry_time = ?
-            """, (profit_50pct, final_sl, symbol, entry_time))
-            
-            await self.adb.execute_with_retry("UPDATE accepted_signals SET sl_price = ? WHERE symbol = ? AND signal_key LIKE ?", (final_sl, symbol, f"%{entry_time}%"))
-            await self.adb.execute_with_retry("UPDATE active_positions SET sl_price = ? WHERE symbol = ? AND entry_time LIKE ?", (final_sl, symbol, f"%{entry_time}%"))
+            """,
+                (profit_50pct, final_sl, symbol, entry_time),
+            )
+
+            await self.adb.execute_with_retry(
+                "UPDATE accepted_signals SET sl_price = ? WHERE symbol = ? AND signal_key LIKE ?",
+                (final_sl, symbol, f"%{entry_time}%"),
+            )
+            await self.adb.execute_with_retry(
+                "UPDATE active_positions SET sl_price = ? WHERE symbol = ? AND entry_time LIKE ?",
+                (final_sl, symbol, f"%{entry_time}%"),
+            )
 
             logger.info("✅ TP1 достигнут: %s @ %s (SL -> %.4f)", symbol, current_price, final_sl)
             await self._update_exchange_sl(user_id, symbol, final_sl, direction_str)
         except Exception as e:
             logger.error("❌ Ошибка close_signal_at_tp1 %s: %s", signal_key, e)
 
-    async def close_signal_at_tp2(self, signal_key: str, symbol: str, entry_time: str, current_price: float, tp2: float, entry_price: float):
+    async def close_signal_at_tp2(
+        self,
+        signal_key: str,
+        symbol: str,
+        entry_time: str,
+        current_price: float,
+        tp2: float,
+        entry_price: float,
+    ):
         """Автоматическое закрытие 100% позиции при достижении TP2"""
         try:
             check_query = "SELECT result, user_id, direction FROM signals_log WHERE symbol=? AND entry_time=? ORDER BY created_at DESC LIMIT 1"
-            rows = await self.adb.execute_with_retry(check_query, (symbol, entry_time), is_write=False)
+            rows = await self.adb.execute_with_retry(
+                check_query, (symbol, entry_time), is_write=False
+            )
             if not rows or (isinstance(rows[0][0], str) and rows[0][0].upper().startswith("TP2")):
                 return
-            
+
             user_id, direction = rows[0][1], rows[0][2]
-            await self.adb.execute_with_retry("UPDATE active_signals SET status = 'tp2_reached', ts = datetime('now') WHERE signal_key = ?", (signal_key,))
+            await self.adb.execute_with_retry(
+                "UPDATE active_signals SET status = 'tp2_reached', ts = datetime('now') WHERE signal_key = ?",
+                (signal_key,),
+            )
 
             profit_100pct = (float(current_price) - float(entry_price)) * 1.0
-            await self.adb.execute_with_retry("""
+            await self.adb.execute_with_retry(
+                """
                 UPDATE signals_log SET result = 'TP2_REACHED', exit_time = datetime('now'), net_profit = ?
                 WHERE symbol = ? AND entry_time = ?
-            """, (profit_100pct, symbol, entry_time))
+            """,
+                (profit_100pct, symbol, entry_time),
+            )
 
             logger.info("🎯 TP2 достигнут: %s @ %s", symbol, current_price)
             if user_id and direction:
                 try:
                     from ai_integration import AIIntegration
+
                     ai = AIIntegration()
                     profit_pct = ((current_price - entry_price) / entry_price) * 100.0
-                    if direction.upper() == "SHORT": profit_pct = -profit_pct
-                    await ai.update_pattern_from_closed_trade(symbol, direction, entry_price, current_price, "tp2", int(user_id), profit_pct)
-                except Exception: pass
+                    if direction.upper() == "SHORT":
+                        profit_pct = -profit_pct
+                    await ai.update_pattern_from_closed_trade(
+                        symbol,
+                        direction,
+                        entry_price,
+                        current_price,
+                        "tp2",
+                        int(user_id),
+                        profit_pct,
+                    )
+                except Exception:
+                    pass
         except Exception as e:
             logger.error("❌ Ошибка close_signal_at_tp2 %s: %s", signal_key, e)
 
-    async def close_user_position_at_tp1(self, user_id: int, symbol: str, entry_time: str, current_price: float, tp1: float, created_at: str):
+    async def close_user_position_at_tp1(
+        self,
+        user_id: int,
+        symbol: str,
+        entry_time: str,
+        current_price: float,
+        tp1: float,
+        created_at: str,
+    ):
         """Закрытие 50% позиции пользователя"""
         try:
             check_query = "SELECT result, entry, qty_added, direction, stop FROM signals_log WHERE user_id=? AND symbol=? AND entry_time=? ORDER BY created_at DESC LIMIT 1"
-            rows = await self.adb.execute_with_retry(check_query, (user_id, symbol, entry_time), is_write=False)
-            if not rows or (isinstance(rows[0][0], str) and rows[0][0].upper().startswith(("TP2", "TP1"))):
+            rows = await self.adb.execute_with_retry(
+                check_query, (user_id, symbol, entry_time), is_write=False
+            )
+            if not rows or (
+                isinstance(rows[0][0], str) and rows[0][0].upper().startswith(("TP2", "TP1"))
+            ):
                 return
-            
-            entry_price, qty_added, direction, current_sl = rows[0][1], rows[0][2], rows[0][3], rows[0][4]
+
+            entry_price, qty_added, direction, current_sl = (
+                rows[0][1],
+                rows[0][2],
+                rows[0][3],
+                rows[0][4],
+            )
             closed_qty = (qty_added or 0) * 0.5
             profit_50pct = (current_price - entry_price) * closed_qty
             direction_str = (direction or "LONG").upper()
             breakeven_sl = self.calculate_breakeven_sl(float(entry_price), direction_str)
-            
+
             # 🔧 НОВОЕ: Используем лучший стоп
             final_sl = breakeven_sl
             if current_sl:
@@ -330,57 +464,103 @@ class PriceMonitorSystem:
                 else:
                     final_sl = min(float(current_sl), breakeven_sl)
 
-            await self.adb.execute_with_retry("""
+            await self.adb.execute_with_retry(
+                """
                 UPDATE signals_log SET result = 'TP1_PARTIAL', exit_time = datetime('now'), net_profit = ?, stop = ?
                 WHERE user_id = ? AND symbol = ? AND entry_time = ?
-            """, (profit_50pct, final_sl, user_id, symbol, entry_time))
-            
-            await self.adb.execute_with_retry("UPDATE accepted_signals SET sl_price = ? WHERE user_id = ? AND symbol = ? AND signal_key LIKE ?", (final_sl, user_id, symbol, f"%{entry_time}%"))
-            await self.adb.execute_with_retry("UPDATE active_positions SET sl_price = ? WHERE user_id = ? AND symbol = ? AND entry_time LIKE ?", (final_sl, user_id, symbol, f"%{entry_time}%"))
+            """,
+                (profit_50pct, final_sl, user_id, symbol, entry_time),
+            )
 
-            logger.info("✅ User %s TP1: %s @ %s (SL -> %.4f)", user_id, symbol, current_price, final_sl)
+            await self.adb.execute_with_retry(
+                "UPDATE accepted_signals SET sl_price = ? WHERE user_id = ? AND symbol = ? AND signal_key LIKE ?",
+                (final_sl, user_id, symbol, f"%{entry_time}%"),
+            )
+            await self.adb.execute_with_retry(
+                "UPDATE active_positions SET sl_price = ? WHERE user_id = ? AND symbol = ? AND entry_time LIKE ?",
+                (final_sl, user_id, symbol, f"%{entry_time}%"),
+            )
+
+            logger.info(
+                "✅ User %s TP1: %s @ %s (SL -> %.4f)", user_id, symbol, current_price, final_sl
+            )
             await self._update_exchange_sl(user_id, symbol, final_sl, direction_str)
         except Exception as e:
             logger.error("❌ Ошибка close_user_position_at_tp1 %s: %s", symbol, e)
 
-    async def close_user_position_at_tp2(self, user_id: int, symbol: str, entry_time: str, current_price: float, tp2: float, created_at: str):
+    async def close_user_position_at_tp2(
+        self,
+        user_id: int,
+        symbol: str,
+        entry_time: str,
+        current_price: float,
+        tp2: float,
+        created_at: str,
+    ):
         """Закрытие 100% позиции пользователя"""
         try:
             check_query = "SELECT result, entry, qty_added, direction FROM signals_log WHERE user_id=? AND symbol=? AND entry_time=? ORDER BY created_at DESC LIMIT 1"
-            rows = await self.adb.execute_with_retry(check_query, (user_id, symbol, entry_time), is_write=False)
+            rows = await self.adb.execute_with_retry(
+                check_query, (user_id, symbol, entry_time), is_write=False
+            )
             if not rows or (isinstance(rows[0][0], str) and rows[0][0].upper().startswith("TP2")):
                 return
-            
+
             entry_price, total_qty, direction = rows[0][1], rows[0][2], rows[0][3]
             profit_100pct = (current_price - entry_price) * (total_qty or 0)
 
-            await self.adb.execute_with_retry("""
+            await self.adb.execute_with_retry(
+                """
                 UPDATE signals_log SET result = 'TP2_REACHED', exit_time = datetime('now'), net_profit = ?
                 WHERE user_id = ? AND symbol = ? AND entry_time = ?
-            """, (profit_100pct, user_id, symbol, entry_time))
+            """,
+                (profit_100pct, user_id, symbol, entry_time),
+            )
 
             logger.info("🎯 User %s TP2: %s @ %s", user_id, symbol, current_price)
             tracker = get_trade_tracker()
             if tracker:
-                await tracker.record_trade(symbol, direction or 'LONG', float(entry_price), float(current_price), get_utc_now(), get_utc_now(), float(total_qty or 0), 'TP2', str(user_id))
+                await tracker.record_trade(
+                    symbol,
+                    direction or "LONG",
+                    float(entry_price),
+                    float(current_price),
+                    get_utc_now(),
+                    get_utc_now(),
+                    float(total_qty or 0),
+                    "TP2",
+                    str(user_id),
+                )
         except Exception as e:
             logger.error("❌ Ошибка close_user_position_at_tp2 %s: %s", symbol, e)
 
-    async def _update_exchange_sl(self, user_id: int, symbol: str, breakeven_sl: float, direction_str: str):
+    async def _update_exchange_sl(
+        self, user_id: int, symbol: str, breakeven_sl: float, direction_str: str
+    ):
         """Вспомогательный метод обновления SL на бирже"""
-        if not user_id: return
+        if not user_id:
+            return
         try:
             from src.execution.exchange_adapter import ExchangeAdapter
-            keys = await self.adb.get_active_exchange_keys(int(user_id), exchange_name='bitget')
+
+            keys = await self.adb.get_active_exchange_keys(int(user_id), exchange_name="bitget")
             if keys:
-                async with ExchangeAdapter('bitget', keys=keys, trade_mode='futures') as adapter:
+                async with ExchangeAdapter("bitget", keys=keys, trade_mode="futures") as adapter:
                     if adapter.client:
                         positions = await adapter.fetch_positions()
-                        for pos in (positions or []):
-                            if (pos.get('symbol') or '').replace('/', '').replace(':USDT', '').upper() == symbol.upper():
-                                pos_size = float(pos.get('contracts') or pos.get('size') or 0.0)
+                        for pos in positions or []:
+                            if (pos.get("symbol") or "").replace("/", "").replace(
+                                ":USDT", ""
+                            ).upper() == symbol.upper():
+                                pos_size = float(pos.get("contracts") or pos.get("size") or 0.0)
                                 if pos_size > 0:
-                                    await adapter.place_stop_loss_order(symbol, "BUY" if direction_str == "SHORT" else "SELL", pos_size, breakeven_sl, True)
+                                    await adapter.place_stop_loss_order(
+                                        symbol,
+                                        "BUY" if direction_str == "SHORT" else "SELL",
+                                        pos_size,
+                                        breakeven_sl,
+                                        True,
+                                    )
                                     logger.info("✅ SL ордер обновлен на бирже для %s", symbol)
                                     break
         except Exception as e:
@@ -398,7 +578,7 @@ class PriceMonitorSystem:
                 AND created_at > ?
             """
             active_trades = await self.adb.execute_with_retry(query, (cutoff,), is_write=False)
-            
+
             if not active_trades:
                 return
 
@@ -406,10 +586,11 @@ class PriceMonitorSystem:
 
             for trade in active_trades:
                 user_id, symbol, entry, tp1, tp2, current_sl, entry_time, direction = trade
-                
+
                 # 1. Получаем текущую цену
                 current_price = await self.get_current_price_safe(symbol)
-                if current_price is None: continue
+                if current_price is None:
+                    continue
 
                 # 2. Инициализируем позицию в трейлинг-менеджере, если ее там нет
                 pos_key = f"{user_id}_{symbol}"
@@ -420,34 +601,38 @@ class PriceMonitorSystem:
                         initial_sl=float(current_sl) if current_sl else float(entry) * 0.95,
                         side=direction.upper() if direction else "LONG",
                         tp1_price=float(tp1) if tp1 else None,
-                        tp2_price=float(tp2) if tp2 else None  # 🆕 Передаем TP2
+                        tp2_price=float(tp2) if tp2 else None,  # 🆕 Передаем TP2
                     )
 
                 # 3. Обновляем трейлинг
                 # Для простоты передаем None вместо ATR (менеджер сам рассчитает или использует фикс)
                 trail_result = trailing_manager.update_trailing_stop(
-                    symbol=pos_key,
-                    current_price=current_price,
-                    regime="NEUTRAL"
+                    symbol=pos_key, current_price=current_price, regime="NEUTRAL"
                 )
 
-                if trail_result and trail_result.get('stop_moved'):
-                    new_sl = trail_result['new_stop']
-                    logger.info("🎯 [TRAILING] %s: Подтягиваем SL -> %.4f (Reason: %s)", 
-                                symbol, new_sl, trail_result.get('reason'))
-                    
+                if trail_result and trail_result.get("stop_moved"):
+                    new_sl = trail_result["new_stop"]
+                    logger.info(
+                        "🎯 [TRAILING] %s: Подтягиваем SL -> %.4f (Reason: %s)",
+                        symbol,
+                        new_sl,
+                        trail_result.get("reason"),
+                    )
+
                     # 4. Обновляем в БД
                     await self.adb.execute_with_retry(
                         "UPDATE signals_log SET stop = ? WHERE user_id = ? AND symbol = ? AND entry_time = ?",
-                        (new_sl, user_id, symbol, entry_time)
+                        (new_sl, user_id, symbol, entry_time),
                     )
                     await self.adb.execute_with_retry(
                         "UPDATE active_positions SET sl_price = ? WHERE accepted_by = ? AND symbol = ?",
-                        (new_sl, str(user_id), symbol)
+                        (new_sl, str(user_id), symbol),
                     )
 
                     # 5. Обновляем на бирже
-                    await self._update_exchange_sl(user_id, symbol, new_sl, (direction or "LONG").upper())
+                    await self._update_exchange_sl(
+                        user_id, symbol, new_sl, (direction or "LONG").upper()
+                    )
 
         except Exception as e:
             logger.error("❌ Ошибка в check_trailing_and_partial_tp: %s", e)
@@ -456,14 +641,19 @@ class PriceMonitorSystem:
         self.running = False
         logger.info("🛑 Система мониторинга цен остановлена")
 
+
 _price_monitor = None
+
+
 def get_price_monitor():
     global _price_monitor
     if _price_monitor is None:
         _price_monitor = PriceMonitorSystem()
     return _price_monitor
 
+
 price_monitor = get_price_monitor()
+
 
 async def run_price_monitoring():
     await get_price_monitor().start_price_monitoring()

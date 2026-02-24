@@ -8,30 +8,35 @@
 ## ✅ ЧТО ПОЛНОСТЬЮ РЕАЛИЗОВАНО
 
 ### 1. **Manual/Auto режимы торговли**
+
 - Хранение в БД (user_settings)
 - Команды: /mode, /mode_set
 - PENDING/OPEN/EXPIRED статусы
 - TTL 60 минут для PENDING
 
 ### 2. **Биржевая интеграция (Bitget)**
+
 - Реальное исполнение ордеров через ccxt
 - Лимит → маркет fallback
 - Синхронизация позиций каждые 3 мин
 - Команды: /connect_bitget, /disconnect_bitget
 
 ### 3. **Безопасность**
+
 - Шифрование ключей (Fernet)
 - Ключ в файле `env`: ATRA_ENCRYPTION_KEY
 - Аудит всех операций
 - Валидация размеров позиций
 
 ### 4. **Корреляционная защита**
+
 - Блокировка противоположных сигналов (LONG+SHORT)
 - Источники по режимам:
   - Manual: signals_log.OPEN
   - Auto: active_positions (с биржи)
 
 ### 5. **Алерты и мониторинг**
+
 - Уведомления о неудачных ордерах
 - Закрытия позиций на бирже
 - Ошибки исполнения
@@ -66,32 +71,38 @@
 ### **После запуска бота:**
 
 1. **Проверьте что бот отвечает:**
+
    ```
    /start
    ```
 
 2. **Подключите ключи Bitget:**
+
    ```
    /connect_bitget bg_1539f9c919af347de1d72ef821cfd4d5 4b520626324237087d7795768603fbaddc2cd8bf50cbd1977170a067c970a838 Bik36745618OS
    ```
 
 3. **Активируйте auto режим:**
+
    ```
    /mode_set auto
    ```
 
 4. **Проверьте статус:**
+
    ```
    /mode
    ```
-   
+
    Должно показать:
+
    ```
    🤖 Режим торговли: AUTO
    🔐 Ключи Bitget: ✅ Подключены
    ```
 
 5. **Дождитесь сигнала** и проверьте логи:
+
    ```
    🤖 [AUTO] BTCUSDT: запуск автоисполнения
    ✅ [BITGET] Клиент создан успешно
@@ -108,6 +119,7 @@
 ## 📂 СОЗДАННЫЕ ФАЙЛЫ
 
 **Новые модули:**
+
 - key_encryption.py
 - exchange_adapter.py
 - auto_execution.py
@@ -116,11 +128,13 @@
 - alert_notifications.py
 
 **Скрипты:**
+
 - reset_bitget_keys.py
 - restart_bot.sh
 - force_clean_keys.sql
 
 **Документация:**
+
 - MANUAL_AUTO_MODES_FINAL_REPORT.md
 - SECURITY_IMPLEMENTATION_REPORT.md
 - FINAL_SYSTEM_INTEGRATION_COMPLETE.md
@@ -132,6 +146,7 @@
 - MANUAL_START_INSTRUCTIONS.md
 
 **Изменённые файлы:**
+
 - db.py (PENDING вместо OPEN)
 - acceptance_database.py (режимы, ключи, шифрование)
 - signal_acceptance_manager.py (PENDING → OPEN)
@@ -147,10 +162,10 @@
 ## ✅ ВСЁ ГОТОВО К PRODUCTION
 
 **Осталось только:**
+
 1. Убедиться что Telegram бот запущен
 2. Подключить ключи Bitget
 3. Активировать auto режим
 4. Протестировать на реальном сигнале
 
 **СИСТЕМА ПОЛНОСТЬЮ РЕАЛИЗОВАНА!** 🚀
-

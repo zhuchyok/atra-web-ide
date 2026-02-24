@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Добавление двух пользователей: 958930260 и 556251171"""
 
-import sys
-import os
 import json
+import os
 import sqlite3
+import sys
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 # Прямое подключение к БД для надежности
-db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'trading.db')
+db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "trading.db")
 
 # Пользователь 1: 958930260
 user_1_id = "958930260"
@@ -30,7 +30,7 @@ user_1_data = {
     "accepted_signals": [],
     "trade_history": [],
     "news_filter_mode": "aggressive",
-    "positions": []
+    "positions": [],
 }
 
 # Пользователь 2: 556251171
@@ -51,7 +51,7 @@ user_2_data = {
     "accepted_signals": [],
     "trade_history": [],
     "news_filter_mode": "aggressive",
-    "positions": []
+    "positions": [],
 }
 
 print("=" * 60)
@@ -79,23 +79,24 @@ try:
     row = cur.fetchone()
     if row:
         existing_data = json.loads(row[0])
-        print(f"  ⚠️  Уже существует")
+        print("  ⚠️  Уже существует")
         print(f"     deposit: {existing_data.get('deposit', 'N/A')}")
         print(f"     trade_mode: {existing_data.get('trade_mode', 'N/A')}")
         print(f"     leverage: {existing_data.get('leverage', 'N/A')}")
     else:
         cur.execute(
             "INSERT OR REPLACE INTO users_data (user_id, data, updated_at) VALUES (?, ?, ?)",
-            (user_1_id, json.dumps(user_1_data), datetime.now().isoformat())
+            (user_1_id, json.dumps(user_1_data), datetime.now().isoformat()),
         )
         conn.commit()
-        print(f"  ✅ Добавлен")
+        print("  ✅ Добавлен")
         print(f"     deposit: {user_1_data['deposit']}")
         print(f"     trade_mode: {user_1_data['trade_mode']}")
         print(f"     leverage: {user_1_data['leverage']}x")
 except Exception as e:
     print(f"  ❌ Ошибка: {e}")
     import traceback
+
     traceback.print_exc()
 
 # Добавляем пользователя 2
@@ -105,23 +106,24 @@ try:
     row = cur.fetchone()
     if row:
         existing_data = json.loads(row[0])
-        print(f"  ⚠️  Уже существует")
+        print("  ⚠️  Уже существует")
         print(f"     deposit: {existing_data.get('deposit', 'N/A')}")
         print(f"     trade_mode: {existing_data.get('trade_mode', 'N/A')}")
         print(f"     leverage: {existing_data.get('leverage', 'N/A')}")
     else:
         cur.execute(
             "INSERT OR REPLACE INTO users_data (user_id, data, updated_at) VALUES (?, ?, ?)",
-            (user_2_id, json.dumps(user_2_data), datetime.now().isoformat())
+            (user_2_id, json.dumps(user_2_data), datetime.now().isoformat()),
         )
         conn.commit()
-        print(f"  ✅ Добавлен")
+        print("  ✅ Добавлен")
         print(f"     deposit: {user_2_data['deposit']}")
         print(f"     trade_mode: {user_2_data['trade_mode']}")
         print(f"     leverage: {user_2_data['leverage']}x")
 except Exception as e:
     print(f"  ❌ Ошибка: {e}")
     import traceback
+
     traceback.print_exc()
 
 # Финальная проверка
@@ -152,4 +154,3 @@ if len(rows) == 2:
     print("\n✅ Оба пользователя успешно добавлены!")
 else:
     print(f"\n⚠️  Ожидалось 2 пользователя, найдено {len(rows)}")
-

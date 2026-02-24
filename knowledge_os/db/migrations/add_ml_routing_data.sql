@@ -33,4 +33,3 @@ COMMENT ON COLUMN ml_routing_training_data.task_type IS 'Тип задачи (co
 COMMENT ON COLUMN ml_routing_training_data.selected_route IS 'Выбранный роут (local, cloud, veronica_web, etc.)';
 COMMENT ON COLUMN ml_routing_training_data.actual_route_used IS 'Фактически использованный роут (может отличаться от selected_route)';
 COMMENT ON COLUMN ml_routing_training_data.user_satisfaction IS 'Оценка пользователя (0-1) на основе feedback';
-

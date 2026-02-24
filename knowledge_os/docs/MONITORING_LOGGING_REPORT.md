@@ -7,33 +7,39 @@
 Добавлено структурированное логирование для всех новых индикаторов:
 
 #### AMT (Auction Market Theory)
+
 - Логирование фазы рынка (auction/balance/imbalance)
 - Логирование баланса покупателей/продавцов
 - Логирование причин блокировки/разрешения сигналов
 - Уровень логирования: DEBUG для деталей, INFO для важных событий
 
 #### Market Profile (TPO)
+
 - Логирование расчета TPO профиля
 - Логирование комбинированного POC
 - Логирование причин фильтрации сигналов
 - Уровень логирования: DEBUG для расчетов, INFO для фильтрации
 
 #### Institutional Patterns
+
 - Логирование обнаруженных паттернов (Iceberg, Spoofing)
 - Логирование уверенности детекции
 - Логирование оценки качества сигнала
 - Уровень логирования: DEBUG для детекции, INFO для блокировки
 
 #### Расширенный CDV
+
 - Логирование дивергенций
 - Логирование временной взвешенности
 - Уровень логирования: DEBUG
 
 #### Price Level Imbalance
+
 - Логирование зон максимального дисбаланса
 - Уровень логирования: DEBUG
 
 #### VWT
+
 - Логирование расчета VWT профиля
 - Уровень логирования: DEBUG
 
@@ -42,16 +48,19 @@
 Добавлены метрики для всех новых фильтров:
 
 #### AMT Filter Metrics
+
 - `filter_processing_time` - время обработки фильтра
 - `filter_passed` - количество пройденных/заблокированных сигналов
 - `filter_rejection_reason` - причины блокировки (AMT_BALANCE_PHASE, AMT_IMBALANCE_WRONG_DIRECTION, AMT_AUCTION_STRICT_MODE)
 
 #### Market Profile Filter Metrics
+
 - `filter_processing_time` - время обработки фильтра
 - `filter_passed` - количество пройденных/заблокированных сигналов
 - `filter_rejection_reason` - причины блокировки (MARKET_PROFILE_TOO_FAR_FROM_VAL, MARKET_PROFILE_TOO_FAR_FROM_VAH)
 
 #### Institutional Patterns Filter Metrics
+
 - `filter_processing_time` - время обработки фильтра
 - `filter_passed` - количество пройденных/заблокированных сигналов
 - `filter_rejection_reason` - причины блокировки (INSTITUTIONAL_PATTERNS_SPOOFING_DETECTED, INSTITUTIONAL_PATTERNS_LOW_QUALITY, INSTITUTIONAL_PATTERNS_WEAK_SIGNAL, INSTITUTIONAL_PATTERNS_REJECTED)
@@ -59,6 +68,7 @@
 ### 3. Структурированное логирование
 
 Все логи включают:
+
 - Timestamp
 - Уровень логирования
 - Модуль/компонент
@@ -68,6 +78,7 @@
 ### 4. Интеграция с существующей системой метрик
 
 Все новые фильтры интегрированы с существующей системой метрик:
+
 - Используют `record_filter_metrics()` из `src.metrics.decorators`
 - Используют `FilterType` из `src.metrics.filter_metrics`
 - Совместимы с существующими Grafana дашбордами
@@ -94,6 +105,7 @@
 ### Grafana дашборды
 
 Рекомендуется создать дашборды для:
+
 - Производительности новых фильтров
 - Эффективности кэширования
 - Распределения фаз рынка (AMT)
@@ -103,8 +115,8 @@
 ### Алерты
 
 Рекомендуется настроить алерты на:
+
 - Высокое время обработки фильтров (>100ms)
 - Низкий cache hit rate (<30%)
 - Частые блокировки сигналов (>80%)
 - Ошибки в расчетах индикаторов
-

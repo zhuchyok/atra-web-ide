@@ -7,10 +7,9 @@
 
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class ValidationPipeline:
         if not self.validation_path.exists():
             logger.warning("Validation path does not exist: %s", self.validation_path)
             return []
-        with open(self.validation_path, "r", encoding="utf-8") as f:
+        with open(self.validation_path, encoding="utf-8") as f:
             data = json.load(f)
         queries = data.get("queries", data) if isinstance(data, dict) else data
         return [q if isinstance(q, dict) else {"query": str(q)} for q in queries]
@@ -66,6 +65,7 @@ class ValidationPipeline:
 
         if sample_size and sample_size < len(test_queries):
             import random
+
             test_queries = random.sample(test_queries, sample_size)
 
         results: List[Dict] = []
@@ -133,11 +133,13 @@ class ValidationPipeline:
                 avg_metrics[metric] = total_metrics[metric] / total_metrics["count"]
 
         self.results = results
-        self.metrics_history.append({
-            "timestamp": datetime.now().isoformat(),
-            "metrics": avg_metrics,
-            "total_queries": int(total_metrics["count"]),
-        })
+        self.metrics_history.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "metrics": avg_metrics,
+                "total_queries": int(total_metrics["count"]),
+            }
+        )
 
         await self.save_results(results, avg_metrics)
 

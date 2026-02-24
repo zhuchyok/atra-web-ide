@@ -42,9 +42,9 @@ for pattern in self.patterns:
     if not hasattr(pattern, 'symbol') or pattern.symbol is None:
         logger.warning("⚠️ Паттерн без символа пропущен")
         continue
-        
+
     symbol = pattern.symbol
-    
+
     # Безопасная проверка результата
     if hasattr(pattern, 'result') and pattern.result is not None:
         if pattern.result == "WIN":
@@ -109,16 +109,19 @@ pattern = TradingPattern(
 ## 🔧 ТЕХНИЧЕСКИЕ ДЕТАЛИ
 
 ### **Измененные файлы:**
+
 1. `ai_learning_system.py` - функция `analyze_patterns()`
 2. `ai_historical_analysis.py` - все функции создания `TradingPattern`
 
 ### **Добавленные проверки:**
+
 - `hasattr()` для проверки наличия атрибутов
 - Проверка на `None` значения
 - Fallback значения для всех критических полей
 - Безопасные математические операции
 
 ### **Улучшенное логирование:**
+
 - Предупреждения о пропущенных паттернах
 - Информативные сообщения об ошибках
 - Детальная диагностика проблем

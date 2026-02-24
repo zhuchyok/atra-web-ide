@@ -34,7 +34,7 @@ if [ -n "$EXISTING_DS" ]; then
     echo "   ✅ Prometheus datasource уже существует (ID: $EXISTING_DS)"
 else
     echo "   ⚠️  Prometheus datasource не найден, создаю..."
-    
+
     # Создание datasource через API
     DS_RESPONSE=$(curl -s -X POST \
         -u "$GRAFANA_USER:$GRAFANA_PASS" \
@@ -51,7 +51,7 @@ else
             }
         }' \
         "$GRAFANA_URL/api/datasources" 2>&1)
-    
+
     if echo "$DS_RESPONSE" | grep -q '"id"'; then
         echo "   ✅ Prometheus datasource создан"
     else
@@ -67,7 +67,7 @@ if [ ! -f "$DASHBOARD_FILE" ]; then
     echo "   ⚠️  Файл дашборда не найден: $DASHBOARD_FILE"
 else
     echo "   📄 Файл найден: $DASHBOARD_FILE"
-    
+
     # Обновляем дашборд для использования Prometheus datasource
     DASHBOARD_JSON=$(cat "$DASHBOARD_FILE" | python3 -c "
 import json, sys
@@ -81,7 +81,7 @@ for panel in data.get('dashboard', {}).get('panels', []):
             target['datasource'] = {'type': 'prometheus', 'uid': 'Prometheus'}
 print(json.dumps(data))
 " 2>/dev/null || cat "$DASHBOARD_FILE")
-    
+
     # Импорт через API
     IMPORT_RESPONSE=$(curl -s -X POST \
         -u "$GRAFANA_USER:$GRAFANA_PASS" \
@@ -92,7 +92,7 @@ print(json.dumps(data))
             \"folderId\": null
         }" \
         "$GRAFANA_URL/api/dashboards/db" 2>&1)
-    
+
     if echo "$IMPORT_RESPONSE" | grep -q '"uid"'; then
         DASHBOARD_UID=$(echo "$IMPORT_RESPONSE" | python3 -c "import json, sys; print(json.load(sys.stdin).get('uid', ''))" 2>/dev/null || echo "")
         echo "   ✅ Дашборд успешно импортирован"

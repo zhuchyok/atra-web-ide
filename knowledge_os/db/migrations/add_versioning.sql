@@ -23,4 +23,3 @@ CREATE INDEX IF NOT EXISTS idx_version_migrations_version ON version_migrations(
 
 COMMENT ON TABLE system_versions IS 'Версии системы Singularity';
 COMMENT ON TABLE version_migrations IS 'История применения миграций версий';
-

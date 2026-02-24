@@ -4,4 +4,4 @@ Technical analysis modules - Fibonacci, уровни, технические и�
 
 from src.technical.fibonacci import FibonacciCalculator, FibonacciLevel
 
-__all__ = ['FibonacciCalculator', 'FibonacciLevel']
+__all__ = ["FibonacciCalculator", "FibonacciLevel"]

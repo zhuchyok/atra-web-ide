@@ -22,7 +22,7 @@ if ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no ${MAC_STUDIO_USER}@${MAC_
     echo "   ✅ Подключение установлено"
     echo ""
     echo "🚀 Запуск контейнеров..."
-    
+
     ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'ENDSSH'
 cd ~/Documents/atra-web-ide
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"

@@ -5,9 +5,8 @@ This module contains database persistence implementations.
 """
 
 __all__ = [
-    'SignalRepositoryImpl',
-    'PositionRepositoryImpl',
-    'SignalModel',
-    'PositionModel',
+    "SignalRepositoryImpl",
+    "PositionRepositoryImpl",
+    "SignalModel",
+    "PositionModel",
 ]
-

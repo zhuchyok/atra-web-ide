@@ -190,4 +190,3 @@ send "exit\r"
 expect eof
 
 puts "\n${green}✅ Готово!${reset}\n"
-

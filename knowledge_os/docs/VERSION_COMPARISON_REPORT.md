@@ -3,6 +3,7 @@
 ## 🔍 АНАЛИЗ ПРОБЛЕМЫ 5 УТРА
 
 ### **Что происходило в 5 утра:**
+
 ```
 Oct 06 21:21:09 python[1755]: 🚀 Запуск ATRA Dashboard на http://0.0.0.0:5002
 Oct 06 21:21:09 python[1755]: ✅ ATRA система подключена
@@ -18,6 +19,7 @@ Oct 06 21:31:36 systemd[1]: myproject.service: Killing process 1755 (python) wit
 ### **1. ОБРАБОТКА СИГНАЛОВ**
 
 #### ❌ **ВЕРСИЯ 5 УТРА (ПРОБЛЕМНАЯ):**
+
 ```python
 # НЕ БЫЛО обработчика сигналов для graceful shutdown
 # Система игнорировала SIGTERM от systemd
@@ -25,6 +27,7 @@ Oct 06 21:31:36 systemd[1]: myproject.service: Killing process 1755 (python) wit
 ```
 
 #### ✅ **ТЕКУЩАЯ ВЕРСИЯ (ИСПРАВЛЕННАЯ):**
+
 ```python
 def signal_handler(signum, _frame):
     """Обработчик сигналов для корректного завершения"""
@@ -44,7 +47,7 @@ def signal_handler(signum, _frame):
     if api_server:
         api_server.shutdown()
         logger.info("🛑 REST API остановлен")
-    
+
     if dashboard_server:
         dashboard_server.shutdown()
         logger.info("🛑 Web Dashboard остановлен")
@@ -60,26 +63,28 @@ def signal_handler(signum, _frame):
 ### **2. ВЕБ-СЕРВИСЫ**
 
 #### ❌ **ВЕРСИЯ 5 УТРА:**
+
 ```python
 # Flask Dashboard - НЕ БЫЛО shutdown метода
 def run(self, host='0.0.0.0', port=5000, debug=False):
     self.app.run(host=host, port=port, debug=debug)
     # НЕ ОТВЕЧАЛ на сигналы завершения
 
-# REST API - НЕ БЫЛО shutdown метода  
+# REST API - НЕ БЫЛО shutdown метода
 def run(self, debug=False):
     self.app.run(host=self.host, port=self.port, debug=debug)
     # НЕ ОТВЕЧАЛ на сигналы завершения
 ```
 
 #### ✅ **ТЕКУЩАЯ ВЕРСИЯ:**
+
 ```python
 # Flask Dashboard - ДОБАВЛЕНЫ shutdown методы
 def run(self, host='0.0.0.0', port=5000, debug=False):
     def signal_handler(signum, frame):
         print(f"📡 Получен сигнал {signum}, остановка Dashboard...")
         sys.exit(0)
-    
+
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     self.app.run(host=host, port=port, debug=debug, use_reloader=False)
@@ -95,7 +100,7 @@ def run(self, debug=False):
         logger.info(f"📡 Получен сигнал {signum}, остановка REST API...")
         self.stop()
         sys.exit(0)
-    
+
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
     # ... остальной код
@@ -110,6 +115,7 @@ def shutdown(self):
 ### **3. GRACEFUL SHUTDOWN**
 
 #### ❌ **ВЕРСИЯ 5 УТРА:**
+
 ```python
 # НЕ БЫЛО координации между компонентами
 # НЕ БЫЛО таймаутов для завершения
@@ -121,6 +127,7 @@ async def graceful_shutdown(tasks, timeout: float = 5.0):
 ```
 
 #### ✅ **ТЕКУЩАЯ ВЕРСИЯ:**
+
 ```python
 async def graceful_shutdown(tasks, timeout: float = 5.0):
     """Грациозное завершение с остановкой веб-сервисов"""
@@ -131,7 +138,7 @@ async def graceful_shutdown(tasks, timeout: float = 5.0):
     if api_server:
         api_server.shutdown()
         logger.info("🛑 REST API остановлен (graceful)")
-    
+
     if dashboard_server:
         dashboard_server.shutdown()
         logger.info("🛑 Web Dashboard остановлен (graceful)")
@@ -144,6 +151,7 @@ async def graceful_shutdown(tasks, timeout: float = 5.0):
 ### **4. SYSTEMD КОНФИГУРАЦИЯ**
 
 #### ❌ **ВЕРСИЯ 5 УТРА:**
+
 ```ini
 [Service]
 Type=simple
@@ -153,6 +161,7 @@ Type=simple
 ```
 
 #### ✅ **ТЕКУЩАЯ ВЕРСИЯ:**
+
 ```ini
 [Service]
 Type=simple
@@ -211,6 +220,7 @@ FinalKillSignal=SIGKILL   # Финальный сигнал если нужно
 ## 🎯 ВЫВОД
 
 ### **ВЕРСИЯ 5 УТРА:**
+
 ```
 Systemd: "Остановись!" (SIGTERM)
 ATRA: *игнорирует*
@@ -220,6 +230,7 @@ Systemd: "Убиваю принудительно!" (SIGKILL)
 ```
 
 ### **ТЕКУЩАЯ ВЕРСИЯ:**
+
 ```
 Systemd: "Остановись!" (SIGTERM)
 ATRA: "Получил сигнал, graceful shutdown..."

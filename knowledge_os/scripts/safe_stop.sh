@@ -34,7 +34,7 @@ if ps -p $PID > /dev/null 2>&1; then
     echo "⚠️ Процесс не завершился за 15 секунд, используем SIGKILL..."
     kill -9 $PID
     sleep 1
-    
+
     if ps -p $PID > /dev/null 2>&1; then
         echo "❌ Не удалось остановить процесс!"
         exit 1
@@ -78,4 +78,3 @@ rm -f /tmp/atra_tg_poll_*.lock
 echo "✅ Бот безопасно остановлен!"
 echo ""
 echo "📊 Для запуска используйте: nohup python3 main.py > main.log 2>&1 &"
-

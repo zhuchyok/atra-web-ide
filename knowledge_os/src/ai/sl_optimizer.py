@@ -10,12 +10,13 @@
 import json
 import logging
 import os
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
 
 class AIStopLossOptimizer:
     """ИИ-система для оптимизации Stop Loss уровней"""
@@ -36,11 +37,11 @@ class AIStopLossOptimizer:
 
         # Веса для различных факторов
         self.factor_weights = {
-            'volatility': 0.35,      # Волатильность (более важно для SL)
-            'trend_strength': 0.2,   # Сила тренда
-            'volume_profile': 0.15,  # Профиль объема
-            'support_resistance': 0.2, # Уровни поддержки/сопротивления
-            'pattern_similarity': 0.3  # Похожесть на успешные паттерны
+            "volatility": 0.35,  # Волатильность (более важно для SL)
+            "trend_strength": 0.2,  # Сила тренда
+            "volume_profile": 0.15,  # Профиль объема
+            "support_resistance": 0.2,  # Уровни поддержки/сопротивления
+            "pattern_similarity": 0.3,  # Похожесть на успешные паттерны
         }
 
         logger.info("🤖 ИИ-оптимизатор SL инициализирован")
@@ -53,7 +54,7 @@ class AIStopLossOptimizer:
 
         if os.path.exists(file_path):
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
                 logger.error("Ошибка загрузки эффективности SL: %s", e)
@@ -67,12 +68,12 @@ class AIStopLossOptimizer:
             paths = [
                 "ai_learning_data/trading_patterns.json",
                 "../ai_learning_data/trading_patterns.json",
-                "trading_patterns.json"
+                "trading_patterns.json",
             ]
 
             for path in paths:
                 if os.path.exists(path):
-                    with open(path, 'r', encoding='utf-8') as f:
+                    with open(path, encoding="utf-8") as f:
                         patterns = json.load(f)
                         logger.info("📊 Загружено %d паттернов из %s для SL", len(patterns), path)
                         return patterns
@@ -89,7 +90,7 @@ class AIStopLossOptimizer:
         file_path = os.path.join(self.data_dir, "sl_effectiveness.json")
 
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(self.sl_effectiveness, f, indent=2, ensure_ascii=False)
             logger.debug("💾 Эффективность SL сохранена")
         except Exception as e:
@@ -102,9 +103,9 @@ class AIStopLossOptimizer:
                 return 1.0
 
             # Используем ATR для оценки волатильности
-            if 'atr' in df.columns:
-                atr = df['atr'].iloc[current_index]
-                current_price = df['close'].iloc[current_index]
+            if "atr" in df.columns:
+                atr = df["atr"].iloc[current_index]
+                current_price = df["close"].iloc[current_index]
 
                 if pd.notna(atr) and current_price > 0:
                     atr_pct = (atr / current_price) * 100
@@ -123,18 +124,19 @@ class AIStopLossOptimizer:
             logger.error("❌ Ошибка расчета фактора волатильности для SL: %s", e)
             return 1.0
 
-    def find_similar_patterns_for_sl(self, symbol: str, side: str, df: pd.DataFrame,
-                                     current_index: int, top_n: int = 100) -> List[Dict[str, Any]]:
+    def find_similar_patterns_for_sl(
+        self, symbol: str, side: str, df: pd.DataFrame, current_index: int, top_n: int = 100
+    ) -> List[Dict[str, Any]]:
         """
         Находит похожие паттерны для оптимизации SL
-        
+
         Args:
             symbol: Символ
             side: LONG или SHORT
             df: DataFrame с данными
             current_index: Текущий индекс
             top_n: Количество лучших паттернов
-            
+
         Returns:
             Список похожих паттернов с оценкой схожести
         """
@@ -150,8 +152,8 @@ class AIStopLossOptimizer:
             # Фильтруем паттерны по символу и стороне (если доступно)
             relevant_patterns = []
             for pattern in self.all_patterns:
-                pattern_symbol = pattern.get('symbol', '')
-                pattern_side = pattern.get('signal_type', '').upper()
+                pattern_symbol = pattern.get("symbol", "")
+                pattern_side = pattern.get("signal_type", "").upper()
 
                 # Учитываем паттерны того же символа или всех символов если данных мало
                 if pattern_symbol == symbol or len(self.all_patterns) < 50:
@@ -164,23 +166,22 @@ class AIStopLossOptimizer:
             # Рассчитываем схожесть для каждого паттерна
             similarities = []
             for pattern in relevant_patterns:
-                pattern_indicators = pattern.get('indicators', {})
-                similarity = self._calculate_pattern_similarity(current_indicators, pattern_indicators)
+                pattern_indicators = pattern.get("indicators", {})
+                similarity = self._calculate_pattern_similarity(
+                    current_indicators, pattern_indicators
+                )
 
-                similarities.append({
-                    'pattern': pattern,
-                    'similarity': similarity
-                })
+                similarities.append({"pattern": pattern, "similarity": similarity})
 
             # Сортируем по схожести и берем топ-N
-            similarities.sort(key=lambda x: x['similarity'], reverse=True)
+            similarities.sort(key=lambda x: x["similarity"], reverse=True)
             top_patterns = similarities[:top_n]
 
             # Форматируем результат
             result = []
             for item in top_patterns:
-                pattern = item['pattern']
-                pattern['similarity_score'] = item['similarity']
+                pattern = item["pattern"]
+                pattern["similarity_score"] = item["similarity"]
                 result.append(pattern)
 
             return result
@@ -199,7 +200,7 @@ class AIStopLossOptimizer:
             row = df.iloc[current_index]
 
             # Список индикаторов для сравнения
-            indicator_keys = ['rsi', 'ema_7', 'ema_25', 'macd', 'bb_width', 'volume', 'atr']
+            indicator_keys = ["rsi", "ema_7", "ema_25", "macd", "bb_width", "volume", "atr"]
 
             for key in indicator_keys:
                 if key in df.columns:
@@ -213,16 +214,24 @@ class AIStopLossOptimizer:
             logger.error("❌ Ошибка извлечения индикаторов для SL: %s", e)
             return {}
 
-    def _calculate_pattern_similarity(self, indicators1: Dict[str, float],
-                                     indicators2: Dict[str, float]) -> float:
+    def _calculate_pattern_similarity(
+        self, indicators1: Dict[str, float], indicators2: Dict[str, float]
+    ) -> float:
         """Рассчитывает схожесть между двумя наборами индикаторов"""
         if not indicators1 or not indicators2:
             return 0.0
 
         try:
             similarities = []
-            weights = {'rsi': 0.25, 'ema_7': 0.2, 'ema_25': 0.2, 'macd': 0.15,
-                      'bb_width': 0.1, 'volume': 0.05, 'atr': 0.05}
+            weights = {
+                "rsi": 0.25,
+                "ema_7": 0.2,
+                "ema_25": 0.2,
+                "macd": 0.15,
+                "bb_width": 0.1,
+                "volume": 0.05,
+                "atr": 0.05,
+            }
 
             for key, weight in weights.items():
                 if key in indicators1 and key in indicators2:
@@ -230,13 +239,13 @@ class AIStopLossOptimizer:
                     val2 = indicators2[key]
 
                     # Нормализуем значения
-                    if key == 'rsi':
+                    if key == "rsi":
                         val1_norm = val1 / 100.0
                         val2_norm = val2 / 100.0
-                    elif key == 'volume':
+                    elif key == "volume":
                         val1_norm = min(val1 / 1000000.0, 1.0)
                         val2_norm = min(val2 / 1000000.0, 1.0)
-                    elif key == 'atr':
+                    elif key == "atr":
                         val1_norm = min(val1 / 100.0, 1.0)
                         val2_norm = min(val2 / 100.0, 1.0)
                     else:
@@ -252,15 +261,16 @@ class AIStopLossOptimizer:
             logger.error("❌ Ошибка расчета схожести для SL: %s", e)
             return 0.0
 
-    def calculate_optimal_sl_from_patterns(self, similar_patterns: List[Dict[str, Any]],
-                                          side: str = "long") -> float:
+    def calculate_optimal_sl_from_patterns(
+        self, similar_patterns: List[Dict[str, Any]], side: str = "long"
+    ) -> float:
         """
         Рассчитывает оптимальный SL на основе похожих паттернов
-        
+
         Args:
             similar_patterns: Список похожих паттернов
             side: LONG или SHORT
-            
+
         Returns:
             Оптимальный SL в процентах
         """
@@ -271,24 +281,24 @@ class AIStopLossOptimizer:
             # Анализируем только паттерны, где SL сработал (были убытки)
             sl_patterns = []
             for p in similar_patterns:
-                exit_reason = p.get('exit_reason', '').upper()
-                sl_pct = p.get('stop_loss_pct')
+                exit_reason = p.get("exit_reason", "").upper()
+                sl_pct = p.get("stop_loss_pct")
 
                 # Учитываем паттерны где SL сработал или где был SL установлен
-                if exit_reason in ['SL', 'STOP_LOSS'] or (sl_pct and sl_pct > 0):
+                if exit_reason in ["SL", "STOP_LOSS"] or (sl_pct and sl_pct > 0):
                     sl_patterns.append(p)
 
             # Если нет паттернов со SL, анализируем все убыточные
             if not sl_patterns:
-                sl_patterns = [p for p in similar_patterns if p.get('result') == 'LOSS']
+                sl_patterns = [p for p in similar_patterns if p.get("result") == "LOSS"]
 
             if not sl_patterns:
                 return 2.0
 
             # Анализируем оптимальный SL на основе успешных сделок (где SL не сработал)
             # и неуспешных (где SL сработал)
-            successful_patterns = [p for p in similar_patterns if p.get('result') == 'WIN']
-            failed_patterns = [p for p in similar_patterns if p.get('result') == 'LOSS']
+            successful_patterns = [p for p in similar_patterns if p.get("result") == "WIN"]
+            failed_patterns = [p for p in similar_patterns if p.get("result") == "LOSS"]
 
             optimal_sl = 2.0
 
@@ -296,7 +306,7 @@ class AIStopLossOptimizer:
                 # Анализируем убытки - SL должен быть меньше среднего убытка
                 losses = []
                 for p in failed_patterns:
-                    profit_pct = p.get('profit_pct', 0)
+                    profit_pct = p.get("profit_pct", 0)
                     if profit_pct < 0:
                         losses.append(abs(profit_pct))
 
@@ -310,7 +320,7 @@ class AIStopLossOptimizer:
                 # Рассчитываем минимальный просадку в успешных сделках
                 drawdowns = []
                 for p in successful_patterns:
-                    max_dd = p.get('max_drawdown', 0)
+                    max_dd = p.get("max_drawdown", 0)
                     if max_dd > 0:
                         drawdowns.append(max_dd)
 
@@ -322,10 +332,13 @@ class AIStopLossOptimizer:
             # Ограничиваем разумными пределами: 0.8% - 8%
             optimal_sl = np.clip(optimal_sl, 0.8, 8.0)
 
-            logger.debug("🎯 ML-оптимизация SL: %.2f%% (на основе %d паттернов: "
-                        "%d успешных, %d убыточных)",
-                        optimal_sl, len(similar_patterns),
-                        len(successful_patterns), len(failed_patterns))
+            logger.debug(
+                "🎯 ML-оптимизация SL: %.2f%% (на основе %d паттернов: %d успешных, %d убыточных)",
+                optimal_sl,
+                len(similar_patterns),
+                len(successful_patterns),
+                len(failed_patterns),
+            )
 
             return float(optimal_sl)
 
@@ -333,18 +346,19 @@ class AIStopLossOptimizer:
             logger.error("❌ Ошибка расчета оптимального SL: %s", e)
             return 2.0
 
-    def calculate_ai_optimized_sl(self, symbol: str, side: str, df: pd.DataFrame,
-                                 current_index: int, base_sl: float = 2.0) -> float:
+    def calculate_ai_optimized_sl(
+        self, symbol: str, side: str, df: pd.DataFrame, current_index: int, base_sl: float = 2.0
+    ) -> float:
         """
         Рассчитывает ИИ-оптимизированный SL для конкретного сигнала
-        
+
         Args:
             symbol: Торговый символ
             side: LONG или SHORT
             df: DataFrame с данными свечей
             current_index: Текущий индекс свечи
             base_sl: Базовый SL в процентах
-            
+
         Returns:
             ИИ-оптимизированный SL в процентах
         """
@@ -353,7 +367,9 @@ class AIStopLossOptimizer:
             volatility_factor = self.calculate_volatility_factor(df, current_index)
 
             # 2. Находим похожие паттерны
-            similar_patterns = self.find_similar_patterns_for_sl(symbol, side, df, current_index, top_n=100)
+            similar_patterns = self.find_similar_patterns_for_sl(
+                symbol, side, df, current_index, top_n=100
+            )
 
             # 3. Рассчитываем оптимальный SL из паттернов
             pattern_sl = self.calculate_optimal_sl_from_patterns(similar_patterns, side)
@@ -369,9 +385,13 @@ class AIStopLossOptimizer:
             # 5. Ограничиваем разумными пределами: 0.8% - 8%
             ai_sl = max(0.8, min(8.0, ai_sl))
 
-            logger.debug("🤖 ИИ SL: базовый=%.2f%%, волатильность=%.2fx, "
-                        "паттерны=%.2f%%, итоговый=%.2f%%",
-                        base_sl, volatility_factor, pattern_sl, ai_sl)
+            logger.debug(
+                "🤖 ИИ SL: базовый=%.2f%%, волатильность=%.2fx, паттерны=%.2f%%, итоговый=%.2f%%",
+                base_sl,
+                volatility_factor,
+                pattern_sl,
+                ai_sl,
+            )
 
             return float(ai_sl)
 
@@ -379,11 +399,12 @@ class AIStopLossOptimizer:
             logger.error("❌ Ошибка расчета ИИ-оптимизированного SL: %s", e)
             return base_sl
 
-    def update_sl_effectiveness(self, symbol: str, side: str, sl_pct: float,
-                               sl_hit: bool, profit_pct: float):
+    def update_sl_effectiveness(
+        self, symbol: str, side: str, sl_pct: float, sl_hit: bool, profit_pct: float
+    ):
         """
         Обновляет эффективность SL для символа
-        
+
         Args:
             symbol: Символ
             side: LONG или SHORT
@@ -396,28 +417,28 @@ class AIStopLossOptimizer:
 
             if key not in self.sl_effectiveness:
                 self.sl_effectiveness[key] = {
-                    'total_trades': 0,
-                    'sl_hits': 0,
-                    'sl_misses': 0,
-                    'avg_loss_on_sl': [],
-                    'avg_profit_on_miss': []
+                    "total_trades": 0,
+                    "sl_hits": 0,
+                    "sl_misses": 0,
+                    "avg_loss_on_sl": [],
+                    "avg_profit_on_miss": [],
                 }
 
             data = self.sl_effectiveness[key]
-            data['total_trades'] += 1
+            data["total_trades"] += 1
 
             if sl_hit:
-                data['sl_hits'] += 1
+                data["sl_hits"] += 1
                 if profit_pct < 0:
-                    data['avg_loss_on_sl'].append(abs(profit_pct))
+                    data["avg_loss_on_sl"].append(abs(profit_pct))
                     # Храним последние 100 значений
-                    data['avg_loss_on_sl'] = data['avg_loss_on_sl'][-100:]
+                    data["avg_loss_on_sl"] = data["avg_loss_on_sl"][-100:]
             else:
-                data['sl_misses'] += 1
+                data["sl_misses"] += 1
                 if profit_pct > 0:
-                    data['avg_profit_on_miss'].append(profit_pct)
+                    data["avg_profit_on_miss"].append(profit_pct)
                     # Храним последние 100 значений
-                    data['avg_profit_on_miss'] = data['avg_profit_on_miss'][-100:]
+                    data["avg_profit_on_miss"] = data["avg_profit_on_miss"][-100:]
 
             # Сохраняем данные
             self._save_sl_effectiveness()
@@ -428,6 +449,7 @@ class AIStopLossOptimizer:
 
 # Глобальный экземпляр оптимизатора
 _AI_SL_OPTIMIZER = None  # pylint: disable=invalid-name
+
 
 def get_ai_sl_optimizer() -> AIStopLossOptimizer:
     """Получает глобальный экземпляр AI SL оптимизатора"""

@@ -1,11 +1,12 @@
 """
 Auto-Optimizer — проактивная оптимизация производительности.
 """
+
 from app.services.optimization.auto_optimizer import (
     AutoOptimizer,
+    OptimizationResult,
     OptimizationStrategy,
     PerformanceMetrics,
-    OptimizationResult,
 )
 
 __all__ = [

@@ -14,6 +14,7 @@ bash scripts/setup_team_sync.sh
 ```
 
 Скрипт запросит:
+
 - URL репозитория данных команды (или пропустить)
 - Локальную директорию (по умолчанию `.team_data`)
 - Создать ли `.env` файл
@@ -54,7 +55,7 @@ python scripts/sync_team_data.py pull
 ✅ Базы знаний сотрудников (`scripts/*_knowledge.md`)  
 ✅ Программы обучения (`scripts/learning_programs/*_program.md`)  
 ✅ Правила Cursor (`.cursorrules`)  
-✅ Управление командой (`observability/*.py`)  
+✅ Управление командой (`observability/*.py`)
 
 ---
 
@@ -86,4 +87,3 @@ cp .team_data/.cursorrules .cursorrules
 ---
 
 **Автор:** Виктория (Team Lead)
-

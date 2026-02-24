@@ -77,7 +77,7 @@ def test_reset():
 if __name__ == "__main__":
     print("🧪 ТЕСТИРОВАНИЕ path_setup.py")
     print("=" * 60)
-    
+
     try:
         test_get_project_root()
         test_get_paths()
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         test_verify_paths()
         test_deduplication()
         test_reset()
-        
+
         print("=" * 60)
         print("✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
     except AssertionError as e:

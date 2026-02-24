@@ -17,6 +17,7 @@ from pathlib import Path
 # Third-party imports with fallback
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -24,6 +25,7 @@ except ImportError:
 
 try:
     import redis.asyncio as redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     redis = None
@@ -32,6 +34,7 @@ except ImportError:
 # Sync trigger for employees.json
 try:
     from knowledge_os.app.employees_sync_daemon import trigger_employees_sync
+
     SYNC_TRIGGER_AVAILABLE = True
 except ImportError:
     trigger_employees_sync = None
@@ -41,21 +44,28 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_sync
 except ImportError:
+
     def run_smart_agent_sync(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_sync."""
         return None
 
+
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
-DEFAULT_DB_URL = os.getenv('DATABASE_URL') or 'postgresql://admin:secret@localhost:5432/knowledge_os'
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+DEFAULT_DB_URL = (
+    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+)
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # Путь к autonomous_candidates.json для MDM-ревью
 _AUTONOMOUS_CANDIDATES_PATHS = [
-    Path(__file__).resolve().parent.parent.parent / "configs" / "experts" / "autonomous_candidates.json",
+    Path(__file__).resolve().parent.parent.parent
+    / "configs"
+    / "experts"
+    / "autonomous_candidates.json",
     Path(__file__).resolve().parent.parent / "configs" / "experts" / "autonomous_candidates.json",
     Path(os.getenv("AUTONOMOUS_CANDIDATES_JSON", "")),
 ]
@@ -69,20 +79,24 @@ def _append_autonomous_candidate(
     system_prompt: str = "",
 ) -> None:
     """Добавить кандидата в autonomous_candidates.json для MDM-ревью (добавление в employees.json)."""
-    path = next((p for p in _AUTONOMOUS_CANDIDATES_PATHS if p and str(p) and str(p) not in (".", "")), None)
+    path = next(
+        (p for p in _AUTONOMOUS_CANDIDATES_PATHS if p and str(p) and str(p) not in (".", "")), None
+    )
     if not path or not path.parent.exists():
         return
     try:
         data = {"candidates": [], "updated": datetime.now(timezone.utc).isoformat()}
         if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         entry = {
             "expert_id": str(expert_id),
             "name": name,
             "role": role,
             "department": department,
-            "system_prompt_preview": (system_prompt[:300] + "...") if len(system_prompt) > 300 else system_prompt,
+            "system_prompt_preview": (system_prompt[:300] + "...")
+            if len(system_prompt) > 300
+            else system_prompt,
             "hired_at": datetime.now(timezone.utc).isoformat(),
         }
         data.setdefault("candidates", []).append(entry)
@@ -148,7 +162,7 @@ async def recruit_expert(domain_name: str):
     if output:
         try:
             # More robust JSON extraction
-            json_match = re.search(r'(\{[\s\S]*\})', output)
+            json_match = re.search(r"(\{[\s\S]*\})", output)
             if json_match:
                 clean_json = json_match.group(1)
             else:
@@ -165,8 +179,8 @@ async def recruit_expert(domain_name: str):
                 # Try to escape newlines manually in values
                 fixed_json = re.sub(
                     r'(?<=: ")([\s\S]*?)(?=",)',
-                    lambda m: m.group(1).replace('\n', '\\n'),
-                    clean_json
+                    lambda m: m.group(1).replace("\n", "\\n"),
+                    clean_json,
                 )
                 data = json.loads(fixed_json)
 
@@ -174,8 +188,7 @@ async def recruit_expert(domain_name: str):
             sp = data.get("system_prompt", "") or ""
             if len(sp) < 200:
                 logger.warning(
-                    "⚠️ system_prompt слишком короткий (%d символов), дополняем инструкцией",
-                    len(sp)
+                    "⚠️ system_prompt слишком короткий (%d символов), дополняем инструкцией", len(sp)
                 )
                 data["system_prompt"] = (
                     sp + "\n\n[Дополнительно: применяй методологии FAANG/McKinsey/IEEE. "
@@ -186,30 +199,44 @@ async def recruit_expert(domain_name: str):
             domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = $1", domain_name)
             if not domain_id:
                 domain_id = await conn.fetchval(
-                    "INSERT INTO domains (name) VALUES ($1) RETURNING id",
-                    domain_name
+                    "INSERT INTO domains (name) VALUES ($1) RETURNING id", domain_name
                 )
 
             # 3. Нанимаем эксперта (вставляем в базу с domain_id)
-            expert_id = await conn.fetchval("""
+            expert_id = await conn.fetchval(
+                """
                 INSERT INTO experts (name, role, system_prompt, department, metadata, domain_id)
                 VALUES ($1, $2, $3, $4, $5, $6)
                 ON CONFLICT (name) DO NOTHING
                 RETURNING id
-            """, data['name'], data['role'], data['system_prompt'], data['department'],
-            json.dumps({"hired_at": datetime.now(timezone.utc).isoformat(), "is_autonomous": True}),
-            domain_id)
+            """,
+                data["name"],
+                data["role"],
+                data["system_prompt"],
+                data["department"],
+                json.dumps(
+                    {"hired_at": datetime.now(timezone.utc).isoformat(), "is_autonomous": True}
+                ),
+                domain_id,
+            )
 
             if expert_id:
-                logger.info("✅ Hired new expert: %s as %s in %s",
-                            data['name'], data['role'], data['department'])
+                logger.info(
+                    "✅ Hired new expert: %s as %s in %s",
+                    data["name"],
+                    data["role"],
+                    data["department"],
+                )
 
                 # 4. Post-hire: notifications (для Telegram/дашборда)
                 try:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO notifications (message, sent)
                         VALUES ($1, FALSE)
-                    """, f"expert_hired:{expert_id}:{data['name']}:{data['role']}:{data['department']}")
+                    """,
+                        f"expert_hired:{expert_id}:{data['name']}:{data['role']}:{data['department']}",
+                    )
                 except Exception as nf_exc:  # pylint: disable=broad-exception-caught
                     logger.warning("Could not write to notifications: %s", nf_exc)
 
@@ -217,13 +244,16 @@ async def recruit_expert(domain_name: str):
                 if REDIS_AVAILABLE and REDIS_URL:
                     try:
                         rd = await redis.from_url(REDIS_URL, decode_responses=True)
-                        await rd.xadd("knowledge_stream", {
-                            "type": "expert_hired",
-                            "expert_id": str(expert_id),
-                            "name": str(data['name']),
-                            "role": str(data['role']),
-                            "department": str(data['department']),
-                        })
+                        await rd.xadd(
+                            "knowledge_stream",
+                            {
+                                "type": "expert_hired",
+                                "expert_id": str(expert_id),
+                                "name": str(data["name"]),
+                                "role": str(data["role"]),
+                                "department": str(data["department"]),
+                            },
+                        )
                         await rd.aclose()
                     except Exception as rd_exc:  # pylint: disable=broad-exception-caught
                         logger.warning("Could not publish to Redis: %s", rd_exc)
@@ -242,23 +272,35 @@ async def recruit_expert(domain_name: str):
                     f"👋 ПРИВЕТСТВИЕ: Я {data['name']}, ваш новый эксперт в области {domain_name}. "
                     "Моя цель - довести наши компетенции в этой сфере до абсолютного максимума."
                 )
-                meta_kn = json.dumps({"type": "recruitment_event", "expert_name": data['name']})
+                meta_kn = json.dumps({"type": "recruitment_event", "expert_name": data["name"]})
                 embedding = None
                 try:
                     from semantic_cache import get_embedding
+
                     embedding = await get_embedding(welcome_msg[:8000])
                 except Exception:
                     pass
                 if embedding is not None:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified, embedding)
                         VALUES ($1, $2, 1.0, $3, TRUE, $4::vector)
-                    """, domain_id, welcome_msg, meta_kn, str(embedding))
+                    """,
+                        domain_id,
+                        welcome_msg,
+                        meta_kn,
+                        str(embedding),
+                    )
                 else:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
                         VALUES ($1, $2, 1.0, $3, TRUE)
-                    """, domain_id, welcome_msg, meta_kn)
+                    """,
+                        domain_id,
+                        welcome_msg,
+                        meta_kn,
+                    )
 
                 # 8. Синхронизация employees.json (автоматически добавит нового эксперта)
                 if SYNC_TRIGGER_AVAILABLE and trigger_employees_sync:
@@ -267,7 +309,7 @@ async def recruit_expert(domain_name: str):
                     except Exception as sync_exc:  # pylint: disable=broad-exception-caught
                         logger.debug("Sync trigger skipped: %s", sync_exc)
             else:
-                logger.warning("⚠️ Expert %s already exists.", data['name'])
+                logger.warning("⚠️ Expert %s already exists.", data["name"])
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("❌ Error parsing recruitment output: %s", exc)

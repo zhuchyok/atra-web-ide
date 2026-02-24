@@ -15,7 +15,7 @@
                     # 🆕 Рассчитываем реальные тренды ETH и SOL (отдельно от BTC)
                     eth_trend_status = None
                     sol_trend_status = None
-                    
+
                     # ETH тренд
                     if HYBRID_DATA_MANAGER_AVAILABLE and HYBRID_DATA_MANAGER:
                         try:
@@ -27,16 +27,16 @@
                                         if 'timestamp' in eth_df.columns:
                                             eth_df['timestamp'] = pd.to_datetime(eth_df['timestamp'], unit='ms', errors='coerce')
                                             eth_df.set_index('timestamp', inplace=True)
-                                
+
                                 if isinstance(eth_df, pd.DataFrame) and not eth_df.empty and len(eth_df) >= 50:
                                     eth_ema_fast = eth_df['ema_fast'].iloc[-1] if 'ema_fast' in eth_df.columns else eth_df['close'].ewm(span=12).mean().iloc[-1]
                                     eth_ema_slow = eth_df['ema_slow'].iloc[-1] if 'ema_slow' in eth_df.columns else eth_df['close'].ewm(span=26).mean().iloc[-1]
                                     eth_trend_status = eth_ema_fast > eth_ema_slow
-                                    logger.debug("✅ [ETH TREND] %s: Реальный тренд ETH = %s (EMA fast=%.2f, slow=%.2f)", 
+                                    logger.debug("✅ [ETH TREND] %s: Реальный тренд ETH = %s (EMA fast=%.2f, slow=%.2f)",
                                                symbol, "🟢 БЫЧИЙ" if eth_trend_status else "🔴 МЕДВЕЖИЙ", eth_ema_fast, eth_ema_slow)
                         except Exception as eth_exc:
                             logger.debug("⚠️ [ETH TREND] %s: Ошибка определения тренда ETH: %s", symbol, eth_exc)
-                    
+
                     # SOL тренд
                     if HYBRID_DATA_MANAGER_AVAILABLE and HYBRID_DATA_MANAGER:
                         try:
@@ -48,12 +48,12 @@
                                         if 'timestamp' in sol_df.columns:
                                             sol_df['timestamp'] = pd.to_datetime(sol_df['timestamp'], unit='ms', errors='coerce')
                                             sol_df.set_index('timestamp', inplace=True)
-                                
+
                                 if isinstance(sol_df, pd.DataFrame) and not sol_df.empty and len(sol_df) >= 50:
                                     sol_ema_fast = sol_df['ema_fast'].iloc[-1] if 'ema_fast' in sol_df.columns else sol_df['close'].ewm(span=12).mean().iloc[-1]
                                     sol_ema_slow = sol_df['ema_slow'].iloc[-1] if 'ema_slow' in sol_df.columns else sol_df['close'].ewm(span=26).mean().iloc[-1]
                                     sol_trend_status = sol_ema_fast > sol_ema_slow
-                                    logger.debug("✅ [SOL TREND] %s: Реальный тренд SOL = %s (EMA fast=%.2f, slow=%.2f)", 
+                                    logger.debug("✅ [SOL TREND] %s: Реальный тренд SOL = %s (EMA fast=%.2f, slow=%.2f)",
                                                symbol, "🟢 БЫЧИЙ" if sol_trend_status else "🔴 МЕДВЕЖИЙ", sol_ema_fast, sol_ema_slow)
                         except Exception as sol_exc:
                             logger.debug("⚠️ [SOL TREND] %s: Ошибка определения тренда SOL: %s", symbol, sol_exc)
@@ -134,6 +134,7 @@ self.sol_groups = {
 ```
 
 **Логика:**
+
 - Если токен в группе `ETH_HIGH` → применяем ETH фильтр
 - Если токен в группе `SOL_HIGH` → применяем SOL фильтр
 - Если токен в группе `BTC_HIGH` → применяем BTC фильтр (уже есть)
@@ -170,11 +171,11 @@ elif signal_type == "SELL":
 async def check_btc_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду BTC
-    
+
     Args:
         symbol: Торговый символ
         signal_type: Тип сигнала (BUY/SELL)
-        
+
     Returns:
         True если сигнал соответствует тренду BTC, False если нет
     """
@@ -242,12 +243,14 @@ async def check_btc_alignment(symbol: str, signal_type: str) -> bool:
 ### **Шаг 1: Создать функции проверки ETH и SOL трендов**
 
 Аналогично `check_btc_alignment()`, создать:
+
 - `check_eth_alignment(symbol, signal_type) -> bool`
 - `check_sol_alignment(symbol, signal_type) -> bool`
 
 ### **Шаг 2: Добавить конфигурацию**
 
 В `config.py`:
+
 ```python
 USE_ETH_TREND_FILTER = True  # Включить/выключить фильтр тренда ETH
 USE_SOL_TREND_FILTER = True  # Включить/выключить фильтр тренда SOL
@@ -258,6 +261,7 @@ SOL_TREND_FILTER_SOFT = True  # Мягкий или строгий режим
 ### **Шаг 3: Интегрировать в логику сигналов**
 
 В `signal_live.py` или `src/signals/filters.py`:
+
 ```python
 # После проверки BTC
 if USE_ETH_TREND_FILTER:
@@ -289,4 +293,3 @@ if USE_SOL_TREND_FILTER:
 **Дата анализа:** 2025-01-XX  
 **Статус:** Требуется внедрение  
 **Приоритет:** Средний (улучшение качества сигналов)
-

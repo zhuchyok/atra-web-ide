@@ -7,6 +7,7 @@
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### Пользователь в авто-режиме:
+
 - **User ID:** 556251171
 - **Режим:** `auto` ✅
 - **Ключи Bitget:** ✅ Есть (1 запись)
@@ -17,6 +18,7 @@
 ## 🔧 КАК РАБОТАЕТ АВТО-РЕЖИМ
 
 ### 1. Проверка режима (в `signal_live.py`):
+
 ```python
 # После отправки сигнала проверяется режим пользователя
 mode = await adb.get_user_mode(int(user_id))
@@ -27,12 +29,14 @@ if mode == 'auto':
 ```
 
 ### 2. Автоматическое открытие позиции:
+
 - ✅ Создается лимитный ордер на бирже Bitget
 - ✅ Если не исполнился за 90с → маркет ордер
 - ✅ Выставляются TP1 (50%), TP2 (50%), Stop Loss (100%)
 - ✅ Позиция записывается в `active_positions`
 
 ### 3. Требования:
+
 - ✅ `trade_mode = 'auto'` в `user_settings` ✅ Есть
 - ✅ Ключи Bitget в `user_exchange_keys` ✅ Есть
 - ✅ Сигнал прошел все проверки (фильтры, качество)
@@ -42,10 +46,12 @@ if mode == 'auto':
 ## ⚠️ ВАЖНО
 
 ### Spot режим:
+
 - **SHORT сигналы блокируются** (не открываются автоматически)
 - Открываются только **LONG** позиции
 
 ### Futures режим:
+
 - Открываются **LONG и SHORT** позиции
 - Устанавливается **плечо** (из настроек пользователя)
 
@@ -56,16 +62,19 @@ if mode == 'auto':
 ### Если сигнал появился, но не открылся:
 
 1. **Проверьте логи:**
+
 ```bash
 grep -i "AUTO\|auto_exec" bot.log | tail -20
 ```
 
 2. **Проверьте режим:**
+
 ```bash
 sqlite3 trading.db "SELECT trade_mode FROM user_settings WHERE user_id = 556251171;"
 ```
 
 3. **Проверьте ключи:**
+
 ```bash
 sqlite3 trading.db "SELECT exchange_name, is_active FROM user_exchange_keys WHERE user_id = 556251171;"
 ```
@@ -84,6 +93,7 @@ sqlite3 trading.db "SELECT exchange_name, is_active FROM user_exchange_keys WHER
 **Авто-режим настроен и готов к работе!**
 
 Если появится сигнал:
+
 - ✅ Проходит все проверки
 - ✅ Пользователь в режиме `auto`
 - ✅ Ключи биржи настроены
@@ -93,4 +103,3 @@ sqlite3 trading.db "SELECT exchange_name, is_active FROM user_exchange_keys WHER
 ---
 
 **Статус:** ✅ Готов к работе
-

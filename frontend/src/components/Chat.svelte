@@ -17,13 +17,13 @@
   $: lastMessage = $messages.length > 0 ? $messages[$messages.length - 1] : null
   // Показывать курсор только у того сообщения, которое сейчас стримится (последнее по id)
   $: isStreamingLast = $isStreaming && lastMessage && lastMessage.role === 'assistant'
-  
+
   // Настройка marked
   marked.setOptions({
     breaks: true,
     gfm: true
   })
-  
+
   onMount(() => {
     loadExperts()
     // Debug: подписка на изменения сообщений
@@ -31,28 +31,28 @@
       console.log('Messages updated:', msgs.length, msgs.map(m => m.content?.slice(0, 50)))
     })
   })
-  
+
   afterUpdate(() => {
     // Автоскролл к последнему сообщению
     if (messagesContainer) {
       messagesContainer.scrollTop = messagesContainer.scrollHeight
     }
   })
-  
+
   function handleSubmit() {
     if (!inputValue.trim() || $isLoading) return
-    
+
     sendMessage(inputValue.trim())
     inputValue = ''
   }
-  
+
   function handleKeydown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       handleSubmit()
     }
   }
-  
+
   function renderMarkdown(content) {
     if (!content) return ''
     try {
@@ -104,7 +104,7 @@
   {/if}
 
   <!-- Messages -->
-  <div 
+  <div
     class="flex-1 overflow-y-auto p-4 space-y-4"
     bind:this={messagesContainer}
   >
@@ -118,19 +118,19 @@
         {/if}
       </div>
     {/if}
-    
+
     {#each $messages as message, idx (message.id + '-' + (message.content?.length || 0) + '-' + (message.steps?.length || 0))}
       <div class="chat-message {message.role === 'user' ? 'ml-8' : 'mr-8'}">
         <div class="flex items-start gap-3 {message.role === 'user' ? 'flex-row-reverse' : ''}">
           <!-- Avatar -->
           <div class="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-medium
-            {message.role === 'user' 
-              ? 'bg-atra-primary' 
+            {message.role === 'user'
+              ? 'bg-atra-primary'
               : 'bg-gradient-to-br from-atra-primary to-atra-secondary'}
           ">
             {message.role === 'user' ? 'У' : message.expertName?.[0] || 'A'}
           </div>
-          
+
           <!-- Content -->
           <div class="flex-1 min-w-0">
             {#if message.role === 'assistant' && message.expertName}
@@ -178,9 +178,9 @@
             {/if}
 
             <!-- Блок ответа + мигающий курсор при стриминге (как в Cursor) -->
-            <div class="rounded-lg p-3 
-              {message.role === 'user' 
-                ? 'bg-atra-primary text-white' 
+            <div class="rounded-lg p-3
+              {message.role === 'user'
+                ? 'bg-atra-primary text-white'
                 : 'bg-atra-darker border border-atra-accent'}
             ">
               {#if message.role === 'assistant'}
@@ -203,7 +203,7 @@
                 <p class="whitespace-pre-wrap">{message.content}</p>
               {/if}
             </div>
-            
+
             <div class="text-xs text-gray-500 mt-1">
               {new Date(message.timestamp).toLocaleTimeString()}
             </div>
@@ -211,7 +211,7 @@
         </div>
       </div>
     {/each}
-    
+
     <!-- Индикатор «агент работает» — как в Cursor (плавные точки) -->
     {#if $isStreaming}
       <div class="cursor-agent-working ml-8 flex items-center gap-2 text-gray-400 text-sm py-2">
@@ -221,11 +221,11 @@
         <span>Агент работает…</span>
       </div>
     {/if}
-    
+
     {#if $error}
       <div class="bg-red-900/30 border border-red-700 rounded-lg p-3 text-red-300 text-sm flex items-center justify-between">
         <span>{$error}</span>
-        <button 
+        <button
           class="text-red-400 hover:text-red-200 ml-2"
           on:click={() => error.set(null)}
         >
@@ -234,7 +234,7 @@
       </div>
     {/if}
   </div>
-  
+
   <!-- Input -->
   <div class="p-4 border-t border-atra-accent">
     <form on:submit|preventDefault={handleSubmit} class="flex gap-2">
@@ -246,7 +246,7 @@
         rows="2"
         disabled={$isLoading}
       ></textarea>
-      
+
       <button
         type="submit"
         class="px-4 py-2 bg-atra-primary rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -442,14 +442,14 @@
     border-radius: 0.5rem;
     padding: 1rem;
   }
-  
+
   :global(.prose code) {
     background: var(--atra-accent);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     font-size: 0.875em;
   }
-  
+
   :global(.prose pre code) {
     background: transparent;
     padding: 0;

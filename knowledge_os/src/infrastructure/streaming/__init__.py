@@ -7,20 +7,20 @@ Redis Streams Infrastructure for Event-Driven Architecture.
 - Автоматическое восстановление при сбоях
 """
 
+from .consumer import ConsumerGroup, EventConsumer
 from .events import (
+    EventType,
+    InsightEvent,
     KnowledgeEvent,
     TaskEvent,
-    InsightEvent,
-    EventType,
 )
-from .stream_manager import StreamManager
 from .producer import EventProducer
-from .consumer import EventConsumer, ConsumerGroup
+from .stream_manager import StreamManager
 
 __all__ = [
     # Events
     "KnowledgeEvent",
-    "TaskEvent", 
+    "TaskEvent",
     "InsightEvent",
     "EventType",
     # Core

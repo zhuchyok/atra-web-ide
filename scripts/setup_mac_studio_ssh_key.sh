@@ -27,7 +27,7 @@ if [ -f "$MACBOOK_KEY" ]; then
     echo "  3. Показать инструкцию для ручного копирования"
     echo ""
     read -p "Ваш выбор (1-3): " choice
-    
+
     case $choice in
         1)
             echo ""
@@ -36,7 +36,7 @@ if [ -f "$MACBOOK_KEY" ]; then
             MAC_STUDIO_IP=${MAC_STUDIO_IP:-192.168.1.64}
             read -p "Пользователь на Mac Studio [bikos]: " MAC_STUDIO_USER
             MAC_STUDIO_USER=${MAC_STUDIO_USER:-bikos}
-            
+
             echo ""
             echo "⚠️  ВАЖНО: Для копирования нужен пароль или другой способ доступа"
             echo "   Выполните на MacBook:"

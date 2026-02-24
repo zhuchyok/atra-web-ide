@@ -7,7 +7,9 @@
 ## **СИСТЕМА 1: WHITELIST (для генерации сигналов)**
 
 ### **Где:** `market_cap.py`, строка 427
+
 ### **Порог:** 50M USD
+
 ### **Назначение:** Определяет ИЗ КАКИХ монет генерировать сигналы
 
 ### **Как работает:**
@@ -19,7 +21,7 @@ all_symbols = ['BTCUSDT', 'ETHUSDT', 'LINKUSDT', 'SHITCOINUSDT', ...]
 
 Для каждой монеты:
   market_cap = get_market_cap(symbol)
-  
+
   if market_cap >= 50_000_000:
       ✅ whitelist.append(symbol)  # В белый список
   elif market_cap == 0:
@@ -37,6 +39,7 @@ symbols_for_analysis = load_from_whitelist()
 ```
 
 **Пример:**
+
 ```
 LINKUSDT: 8B cap → 8,000M > 50M → ✅ В whitelist
 SHITCOINUSDT: 30M cap → 30M < 50M → ❌ В blacklist (мягкий)
@@ -51,7 +54,9 @@ SHITCOINUSDT: 30M cap → 30M < 50M → ❌ В blacklist (мягкий)
 ## **СИСТЕМА 2: BLACKLIST (жесткая блокировка)**
 
 ### **Где:** `market_cap_blacklist.py`, строка 30
+
 ### **Порог:** 150M USD
+
 ### **Назначение:** БЛОКИРУЕТ монеты даже если они в whitelist
 
 ### **Как работает:**
@@ -62,11 +67,11 @@ SHITCOINUSDT: 30M cap → 30M < 50M → ❌ В blacklist (мягкий)
 while True:
     for symbol in all_active_symbols:
         market_cap = get_market_cap(symbol)
-        
+
         if market_cap < 150_000_000:
             ❌ add_to_hard_blacklist(symbol)
             # Монета ЖЕСТКО блокируется
-    
+
     await asyncio.sleep(86400)  # Проверяем раз в день
 
 # При генерации сигнала (даже если в whitelist):
@@ -76,16 +81,17 @@ if is_in_hard_blacklist(symbol):
 ```
 
 **Пример:**
+
 ```
 Монета X:
   Market Cap: 80M USD
-  
+
 Система 1 (Whitelist 50M):
   80M > 50M → ✅ В whitelist → система будет проверять
-  
+
 Система 2 (Blacklist 150M):
   80M < 150M → ❌ В hard blacklist
-  
+
 При генерации сигнала:
   1. Монета X в whitelist → начинаем проверку
   2. Монета X в hard blacklist → 🚫 БЛОКИРУЕМ!
@@ -99,6 +105,7 @@ if is_in_hard_blacklist(symbol):
 ### **Проблема одной системы:**
 
 **Если бы был только whitelist 150M:**
+
 ```
 ❌ Мало монет (только топ-20)
 ❌ Нет альткоинов
@@ -106,6 +113,7 @@ if is_in_hard_blacklist(symbol):
 ```
 
 **Если бы был только whitelist 50M:**
+
 ```
 ❌ Слишком много рискованных
 ❌ Монеты 50M-150M могут быть pump&dump
@@ -118,7 +126,7 @@ if is_in_hard_blacklist(symbol):
 Whitelist (50M):
   → Разрешает БОЛЬШЕ монет для анализа
   → Включает качественные альткоины (LINK, DOT, UNI)
-  
+
 Blacklist (150M):
   → ДОПОЛНИТЕЛЬНО блокирует рискованные
   → Даже если они в whitelist
@@ -130,6 +138,7 @@ Blacklist (150M):
 ## 📊 **РАСПРЕДЕЛЕНИЕ МОНЕТ:**
 
 ### **Группа A: Cap >= 150M (безопасные)**
+
 ```
 Примеры: BTC, ETH, SOL, BNB, XRP, AVAX
 Количество: ~30-40 монет
@@ -142,6 +151,7 @@ Blacklist: ✅ Нет (проходит 150M)
 ```
 
 ### **Группа B: Cap 50M-150M (средний риск)**
+
 ```
 Примеры: Некоторые альткоины, новые проекты
 Количество: ~20-30 монет
@@ -155,6 +165,7 @@ Blacklist: ❌ ДА (НЕ проходит 150M)
 ```
 
 ### **Группа C: Cap < 50M (высокий риск)**
+
 ```
 Примеры: Шиткоины, мемкоины, pump&dump
 Количество: ~400+ монет
@@ -179,16 +190,16 @@ Blacklist: ❌ Да (НЕ проходит 150M)
    Получает ВСЕ 500+ монет с Binance
    ↓
 3. ПРОВЕРКА Market Cap для каждой:
-   
+
    BTCUSDT: 900B
    → 900B > 50M → Whitelist ✅
-   
+
    LINKUSDT: 8B
    → 8B > 50M → Whitelist ✅
-   
+
    ALTCOINUSDT: 80M
    → 80M > 50M → Whitelist ✅
-   
+
    SHITCOINUSDT: 30M
    → 30M < 50M → НЕ в whitelist ❌
    ↓
@@ -196,23 +207,23 @@ Blacklist: ❌ Да (НЕ проходит 150M)
    Whitelist: [BTCUSDT, ETHUSDT, LINKUSDT, ALTCOINUSDT, ...]
    ↓
 5. ГЕНЕРАЦИЯ СИГНАЛОВ (каждый час):
-   
+
    symbols = load_from_whitelist()
    # Получаем только [BTCUSDT, ETHUSDT, LINKUSDT, ALTCOINUSDT]
-   
+
    Для каждого символа:
      ↓
 6. ПРОВЕРКА HARD BLACKLIST (перед генерацией):
-   
+
    BTCUSDT: 900B > 150M → НЕ в blacklist ✅
    → Генерируем сигнал
-   
+
    LINKUSDT: 8B > 150M → НЕ в blacklist ✅
    → Генерируем сигнал
-   
+
    ALTCOINUSDT: 80M < 150M → В blacklist! ❌
    → 🚫 БЛОКИРУЕМ сигнал!
-   
+
    SHITCOINUSDT: даже не в списке проверки
    → Пропускаем
 ```
@@ -222,30 +233,32 @@ Blacklist: ❌ Да (НЕ проходит 150M)
 ## 💡 **АНАЛОГИЯ:**
 
 ### **Whitelist = Список участников экзамена**
+
 ```
 50M USD = Минимум для допуска к экзамену
 
 Если Cap >= 50M:
   ✅ Допущены к экзамену (проверке на сигнал)
   ✅ Могут пройти фильтры и стать сигналом
-  
+
 Если Cap < 50M:
   ❌ НЕ допущены даже к экзамену
   ❌ Даже не проверяются
 ```
 
 ### **Blacklist = Дисквалификация победителей**
+
 ```
 150M USD = Минимум для автоматического прохождения
 
 Если Cap >= 150M:
   ✅ Автоматически проходят (безопасные)
-  
+
 Если Cap 50M-150M:
   ⚠️ Допущены к экзамену (в whitelist)
   ❌ НО дисквалифицированы (в blacklist)
   🚫 Сигнал НЕ генерируется
-  
+
 Если Cap < 50M:
   ❌ Даже не допущены к экзамену
 ```
@@ -260,6 +273,7 @@ Blacklist: ❌ Да (НЕ проходит 150M)
 2. **Blacklist (150M)** - БЛОКИРУЕТ рискованные из этого списка
 
 **Результат:**
+
 - ✅ Анализируются только монеты с Cap >= 50M
 - ✅ Но блокируются те, что < 150M (средний риск)
 - ✅ Генерируются сигналы только для Cap >= 150M (низкий риск)

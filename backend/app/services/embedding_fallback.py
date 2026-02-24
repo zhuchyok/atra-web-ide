@@ -1,6 +1,7 @@
 """
 Fallback стратегии для эмбеддингов при недоступности Ollama (Фаза 3, день 3–4).
 """
+
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -9,6 +10,7 @@ logger = logging.getLogger(__name__)
 SENTENCE_TRANSFORMERS_AVAILABLE = False
 try:
     from sentence_transformers import SentenceTransformer  # noqa: F401
+
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     logger.debug("sentence-transformers not available, local embedding fallback disabled")
@@ -53,9 +55,7 @@ class EmbeddingFallback:
             logger.error("Error generating local embedding: %s", e)
             return None
 
-    async def keyword_search_fallback(
-        self, query: str, knowledge_os: Any
-    ) -> Optional[str]:
+    async def keyword_search_fallback(self, query: str, knowledge_os: Any) -> Optional[str]:
         """Fallback на keyword-поиск, если векторный недоступен."""
         if not self.keyword_fallback_enabled or not knowledge_os:
             return None

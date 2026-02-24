@@ -13,12 +13,18 @@ def run_safe(func, *args, **kwargs):
     try:
         return func(*args, **kwargs)
     except Exception as e:
-        logger.warning("⚠️ backtest runner: %s not available: %s", getattr(func, "__name__", "func"), e)
+        logger.warning(
+            "⚠️ backtest runner: %s not available: %s", getattr(func, "__name__", "func"), e
+        )
         return None
 
 
 def main() -> None:
-    logger.info("🧪 Запуск бэктестов 30/90 дней (комиссия=%.4f%%, slippage=%s)", COMMISSION_RATE * 100, SLIPPAGE_MODEL)
+    logger.info(
+        "🧪 Запуск бэктестов 30/90 дней (комиссия=%.4f%%, slippage=%s)",
+        COMMISSION_RATE * 100,
+        SLIPPAGE_MODEL,
+    )
 
     # Пробуем разные движки/шаблоны, если доступны
     results = []
@@ -26,6 +32,7 @@ def main() -> None:
     # 30 дней
     try:
         from backtests.advanced_backtest_30days import AdvancedBacktestEngine  # type: ignore
+
         engine30 = AdvancedBacktestEngine(initial_deposit=10000)
         res30 = run_safe(getattr(engine30, "run_backtest", lambda *a, **k: None), "ALL", "1h")
         results.append(("30d", res30))
@@ -34,7 +41,10 @@ def main() -> None:
 
     # 90 дней (если есть реализация 3 months)
     try:
-        from backtests.current_strategy_3months_backtest import run_backtest_for_symbol  # type: ignore
+        from backtests.current_strategy_3months_backtest import (
+            run_backtest_for_symbol,  # type: ignore
+        )
+
         res90 = run_safe(run_backtest_for_symbol, "ALL")
         results.append(("90d", res90))
     except Exception as e:
@@ -47,5 +57,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

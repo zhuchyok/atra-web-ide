@@ -3,6 +3,7 @@
 ## 📋 БЫСТРЫЙ СТАРТ
 
 ### 1. Активация конкретной роли:
+
 ```bash
 # В Cursor Chat просто упомяните роль:
 @quant Разработай стратегию mean-reversion для BTCUSDT
@@ -15,11 +16,12 @@
 ```
 
 ### 2. Комплексные задачи с несколькими ролями:
+
 ```python
 # В коде используйте комментарии для привлечения экспертов:
 
 # @quant: Разработай математическую модель
-# @trader: Проверь практическую применимость  
+# @trader: Проверь практическую применимость
 # @devops: Обеспечь производительность
 def complex_trading_strategy(data):
     # implementation
@@ -27,11 +29,12 @@ def complex_trading_strategy(data):
 ```
 
 ### 3. Автоматические процессы:
+
 ```bash
 # Ежедневный стендап
 @all_generate_daily_standup
 
-# Code review всей команды  
+# Code review всей команды
 @all_review_strategy strategy_file.py
 
 # Аудит рисков
@@ -41,6 +44,7 @@ def complex_trading_strategy(data):
 ## 🎯 ПРАКТИЧЕСКИЕ ПРИМЕРЫ
 
 ### Пример 1: Разработка новой стратегии
+
 ```bash
 @quant Разработай mean-reversion стратегию для ETHUSDT с параметрами:
 - Таймфрейм: 5 минут
@@ -55,6 +59,7 @@ def complex_trading_strategy(data):
 ```
 
 ### Пример 2: Оптимизация существующей стратегии
+
 ```bash
 @quant Проанализируй performance стратегии momentum_btc:
 1. Рассчитай метрики за последние 30 дней
@@ -66,10 +71,11 @@ def complex_trading_strategy(data):
 ```
 
 ### Пример 3: Инфраструктурные задачи
+
 ```bash
 @devops Настрой мониторинг для trading системы:
 - Latency до бирж
-- PnL в реальном времени  
+- PnL в реальном времени
 - System health metrics
 - Risk limits monitoring
 
@@ -79,6 +85,7 @@ def complex_trading_strategy(data):
 ## 🔧 НАСТРОЙКА CURSOR
 
 ### 1. Убедитесь что структура папок правильная:
+
 ```
 algorithmic-trading-team/
 ├── .cursor/
@@ -90,11 +97,13 @@ algorithmic-trading-team/
 ```
 
 ### 2. Проверьте что Cursor использует правила:
+
 - Откройте Cursor Settings
 - Убедитесь что включено использование .cursorrules
 - Проверьте что все .md файлы загружены
 
 ### 3. Тестирование системы:
+
 ```bash
 # Протестируйте каждую роль
 @quant Представься и опиши свою роль
@@ -107,6 +116,7 @@ algorithmic-trading-team/
 ## 🎪 ВЗАИМОДЕЙСТВИЕ РОЛЕЙ
 
 ### Стандартный workflow разработки:
+
 ```
 1. Trader: Идентификация рыночной возможности
 2. Quant: Разработка математической модели
@@ -118,10 +128,11 @@ algorithmic-trading-team/
 ```
 
 ### Процесс code review:
+
 ```
 Для каждого PR автоматически привлекаются:
 - Quant: математическая корректность
-- Trader: практическая применимость  
+- Trader: практическая применимость
 - DevOps: производительность и deployment
 - System Architect: архитектурное качество
 ```
@@ -129,6 +140,7 @@ algorithmic-trading-team/
 ## 📊 МОНИТОРИНГ ЭФФЕКТИВНОСТИ
 
 ### Ключевые метрики системы:
+
 ```python
 SYSTEM_METRICS = {
     'strategy_success_rate': '> 70% стратегий profitable',
@@ -140,6 +152,7 @@ SYSTEM_METRICS = {
 ```
 
 ### Отслеживание эффективности ролей:
+
 ```python
 ROLE_PERFORMANCE = {
     'quant': ['strategies_developed', 'backtest_accuracy'],
@@ -152,6 +165,7 @@ ROLE_PERFORMANCE = {
 ## 🚀 ПРОДВИНУТЫЕ ВОЗМОЖНОСТИ
 
 ### Автоматическое планирование работы:
+
 ```bash
 # Генерация weekly plan на основе метрик
 @all_generate_weekly_plan
@@ -164,6 +178,7 @@ ROLE_PERFORMANCE = {
 ```
 
 ### Интеграция с внешними системами:
+
 ```python
 # Автоматический импорт рыночных данных
 @data_engineer sync_market_data
@@ -178,12 +193,14 @@ ROLE_PERFORMANCE = {
 ## 🆘 ПОЛУЧЕНИЕ ПОМОЩИ
 
 ### Если система не работает:
+
 1. Проверьте структуру папок
 2. Убедитесь что все .md файлы на месте
 3. Проверьте синтаксис .cursorrules файлов
 4. Перезапустите Cursor
 
 ### Для тонкой настройки:
+
 ```bash
 # Диагностика правил
 @system_architect diagnose_rule_issues

@@ -3,6 +3,7 @@ Unified Embedding Provider — кэширование эмбеддингов в 
 Ollama (embeddings) + MLX (LLM): один эмбеддинг на запрос для RAG + semantic cache.
 Снижает вызовы Ollama при нескольких компонентах (RAG context + semantic cache lookup).
 """
+
 import logging
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional

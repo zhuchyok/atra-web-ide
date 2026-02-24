@@ -21,7 +21,9 @@ except ImportError:
 
 def _get_llm_urls() -> Tuple[Optional[str], str]:
     """MLX (11435) и Ollama (11434) — с учётом Docker. При MLX_API_URL=disabled возвращает (None, ollama_url)."""
-    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+    is_docker = (
+        os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+    )
     if is_docker:
         mlx_raw = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
@@ -108,6 +110,7 @@ async def ensure_llm_backends_available(
     if mlx_url and not await _check_mlx_health(mlx_url):
         try:
             from app.mlx_server_supervisor import get_mlx_supervisor
+
             supervisor = get_mlx_supervisor()
             if await supervisor.ensure_server_running():
                 logger.info("✅ MLX API Server поднят по запросу задачи")
@@ -138,6 +141,7 @@ async def ensure_llm_backends_available(
     if mlx_started or ollama_started:
         try:
             import app.available_models_scanner as scanner
+
             scanner._scan_cache = None
             logger.debug("Кэш доступных моделей сброшен после запуска бэкендов")
         except Exception:
@@ -147,6 +151,7 @@ async def ensure_llm_backends_available(
     if refresh_local_router_cache:
         try:
             from app.local_router import LocalAIRouter
+
             router = LocalAIRouter()
             await router.check_health(force_refresh=True)
             logger.debug("Кэш LocalAIRouter обновлён")

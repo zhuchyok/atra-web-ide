@@ -63,4 +63,3 @@ echo "  1. Если создан .env файл: source $ENV_FILE"
 echo "  2. Для синхронизации: python3 scripts/sync_team_data.py sync"
 echo "  3. Для отправки изменений: python3 scripts/sync_team_data.py push"
 echo "  4. Для получения изменений: python3 scripts/sync_team_data.py pull"
-

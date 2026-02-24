@@ -8,16 +8,19 @@
 ## 📊 ИСТОЧНИКИ ПАРАМЕТРОВ
 
 ### **1. Оптимальные параметры фильтров (ВЫСШИЙ ПРИОРИТЕТ):**
+
 - **Файл:** `backtests/all_filters_optimization_results.json`
 - **Результаты:** +2,477% доходность, 100% win rate
 - **Параметры:** 9 фильтров с оптимальными значениями
 
 ### **2. Символ-специфичные параметры (СРЕДНИЙ ПРИОРИТЕТ):**
+
 - **Файл:** `backtests/optimize_intelligent_params_*.json`
 - **Параметры:** `volume_ratio`, `rsi_oversold/overbought`, `quality_score`, `trend_strength`, `momentum_threshold`
 - **Количество монет:** 100+
 
 ### **3. Хардкод в коде (НИЗКИЙ ПРИОРИТЕТ):**
+
 - **Файл:** `src/ai/intelligent_filter_system.py`
 - **Функция:** `get_symbol_specific_parameters()`
 - **Параметры:** Для 100+ монет
@@ -103,7 +106,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
     json_params = load_optimized_params_from_json(symbol)
     if json_params:
         return json_params
-    
+
     # 2. Пробуем intelligent_filter_system
     try:
         from src.ai.intelligent_filter_system import get_symbol_specific_parameters
@@ -112,7 +115,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
             return intelligent_params
     except Exception:
         pass
-    
+
     # 3. Пробуем SYMBOL_SPECIFIC_CONFIG
     try:
         from config import SYMBOL_SPECIFIC_CONFIG, DEFAULT_SYMBOL_CONFIG
@@ -126,7 +129,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
             }
     except Exception:
         pass
-    
+
     # 4. DEFAULT
     return {
         'volume_ratio': 0.4,
@@ -141,6 +144,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
 #### **2.2. Интегрировать в `src/signals/core.py`:**
 
 **В `soft_entry_signal()` (volume_ratio):**
+
 ```python
 # После строки 487, перед расчетом ai_threshold:
 symbol_params = get_symbol_optimized_params(symbol)
@@ -153,6 +157,7 @@ if optimized_volume_ratio:
 ```
 
 **В `_generate_signal_impl()` (quality_score):**
+
 ```python
 # После строки 2482, перед проверкой quality_score:
 symbol_params = get_symbol_optimized_params(symbol)
@@ -165,6 +170,7 @@ if optimized_quality_score:
 ```
 
 **В RSI фильтрах:**
+
 ```python
 # В enhanced_rsi_filter():
 symbol_params = get_symbol_optimized_params(symbol)
@@ -177,6 +183,7 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 ## ✅ ЧЕКЛИСТ ВНЕДРЕНИЯ
 
 ### **Этап 1: Параметры фильтров**
+
 - [ ] Обновить `config.py` с оптимальными параметрами
 - [ ] Обновить `src/filters/volume_profile_filter.py`
 - [ ] Обновить `src/filters/vwap_filter.py`
@@ -189,6 +196,7 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 - [ ] Обновить `src/filters/trend_strength_filter.py`
 
 ### **Этап 2: Символ-специфичные параметры**
+
 - [ ] Создать функцию `get_symbol_optimized_params()` в `src/signals/core.py`
 - [ ] Интегрировать в `soft_entry_signal()` для `volume_ratio`
 - [ ] Интегрировать в `_generate_signal_impl()` для `quality_score`
@@ -196,6 +204,7 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 - [ ] Добавить логирование загрузки параметров
 
 ### **Этап 3: Тестирование**
+
 - [ ] Запустить бэктест на 5 монетах (30 дней)
 - [ ] Сравнить результаты с успешным бэктестом
 - [ ] Проверить использование параметров в логах
@@ -206,11 +215,13 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **До внедрения:**
+
 - Используются дефолтные параметры
 - Нет символ-специфичной оптимизации
 - Фильтры используют жестко заданные значения
 
 ### **После внедрения:**
+
 - ✅ Используются оптимальные параметры фильтров (+2,477% доходность)
 - ✅ Каждая монета использует свои оптимизированные параметры
 - ✅ Параметры загружаются динамически из JSON файлов

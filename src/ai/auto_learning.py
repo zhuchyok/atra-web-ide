@@ -8,20 +8,22 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
+from typing import Any, Dict
+
 from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, Any
 
 # Импорты
 try:
-    from src.ai.learning import AILearningSystem
-    from src.ai.integration import AIIntegration
-    from src.ai.monitor import AIMonitor
     from src.ai.historical_analysis import HistoricalDataAnalyzer
+    from src.ai.integration import AIIntegration
+    from src.ai.learning import AILearningSystem
+    from src.ai.monitor import AIMonitor
     # from shared_utils import load_user_data_for_signals  # Не используется
 except ImportError as e:
     logging.warning("Не удалось импортировать модули: %s", e)
 
 logger = logging.getLogger(__name__)
+
 
 class AutoLearningSystem:
     """Автоматическая система обучения ИИ"""
@@ -42,10 +44,13 @@ class AutoLearningSystem:
         # Используем singleton registry для получения единственного экземпляра
         try:
             from src.ai.singleton import get_ai_learning_system
+
             self.ai_learning = get_ai_learning_system()
             logger.info("✅ Используем singleton экземпляр ИИ системы в автообучении")
         except (ImportError, AttributeError) as e:
-            logger.warning("⚠️ Singleton registry недоступен в автообучении, создаем новый экземпляр: %s", e)
+            logger.warning(
+                "⚠️ Singleton registry недоступен в автообучении, создаем новый экземпляр: %s", e
+            )
             self.ai_learning = AILearningSystem()
         self.ai_integration = AIIntegration()
         self.ai_monitor = AIMonitor()
@@ -54,16 +59,16 @@ class AutoLearningSystem:
         # Настройки автоматического обучения
         self.learning_schedule = {
             "historical_analysis": 24 * 3600,  # Каждые 24 часа
-            "pattern_analysis": 6 * 3600,      # Каждые 6 часов
-            "optimization": 12 * 3600,         # Каждые 12 часов
-            "report_generation": 24 * 3600     # Каждые 24 часа
+            "pattern_analysis": 6 * 3600,  # Каждые 6 часов
+            "optimization": 12 * 3600,  # Каждые 12 часов
+            "report_generation": 24 * 3600,  # Каждые 24 часа
         }
 
         self.last_learning = {
             "historical_analysis": None,
             "pattern_analysis": None,
             "optimization": None,
-            "report_generation": None
+            "report_generation": None,
         }
 
         logger.info("🤖 Автоматическая система обучения ИИ инициализирована")
@@ -118,7 +123,10 @@ class AutoLearningSystem:
             analysis = await self.historical_analyzer.analyze_all_historical_data()
 
             if analysis.get("patterns_learned", 0) > 0:
-                logger.info("✅ Изучено %d новых паттернов из исторических данных", analysis['patterns_learned'])
+                logger.info(
+                    "✅ Изучено %d новых паттернов из исторических данных",
+                    analysis["patterns_learned"],
+                )
 
                 # Сохраняем результаты
                 self.ai_learning.save_patterns()
@@ -139,7 +147,7 @@ class AutoLearningSystem:
             analysis = self.ai_learning.analyze_patterns()
 
             if analysis.get("total_patterns", 0) > 0:
-                logger.info("📊 Проанализировано %d паттернов", analysis['total_patterns'])
+                logger.info("📊 Проанализировано %d паттернов", analysis["total_patterns"])
 
                 # Получаем рекомендации
                 recommendations = self.ai_learning.get_learning_recommendations()
@@ -162,7 +170,7 @@ class AutoLearningSystem:
             optimization = self.ai_learning.auto_optimize_parameters()
 
             if optimization.get("improvements"):
-                logger.info("✅ Применено %d оптимизаций", len(optimization['improvements']))
+                logger.info("✅ Применено %d оптимизаций", len(optimization["improvements"]))
                 for improvement in optimization["improvements"]:
                     logger.info("  • %s", improvement)
             else:
@@ -193,7 +201,9 @@ class AutoLearningSystem:
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка генерации отчетов: %s", e)
 
-    async def _save_reports(self, learning_report: str, monitoring_report: str, integration_report: str):
+    async def _save_reports(
+        self, learning_report: str, monitoring_report: str, integration_report: str
+    ):
         """Сохраняет отчеты в файлы"""
         try:
             reports_dir = "ai_reports"
@@ -202,15 +212,19 @@ class AutoLearningSystem:
             timestamp = get_utc_now().strftime("%Y%m%d_%H%M%S")
 
             # Сохраняем отчет об обучении
-            with open(f"{reports_dir}/learning_report_{timestamp}.txt", 'w', encoding='utf-8') as f:
+            with open(f"{reports_dir}/learning_report_{timestamp}.txt", "w", encoding="utf-8") as f:
                 f.write(learning_report)
 
             # Сохраняем отчет мониторинга
-            with open(f"{reports_dir}/monitoring_report_{timestamp}.txt", 'w', encoding='utf-8') as f:
+            with open(
+                f"{reports_dir}/monitoring_report_{timestamp}.txt", "w", encoding="utf-8"
+            ) as f:
                 f.write(monitoring_report)
 
             # Сохраняем отчет интеграции
-            with open(f"{reports_dir}/integration_report_{timestamp}.txt", 'w', encoding='utf-8') as f:
+            with open(
+                f"{reports_dir}/integration_report_{timestamp}.txt", "w", encoding="utf-8"
+            ) as f:
                 f.write(integration_report)
 
             logger.info("📁 Отчеты сохранены в папку %s", reports_dir)
@@ -243,7 +257,7 @@ class AutoLearningSystem:
                 "schedule": self.learning_schedule,
                 "ai_patterns": len(self.ai_learning.patterns),
                 "ai_accuracy": self.ai_learning.metrics.accuracy,
-                "ai_profit_factor": self.ai_learning.metrics.profit_factor
+                "ai_profit_factor": self.ai_learning.metrics.profit_factor,
             }
 
             return status
@@ -257,9 +271,9 @@ class AutoLearningSystem:
         try:
             report = f"""
 🤖 КОМПЛЕКСНЫЙ ОТЧЕТ АВТОМАТИЧЕСКОГО ОБУЧЕНИЯ ИИ
-{'='*70}
+{"=" * 70}
 
-⏰ ВРЕМЯ ГЕНЕРАЦИИ: {get_utc_now().strftime('%Y-%m-%d %H:%M:%S')}
+⏰ ВРЕМЯ ГЕНЕРАЦИИ: {get_utc_now().strftime("%Y-%m-%d %H:%M:%S")}
 
 📊 СТАТУС ОБУЧЕНИЯ:
 • Система активна: 🟢 Да
@@ -279,7 +293,7 @@ class AutoLearningSystem:
                     report += f"• {task_name}: еще не запускался\n"
 
             # Добавляем отчеты компонентов
-            report += "\n" + "="*70 + "\n"
+            report += "\n" + "=" * 70 + "\n"
             report += await self.ai_integration.generate_learning_report()
 
             return report
@@ -288,25 +302,31 @@ class AutoLearningSystem:
             logger.error("❌ Ошибка генерации комплексного отчета: %s", e)
             return f"❌ Ошибка генерации отчета: {e}"
 
+
 # Глобальный экземпляр автоматического обучения
 auto_learning = AutoLearningSystem()
+
 
 async def start_auto_learning():
     """Запускает автоматическое обучение"""
     logger.info("🚀 Запуск автоматического обучения ИИ...")
     await auto_learning.start_auto_learning()
 
+
 async def force_historical_analysis():
     """Принудительно запускает анализ исторических данных"""
     await auto_learning.force_historical_analysis()
+
 
 async def get_learning_status():
     """Получает статус обучения"""
     return await auto_learning.get_learning_status()
 
+
 async def generate_comprehensive_report():
     """Генерирует комплексный отчет"""
     return await auto_learning.generate_comprehensive_report()
+
 
 if __name__ == "__main__":
     # Тестирование автоматического обучения

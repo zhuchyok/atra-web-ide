@@ -49,12 +49,14 @@
 **Проблема:** Промпты разбросаны по коду, сложно аудировать и обновлять.
 
 **Решение:**
+
 - [ ] Создать `configs/agents/<agent>.yaml` для каждого агента
 - [ ] Вынести все промпты из кода в YAML файлы
 - [ ] Создать `observability/prompt_manager.py` для загрузки промптов
 - [ ] Интегрировать загрузку промптов в агенты
 
 **Структура YAML:**
+
 ```yaml
 agent: signal_live
 version: 1.0
@@ -85,6 +87,7 @@ examples:
 ```
 
 **Файлы для создания:**
+
 - `configs/agents/signal_live.yaml`
 - `configs/agents/auto_execution.yaml`
 - `configs/agents/risk_monitor.yaml`
@@ -97,6 +100,7 @@ examples:
 **Проблема:** Агенты не всегда используют релевантный контекст.
 
 **Решение:**
+
 - [x] Создать `observability/context_engine.py` ✅
 - [x] Реализовать умный выбор контекста на основе:
   - Текущей миссии агента ✅
@@ -106,14 +110,15 @@ examples:
 - [x] Интегрировать в существующие агенты ✅
 
 **Функции:**
+
 ```python
 class ContextEngine:
     def select_context(self, agent: str, mission: str, history: List[Trace]) -> Dict:
         """Выбирает релевантный контекст для агента"""
-        
+
     def enrich_context(self, base_context: Dict, additional_sources: List[str]) -> Dict:
         """Обогащает контекст дополнительными источниками"""
-        
+
     def cache_context(self, key: str, context: Dict, ttl: int = 3600):
         """Кэширует контекст для повторного использования"""
 ```
@@ -125,6 +130,7 @@ class ContextEngine:
 **Проблема:** Недостаточно метрик и мониторинга для агентов.
 
 **Решение:**
+
 - [x] Создать Prometheus метрики для каждого агента ✅
   - `agent_missions_total` - общее количество миссий ✅
   - `agent_missions_success_total` - успешные миссии ✅
@@ -141,6 +147,7 @@ class ContextEngine:
 - [x] Интегрировать в `risk_monitor` ✅
 
 **Метрики:**
+
 ```python
 # observability/metrics.py
 from prometheus_client import Counter, Histogram, Gauge
@@ -171,6 +178,7 @@ agent_guidance_applied = Gauge(
 **Проблема:** HITL feedback убран из Telegram, но нужен для обучения.
 
 **Решение:**
+
 - [x] Восстановить автоматический сбор feedback через анализ сделок ✅
 - [x] Добавить неявный feedback (через анализ результатов) ✅
   - Если сделка прибыльная → позитивный feedback ✅
@@ -179,6 +187,7 @@ agent_guidance_applied = Gauge(
 - [x] Интегрировать в `FeedbackAggregator` и `process_feedback.py` ✅
 
 **Логика:**
+
 ```python
 class ImplicitFeedbackCollector:
     def collect_from_trade(self, trade: TradeResult) -> Feedback:
@@ -204,6 +213,7 @@ class ImplicitFeedbackCollector:
 **Проблема:** Агенты работают изолированно, нет координации.
 
 **Решение:**
+
 - [x] Создать `observability/agent_coordinator.py` ✅
 - [x] Реализовать обмен контекстом между агентами ✅
   - `signal_live` → `auto_execution` (сигналы) ✅
@@ -213,15 +223,16 @@ class ImplicitFeedbackCollector:
 - [x] Реализовать event-driven архитектуру ✅
 
 **Архитектура:**
+
 ```python
 class AgentCoordinator:
     def __init__(self):
         self.shared_memory = SharedMemory()
         self.event_bus = EventBus()
-        
+
     def register_agent(self, agent: str, capabilities: List[str]):
         """Регистрирует агента и его возможности"""
-        
+
     def coordinate(self, event: Event) -> List[Action]:
         """Координирует действия агентов на основе события"""
 ```
@@ -233,6 +244,7 @@ class AgentCoordinator:
 **Проблема:** Система не может самостоятельно эволюционировать.
 
 **Решение:**
+
 - [x] Создать `observability/evolution_engine.py` ✅
 - [x] Реализовать автоматическое улучшение промптов ✅
   - Анализ эффективности текущих промптов ✅
@@ -243,6 +255,7 @@ class AgentCoordinator:
 - [ ] A/B тестирование новых промптов (готово к расширению)
 
 **Процесс:**
+
 ```python
 class EvolutionEngine:
     def evolve_prompt(self, agent: str, current_prompt: str) -> str:
@@ -258,35 +271,41 @@ class EvolutionEngine:
 ## 📅 План реализации
 
 ### Фаза 1: Централизация промптов (1-2 дня)
+
 1. Создать `configs/agents/` структуру
 2. Вынести промпты из кода в YAML
 3. Создать `prompt_manager.py`
 4. Интегрировать в агенты
 
 ### Фаза 2: Context Engineering (2-3 дня)
+
 1. Создать `context_engine.py`
 2. Реализовать умный выбор контекста
 3. Добавить кэширование
 4. Интегрировать в агенты
 
 ### Фаза 3: Agent Ops расширение (2-3 дня)
+
 1. Создать Prometheus метрики
 2. Настроить Grafana дашборд
 3. Добавить алерты
 4. Интегрировать в мониторинг
 
 ### Фаза 4: HITL улучшение (1-2 дня)
+
 1. Создать `implicit_feedback.py`
 2. Интегрировать в `auto_analyzer.py`
 3. Обновить `feedback.py` для обработки неявного feedback
 
 ### Фаза 5: Многоагентная координация (3-4 дня)
+
 1. Создать `agent_coordinator.py`
 2. Реализовать shared memory
 3. Реализовать event bus
 4. Интегрировать координацию
 
 ### Фаза 6: Self-Evolving System (4-5 дней)
+
 1. Создать `evolution_engine.py`
 2. Реализовать генерацию вариантов промптов
 3. Реализовать A/B тестирование
@@ -297,31 +316,37 @@ class EvolutionEngine:
 ## 🎯 Критерии успеха
 
 ### Фаза 1:
+
 - ✅ Все промпты вынесены в YAML
 - ✅ Агенты загружают промпты через `prompt_manager`
 - ✅ Нет hardcoded промптов в коде
 
 ### Фаза 2:
+
 - ✅ Агенты используют релевантный контекст
 - ✅ Кэширование работает
 - ✅ Улучшение качества решений на 10%+
 
 ### Фаза 3:
+
 - ✅ Все метрики в Prometheus
 - ✅ Дашборд в Grafana
 - ✅ Алерты работают
 
 ### Фаза 4:
+
 - ✅ Неявный feedback собирается автоматически
 - ✅ Lessons генерируются из feedback
 - ✅ Улучшение accuracy на 5%+
 
 ### Фаза 5:
+
 - ✅ Агенты координируются
 - ✅ Shared memory работает
 - ✅ Event bus функционирует
 
 ### Фаза 6:
+
 - ✅ Промпты эволюционируют автоматически
 - ✅ A/B тестирование работает
 - ✅ Улучшение производительности на 15%+
@@ -330,7 +355,7 @@ class EvolutionEngine:
 
 ## 📚 Ссылки
 
-- [Day_1_v4 ru (1).pdf](../docs/Day_1_v4%20ru%20(1).pdf) - исходный документ
+- [Day_1_v4 ru (1).pdf](<../docs/Day_1_v4%20ru%20(1).pdf>) - исходный документ
 - [agents_inventory.md](./agents_inventory.md) - текущий реестр агентов
 - [agent_identity_matrix.md](./agent_identity_matrix.md) - матрица прав
 - [AGENT_GYM_GUIDE.md](./AGENT_GYM_GUIDE.md) - руководство по симуляциям
@@ -338,4 +363,3 @@ class EvolutionEngine:
 ---
 
 **Следующий шаг:** Начать с Фазы 1 - централизация промптов.
-

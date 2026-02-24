@@ -8,12 +8,12 @@
 
 ## 📊 EXECUTIVE SUMMARY
 
-| Метрика | Значение |
-|---------|----------|
-| Файлов с хардкодами | 7 |
-| Критических точек | 12 |
-| Уникальных экспертов в хардкодах | ~10 |
-| Рекомендуемый рефакторинг | 5 файлов |
+| Метрика                          | Значение |
+| -------------------------------- | -------- |
+| Файлов с хардкодами              | 7        |
+| Критических точек                | 12       |
+| Уникальных экспертов в хардкодах | ~10      |
+| Рекомендуемый рефакторинг        | 5 файлов |
 
 ---
 
@@ -25,15 +25,16 @@
 **Строки:** 293-296
 
 ```python
-if lower_text.startswith('виктория'): 
+if lower_text.startswith('виктория'):
     target_name = 'Виктория'; user_text = user_text[8:].strip(', ').strip()
-elif lower_text.startswith('владимир'): 
+elif lower_text.startswith('владимир'):
     target_name = 'Владимир'; user_text = user_text[8:].strip(', ').strip()
 ```
 
 **Проблема:** Только 2 эксперта доступны через Telegram, остальные игнорируются.
 
 **Рекомендация:** Использовать динамический список из БД:
+
 ```python
 async def get_expert_prefixes():
     experts = await get_available_experts()
@@ -50,25 +51,27 @@ async def get_expert_prefixes():
 ```python
 # Хардкод дефолта если БД пуста
 expert = {
-    'name': 'Виктория', 
+    'name': 'Виктория',
     'system_prompt': 'Вы Виктория, Главный Координатор...',
     ...
 }
 ```
 
 и парсинг имён (строки 187-200):
+
 ```python
-if any(x in lower_text for x in ['виктория', 'вика']): 
+if any(x in lower_text for x in ['виктория', 'вика']):
     target_name = 'Виктория'
-elif any(x in lower_text for x in ['владимир', 'вова']): 
+elif any(x in lower_text for x in ['владимир', 'вова']):
     target_name = 'Владимир'
-elif any(x in lower_text for x in ['дмитрий', 'дима']): 
+elif any(x in lower_text for x in ['дмитрий', 'дима']):
     target_name = 'Дмитрий'
-elif any(x in lower_text for x in ['мария', 'маша']): 
+elif any(x in lower_text for x in ['мария', 'маша']):
     target_name = 'Мария'
 ```
 
-**Проблема:** 
+**Проблема:**
+
 - Только 4 эксперта доступны
 - Хардкод промпта может устареть
 - Нет синхронизации с БД
@@ -83,13 +86,13 @@ elif any(x in lower_text for x in ['мария', 'маша']):
 ```python
 FALLBACK_EXPERTS: List[str] = [
     "Дмитрий",  # Engineer
-    "Мария",    # Analyst  
+    "Мария",    # Analyst
     "Максим",   # Developer
 ]
 
 EXTENDED_FALLBACK_EXPERTS: List[str] = [
     "Дмитрий",
-    "Мария", 
+    "Мария",
     "Максим",
     "Сергей",
     "Елена",
@@ -128,9 +131,10 @@ WHERE (l.feedback_score >= $1 OR (e.name IN ('Виктория', 'Дмитрий
 **Проблема:** При добавлении новых экспертов высокого уровня, их ответы не попадут в дистилляцию.
 
 **Рекомендация:** Заменить на:
+
 ```python
-WHERE (l.feedback_score >= $1 
-       OR (e.role IN ('Team Lead', 'Director', 'Senior Engineer') 
+WHERE (l.feedback_score >= $1
+       OR (e.role IN ('Team Lead', 'Director', 'Senior Engineer')
            AND l.feedback_score IS NULL))
 ```
 
@@ -161,11 +165,13 @@ KNOWN_EXPERT_NAMES = {
 > Список ниже может быть неполным.
 
 ### Потенциально отсутствующие в хардкодах:
+
 - Эксперты, добавленные после последнего обновления кода
 - Эксперты с нестандартными именами
 - Новые директоры отделов
 
 ### Для верификации выполните:
+
 ```bash
 cd /root/knowledge_os
 python scripts/check_experts_count.py --verbose --no-confirm
@@ -178,6 +184,7 @@ python scripts/check_experts_count.py --verbose --no-confirm
 ### Приоритет 1 (КРИТИЧНО):
 
 #### telegram_gateway.py
+
 ```python
 # БЫЛО:
 if lower_text.startswith('виктория'): ...
@@ -194,14 +201,17 @@ for alias, name in expert_aliases.items():
 ```
 
 #### telegram_simple.py
+
 Аналогичный рефакторинг с кэшированием алиасов при старте.
 
 ### Приоритет 2 (ВАЖНО):
 
 #### distillation_engine.py
+
 Заменить хардкод имён на проверку ролей:
+
 ```python
-WHERE (l.feedback_score >= $1 
+WHERE (l.feedback_score >= $1
        OR (e.role ILIKE '%Lead%' OR e.role ILIKE '%Director%')
        AND l.feedback_score IS NULL)
 ```
@@ -216,11 +226,13 @@ WHERE (l.feedback_score >= $1
 ## 🔧 СКРИПТЫ ВАЛИДАЦИИ
 
 ### Основной скрипт:
+
 ```bash
 python /root/knowledge_os/scripts/check_experts_count.py --verbose
 ```
 
 ### Быстрая проверка SQL:
+
 ```sql
 -- Количество экспертов
 SELECT COUNT(*) FROM experts;
@@ -233,6 +245,7 @@ SELECT name FROM experts WHERE name NOT IN ('Виктория', 'Дмитрий'
 ```
 
 ### Новый скрипт быстрой валидации:
+
 См. файл: `/root/knowledge_os/scripts/quick_validate_experts.py`
 
 ---
@@ -242,11 +255,13 @@ SELECT name FROM experts WHERE name NOT IN ('Виктория', 'Дмитрий'
 ### Регулярный аудит (рекомендуется 1 раз в месяц):
 
 1. **Запуск check_experts_count.py:**
+
    ```bash
    python scripts/check_experts_count.py --verbose --no-confirm
    ```
 
 2. **Проверка отчёта:**
+
    ```bash
    cat scripts/reports/experts_check_report.txt
    ```
@@ -275,7 +290,7 @@ SELECT name FROM experts WHERE name NOT IN ('Виктория', 'Дмитрий'
 ## ✅ ЧЕКЛИСТ ЗАВЕРШЕНИЯ РЕФАКТОРИНГА
 
 - [ ] telegram_gateway.py - динамический парсинг имён
-- [ ] telegram_simple.py - динамический парсинг имён  
+- [ ] telegram_simple.py - динамический парсинг имён
 - [ ] distillation_engine.py - замена имён на роли
 - [ ] expert_validator.py - автосинхронизация при старте
 - [ ] CI/CD интеграция скрипта валидации

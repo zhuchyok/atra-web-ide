@@ -2,6 +2,7 @@
 Auto-Optimizer — проактивная оптимизация производительности.
 Цикл: сбор метрик → анализ → применение стратегий.
 """
+
 import asyncio
 import json
 import logging
@@ -19,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 class OptimizationStrategy(Enum):
     """Стратегии оптимизации."""
+
     CACHE_TTL_ADJUSTMENT = "cache_ttl_adjustment"
     PRELOAD_FREQUENT_PATTERNS = "preload_frequent_patterns"
     INDEX_OPTIMIZATION = "index_optimization"
@@ -27,6 +29,7 @@ class OptimizationStrategy(Enum):
 @dataclass
 class PerformanceMetrics:
     """Метрики производительности за период."""
+
     timestamp: datetime
     p95_latency: float
     p99_latency: float
@@ -39,6 +42,7 @@ class PerformanceMetrics:
 @dataclass
 class OptimizationResult:
     """Результат оптимизации."""
+
     strategy: OptimizationStrategy
     applied_at: datetime
     parameters_changed: Dict[str, Any]
@@ -107,6 +111,7 @@ class AutoOptimizer:
         request_volume = 0
         try:
             from app.services.rag_context_cache import get_cache_monitor
+
             s = get_cache_monitor().get_stats()
             hit_rate = float(s.get("hit_rate_pct", 0))
             request_volume = int(s.get("total", 0))
@@ -127,19 +132,23 @@ class AutoOptimizer:
         issues = []
         if m.p95_latency > self.thresholds["latency_p95_warning"]:
             priority = 90 if m.p95_latency > self.thresholds["latency_p95_critical"] else 70
-            issues.append({
-                "strategy": OptimizationStrategy.CACHE_TTL_ADJUSTMENT,
-                "priority": priority,
-                "parameters": {"latency": m.p95_latency, "hit_rate": m.cache_hit_rate},
-                "description": f"Высокая латентность P95: {m.p95_latency:.0f}ms",
-            })
+            issues.append(
+                {
+                    "strategy": OptimizationStrategy.CACHE_TTL_ADJUSTMENT,
+                    "priority": priority,
+                    "parameters": {"latency": m.p95_latency, "hit_rate": m.cache_hit_rate},
+                    "description": f"Высокая латентность P95: {m.p95_latency:.0f}ms",
+                }
+            )
         if m.cache_hit_rate < self.thresholds["cache_hit_rate_low"]:
-            issues.append({
-                "strategy": OptimizationStrategy.PRELOAD_FREQUENT_PATTERNS,
-                "priority": 80,
-                "parameters": {"hit_rate": m.cache_hit_rate},
-                "description": f"Низкий hit rate: {m.cache_hit_rate:.1f}%",
-            })
+            issues.append(
+                {
+                    "strategy": OptimizationStrategy.PRELOAD_FREQUENT_PATTERNS,
+                    "priority": 80,
+                    "parameters": {"hit_rate": m.cache_hit_rate},
+                    "description": f"Низкий hit rate: {m.cache_hit_rate:.1f}%",
+                }
+            )
         return issues
 
     async def _apply_optimization(self, issue: Dict, metrics: PerformanceMetrics) -> None:
@@ -152,20 +161,24 @@ class AutoOptimizer:
                     metrics.cache_hit_rate,
                 )
                 if result:
-                    self.optimization_history.append(OptimizationResult(
-                        strategy=strategy,
-                        applied_at=datetime.now(),
-                        parameters_changed=result,
-                        description=issue["description"],
-                    ))
+                    self.optimization_history.append(
+                        OptimizationResult(
+                            strategy=strategy,
+                            applied_at=datetime.now(),
+                            parameters_changed=result,
+                            description=issue["description"],
+                        )
+                    )
             elif strategy == OptimizationStrategy.PRELOAD_FREQUENT_PATTERNS:
                 await self._preload_frequent_patterns()
-                self.optimization_history.append(OptimizationResult(
-                    strategy=strategy,
-                    applied_at=datetime.now(),
-                    parameters_changed={"preloaded": True},
-                    description=issue["description"],
-                ))
+                self.optimization_history.append(
+                    OptimizationResult(
+                        strategy=strategy,
+                        applied_at=datetime.now(),
+                        parameters_changed={"preloaded": True},
+                        description=issue["description"],
+                    )
+                )
         except Exception as e:
             logger.warning("Optimization %s failed: %s", strategy.value, e)
 
@@ -173,6 +186,7 @@ class AutoOptimizer:
         """Динамическая настройка TTL кэша."""
         try:
             from app.services.rag_context_cache import get_rag_context_cache
+
             cache = get_rag_context_cache()
         except Exception:
             return None

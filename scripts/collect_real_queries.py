@@ -53,11 +53,11 @@ def extract_query_from_line(line: str) -> Optional[str]:
 def collect_from_logs(log_dir: Path, days: int, limit: int):
     """Собирает запросы из текстовых и JSON логов с нормализацией."""
     raw_queries = []
-    
+
     if not log_dir.exists():
         print(f"⚠️ Каталог логов не найден: {log_dir}")
         return []
-    
+
     for log_file in list(log_dir.glob("**/*.log")) + list(log_dir.glob("**/chat*.json")):
         try:
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
@@ -72,7 +72,7 @@ def collect_from_logs(log_dir: Path, days: int, limit: int):
                             raw_queries.append(norm[:500])
         except Exception:
             continue
-    
+
     freq = Counter(raw_queries)
     top_queries = [{"query": q, "frequency": c, "source": "logs"} for q, c in freq.most_common(limit)]
     return top_queries
@@ -86,18 +86,18 @@ def main():
 
     log_dir = REPO_ROOT / "logs"
     queries = collect_from_logs(log_dir, args.days, args.limit)
-    
+
     print(f"📊 Собрано {len(queries)} запросов из логов за {args.days} дней")
-    
+
     # Сохраняем
     output = Path(args.output)
     if not output.is_absolute():
         output = REPO_ROOT / output
-    
+
     output.parent.mkdir(parents=True, exist_ok=True)
     with open(output, "w", encoding="utf-8") as f:
         json.dump({"queries": queries, "collected_at": datetime.now().isoformat()}, f, indent=2, ensure_ascii=False)
-    
+
     print(f"✅ Сохранено в {output}")
     print("\n💡 Совет (QA): добавьте топ запросов в validation set: python3 scripts/augment_validation_set.py --real data/real_queries.json --add 10")
     print("   Затем заполните reference ответы для новых запросов в data/validation_queries.json.")

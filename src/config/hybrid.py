@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 ⚙️ КОНФИГУРАЦИЯ ГИБРИДНОЙ СИСТЕМЫ
 Настройки для умного rate limiting и кэширования
@@ -12,29 +11,19 @@
 # Лимиты для API (запросов в минуту)
 API_RATE_LIMITS = {
     "binance": {
-        "max_per_minute": 10,      # Консервативный лимит
-        "min_interval": 6.0,        # 6 секунд между запросами
-        "timeout": 10,              # Таймаут запроса
-        "retry_attempts": 3        # Количество повторных попыток
+        "max_per_minute": 10,  # Консервативный лимит
+        "min_interval": 6.0,  # 6 секунд между запросами
+        "timeout": 10,  # Таймаут запроса
+        "retry_attempts": 3,  # Количество повторных попыток
     },
     "coingecko": {
-        "max_per_minute": 3,        # Очень консервативный
-        "min_interval": 20.0,       # 20 секунд между запросами
+        "max_per_minute": 3,  # Очень консервативный
+        "min_interval": 20.0,  # 20 секунд между запросами
         "timeout": 15,
-        "retry_attempts": 2
+        "retry_attempts": 2,
     },
-    "bybit": {
-        "max_per_minute": 8,
-        "min_interval": 7.5,
-        "timeout": 10,
-        "retry_attempts": 3
-    },
-    "okx": {
-        "max_per_minute": 8,
-        "min_interval": 7.5,
-        "timeout": 10,
-        "retry_attempts": 3
-    }
+    "bybit": {"max_per_minute": 8, "min_interval": 7.5, "timeout": 10, "retry_attempts": 3},
+    "okx": {"max_per_minute": 8, "min_interval": 7.5, "timeout": 10, "retry_attempts": 3},
 }
 
 # =============================================================================
@@ -43,19 +32,19 @@ API_RATE_LIMITS = {
 
 # TTL для разных типов данных (секунды)
 CACHE_TTL = {
-    "ohlc": 300,        # 5 минут для OHLC данных
-    "price": 60,        # 1 минута для цен
-    "volume": 300,      # 5 минут для объемов
-    "anomaly": 600,     # 10 минут для аномалий
-    "news": 3600        # 1 час для новостей
+    "ohlc": 300,  # 5 минут для OHLC данных
+    "price": 60,  # 1 минута для цен
+    "volume": 300,  # 5 минут для объемов
+    "anomaly": 600,  # 10 минут для аномалий
+    "news": 3600,  # 1 час для новостей
 }
 
 # TTL по приоритетам символов
 PRIORITY_TTL = {
-    "critical": 30,     # 30 секунд для критических (BTC, ETH, BNB)
-    "high": 60,         # 1 минута для высоких
-    "medium": 120,      # 2 минуты для средних
-    "low": 300          # 5 минут для низких
+    "critical": 30,  # 30 секунд для критических (BTC, ETH, BNB)
+    "high": 60,  # 1 минута для высоких
+    "medium": 120,  # 2 минуты для средних
+    "low": 300,  # 5 минут для низких
 }
 
 # Максимальный размер кэша
@@ -66,18 +55,10 @@ MAX_CACHE_SIZE = 1000
 # =============================================================================
 
 SYMBOL_PRIORITIES = {
-    "critical": [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT"
-    ],
-    "high": [
-        "ADAUSDT", "SOLUSDT", "DOTUSDT", "LINKUSDT", "UNIUSDT", "SNXUSDT"
-    ],
-    "medium": [
-        "DASHUSDT", "NEARUSDT", "WIFUSDT", "AAVEUSDT"
-    ],
-    "low": [
-        "FETUSDT", "TRUMPUSDT", "ZENUSDT"
-    ]
+    "critical": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
+    "high": ["ADAUSDT", "SOLUSDT", "DOTUSDT", "LINKUSDT", "UNIUSDT", "SNXUSDT"],
+    "medium": ["DASHUSDT", "NEARUSDT", "WIFUSDT", "AAVEUSDT"],
+    "low": ["FETUSDT", "TRUMPUSDT", "ZENUSDT"],
 }
 
 # =============================================================================
@@ -86,18 +67,18 @@ SYMBOL_PRIORITIES = {
 
 # Интервалы обновления по приоритетам (секунды)
 UPDATE_INTERVALS = {
-    "critical": 30,     # 30 секунд для критических
-    "high": 60,         # 1 минута для высоких
-    "medium": 120,      # 2 минуты для средних
-    "low": 300          # 5 минут для низких
+    "critical": 30,  # 30 секунд для критических
+    "high": 60,  # 1 минута для высоких
+    "medium": 120,  # 2 минуты для средних
+    "low": 300,  # 5 минут для низких
 }
 
 # Максимальный возраст данных перед принудительным обновлением
 MAX_DATA_AGE = {
-    "critical": 30,     # 30 секунд
-    "high": 60,         # 1 минута
-    "medium": 120,      # 2 минуты
-    "low": 300          # 5 минут
+    "critical": 30,  # 30 секунд
+    "high": 60,  # 1 минута
+    "medium": 120,  # 2 минуты
+    "low": 300,  # 5 минут
 }
 
 # =============================================================================

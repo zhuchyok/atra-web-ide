@@ -10,12 +10,14 @@
 ## 🔍 МЕТОДОЛОГИЯ АНАЛИЗА
 
 ### **Инструменты:**
+
 - `cProfile` - профилирование Python кода
 - `line_profiler` - построчное профилирование
 - `memory_profiler` - профилирование памяти
 - Анализ кода на потенциальные проблемы
 
 ### **Метрики:**
+
 - Время выполнения функций
 - Количество вызовов
 - Использование памяти
@@ -27,20 +29,22 @@
 ## ⚠️ НАЙДЕННЫЕ BOTTLENECKS
 
 ### **BOTTLENECK #1: Множественные последовательные API запросы** 🔴
+
 **Строки:** 407-460, 490-540  
 **Критичность:** ВЫСОКАЯ  
 **Влияние:** ~30-40% времени выполнения
 
 #### **Проблема:**
+
 ```python
 # В _get_data_with_fallback и _get_market_context_with_sol
 async def _get_data_with_fallback(symbol: str, timeframe: str):
     # Запрос 1
     ohlc_data = await _get_ohlc(symbol, interval=timeframe, limit=100)
-    
+
     # Если не получилось, запрос 2
     df_2h = await _get_ohlc(symbol, "2h", limit=200)
-    
+
     # Если не получилось, запрос 3
     df_30m = await _get_ohlc(symbol, "30m", limit=240)
 ```
@@ -48,6 +52,7 @@ async def _get_data_with_fallback(symbol: str, timeframe: str):
 **Проблема:** Последовательные запросы вместо параллельных.
 
 #### **Решение:**
+
 ```python
 async def _get_data_with_fallback_optimized(symbol: str, timeframe: str):
     # Параллельные запросы
@@ -56,9 +61,9 @@ async def _get_data_with_fallback_optimized(symbol: str, timeframe: str):
         _get_ohlc(symbol, "2h", limit=200),
         _get_ohlc(symbol, "30m", limit=240)
     ]
-    
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     # Используем первый успешный результат
     for result in results:
         if not isinstance(result, Exception) and result is not None:
@@ -70,11 +75,13 @@ async def _get_data_with_fallback_optimized(symbol: str, timeframe: str):
 ---
 
 ### **BOTTLENECK #2: Синхронные операции с БД в async контексте** 🔴
+
 **Строки:** 366-407  
 **Критичность:** ВЫСОКАЯ  
 **Влияние:** ~20-25% времени выполнения
 
 #### **Проблема:**
+
 ```python
 # В _run_mtf_confirmation_with_logging
 _mtf_event_db.cursor.execute(
@@ -86,6 +93,7 @@ _mtf_event_db.cursor.execute(
 **Проблема:** Синхронные операции с БД блокируют event loop.
 
 #### **Решение:**
+
 ```python
 # Использовать async версию БД или run_in_executor
 async def _save_mtf_event_async(...):
@@ -101,14 +109,17 @@ async def _save_mtf_event_async(...):
 ---
 
 ### **BOTTLENECK #3: Избыточные вычисления индикаторов** 🟡
+
 **Строки:** Множественные места в коде  
 **Критичность:** СРЕДНЯЯ  
 **Влияние:** ~10-15% времени выполнения
 
 #### **Проблема:**
+
 Индикаторы (RSI, MACD, EMA, BB) вычисляются многократно для одних и тех же данных.
 
 #### **Решение:**
+
 ```python
 # Кэширование вычисленных индикаторов
 from functools import lru_cache
@@ -130,6 +141,7 @@ def calculate_indicators_cached(symbol: str, timeframe: str, data_hash: str):
 ### **Bottleneck #1: API запросы**
 
 #### **Текущая реализация:**
+
 ```python
 # Последовательные запросы
 data1 = await _get_ohlc(symbol, "1h")
@@ -139,6 +151,7 @@ data3 = await _get_ohlc(symbol, "30m")
 ```
 
 #### **Оптимизированная реализация:**
+
 ```python
 # Параллельные запросы
 results = await asyncio.gather(
@@ -156,6 +169,7 @@ results = await asyncio.gather(
 ### **Bottleneck #2: БД операции**
 
 #### **Текущая реализация:**
+
 ```python
 # Синхронные операции блокируют event loop
 cursor.execute("INSERT INTO ...")
@@ -163,6 +177,7 @@ cursor.execute("INSERT INTO ...")
 ```
 
 #### **Оптимизированная реализация:**
+
 ```python
 # Асинхронные операции
 await db.execute_async("INSERT INTO ...")
@@ -176,6 +191,7 @@ await db.execute_async("INSERT INTO ...")
 ### **Bottleneck #3: Кэширование**
 
 #### **Текущая реализация:**
+
 ```python
 # Вычисляем индикаторы каждый раз
 rsi = ta.momentum.RSIIndicator(df['close']).rsi()
@@ -184,6 +200,7 @@ macd = ta.trend.MACD(df['close']).macd()
 ```
 
 #### **Оптимизированная реализация:**
+
 ```python
 # Кэшируем результаты
 @lru_cache(maxsize=1000)
@@ -200,6 +217,7 @@ def get_indicators(symbol, timeframe, data_hash):
 ## 🎯 РЕКОМЕНДАЦИИ ПО ПРИОРИТЕТУ
 
 ### **PRIORITY 1: Критично (немедленно)**
+
 1. ✅ Параллелизация API запросов (Bottleneck #1)
    - Ускорение: 2-3x
    - Сложность: Средняя
@@ -211,6 +229,7 @@ def get_indicators(symbol, timeframe, data_hash):
    - Время: 4-6 часов
 
 ### **PRIORITY 2: Важно (в течение недели)**
+
 3. ✅ Кэширование индикаторов (Bottleneck #3)
    - Ускорение: 10-15%
    - Сложность: Низкая
@@ -221,6 +240,7 @@ def get_indicators(symbol, timeframe, data_hash):
 ## 📈 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **До оптимизации:**
+
 ```
 Среднее время генерации сигнала: ~2-3 секунды
 API запросы: ~900ms (последовательно)
@@ -229,6 +249,7 @@ API запросы: ~900ms (последовательно)
 ```
 
 ### **После оптимизации:**
+
 ```
 Среднее время генерации сигнала: ~1-1.5 секунды
 API запросы: ~300ms (параллельно) ✅ 3x быстрее
@@ -243,11 +264,13 @@ API запросы: ~300ms (параллельно) ✅ 3x быстрее
 ## 🔧 ПЛАН ВНЕДРЕНИЯ
 
 ### **Неделя 1:**
+
 - [ ] День 1-2: Параллелизация API запросов
 - [ ] День 3-4: Асинхронные БД операции
 - [ ] День 5: Кэширование индикаторов
 
 ### **Неделя 2:**
+
 - [ ] Тестирование оптимизаций
 - [ ] Измерение производительности
 - [ ] Документация изменений
@@ -262,6 +285,5 @@ API запросы: ~300ms (параллельно) ✅ 3x быстрее
 
 ---
 
-*Анализ подготовлен: Алексей (Performance Engineer)*  
-*Проверено: Игорь (Backend) + Максим (Analyst)*
-
+_Анализ подготовлен: Алексей (Performance Engineer)_  
+_Проверено: Игорь (Backend) + Максим (Analyst)_

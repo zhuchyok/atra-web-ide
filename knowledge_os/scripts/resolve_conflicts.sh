@@ -56,4 +56,3 @@ echo "  ✅ web/dashboard.py - исправление status column"
 echo "  ✅ signal_live.py - whale_status + арбитраж"
 echo "  ✅ main.py - Flask threading"
 echo "  ✅ rest_api.py - signal handlers"
-

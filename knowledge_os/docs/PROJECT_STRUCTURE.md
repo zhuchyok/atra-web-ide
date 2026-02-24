@@ -146,6 +146,7 @@ atra/
 **Назначение:** Инициализация и запуск всех компонентов системы
 
 **Основные функции:**
+
 - Инициализация базы данных
 - Запуск Telegram бота
 - Запуск системы генерации сигналов
@@ -154,6 +155,7 @@ atra/
 - Обработка graceful shutdown
 
 **Ключевые компоненты:**
+
 ```python
 - run_hybrid_signal_system_fixed()    # Генерация сигналов
 - run_telegram_bot_in_existing_loop() # Telegram бот
@@ -165,6 +167,7 @@ atra/
 **Детальная структура:**
 
 **Инициализация:**
+
 ```python
 # Проверка зависимостей
 check_critical_dependencies()
@@ -182,6 +185,7 @@ initialize_market_cap_filtering()
 ```
 
 **Запуск компонентов:**
+
 ```python
 # Основной event loop
 loop = asyncio.get_event_loop()
@@ -203,16 +207,19 @@ signal.signal(signal.SIGINT, signal_handler)
 ```
 
 **Параметры запуска:**
+
 - `--backtest`: Запуск бэктеста
 - `--dca-backtest`: Бэктест DCA стратегии
 - `--env`: Указание окружения (dev/prod)
 
 **Логирование:**
+
 - Ротация логов через `RotatingFileHandler`
 - Уровни: INFO, WARNING, ERROR
 - Файлы: `main.log`, `bot.log`, `atra.log`
 
 **Обработка ошибок:**
+
 - Try-except блоки для каждого компонента
 - Graceful degradation при сбоях
 - Автоматический перезапуск критических компонентов
@@ -224,6 +231,7 @@ signal.signal(signal.SIGINT, signal_handler)
 **Назначение:** Основной модуль генерации торговых сигналов
 
 **Основные функции:**
+
 - Получение рыночных данных (OHLCV)
 - Расчет технических индикаторов
 - Применение фильтров
@@ -232,6 +240,7 @@ signal.signal(signal.SIGINT, signal_handler)
 - Сохранение в базу данных
 
 **Ключевые классы и функции:**
+
 ```python
 - _generate_signal_impl()            # Генерация сигнала
 - send_signal()                       # Отправка сигнала
@@ -242,32 +251,34 @@ signal.signal(signal.SIGINT, signal_handler)
 **Детальная структура:**
 
 **Получение данных:**
+
 ```python
 async def get_symbol_data(symbol: str, force_fresh: bool = False):
     """
     Получение OHLCV данных с fallback механизмом
-    
+
     Источники (в порядке приоритета):
     1. Binance API
     2. Bybit API
     3. OKX API
     4. Кэш (если доступен)
-    
+
     Параметры:
     - symbol: Торговый символ (например, "BTCUSDT")
     - force_fresh: Принудительное обновление (игнорировать кэш)
-    
+
     Возвращает:
     - DataFrame с колонками: timestamp, open, high, low, close, volume
     """
 ```
 
 **Расчет индикаторов:**
+
 ```python
 def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Добавляет технические индикаторы к DataFrame
-    
+
     Индикаторы:
     - RSI (14 периодов)
     - MACD (12, 26, 9)
@@ -276,13 +287,14 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     - ATR (14)
     - ADX (14)
     - Volume Profile
-    
+
     Возвращает:
     - DataFrame с добавленными колонками индикаторов
     """
 ```
 
 **Генерация сигналов:**
+
 ```python
 async def _generate_signal_impl(
     symbol: str,
@@ -292,27 +304,27 @@ async def _generate_signal_impl(
 ) -> tuple:
     """
     Генерация торгового сигнала
-    
+
     Паттерны:
     1. Классический EMA кроссовер
        - LONG: EMA Fast > EMA Slow (бычий)
        - SHORT: EMA Fast < EMA Slow (медвежий)
-    
+
     2. Pullback Entry
        - Откат к EMA после пробоя
        - Подтверждение объемом
-    
+
     3. Zone-based
        - Вход в зоне поддержки/сопротивления
        - Фибоначчи уровни
-    
+
     Фильтры (последовательно):
     1. BTC/ETH/SOL Trend Filter
     2. Volume Imbalance Filter
     3. False Breakout Detector
     4. RSI Warning Filter
     5. ML Filter Optimizer
-    
+
     Возвращает:
     - (signal_data, None) если сигнал сгенерирован
     - (None, reason) если сигнал заблокирован
@@ -320,6 +332,7 @@ async def _generate_signal_impl(
 ```
 
 **Отправка сигнала:**
+
 ```python
 async def send_signal(
     symbol: str,
@@ -330,7 +343,7 @@ async def send_signal(
 ) -> bool:
     """
     Отправка сигнала пользователю
-    
+
     Процесс:
     1. Проверка корреляционных рисков
     2. Проверка портфельных рисков
@@ -338,7 +351,7 @@ async def send_signal(
     4. Отправка в Telegram (оба бота: DEV и PROD)
     5. Сохранение в БД (signals_log, accepted_signals)
     6. Автоисполнение (если включено и PROD режим)
-    
+
     Возвращает:
     - True если сигнал успешно отправлен
     - False если отправка не удалась
@@ -346,13 +359,14 @@ async def send_signal(
 ```
 
 **Основной цикл:**
+
 ```python
 async def run_hybrid_signal_system_fixed():
     """
     Основной цикл генерации сигналов
-    
+
     Интервал: ~30-60 секунд (зависит от количества символов)
-    
+
     Процесс:
     1. Загрузка пользователей из БД
     2. Получение списка символов (AUTO_FETCH_COINS или COINS)
@@ -363,7 +377,7 @@ async def run_hybrid_signal_system_fixed():
        d. Применение фильтров
        e. Отправка (если прошел)
     4. Логирование статистики
-    
+
     Статистика:
     - Обработано символов
     - Отправлено сигналов
@@ -372,6 +386,7 @@ async def run_hybrid_signal_system_fixed():
 ```
 
 **Фильтры:**
+
 - **BTC/ETH/SOL Trend Filter**: Проверка тренда основных монет
 - **Volume Imbalance Filter**: Анализ объемов с ML оптимизацией
 - **False Breakout Detector**: Детекция ложных пробоев
@@ -385,6 +400,7 @@ async def run_hybrid_signal_system_fixed():
 **Назначение:** Обработка команд и сообщений от пользователей
 
 **Основные функции:**
+
 - Обработка команд (`/start`, `/help`, `/positions`, etc.)
 - Принятие сигналов (`/accept`)
 - Управление позициями
@@ -392,6 +408,7 @@ async def run_hybrid_signal_system_fixed():
 - Обработка кнопок
 
 **Ключевые функции:**
+
 ```python
 - notify_user()                      # Отправка сообщений
 - handle_message()                  # Обработка сообщений
@@ -402,6 +419,7 @@ async def run_hybrid_signal_system_fixed():
 **Детальная структура:**
 
 **Команды бота:**
+
 ```python
 /start          # Начало работы, регистрация пользователя
 /help           # Справка по командам
@@ -413,16 +431,17 @@ async def run_hybrid_signal_system_fixed():
 ```
 
 **Обработка кнопок:**
+
 ```python
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Обработка нажатий на кнопки
-    
+
     Формат callback_data:
     - accept|SYMBOL|TIMESTAMP|PRICE|QUANTITY|DIRECTION|RISK|LEVERAGE
     - close|POSITION_ID|PARTIAL|AMOUNT
     - dca|SYMBOL|TIMESTAMP|PRICE|QUANTITY
-    
+
     Процесс:
     1. Парсинг callback_data
     2. Валидация параметров
@@ -434,11 +453,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 **Отправка сообщений:**
+
 ```python
 async def notify_user(user_id, text, **kwargs):
     """
     Отправка сообщения пользователю
-    
+
     Параметры:
     - user_id: ID пользователя в Telegram
     - text: Текст сообщения (HTML формат)
@@ -446,13 +466,13 @@ async def notify_user(user_id, text, **kwargs):
     - _return_message: Вернуть message_id (для обновления)
     - _send_to_both_bots: Отправить в оба бота (DEV и PROD)
     - reply_markup: Клавиатура с кнопками
-    
+
     Особенности:
     - Rate limiting (1 сек между сообщениями)
     - Retry логика при ошибках
     - Обработка Flood Control
     - Автоматическое форматирование HTML
-    
+
     Возвращает:
     - True/False при успехе/ошибке
     - Dict с message_id при _return_message=True
@@ -460,31 +480,33 @@ async def notify_user(user_id, text, **kwargs):
 ```
 
 **TTL для кнопок:**
+
 ```python
 async def start_accept_button_ttl(chat_id, message_id, expiry_iso, callback_data):
     """
     Установка времени жизни для кнопки принятия сигнала
-    
+
     Параметры:
     - expiry_iso: Время истечения (ISO формат)
     - callback_data: Данные кнопки
-    
+
     Процесс:
     1. Создание задачи с таймером
     2. Ожидание до времени истечения
     3. Обновление сообщения (удаление кнопки)
     4. Логирование события
-    
+
     По умолчанию: 5 минут
     """
 ```
 
 **Обработка принятия сигнала:**
+
 ```python
 async def handle_accept_signal(user_id, signal_data):
     """
     Обработка принятия сигнала пользователем
-    
+
     Процесс:
     1. Валидация сигнала (проверка времени, цены)
     2. Проверка баланса пользователя
@@ -493,7 +515,7 @@ async def handle_accept_signal(user_id, signal_data):
     5. Сохранение в БД (accepted_signals)
     6. Обновление статуса в signals_log
     7. Уведомление пользователя
-    
+
     Режимы:
     - Manual: Пользователь сам открывает позицию
     - Auto: Позиция открывается автоматически (PROD)
@@ -507,12 +529,14 @@ async def handle_accept_signal(user_id, signal_data):
 **Назначение:** Автоматическое открытие позиций на бирже
 
 **Основные функции:**
+
 - Открытие позиций по сигналам
 - Установка Stop Loss и Take Profit
 - Управление размером позиции
 - Синхронизация с биржей
 
 **Ключевые классы:**
+
 ```python
 class AutoExecutionService:
     - execute_and_open()             # Открытие позиции
@@ -523,21 +547,22 @@ class AutoExecutionService:
 **Детальная структура:**
 
 **Критические проверки:**
+
 ```python
 async def execute_and_open(...):
     """
     Автоматическое открытие позиции
-    
+
     КРИТИЧЕСКИЕ ПРОВЕРКИ:
     1. ATRA_ENV == "prod" (только в продакшене!)
        - DEV/TEST окружения НИКОГДА не открывают позиции
        - Блокировка с логированием ошибки
-    
+
     2. Валидация размера позиции
        - Минимальный размер: 0.0001
        - Максимальный размер: баланс * leverage
        - Проверка через PositionSizeValidator
-    
+
     3. Авторизация агента
        - Проверка через observability.agent_identity
        - Логирование всех действий
@@ -545,6 +570,7 @@ async def execute_and_open(...):
 ```
 
 **Процесс открытия позиции:**
+
 ```python
 # 1. Нормализация направления
 direction = "BUY" if direction.upper() == "LONG" else "SELL"
@@ -587,19 +613,20 @@ await acceptance_db.update_signal_status(...)
 ```
 
 **Установка Stop Loss:**
+
 ```python
 async def place_stop_loss_order(symbol, direction, amount, sl_price):
     """
     Установка Stop Loss ордера
-    
+
     Логика:
     - LONG: SL ниже цены входа
     - SHORT: SL выше цены входа
-    
+
     Тип ордера:
     - Stop Market (Bitget)
     - Stop Limit (Binance)
-    
+
     Обработка ошибок:
     - Retry при временных ошибках
     - Логирование в order_audit_log
@@ -608,18 +635,19 @@ async def place_stop_loss_order(symbol, direction, amount, sl_price):
 ```
 
 **Установка Take Profit:**
+
 ```python
 async def place_take_profit_order(symbol, direction, amount, tp_price, tp_type='TP1'):
     """
     Установка Take Profit ордера
-    
+
     Параметры:
     - tp_type: 'TP1' или 'TP2'
-    
+
     Логика:
     - LONG: TP выше цены входа
     - SHORT: TP ниже цены входа
-    
+
     Частичное закрытие:
     - TP1: 50% позиции
     - TP2: 50% позиции (остаток)
@@ -627,6 +655,7 @@ async def place_take_profit_order(symbol, direction, amount, tp_price, tp_type='
 ```
 
 **Аудит и логирование:**
+
 ```python
 # Все операции логируются в order_audit_log
 await audit_log.log_order(
@@ -647,12 +676,14 @@ await audit_log.log_order(
 **Назначение:** Интеграция с криптовалютными биржами
 
 **Поддерживаемые биржи:**
+
 - Binance
 - Bybit
 - OKX
 - Bitget
 
 **Основные функции:**
+
 ```python
 - get_klines()                       # Получение свечей
 - get_current_price()                # Текущая цена
@@ -663,22 +694,23 @@ await audit_log.log_order(
 **Детальная структура:**
 
 **Fallback механизм:**
+
 ```python
 async def get_klines(symbol, timeframe='1h', limit=300):
     """
     Получение свечей с автоматическим fallback
-    
+
     Порядок попыток:
     1. Binance API (приоритет)
     2. Bybit API (fallback)
     3. OKX API (fallback)
     4. Кэш (если доступен)
-    
+
     Обработка ошибок:
     - Rate limiting: автоматическое ожидание
     - Network errors: retry с экспоненциальной задержкой
     - Invalid symbol: пропуск символа
-    
+
     Возвращает:
     - DataFrame с колонками: timestamp, open, high, low, close, volume
     - None при ошибке всех источников
@@ -686,42 +718,44 @@ async def get_klines(symbol, timeframe='1h', limit=300):
 ```
 
 **Получение топ пар:**
+
 ```python
 async def get_filtered_top_usdt_pairs_fast(top_n=500, final_limit=200):
     """
     Получение топ торговых пар с фильтрацией
-    
+
     Фильтры:
     1. Только USDT пары
     2. Минимальный объем 24h (например, $1M)
     3. Минимальная ликвидность
     4. Исключение стейблкоинов
     5. Исключение blacklist
-    
+
     Параметры:
     - top_n: Количество пар для анализа (500)
     - final_limit: Финальный список (200)
-    
+
     Возвращает:
     - List[str] символов (например, ['BTCUSDT', 'ETHUSDT', ...])
     """
 ```
 
 **Получение текущей цены:**
+
 ```python
 async def get_current_price_robust(symbol):
     """
     Надежное получение текущей цены
-    
+
     Источники:
     1. Exchange API (real-time)
     2. Ticker cache (если доступен)
     3. Последняя свеча (fallback)
-    
+
     Кэширование:
     - TTL: 5 секунд
     - Обновление в фоне
-    
+
     Возвращает:
     - float: текущая цена
     - None при ошибке
@@ -729,16 +763,17 @@ async def get_current_price_robust(symbol):
 ```
 
 **Rate Limiting:**
+
 ```python
 class RateLimiter:
     """
     Управление лимитами API запросов
-    
+
     Лимиты по биржам:
     - Binance: 1200 requests/min (weighted)
     - Bybit: 120 requests/min
     - OKX: 20 requests/2sec
-    
+
     Реализация:
     - Token bucket алгоритм
     - Автоматическое ожидание при превышении
@@ -747,18 +782,19 @@ class RateLimiter:
 ```
 
 **Exchange Adapter:**
+
 ```python
 class ExchangeAdapter:
     """
     Адаптер для работы с биржами
-    
+
     Поддерживаемые операции:
     - place_order()           # Размещение ордера
     - cancel_order()          # Отмена ордера
     - get_positions()         # Получение позиций
     - get_balance()           # Получение баланса
     - get_open_orders()       # Открытые ордера
-    
+
     Абстракция:
     - Единый интерфейс для всех бирж
     - Автоматическая нормализация данных
@@ -773,6 +809,7 @@ class ExchangeAdapter:
 **Назначение:** Централизованное хранение всех настроек
 
 **Основные разделы:**
+
 - Фильтры (BTC/ETH/SOL trend, Volume, RSI)
 - Риск-менеджмент (leverage, risk_pct)
 - Telegram настройки
@@ -781,6 +818,7 @@ class ExchangeAdapter:
 - ML настройки
 
 **Ключевые константы:**
+
 ```python
 - COINS                              # Список монет
 - DEFAULT_RISK_PCT                   # Риск по умолчанию
@@ -833,25 +871,26 @@ signal_live.py
    - Проверка тренда BTC/ETH/SOL
    - Multi-timeframe confirmation
    - Адаптивные пороги
-   
+
    **Детали:**
+
    ```python
    class SmartTrendFilter:
        """
        Умный фильтр тренда основных монет
-       
+
        Логика:
        - Определяет релевантную монету (BTC/ETH/SOL) по корреляции
        - Проверяет тренд на 1h и 4h таймфреймах
        - Использует EMA (10/22 для soft, 12/26 для strict)
        - Блокирует сильные контр-тренды (>1% разница EMA)
        - Разрешает слабые тренды (<0.2% разница) для боковика
-       
+
        Параметры:
        - BTC_TREND_EMA_SOFT = 50
        - BTC_TREND_EMA_STRICT = 200
        - BTC_TREND_USE_MULTITF = True
-       
+
        Режимы:
        - Soft: Менее строгие требования
        - Strict: Строгие требования к тренду
@@ -862,27 +901,28 @@ signal_live.py
    - Анализ объемов
    - ML оптимизация порогов
    - Подтверждение направления
-   
+
    **Детали:**
+
    ```python
    class VolumeImbalanceFilter:
        """
        Фильтр дисбаланса объемов
-       
+
        Логика:
        - Сравнивает текущий объем с средним
        - Проверяет направление объема (buy/sell)
        - ML оптимизация порогов под рыночные условия
-       
+
        Параметры (по умолчанию):
        - min_volume_ratio = 1.2 (объем должен быть на 20% выше среднего)
        - require_volume_confirmation = True
-       
+
        ML оптимизация:
        - Адаптация порогов под волатильность
        - Учет рыночного режима (тренд/боковик)
        - Релаксация для интрадей торговли
-       
+
        Возвращает:
        - FilterResult(passed=True) если объем подтверждает сигнал
        - FilterResult(passed=False, reason="LOW_VOLUME") если блокирует
@@ -893,33 +933,34 @@ signal_live.py
    - Детекция ложных пробоев
    - Анализ объема, momentum, уровней
    - ML веса для факторов
-   
+
    **Детали:**
+
    ```python
    class FalseBreakoutDetector:
        """
        Детектор ложных пробоев
-       
+
        Анализ факторов:
        1. Volume (40% веса по умолчанию)
           - Объем при пробое должен быть выше среднего
           - Подтверждение направления пробоя
-       
+
        2. Momentum (30% веса)
           - Сила движения цены
           - RSI, MACD гистограмма
           - Скорость изменения цены
-       
+
        3. Level Quality (30% веса)
           - Качество пробоя уровня
           - Количество касаний уровня
           - Время удержания выше/ниже уровня
-       
+
        ML оптимизация:
        - Динамические веса факторов
        - Адаптация под волатильность
        - Учет рыночного режима
-       
+
        Пороги:
        - min_total_confidence = 0.20 (по умолчанию)
        - Адаптивные под режим рынка
@@ -930,22 +971,23 @@ signal_live.py
    - Адаптивный RSI
    - Режимы (soft/strict)
    - Предупреждения
-   
+
    **Детали:**
+
    ```python
    class AdaptiveRSI:
        """
        Адаптивный фильтр RSI
-       
+
        Режимы:
        - Soft: RSI < 20 (перепроданность) или > 80 (перекупленность)
        - Strict: RSI < 15 или > 85
-       
+
        Предупреждения:
        - RSI в опасной зоне блокирует сигнал
        - LONG блокируется при RSI > 70
        - SHORT блокируется при RSI < 30
-       
+
        Адаптация:
        - Учет волатильности
        - Корректировка порогов под тренд
@@ -955,18 +997,19 @@ signal_live.py
 5. **InterestZoneFilter** (`interest_zone.py`)
    - Зоны интереса
    - Поддержка/сопротивление
-   
+
    **Детали:**
+
    ```python
    class InterestZoneFilter:
        """
        Фильтр зон интереса (поддержка/сопротивление)
-       
+
        Определение зон:
        - Локальные максимумы/минимумы
        - Кластеры объемов
        - Исторические уровни
-       
+
        Логика:
        - LONG: Вход в зоне поддержки
        - SHORT: Вход в зоне сопротивления
@@ -977,16 +1020,17 @@ signal_live.py
 6. **FibonacciZoneFilter** (`fibonacci_zone.py`)
    - Фибоначчи уровни
    - Зоны входа
-   
+
    **Детали:**
+
    ```python
    class FibonacciZoneFilter:
        """
        Фильтр зон Фибоначчи
-       
+
        Уровни:
        - 0.236, 0.382, 0.5, 0.618, 0.786
-       
+
        Логика:
        - Определение swing high/low
        - Расчет уровней Фибоначчи
@@ -1023,31 +1067,32 @@ signal_live.py
 **Детальная структура:**
 
 **ML Filter Optimizer:**
+
 ```python
 class MLFilterOptimizer:
     """
     ML оптимизация параметров фильтров
-    
+
     Оптимизируемые параметры:
     1. Volume Imbalance Filter
        - min_volume_ratio (адаптивный порог)
        - require_volume_confirmation (требование подтверждения)
-    
+
     2. False Breakout Detector
        - false_breakout_threshold (порог детекции)
        - false_breakout_weights (веса факторов)
        - volume_weight, momentum_weight, level_weight
-    
+
     Рыночные условия:
     - regime: LOW_VOL_RANGE, MEDIUM_VOL, HIGH_VOL, TREND
     - volatility: процент волатильности
     - trend_strength: сила тренда
-    
+
     Адаптация:
     - Релаксация порогов для интрадей торговли
     - Учет времени суток
     - Анализ исторических паттернов
-    
+
     Методы:
     - optimize_filter_parameters() - оптимизация параметров
     - get_optimal_weights() - оптимальные веса для false_breakout
@@ -1055,27 +1100,28 @@ class MLFilterOptimizer:
 ```
 
 **LightGBM Predictor:**
+
 ```python
 class LightGBMPredictor:
     """
     LightGBM модели для предсказания
-    
+
     Модели:
     1. Классификация (успешность сигнала)
        - Вход: технические индикаторы, рыночные условия
        - Выход: вероятность успеха (0-1)
-    
+
     2. Регрессия (прибыльность)
        - Вход: те же признаки
        - Выход: ожидаемая прибыль (%)
-    
+
     Признаки (features):
     - Технические индикаторы (RSI, MACD, EMA, etc.)
     - Объемные метрики
     - Волатильность (ATR)
     - Рыночный режим
     - Корреляция с BTC/ETH/SOL
-    
+
     Обучение:
     - Исторические данные из signals_log
     - Минимум 1000 примеров для обучения
@@ -1084,32 +1130,33 @@ class LightGBMPredictor:
 ```
 
 **AI Signal Generator:**
+
 ```python
 class AISignalGenerator:
     """
     AI генератор сигналов
-    
+
     Компоненты:
     - AILearningSystem: обучение на паттернах
     - AIIntegration: интеграция с торговой системой
     - AIMonitor: мониторинг производительности
-    
+
     Процесс генерации:
     1. Анализ символа
        - Получение OHLC данных
        - Расчет индикаторов
        - Анализ паттернов
-    
+
     2. AI рекомендации
        - Анализ исторических паттернов
        - Предсказание успешности
        - Оценка рисков
-    
+
     3. Генерация сигнала
        - Определение типа (LONG/SHORT)
        - Расчет уровней (TP1, TP2, SL)
        - Формирование сообщения
-    
+
     4. Отправка
        - Фильтрация по настройкам пользователя
        - Отправка в Telegram
@@ -1118,11 +1165,12 @@ class AISignalGenerator:
 ```
 
 **Adaptive Parameter Controller:**
+
 ```python
 class AdaptiveParameterController:
     """
     Адаптивное управление параметрами
-    
+
     Оптимизируемые параметры:
     - Risk % (размер позиции)
     - Leverage (плечо)
@@ -1130,20 +1178,20 @@ class AdaptiveParameterController:
     - Stop Loss
     - Preferred Symbols (лучшие монеты)
     - Trading Hours (лучшие часы)
-    
+
     Метрики для оптимизации:
     - Win Rate (процент прибыльных сделок)
     - Profit Factor (отношение прибыли к убыткам)
     - Sharpe Ratio
     - Max Drawdown
-    
+
     Процесс:
     1. Сбор метрик за период
     2. Анализ производительности
     3. Оптимизация параметров
     4. Сохранение в ai_learning_data/optimized_parameters.json
     5. Применение в следующем цикле
-    
+
     Обновление:
     - При каждой сделке
     - Еженедельный полный анализ
@@ -1182,6 +1230,7 @@ class AdaptiveParameterController:
    - Группы активов
 
 **Модули:**
+
 - `db.py` — Основной модуль БД
 - `acceptance_database.py` — Управление принятием сигналов
 - `database_initialization.py` — Инициализация схемы
@@ -1189,6 +1238,7 @@ class AdaptiveParameterController:
 **Детальная структура:**
 
 **signals_log:**
+
 ```sql
 CREATE TABLE signals_log (
     id INTEGER PRIMARY KEY,
@@ -1213,6 +1263,7 @@ CREATE TABLE signals_log (
 ```
 
 **accepted_signals:**
+
 ```sql
 CREATE TABLE accepted_signals (
     signal_key TEXT PRIMARY KEY,   -- Уникальный ключ сигнала
@@ -1235,6 +1286,7 @@ CREATE TABLE accepted_signals (
 ```
 
 **active_positions:**
+
 ```sql
 CREATE TABLE active_positions (
     id INTEGER PRIMARY KEY,
@@ -1253,6 +1305,7 @@ CREATE TABLE active_positions (
 ```
 
 **users_data:**
+
 ```sql
 CREATE TABLE users_data (
     user_id INTEGER PRIMARY KEY,
@@ -1269,6 +1322,7 @@ CREATE TABLE users_data (
 ```
 
 **risk_signal_history:**
+
 ```sql
 CREATE TABLE risk_signal_history (
     id INTEGER PRIMARY KEY,
@@ -1282,6 +1336,7 @@ CREATE TABLE risk_signal_history (
 ```
 
 **Дополнительные таблицы:**
+
 - `order_audit_log` — Аудит всех ордеров
 - `filter_checks` — История проверок фильтров
 - `false_breakout_events` — События ложных пробоев
@@ -1291,11 +1346,12 @@ CREATE TABLE risk_signal_history (
 **Модули работы с БД:**
 
 **db.py:**
+
 ```python
 class Database:
     """
     Основной класс для работы с БД
-    
+
     Методы:
     - get_user_data() - получение данных пользователя
     - save_user_data() - сохранение данных пользователя
@@ -1305,11 +1361,12 @@ class Database:
 ```
 
 **acceptance_database.py:**
+
 ```python
 class AcceptanceDatabase:
     """
     Управление принятием сигналов
-    
+
     Методы:
     - accept_signal() - принятие сигнала
     - get_signal_data() - получение данных сигнала
@@ -1320,6 +1377,7 @@ class AcceptanceDatabase:
 ```
 
 **Особенности:**
+
 - **WAL mode**: Write-Ahead Logging для конкурентного доступа
 - **READONLY mode**: Для dashboard и мониторинга
 - **Backup**: Автоматические бэкапы в `backups/`
@@ -1392,28 +1450,29 @@ class AcceptanceDatabase:
 **Детальная структура:**
 
 **Correlation Risk Manager:**
+
 ```python
 class CorrelationRiskManager:
     """
     Управление корреляционными рисками
-    
+
     Группировка активов:
     - BTC_HIGH: correlation > 0.75 к BTC
     - ETH_HIGH: correlation > 0.75 к ETH
     - SOL_HIGH: correlation > 0.75 к SOL
     - OTHER: остальные активы
-    
+
     Лимиты на группу:
     - SECTOR_MAX_PER_GROUP = 2 (максимум 2 сигнала в группе)
     - CORRELATION_LOOKBACK_HOURS = 24 (анализ за 24 часа)
     - CORRELATION_COOLDOWN_SEC = 3600 (кулдаун 1 час)
-    
+
     Процесс:
     1. Расчет корреляции с BTC/ETH/SOL
     2. Определение группы актива
     3. Проверка активных сигналов в группе
     4. Блокировка если лимит превышен
-    
+
     Сохранение истории:
     - risk_signal_history таблица
     - Для анализа и мониторинга
@@ -1421,22 +1480,23 @@ class CorrelationRiskManager:
 ```
 
 **Portfolio Risk Manager:**
+
 ```python
 class PortfolioRiskManager:
     """
     Управление портфельными рисками
-    
+
     Анализ:
     1. Общая экспозиция портфеля
     2. Концентрация по секторам
     3. Корреляция между позициями
     4. Максимальный drawdown
-    
+
     Предупреждения:
     - Высокая концентрация в одном секторе
     - Превышение максимальной экспозиции
     - Высокая корреляция позиций
-    
+
     Действия:
     - Блокировка новых сигналов при рисках
     - Рекомендации по закрытию позиций
@@ -1445,18 +1505,19 @@ class PortfolioRiskManager:
 ```
 
 **Risk Monitor:**
+
 ```python
 # risk_monitor/calculations.py
 def calculate_portfolio_risk(positions):
     """
     Расчет портфельных рисков
-    
+
     Метрики:
     - Total Exposure: сумма всех позиций
     - Sector Concentration: концентрация по секторам
     - Correlation Matrix: корреляция между позициями
     - Max Drawdown: максимальная просадка
-    
+
     Возвращает:
     - Dict с метриками риска
     - Уровень риска (LOW/MEDIUM/HIGH/CRITICAL)
@@ -1464,6 +1525,7 @@ def calculate_portfolio_risk(positions):
 ```
 
 **Интеграция в send_signal:**
+
 ```python
 # Проверка корреляционных рисков
 correlation_result = await correlation_manager.check_correlation_risk_async(
@@ -1507,16 +1569,17 @@ if portfolio_risk.get('risk_level') == 'CRITICAL':
 **Детальная структура:**
 
 **Основная логика:**
+
 ```python
 class TrailingStopManager:
     """
     Управление трейлинг-стопами
-    
+
     Настройки:
     - tp1_activation_progress = 0.5 (50% пути к TP1)
     - tp1_sl_progress_ratio = 1.0 (SL движется на такое же расстояние)
     - tp1_min_atr_multiplier = 2.0 (минимум ATR * 2.0)
-    
+
     Процесс:
     1. Отслеживание прогресса к TP1
     2. При достижении 50% пути к TP1:
@@ -1528,35 +1591,36 @@ class TrailingStopManager:
 ```
 
 **Адаптивная система:**
+
 ```python
 class AdvancedTrailingStopManager:
     """
     Продвинутая адаптивная система trailing stop
-    
+
     Факторы адаптации:
-    
+
     1. Волатильность (ATR, стандартное отклонение)
        - LOW: ratio = 1.0 (максимальное движение SL)
        - MEDIUM: ratio = 0.8
        - HIGH: ratio = 0.6
        - EXTREME: ratio = 0.4 (консервативно)
-    
+
     2. Сила тренда (ADX, наклон MA)
        - STRONG: +30% к ratio
        - MEDIUM: +10%
        - WEAK: без изменений
        - RANGING: -30%
        - REVERSAL: -50%
-    
+
     3. Рыночный режим
        - Тренд: более агрессивно
        - Боковик: более консервативно
-    
+
     4. Время суток
        - Высокая волатильность (9-10, 16-17): -20%
        - Низкая волатильность: +20%
        - Ночные часы: -30%
-    
+
     Ограничения:
     - min_ratio = 0.15 (минимум)
     - max_ratio = 1.2 (максимум)
@@ -1565,6 +1629,7 @@ class AdvancedTrailingStopManager:
 ```
 
 **Интеграция:**
+
 ```python
 # В main.py, функция _sync_positions_periodically()
 
@@ -1701,6 +1766,7 @@ python3 scripts/run_agent_gym_nightly.py
 **Детальная схема с примерами:**
 
 **1. Получение данных (пример для BTCUSDT):**
+
 ```python
 # Запрос к API
 df = await get_klines("BTCUSDT", timeframe="1h", limit=300)
@@ -1719,6 +1785,7 @@ df = await get_klines("BTCUSDT", timeframe="1h", limit=300)
 ```
 
 **2. Расчет индикаторов:**
+
 ```python
 df = add_technical_indicators(df)
 
@@ -1734,6 +1801,7 @@ df = add_technical_indicators(df)
 ```
 
 **3. Генерация сигнала:**
+
 ```python
 # Обнаружен паттерн: EMA Fast пересек EMA Slow снизу вверх
 # → Классический бычий сигнал (LONG)
@@ -1748,6 +1816,7 @@ signal_data = {
 ```
 
 **4. Фильтрация (последовательно):**
+
 ```python
 # Фильтр 1: BTC Trend
 btc_trend_result = smart_trend_filter.filter_signal(...)
@@ -1771,6 +1840,7 @@ ml_result = ml_optimizer.optimize_filter_parameters(...)
 ```
 
 **5. Проверка рисков:**
+
 ```python
 # Корреляционный риск
 correlation_check = await correlation_manager.check_correlation_risk_async(
@@ -1790,6 +1860,7 @@ portfolio_check = await portfolio_manager.check_portfolio_risk(
 ```
 
 **6. Отправка сигнала:**
+
 ```python
 # Формирование сообщения
 message = """
@@ -1819,6 +1890,7 @@ success = await notify_user_enhanced(
 ```
 
 **7. Автоисполнение (PROD режим):**
+
 ```python
 if ATRA_ENV == "prod" and success:
     # Открытие позиции
@@ -1832,7 +1904,7 @@ if ATRA_ENV == "prod" and success:
         tp1_price=35751.0,
         tp2_price=36452.0
     )
-    
+
     # Результат:
     # ✅ Позиция открыта: order_id = "12345678"
     # ✅ SL установлен: order_id = "12345679"
@@ -1866,6 +1938,7 @@ if ATRA_ENV == "prod" and success:
 **Детальная схема с примерами:**
 
 **1. Пользователь нажимает кнопку "Принять":**
+
 ```python
 # callback_data: "accept|BTCUSDT|1763581081|35050.0|0.0014|LONG|2.0|3.0"
 
@@ -1882,6 +1955,7 @@ parts = callback_data.split("|")
 ```
 
 **2. Валидация:**
+
 ```python
 # Проверка времени (TTL кнопки)
 current_time = time.time()
@@ -1902,6 +1976,7 @@ if price_diff > 0.01:
 ```
 
 **3. Сохранение:**
+
 ```python
 # Обновление статуса в БД
 await acceptance_db.accept_signal(
@@ -1918,6 +1993,7 @@ await acceptance_db.accept_signal(
 ```
 
 **4. Открытие позиции (ручной режим):**
+
 ```python
 # Если trade_mode = "manual"
 if user_data.get("trade_mode") == "manual":
@@ -1960,18 +2036,20 @@ else:
 **Детальная схема с примерами:**
 
 **1. Периодическая проверка:**
+
 ```python
 # Каждые 60 секунд
 async def _sync_positions_periodically():
     while True:
         await asyncio.sleep(60)
-        
+
         # Для каждого пользователя
         for user_id in active_users:
             await sync_user_positions(user_id)
 ```
 
 **2. Получение позиций с биржи:**
+
 ```python
 # Запрос к бирже
 positions = await adapter.get_positions(user_id=958930260)
@@ -1996,15 +2074,16 @@ positions = await adapter.get_positions(user_id=958930260)
 ```
 
 **3. Сравнение с БД:**
+
 ```python
 # Для каждой позиции с биржи
 for position in positions:
     symbol = position["symbol"]
     direction = "BUY" if position["side"] == "long" else "SELL"
-    
+
     # Проверка наличия сигнала
     signal_data = await adb.get_signal_data(user_id, symbol)
-    
+
     if not signal_data:
         # Ручная позиция (открыта не через бота)
         logger.info("📝 Ручная позиция: %s", symbol)
@@ -2019,7 +2098,7 @@ for position in positions:
             # Несоответствие направления - возможна ошибка
             logger.warning("🚫 Несоответствие направления: %s", symbol)
             continue  # Пропускаем
-        
+
         # Автоматическая позиция
         await adb.upsert_active_position(
             user_id, symbol, direction, entry_price, "open",
@@ -2028,6 +2107,7 @@ for position in positions:
 ```
 
 **4. Trailing Stop:**
+
 ```python
 # Для каждой активной позиции
 for position in active_positions:
@@ -2035,13 +2115,13 @@ for position in active_positions:
     entry_price = position["entry_price"]
     tp1_price = position["tp1_price"]
     current_price = await get_current_price(symbol)
-    
+
     # Расчет прогресса к TP1
     if direction == "LONG":
         progress = (current_price - entry_price) / (tp1_price - entry_price)
     else:  # SHORT
         progress = (entry_price - current_price) / (entry_price - tp1_price)
-    
+
     # Если достигли 50% пути к TP1
     if progress >= 0.5:
         # Расчет нового SL
@@ -2053,15 +2133,15 @@ for position in active_positions:
             entry_price=entry_price,
             tp1_price=tp1_price
         )
-        
+
         if trailing_result.get("stop_moved"):
             new_sl = trailing_result.get("new_stop")
-            
+
             # Обновление SL на бирже
             await adapter.place_stop_loss_order(
                 symbol, direction, size, new_sl
             )
-            
+
             logger.info(
                 "🎯 SL перенесен в безубыток: %s @ %.8f "
                 "(прогресс к TP1: %.1f%%)",
@@ -2117,6 +2197,7 @@ LIGHTGBM_ENABLED = True
 **Детальная структура конфигурации:**
 
 **Фильтры:**
+
 ```python
 # BTC Trend Filter
 BTC_TREND_EMA_SOFT = 50              # EMA период для soft режима
@@ -2151,6 +2232,7 @@ RSI_WARNING_OVERBOUGHT = 85           # Предупреждение (строг
 ```
 
 **Риск-менеджмент:**
+
 ```python
 # Размер позиции
 DEFAULT_RISK_PCT = 2.0                # Процент риска по умолчанию
@@ -2170,6 +2252,7 @@ CORRELATION_COOLDOWN_SEC = 3600       # Кулдаун 1 час
 ```
 
 **Trailing Stop:**
+
 ```python
 ADAPTIVE_TRAILING_CONFIG = {
     'enabled': True,
@@ -2198,6 +2281,7 @@ ADAPTIVE_TRAILING_CONFIG = {
 ```
 
 **Список монет:**
+
 ```python
 # Автоматический подбор монет
 AUTO_FETCH_COINS = True               # Включить авто-подбор
@@ -2216,6 +2300,7 @@ MIN_24H_VOLUME = 1000000              # Минимальный объем 24h ($
 ```
 
 **Telegram:**
+
 ```python
 # Выбор токена в зависимости от окружения
 TOKEN = (
@@ -2229,6 +2314,7 @@ TOKEN = (
 ```
 
 **База данных:**
+
 ```python
 DATABASE = "trading.db"               # Путь к БД
 BACKUP_DIR = "backups/"               # Директория бэкапов
@@ -2236,6 +2322,7 @@ BACKUP_INTERVAL_HOURS = 24            # Интервал бэкапов
 ```
 
 **ML/AI:**
+
 ```python
 # LightGBM
 LIGHTGBM_ENABLED = True
@@ -2254,27 +2341,32 @@ ML_OPTIMIZATION_INTERVAL_HOURS = 6    # Обновление параметро�
 ### Схема основных таблиц:
 
 **signals_log:**
+
 - `id`, `symbol`, `entry`, `stop`, `tp1`, `tp2`
 - `entry_time`, `exit_time`, `result`
 - `net_profit`, `user_id`, `created_at`
 
 **accepted_signals:**
+
 - `signal_key`, `symbol`, `direction`
 - `entry_price`, `signal_time`
 - `user_id`, `chat_id`, `message_id`
 - `status`, `accepted_time`, `pnl`
 
 **active_positions:**
+
 - `symbol`, `direction`, `entry_price`
 - `user_id`, `signal_key`
 - `status`, `sl_price`, `tp1_price`, `tp2_price`
 
 **users_data:**
+
 - `user_id`, `deposit`, `balance`
 - `trade_mode`, `leverage`, `risk_pct`
 - `filter_mode`, `settings`
 
 **risk_signal_history:**
+
 - `signal_key`, `symbol`, `group`
 - `correlation`, `risk_level`
 - `created_at`
@@ -2293,50 +2385,55 @@ ML_OPTIMIZATION_INTERVAL_HOURS = 6    # Обновление параметро�
 ### Процесс развертывания:
 
 1. **Подготовка:**
+
    ```bash
    ssh root@185.177.216.15
    cd /root/atra
    ```
 
 2. **Обновление кода:**
+
    ```bash
    # Через git (если доступен)
    git stash                    # Сохранить локальные изменения
    git pull origin main
    git stash pop               # Восстановить изменения
-   
+
    # Или через scp (если git недоступен)
    scp config.py signal_live.py root@185.177.216.15:/root/atra/
    ```
 
 3. **Установка зависимостей:**
+
    ```bash
    pip3 install -r requirements.txt
-   
+
    # Установка конкретных библиотек
    pip3 install lightgbm scikit-learn
    ```
 
 4. **Проверка конфигурации:**
+
    ```bash
    # Проверка env.prod
    cat env.prod | grep ATRA_ENV
    cat env.prod | grep TELEGRAM_TOKEN
-   
+
    # Проверка переменных окружения процесса
    ps aux | grep "python3 main.py"
    cat /proc/PID/environ | tr "\0" "\n" | grep ATRA_ENV
    ```
 
 5. **Перезапуск:**
+
    ```bash
    # Остановка текущего процесса
    pkill -f "python3 main.py"
    sleep 2
-   
+
    # Запуск нового процесса
    nohup python3 main.py > main.log 2>&1 &
-   
+
    # Проверка запуска
    sleep 3
    ps aux | grep "python3 main.py" | grep -v grep
@@ -2345,6 +2442,7 @@ ML_OPTIMIZATION_INTERVAL_HOURS = 6    # Обновление параметро�
 ### Скрипты развертывания:
 
 **deploy_to_production.sh:**
+
 ```bash
 #!/bin/bash
 # Автоматическое развертывание на продакшен сервер
@@ -2365,6 +2463,7 @@ sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$SERVER" \
 ```
 
 **restart_bot_on_server.sh:**
+
 ```bash
 #!/bin/bash
 # Перезапуск бота на сервере
@@ -2376,6 +2475,7 @@ sshpass -p 'u44Ww9NmtQj,XG' ssh -o StrictHostKeyChecking=no \
 ```
 
 **update_and_restart.sh:**
+
 ```bash
 #!/bin/bash
 # Обновление и перезапуск
@@ -2394,6 +2494,7 @@ sshpass -p 'u44Ww9NmtQj,XG' ssh -o StrictHostKeyChecking=no \
 ### Автоматизация через sshpass:
 
 **Использование sshpass для автоматизации:**
+
 ```bash
 # Установка sshpass (если не установлен)
 # Ubuntu/Debian: sudo apt-get install sshpass
@@ -2473,6 +2574,7 @@ sqlite3 trading.db "SELECT COUNT(*) FROM signals_log;"
 **Детальная структура мониторинга:**
 
 **Логирование:**
+
 ```python
 # Уровни логирования
 logging.INFO      # Информационные сообщения
@@ -2494,6 +2596,7 @@ RotatingFileHandler(
 **Ключевые метрики для мониторинга:**
 
 1. **Производительность сигналов:**
+
    ```python
    # Статистика из PipelineMonitor
    - Обработано символов за цикл
@@ -2504,6 +2607,7 @@ RotatingFileHandler(
    ```
 
 2. **Telegram доставка:**
+
    ```python
    # Статистика из EnhancedTelegramDelivery
    - Всего попыток отправки
@@ -2515,6 +2619,7 @@ RotatingFileHandler(
    ```
 
 3. **Торговые метрики:**
+
    ```python
    # Из базы данных
    - Количество активных позиций
@@ -2606,6 +2711,7 @@ await alert_system.send_critical_alert(
 **Детальная структура безопасности:**
 
 **Шифрование API ключей:**
+
 ```python
 # key_encryption.py
 from cryptography.fernet import Fernet
@@ -2613,28 +2719,29 @@ from cryptography.fernet import Fernet
 class KeyEncryption:
     """
     Шифрование API ключей биржи
-    
+
     Процесс:
     1. Генерация ключа шифрования (один раз)
     2. Шифрование API ключей при сохранении
     3. Расшифровка при использовании
-    
+
     Хранение:
     - Ключ шифрования: ATRA_ENCRYPTION_KEY (в env файле)
     - Зашифрованные ключи: в базе данных (user_exchange_keys)
     """
-    
+
     def encrypt_key(self, api_key: str) -> str:
         """Шифрование API ключа"""
         # Использует Fernet (симметричное шифрование)
         return encrypted_key
-    
+
     def decrypt_key(self, encrypted_key: str) -> str:
         """Расшифровка API ключа"""
         return decrypted_key
 ```
 
 **Защита токенов:**
+
 ```python
 # Токены НИКОГДА не коммитятся в git
 # .gitignore включает:
@@ -2651,17 +2758,18 @@ class KeyEncryption:
 ```
 
 **Аутентификация пользователей:**
+
 ```python
 # Telegram аутентификация
 def is_authorized_user(user_id: int) -> bool:
     """
     Проверка авторизации пользователя
-    
+
     Проверки:
     1. Пользователь существует в users_data
     2. Пользователь не заблокирован
     3. Проверка прав доступа (если есть)
-    
+
     Возвращает:
     - True если пользователь авторизован
     - False если нет
@@ -2669,15 +2777,16 @@ def is_authorized_user(user_id: int) -> bool:
     user_data = db.get_user_data(user_id)
     if not user_data:
         return False
-    
+
     # Дополнительные проверки
     if user_data.get('blocked', False):
         return False
-    
+
     return True
 ```
 
 **Защита от автоматического исполнения:**
+
 ```python
 # В auto_execution.py
 if ATRA_ENV != "prod":
@@ -2687,18 +2796,19 @@ if ATRA_ENV != "prod":
 ```
 
 **Валидация размера позиции:**
+
 ```python
 # position_size_validator.py
 class PositionSizeValidator:
     """
     Валидация размера позиции
-    
+
     Проверки:
     1. Минимальный размер (0.0001)
     2. Максимальный размер (баланс * leverage)
     3. Риск не превышает лимит
     4. Общая экспозиция в пределах лимита
-    
+
     Блокировка при:
     - Превышении максимального риска
     - Недостаточном балансе
@@ -2707,6 +2817,7 @@ class PositionSizeValidator:
 ```
 
 **Аудит операций:**
+
 ```python
 # order_audit_log.py
 # Все операции логируются:
@@ -2729,6 +2840,7 @@ await audit_log.log_order(
 ```
 
 **Защита базы данных:**
+
 ```python
 # WAL mode для конкурентного доступа
 conn.execute("PRAGMA journal_mode=WAL")
@@ -2742,6 +2854,7 @@ conn.execute("PRAGMA query_only=ON")
 ```
 
 **Ограничение доступа:**
+
 ```python
 # SSH доступ только для администраторов
 # Использование ключей SSH (рекомендуется)
@@ -2779,6 +2892,7 @@ conn.execute("PRAGMA query_only=ON")
 4. Добавить в `signal_live.py`
 
 **Пример создания фильтра:**
+
 ```python
 # src/filters/my_custom_filter.py
 from src.filters.base import BaseFilter
@@ -2787,11 +2901,11 @@ import pandas as pd
 
 class MyCustomFilter(BaseFilter):
     """Мой кастомный фильтр"""
-    
+
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.threshold = config.get('threshold', 0.5)
-    
+
     async def filter_signal(
         self,
         df: pd.DataFrame,
@@ -2801,12 +2915,12 @@ class MyCustomFilter(BaseFilter):
     ) -> Optional[FilterResult]:
         """
         Фильтрация сигнала
-        
+
         Args:
             df: DataFrame с данными
             symbol: Торговый символ
             direction: Направление (LONG/SHORT)
-        
+
         Returns:
             FilterResult(passed=True) если сигнал проходит
             FilterResult(passed=False, reason="...") если блокирует
@@ -2826,6 +2940,7 @@ class MyCustomFilter(BaseFilter):
 ```
 
 **Интеграция в signal_live.py:**
+
 ```python
 # В функции _generate_signal_impl()
 
@@ -2854,6 +2969,7 @@ if custom_result is None or not custom_result.passed:
 3. Интегрировать в `signal_live.py`
 
 **Пример создания стратегии:**
+
 ```python
 # src/strategies/my_strategy.py
 from typing import Dict, Any, Optional, Tuple
@@ -2866,7 +2982,7 @@ async def generate_my_strategy_signal(
 ) -> Optional[Dict[str, Any]]:
     """
     Генерация сигнала по моей стратегии
-    
+
     Returns:
         Dict с данными сигнала или None
     """
@@ -2889,6 +3005,7 @@ async def generate_my_strategy_signal(
 ```
 
 **Интеграция:**
+
 ```python
 # В signal_live.py, функция _generate_signal_impl()
 
@@ -2906,6 +3023,7 @@ if my_signal:
 ### Тестирование:
 
 **Юнит-тесты:**
+
 ```bash
 # Запуск всех юнит-тестов
 pytest tests/unit/ -v
@@ -2918,6 +3036,7 @@ pytest tests/unit/ --cov=src/filters --cov-report=html
 ```
 
 **Интеграционные тесты:**
+
 ```bash
 # Тесты интеграции с биржей (используют mock)
 pytest tests/integration/ -v
@@ -2927,6 +3046,7 @@ pytest tests/integration/test_database.py -v
 ```
 
 **Бэктест:**
+
 ```bash
 # Бэктест одного символа
 python3 backtest_cli.py --symbol BTCUSDT --days 30
@@ -2943,6 +3063,7 @@ python3 backtest_cli.py \
 ```
 
 **Smoke тесты:**
+
 ```bash
 # Тест открытия/закрытия позиций (на тестовой бирже)
 python3 scripts/live_smoke_test_tp_sl.py
@@ -2952,6 +3073,7 @@ python3 scripts/diagnostic_test_filters.py
 ```
 
 **Пример юнит-теста:**
+
 ```python
 # tests/unit/test_volume_filter.py
 import pytest
@@ -2964,19 +3086,19 @@ def test_volume_filter_passes():
         'min_volume_ratio': 1.2,
         'require_volume_confirmation': True
     })
-    
+
     # Создаем тестовые данные
     df = pd.DataFrame({
         'volume': [100, 150, 200, 180],  # Объем выше среднего
         'close': [100, 101, 102, 103]
     })
-    
+
     result = await filter_instance.filter_signal(
         df=df,
         symbol="BTCUSDT",
         direction="LONG"
     )
-    
+
     assert result is not None
     assert result.passed == True
 ```
@@ -2984,6 +3106,7 @@ def test_volume_filter_passes():
 ### Отладка:
 
 **Логирование:**
+
 ```python
 # Включение DEBUG логирования
 import logging
@@ -2995,6 +3118,7 @@ logger.setLevel(logging.DEBUG)
 ```
 
 **Трассировка:**
+
 ```python
 # Использование tracer для отладки
 from observability.tracing import get_tracer
@@ -3011,6 +3135,7 @@ trace.record(step="act", name="action", status="success")
 ```
 
 **Проверка состояния:**
+
 ```python
 # Проверка данных пользователя
 from db import Database
@@ -3069,6 +3194,7 @@ for row in cursor.fetchall():
 **1. Сигналы не генерируются:**
 
 **Диагностика:**
+
 ```bash
 # Проверка логов
 tail -200 main.log | grep -E "(NO SIGNAL|блокирован|BLOCK)"
@@ -3086,11 +3212,13 @@ print(f'Сигналов за последний час: {cursor.fetchone()[0]}'
 ```
 
 **Возможные причины:**
+
 - Фильтры слишком строгие (RSI, Volume, Trend)
 - Рынок в боковике (нет четкого тренда)
 - Проблемы с получением данных (API недоступен)
 
 **Решение:**
+
 - Проверить настройки фильтров в `config.py`
 - Временно ослабить фильтры для тестирования
 - Проверить доступность API бирж
@@ -3100,6 +3228,7 @@ print(f'Сигналов за последний час: {cursor.fetchone()[0]}'
 **2. Сигналы не отправляются в Telegram:**
 
 **Диагностика:**
+
 ```bash
 # Проверка токена
 python3 -c "import config; print(f'TOKEN: {config.TOKEN[:20] if config.TOKEN else None}...')"
@@ -3112,12 +3241,14 @@ ps aux | grep "python3 main.py" | grep -v grep
 ```
 
 **Возможные причины:**
+
 - Неправильный токен (DEV вместо PROD)
 - Telegram API недоступен
 - Flood Control блокировка
 - Ошибка в коде отправки
 
 **Решение:**
+
 - Проверить `env.prod` и `env.dev` файлы
 - Проверить переменную `ATRA_ENV`
 - Подождать снятия Flood Control (обычно 1-10 минут)
@@ -3128,6 +3259,7 @@ ps aux | grep "python3 main.py" | grep -v grep
 **3. Позиции не открываются автоматически:**
 
 **Диагностика:**
+
 ```bash
 # Проверка окружения
 python3 -c "import config; print(f'ATRA_ENV: {config.ATRA_ENV}')"
@@ -3140,12 +3272,14 @@ sqlite3 trading.db "SELECT symbol, status FROM accepted_signals WHERE status='pe
 ```
 
 **Возможные причины:**
+
 - `ATRA_ENV != "prod"` (автоисполнение только в PROD)
 - Сигнал не был отправлен в Telegram
 - Ошибка при открытии позиции на бирже
 - Недостаточный баланс
 
 **Решение:**
+
 - Убедиться что `ATRA_ENV=prod` в `env.prod`
 - Проверить что сигнал успешно отправлен
 - Проверить баланс пользователя
@@ -3156,6 +3290,7 @@ sqlite3 trading.db "SELECT symbol, status FROM accepted_signals WHERE status='pe
 **4. SL не переносится в безубыток:**
 
 **Диагностика:**
+
 ```bash
 # Проверка активных позиций
 sqlite3 trading.db "SELECT symbol, entry_price, tp1_price, sl_price FROM active_positions WHERE status='open';"
@@ -3165,12 +3300,14 @@ tail -200 main.log | grep -E "(TRAILING|SL→BE)" | tail -20
 ```
 
 **Возможные причины:**
+
 - Позиция не достигла 50% пути к TP1
 - Trailing stop не инициализирован
 - Ошибка при обновлении SL на бирже
 - Нет данных OHLC для адаптивной логики
 
 **Решение:**
+
 - Проверить прогресс позиции к TP1
 - Убедиться что trailing stop инициализирован
 - Проверить доступность API биржи
@@ -3181,6 +3318,7 @@ tail -200 main.log | grep -E "(TRAILING|SL→BE)" | tail -20
 **5. База данных заблокирована:**
 
 **Диагностика:**
+
 ```bash
 # Проверка блокировок
 sqlite3 trading.db "PRAGMA database_list;"
@@ -3190,11 +3328,13 @@ lsof trading.db 2>/dev/null
 ```
 
 **Возможные причины:**
+
 - Несколько процессов используют БД одновременно
 - WAL файл поврежден
 - БД в режиме exclusive lock
 
 **Решение:**
+
 ```bash
 # Остановка всех процессов
 pkill -f "python3 main.py"
@@ -3211,6 +3351,7 @@ sqlite3 trading.db "PRAGMA integrity_check;"
 **6. Высокое использование памяти:**
 
 **Диагностика:**
+
 ```bash
 # Проверка использования памяти
 ps aux | grep "python3 main.py" | awk '{print $6/1024 " MB"}'
@@ -3220,11 +3361,13 @@ ps aux | grep "python3 main.py" | awk '{print $6/1024 " MB"}'
 ```
 
 **Возможные причины:**
+
 - Накопление данных в кэше
 - Утечки памяти в циклах
 - Большое количество открытых соединений
 
 **Решение:**
+
 - Очистка кэша
 - Перезапуск процесса
 - Оптимизация кода (освобождение ресурсов)
@@ -3234,6 +3377,7 @@ ps aux | grep "python3 main.py" | awk '{print $6/1024 " MB"}'
 **7. API биржи недоступен:**
 
 **Диагностика:**
+
 ```bash
 # Проверка доступности API
 curl -s https://api.binance.com/api/v3/ping
@@ -3243,11 +3387,13 @@ tail -200 main.log | grep -E "(rate limit|429)" | tail -10
 ```
 
 **Возможные причины:**
+
 - Превышение rate limits
 - Временная недоступность API
 - Проблемы с сетью
 
 **Решение:**
+
 - Использование fallback бирж (автоматически)
 - Ожидание снятия rate limit
 - Проверка сетевого соединения
@@ -3290,4 +3436,3 @@ cp trading.db backups/trading.db_$(date +%Y%m%d_%H%M%S)
 **Последнее обновление:** 2025-11-19  
 **Версия документа:** 2.0  
 **Автор:** ATRA Development Team
-

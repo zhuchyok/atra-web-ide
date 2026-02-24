@@ -45,6 +45,7 @@ COMPLEXITY_THRESHOLD = 0.6  # Below this: single subtask
 @dataclass
 class SubTask:
     """Single subtask in the dependency graph."""
+
     id: str
     parent_task_id: str
     title: str
@@ -62,6 +63,7 @@ class TaskDependencyGraph:
     Graph of subtasks: subtasks dict and dependencies (task_id -> list of prerequisite ids).
     Semantics: task_id depends on prerequisite ids (prerequisites must complete first).
     """
+
     subtasks: Dict[str, SubTask] = field(default_factory=dict)
     dependencies: Dict[str, List[str]] = field(default_factory=dict)  # task_id -> [prereq_id, ...]
 
@@ -88,7 +90,11 @@ class TaskDependencyGraph:
             if tid not in self.subtasks:
                 return [list(self.subtasks.keys())]
             for p in prereqs:
-                if p not in self.subtasks and p in self.subtasks.get(tid, SubTask("", "", "", "", dependencies=[])).dependencies:
+                if (
+                    p not in self.subtasks
+                    and p
+                    in self.subtasks.get(tid, SubTask("", "", "", "", dependencies=[])).dependencies
+                ):
                     pass
         # Kahn's algorithm
         current = [tid for tid, d in in_degree.items() if d == 0]
@@ -125,7 +131,11 @@ class TaskDependencyGraph:
         level_durations = []
         for level in order:
             level_time = max(
-                (self.subtasks[tid].estimated_duration_min for tid in level if tid in self.subtasks),
+                (
+                    self.subtasks[tid].estimated_duration_min
+                    for tid in level
+                    if tid in self.subtasks
+                ),
                 default=0,
             )
             level_durations.append(level_time)
@@ -146,7 +156,9 @@ class TaskDecomposer:
     Uses TaskComplexityAnalyzer; below threshold returns one subtask; else LLM or heuristic.
     """
 
-    def __init__(self, db_url: Optional[str] = None, complexity_threshold: float = COMPLEXITY_THRESHOLD):
+    def __init__(
+        self, db_url: Optional[str] = None, complexity_threshold: float = COMPLEXITY_THRESHOLD
+    ):
         self._analyzer = TaskComplexityAnalyzer(db_url) if TaskComplexityAnalyzer else None
         self._threshold = complexity_threshold
 
@@ -166,7 +178,9 @@ class TaskDecomposer:
         category_mult = {"reasoning": 1.5, "coding": 1.3, "complex": 1.4}.get(subtask.category, 1.0)
         return max(5, min(120, int(base * category_mult)))
 
-    def create_dependency_graph(self, parent_task_id: str, task_description: str) -> "TaskDependencyGraph":
+    def create_dependency_graph(
+        self, parent_task_id: str, task_description: str
+    ) -> "TaskDependencyGraph":
         """
         Returns TaskDependencyGraph. If complexity below threshold, single subtask.
         Else tries LLM plan (JSON); on failure heuristic (1–2 subtasks by length/keywords).
@@ -196,7 +210,9 @@ class TaskDecomposer:
         graph = self._decompose_heuristic(parent_task_id, task_description)
         return graph
 
-    async def create_dependency_graph_async(self, parent_task_id: str, task_description: str) -> "TaskDependencyGraph":
+    async def create_dependency_graph_async(
+        self, parent_task_id: str, task_description: str
+    ) -> "TaskDependencyGraph":
         """Async version: tries LLM then heuristic."""
         complexity = 0.5
         if self._analyzer:
@@ -225,20 +241,31 @@ class TaskDecomposer:
             return graph
         return self._decompose_heuristic(parent_task_id, task_description)
 
-    async def _decompose_llm(self, parent_task_id: str, task_description: str) -> Optional[TaskDependencyGraph]:
+    async def _decompose_llm(
+        self, parent_task_id: str, task_description: str
+    ) -> Optional[TaskDependencyGraph]:
         """Ask LLM for JSON plan; parse and build graph. Returns None on failure."""
         if not run_smart_agent_async:
             return None
-        
+
         # МОНСТР-ЛОГИКА: Детекция огромных файлов или глубокого анализа для рекурсивной декомпозиции
-        is_monster_refactor = any(w in task_description.lower() for w in ["отрефактори", "раздели на модули", "рефакторинг"]) and \
-                             any(w in task_description.lower() for w in ["app.py", "dashboard", "3000 строк"])
-        
-        is_deep_analysis = any(w in task_description.lower() for w in ["проанализируй", "аудит", "почему", "выясни причину"]) and \
-                          len(task_description) > 500
+        is_monster_refactor = any(
+            w in task_description.lower()
+            for w in ["отрефактори", "раздели на модули", "рефакторинг"]
+        ) and any(w in task_description.lower() for w in ["app.py", "dashboard", "3000 строк"])
+
+        is_deep_analysis = (
+            any(
+                w in task_description.lower()
+                for w in ["проанализируй", "аудит", "почему", "выясни причину"]
+            )
+            and len(task_description) > 500
+        )
 
         if is_monster_refactor:
-            logger.info("🐉 [MONSTER DECOMPOSE] Обнаружен запрос на рефакторинг гигантского файла. Применяем рекурсивную стратегию.")
+            logger.info(
+                "🐉 [MONSTER DECOMPOSE] Обнаружен запрос на рефакторинг гигантского файла. Применяем рекурсивную стратегию."
+            )
             prompt = f"""
             Вы - Архитектор ИИ. Задача: Отрефакторить гигантский файл (3000+ строк).
             Вместо того чтобы делать всё сразу, разбей задачу на 3 этапа:
@@ -247,17 +274,19 @@ class TaskDecomposer:
             3. ИНТЕГРАЦИЯ: Обновить основной файл для использования новых модулей.
 
             Ответь ТОЛЬКО валидным JSON.
-            Формат: {{ "subtasks": [ 
+            Формат: {{ "subtasks": [
                 {{ "title": "Анализ структуры app.py", "description": "Проанализируй файл и выдай список всех функций и классов с номерами строк.", "category": "coding", "dependencies": [] }},
                 {{ "title": "Выделение модуля БД", "description": "Перенеси всю логику работы с базой данных в tabs/database.py", "category": "coding", "dependencies": [0] }},
                 {{ "title": "Выделение модуля Чат", "description": "Перенеси логику чата в tabs/chat.py", "category": "coding", "dependencies": [0] }},
                 {{ "title": "Финальная сборка", "description": "Обнови app.py, импортировав созданные модули.", "category": "coding", "dependencies": [1, 2] }}
             ] }}
-            
+
             Задача: {task_description[:1000]}
             JSON:"""
         elif is_deep_analysis:
-            logger.info("🧠 [DEEP ANALYSIS DECOMPOSE] Обнаружен запрос на глубокий анализ. Разбиваем на фазы исследования.")
+            logger.info(
+                "🧠 [DEEP ANALYSIS DECOMPOSE] Обнаружен запрос на глубокий анализ. Разбиваем на фазы исследования."
+            )
             prompt = f"""
             Вы - Главный Аналитик Singularity. Задача требует глубокого исследования.
             Разбей задачу на 3 фазы:
@@ -266,12 +295,12 @@ class TaskDecomposer:
             3. ОТЧЕТ И РЕШЕНИЕ: Формирование итогового отчета и плана исправлений.
 
             Ответь ТОЛЬКО валидным JSON.
-            Формат: {{ "subtasks": [ 
+            Формат: {{ "subtasks": [
                 {{ "title": "Сбор диагностических данных", "description": "Проверь логи контейнеров и текущие конфиги.", "category": "investigate", "dependencies": [] }},
                 {{ "title": "Анализ причин сбоя", "description": "На основе собранных данных определи корень проблемы.", "category": "reasoning", "dependencies": [0] }},
                 {{ "title": "Формирование отчета и рекомендаций", "description": "Подготовь финальный отчет с конкретными шагами по исправлению.", "category": "general", "dependencies": [1] }}
             ] }}
-            
+
             Задача: {task_description[:1000]}
             JSON:"""
         else:
@@ -309,7 +338,9 @@ JSON:"""
                     title=(item.get("title") or item.get("name") or "")[:500] or f"Subtask {i}",
                     description=(item.get("description") or item.get("desc") or "")[:5000] or "",
                     category=item.get("category", "general"),
-                    estimated_duration_min=int(item.get("estimated_duration_min", item.get("duration", 30))),
+                    estimated_duration_min=int(
+                        item.get("estimated_duration_min", item.get("duration", 30))
+                    ),
                     dependencies=prereqs,
                     required_models=item.get("required_models"),
                     priority=item.get("priority", "medium"),
@@ -321,7 +352,9 @@ JSON:"""
             logger.debug("LLM decompose failed: %s", e)
             return None
 
-    def _decompose_heuristic(self, parent_task_id: str, task_description: str) -> TaskDependencyGraph:
+    def _decompose_heuristic(
+        self, parent_task_id: str, task_description: str
+    ) -> TaskDependencyGraph:
         """Heuristic: one or two subtasks by length/keywords."""
         desc = (task_description or "").strip()
         if len(desc) < 300:
@@ -345,8 +378,24 @@ JSON:"""
             d1 = parts[1]
             id0 = f"{parent_task_id}_sub_0"
             id1 = f"{parent_task_id}_sub_1"
-            st0 = SubTask(id=id0, parent_task_id=parent_task_id, title=t0, description=d0, dependencies=[], estimated_duration_min=20, priority="medium")
-            st1 = SubTask(id=id1, parent_task_id=parent_task_id, title=t1, description=d1, dependencies=[id0], estimated_duration_min=30, priority="medium")
+            st0 = SubTask(
+                id=id0,
+                parent_task_id=parent_task_id,
+                title=t0,
+                description=d0,
+                dependencies=[],
+                estimated_duration_min=20,
+                priority="medium",
+            )
+            st1 = SubTask(
+                id=id1,
+                parent_task_id=parent_task_id,
+                title=t1,
+                description=d1,
+                dependencies=[id0],
+                estimated_duration_min=30,
+                priority="medium",
+            )
             return TaskDependencyGraph(
                 subtasks={id0: st0, id1: st1},
                 dependencies={id0: [], id1: [id0]},

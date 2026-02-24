@@ -6,46 +6,48 @@
 
 ## 📊 **ИТОГОВАЯ ТАБЛИЦА ПО ЭТАПАМ PIPELINE**
 
-| Этап | Функция | Всего сигналов | Отклонено | Пропущено | ТОП-3 причины отклонения |
-|------|---------|----------------|-----------|-----------|-------------------------|
-| **Candidate** | `generate_signal()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Нет данных OHLCV<br>2. Отсутствуют колонки<br>3. NaN/None значения |
-| **Валидация данных** | `validate_data()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Некорректные цены (<=0)<br>2. Отсутствуют обязательные колонки<br>3. NaN/None в данных |
-| **ИИ-фильтр** | `calculate_ai_signal_score()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Score < порога<br>2. Адаптивный порог<br>3. ИИ-параметры |
-| **Объемный фильтр** | `check_ai_volume_filter()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Объем < min_volume_usd<br>2. Нет данных об объеме<br>3. Пустой DataFrame |
-| **Волатильность фильтр** | `check_ai_volatility_filter()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Волатильность вне диапазона<br>2. Нет данных о волатильности<br>3. Некорректные параметры |
-| **Очередь сообщений** | `SignalQueue` | ✅ **ДОБАВЛЕНО** | ✅ Логируется | ✅ TTL | 1. Очередь переполнена<br>2. TTL истек<br>3. Низкий приоритет |
-| **Rate Limiting** | `TelegramRateLimiter` | ✅ **ДОБАВЛЕНО** | ✅ Логируется | ✅ Контроль | 1. Превышен лимит пользователя<br>2. Превышен лимит бота<br>3. FloodWait ошибки |
-| **Telegram отправлено** | `send_with_retry()` | ✅ Хорошо | ✅ Логируется | ✅ Trace ID | 1. Retry исчерпаны<br>2. FloodWait ошибки<br>3. Сетевые ошибки |
+| Этап                     | Функция                        | Всего сигналов   | Отклонено     | Пропущено   | ТОП-3 причины отклонения                                                                     |
+| ------------------------ | ------------------------------ | ---------------- | ------------- | ----------- | -------------------------------------------------------------------------------------------- |
+| **Candidate**            | `generate_signal()`            | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Нет данных OHLCV<br>2. Отсутствуют колонки<br>3. NaN/None значения                        |
+| **Валидация данных**     | `validate_data()`              | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Некорректные цены (<=0)<br>2. Отсутствуют обязательные колонки<br>3. NaN/None в данных    |
+| **ИИ-фильтр**            | `calculate_ai_signal_score()`  | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Score < порога<br>2. Адаптивный порог<br>3. ИИ-параметры                                  |
+| **Объемный фильтр**      | `check_ai_volume_filter()`     | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Объем < min_volume_usd<br>2. Нет данных об объеме<br>3. Пустой DataFrame                  |
+| **Волатильность фильтр** | `check_ai_volatility_filter()` | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Волатильность вне диапазона<br>2. Нет данных о волатильности<br>3. Некорректные параметры |
+| **Очередь сообщений**    | `SignalQueue`                  | ✅ **ДОБАВЛЕНО** | ✅ Логируется | ✅ TTL      | 1. Очередь переполнена<br>2. TTL истек<br>3. Низкий приоритет                                |
+| **Rate Limiting**        | `TelegramRateLimiter`          | ✅ **ДОБАВЛЕНО** | ✅ Логируется | ✅ Контроль | 1. Превышен лимит пользователя<br>2. Превышен лимит бота<br>3. FloodWait ошибки              |
+| **Telegram отправлено**  | `send_with_retry()`            | ✅ Хорошо        | ✅ Логируется | ✅ Trace ID | 1. Retry исчерпаны<br>2. FloodWait ошибки<br>3. Сетевые ошибки                               |
 
 ---
 
 ## 🔧 **ИСПРАВЛЕННЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ:**
 
 ### ✅ **1. ДОБАВЛЕНА ОЧЕРЕДЬ СООБЩЕНИЙ:**
+
 ```python
 class SignalQueue:
     def __init__(self):
         self.queue = []
         self.ttl = 3600  # 1 час TTL
         self.max_size = 1000
-        
+
     async def add_signal(self, signal_data: Dict[str, Any], priority: int = 1):
         """Добавляет сигнал в очередь с приоритетом"""
         signal_data["priority"] = priority
         signal_data["queue_time"] = time.time()
         self.queue.append(signal_data)
-        
+
     async def get_next_signal(self) -> Optional[Dict[str, Any]]:
         """Получает следующий сигнал из очереди"""
         # Сортируем по приоритету (высший приоритет = меньше число)
         self.queue.sort(key=lambda x: x.get("priority", 1))
-        
+
         # Удаляем просроченные сигналы
         current_time = time.time()
         self.queue = [s for s in self.queue if current_time - s.get("queue_time", 0) < self.ttl]
 ```
 
 ### ✅ **2. ДОБАВЛЕН RATE LIMITING:**
+
 ```python
 class TelegramRateLimiter:
     def __init__(self):
@@ -54,24 +56,25 @@ class TelegramRateLimiter:
         self.user_rate = 1.0  # 1 сообщение в секунду на пользователя
         self.bot_rate = 30.0  # 30 сообщений в секунду на бота
         self.group_rate = 20.0  # 20 сообщений в минуту на группу
-        
+
     async def can_send_to_user(self, user_id: str) -> bool:
         """Проверяет, можно ли отправить сообщение пользователю"""
         current_time = time.time()
-        
+
         if user_id not in self.user_limits:
             self.user_limits[user_id] = current_time
             return True
-            
+
         time_since_last = current_time - self.user_limits[user_id]
         if time_since_last >= self.user_rate:
             self.user_limits[user_id] = current_time
             return True
-            
+
         return False
 ```
 
 ### ✅ **3. ДОБАВЛЕНЫ ТАЙМАУТЫ:**
+
 ```python
 async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
     """Получение данных символа с таймаутом"""
@@ -79,13 +82,13 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
         # Используем asyncio.wait_for для таймаута
         if HYBRID_DATA_MANAGER_AVAILABLE and HYBRID_DATA_MANAGER:
             df = await asyncio.wait_for(
-                HYBRID_DATA_MANAGER.get_smart_data(symbol, "ohlc"), 
+                HYBRID_DATA_MANAGER.get_smart_data(symbol, "ohlc"),
                 timeout=timeout
             )
         else:
             # Fallback: прямой доступ к API с таймаутом
             df = await asyncio.wait_for(
-                get_ohlc_with_fallback(symbol, interval="1h", limit=300), 
+                get_ohlc_with_fallback(symbol, interval="1h", limit=300),
                 timeout=timeout
             )
     except asyncio.TimeoutError:
@@ -98,6 +101,7 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 ## 📈 **РЕЗУЛЬТАТЫ ДИАГНОСТИКИ:**
 
 ### **До исправлений:**
+
 - ❌ Нет очереди сообщений
 - ❌ Нет rate limiting
 - ❌ Нет таймаутов
@@ -105,6 +109,7 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 - ❌ Нет приоритетов
 
 ### **После исправлений:**
+
 - ✅ **Очередь сообщений** с TTL и приоритетами
 - ✅ **Rate limiting** для Telegram API
 - ✅ **Таймауты** для всех async операций
@@ -116,24 +121,28 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 ## 🎯 **КЛЮЧЕВЫЕ УЛУЧШЕНИЯ:**
 
 ### **1. ОЧЕРЕДЬ СООБЩЕНИЙ:**
+
 - TTL для автоматической очистки старых сигналов
 - Приоритеты для обработки важных сигналов
 - Ограничение размера очереди (1000 сигналов)
 - Статистика очереди для мониторинга
 
 ### **2. RATE LIMITING:**
+
 - 1 сообщение в секунду на пользователя
 - 30 сообщений в секунду на бота
 - 20 сообщений в минуту на группу
 - Автоматическое ожидание при превышении лимитов
 
 ### **3. ТАЙМАУТЫ:**
+
 - 10 секунд для получения данных символа
 - Обработка TimeoutError с логированием
 - Fallback при таймаутах
 - Предотвращение зависания системы
 
 ### **4. МОНИТОРИНГ И HEALTH CHECK:**
+
 - Автоматическая проверка каждые 5 циклов
 - Мониторинг уровня ошибок
 - Алерты на отсутствие сигналов
@@ -143,20 +152,21 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 
 ## 📊 **ТАБЛИЦА ПРОБЛЕМ И РЕШЕНИЙ:**
 
-| Проблема | Критичность | Решение | Статус |
-|----------|-------------|---------|--------|
-| Нет очереди | 🔴 Критично | Добавлен SignalQueue с TTL | ✅ Исправлено |
+| Проблема          | Критичность | Решение                      | Статус        |
+| ----------------- | ----------- | ---------------------------- | ------------- |
+| Нет очереди       | 🔴 Критично | Добавлен SignalQueue с TTL   | ✅ Исправлено |
 | Нет rate limiting | 🔴 Критично | Добавлен TelegramRateLimiter | ✅ Исправлено |
-| Нет таймаутов | 🔴 Критично | Добавлены asyncio.wait_for | ✅ Исправлено |
-| Нет TTL | 🟡 Важно | TTL 1 час для сигналов | ✅ Исправлено |
-| Нет приоритетов | 🟡 Важно | Приоритеты в очереди | ✅ Исправлено |
-| Нет fallback | 🟡 Важно | Fallback для всех операций | ✅ Исправлено |
+| Нет таймаутов     | 🔴 Критично | Добавлены asyncio.wait_for   | ✅ Исправлено |
+| Нет TTL           | 🟡 Важно    | TTL 1 час для сигналов       | ✅ Исправлено |
+| Нет приоритетов   | 🟡 Важно    | Приоритеты в очереди         | ✅ Исправлено |
+| Нет fallback      | 🟡 Важно    | Fallback для всех операций   | ✅ Исправлено |
 
 ---
 
 ## 🚀 **ГОТОВНОСТЬ К PRODUCTION:**
 
 ### **Метрики качества:**
+
 - **Trace ID покрытие:** 100%
 - **Валидация данных:** 100%
 - **Retry успешность:** 95%+ (с 3 попытками)
@@ -165,12 +175,14 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 - **Health check:** Каждые 5 циклов
 
 ### **Обработка ошибок:**
+
 - **Таймауты:** asyncio.wait_for для всех операций
 - **Rate limiting:** Автоматическое ожидание
 - **Очередь:** TTL и приоритеты
 - **Fallback:** Резервные системы для всех компонентов
 
 ### **Мониторинг:**
+
 - **Производительность:** Отслеживание времени циклов
 - **Ошибки:** Мониторинг уровня ошибок
 - **Очередь:** Статистика размера и TTL
@@ -181,18 +193,21 @@ async def get_symbol_data(symbol: str, timeout: float = 10.0) -> Optional[Any]:
 ## 🎯 **РЕКОМЕНДАЦИИ ДЛЯ PRODUCTION:**
 
 ### **1. ДОПОЛНИТЕЛЬНЫЕ УЛУЧШЕНИЯ:**
+
 - Добавить метрики в Prometheus/Grafana
 - Реализовать алерты на превышение лимитов
 - Создать dashboard для мониторинга очереди
 - Добавить автоматическое масштабирование
 
 ### **2. ТЕСТИРОВАНИЕ:**
+
 - Нагрузочное тестирование rate limiting
 - Тестирование очереди при высокой нагрузке
 - Проверка таймаутов на медленных соединениях
 - Тестирование fallback систем
 
 ### **3. МОНИТОРИНГ:**
+
 - Настроить алерты на переполнение очереди
 - Мониторить превышение rate limits
 - Отслеживать таймауты и ошибки

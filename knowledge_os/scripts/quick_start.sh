@@ -23,4 +23,3 @@ echo ""
 echo "  # Автономные компоненты:"
 echo "  python3 knowledge_os/app/singularity_autonomous.py"
 echo ""
-

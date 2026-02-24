@@ -1,19 +1,20 @@
 import asyncio
-import sys
-import os
 import json
 import logging
+import os
+import sys
 
 # Добавляем корень проекта в пути
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.agents.core.base_agent import AtraBaseAgent, AgentAction, AgentFinish
+from src.agents.core.base_agent import AgentAction, AgentFinish, AtraBaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url
 from src.agents.tools.system_tools import SystemTools, WebTools
 
+
 class VictoriaAgent(AtraBaseAgent):
     """Реальная реализация агента Виктории, использующая Ollama / MLX"""
-    
+
     def __init__(self, name: str, model_name: str = None):
         # Автовыбор модели: None = сканирование Ollama при первом запросе
         model_name = model_name or os.getenv("VICTORIA_MODEL") or None
@@ -22,7 +23,7 @@ class VictoriaAgent(AtraBaseAgent):
         planner_model = os.getenv("VICTORIA_PLANNER_MODEL") or None
         self.planner = OllamaExecutor(model=planner_model, base_url=base)
         self.executor = OllamaExecutor(model=model_name, base_url=base)
-        
+
         # Регистрация системных инструментов
         self.add_tool("read_file", SystemTools.read_project_file)
         self.add_tool("run_terminal_cmd", SystemTools.run_local_command)
@@ -34,9 +35,9 @@ class VictoriaAgent(AtraBaseAgent):
         # Если цель "повтори", мы не очищаем память, а используем её для контекста
         if goal.lower() not in ["повтори", "еще раз", "давай заново"]:
             self.memory = []
-            self.executed_commands_hash = [] # Сброс истории команд только при новой задаче
-            
-        print(f"🧠 [DeepSeek-R1] Виктория прорабатывает стратегию...")
+            self.executed_commands_hash = []  # Сброс истории команд только при новой задаче
+
+        print("🧠 [DeepSeek-R1] Виктория прорабатывает стратегию...")
         plan_prompt = f"""ТЫ — ТЕХНИЧЕСКИЙ ДИРЕКТОР ATRA. Составь СТРОГИЙ пошаговый план.
 ЗАДАЧА: {goal}
 БАЗА ДАННЫХ: /root/atra/trading.db
@@ -57,22 +58,23 @@ class VictoriaAgent(AtraBaseAgent):
     async def run(self, goal: str, max_steps: int = 500) -> str:
         # 1. Глубокое планирование (DeepSeek)
         raw_plan = await self.plan(goal)
-        print(f"📋 СТРАТЕГИЯ СФОРМИРОВАНА.\n")
-        
+        print("📋 СТРАТЕГИЯ СФОРМИРОВАНА.\n")
+
         # 2. Исполнение (Qwen)
         enhanced_goal = f"ТВОЙ ПЛАН ОТ ГЕНШТАБА:\n{raw_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ ЦЕЛИ: {goal}"
         return await super().run(enhanced_goal, max_steps)
 
+
 async def main():
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🤖 ATRA COMMAND CENTER (Autonomous Agent)")
-    print("="*50)
+    print("=" * 50)
     print("Я готов выполнять твои задачи через Ollama.")
     print("Brain: phi3.5:3.8b | Hands: qwen2.5-coder:32b")
     print("Для выхода напиши 'exit' или 'выход'.\n")
 
     agent = VictoriaAgent(name="Victoria")
-    
+
     # ОЧЕНЬ ЖЕСТКИЙ ПРОМПТ ДЛЯ ИСПОЛНИТЕЛЯ
     agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA. ТЫ ИСПОЛЬЗУЕШЬ VICTORIA ENHANCED.
 
@@ -95,7 +97,7 @@ async def main():
 Твоя задача — управлять командой из 40+ экспертов для решения задач Босса.
 
 ПРАВИЛО "АНТИ-ПЛЕЙСХОЛДЕР":
-НИКОГДА не используй в командах слова 'table_name', 'your_command', 'команда'. Это ПРИМЕРЫ. 
+НИКОГДА не используй в командах слова 'table_name', 'your_command', 'команда'. Это ПРИМЕРЫ.
 Если ты не знаешь точного имени — сначала найди его (ls, grep, .tables), а потом делай.
 
 ТВОЯ КОМАНДА:
@@ -128,7 +130,7 @@ async def main():
     while True:
         try:
             user_input = input("👤 Ты: ")
-            if user_input.lower() in ['exit', 'выход', 'quit']:
+            if user_input.lower() in ["exit", "выход", "quit"]:
                 print("👋 До связи, Босс!")
                 break
 
@@ -138,17 +140,18 @@ async def main():
             print("\n⚙️  Агент Виктория думает...")
             # Запускаем основной цикл агента
             final_output = await agent.run(user_input)
-            
+
             print(f"\n✅ Ответ Виктории:\n{final_output}\n")
             print("-" * 50)
-            
+
         except KeyboardInterrupt:
             print("\n👋 До связи, Босс!")
             break
         except Exception as e:
             print(f"\n❌ Ошибка: {str(e)}")
 
+
 if __name__ == "__main__":
     # Настройка логирования для видимости шагов агента
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     asyncio.run(main())

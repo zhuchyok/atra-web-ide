@@ -1,139 +1,211 @@
-import logging
 import asyncio
+import hashlib
+import json
+import logging
+import os
 import signal
 import sys
-import os
-import json
 import time
-import hashlib
 from types import SimpleNamespace
+
 from telegram import BotCommand, Update
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
-    CallbackQueryHandler,
 )
 
 # Импорты из существующих модулей
 # (unused imports removed)
 try:
-    from src.utils.user_utils import (
-        restore_user_data_to_context
-    )
+    from src.utils.user_utils import restore_user_data_to_context
 except ImportError:
     # Fallback для обратной совместимости
     try:
-        from src.utils.user_utils import (
-            restore_user_data_to_context
-        )
+        from src.utils.user_utils import restore_user_data_to_context
     except ImportError:
+
         def restore_user_data_to_context(*args, **kwargs):
             pass
 
+
 try:
     from src.telegram.commands import (
-        set_risk_cmd, set_balance_cmd, help_cmd, myreport_cmd,
-        balance_cmd, positions_cmd, status_cmd, last_signal_cmd,
-        report_cmd, set_trading_hours_cmd, backtest_cmd, perf_sys_cmd,
-        backtest_all_cmd, daily_report_cmd,
-        add_admin_cmd, remove_admin_cmd,
-        health_cmd, report_week_cmd, audit_today_cmd,
+        add_admin_cmd,
+        audit_today_cmd,
+        backtest_all_cmd,
+        backtest_cmd,
+        balance_cmd,
+        daily_report_cmd,
+        health_cmd,
+        help_cmd,
+        last_signal_cmd,
+        myreport_cmd,
+        perf_sys_cmd,
+        positions_cmd,
+        remove_admin_cmd,
+        report_cmd,
+        report_week_cmd,
+        set_balance_cmd,
+        set_risk_cmd,
+        set_trading_hours_cmd,
+        status_cmd,
     )
 except ImportError as e:
     logging.error("❌ КРИТИЧЕСКАЯ ОШИБКА ИМПОРТА КОМАНД: %s", e)
     # Пытаемся импортировать напрямую если в корне
     try:
         from telegram_commands import (
-            set_risk_cmd, set_balance_cmd, help_cmd, myreport_cmd,
-            balance_cmd, positions_cmd, status_cmd, last_signal_cmd,
-            report_cmd, set_trading_hours_cmd, backtest_cmd, perf_sys_cmd,
-            backtest_all_cmd, daily_report_cmd,
-            add_admin_cmd, remove_admin_cmd,
-            health_cmd, report_week_cmd, audit_today_cmd,
+            add_admin_cmd,
+            audit_today_cmd,
+            backtest_all_cmd,
+            backtest_cmd,
+            balance_cmd,
+            daily_report_cmd,
+            health_cmd,
+            help_cmd,
+            last_signal_cmd,
+            myreport_cmd,
+            perf_sys_cmd,
+            positions_cmd,
+            remove_admin_cmd,
+            report_cmd,
+            report_week_cmd,
+            set_balance_cmd,
+            set_risk_cmd,
+            set_trading_hours_cmd,
+            status_cmd,
         )
     except ImportError:
         raise e  # Если и это не вышло - падаем сразу, это лучше чем стабы
 
 try:
     from src.telegram.handlers import (
-        start, handle_message, button, error_handler, perf, portfolio, sentiment,
-        mode_cmd, mode_set_cmd,
+        button,
+        error_handler,
+        handle_message,
+        mode_cmd,
+        mode_set_cmd,
+        perf,
+        portfolio,
+        sentiment,
+        start,
     )
 except ImportError as e:
     logging.error("❌ КРИТИЧЕСКАЯ ОШИБКА ИМПОРТА ОБРАБОТЧИКОВ: %s", e)
     # Пытаемся импортировать напрямую
     from telegram.handlers import (
-        start, handle_message, button, error_handler, perf, portfolio, sentiment,
-        mode_cmd, mode_set_cmd,
+        button,
+        error_handler,
+        handle_message,
+        mode_cmd,
+        mode_set_cmd,
+        perf,
+        portfolio,
+        sentiment,
+        start,
     )
 
 # Импорты из новых модулей
 try:
     from src.telegram.commands import (
-        set_trade_mode_cmd,
+        btc_filter_cmd,
         set_filter_mode_cmd,
-        test_signal_cmd, btc_filter_cmd, signal_stats_cmd
+        set_trade_mode_cmd,
+        signal_stats_cmd,
+        test_signal_cmd,
     )
 except ImportError:
     try:
         from telegram_bot_commands import (
-            set_trade_mode_cmd,
+            btc_filter_cmd,
             set_filter_mode_cmd,
-            test_signal_cmd, btc_filter_cmd, signal_stats_cmd
+            set_trade_mode_cmd,
+            signal_stats_cmd,
+            test_signal_cmd,
         )
     except ImportError:
-        async def set_trade_mode_cmd(*args, **kwargs): pass
-        async def set_filter_mode_cmd(*args, **kwargs): pass
-        async def test_signal_cmd(*args, **kwargs): pass
-        async def btc_filter_cmd(*args, **kwargs): pass
-        async def signal_stats_cmd(*args, **kwargs): pass
+
+        async def set_trade_mode_cmd(*args, **kwargs):
+            pass
+
+        async def set_filter_mode_cmd(*args, **kwargs):
+            pass
+
+        async def test_signal_cmd(*args, **kwargs):
+            pass
+
+        async def btc_filter_cmd(*args, **kwargs):
+            pass
+
+        async def signal_stats_cmd(*args, **kwargs):
+            pass
+
 
 try:
     from src.telegram.trading import (
-        close_cmd, accept_signal_cmd, close_all_positions_cmd,
-        trade_history_cmd
+        accept_signal_cmd,
+        close_all_positions_cmd,
+        close_cmd,
+        trade_history_cmd,
     )
 except ImportError:
     try:
         from telegram_bot_trading import (
-            close_cmd, accept_signal_cmd, close_all_positions_cmd,
-            trade_history_cmd
+            accept_signal_cmd,
+            close_all_positions_cmd,
+            close_cmd,
+            trade_history_cmd,
         )
     except ImportError:
-        async def close_cmd(*args, **kwargs): pass
-        async def accept_signal_cmd(*args, **kwargs): pass
-        async def close_all_positions_cmd(*args, **kwargs): pass
-        async def trade_history_cmd(*args, **kwargs): pass
+
+        async def close_cmd(*args, **kwargs):
+            pass
+
+        async def accept_signal_cmd(*args, **kwargs):
+            pass
+
+        async def close_all_positions_cmd(*args, **kwargs):
+            pass
+
+        async def trade_history_cmd(*args, **kwargs):
+            pass
+
 
 try:
-    from src.telegram.admin import (
-        add_user_cmd, remove_user_cmd, list_users_cmd
-    )
+    from src.telegram.admin import add_user_cmd, list_users_cmd, remove_user_cmd
 except ImportError:
     try:
-        from telegram_bot_admin import (
-            add_user_cmd, remove_user_cmd, list_users_cmd
-        )
+        from telegram_bot_admin import add_user_cmd, list_users_cmd, remove_user_cmd
     except ImportError:
-        async def add_user_cmd(*args, **kwargs): pass
-        async def remove_user_cmd(*args, **kwargs): pass
-        async def list_users_cmd(*args, **kwargs): pass
+
+        async def add_user_cmd(*args, **kwargs):
+            pass
+
+        async def remove_user_cmd(*args, **kwargs):
+            pass
+
+        async def list_users_cmd(*args, **kwargs):
+            pass
+
 
 try:
-    from src.telegram.metrics import (
-        metrics_cmd, performance_cmd, trades_cmd
-    )
+    from src.telegram.metrics import metrics_cmd, performance_cmd, trades_cmd
 except ImportError:
     try:
-        from telegram_metrics_commands import (
-            metrics_cmd, performance_cmd, trades_cmd
-        )
+        from telegram_metrics_commands import metrics_cmd, performance_cmd, trades_cmd
     except ImportError:
-        async def metrics_cmd(*args, **kwargs): pass
-        async def performance_cmd(*args, **kwargs): pass
-        async def trades_cmd(*args, **kwargs): pass
+
+        async def metrics_cmd(*args, **kwargs):
+            pass
+
+        async def performance_cmd(*args, **kwargs):
+            pass
+
+        async def trades_cmd(*args, **kwargs):
+            pass
 # from telegram_commands import audit_today_cmd
 
 # Импорты из других модулей
@@ -178,7 +250,7 @@ def _acquire_polling_lock(token: str) -> bool:
     try:
         if os.path.exists(path):
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     meta = json.load(f)
                 pid = int(meta.get("pid", 0))
                 ts = int(meta.get("ts", 0))
@@ -186,11 +258,13 @@ def _acquire_polling_lock(token: str) -> bool:
                 pid, ts = 0, 0
             # Проверяем, жив ли процесс
             is_running = _is_pid_running(pid)
-            
+
             # Если это наш собственный PID, разрешаем (перезапуск или повторная попытка)
             current_pid = os.getpid()
             if pid == current_pid:
-                logging.info("[TG] Lock файл принадлежит текущему процессу (pid=%s). Пересоздаём lock.", pid)
+                logging.info(
+                    "[TG] Lock файл принадлежит текущему процессу (pid=%s). Пересоздаём lock.", pid
+                )
                 # Удаляем старый lock и создадим новый
                 try:
                     os.remove(path)
@@ -201,31 +275,44 @@ def _acquire_polling_lock(token: str) -> bool:
                 # (lock может быть от основного процесса, а мы запускаемся из задачи)
                 try:
                     import psutil
+
                     current_process = psutil.Process(current_pid)
                     parent_pid = current_process.ppid()
                     # Если lock от родительского процесса или самого процесса - разрешаем
                     if pid == parent_pid or pid == current_pid:
-                        logging.info("[TG] Lock файл принадлежит родительскому процессу (pid=%s). Пересоздаём lock.", pid)
+                        logging.info(
+                            "[TG] Lock файл принадлежит родительскому процессу (pid=%s). Пересоздаём lock.",
+                            pid,
+                        )
                         try:
                             os.remove(path)
                         except OSError:
                             pass
                     else:
                         # Процесс жив и это другой процесс - блокировка валидна
-                        logging.error("[TG] Поллинг уже запущен другим процессом (pid=%s). Пропускаю запуск.", pid)
+                        logging.error(
+                            "[TG] Поллинг уже запущен другим процессом (pid=%s). Пропускаю запуск.",
+                            pid,
+                        )
                         return False
                 except Exception:
                     # Если не удалось проверить - считаем что это другой процесс
-                    logging.error("[TG] Поллинг уже запущен другим процессом (pid=%s). Пропускаю запуск.", pid)
+                    logging.error(
+                        "[TG] Поллинг уже запущен другим процессом (pid=%s). Пропускаю запуск.", pid
+                    )
                     return False
-            
+
             # Процесс не жив - проверяем время lock файла
             file_age = now_ts - ts
             if file_age < 10:  # Файл СЛИШКОМ свежий (< 10 сек)
                 # Возможно, процесс только что завершился или файл поврежден
-                logging.warning("[TG] Процесс pid=%s не найден, но lock файл слишком свежий (%d сек). Подождем.", pid, file_age)
+                logging.warning(
+                    "[TG] Процесс pid=%s не найден, но lock файл слишком свежий (%d сек). Подождем.",
+                    pid,
+                    file_age,
+                )
                 return False
-            
+
             # Процесс не жив - очищаем блокировку
             logging.info("[TG] Процесс pid=%s не найден. Очищаем блокировку.", pid)
             try:
@@ -247,7 +334,7 @@ def _release_polling_lock(token: str) -> None:
         if os.path.exists(path):
             # Снимаем лок только если он наш
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     meta = json.load(f)
                 if int(meta.get("pid", 0)) != os.getpid():
                     return
@@ -256,6 +343,7 @@ def _release_polling_lock(token: str) -> None:
             os.remove(path)
     except OSError:
         pass
+
 
 async def stop_telegram_bot():
     """Останавливает Telegram бота"""
@@ -305,6 +393,7 @@ async def stop_telegram_bot():
     except (RuntimeError, OSError) as e:
         logging.error("Ошибка при остановке бота: %s", e)
 
+
 async def run_telegram_bot_in_existing_loop():
     """Запускает Telegram бота в существующем event loop"""
 
@@ -316,7 +405,9 @@ async def run_telegram_bot_in_existing_loop():
         lock_acquired = _acquire_polling_lock(TOKEN)
         print(f"🔍 [TG STDOUT] Lock получен: {lock_acquired}")
         if not lock_acquired:
-            logging.error("❌ [TELEGRAM] Не удалось получить lock для polling. Telegram бот не запущен!")
+            logging.error(
+                "❌ [TELEGRAM] Не удалось получить lock для polling. Telegram бот не запущен!"
+            )
             print("❌ [TG STDOUT] Не удалось получить lock для polling!")
             return
         logging.info("✅ [TELEGRAM] Lock получен, запускаем Telegram бота...")
@@ -352,15 +443,20 @@ async def run_telegram_bot_in_existing_loop():
         bot_state.application.add_handler(CommandHandler("set_risk", set_risk_cmd))
         bot_state.application.add_handler(CommandHandler("set_trade_mode", set_trade_mode_cmd))
         bot_state.application.add_handler(CommandHandler("set_filter_mode", set_filter_mode_cmd))
-        bot_state.application.add_handler(CommandHandler("set_trading_hours", set_trading_hours_cmd))
+        bot_state.application.add_handler(
+            CommandHandler("set_trading_hours", set_trading_hours_cmd)
+        )
         # Режимы торговли (manual/auto)
         bot_state.application.add_handler(CommandHandler("mode", mode_cmd))
         bot_state.application.add_handler(CommandHandler("mode_set", mode_set_cmd))
 
         # Ключи биржи (Bitget)
         from src.telegram.handlers import connect_bitget_cmd, disconnect_bitget_cmd
+
         bot_state.application.add_handler(CommandHandler("connect_bitget", connect_bitget_cmd))
-        bot_state.application.add_handler(CommandHandler("disconnect_bitget", disconnect_bitget_cmd))
+        bot_state.application.add_handler(
+            CommandHandler("disconnect_bitget", disconnect_bitget_cmd)
+        )
 
         # Команды торговли
         bot_state.application.add_handler(CommandHandler("accept", accept_signal_cmd))
@@ -375,7 +471,7 @@ async def run_telegram_bot_in_existing_loop():
         bot_state.application.add_handler(CommandHandler("last_signal", last_signal_cmd))
         bot_state.application.add_handler(CommandHandler("signal_stats", signal_stats_cmd))
         bot_state.application.add_handler(CommandHandler("audit_today", audit_today_cmd))
-        
+
         # Команды метрик производительности
         bot_state.application.add_handler(CommandHandler("metrics", metrics_cmd))
         bot_state.application.add_handler(CommandHandler("performance", performance_cmd))
@@ -397,12 +493,14 @@ async def run_telegram_bot_in_existing_loop():
         bot_state.application.add_handler(CommandHandler("list_users", list_users_cmd))
 
         # Обработчики сообщений и кнопок
-        bot_state.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        bot_state.application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+        )
         bot_state.application.add_handler(CallbackQueryHandler(button))
 
         # Обработчик ошибок
         bot_state.application.add_error_handler(error_handler)
-        
+
         # Включаем автоматический перезапуск polling при ошибках сети
         print("🚀 Настройка автоматического восстановления сессии...")
         # (параметры по умолчанию обычно достаточны)
@@ -465,7 +563,7 @@ async def run_telegram_bot_in_existing_loop():
         await bot_state.application.initialize()
         logging.info("🚀 [TELEGRAM] Запуск Application...")
         await bot_state.application.start()
-        
+
         logging.info("🚀 [TELEGRAM] Поиск Updater...")
         updater = getattr(bot_state.application, "updater", None)
         if updater is not None:
@@ -474,12 +572,12 @@ async def run_telegram_bot_in_existing_loop():
             logging.info("✅ [TELEGRAM] Polling запущен!")
             # Создаем stop_event для остановки
             bot_state.stop_event = asyncio.Event()
-            
+
             # Отправляем приветственное сообщение Ивану (тест связи)
             try:
                 await bot_state.application.bot.send_message(
                     chat_id=556251171,
-                    text="🤖 ATRA PROD Bot запущен и готов к командам! Попробуй /status"
+                    text="🤖 ATRA PROD Bot запущен и готов к командам! Попробуй /status",
                 )
                 logging.info("✅ Тестовое сообщение отправлено Ивану")
             except Exception as e:
@@ -500,6 +598,7 @@ async def run_telegram_bot_in_existing_loop():
     except (RuntimeError, OSError) as e:
         logging.error("Ошибка при запуске бота: %s", e)
         raise
+
 
 async def run_telegram_bot_with_retry():
     """Запускает бота с повторными попытками"""
@@ -529,13 +628,16 @@ async def run_telegram_bot_with_retry():
                 logging.error("Все попытки запуска бота исчерпаны")
                 raise
 
+
 def is_bot_ready():
     """Проверяет готовность бота"""
     return bot_state.application is not None and bot_state.application.running
 
+
 def run_telegram_bot_stub(*_args, **_kwargs):
     """Заглушка для запуска бота"""
     logging.warning("Запуск бота через заглушку - используйте run_telegram_bot()")
+
 
 # Обработчик сигналов для корректного завершения
 def signal_handler(signum, _):
@@ -544,9 +646,11 @@ def signal_handler(signum, _):
     asyncio.create_task(stop_telegram_bot())
     sys.exit(0)
 
+
 # Регистрируем обработчики сигналов
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
 
 # Совместимость: реэкспорт функций уведомлений через тонкие обёртки
 async def notify_user(user_id, text, **kwargs):
@@ -557,8 +661,12 @@ async def notify_user(user_id, text, **kwargs):
         try:
             from .handlers import notify_user as _notify_user
         except ImportError:
-            async def _notify_user(*args, **kwargs): pass
+
+            async def _notify_user(*args, **kwargs):
+                pass
+
     return await _notify_user(user_id, text, **kwargs)
+
 
 async def notify_all(text, **kwargs):
     """Отправляет сообщение всем пользователям (совместимая обёртка)."""
@@ -568,18 +676,19 @@ async def notify_all(text, **kwargs):
         try:
             from .handlers import notify_all as _notify_all
         except ImportError:
-            async def _notify_all(*args, **kwargs): pass
+
+            async def _notify_all(*args, **kwargs):
+                pass
+
     return await _notify_all(text, **kwargs)
+
 
 if __name__ == "__main__":
     # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler('telegram_bot.log'),
-            logging.StreamHandler()
-        ]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.FileHandler("telegram_bot.log"), logging.StreamHandler()],
     )
 
     # Запускаем бота

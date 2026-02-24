@@ -3,18 +3,20 @@
 ## 🚀 Быстрый старт
 
 1. **Скопируйте env файл:**
+
    ```bash
    cp env .env
    ```
 
 2. **Отредактируйте .env файл:**
+
    ```bash
    nano .env
    ```
 
 3. **Укажите обязательные переменные:**
    - `TELEGRAM_TOKEN` - токен продакшен бота
-   - `TELEGRAM_TOKEN_DEV` - токен dev бота  
+   - `TELEGRAM_TOKEN_DEV` - токен dev бота
    - `TELEGRAM_CHAT_IDS` - ID чатов через запятую
 
 4. **Запустите бота:**
@@ -25,17 +27,20 @@
 ## 🔑 Уже настроенные API ключи
 
 В файле уже указаны реальные ключи из config.py:
+
 - ✅ `CRYPTOPANIC_API_KEY=390212cf54403e087e19347f4f3e4a2f4459c79c`
 - ✅ `NEWSDATA_API_KEY=pub_9259f5b0818a4d40baabae05a908af4f`
 
 ## 📝 Что нужно указать
 
 ### Обязательные:
+
 - `TELEGRAM_TOKEN` - токен основного бота
 - `TELEGRAM_TOKEN_DEV` - токен для разработки
 - `TELEGRAM_CHAT_IDS` - ID чатов (через запятую)
 
 ### Опциональные:
+
 - `TRADINGVIEW_API_KEY` - для TradingView
 - `ETHERSCAN_API_KEY` - для Ethereum Explorer
 - `BSCSCAN_API_KEY` - для BSC Explorer

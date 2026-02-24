@@ -2,12 +2,12 @@
 Unit tests for Hierarchical Orchestration (декомпозиция целей, страховки без LLM).
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from app.hierarchical_orchestration import (
-    HierarchicalOrchestrator,
     HierarchicalGoal,
+    HierarchicalOrchestrator,
 )
 
 

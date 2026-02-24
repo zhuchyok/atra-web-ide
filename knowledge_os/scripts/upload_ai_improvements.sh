@@ -22,14 +22,14 @@ echo ""
 upload_file() {
     local file="$1"
     echo "📤 Загрузка $file..."
-    
+
     expect << EOF
 spawn scp -o StrictHostKeyChecking=no $file $SERVER_USER@$SERVER_IP:$SERVER_PATH/
 expect "password:"
 send "$SERVER_PASSWORD\r"
 expect eof
 EOF
-    
+
     if [ $? -eq 0 ]; then
         echo "✅ $file загружен успешно"
     else
@@ -54,4 +54,3 @@ echo "  • 33156 паттернов → автоочистка → ~23000 па�
 echo "  • Быстрый старт системы (в 2-3 раза быстрее)"
 echo "  • Стабильная производительность"
 echo "  • Сохранены все важные данные (WIN/LOSS)"
-

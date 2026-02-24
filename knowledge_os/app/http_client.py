@@ -5,6 +5,7 @@
 с лимитами (max_connections, keepalive). При миграции на Rust здесь можно подставить
 обёртку над Rust HTTP-клиентом с тем же контрактом: get_client() -> client.
 """
+
 import asyncio
 import logging
 from typing import Optional

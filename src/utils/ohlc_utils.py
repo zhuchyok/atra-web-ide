@@ -1,22 +1,29 @@
-import requests
-import ccxt
-import logging
-import time
 import asyncio
+import logging
 import socket
+import time
 from decimal import Decimal
+
+import ccxt
+import requests
+
 try:
     from src.utils.cache_utils import cache_with_ttl
 except ImportError:
     try:
         from cache_utils import cache_with_ttl
     except ImportError:
+
         def cache_with_ttl(*args, **kwargs):
             def decorator(func):
                 return func
+
             return decorator
+
+
 try:
     import aiohttp  # type: ignore
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     aiohttp = None  # type: ignore
@@ -64,11 +71,13 @@ def get_ohlc_binance_sync(symbol, interval="1h", limit=100):
     for attempt in range(max_retries):
         try:
             session = requests.Session()
-            session.headers.update({
-                'User-Agent': 'Mozilla/5.0 (compatible; ATRA-Bot/1.0)',
-                'Accept': 'application/json',
-                'Connection': 'keep-alive',
-            })
+            session.headers.update(
+                {
+                    "User-Agent": "Mozilla/5.0 (compatible; ATRA-Bot/1.0)",
+                    "Accept": "application/json",
+                    "Connection": "keep-alive",
+                }
+            )
 
             for host_idx, host in enumerate(hosts):
                 url = f"{host}{endpoint}"
@@ -78,7 +87,7 @@ def get_ohlc_binance_sync(symbol, interval="1h", limit=100):
                         url,
                         params=params,
                         timeout=30,  # Увеличенный timeout
-                        allow_redirects=True
+                        allow_redirects=True,
                     )
                     if resp.status_code == 200:
                         data = resp.json()
@@ -102,6 +111,7 @@ def get_ohlc_binance_sync(symbol, interval="1h", limit=100):
                     elif resp.status_code == 429:  # Rate limit
                         print(f"⚠️ Binance rate limit для {symbol} ({host}), ждем...")
                         import time
+
                         time.sleep(5)
                         continue
                     elif resp.status_code >= 500:  # Server error
@@ -111,7 +121,9 @@ def get_ohlc_binance_sync(symbol, interval="1h", limit=100):
                         # Клиентские ошибки (4xx, кроме 429) не имеют смысла для повторов —
                         # чаще всего это неверный символ или параметры запроса
                         if 400 <= resp.status_code < 500:
-                            print(f"⚠️ Binance: HTTP {resp.status_code} для {symbol} ({host}) — клиентская ошибка, прекращаем повторы")
+                            print(
+                                f"⚠️ Binance: HTTP {resp.status_code} для {symbol} ({host}) — клиентская ошибка, прекращаем повторы"
+                            )
                             return []
                         print(f"⚠️ Binance: HTTP {resp.status_code} для {symbol} ({host})")
                         continue
@@ -131,9 +143,12 @@ def get_ohlc_binance_sync(symbol, interval="1h", limit=100):
 
             # Если все хосты провалились, ждем перед следующей попыткой
             if attempt < max_retries - 1:
-                delay = min(2 ** attempt, 10)  # Максимум 10 секунд
-                print(f"⏳ Все хосты провалились, ждем {delay} сек перед попыткой {attempt + 2}/{max_retries}")
+                delay = min(2**attempt, 10)  # Максимум 10 секунд
+                print(
+                    f"⏳ Все хосты провалились, ждем {delay} сек перед попыткой {attempt + 2}/{max_retries}"
+                )
                 import time
+
                 time.sleep(delay)
 
         except Exception as e:
@@ -173,8 +188,9 @@ def get_ohlc_binance_sync_range(symbol, interval="1h", days=90, max_per_call=100
     Возвращает список словарей: {timestamp, open, high, low, close, volume}
     """
     try:
-        import requests
         import time as _time
+
+        import requests
     except ImportError:
         return []
 
@@ -196,11 +212,13 @@ def get_ohlc_binance_sync_range(symbol, interval="1h", days=90, max_per_call=100
     step_ms = _interval_to_ms(interval) * max(1, max_per_call - 1)
 
     session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (compatible; ATRA-Bot/1.0)',
-        'Accept': 'application/json',
-        'Connection': 'keep-alive',
-    })
+    session.headers.update(
+        {
+            "User-Agent": "Mozilla/5.0 (compatible; ATRA-Bot/1.0)",
+            "Accept": "application/json",
+            "Connection": "keep-alive",
+        }
+    )
 
     all_rows = []
     cursor = start_ms
@@ -304,9 +322,9 @@ def get_ohlc_bybit_sync(symbol, interval="1h", limit=100):
         import requests
 
         session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        })
+        session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+        )
 
         resp = session.get(url, params=params, timeout=30)
         if resp.status_code == 200:
@@ -398,9 +416,9 @@ def get_ohlc_bitget_sync(symbol, interval="1h", limit=100):
 
         # Настройки для более надежного подключения
         session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-        })
+        session.headers.update(
+            {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+        )
 
         resp = session.get(url, params=params, timeout=30)
         if resp.status_code == 200:
@@ -493,9 +511,9 @@ async def get_ohlc_coingecko_sync_async(symbol, interval="1h", limit=100):
             "APTUSDT": "aptos",
             "OPUSDT": "optimism",
             "TONUSDT": "the-open-network",
-            "DOGEUSDT": "dogecoin"
+            "DOGEUSDT": "dogecoin",
         }
-        return mapping.get(symbol, None)
+        return mapping.get(symbol)
 
     # Конвертируем интервал в дни для CoinGecko
     def interval_to_days(interval):
@@ -511,7 +529,7 @@ async def get_ohlc_coingecko_sync_async(symbol, interval="1h", limit=100):
             "12h": 7,
             "1d": 30,
             "1w": 90,
-            "1M": 365
+            "1M": 365,
         }
         return mapping.get(interval, 1)
 
@@ -535,7 +553,9 @@ async def get_ohlc_coingecko_sync_async(symbol, interval="1h", limit=100):
                     print(f"[DEBUG] {symbol}: CoinGecko статус {resp.status}")
                     if resp.status == 200:
                         data = await resp.json()
-                        print(f"[DEBUG] {symbol}: CoinGecko размер данных {len(data) if data else 0}")
+                        print(
+                            f"[DEBUG] {symbol}: CoinGecko размер данных {len(data) if data else 0}"
+                        )
                         if data and len(data) > 0:
                             ohlc = [
                                 {
@@ -544,41 +564,45 @@ async def get_ohlc_coingecko_sync_async(symbol, interval="1h", limit=100):
                                     "high": Decimal(str(item[2])),
                                     "low": Decimal(str(item[3])),
                                     "close": Decimal(str(item[4])),
-                                    "volume": Decimal("0")  # CoinGecko не предоставляет volume в OHLC
+                                    "volume": Decimal(
+                                        "0"
+                                    ),  # CoinGecko не предоставляет volume в OHLC
                                 }
                                 for item in data
                             ]
-                            print(f"[DEBUG] {symbol}: CoinGecko успешно получено {len(ohlc)} записей")
+                            print(
+                                f"[DEBUG] {symbol}: CoinGecko успешно получено {len(ohlc)} записей"
+                            )
                             return ohlc
                         else:
                             print(f"[DEBUG] {symbol}: CoinGecko пустой ответ")
                             if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
+                                await asyncio.sleep(2**attempt)
                                 continue
                             return []
                     elif resp.status == 429:  # Rate limit
                         print(f"[DEBUG] {symbol}: CoinGecko rate limit попытка {attempt + 1}")
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         return []
                     else:
                         print(f"[DEBUG] {symbol}: CoinGecko HTTP {resp.status}")
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         return []
 
         except asyncio.TimeoutError:
             print(f"[DEBUG] {symbol}: CoinGecko timeout попытка {attempt + 1}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
         except Exception as e:
             print(f"[DEBUG] {symbol}: CoinGecko error попытка {attempt + 1}: {e}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
 
@@ -614,18 +638,18 @@ async def get_ohlc_cryptocompare_sync_async(symbol, interval="1h", limit=100):
         "12h": "12h",
         "1d": "1d",
         "1w": "1w",
-        "1M": "1M"
+        "1M": "1M",
     }
 
     cryptocompare_interval = interval_map.get(interval, interval)
 
     # URL для CryptoCompare
-    url = f"https://min-api.cryptocompare.com/data/v2/histohour"
+    url = "https://min-api.cryptocompare.com/data/v2/histohour"
     params = {
         "fsym": base_symbol,
         "tsym": "USD",
         "limit": min(limit, 2000),  # CryptoCompare максимум 2000
-        "aggregate": 1
+        "aggregate": 1,
     }
 
     # Если aiohttp недоступен, пропускаем CryptoCompare
@@ -645,13 +669,16 @@ async def get_ohlc_cryptocompare_sync_async(symbol, interval="1h", limit=100):
                     print(f"[DEBUG] {symbol}: CryptoCompare статус {resp.status}")
                     if resp.status == 200:
                         data = await resp.json()
-                        print(f"[DEBUG] {symbol}: CryptoCompare размер данных {len(data.get('Data', {}).get('Data', [])) if data.get('Data', {}).get('Data') else 0}")
+                        print(
+                            f"[DEBUG] {symbol}: CryptoCompare размер данных {len(data.get('Data', {}).get('Data', [])) if data.get('Data', {}).get('Data') else 0}"
+                        )
 
-                        if data.get('Response') == 'Success' and data.get('Data', {}).get('Data'):
-                            ohlc_data = data['Data']['Data']
+                        if data.get("Response") == "Success" and data.get("Data", {}).get("Data"):
+                            ohlc_data = data["Data"]["Data"]
                             ohlc = [
                                 {
-                                    "timestamp": int(item["time"]) * 1000,  # Конвертируем в миллисекунды
+                                    "timestamp": int(item["time"])
+                                    * 1000,  # Конвертируем в миллисекунды
                                     "open": float(item["open"]),
                                     "high": float(item["high"]),
                                     "low": float(item["low"]),
@@ -660,36 +687,39 @@ async def get_ohlc_cryptocompare_sync_async(symbol, interval="1h", limit=100):
                                 }
                                 for item in ohlc_data
                             ]
-                            print(f"[DEBUG] {symbol}: CryptoCompare успешно получено {len(ohlc)} записей")
+                            print(
+                                f"[DEBUG] {symbol}: CryptoCompare успешно получено {len(ohlc)} записей"
+                            )
                             return ohlc
                         else:
                             print(f"[DEBUG] {symbol}: CryptoCompare пустой ответ или ошибка")
                             if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
+                                await asyncio.sleep(2**attempt)
                                 continue
                             return []
                     else:
                         print(f"[DEBUG] {symbol}: CryptoCompare HTTP {resp.status}")
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         return []
 
         except asyncio.TimeoutError:
             print(f"[DEBUG] {symbol}: CryptoCompare timeout попытка {attempt + 1}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
         except Exception as e:
             print(f"[DEBUG] {symbol}: CryptoCompare error попытка {attempt + 1}: {e}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
 
     print(f"[DEBUG] {symbol}: CryptoCompare все попытки исчерпаны")
     return []
+
 
 @cache_with_ttl(ttl_seconds=60)
 async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
@@ -711,7 +741,7 @@ async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
         "DOGEUSDT": "dogecoin",
         "AVAXUSDT": "avalanche-2",
         "MATICUSDT": "matic-network",
-        "LINKUSDT": "chainlink"
+        "LINKUSDT": "chainlink",
     }
 
     coin_id = symbol_map.get(symbol, symbol.lower().replace("usdt", ""))
@@ -720,16 +750,10 @@ async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
     url = f"https://api.coincap.io/v2/assets/{coin_id}/history"
 
     # Маппинг интервалов для CoinCap
-    interval_map = {
-        "1h": "h1",
-        "4h": "h4",
-        "1d": "d1"
-    }
+    interval_map = {"1h": "h1", "4h": "h4", "1d": "d1"}
 
     coincap_interval = interval_map.get(interval, "h1")
-    params = {
-        "interval": coincap_interval
-    }
+    params = {"interval": coincap_interval}
 
     if not AIOHTTP_AVAILABLE:
         print("[DEBUG] CoinCap: aiohttp недоступен, пропуск провайдера")
@@ -747,7 +771,7 @@ async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
                     print(f"[DEBUG] {symbol}: CoinCap статус {resp.status}")
                     if resp.status == 200:
                         data = await resp.json()
-                        history_data = data.get('data', [])
+                        history_data = data.get("data", [])
                         print(f"[DEBUG] {symbol}: CoinCap размер данных {len(history_data)}")
 
                         if history_data:
@@ -755,7 +779,9 @@ async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
                                 {
                                     "timestamp": int(item["time"]),
                                     "open": float(item["priceUsd"]),
-                                    "high": float(item["priceUsd"]),  # CoinCap не предоставляет OHLC, используем цену
+                                    "high": float(
+                                        item["priceUsd"]
+                                    ),  # CoinCap не предоставляет OHLC, используем цену
                                     "low": float(item["priceUsd"]),
                                     "close": float(item["priceUsd"]),
                                     "volume": float(item.get("volumeUsd", 0)),
@@ -767,31 +793,32 @@ async def get_ohlc_coincap_sync_async(symbol, interval="1h", limit=100):
                         else:
                             print(f"[DEBUG] {symbol}: CoinCap пустой ответ")
                             if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
+                                await asyncio.sleep(2**attempt)
                                 continue
                             return []
                     else:
                         print(f"[DEBUG] {symbol}: CoinCap HTTP {resp.status}")
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         return []
 
         except asyncio.TimeoutError:
             print(f"[DEBUG] {symbol}: CoinCap timeout попытка {attempt + 1}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
         except Exception as e:
             print(f"[DEBUG] {symbol}: CoinCap error попытка {attempt + 1}: {e}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
 
     print(f"[DEBUG] {symbol}: CoinCap все попытки исчерпаны")
     return []
+
 
 @cache_with_ttl(ttl_seconds=60)
 async def get_ohlc_coinpaprika_sync_async(symbol, interval="1h", limit=100):
@@ -813,7 +840,7 @@ async def get_ohlc_coinpaprika_sync_async(symbol, interval="1h", limit=100):
         "DOGEUSDT": "doge-dogecoin",
         "AVAXUSDT": "avax-avalanche",
         "MATICUSDT": "matic-polygon",
-        "LINKUSDT": "link-chainlink"
+        "LINKUSDT": "link-chainlink",
     }
 
     coin_id = symbol_map.get(symbol, symbol.lower().replace("usdt", ""))
@@ -822,17 +849,10 @@ async def get_ohlc_coinpaprika_sync_async(symbol, interval="1h", limit=100):
     url = f"https://api.coinpaprika.com/v1/coins/{coin_id}/ohlcv/historical"
 
     # Маппинг интервалов для Coinpaprika
-    interval_map = {
-        "1h": "1h",
-        "4h": "4h",
-        "1d": "1d"
-    }
+    interval_map = {"1h": "1h", "4h": "4h", "1d": "1d"}
 
     coinpaprika_interval = interval_map.get(interval, "1h")
-    params = {
-        "quote": "usd",
-        "interval": coinpaprika_interval
-    }
+    params = {"quote": "usd", "interval": coinpaprika_interval}
 
     if not AIOHTTP_AVAILABLE:
         print("[DEBUG] Coinpaprika: aiohttp недоступен, пропуск провайдера")
@@ -850,7 +870,9 @@ async def get_ohlc_coinpaprika_sync_async(symbol, interval="1h", limit=100):
                     print(f"[DEBUG] {symbol}: Coinpaprika статус {resp.status}")
                     if resp.status == 200:
                         data = await resp.json()
-                        print(f"[DEBUG] {symbol}: Coinpaprika размер данных {len(data) if data else 0}")
+                        print(
+                            f"[DEBUG] {symbol}: Coinpaprika размер данных {len(data) if data else 0}"
+                        )
 
                         if data:
                             ohlc = [
@@ -864,31 +886,33 @@ async def get_ohlc_coinpaprika_sync_async(symbol, interval="1h", limit=100):
                                 }
                                 for item in data[-limit:]  # Берем последние записи
                             ]
-                            print(f"[DEBUG] {symbol}: Coinpaprika успешно получено {len(ohlc)} записей")
+                            print(
+                                f"[DEBUG] {symbol}: Coinpaprika успешно получено {len(ohlc)} записей"
+                            )
                             return ohlc
                         else:
                             print(f"[DEBUG] {symbol}: Coinpaprika пустой ответ")
                             if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
+                                await asyncio.sleep(2**attempt)
                                 continue
                             return []
                     else:
                         print(f"[DEBUG] {symbol}: Coinpaprika HTTP {resp.status}")
                         if attempt < 2:
-                            await asyncio.sleep(2 ** attempt)
+                            await asyncio.sleep(2**attempt)
                             continue
                         return []
 
         except asyncio.TimeoutError:
             print(f"[DEBUG] {symbol}: Coinpaprika timeout попытка {attempt + 1}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
         except Exception as e:
             print(f"[DEBUG] {symbol}: Coinpaprika error попытка {attempt + 1}: {e}")
             if attempt < 2:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
                 continue
             return []
 
@@ -904,9 +928,9 @@ if __name__ == "__main__":
     ohlc_binance = get_ohlc_binance_sync("DOGEUSDT", interval="1h", limit=3)
     for o in ohlc_binance:
         ts = o["timestamp"]
-        print(f"timestamp={ts}, {datetime.datetime.fromtimestamp(ts/1000)} | close={o['close']}")
+        print(f"timestamp={ts}, {datetime.datetime.fromtimestamp(ts / 1000)} | close={o['close']}")
     print("Bybit:")
     ohlc_bybit = get_ohlc_bybit_sync("DOGEUSDT", interval="1h", limit=3)
     for o in ohlc_bybit:
         ts = o["timestamp"]
-        print(f"timestamp={ts}, {datetime.datetime.fromtimestamp(ts/1000)} | close={o['close']}")
+        print(f"timestamp={ts}, {datetime.datetime.fromtimestamp(ts / 1000)} | close={o['close']}")

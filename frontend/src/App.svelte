@@ -7,11 +7,12 @@
   import FileTree from './components/FileTree.svelte'
   import Preview from './components/Preview.svelte'
   import Terminal from './components/Terminal.svelte'
+  import Git from './components/Git.svelte'
   // ExpertSelector убран - используется только Виктория
-  
+
   import { currentFile, openFiles, unsavedChanges, loadFile } from './stores/files.js'
   import { selectedExpert, messages, clearMessages, chatMode } from './stores/chat.js'
-  
+
   let showPreview = false
   let showTerminal = false
   let leftPanelWidth = 250
@@ -23,12 +24,13 @@
   let isResizingLeft = false
   let isResizingRight = false
   let isResizingPreview = false
-  
+
     onMount(async () => {
     // Проверка статуса Victoria и MLX
     async function checkStatus() {
       try {
-        const response = await fetch('/api/chat/status')
+        // Используем порт 8081 для Rust Gateway
+        const response = await fetch(`http://${window.location.hostname}:8081/api/chat/status`)
         if (response.ok) {
           const data = await response.json()
           console.log('Status data:', data);
@@ -36,7 +38,7 @@
           // 1. data.status === 'ok' (прямой ответ от бэкенда)
           // 2. data.victoria.status === 'ok' (вложенный ответ)
           const status = data.status || data.victoria?.status || 'unknown';
-          
+
           if (status === 'healthy' || status === 'online' || status === 'ok') {
             victoriaStatus = 'healthy';
           } else {
@@ -51,11 +53,11 @@
         console.error('Failed to check status:', e)
       }
     }
-    
+
     await checkStatus()
     // Обновляем статус каждые 30 секунд
     setInterval(checkStatus, 30000)
-    
+
     // Обработка изменения размера панелей
     function handleMouseMove(e) {
       if (isResizingLeft) {
@@ -67,16 +69,16 @@
         rightPanelWidth = Math.max(200, Math.min(800, window.innerWidth - e.clientX))
       }
     }
-    
+
     function handleMouseUp() {
       isResizingLeft = false
       isResizingRight = false
       isResizingPreview = false
     }
-    
+
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
@@ -94,11 +96,11 @@
       <h1 class="text-lg font-semibold">ATRA Web IDE</h1>
       <span class="text-xs text-gray-500 bg-atra-accent px-2 py-0.5 rounded">Singularity 14.0</span>
     </div>
-    
+
     <div class="flex items-center gap-4">
       <!-- ExpertSelector скрыт - используется только Виктория -->
-      
-      <button 
+
+      <button
         class="px-3 py-1.5 rounded text-sm transition-colors hover:bg-opacity-80"
         class:bg-atra-primary={showPreview}
         class:bg-atra-accent={!showPreview}
@@ -107,7 +109,7 @@
       >
         {showPreview ? '👁️ Скрыть' : '👁️ Показать'}
       </button>
-      <button 
+      <button
         class="px-3 py-1.5 rounded text-sm transition-colors hover:bg-opacity-80"
         class:bg-atra-primary={showTerminal}
         class:bg-atra-accent={!showTerminal}
@@ -118,11 +120,11 @@
       </button>
     </div>
   </header>
-  
+
   <!-- Main content -->
   <main class="flex-1 flex overflow-hidden">
     <!-- Left panel: File Tree -->
-    <aside 
+    <aside
       class="bg-atra-darker border-r border-atra-accent flex flex-col relative select-none"
       style="width: {leftPanelWidth}px"
     >
@@ -132,7 +134,7 @@
       <div class="flex-1 overflow-auto">
         <FileTree />
       </div>
-      <div 
+      <div
         class="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-atra-primary transition-colors bg-atra-accent"
         on:mousedown={(e) => {
           isResizingLeft = true
@@ -140,7 +142,7 @@
         }}
       ></div>
     </aside>
-    
+
     <!-- Center: вкладки как в Cursor — Чат | Агент | План + файлы -->
     <section class="flex-1 flex flex-col min-w-0">
       <div class="h-9 bg-atra-darker border-b border-atra-accent flex items-center px-2 gap-1 overflow-x-auto">
@@ -175,6 +177,14 @@
         >
           <span class="text-gray-300">📊</span>
           <span class="font-medium">Мониторинг</span>
+        </div>
+        <div
+          class="px-3 py-1 rounded-t text-sm flex items-center gap-2 transition-colors cursor-pointer shrink-0 {activeCenterTab === 'git' ? 'bg-atra-dark border-b-2 border-atra-primary' : 'bg-atra-darker hover:bg-atra-accent/30'}"
+          on:click={() => activeCenterTab = 'git'}
+          title="Git: status, diff, log, commit"
+        >
+          <span class="text-gray-300">📂</span>
+          <span class="font-medium">Git</span>
         </div>
         {#each $openFiles as file}
           <div
@@ -251,6 +261,8 @@
           <PlanPanel />
         {:else if activeCenterTab === 'monitoring'}
           <SystemMetrics />
+        {:else if activeCenterTab === 'git'}
+          <Git />
         {:else}
           <div class="flex-1 min-h-0">
             <Editor />
@@ -289,7 +301,7 @@
       </div>
     </div>
   {/if}
-  
+
   <!-- Status bar -->
   <footer class="h-6 bg-atra-darker border-t border-atra-accent flex items-center px-4 text-xs text-gray-500 justify-between">
     <div class="flex items-center gap-4">

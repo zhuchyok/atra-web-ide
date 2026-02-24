@@ -14,18 +14,21 @@ python3 fix_and_restart.py
 ## 🔄 Если автоматическая перезагрузка не сработала:
 
 ### Вариант 1: PM2
+
 ```bash
 pm2 restart all
 pm2 list
 ```
 
 ### Вариант 2: Systemd
+
 ```bash
 sudo systemctl restart atra
 sudo systemctl status atra
 ```
 
 ### Вариант 3: Ручная перезагрузка
+
 ```bash
 # Найдите процесс
 ps aux | grep -E '(signal_live|main\.py)'

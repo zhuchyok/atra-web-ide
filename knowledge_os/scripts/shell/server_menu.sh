@@ -74,39 +74,39 @@ check_server_status() {
 # Функция для обновления кода
 update_code() {
     echo -e "${BLUE}🔄 Обновление кода из Git...${NC}"
-    
+
     # Проверяем, что мы в Git репозитории
     if [ ! -d ".git" ]; then
         echo -e "${RED}❌ Не найден Git репозиторий${NC}"
         return 1
     fi
-    
+
     # Сохраняем изменения
     echo -e "${YELLOW}💾 Сохранение локальных изменений...${NC}"
     git stash push -m "Auto-stash before update $(date)"
-    
+
     # Получаем обновления
     echo -e "${YELLOW}📥 Получение обновлений из удаленного репозитория...${NC}"
     git fetch origin
-    
+
     # Показываем доступные ветки
     echo -e "${YELLOW}🌿 Доступные ветки:${NC}"
     git branch -r | head -10
-    
+
     # Спрашиваем, какую ветку обновить
     echo -e "${YELLOW}Введите название ветки для обновления (по умолчанию: insight):${NC}"
     read -r branch_name
     branch_name=${branch_name:-insight}
-    
+
     # Переключаемся на ветку и обновляем
     echo -e "${YELLOW}🔄 Переключение на ветку $branch_name...${NC}"
     git checkout "$branch_name"
     git pull origin "$branch_name"
-    
+
     # Восстанавливаем изменения
     echo -e "${YELLOW}🔄 Восстановление локальных изменений...${NC}"
     git stash pop
-    
+
     echo -e "${GREEN}✅ Код успешно обновлен${NC}"
     return 0
 }
@@ -114,13 +114,13 @@ update_code() {
 # Функция для остановки сервера
 stop_server() {
     echo -e "${YELLOW}🛑 Остановка сервера...${NC}"
-    
+
     if [ -f "$LOCK_FILE" ]; then
         local pid=$(cat "$LOCK_FILE")
         if ps -p "$pid" > /dev/null 2>&1; then
             echo -e "${YELLOW}📡 Отправка сигнала SIGTERM процессу $pid...${NC}"
             kill -TERM "$pid"
-            
+
             # Ждем завершения процесса
             local count=0
             while ps -p "$pid" > /dev/null 2>&1 && [ $count -lt 10 ]; do
@@ -128,13 +128,13 @@ stop_server() {
                 sleep 1
                 count=$((count + 1))
             done
-            
+
             if ps -p "$pid" > /dev/null 2>&1; then
                 echo -e "${RED}⚠️ Принудительное завершение процесса...${NC}"
                 kill -KILL "$pid"
             fi
         fi
-        
+
         rm -f "$LOCK_FILE"
         echo -e "${GREEN}✅ Сервер остановлен${NC}"
     else
@@ -225,24 +225,24 @@ kill_all_server_processes() {
 # Функция для запуска сервера
 start_server() {
     echo -e "${BLUE}🚀 Запуск сервера...${NC}"
-    
+
     # Проверяем, что сервер не запущен
     if check_server_status > /dev/null 2>&1; then
         echo -e "${RED}❌ Сервер уже запущен${NC}"
         return 1
     fi
-    
+
     # Проверяем наличие main.py
     if [ ! -f "$MAIN_SCRIPT" ]; then
         echo -e "${RED}❌ Файл main.py не найден${NC}"
         return 1
     fi
-    
+
     # Запускаем сервер в фоне
     echo -e "${YELLOW}🔄 Запуск сервера в фоновом режиме...${NC}"
     nohup python3 "$MAIN_SCRIPT" > "$LOG_DIR/server_output.log" 2>&1 &
     local pid=$!
-    
+
     # Ждем немного и проверяем статус
     sleep 2
     if ps -p "$pid" > /dev/null 2>&1; then
@@ -266,14 +266,14 @@ restart_server() {
 # Функция для обновления и перезапуска
 update_and_restart() {
     echo -e "${BLUE}🔄 Обновление кода и перезапуск сервера...${NC}"
-    
+
     # Останавливаем сервер
     kill_all_server_processes
     stop_server
-    
+
     # Обновляем код
     update_code
-    
+
     # Запускаем сервер
     start_server
 }
@@ -293,7 +293,7 @@ view_logs() {
         echo ""
         echo -e "${YELLOW}Выберите опцию (0-5):${NC} "
         read -r choice
-        
+
         case $choice in
             1)
                 echo -e "${BLUE}📋 Последние логи сервера:${NC}"
@@ -383,7 +383,7 @@ database_menu() {
         echo ""
         echo -e "${YELLOW}Выберите опцию (0-6):${NC} "
         read -r choice
-        
+
         case $choice in
             1)
                 echo -e "${BLUE}📊 Информация о базе данных:${NC}"
@@ -481,26 +481,26 @@ system_status() {
     clear
     echo -e "${CYAN}📈 Статус системы${NC}"
     echo ""
-    
+
     # Статус сервера
     echo -e "${YELLOW}🖥️ Статус сервера:${NC}"
     check_server_status
-    
+
     # Использование ресурсов
     echo -e "${YELLOW}💻 Использование ресурсов:${NC}"
     echo -e "${BLUE}CPU:${NC}"
     top -l 1 | grep "CPU usage" || echo "Информация о CPU недоступна"
     echo -e "${BLUE}Память:${NC}"
     top -l 1 | grep "PhysMem" || echo "Информация о памяти недоступна"
-    
+
     # Дисковое пространство
     echo -e "${YELLOW}💾 Дисковое пространство:${NC}"
     df -h "$PROJECT_DIR" | tail -1
-    
+
     # Размер проекта
     echo -e "${YELLOW}📁 Размер проекта:${NC}"
     du -sh "$PROJECT_DIR" 2>/dev/null
-    
+
     # Последние логи
     echo -e "${YELLOW}📋 Последние записи в логах:${NC}"
     if [ -f "$LOG_DIR/server_output.log" ]; then
@@ -508,7 +508,7 @@ system_status() {
     else
         echo "Логи не найдены"
     fi
-    
+
     echo ""
     echo -e "${YELLOW}Нажмите Enter для продолжения...${NC}"
     read -r
@@ -529,7 +529,7 @@ system_utils() {
         echo ""
         echo -e "${YELLOW}Выберите опцию (0-5):${NC} "
         read -r choice
-        
+
         case $choice in
             1)
                 echo -e "${BLUE}🧹 Очистка временных файлов...${NC}"
@@ -603,7 +603,7 @@ file_management() {
         echo ""
         echo -e "${YELLOW}Выберите опцию (0-5):${NC} "
         read -r choice
-        
+
         case $choice in
             1)
                 echo -e "${BLUE}📋 Список файлов проекта:${NC}"
@@ -683,7 +683,7 @@ settings_menu() {
         echo ""
         echo -e "${YELLOW}Выберите опцию (0-4):${NC} "
         read -r choice
-        
+
         case $choice in
             1)
                 echo -e "${BLUE}🔧 Настройки окружения:${NC}"
@@ -734,12 +734,12 @@ settings_menu() {
 main() {
     # Создаем директорию для логов если её нет
     mkdir -p "$LOG_DIR"
-    
+
     while true; do
         show_header
         show_main_menu
         read -r choice
-        
+
         case $choice in
             1)
                 update_and_restart

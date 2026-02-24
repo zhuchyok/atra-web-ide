@@ -10,6 +10,7 @@ license: MIT
 ## Project Setup
 
 ### Modern Python Project Structure
+
 ```
 my-project/
 ├── src/
@@ -26,6 +27,7 @@ my-project/
 ```
 
 ### pyproject.toml
+
 ```toml
 [project]
 name = "my-project"

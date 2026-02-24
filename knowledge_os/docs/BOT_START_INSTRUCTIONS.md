@@ -3,6 +3,7 @@
 ## 🚨 ПРОБЛЕМА: БОТ НЕ ЗАПУЩЕН!
 
 Из проверки видно, что бот не запущен:
+
 - ❌ `ps aux | grep -E "(signal_live|main\.py)"` - не показывает процессов
 - ✅ Есть лог файлы (signal_live.log, system_improved.log)
 - ✅ База данных работает
@@ -10,6 +11,7 @@
 ## 🚀 АВТОМАТИЧЕСКИЙ ЗАПУСК
 
 ### 1. Обновите код и запустите бота:
+
 ```bash
 cd ~/atra
 git pull
@@ -32,6 +34,7 @@ nohup python3 signal_live.py > signal_live.log 2>&1 &
 ```
 
 ### Проверьте после запуска:
+
 ```bash
 ps aux | grep -E "(signal_live|main\.py)"
 ```
@@ -39,11 +42,13 @@ ps aux | grep -E "(signal_live|main\.py)"
 ## 📋 ПРОВЕРКА РАБОТЫ
 
 ### 1. Проверьте процессы:
+
 ```bash
 ps aux | grep python
 ```
 
 ### 2. Проверьте логи:
+
 ```bash
 tail -f signal_live.log
 # или
@@ -51,6 +56,7 @@ tail -f main.log
 ```
 
 ### 3. Проверьте базу данных:
+
 ```bash
 python3 -c "
 import sqlite3
@@ -67,6 +73,7 @@ conn.close()
 ## ✅ ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 После запуска вы должны увидеть:
+
 - ✅ Процесс Python в `ps aux | grep python`
 - ✅ Логи без ошибок в `tail -f signal_live.log`
 - ✅ Статистика базы данных показывает активность
@@ -75,20 +82,24 @@ conn.close()
 ## 🆘 ЕСЛИ НЕ РАБОТАЕТ
 
 ### Проверьте зависимости:
+
 ```bash
 python3 -c "import sqlite3, requests, pandas, talib"
 ```
 
 ### Проверьте права доступа:
+
 ```bash
 ls -la signal_live.py
 chmod +x signal_live.py
 ```
 
 ### Проверьте место на диске:
+
 ```bash
 df -h
 ```
 
 ---
-*Инструкция создана: 2025-10-07*
+
+_Инструкция создана: 2025-10-07_

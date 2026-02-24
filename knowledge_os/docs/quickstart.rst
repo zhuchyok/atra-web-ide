@@ -21,16 +21,16 @@ ATRA - это система автоматической генерации т�
    import pandas as pd
    from src.signals.core import strict_entry_signal
    from src.signals.validation import validate_signal_data
-   
+
    # Загрузка данных
    df = pd.read_csv('market_data.csv')
-   
+
    # Добавление индикаторов
    df = add_indicators(df)
-   
+
    # Генерация сигнала
    side, price = strict_entry_signal(df, len(df) - 1)
-   
+
    if side and price:
        # Валидация сигнала
        signal_data = {
@@ -39,9 +39,9 @@ ATRA - это система автоматической генерации т�
            'price': price,
            'user_id': '123456789'
        }
-       
+
        is_valid = validate_signal_data(signal_data)
-       
+
        if is_valid:
            print(f"Сигнал: {side} {price}")
 
@@ -77,7 +77,7 @@ ATRA - это система автоматической генерации т�
    DEFAULT_RISK_PCT = 2.0
    DEFAULT_LEVERAGE = 1.0
    TRADING_MODE = 'spot'
-   
+
    # Фильтры
    ENABLE_BB_FILTER = True
    ENABLE_EMA_FILTER = True
@@ -114,10 +114,10 @@ Telegram бот
 .. code-block:: python
 
    from monitoring_system import MonitoringSystem
-   
+
    # Инициализация мониторинга
    monitor = MonitoringSystem()
-   
+
    # Получение метрик
    metrics = monitor.get_metrics()
    print(f"Активных сигналов: {metrics['active_signals']}")

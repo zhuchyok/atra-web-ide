@@ -16,6 +16,7 @@ if _root not in sys.path:
 
 try:
     import pytest
+
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
@@ -28,6 +29,7 @@ class TestCasualChatDetection:
 
     def test_chat_phrases_recognized(self):
         from app.victoria_enhanced import VictoriaEnhanced
+
         v = VictoriaEnhanced()
         chat_phrases = [
             "Привет",
@@ -43,12 +45,14 @@ class TestCasualChatDetection:
 
     def test_short_messages_are_chat(self):
         from app.victoria_enhanced import VictoriaEnhanced
+
         v = VictoriaEnhanced()
         assert v._is_casual_chat("Привет!")
         assert v._is_casual_chat("Ок")
 
     def test_requests_not_chat(self):
         from app.victoria_enhanced import VictoriaEnhanced
+
         v = VictoriaEnhanced()
         not_chat = [
             "Помоги настроить docker для проекта",
@@ -64,6 +68,7 @@ class TestDepartmentFallback:
 
     def test_request_phrases_get_strategy_data(self):
         from app.department_heads_system import get_department_heads_system
+
         db_url = os.getenv("DATABASE_URL")
         system = get_department_heads_system(db_url)
         requests_without_keywords = [
@@ -78,6 +83,7 @@ class TestDepartmentFallback:
 
     def test_keywords_still_work(self):
         from app.department_heads_system import get_department_heads_system
+
         db_url = os.getenv("DATABASE_URL")
         system = get_department_heads_system(db_url)
         assert system.determine_department("Нужен анализ данных") == "Strategy/Data"
@@ -86,6 +92,7 @@ class TestDepartmentFallback:
 
     def test_file_creation_skips_department(self):
         from app.department_heads_system import get_department_heads_system
+
         db_url = os.getenv("DATABASE_URL")
         system = get_department_heads_system(db_url)
         # Фразы про создание файла/страницы: отдел может быть None или назначен (Backend, ML/AI и т.д.)
@@ -98,8 +105,11 @@ class TestDepartmentFallback:
 async def _test_should_use_department_heads_skips_chat():
     """Для casual chat _should_use_department_heads возвращает False."""
     from app.victoria_enhanced import VictoriaEnhanced
+
     v = VictoriaEnhanced()
-    should_use, dept_info = await v._should_use_department_heads("Привет, как дела?", category="general")
+    should_use, dept_info = await v._should_use_department_heads(
+        "Привет, как дела?", category="general"
+    )
     assert should_use is False
     assert dept_info == {}
 
@@ -109,6 +119,7 @@ class TestPreferExpertsFirstDelegation:
 
     def test_simple_veronica_request_detected(self):
         from app.victoria_enhanced import VictoriaEnhanced
+
         v = VictoriaEnhanced()
         assert v._is_simple_veronica_request("покажи файлы в src")
         assert v._is_simple_veronica_request("выведи список файлов")
@@ -120,6 +131,7 @@ class TestPreferExpertsFirstDelegation:
     @pytest.mark.asyncio
     async def test_should_delegate_only_simple_when_prefer_experts_first(self):
         from app.victoria_enhanced import VictoriaEnhanced
+
         prev = os.environ.get("PREFER_EXPERTS_FIRST")
         try:
             os.environ["PREFER_EXPERTS_FIRST"] = "true"
@@ -128,7 +140,9 @@ class TestPreferExpertsFirstDelegation:
                 pytest.skip("TaskDelegator не инициализирован (опциональный компонент)")
             # «Сделай отчёт» — не одношаговый → не делегируем Veronica
             should, info = await v._should_delegate_task("Сделай отчёт по метрикам за месяц")
-            assert should is False, "При PREFER_EXPERTS_FIRST execution-задачи остаются Victoria/экспертам"
+            assert should is False, (
+                "При PREFER_EXPERTS_FIRST execution-задачи остаются Victoria/экспертам"
+            )
             # «Покажи файлы» — простое → делегируем
             should2, info2 = await v._should_delegate_task("покажи файлы в backend")
             assert should2 is True
@@ -143,6 +157,7 @@ class TestPreferExpertsFirstDelegation:
 async def _test_should_delegate_only_simple_when_prefer_experts_first():
     """Обёртка для запуска без pytest."""
     from app.victoria_enhanced import VictoriaEnhanced
+
     v = VictoriaEnhanced()
     if not v.task_delegator:
         return  # skip без pytest
@@ -161,6 +176,7 @@ async def _test_should_delegate_only_simple_when_prefer_experts_first():
 
 
 if HAS_PYTEST:
+
     @pytest.mark.asyncio
     async def test_should_use_department_heads_skips_chat():
         await _test_should_use_department_heads_skips_chat()

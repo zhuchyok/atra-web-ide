@@ -3,6 +3,7 @@
 ## 🎯 Проблема
 
 Сервис `myproject.service` не найден и был убит с `SIGKILL` из-за таймаута:
+
 ```
 Loaded: not-found (Reason: Unit myproject.service not found.)
 Active: failed (Result: timeout)
@@ -43,11 +44,13 @@ sudo systemctl status myproject.service
 ## 🔍 Диагностика проблем
 
 ### Проверьте статус сервиса:
+
 ```bash
 sudo systemctl status myproject.service
 ```
 
 **Ожидаемый результат:**
+
 ```
 ● myproject.service - Trading bot ATRA
    Active: active (running)
@@ -55,17 +58,20 @@ sudo systemctl status myproject.service
 ```
 
 ### Проверьте логи:
+
 ```bash
 journalctl -u myproject.service -f
 ```
 
 **Ищите ошибки:**
+
 - `❌ Ошибка импорта модулей`
 - `❌ Ошибка токена бота`
 - `❌ Ошибка базы данных`
 - `❌ Ошибка виртуального окружения`
 
 ### Проверьте конфигурацию:
+
 ```bash
 # Проверьте файл сервиса
 cat /etc/systemd/system/myproject.service
@@ -82,6 +88,7 @@ ls -la /root/atra/.venv/bin/python
 **Проблема:** `systemctl status myproject.service` показывает `inactive`
 
 **Решение:**
+
 ```bash
 # Проверьте логи
 journalctl -u myproject.service -n 20
@@ -95,6 +102,7 @@ sudo systemctl restart myproject.service
 **Проблема:** `❌ Ошибка виртуального окружения`
 
 **Решение:**
+
 ```bash
 # Создайте виртуальное окружение
 cd /root/atra
@@ -108,6 +116,7 @@ pip install -r requirements.txt
 **Проблема:** `❌ Ошибка токена бота`
 
 **Решение:**
+
 ```bash
 # Проверьте .env файл
 cat .env
@@ -121,6 +130,7 @@ nano .env
 **Проблема:** `❌ Permission denied`
 
 **Решение:**
+
 ```bash
 # Установите правильные права
 sudo chown -R root:root /root/atra
@@ -145,6 +155,7 @@ journalctl -u myproject.service -f
 ```
 
 **Ищите сообщения:**
+
 - `✅ Бот запущен`
 - `✅ Обработчики зарегистрированы`
 - `✅ Команды зарегистрированы`
@@ -154,6 +165,7 @@ journalctl -u myproject.service -f
 Отправьте команду `/start` боту в Telegram.
 
 **Ожидаемый результат:**
+
 - Бот должен ответить приветственным сообщением
 - Должны появиться кнопки меню
 
@@ -162,17 +174,20 @@ journalctl -u myproject.service -f
 ### Если сервис все еще не работает:
 
 1. **Проверьте файл сервиса:**
+
    ```bash
    cat /etc/systemd/system/myproject.service
    ```
 
 2. **Проверьте пути:**
+
    ```bash
    ls -la /root/atra/main.py
    ls -la /root/atra/.venv/bin/python
    ```
 
 3. **Проверьте логи:**
+
    ```bash
    journalctl -u myproject.service -n 50
    ```

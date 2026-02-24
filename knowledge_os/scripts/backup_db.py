@@ -4,10 +4,10 @@
 Производит ротацию и сохранение базы данных trading.db
 """
 
-import os
-import sqlite3
-import shutil
 import logging
+import os
+import shutil
+import sqlite3
 from datetime import datetime, timedelta
 
 from src.shared.utils.datetime_utils import get_utc_now
@@ -18,8 +18,9 @@ DB_PATH = os.path.join(BASE_DIR, "trading.db")
 BACKUP_DIR = os.path.join(BASE_DIR, "backups/db")
 MAX_BACKUPS = 7  # Храним за последние 7 дней
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def run_backup():
     try:
@@ -31,7 +32,7 @@ def run_backup():
         backup_path = os.path.join(BACKUP_DIR, f"trading_backup_{timestamp}.db")
 
         logger.info("📦 Начало бэкапа базы данных...")
-        
+
         # Безопасное копирование SQLite через API (не блокирует БД)
         src = sqlite3.connect(DB_PATH)
         dst = sqlite3.connect(backup_path)
@@ -42,6 +43,7 @@ def run_backup():
 
         # Архивируем для экономии места
         import subprocess
+
         subprocess.run(["gzip", backup_path], check=True)
         logger.info("✅ Бэкап успешно создан и сжат: %s.gz", backup_path)
 
@@ -50,6 +52,7 @@ def run_backup():
 
     except Exception as e:
         logger.error("❌ Ошибка при создании бэкапа: %s", e)
+
 
 def clean_old_backups():
     """Удаляет файлы старше MAX_BACKUPS штук"""
@@ -64,6 +67,6 @@ def clean_old_backups():
     except Exception as e:
         logger.error("❌ Ошибка при ротации бэкапов: %s", e)
 
+
 if __name__ == "__main__":
     run_backup()
-

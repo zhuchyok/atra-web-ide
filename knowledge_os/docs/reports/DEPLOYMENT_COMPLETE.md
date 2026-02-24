@@ -69,11 +69,13 @@ tail -30 main.log
 После выполнения команд проверьте:
 
 1. **Процесс запущен:**
+
    ```bash
    ssh root@185.177.216.15 "ps aux | grep 'python.*main.py' | grep -v grep"
    ```
 
 2. **Логи без ошибок:**
+
    ```bash
    ssh root@185.177.216.15 "tail -50 /root/atra/main.log | grep -i 'error\|exception' | tail -5"
    ```
@@ -110,6 +112,7 @@ tail -30 main.log
 ## 📁 **СОЗДАННЫЕ ФАЙЛЫ:**
 
 ### Скрипты развертывания:
+
 - `EXECUTE_THIS.sh` - простой скрипт для выполнения
 - `deploy_all.sh` - полный автоматический скрипт
 - `deploy_auto.py` - Python скрипт с pexpect
@@ -117,6 +120,7 @@ tail -30 main.log
 - `deploy_complete.sh` - скрипт для выполнения на сервере
 
 ### Документация:
+
 - `README_DEPLOY.md` - краткая инструкция
 - `FINAL_DEPLOY_REPORT.md` - подробный отчет
 - `DEPLOY_NOW.md` - быстрые команды
@@ -135,4 +139,3 @@ tail -30 main.log
 ---
 
 **Все изменения в коде готовы и закоммичены в git!**
-

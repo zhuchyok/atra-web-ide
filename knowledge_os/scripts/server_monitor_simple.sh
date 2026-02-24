@@ -39,7 +39,7 @@ while true; do
     clear
     echo "🔍 МОНИТОРИНГ СЕРВЕРА ATRA - $(date)"
     echo "====================================="
-    
+
     # Процессы
     echo "🔄 Процессы main.py:"
     MAIN_PROCESSES=$(ps aux | grep main.py | grep -v grep)
@@ -49,12 +49,12 @@ while true; do
     else
         echo "❌ Бот не запущен"
     fi
-    
+
     echo ""
     echo "💻 Ресурсы:"
     echo "CPU: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1)%"
     echo "RAM: $(free -h | awk '/^Mem:/ {print $3 "/" $2}')"
-    
+
     echo ""
     echo "📝 Последние логи:"
     if [ -f "system_improved.log" ]; then
@@ -62,7 +62,7 @@ while true; do
     else
         echo "Лог файл не найден"
     fi
-    
+
     echo ""
     echo "Обновление через 10 секунд... (Ctrl+C для выхода)"
     sleep 10

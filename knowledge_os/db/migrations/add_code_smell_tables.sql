@@ -31,4 +31,3 @@ COMMENT ON TABLE code_smell_training_data IS 'Данные для обучени
 COMMENT ON COLUMN code_smell_predictions.predicted_issues IS 'JSON с предсказанием: {bug_probability, likely_issues, risk_files}';
 COMMENT ON COLUMN code_smell_predictions.actual_bugs IS 'Количество подтвержденных багов через 30 дней (для валидации)';
 COMMENT ON COLUMN code_smell_training_data.code_features IS 'JSON с features кода: {cyclomatic_complexity, function_count, class_count, anti_patterns, ...}';
-

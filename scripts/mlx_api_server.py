@@ -63,23 +63,23 @@ def get_model(model_key: str):
     """Получает или загружает модель"""
     if model_key in _models_cache:
         return _models_cache[model_key]
-    
+
     model_path = MODEL_PATHS.get(model_key)
     if not model_path:
         # Пробуем найти в MLX_MODELS_DIR
         model_path = os.path.join(MLX_MODELS_DIR, model_key)
-    
+
     if not model_path or not os.path.exists(model_path):
         raise ValueError(f"Model {model_key} not found at {model_path}")
-    
+
     logger.info(f"🔄 Загрузка модели: {model_key} из {model_path}")
     model, tokenizer = load(model_path)
-    
+
     _models_cache[model_key] = {
         "model": model,
         "tokenizer": tokenizer
     }
-    
+
     logger.info(f"✅ Модель загружена: {model_key}")
     return _models_cache[model_key]
 
@@ -124,12 +124,12 @@ async def generate_text(request: GenerateRequest):
             model_key = CATEGORY_TO_MODEL.get(request.category, "default")
         else:
             model_key = "default"
-        
+
         # Получаем модель
         model_data = get_model(model_key)
         model = model_data["model"]
         tokenizer = model_data["tokenizer"]
-        
+
         # Генерация
         if request.stream:
             return StreamingResponse(
@@ -143,13 +143,13 @@ async def generate_text(request: GenerateRequest):
                 None,
                 lambda: generate(model, tokenizer, prompt=request.prompt, max_tokens=request.max_tokens)
             )
-            
+
             return {
                 "model": model_key,
                 "response": response_text,
                 "done": True
             }
-            
+
     except Exception as e:
         logger.error(f"❌ Ошибка генерации: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -163,11 +163,11 @@ async def generate_stream(model, tokenizer, prompt: str, max_tokens: int):
         None,
         lambda: generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens)
     )
-    
+
     # Разбиваем на токены для эмуляции streaming
     for char in response:
         yield json.dumps({"response": char, "done": False}) + "\n"
-    
+
     yield json.dumps({"response": "", "done": True}) + "\n"
 
 
@@ -176,10 +176,10 @@ async def get_model_info(model_name: str):
     """Информация о модели"""
     if model_name not in MODEL_PATHS:
         raise HTTPException(status_code=404, detail="Model not found")
-    
+
     model_path = MODEL_PATHS[model_name]
     exists = os.path.exists(model_path)
-    
+
     return {
         "name": model_name,
         "path": model_path,
@@ -192,4 +192,3 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("MLX_API_PORT", "11435"))
     uvicorn.run(app, host="0.0.0.0", port=port)
-

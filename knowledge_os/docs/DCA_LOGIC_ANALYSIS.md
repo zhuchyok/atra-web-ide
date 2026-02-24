@@ -19,6 +19,7 @@ def dca_calculate_next_qty_and_tp(
 ```
 
 ### **Входные параметры:**
+
 - `entry_prices` - список цен входа в позицию
 - `qtys` - список количеств по каждой цене
 - `price` - текущая цена для усреднения
@@ -36,11 +37,13 @@ def dca_calculate_next_qty_and_tp(
 ## 📈 **ЛОГИКА РАСЧЕТА КОЛИЧЕСТВА DCA**
 
 ### **1. Базовое количество:**
+
 ```python
 base_qty = deposit * risk_pct / 100 * leverage / price
 ```
 
 ### **2. Корректировка на основе аномалии:**
+
 ```python
 if anomaly_circles_count > 0:
     adjusted_volume, volume_multiplier, recommendation = calculate_anomaly_based_volume(
@@ -52,6 +55,7 @@ if anomaly_circles_count > 0:
 ```
 
 ### **3. Расчет с учетом просадки:**
+
 ```python
 avg_price = sum(p * q for p, q in zip(entry_prices, qtys)) / sum(qtys)
 drawdown = abs((avg_price - price) / avg_price)
@@ -59,6 +63,7 @@ new_qty = base_qty * (1 + ALPHA * drawdown) / (1 + dca_count)
 ```
 
 **Где:**
+
 - `ALPHA` - коэффициент увеличения объема при просадке
 - `drawdown` - процент просадки от средней цены
 - `dca_count` - уменьшает объем с каждым DCA
@@ -68,6 +73,7 @@ new_qty = base_qty * (1 + ALPHA * drawdown) / (1 + dca_count)
 ## 🛡️ **ПРОВЕРКИ ЛИМИТОВ**
 
 ### **1. Максимальный риск:**
+
 ```python
 used_risk = sum(q * p for q, p in zip(qtys, entry_prices)) + new_qty * price
 max_risk = deposit * MAX_RISK_PCT / 100 * leverage
@@ -76,6 +82,7 @@ if used_risk > max_risk or dca_count >= MAX_DCA:
 ```
 
 ### **2. Лимиты:**
+
 - `MAX_RISK_PCT` - максимальный процент риска (обычно 30%)
 - `MAX_DCA` - максимальное количество DCA (обычно 5)
 
@@ -94,6 +101,7 @@ avg_price_new = total_cost / total_qty
 ## 📊 **ДИНАМИЧЕСКИЕ ТЕЙК-ПРОФИТЫ**
 
 ### **1. Получение динамических TP:**
+
 ```python
 if df is not None and current_index is not None:
     dynamic_tp1_pct, dynamic_tp2_pct = get_dynamic_tp_levels(df, current_index, side)
@@ -102,6 +110,7 @@ else:
 ```
 
 ### **2. Расчет TP для LONG:**
+
 ```python
 if side == "long":
     if dca_count + 1 >= 3:
@@ -114,6 +123,7 @@ if side == "long":
 ```
 
 ### **3. Расчет TP для SHORT:**
+
 ```python
 else:  # short
     if dca_count + 1 >= 3:
@@ -130,6 +140,7 @@ else:  # short
 ## 🔍 **УСЛОВИЯ АКТИВАЦИИ DCA**
 
 ### **Функция:** `should_dca()`
+
 ```python
 def should_dca(side, last_close, stop_loss, dca_pct):
     if side == "long":
@@ -139,6 +150,7 @@ def should_dca(side, last_close, stop_loss, dca_pct):
 ```
 
 **Логика:**
+
 - **LONG:** DCA активируется, когда цена падает ниже `stop_loss * (1 - dca_pct/100)`
 - **SHORT:** DCA активируется, когда цена растет выше `stop_loss * (1 + dca_pct/100)`
 
@@ -147,6 +159,7 @@ def should_dca(side, last_close, stop_loss, dca_pct):
 ## 📋 **ПРОЦЕСС ФОРМИРОВАНИЯ DCA СИГНАЛА**
 
 ### **1. Проверка открытых позиций:**
+
 ```python
 user_positions = user_data.get('open_positions', [])
 has_user_long = any(
@@ -156,6 +169,7 @@ has_user_long = any(
 ```
 
 ### **2. Получение данных позиции:**
+
 ```python
 if has_user_long:
     pos = next((p for p in user_positions if p['symbol'] == symbol and p.get('side', 'long') == 'long'), None)
@@ -166,6 +180,7 @@ if has_user_long:
 ```
 
 ### **3. Расчет нового DCA:**
+
 ```python
 new_qty, avg_price_new, tp1, tp2, limit_reached = dca_calculate_next_qty_and_tp(
     entry_prices, qtys, last['close'], dca_count, deposit, risk_pct,
@@ -174,6 +189,7 @@ new_qty, avg_price_new, tp1, tp2, limit_reached = dca_calculate_next_qty_and_tp(
 ```
 
 ### **4. Проверка лимитов:**
+
 ```python
 if limit_reached or new_qty <= 0:
     continue  # лимит усреднений или риска
@@ -184,6 +200,7 @@ if limit_reached or new_qty <= 0:
 ## 📊 **ИНФОРМАЦИЯ В DCA СИГНАЛЕ**
 
 ### **Основные данные:**
+
 - **Символ** и **сторона** позиции
 - **Цена усреднения** (текущая цена)
 - **Новая средняя цена** после DCA
@@ -192,12 +209,14 @@ if limit_reached or new_qty <= 0:
 - **Процент прибыли** для каждого TP
 
 ### **Технический анализ:**
+
 - RSI, MACD, Объем, EMA, Bollinger Bands
 - BTC тренд (если включен)
 - Данные о китах (если включены)
 - Индикатор аномалий
 
 ### **Риск-менеджмент:**
+
 - **Текущий риск** в позиции
 - **Максимальный риск** (лимит)
 - **Количество DCA** (n_dca)
@@ -208,10 +227,12 @@ if limit_reached or new_qty <= 0:
 ## 🔄 **ОСОБЕННОСТИ DCA ДЛЯ SHORT**
 
 ### **Логика усреднения:**
+
 - **LONG:** усреднение вниз (покупаем дешевле)
 - **SHORT:** усреднение вверх (продаем дороже)
 
 ### **Расчет TP для SHORT:**
+
 ```python
 profit_pct_tp1 = ((avg_price_new - tp1) / avg_price_new) * 100
 profit_pct_tp2 = ((avg_price_new - tp2) / avg_price_new) * 100
@@ -222,17 +243,21 @@ profit_pct_tp2 = ((avg_price_new - tp2) / avg_price_new) * 100
 ## ⚠️ **ОГРАНИЧЕНИЯ И ЗАЩИТЫ**
 
 ### **1. Максимальный риск:**
+
 - Не более 30% депозита в одной позиции
 - Учитывает все предыдущие входы
 
 ### **2. Максимальное количество DCA:**
+
 - Обычно 5 DCA на позицию
 - Предотвращает чрезмерное усреднение
 
 ### **3. Минимальное количество:**
+
 - Если `new_qty <= 0`, DCA не отправляется
 
 ### **4. Консервативные TP для поздних DCA:**
+
 - После 3-го DCA TP уменьшаются на 30%
 - Снижает риск при глубокой просадке
 
@@ -252,6 +277,7 @@ profit_pct_tp2 = ((avg_price_new - tp2) / avg_price_new) * 100
 ## 📈 **ПРИМЕР РАБОТЫ DCA**
 
 ### **Сценарий LONG позиции:**
+
 1. **Первый вход:** 100 USDT по цене 50,000
 2. **Цена падает до 45,000** → активируется DCA
 3. **DCA расчет:** дополнительно 120 USDT по 45,000
@@ -260,6 +286,7 @@ profit_pct_tp2 = ((avg_price_new - tp2) / avg_price_new) * 100
 6. **Общий риск:** 220 USDT (в пределах лимита)
 
 ### **Результат:**
+
 - **Снижение средней цены** с 50,000 до 47,273
 - **Увеличение объема** позиции
 - **Более быстрый выход в прибыль** при развороте

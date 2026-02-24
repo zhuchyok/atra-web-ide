@@ -14,6 +14,7 @@ python scripts/agent_status.py
 ```
 
 Показывает:
+
 - Рейтинги и менторство
 - KPI и достижения
 - Аномалии и предупреждения
@@ -28,6 +29,7 @@ python scripts/apply_knowledge.py
 ```
 
 Применяет:
+
 - Lessons learned → Guidance
 - Ретроспективы → База знаний
 - Новые знания → Эволюция промптов
@@ -263,6 +265,5 @@ python scripts/update_knowledge_base.py
 
 ---
 
-*Документация создана: Виктор (Team Lead)*  
-*Дата: 2025-01-XX*
-
+_Документация создана: Виктор (Team Lead)_  
+_Дата: 2025-01-XX_

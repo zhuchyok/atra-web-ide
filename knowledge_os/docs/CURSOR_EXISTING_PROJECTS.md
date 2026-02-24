@@ -121,6 +121,7 @@ find ~/projects -name ".cursorrules" -type f -exec grep -l "КОМАНДА ЭК�
 ### Проблема: Ошибки при инициализации
 
 **Решение:** Проверьте права доступа к директориям и файлам:
+
 ```bash
 chmod +x scripts/init-cursor-rules.sh
 chmod +x scripts/init-cursor-rules-all.sh
@@ -141,4 +142,3 @@ chmod +x scripts/init-cursor-rules-all.sh
 ---
 
 **Готово!** Теперь все ваши существующие проекты могут быть автоматически инициализированы с правилами Cursor.
-

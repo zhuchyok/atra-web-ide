@@ -59,16 +59,19 @@ alwaysApply: true
 # ПРАВИЛА ПРОЕКТА: My Python App
 
 ## 🌍 УНИВЕРСАЛЬНЫЕ ПРАВИЛА
+
 [Включите универсальные правила]
 
 ## 🐍 PYTHON СПЕЦИФИЧНЫЕ ПРАВИЛА
 
 ### Code Style:
+
 - PEP 8
 - Black formatting
 - Type hints обязательны
 
 ### Testing:
+
 - pytest
 - Покрытие > 80%
 ```
@@ -84,16 +87,19 @@ alwaysApply: true
 # ПРАВИЛА ПРОЕКТА: My React App
 
 ## 🌍 УНИВЕРСАЛЬНЫЕ ПРАВИЛА
+
 [Включите универсальные правила]
 
 ## ⚛️ REACT СПЕЦИФИЧНЫЕ ПРАВИЛА
 
 ### Code Style:
+
 - TypeScript strict mode
 - ESLint + Prettier
 - Functional components
 
 ### Testing:
+
 - Jest + React Testing Library
 - Покрытие > 80%
 ```
@@ -138,4 +144,3 @@ alwaysApply: true
 ---
 
 **Вопросы?** Обратитесь к команде экспертов или создайте issue в репозитории.
-

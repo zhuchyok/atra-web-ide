@@ -11,15 +11,18 @@
 ## 📋 Выполненные шаги
 
 ### 1. Подключение к серверу
+
 - ✅ Успешное подключение через SSH
 - ✅ Проверка структуры проекта
 
 ### 2. Обновление кода
+
 - ✅ Git fetch выполнен
 - ✅ Git reset --hard origin/worker выполнен
 - ⚠️ Были конфликты слияния, решены через reset
 
 ### 3. Создание директорий
+
 - ✅ `src/infrastructure/cache/` - создана
 - ✅ `src/core/` - создана
 - ✅ `src/signals/` - создана
@@ -30,12 +33,14 @@
 ### 4. Копирование stateless файлов
 
 #### ✅ Новые файлы:
+
 - `src/infrastructure/cache/stateless_cache.py` (3.9 KB) ✅
 - `src/infrastructure/cache/__init__.py` (321 bytes) ✅
 - `src/signals/state_container.py` (4.7 KB) ✅
 - `src/core/cache.py` ✅
 
 #### ✅ Обновленные файлы:
+
 - `src/utils/cache_manager.py` ✅
 - `src/core/config.py` ✅
 - `src/signals/filters_volume_vwap.py` ✅
@@ -45,10 +50,12 @@
 - `src/signals/__init__.py` (1.7 KB) ✅
 
 ### 5. Проверка Python
+
 - ✅ Python 3.10.12 установлен
 - ✅ Синтаксис файлов проверен (без ошибок)
 
 ### 6. Тестирование
+
 - ⚠️ pytest не установлен на сервере (не критично для staging)
 - ✅ Файлы успешно скопированы и проверены
 
@@ -67,6 +74,7 @@
 ## 🔍 Проверка на сервере
 
 ### Файлы stateless архитектуры:
+
 ```bash
 /root/atra/src/infrastructure/cache/stateless_cache.py ✅
 /root/atra/src/infrastructure/cache/__init__.py ✅
@@ -75,6 +83,7 @@
 ```
 
 ### Обновленные модули:
+
 ```bash
 /root/atra/src/utils/cache_manager.py ✅
 /root/atra/src/core/config.py ✅
@@ -89,21 +98,25 @@
 ## 🎯 Следующие шаги
 
 ### 1. Проверка работы системы:
+
 ```bash
 ssh root@185.177.216.15 'cd /root/atra && ./atra_server.sh status'
 ```
 
 ### 2. Проверка логов:
+
 ```bash
 ssh root@185.177.216.15 'tail -f /root/atra/logs/system.log'
 ```
 
 ### 3. Перезапуск системы (при необходимости):
+
 ```bash
 ssh root@185.177.216.15 'cd /root/atra && ./atra_server.sh restart'
 ```
 
 ### 4. Установка pytest (опционально):
+
 ```bash
 ssh root@185.177.216.15 'pip3 install pytest'
 ```
@@ -115,6 +128,7 @@ ssh root@185.177.216.15 'pip3 install pytest'
 **Статус деплоя:** ✅ УСПЕШНО
 
 Все файлы stateless архитектуры успешно развернуты на staging сервере:
+
 - ✅ Новые компоненты созданы
 - ✅ Существующие модули обновлены
 - ✅ Структура директорий создана
@@ -133,4 +147,3 @@ ssh root@185.177.216.15 'pip3 install pytest'
 ---
 
 **Деплой выполнен командой из 21 сотрудник ATRA** 👥
-

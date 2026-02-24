@@ -3,6 +3,7 @@
 ## 🎯 ПРОБЛЕМА
 
 Ошибка в логах:
+
 ```
 ERROR:src.database.db:❌ [DB] Не удалось переинициализировать подключение: cannot import name 'get_connection' from 'src.database.connection_pool'
 ```

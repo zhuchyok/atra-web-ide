@@ -6,6 +6,7 @@
 ## 🔍 СПИСОК ВСЕХ ФИЛЬТРОВ В РЕАЛЬНОЙ СИСТЕМЕ
 
 ### ✅ **УРОВЕНЬ 1: Валидация данных**
+
 1. **Pipeline Validation** (`signal_live.py:926-977`)
    - Проверка наличия данных
    - Достаточное количество баров (минимум 50)
@@ -14,6 +15,7 @@
    - Отсутствие NaN значений
 
 ### ✅ **УРОВЕНЬ 2: AI Scoring**
+
 2. **AI Score Filter** (`signal_live.py:1935-1939`)
    - Пороги: soft=15.0, strict=25.0
    - Блокирует если score < порога
@@ -25,6 +27,7 @@
    - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 3: Volume & Volatility**
+
 4. **AI Volume Filter** (`signal_live.py:1977-1980`)
    - `check_ai_volume_filter(df, ai_params)`
    - Блокирует если объем ниже порога
@@ -36,6 +39,7 @@
    - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 4: Anomaly & Risk**
+
 6. **Anomaly Filter** (`signal_live.py:1993-2071`)
    - `calculate_anomaly_circles_with_fallback(symbol, signal_type)`
    - Блокирует при 0 кружков (низкая ликвидность)
@@ -60,6 +64,7 @@
    - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 5: Технические индикаторы**
+
 10. **RSI Filter** (`signal_live.py:296-306`)
     - RSI 25/75 (ужесточенные пороги)
     - Требует вход в экстремальную зону
@@ -88,6 +93,7 @@
     - ✅ **ЕСТЬ в бектесте**
 
 ### ✅ **УРОВЕНЬ 6: Направление и тренд**
+
 15. **BTC Alignment** (`signal_live.py:2153-2156`)
     - `check_btc_alignment(symbol, signal_type)`
     - Блокирует сигналы против BTC тренда
@@ -105,6 +111,7 @@
     - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 7: Quality & Pattern**
+
 18. **Quality Score** (`signal_live.py:2179-2202`)
     - `quality_validator.calculate_quality_score(df, signal_type, symbol)`
     - Минимум 0.68
@@ -123,6 +130,7 @@
     - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 8: Защитные системы**
+
 21. **Volume Quality** (`signal_live.py:2212-2224`)
     - `volume_detector.get_volume_quality(df)`
     - Блокирует если quality < 0.80 (манипуляции объемом)
@@ -134,12 +142,14 @@
     - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 9: Multi-Timeframe**
+
 23. **MTF Confirmation** (`signal_live.py:234-249`)
     - `check_mtf_confirmation(symbol, direction, '4h', regime_data)`
     - Подтверждение на 4h таймфрейме
     - ❌ **НЕТ в бектесте**
 
 ### ✅ **УРОВЕНЬ 10: Correlation & Portfolio**
+
 24. **Correlation Risk Manager** (`signal_live.py:2910`)
     - `correlation_manager.check_correlation_risk_async(symbol, signal_type, user_id, df)`
     - Сегментация по группам (HIGH/MEDIUM/LOW/INDEPENDENT)
@@ -156,33 +166,33 @@
 
 ## 📊 СРАВНЕНИЕ: Реальная система vs Бектест
 
-| Фильтр | Реальная система | Бектест | Статус |
-|--------|------------------|---------|--------|
-| Pipeline Validation | ✅ | ✅ | ✅ Есть |
-| AI Score Filter | ✅ | ❌ | ❌ Отсутствует |
-| Composite Signal Score | ✅ | ❌ | ❌ Отсутствует |
-| AI Volume Filter | ✅ | ⚠️ | ⚠️ Частично |
-| AI Volatility Filter | ✅ | ❌ | ❌ Отсутствует |
-| Anomaly Filter | ✅ | ❌ | ❌ Отсутствует |
-| Symbol Blocker | ✅ | ❌ | ❌ Отсутствует |
-| Symbol Health | ✅ | ❌ | ❌ Отсутствует |
-| Liquidity Checker | ✅ | ❌ | ❌ Отсутствует |
-| RSI Filter | ✅ | ✅ | ✅ Есть |
-| MACD Filter | ✅ | ✅ | ✅ Есть |
-| Volume Filter | ✅ | ✅ | ✅ Есть |
-| Bollinger Bands | ✅ | ✅ | ✅ Добавлен |
-| EMA Filter | ✅ | ✅ | ✅ Есть |
-| BTC Alignment | ✅ | ✅ | ✅ Есть |
-| Direction Confidence | ✅ | ❌ | ❌ Отсутствует |
-| RSI Warning | ✅ | ❌ | ❌ Отсутствует |
-| Quality Score | ✅ | ❌ | ❌ Отсутствует |
-| Pattern Confidence | ✅ | ❌ | ❌ Отсутствует |
-| Static Levels | ✅ | ❌ | ❌ Отсутствует |
-| Volume Quality | ✅ | ❌ | ❌ Отсутствует |
-| False Breakout | ✅ | ❌ | ❌ Отсутствует |
-| MTF Confirmation | ✅ | ❌ | ❌ Отсутствует |
-| Correlation Manager | ✅ | ✅ | ✅ Добавлен |
-| Portfolio Risk Manager | ✅ | ⚠️ | ⚠️ Частично (только max_positions) |
+| Фильтр                 | Реальная система | Бектест | Статус                             |
+| ---------------------- | ---------------- | ------- | ---------------------------------- |
+| Pipeline Validation    | ✅               | ✅      | ✅ Есть                            |
+| AI Score Filter        | ✅               | ❌      | ❌ Отсутствует                     |
+| Composite Signal Score | ✅               | ❌      | ❌ Отсутствует                     |
+| AI Volume Filter       | ✅               | ⚠️      | ⚠️ Частично                        |
+| AI Volatility Filter   | ✅               | ❌      | ❌ Отсутствует                     |
+| Anomaly Filter         | ✅               | ❌      | ❌ Отсутствует                     |
+| Symbol Blocker         | ✅               | ❌      | ❌ Отсутствует                     |
+| Symbol Health          | ✅               | ❌      | ❌ Отсутствует                     |
+| Liquidity Checker      | ✅               | ❌      | ❌ Отсутствует                     |
+| RSI Filter             | ✅               | ✅      | ✅ Есть                            |
+| MACD Filter            | ✅               | ✅      | ✅ Есть                            |
+| Volume Filter          | ✅               | ✅      | ✅ Есть                            |
+| Bollinger Bands        | ✅               | ✅      | ✅ Добавлен                        |
+| EMA Filter             | ✅               | ✅      | ✅ Есть                            |
+| BTC Alignment          | ✅               | ✅      | ✅ Есть                            |
+| Direction Confidence   | ✅               | ❌      | ❌ Отсутствует                     |
+| RSI Warning            | ✅               | ❌      | ❌ Отсутствует                     |
+| Quality Score          | ✅               | ❌      | ❌ Отсутствует                     |
+| Pattern Confidence     | ✅               | ❌      | ❌ Отсутствует                     |
+| Static Levels          | ✅               | ❌      | ❌ Отсутствует                     |
+| Volume Quality         | ✅               | ❌      | ❌ Отсутствует                     |
+| False Breakout         | ✅               | ❌      | ❌ Отсутствует                     |
+| MTF Confirmation       | ✅               | ❌      | ❌ Отсутствует                     |
+| Correlation Manager    | ✅               | ✅      | ✅ Добавлен                        |
+| Portfolio Risk Manager | ✅               | ⚠️      | ⚠️ Частично (только max_positions) |
 
 ## 📈 СТАТИСТИКА
 
@@ -194,6 +204,7 @@
 ## 🎯 ПРИОРИТЕТЫ ДОБАВЛЕНИЯ
 
 ### **Высокий приоритет:**
+
 1. **Direction Confidence** - критично для качества сигналов
 2. **Quality Score** - важная метрика валидации
 3. **Pattern Confidence** - проверка надежности паттерна
@@ -201,6 +212,7 @@
 5. **RSI Warning** - защита от опасных зон
 
 ### **Средний приоритет:**
+
 6. **AI Volume Filter** - улучшение фильтрации объема
 7. **AI Volatility Filter** - фильтрация волатильности
 8. **Anomaly Filter** - защита от манипуляций
@@ -208,6 +220,7 @@
 10. **Portfolio Risk Manager** - полная интеграция
 
 ### **Низкий приоритет:**
+
 11. **Composite Signal Score** - дополнительный бонус
 12. **Symbol Blocker** - блокировка проблемных символов
 13. **Symbol Health** - проверка здоровья символа
@@ -222,4 +235,3 @@
 2. **Улучшить существующие фильтры** (AI Volume, AI Volatility)
 3. **Добавить защитные системы** (Anomaly, Liquidity, Portfolio Risk)
 4. **Протестировать влияние** каждого фильтра на результаты бектеста
-

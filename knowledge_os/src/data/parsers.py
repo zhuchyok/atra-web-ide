@@ -2,13 +2,15 @@
 Data parsing utilities for different API sources
 """
 
+import logging
 import re
 import time
-import logging
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
-def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, base_symbol: str) -> Optional[Dict[str, Any]]:
+def parse_market_cap_data(
+    source_name: str, data: Dict[str, Any], symbol: str, base_symbol: str
+) -> Optional[Dict[str, Any]]:
     """Парсинг данных о капитализации"""
     try:
         if source_name == "CoinGecko":
@@ -16,7 +18,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
             return {
                 "market_cap": market_data.get("market_cap", {}).get("usd", 0),
                 "volume_24h": market_data.get("total_volume", {}).get("usd", 0),
-                "source": source_name
+                "source": source_name,
             }
         elif source_name == "CryptoCompare":
             raw_data = data.get("RAW", {})
@@ -25,7 +27,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                 return {
                     "market_cap": usd_data.get("MKTCAP", 0),
                     "volume_24h": usd_data.get("TOTALVOLUME24H", 0),
-                    "source": source_name
+                    "source": source_name,
                 }
         elif source_name == "CoinLore":
             tickers = data.get("data", [])
@@ -36,7 +38,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                     return {
                         "market_cap": float(market_cap) if market_cap is not None else 0.0,
                         "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                        "source": source_name
+                        "source": source_name,
                     }
         elif source_name == "CoinPaprika":
             currencies = data.get("currencies", [])
@@ -50,7 +52,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                         return {
                             "market_cap": 0,  # Будет заполнено после запроса к ticker
                             "volume_24h": 0,
-                            "source": source_name
+                            "source": source_name,
                         }
         elif source_name == "CoinCap":
             assets = data.get("data", [])
@@ -61,7 +63,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                     return {
                         "market_cap": float(market_cap) if market_cap is not None else 0.0,
                         "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                        "source": source_name
+                        "source": source_name,
                     }
         elif source_name == "CoinRanking":
             coins = data.get("data", {}).get("coins", [])
@@ -72,7 +74,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                     return {
                         "market_cap": float(market_cap) if market_cap is not None else 0.0,
                         "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                        "source": source_name
+                        "source": source_name,
                     }
         elif source_name == "CoinStats":
             coins = data.get("coins", [])
@@ -83,7 +85,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                     return {
                         "market_cap": float(market_cap) if market_cap is not None else 0.0,
                         "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                        "source": source_name
+                        "source": source_name,
                     }
         elif source_name == "Binance":
             for ticker in data:
@@ -95,7 +97,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                     return {
                         "market_cap": estimated_market_cap,
                         "volume_24h": volume,
-                        "source": source_name
+                        "source": source_name,
                     }
         elif source_name == "CoinMarketCap":
             quote_data = data.get("data", {}).get(base_symbol, {}).get("quote", {}).get("USD", {})
@@ -105,7 +107,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                 return {
                     "market_cap": float(market_cap) if market_cap is not None else 0.0,
                     "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                    "source": source_name
+                    "source": source_name,
                 }
         elif source_name == "Messari":
             metrics = data.get("data", {})
@@ -115,7 +117,7 @@ def parse_market_cap_data(source_name: str, data: Dict[str, Any], symbol: str, b
                 return {
                     "market_cap": float(market_cap) if market_cap is not None else 0.0,
                     "volume_24h": float(volume_24h) if volume_24h is not None else 0.0,
-                    "source": source_name
+                    "source": source_name,
                 }
     except (RuntimeError, OSError, ValueError) as e:
         logging.debug("[MarketCap] Ошибка парсинга %s: %s", source_name, e)
@@ -237,9 +239,9 @@ def parse_news_data(source_name: str, content: str, _symbol: str) -> List[Dict[s
 
         # Паттерны для извлечения заголовков и ссылок
         title_patterns = [
-            r'<title[^>]*>([^<]+)</title>',
-            r'<h[1-6][^>]*>([^<]+)</h[1-6]>',
-            r'<a[^>]*href="([^"]*)"[^>]*>([^<]+)</a>'
+            r"<title[^>]*>([^<]+)</title>",
+            r"<h[1-6][^>]*>([^<]+)</h[1-6]>",
+            r'<a[^>]*href="([^"]*)"[^>]*>([^<]+)</a>',
         ]
 
         for pattern in title_patterns:
@@ -249,29 +251,35 @@ def parse_news_data(source_name: str, content: str, _symbol: str) -> List[Dict[s
                     if len(match) == 2:
                         link, title = match
                         if title and len(title.strip()) > 10:
-                            news_items.append({
-                                'title': title.strip(),
-                                'link': link.strip(),
-                                'source': source_name,
-                                'timestamp': time.time()
-                            })
+                            news_items.append(
+                                {
+                                    "title": title.strip(),
+                                    "link": link.strip(),
+                                    "source": source_name,
+                                    "timestamp": time.time(),
+                                }
+                            )
                     else:
                         title = match[0] if match else match
                         if title and len(title.strip()) > 10:
-                            news_items.append({
-                                'title': title.strip(),
-                                'link': '',
-                                'source': source_name,
-                                'timestamp': time.time()
-                            })
+                            news_items.append(
+                                {
+                                    "title": title.strip(),
+                                    "link": "",
+                                    "source": source_name,
+                                    "timestamp": time.time(),
+                                }
+                            )
                 else:
                     if match and len(match.strip()) > 10:
-                        news_items.append({
-                            'title': match.strip(),
-                            'link': '',
-                            'source': source_name,
-                            'timestamp': time.time()
-                        })
+                        news_items.append(
+                            {
+                                "title": match.strip(),
+                                "link": "",
+                                "source": source_name,
+                                "timestamp": time.time(),
+                            }
+                        )
 
         return news_items[:10]  # Ограничиваем количество
 

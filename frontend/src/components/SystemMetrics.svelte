@@ -9,7 +9,8 @@
     loading = true
     error = null
     try {
-      const r = await fetch('/api/system-metrics')
+      // Используем порт 8081 для Rust Gateway
+      const r = await fetch(`http://${window.location.hostname}:8081/api/system-metrics`)
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       data = await r.json()
     } catch (e) {

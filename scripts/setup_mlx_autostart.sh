@@ -19,6 +19,11 @@ echo ""
 echo "[1/3] Создание launchd plist для MLX API Server..."
 LAUNCHD_MLX="${HOME}/Library/LaunchAgents/com.atra.mlx-api-server.plist"
 
+# Полный путь к python3 для launchd (exit 126 = PATH пустой под launchd)
+PYTHON3_PATH="$(command -v python3 2>/dev/null || echo "/opt/homebrew/bin/python3")"
+[[ -z "$PYTHON3_PATH" || ! -x "$PYTHON3_PATH" ]] && PYTHON3_PATH="/opt/homebrew/bin/python3"
+[[ ! -x "$PYTHON3_PATH" ]] && PYTHON3_PATH="/usr/bin/python3"
+
 cat > "$LAUNCHD_MLX" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -29,10 +34,23 @@ cat > "$LAUNCHD_MLX" << EOF
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${ROOT}/scripts/start_mlx_server.sh</string>
+        <string>/Users/bikos/Library/Application Support/Atra/launch_mlx.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>${ROOT}</string>
+    <string>/tmp</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHON3</key>
+        <string>${PYTHON3_PATH}</string>
+        <key>VICTORIA_MLX_BRAIN</key>
+        <string>false</string>
+        <key>ATRA_PROJECT_ROOT</key>
+        <string>${ROOT}</string>
+    </dict>
+    <key>LimitLoadToSessionType</key>
+    <string>Aqua</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -57,18 +75,26 @@ EOF
 echo "✅ LaunchAgent создан: $LAUNCHD_MLX"
 echo ""
 
-# 2. Загрузка в launchd
-echo "[2/3] Загрузка в launchd..."
-launchctl unload "$LAUNCHD_MLX" 2>/dev/null || true
-launchctl load "$LAUNCHD_MLX" 2>/dev/null || {
-    echo "⚠️ Не удалось загрузить в launchd"
-    echo "   Попробуйте вручную: launchctl load $LAUNCHD_MLX"
-}
+# 2. Загрузка в launchd — GUI-домен обязателен для доступа к ~/Documents (Operation not permitted иначе)
+# См. docs/MLX_CRASH_ACCOUNTABILITY.md §5: без gui-домена launchd не имеет доступа к проекту в Documents.
+echo "[2/3] Загрузка в launchd (gui/$(id -u) — для доступа к Documents)..."
+GUI_DOMAIN="gui/$(id -u)"
+launchctl bootout "$GUI_DOMAIN" "$LAUNCHD_MLX" 2>/dev/null || true
+if ! launchctl bootstrap "$GUI_DOMAIN" "$LAUNCHD_MLX" 2>/dev/null; then
+    echo "⚠️ bootstrap gui не удался, пробую load..."
+    launchctl unload "$LAUNCHD_MLX" 2>/dev/null || true
+    launchctl load "$LAUNCHD_MLX" 2>/dev/null || true
+fi
 
-if launchctl list 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
+sleep 2
+if launchctl list "$GUI_DOMAIN" 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
+    echo "✅ MLX API Server загружен в launchd ($GUI_DOMAIN)"
+elif launchctl list 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
     echo "✅ MLX API Server загружен в launchd"
 else
-    echo "⚠️ MLX API Server не загружен (проверьте вручную)"
+    echo "⚠️ MLX API Server не загружен. Проверьте: launchctl list | grep mlx"
+    echo "   Логи: tail ~/Library/Logs/atra-mlx-api-server.error.log"
+    echo "   Если «Operation not permitted» — проект в Documents; запустите setup из Терминала после входа в систему."
 fi
 echo ""
 
@@ -91,4 +117,6 @@ echo "   Статус:     launchctl list | grep mlx"
 echo "   Запуск:     launchctl start com.atra.mlx-api-server"
 echo "   Остановка:  launchctl stop com.atra.mlx-api-server"
 echo "   Логи:       tail -f ~/Library/Logs/atra-mlx-api-server.log"
+echo ""
+echo "📌 Если MLX не поднялся: оркестратор (Виктория) шлёт POST на host:9099/recover → recovery listener запускает восстановление (без ваших действий). См. docs/MLX_CRASH_ACCOUNTABILITY.md §5.1"
 echo ""

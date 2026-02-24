@@ -1,11 +1,13 @@
 # Анализ бесплатных API источников для криптовалют
 
 ## 🎯 **Цель**
+
 Найти и проанализировать бесплатные API источники для получения данных о стоимости криптовалют, которые можно добавить в систему.
 
 ## 📊 **Текущие источники в системе**
 
 ### ✅ **Работающие:**
+
 1. **Binance** - основная биржа
    - Лимит: 1200 запросов/минуту
    - Данные: OHLC, цены, объемы
@@ -22,11 +24,13 @@
    - Статус: Стабильный
 
 ### ❌ **Удаленные:**
+
 4. **Bitget** - биржа (удален из-за ошибок 400)
 
 ## 🆕 **Новые бесплатные API источники**
 
 ### 1. **CoinMarketCap API** ⭐⭐⭐⭐⭐
+
 ```
 URL: https://coinmarketcap.com/api/
 Лимит: 10,000 запросов/месяц (бесплатно)
@@ -35,6 +39,7 @@ URL: https://coinmarketcap.com/api/
 ```
 
 ### 2. **CryptoCompare API** ⭐⭐⭐⭐⭐
+
 ```
 URL: https://min-api.cryptocompare.com/
 Лимит: 100,000 запросов/месяц (бесплатно)
@@ -43,6 +48,7 @@ URL: https://min-api.cryptocompare.com/
 ```
 
 ### 3. **Alpha Vantage** ⭐⭐⭐⭐
+
 ```
 URL: https://www.alphavantage.co/
 Лимит: 500 запросов/день (бесплатно)
@@ -51,6 +57,7 @@ URL: https://www.alphavantage.co/
 ```
 
 ### 4. **CoinAPI.io** ⭐⭐⭐⭐
+
 ```
 URL: https://www.coinapi.io/
 Лимит: 100 запросов/день (бесплатно)
@@ -59,6 +66,7 @@ URL: https://www.coinapi.io/
 ```
 
 ### 5. **CoinCap API** ⭐⭐⭐⭐
+
 ```
 URL: https://docs.coincap.io/
 Лимит: Без лимитов (бесплатно)
@@ -67,6 +75,7 @@ URL: https://docs.coincap.io/
 ```
 
 ### 6. **CoinGecko Pro** ⭐⭐⭐⭐
+
 ```
 URL: https://www.coingecko.com/en/api
 Лимит: 10,000 запросов/месяц (бесплатно)
@@ -75,6 +84,7 @@ URL: https://www.coingecko.com/en/api
 ```
 
 ### 7. **Messari API** ⭐⭐⭐
+
 ```
 URL: https://messari.io/api
 Лимит: 100 запросов/минуту (бесплатно)
@@ -83,6 +93,7 @@ URL: https://messari.io/api
 ```
 
 ### 8. **Coinpaprika API** ⭐⭐⭐
+
 ```
 URL: https://api.coinpaprika.com/
 Лимит: Без лимитов (бесплатно)
@@ -91,6 +102,7 @@ URL: https://api.coinpaprika.com/
 ```
 
 ### 9. **Coinlore API** ⭐⭐⭐
+
 ```
 URL: https://www.coinlore.com/cryptocurrency-data-api
 Лимит: Без лимитов (бесплатно)
@@ -99,6 +111,7 @@ URL: https://www.coinlore.com/cryptocurrency-data-api
 ```
 
 ### 10. **Coinranking API** ⭐⭐⭐
+
 ```
 URL: https://developers.coinranking.com/
 Лимит: 100 запросов/день (бесплатно)
@@ -109,32 +122,38 @@ URL: https://developers.coinranking.com/
 ## 🔧 **Рекомендуемые для интеграции**
 
 ### **Приоритет 1 (Высокий):**
+
 1. **CryptoCompare** - отличные исторические данные
 2. **CoinCap** - без лимитов, простой API
 3. **Coinpaprika** - без лимитов, надежный
 
 ### **Приоритет 2 (Средний):**
+
 4. **CoinMarketCap** - качественные данные, но лимиты
 5. **Alpha Vantage** - хорош для технического анализа
 
 ### **Приоритет 3 (Низкий):**
+
 6. **Messari** - для фундаментального анализа
 7. **Coinlore** - базовый функционал
 
 ## 📋 **План интеграции**
 
 ### **Этап 1: Добавить CryptoCompare**
+
 - ✅ Простой API
 - ✅ Отличные исторические данные
 - ✅ Высокие лимиты
 - ✅ Хорошая документация
 
 ### **Этап 2: Добавить CoinCap**
+
 - ✅ Без лимитов
 - ✅ Простой API
 - ✅ Надежный
 
 ### **Этап 3: Добавить Coinpaprika**
+
 - ✅ Без лимитов
 - ✅ Качественные данные
 - ✅ Хорошая производительность

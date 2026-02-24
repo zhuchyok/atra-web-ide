@@ -8,6 +8,7 @@
 ## 🎯 ЦЕЛЬ
 
 Собрать команду топовых экспертов мирового уровня для создания:
+
 - ✅ Супер современные сложные сайты
 - ✅ Корпоративные сайты премиум-класса
 - ✅ Высококонверсионные лендинги
@@ -26,17 +27,16 @@
 **Уровень:** 🌟🌟🌟🌟🌟 World Class
 
 **Экспертиза:**
+
 - **Фреймворки:**
   - React, Next.js, Remix (SSR/SSG/ISR)
   - Vue.js, Nuxt.js
   - Svelte, SvelteKit
   - Angular (опционально)
-  
 - **Языки:**
   - TypeScript (expert level)
   - JavaScript (ES6+, ES2024)
   - JSX, TSX
-  
 - **Современные технологии:**
   - Server Components (React)
   - Streaming SSR
@@ -44,30 +44,27 @@
   - Web Components
   - PWA (Progressive Web Apps)
   - WebAssembly (WASM)
-  
 - **State Management:**
   - Redux Toolkit, Zustand, Jotai
   - React Query, SWR
   - Pinia (Vue)
-  
 - **Стилизация:**
   - Tailwind CSS, CSS Modules
   - Styled Components, Emotion
   - CSS-in-JS
   - SCSS/SASS
-  
 - **Производительность:**
   - Code splitting, lazy loading
   - Bundle optimization
   - Image optimization
   - Core Web Vitals optimization
-  
 - **Тестирование:**
   - Jest, Vitest
   - React Testing Library
   - Playwright, Cypress (E2E)
 
 **Что будет делать:**
+
 - Архитектура фронтенда мирового уровня
 - Разработка современных веб-интерфейсов
 - Оптимизация производительности
@@ -77,6 +74,7 @@
 - Разработка дашбордов и админ-панелей
 
 **Примеры проектов:**
+
 - Корпоративный сайт на Next.js с SSR
 - Лендинг с анимациями и интерактивностью
 - Финансовый калькулятор с real-time расчетами
@@ -92,12 +90,12 @@
 **Уровень:** 🌟🌟🌟🌟🌟 World Class
 
 **Экспертиза:**
+
 - **Дизайн инструменты:**
   - Figma (expert level)
   - Sketch, Adobe XD
   - Framer (интерактивные прототипы)
   - Principle (анимации)
-  
 - **UI Design:**
   - Design Systems
   - Component Libraries
@@ -106,7 +104,6 @@
   - Dark/Light themes
   - Micro-interactions
   - Animations & Transitions
-  
 - **UX Design:**
   - User Research
   - User Journey Mapping
@@ -114,20 +111,17 @@
   - Prototyping
   - Usability Testing
   - A/B Testing дизайна
-  
 - **Accessibility:**
   - WCAG 2.1/2.2 compliance
   - ARIA attributes
   - Screen reader optimization
   - Keyboard navigation
-  
 - **Брендинг:**
   - Visual Identity
   - Brand Guidelines
   - Typography
   - Color Systems
   - Icon Systems
-  
 - **Специализация:**
   - Landing page design (high conversion)
   - Corporate website design
@@ -136,6 +130,7 @@
   - E-commerce design
 
 **Что будет делать:**
+
 - Создание дизайн-систем мирового уровня
 - Прототипирование пользовательских интерфейсов
 - UX исследования и тестирование
@@ -145,6 +140,7 @@
 - Accessibility compliance
 
 **Примеры проектов:**
+
 - Дизайн-система для корпоративного сайта
 - Прототип лендинга с высокой конверсией
 - UX исследование и оптимизация
@@ -160,18 +156,17 @@
 **Уровень:** 🌟🌟🌟🌟🌟 World Class
 
 **Экспертиза:**
+
 - **Backend:**
   - Node.js, Express, Fastify
   - Python (FastAPI, Django, Flask)
   - TypeScript (NestJS, tRPC)
   - Go (Gin, Fiber) - опционально
   - Rust (Actix, Axum) - опционально
-  
 - **Frontend:**
   - React, Next.js
   - Vue, Nuxt
   - TypeScript
-  
 - **API:**
   - REST API design
   - GraphQL (Apollo, Relay)
@@ -179,20 +174,17 @@
   - WebSockets (Socket.io, ws)
   - Server-Sent Events (SSE)
   - gRPC (опционально)
-  
 - **Базы данных:**
   - PostgreSQL, MySQL
   - MongoDB, Redis
   - Prisma, TypeORM
   - Database migrations
-  
 - **Архитектура:**
   - Microservices
   - Serverless (AWS Lambda, Vercel)
   - Monorepo (Turborepo, Nx)
   - API Gateway
   - Message queues (RabbitMQ, Kafka)
-  
 - **DevOps:**
   - Docker, Kubernetes
   - CI/CD (GitHub Actions, GitLab CI)
@@ -200,6 +192,7 @@
   - Monitoring & Logging
 
 **Что будет делать:**
+
 - Разработка полного стека веб-приложений
 - Создание API мирового уровня
 - Интеграция с базами данных
@@ -209,6 +202,7 @@
 - Архитектура сложных систем
 
 **Примеры проектов:**
+
 - Полноценное веб-приложение с бэкендом
 - API для калькуляторов и форм
 - Real-time дашборды
@@ -224,6 +218,7 @@
 **Уровень:** 🌟🌟🌟🌟🌟 World Class
 
 **Экспертиза:**
+
 - **Классический SEO:**
   - Technical SEO (expert level)
   - On-page SEO
@@ -232,7 +227,6 @@
   - Local SEO
   - International SEO
   - E-commerce SEO
-  
 - **AI SEO (AI-first SEO):** ⭐ КРИТИЧЕСКИ ВАЖНО
   - ChatGPT optimization
   - Perplexity AI optimization
@@ -243,7 +237,6 @@
   - Structured data for AI (JSON-LD, Schema.org)
   - AI-friendly content structure
   - AI citation optimization
-  
 - **Контент:**
   - Content strategy
   - Keyword research (traditional + AI)
@@ -251,7 +244,6 @@
   - E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)
   - Semantic content
   - Long-form content
-  
 - **Аналитика:**
   - Google Analytics 4 (GA4)
   - Google Search Console
@@ -259,7 +251,6 @@
   - AI visibility tracking
   - Conversion tracking
   - A/B testing
-  
 - **Маркетинг:**
   - Conversion Rate Optimization (CRO)
   - Landing page optimization
@@ -268,6 +259,7 @@
   - Content marketing
 
 **Что будет делать:**
+
 - SEO оптимизация мирового уровня
 - **AI SEO оптимизация** (ChatGPT, Perplexity, нейроботы)
 - Оптимизация для видимости в AI-поисковиках
@@ -278,6 +270,7 @@
 - Контент-стратегия для AI и людей
 
 **Примеры проектов:**
+
 - SEO оптимизация корпоративного сайта (Google + AI)
 - Оптимизация для видимости в ChatGPT/Perplexity
 - Создание structured data для AI-поисковиков
@@ -291,22 +284,22 @@
 
 ### **Что УЖЕ ЕСТЬ:**
 
-| Эксперт | Роль | Веб-разработка |
-|---------|------|----------------|
-| Игорь | Backend Developer | ✅ Python backend (async) |
-| Сергей | DevOps Engineer | ✅ Деплой, инфраструктура |
-| Роман | Database Engineer | ✅ Базы данных |
-| Ольга | Performance Engineer | ✅ Оптимизация производительности |
-| Анна | QA Engineer | ✅ Тестирование |
+| Эксперт | Роль                 | Веб-разработка                    |
+| ------- | -------------------- | --------------------------------- |
+| Игорь   | Backend Developer    | ✅ Python backend (async)         |
+| Сергей  | DevOps Engineer      | ✅ Деплой, инфраструктура         |
+| Роман   | Database Engineer    | ✅ Базы данных                    |
+| Ольга   | Performance Engineer | ✅ Оптимизация производительности |
+| Анна    | QA Engineer          | ✅ Тестирование                   |
 
 ### **Чего НЕ ХВАТАЕТ для веб-разработки:**
 
-| Направление | Статус | Кто нужен |
-|-------------|--------|-----------|
-| Frontend разработка | ❌ | **Андрей** |
-| UI/UX дизайн | ❌ | **София** |
-| Full-stack веб-приложения | ❌ | **Никита** |
-| SEO & AI Visibility | ❌ | **Дарья** |
+| Направление               | Статус | Кто нужен  |
+| ------------------------- | ------ | ---------- |
+| Frontend разработка       | ❌     | **Андрей** |
+| UI/UX дизайн              | ❌     | **София**  |
+| Full-stack веб-приложения | ❌     | **Никита** |
+| SEO & AI Visibility       | ❌     | **Дарья**  |
 
 ---
 
@@ -315,32 +308,20 @@
 ### **Команда из 18 экспертов:**
 
 **Торговля и финансы:**
+
 1. Виктор - Team Lead
 2. Дмитрий - ML Engineer
 3. Павел - Trading Strategy Developer
 4. Мария - Risk Manager
 5. Екатерина - Financial Analyst
 
-**Backend и инфраструктура:**
-6. Игорь - Backend Developer (Python)
-7. Роман - Database Engineer
-8. Сергей - DevOps Engineer
-9. Ольга - Performance Engineer
+**Backend и инфраструктура:** 6. Игорь - Backend Developer (Python) 7. Роман - Database Engineer 8. Сергей - DevOps Engineer 9. Ольга - Performance Engineer
 
-**Веб-разработка:** ⭐ НОВОЕ
-15. **Андрей - Frontend Developer** ⭐
-16. **София - UI/UX Designer** ⭐
-17. **Никита - Full-stack Developer** ⭐
-18. **Дарья - SEO & AI Visibility Specialist** ⭐
+**Веб-разработка:** ⭐ НОВОЕ 15. **Андрей - Frontend Developer** ⭐ 16. **София - UI/UX Designer** ⭐ 17. **Никита - Full-stack Developer** ⭐ 18. **Дарья - SEO & AI Visibility Specialist** ⭐
 
-**Качество и безопасность:**
-10. Анна - QA Engineer
-11. Алексей - Security Engineer
-12. Елена - Monitor
+**Качество и безопасность:** 10. Анна - QA Engineer 11. Алексей - Security Engineer 12. Елена - Monitor
 
-**Аналитика и документация:**
-13. Максим - Data Analyst
-14. Татьяна - Technical Writer
+**Аналитика и документация:** 13. Максим - Data Analyst 14. Татьяна - Technical Writer
 
 ---
 
@@ -349,6 +330,7 @@
 После добавления топовых экспертов:
 
 ### **1. Современные сайты мирового уровня:**
+
 - ✅ React/Next.js приложения с SSR/SSG
 - ✅ Оптимизация для AI-поисковиков
 - ✅ PWA для мобильных
@@ -356,6 +338,7 @@
 - ✅ Performance 95+ Lighthouse score
 
 ### **2. Корпоративные сайты премиум-класса:**
+
 - ✅ Профессиональный дизайн мирового уровня
 - ✅ Многостраничные сайты
 - ✅ Интеграция с CRM/ERP
@@ -363,6 +346,7 @@
 - ✅ SEO оптимизация
 
 ### **3. Высококонверсионные лендинги:**
+
 - ✅ Конверсия 10%+ (industry standard 2-5%)
 - ✅ Анимации и интерактивность
 - ✅ A/B тестирование
@@ -370,6 +354,7 @@
 - ✅ Structured data для AI
 
 ### **4. Интерактивные калькуляторы:**
+
 - ✅ Real-time расчеты
 - ✅ Красивый UI/UX
 - ✅ Оптимизация для AI-ответов
@@ -377,6 +362,7 @@
 - ✅ Мобильная адаптация
 
 ### **5. Веб-приложения enterprise уровня:**
+
 - ✅ Полноценные SaaS
 - ✅ Дашборды и админ-панели
 - ✅ Real-time обновления
@@ -384,6 +370,7 @@
 - ✅ Масштабируемость
 
 ### **6. AI Visibility:**
+
 - ✅ Видимость в ChatGPT
 - ✅ Видимость в Perplexity
 - ✅ Видимость в Google Gemini
@@ -402,6 +389,7 @@
 4. **Дарья (SEO & AI)** - критически важна в эпоху AI
 
 **Почему все 4:**
+
 - Полный цикл веб-разработки
 - Мировой уровень качества
 - Конкурентное преимущество
@@ -436,4 +424,3 @@
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Уровень:** 🌟🌟🌟🌟🌟 World Class
-

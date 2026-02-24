@@ -36,11 +36,13 @@
 ### Проблема 1: Неправильные вызовы `check_volume_profile_filter`
 
 **До:**
+
 ```python
 check_volume_profile_filter(df, i, "long", True, filter_state)
 ```
 
 **После:**
+
 ```python
 check_volume_profile_filter(
     df, i, "long", strict_mode=True, filter_state=filter_state
@@ -56,18 +58,21 @@ check_volume_profile_filter(
 ## 📋 ТЕКУЩЕЕ СОСТОЯНИЕ КОДА
 
 ### `src/signals/core.py`:
+
 - ✅ Использует `AutoOptimizer` для динамических параметров
 - ✅ Использует `FilterState` для stateless архитектуры
 - ✅ Использует `log_filter_check` для логирования
 - ✅ Правильные вызовы `check_volume_profile_filter`
 
 ### `src/ai/adaptive_filter_regulator.py`:
+
 - ✅ Интегрирован `MarketRegimeDetector` (опционально)
 - ✅ Поддержка режимов (`soft` / `strict`)
 - ✅ Загрузка внешних улучшений от Research Lab
 - ✅ Асинхронный метод `update_from_ai_optimization`
 
 ### `config.py`:
+
 - ✅ Оптимизированные параметры для всех фильтров
 - ✅ Временное отключение `USE_VOLUME_IMBALANCE_FILTER` для восстановления генерации сигналов
 - ✅ Правильная загрузка переменных окружения
@@ -77,6 +82,7 @@ check_volume_profile_filter(
 ## 🎯 СТАТУС: ВСЕ РАБОТАЕТ ✅
 
 **Все проверки пройдены:**
+
 - ✅ Синтаксис корректен
 - ✅ Импорты работают
 - ✅ Функции работают
@@ -87,4 +93,3 @@ check_volume_profile_filter(
 
 **Дата:** 2025-01-10  
 **Статус:** ✅ РАБОТАЕТ
-

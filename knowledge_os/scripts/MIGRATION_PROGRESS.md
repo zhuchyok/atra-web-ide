@@ -3,6 +3,7 @@
 ## ✅ ВЫПОЛНЕНО
 
 ### Domain Layer (Ядро)
+
 - ✅ `entities/signal.py` - Signal Entity с бизнес-логикой
 - ✅ `entities/position.py` - Position Entity с бизнес-логикой
 - ✅ `value_objects/price.py` - Price Value Object (immutable)
@@ -12,15 +13,18 @@
 - ✅ `services/risk_calculator.py` - Domain Service для расчетов риска
 
 ### Application Layer (Use Cases)
+
 - ✅ `use_cases/signals/generate_signal.py` - Use Case генерации сигнала
 - ✅ `use_cases/positions/open_position.py` - Use Case открытия позиции
 - ✅ `dto/signal_dto.py` - Data Transfer Object
 
 ### Infrastructure Layer (Реализация)
+
 - ✅ `persistence/repositories/signal_repository_impl.py` - Реализация репозитория
 - ✅ `persistence/models/signal_model.py` - ORM модель
 
 ### Tests
+
 - ✅ `tests/unit/domain/test_signal.py` - Unit тесты для Signal
 - ✅ `tests/unit/domain/test_price.py` - Unit тесты для Price
 
@@ -39,28 +43,33 @@
 ## 🎯 СЛЕДУЮЩИЕ ШАГИ
 
 ### Phase 1: Domain Layer (продолжение)
+
 - [ ] Создать все Value Objects (TimeRange, Quantity, etc.)
 - [ ] Создать все Entities (Order, MarketData, etc.)
 - [ ] Создать все Repository Interfaces
 - [ ] Создать все Domain Services
 
 ### Phase 2: Application Layer (продолжение)
+
 - [ ] Создать все Use Cases
 - [ ] Реализовать Application Services
 - [ ] Создать все DTOs
 
 ### Phase 3: Infrastructure Layer (продолжение)
+
 - [ ] Реализовать все Repositories
 - [ ] Интегрировать Exchange APIs
 - [ ] Настроить Database
 - [ ] Интегрировать ML Services
 
 ### Phase 4: Presentation Layer
+
 - [ ] Мигрировать Telegram Bot
 - [ ] Создать CLI (если нужен)
 - [ ] Настроить API (если нужен)
 
 ### Phase 5: Testing
+
 - [ ] Написать Unit тесты для всех Domain объектов
 - [ ] Написать Integration тесты
 - [ ] Написать E2E тесты
@@ -87,4 +96,3 @@
 ---
 
 **Статус:** 🟢 **В ПРОЦЕССЕ** - Миграция начата успешно!
-

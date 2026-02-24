@@ -39,13 +39,13 @@ def load_csv_data(symbol: str, data_dir: Path = None) -> Optional[pd.DataFrame]:
     try:
         df = pd.read_csv(csv_file)
 
-        if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            df.set_index('timestamp', inplace=True)
-        elif df.index.name == 'timestamp' or df.index.dtype == 'object':
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df.set_index("timestamp", inplace=True)
+        elif df.index.name == "timestamp" or df.index.dtype == "object":
             df.index = pd.to_datetime(df.index)
 
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ["open", "high", "low", "close", "volume"]
         if not all(col in df.columns for col in required_cols):
             logger.warning("⚠️ Не все необходимые колонки найдены для %s", symbol)
             return None
@@ -63,7 +63,7 @@ async def run_yearly_backtest_for_symbol(
     btc_df: pd.DataFrame,
     eth_df: pd.DataFrame,
     sol_df: pd.DataFrame,
-    days: int = 365
+    days: int = 365,
 ) -> Dict[str, Any]:
     """
     Запускает годовой бектест для одной монеты с новыми исправлениями
@@ -72,11 +72,7 @@ async def run_yearly_backtest_for_symbol(
         logger.info("📊 Запуск годового бектеста для %s (%d дней)...", symbol, days)
 
         # Инициализируем бектест
-        backtest = AdvancedBacktest(
-            initial_balance=10000.0,
-            risk_per_trade=2.0,
-            leverage=2.0
-        )
+        backtest = AdvancedBacktest(initial_balance=10000.0, risk_per_trade=2.0, leverage=2.0)
 
         # Загружаем данные BTC, ETH, SOL для фильтров
         backtest.btc_df = btc_df
@@ -112,7 +108,7 @@ async def run_yearly_backtest_for_symbol(
             result["total_trades"],
             result["win_rate"],
             result["profit_factor"],
-            result["total_pnl_pct"]
+            result["total_pnl_pct"],
         )
 
         return result
@@ -121,6 +117,7 @@ async def run_yearly_backtest_for_symbol(
         logger.error("❌ Ошибка бектеста для %s: %s", symbol, e)
         # pylint: disable=import-outside-toplevel
         import traceback
+
         logger.error(traceback.format_exc())
         return {
             "symbol": symbol,
@@ -134,8 +131,7 @@ async def run_yearly_backtest_for_symbol(
 
 
 async def run_yearly_backtest_for_portfolio(
-    symbols: List[str],
-    days: int = 365
+    symbols: List[str], days: int = 365
 ) -> List[Dict[str, Any]]:
     """
     Запускает годовой бектест для портфеля монет
@@ -160,9 +156,7 @@ async def run_yearly_backtest_for_portfolio(
             logger.warning("⚠️ Пропускаем %s - нет данных", symbol)
             continue
 
-        result = await run_yearly_backtest_for_symbol(
-            symbol, df, btc_df, eth_df, sol_df, days=days
-        )
+        result = await run_yearly_backtest_for_symbol(symbol, df, btc_df, eth_df, sol_df, days=days)
         results.append(result)
 
     return results

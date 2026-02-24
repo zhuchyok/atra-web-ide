@@ -39,9 +39,7 @@ class QualityMonitor:
             "response_time_ms": 1000,
             "error_rate": 0.05,
         }
-        self.alert_thresholds.update(
-            self.config.get("alert_thresholds", {})
-        )
+        self.alert_thresholds.update(self.config.get("alert_thresholds", {}))
 
     async def start_monitoring(self) -> None:
         """Запуск мониторинга качества."""
@@ -93,10 +91,12 @@ class QualityMonitor:
             try:
                 await asyncio.sleep(60)
                 metrics = await self._collect_live_metrics()
-                self.metrics_buffer.append({
-                    "timestamp": datetime.now().isoformat(),
-                    "metrics": metrics,
-                })
+                self.metrics_buffer.append(
+                    {
+                        "timestamp": datetime.now().isoformat(),
+                        "metrics": metrics,
+                    }
+                )
                 if len(self.metrics_buffer) > 1000:
                     self.metrics_buffer = self.metrics_buffer[-1000:]
                 await self._detect_anomalies(metrics)
@@ -119,7 +119,7 @@ class QualityMonitor:
         }
         if _REPORT_PATH.exists():
             try:
-                with open(_REPORT_PATH, "r", encoding="utf-8") as f:
+                with open(_REPORT_PATH, encoding="utf-8") as f:
                     data = json.load(f)
                 m = data.get("avg_metrics", {})
                 out["faithfulness"] = m.get("faithfulness", 0.0)
@@ -135,6 +135,7 @@ class QualityMonitor:
         if not values or len(values) < 3:
             return False
         import statistics
+
         mean = statistics.mean(values)
         stdev = statistics.stdev(values)
         if stdev < 1e-6:
@@ -146,29 +147,27 @@ class QualityMonitor:
         """Обнаружение аномалий: пороги (QA) + z-score по истории (SRE)."""
         anomalies: List[str] = []
         if metrics.get("avg_response_time_ms", 0) > self.alert_thresholds["response_time_ms"]:
-            anomalies.append(
-                f"High response time: {metrics['avg_response_time_ms']}ms"
-            )
+            anomalies.append(f"High response time: {metrics['avg_response_time_ms']}ms")
         if metrics.get("error_rate", 0) > self.alert_thresholds["error_rate"]:
-            anomalies.append(
-                f"High error rate: {metrics['error_rate']:.1%}"
-            )
+            anomalies.append(f"High error rate: {metrics['error_rate']:.1%}")
         # Пороги качества (QA)
         if metrics.get("faithfulness", 1) < self.alert_thresholds["faithfulness"]:
-            anomalies.append(
-                f"Low faithfulness: {metrics.get('faithfulness', 0):.2f}"
-            )
+            anomalies.append(f"Low faithfulness: {metrics.get('faithfulness', 0):.2f}")
         if metrics.get("relevance", 1) < self.alert_thresholds["relevance"]:
-            anomalies.append(
-                f"Low relevance: {metrics.get('relevance', 0):.2f}"
-            )
+            anomalies.append(f"Low relevance: {metrics.get('relevance', 0):.2f}")
         if metrics.get("coherence", 1) < self.alert_thresholds["coherence"]:
-            anomalies.append(
-                f"Low coherence: {metrics.get('coherence', 0):.2f}"
-            )
+            anomalies.append(f"Low coherence: {metrics.get('coherence', 0):.2f}")
         # Z-score по последним прогонам (падение метрик)
-        hist_rel = [b.get("metrics", {}).get("relevance", 0) for b in self.metrics_buffer[-10:] if b.get("metrics", {}).get("relevance") is not None]
-        hist_faith = [b.get("metrics", {}).get("faithfulness", 0) for b in self.metrics_buffer[-10:] if b.get("metrics", {}).get("faithfulness") is not None]
+        hist_rel = [
+            b.get("metrics", {}).get("relevance", 0)
+            for b in self.metrics_buffer[-10:]
+            if b.get("metrics", {}).get("relevance") is not None
+        ]
+        hist_faith = [
+            b.get("metrics", {}).get("faithfulness", 0)
+            for b in self.metrics_buffer[-10:]
+            if b.get("metrics", {}).get("faithfulness") is not None
+        ]
         cur_rel = metrics.get("relevance")
         cur_faith = metrics.get("faithfulness")
         if cur_rel is not None and self._zscore_anomaly(hist_rel, cur_rel):
@@ -208,11 +207,13 @@ class QualityMonitor:
 
     async def _send_alert(self, message: str) -> None:
         """Добавление алерта в очередь."""
-        self.alerts.append({
-            "timestamp": datetime.now().isoformat(),
-            "message": message,
-            "severity": "warning",
-        })
+        self.alerts.append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "message": message,
+                "severity": "warning",
+            }
+        )
 
     def get_status(self) -> Dict[str, Any]:
         """Получение статуса мониторинга."""

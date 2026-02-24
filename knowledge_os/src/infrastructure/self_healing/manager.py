@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 🛡️ SELF-HEALING SYSTEM (Autonomous Resilience)
 Monitors system health and automatically fixes common issues:
@@ -9,23 +8,27 @@ Monitors system health and automatically fixes common issues:
 4. Memory leaks (restart triggers).
 """
 
-import logging
 import asyncio
-import os
-import time
-import sqlite3
-import shutil
 import glob
+import logging
+import os
+import shutil
+import sqlite3
+import time
+
 import psutil
-from src.telegram.handlers import notify_user
+
 from config import TELEGRAM_CHAT_IDS
+from src.telegram.handlers import notify_user
 
 logger = logging.getLogger(__name__)
+
 
 class SelfHealingManager:
     """
     Guardian of system stability.
     """
+
     def __init__(self):
         self.process = psutil.Process(os.getpid())
         self.start_time = time.time()
@@ -35,7 +38,11 @@ class SelfHealingManager:
         try:
             if TELEGRAM_CHAT_IDS:
                 # Превращаем строку ID в список если нужно
-                chat_ids = TELEGRAM_CHAT_IDS.split(',') if isinstance(TELEGRAM_CHAT_IDS, str) else [TELEGRAM_CHAT_IDS]
+                chat_ids = (
+                    TELEGRAM_CHAT_IDS.split(",")
+                    if isinstance(TELEGRAM_CHAT_IDS, str)
+                    else [TELEGRAM_CHAT_IDS]
+                )
                 for chat_id in chat_ids:
                     await notify_user(chat_id.strip(), f"🏥 [SELF-HEALING] {message}")
         except Exception as e:
@@ -62,7 +69,7 @@ class SelfHealingManager:
                 # 🆕 1.2 Check System Memory
                 system_mem = psutil.virtual_memory()
                 if system_mem.percent > 90:
-                    msg = f"🧨 [VDS] Low System Memory: {system_mem.percent}% used ({system_mem.available // (1024*1024)} MB free)"
+                    msg = f"🧨 [VDS] Low System Memory: {system_mem.percent}% used ({system_mem.available // (1024 * 1024)} MB free)"
                     logger.warning(msg)
                     await self._send_admin_alert(msg)
 
@@ -105,17 +112,18 @@ class SelfHealingManager:
             user_ids = [row[0] for row in user_rows] if user_rows else []
 
             for user_id in user_ids:
-                keys = await db.get_active_exchange_keys(user_id, 'bitget')
+                keys = await db.get_active_exchange_keys(user_id, "bitget")
                 if not keys:
                     continue
 
-                async with ExchangeAdapter('bitget', keys=keys, trade_mode='futures') as adapter:
+                async with ExchangeAdapter("bitget", keys=keys, trade_mode="futures") as adapter:
                     # Real positions
                     try:
                         exchange_positions = await adapter.fetch_positions()
                         active_ex_pos = [
-                            p for p in exchange_positions
-                            if float(p.get('contracts', 0) or p.get('size', 0) or 0) > 0
+                            p
+                            for p in exchange_positions
+                            if float(p.get("contracts", 0) or p.get("size", 0) or 0) > 0
                         ]
                     except Exception as e:
                         logger.debug("Could not fetch positions for %s: %s", user_id, e)
@@ -123,34 +131,50 @@ class SelfHealingManager:
 
                     # DB positions
                     db_positions = await db.get_active_positions_by_user(user_id)
-                    db_symbols = {
-                        p.get('symbol').upper(): p for p in db_positions
-                    } if db_positions else {}
+                    db_symbols = (
+                        {p.get("symbol").upper(): p for p in db_positions} if db_positions else {}
+                    )
 
                 # 1. Exchange -> DB (Add missing)
                 for ex_p in active_ex_pos:
-                    symbol = ex_p['symbol'].replace('/USDT:USDT', 'USDT').replace(':', '').replace('/', '').upper()
+                    symbol = (
+                        ex_p["symbol"]
+                        .replace("/USDT:USDT", "USDT")
+                        .replace(":", "")
+                        .replace("/", "")
+                        .upper()
+                    )
                     if symbol not in db_symbols:
-                        logger.warning("⚠️ [SYNC] Found position on Bitget NOT in DB: %s. Syncing.", symbol)
+                        logger.warning(
+                            "⚠️ [SYNC] Found position on Bitget NOT in DB: %s. Syncing.", symbol
+                        )
                         await db.create_active_position(
                             symbol=symbol,
-                            direction=ex_p['side'].upper(),
-                            entry_price=float(ex_p['entryPrice']),
+                            direction=ex_p["side"].upper(),
+                            entry_price=float(ex_p["entryPrice"]),
                             user_id=user_id,
-                            chat_id=0, message_id=0,
-                            signal_key=f"AUTO_SYNC_{symbol}_{int(time.time())}"
+                            chat_id=0,
+                            message_id=0,
+                            signal_key=f"AUTO_SYNC_{symbol}_{int(time.time())}",
                         )
                         # We don't place SL/TP here to avoid overwriting user manual settings,
                         # but ARS will see it in next hour and handle it.
 
                 # 2. DB -> Exchange (Close orphans)
                 ex_symbols = {
-                    p['symbol'].replace('/USDT:USDT', 'USDT').replace(':', '').replace('/', '').upper()
+                    p["symbol"]
+                    .replace("/USDT:USDT", "USDT")
+                    .replace(":", "")
+                    .replace("/", "")
+                    .upper()
                     for p in active_ex_pos
                 }
                 for db_sym in db_symbols:
                     if db_sym not in ex_symbols:
-                        logger.warning("⚠️ [SYNC] DB thinks %s is open, but it's not on Bitget. Closing in DB.", db_sym)
+                        logger.warning(
+                            "⚠️ [SYNC] DB thinks %s is open, but it's not on Bitget. Closing in DB.",
+                            db_sym,
+                        )
                         await db.close_active_position_by_symbol(user_id, db_sym)
 
         except Exception as e:
@@ -181,7 +205,7 @@ class SelfHealingManager:
         # 2. Clear old reports
         report_files = glob.glob("ai_reports/auto_fix_*.md")
         if len(report_files) > 50:
-            for f in report_files[:-10]: # Keep last 10
+            for f in report_files[:-10]:  # Keep last 10
                 try:
                     os.remove(f)
                 except Exception:
@@ -208,8 +232,8 @@ class SelfHealingManager:
             logger.error(msg)
             await self._send_admin_alert(msg)
 
+
 async def run_self_healing():
     """Entry point for the self-healing system"""
     manager = SelfHealingManager()
     await manager.monitor_health()
-

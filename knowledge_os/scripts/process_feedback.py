@@ -17,7 +17,9 @@ from observability.feedback import FeedbackAggregator  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Collect agent feedback and generate lessons learned.")
+    parser = argparse.ArgumentParser(
+        description="Collect agent feedback and generate lessons learned."
+    )
     parser.add_argument(
         "--traces",
         type=Path,
@@ -59,26 +61,28 @@ def main() -> None:
     logger.info("🔍 Запуск автоматического анализа сделок...")
     try:
         from observability.auto_analyzer import AutoTradeAnalyzer  # noqa: E402
-        
+
         analyzer = AutoTradeAnalyzer(db_path=str(args.db), lookback_days=30)
         trade_lessons = analyzer.run_analysis()
         if trade_lessons:
             logger.info("📚 Сгенерировано %d уроков из анализа сделок", len(trade_lessons))
     except Exception as e:
         logger.warning("⚠️ Ошибка автоматического анализа сделок: %s", e)
-    
+
     # 2. 🆕 Сбор неявного feedback из результатов сделок
     logger.info("🔍 Запуск сбора неявного feedback...")
     try:
         from observability.implicit_feedback import get_implicit_feedback_collector  # noqa: E402
-        
+
         collector = get_implicit_feedback_collector()
         feedback_list = collector.collect_from_trades_table(lookback_days=7)
         if feedback_list:
-            logger.info("📊 Собрано %d неявных feedback (positive: %d, negative: %d)",
-                       len(feedback_list),
-                       sum(1 for f in feedback_list if f.feedback_type == "positive"),
-                       sum(1 for f in feedback_list if f.feedback_type == "negative"))
+            logger.info(
+                "📊 Собрано %d неявных feedback (positive: %d, negative: %d)",
+                len(feedback_list),
+                sum(1 for f in feedback_list if f.feedback_type == "positive"),
+                sum(1 for f in feedback_list if f.feedback_type == "negative"),
+            )
             # Сохраняем feedback
             collector.save_feedback(feedback_list)
     except Exception as e:
@@ -101,7 +105,9 @@ def main() -> None:
             agent_lessons = [l for l in data["lessons"] if l.get("agent") == agent_name]
             if agent_lessons:
                 # Берем топ-5 уроков для каждого агента
-                top_lessons = sorted(agent_lessons, key=lambda x: x.get("count", 0), reverse=True)[:5]
+                top_lessons = sorted(agent_lessons, key=lambda x: x.get("count", 0), reverse=True)[
+                    :5
+                ]
                 store.update_guidance(agent_name, top_lessons)
         logger.info("✅ Guidance применён для всех агентов")
 
@@ -111,4 +117,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

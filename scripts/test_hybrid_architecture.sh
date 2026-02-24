@@ -15,10 +15,10 @@ NC='\033[0m' # No Color
 check_status() {
     local name=$1
     local url=$2
-    
+
     echo -n "Проверка $name... "
     response=$(curl -s -o /dev/null -w "%{http_code}" "$url" 2>/dev/null)
-    
+
     if [ "$response" = "200" ] || [ "$response" = "200" ]; then
         echo -e "${GREEN}✅ OK${NC}"
         return 0
@@ -33,13 +33,13 @@ test_task() {
     local endpoint=$1
     local goal=$2
     local name=$3
-    
+
     echo -n "Тест: $name... "
     response=$(curl -s -X POST "http://localhost:8010$endpoint" \
         -H "Content-Type: application/json" \
         -d "{\"goal\": \"$goal\", \"max_steps\": 5}" \
         --max-time 30 2>/dev/null)
-    
+
     if echo "$response" | grep -q '"status":"success"'; then
         echo -e "${GREEN}✅ OK${NC}"
         return 0
@@ -86,12 +86,12 @@ echo "--------------------"
 
 # 5. Статистика задач
 docker exec atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT 
-    status, 
+SELECT
+    status,
     COUNT(*) as count,
     ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM tasks), 2) as percentage
-FROM tasks 
-GROUP BY status 
+FROM tasks
+GROUP BY status
 ORDER BY count DESC;
 " 2>/dev/null | grep -v "row\|---" | head -10
 
@@ -101,9 +101,9 @@ echo "--------------------"
 
 # 6. Задачи за последние 5 минут
 recent=$(docker exec atra-knowledge-os-db psql -U admin -d knowledge_os -t -c "
-SELECT COUNT(*) 
-FROM tasks 
-WHERE status = 'completed' 
+SELECT COUNT(*)
+FROM tasks
+WHERE status = 'completed'
 AND updated_at > NOW() - INTERVAL '5 minutes';
 " 2>/dev/null | tr -d ' ')
 

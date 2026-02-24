@@ -8,12 +8,15 @@
 ## 📋 СПИСОК ВРЕМЕННЫХ ИЗМЕНЕНИЙ ДЛЯ ОТКАТА
 
 ### 1. **ML Фильтр** (signal_live.py, строка ~5123)
+
 **Текущее состояние:**
+
 ```python
 USE_ML_FILTER = False  # 🔧 ТЕСТ: временно отключен
 ```
 
 **Нужно вернуть:**
+
 ```python
 USE_ML_FILTER = True  # Включить обратно после исправления prob=0.01%
 ```
@@ -21,7 +24,9 @@ USE_ML_FILTER = True  # Включить обратно после исправ�
 ---
 
 ### 2. **ML Пороги** (signal_live.py, строки ~5357, 5372)
+
 **Текущее состояние:**
+
 ```python
 optimized_thresholds = {
     'min_success_prob': 0.1,  # 🔧 ТЕСТ: было 0.4
@@ -31,6 +36,7 @@ optimized_thresholds = {
 ```
 
 **Нужно вернуть:**
+
 ```python
 optimized_thresholds = {
     'min_success_prob': 0.4,  # Вернуть обратно
@@ -42,18 +48,23 @@ optimized_thresholds = {
 ---
 
 ### 3. **Correlation Risk** (signal_live.py, строка ~3717)
+
 **Текущее состояние:**
+
 ```python
 USE_CORRELATION_RISK = False  # 🔧 ТЕСТ: временно отключен
 ```
 
 **Нужно вернуть:**
+
 ```python
 USE_CORRELATION_RISK = True  # Включить обратно после исправления
 ```
 
 ### 4. **Correlation Risk Лимиты** (src/risk/correlation_risk.py, строки ~99-116)
+
 **Текущее состояние:**
+
 ```python
 'BTC_HIGH': {'max_signals': 20, ...},  # 🔧 ТЕСТ: было 5
 'ETH_HIGH': {'max_signals': 20, ...},  # 🔧 ТЕСТ: было 5
@@ -67,6 +78,7 @@ USE_CORRELATION_RISK = True  # Включить обратно после исп
 ```
 
 **Нужно вернуть:**
+
 ```python
 'BTC_HIGH': {'max_signals': 5, ...},  # Вернуть обратно
 'ETH_HIGH': {'max_signals': 5, ...},  # Вернуть обратно
@@ -84,6 +96,7 @@ USE_CORRELATION_RISK = True  # Включить обратно после исп
 ## 🎯 КОГДА ВЕРНУТЬ
 
 **Условия для отката:**
+
 1. ✅ Сигналы генерируются и отправляются
 2. ✅ Проблема с ML моделью (prob=0.01%) исправлена
 3. ✅ Correlation Risk работает корректно
@@ -116,4 +129,3 @@ git push origin main
 **НЕ ЗАБЫТЬ ВЕРНУТЬ ВСЕ ИЗМЕНЕНИЯ ОБРАТНО!**
 
 Эти изменения были сделаны только для диагностики и тестирования.
-

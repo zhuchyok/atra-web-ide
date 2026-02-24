@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 SQLite-backed manager for risk circuit breaker flags.
 
@@ -111,5 +110,3 @@ class RiskFlagsManager:
 
 def get_default_manager(db_path: str = "trading.db") -> RiskFlagsManager:
     return RiskFlagsManager(db_path=db_path)
-
-

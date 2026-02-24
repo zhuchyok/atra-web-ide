@@ -4,9 +4,10 @@
 Запуск: python knowledge_os/scripts/close_resolved_auto_audit_tasks.py
 Или: docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os knowledge_nightly python /app/knowledge_os/scripts/close_resolved_auto_audit_tasks.py
 """
+
+import asyncio
 import os
 import sys
-import asyncio
 
 # Добавляем путь к app
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +39,8 @@ async def main():
         # Закрываем все code_auditor задачи с severity high про токены/парсинг
         closed = 0
         for pattern in RESOLVED_PATTERNS:
-            result = await conn.execute("""
+            result = await conn.execute(
+                """
                 UPDATE tasks
                 SET status = 'completed',
                     result = 'Исправлено: токены вынесены в env, парсинг code_auditor улучшен.',
@@ -47,7 +49,9 @@ async def main():
                 WHERE metadata->>'source' = 'code_auditor'
                   AND title ILIKE $1
                   AND status NOT IN ('completed', 'cancelled')
-            """, pattern)
+            """,
+                pattern,
+            )
             # result: "UPDATE N"
             n = int(result.split()[-1]) if result and result.split() else 0
             closed += n

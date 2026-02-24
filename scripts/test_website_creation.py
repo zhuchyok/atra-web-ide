@@ -27,19 +27,19 @@ try:
         json={"goal": goal, "max_steps": 500},
         timeout=180
     )
-    
+
     duration = time.time() - start_time
-    
+
     if response.status_code == 200:
         result = response.json()
         status = result.get("status", "N/A")
         output = result.get("output", "")
         knowledge = result.get("knowledge", {})
-        
+
         print(f"✅ Статус: {status}")
         print(f"⏱️ Время выполнения: {duration:.2f}с")
         print()
-        
+
         print("📊 Ответ Victoria:")
         print("=" * 80)
         print(output[:2000])
@@ -47,16 +47,16 @@ try:
             print(f"\n... (еще {len(output) - 2000} символов)")
         print("=" * 80)
         print()
-        
+
         if knowledge:
             print("🎯 Метод:", knowledge.get('method', 'N/A'))
             print("📁 Проект:", knowledge.get('project_context', 'N/A'))
             print()
-        
+
         # Ищем созданный файл
         print("🔍 Поиск созданного файла...")
         print("-" * 80)
-        
+
         # Проверяем возможные места
         possible_locations = [
             "webpage.html",
@@ -66,7 +66,7 @@ try:
             "./webpage.html",
             "./index.html"
         ]
-        
+
         found_files = []
         for location in possible_locations:
             path = Path(location)
@@ -74,7 +74,7 @@ try:
                 found_files.append(str(path.resolve()))
                 print(f"✅ Найден: {path.resolve()}")
                 print(f"   Размер: {path.stat().st_size} байт")
-                
+
                 # Показываем содержимое
                 try:
                     content = path.read_text(encoding='utf-8')
@@ -86,7 +86,7 @@ try:
                     if len(content) > 1000:
                         print(f"\n... (еще {len(content) - 1000} символов)")
                     print("-" * 80)
-                    
+
                     # Сохраняем копию в logs
                     logs_dir = Path("logs")
                     logs_dir.mkdir(exist_ok=True)
@@ -96,12 +96,12 @@ try:
                     print(f"\n💾 Копия сохранена: {copy_path}")
                 except Exception as e:
                     print(f"   ⚠️ Ошибка чтения: {e}")
-        
+
         if not found_files:
             print("⚠️ Файл не найден в стандартных местах")
             print("   Возможно файл создан в Docker контейнере")
             print("   Проверьте: docker exec victoria-agent find /app -name '*.html' -type f")
-        
+
         # Проверяем Docker контейнер
         print()
         print("🐳 Проверка Docker контейнера...")
@@ -120,11 +120,11 @@ try:
                         print(f"   {line}")
         except Exception as e:
             print(f"   ⚠️ Не удалось проверить контейнер: {e}")
-        
+
     else:
         print(f"❌ Ошибка HTTP {response.status_code}")
         print(response.text[:500])
-        
+
 except requests.exceptions.Timeout:
     print("⏱️ Таймаут - Victoria не ответила за 3 минуты")
 except Exception as e:

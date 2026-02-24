@@ -5,6 +5,7 @@
 ### **Дефолтный режим - 'spot', SHORT только для 'futures'!**
 
 **В коде:**
+
 ```python
 # user_utils.py, строка 47:
 trade_mode = data.get('trade_mode', 'spot')  # ← Дефолт 'spot'
@@ -16,6 +17,7 @@ if trade_mode != 'futures':
 ```
 
 **Результат:**
+
 - ✅ LONG генерируются (работает на spot и futures)
 - ❌ SHORT НЕ генерируются (только futures, а дефолт - spot)
 
@@ -28,6 +30,7 @@ if trade_mode != 'futures':
 **Где изменить:**
 
 #### **1. user_utils.py (строка 47):**
+
 ```python
 # БЫЛО:
 trade_mode = data.get('trade_mode', 'spot')
@@ -37,6 +40,7 @@ trade_mode = data.get('trade_mode', 'futures')
 ```
 
 #### **2. telegram_handlers.py (строки 368, 523):**
+
 ```python
 # БЫЛО:
 defaults = {
@@ -52,6 +56,7 @@ defaults = {
 ```
 
 #### **3. db_init.py (строки 140, 164):**
+
 ```python
 # БЫЛО:
 "default_trade_mode": "spot",
@@ -61,6 +66,7 @@ defaults = {
 ```
 
 **Эффект:**
+
 - ✅ Новые пользователи → futures по умолчанию
 - ✅ SHORT + LONG сигналы сразу
 - ✅ Существующие пользователи - не затронуты
@@ -70,24 +76,26 @@ defaults = {
 ### **ВАРИАНТ 2: Обновить существующих пользователей в БД**
 
 **SQL скрипт:**
+
 ```sql
 -- Проверяем текущие настройки:
-SELECT user_id, json_extract(data, '$.trade_mode') as trade_mode 
+SELECT user_id, json_extract(data, '$.trade_mode') as trade_mode
 FROM users_data;
 
 -- Обновляем на futures:
-UPDATE users_data 
+UPDATE users_data
 SET data = json_set(data, '$.trade_mode', 'futures')
 WHERE json_extract(data, '$.trade_mode') = 'spot';
 
 -- Также обновляем leverage для futures:
-UPDATE users_data 
+UPDATE users_data
 SET data = json_set(data, '$.leverage', 10)
-WHERE json_extract(data, '$.trade_mode') = 'futures' 
+WHERE json_extract(data, '$.trade_mode') = 'futures'
 AND json_extract(data, '$.leverage') = 1;
 ```
 
 **Эффект:**
+
 - ✅ Все пользователи → futures
 - ✅ SHORT сигналы начнут генерироваться
 - ✅ Leverage автоматически поднимется до 10x
@@ -97,6 +105,7 @@ AND json_extract(data, '$.leverage') = 1;
 ### **ВАРИАНТ 3: Команда для пользователей**
 
 **Добавить в /help:**
+
 ```
 /set_trade_mode futures - Включить SHORT сигналы
 ```
@@ -114,6 +123,7 @@ AND json_extract(data, '$.leverage') = 1;
 3. ✅ Перезапускаем систему
 
 **Результат:**
+
 - ✅ SHORT + LONG сигналы
 - ✅ Полное использование стратегий
 - ✅ Больше возможностей заработка
@@ -123,6 +133,7 @@ AND json_extract(data, '$.leverage') = 1;
 ## 📊 **СРАВНЕНИЕ:**
 
 ### **trade_mode = 'spot':**
+
 ```
 LONG: ✅ Генерируются
 SHORT: ❌ Не генерируются
@@ -131,6 +142,7 @@ SHORT: ❌ Не генерируются
 ```
 
 ### **trade_mode = 'futures':**
+
 ```
 LONG: ✅ Генерируются
 SHORT: ✅ Генерируются
@@ -144,8 +156,8 @@ Leverage: до 10x
 ## 🚀 **ДЕЙСТВИЯ:**
 
 **Хотите чтобы я:**
+
 1. ✅ Изменил дефолт на 'futures'?
 2. ✅ Создал SQL скрипт для обновления БД?
 
 **Это безопасно и увеличит прибыльность!** 📈
-

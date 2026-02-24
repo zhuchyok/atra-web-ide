@@ -24,11 +24,11 @@ echo -e "${BLUE}🔍 Проверка инициализации Cursor прав
 if [ -f "$CURSOR_RULES_FILE" ]; then
     echo -e "${YELLOW}ℹ️  Файл .cursorrules уже существует${NC}"
     echo -e "${YELLOW}   Путь: $CURSOR_RULES_FILE${NC}"
-    
+
     # Проверяем, содержит ли файл универсальные правила
     if grep -q "КОМАНДА ЭКСПЕРТОВ\|Команда экспертов\|команда экспертов" "$CURSOR_RULES_FILE" 2>/dev/null; then
         echo -e "${GREEN}✅ Универсальные правила уже применены${NC}"
-        
+
         # Если запущен в автоматическом режиме (неинтерактивно), просто выходим
         if [ -t 0 ] && [ -t 1 ]; then
             # Интерактивный режим - спрашиваем
@@ -43,7 +43,7 @@ if [ -f "$CURSOR_RULES_FILE" ]; then
         fi
     else
         echo -e "${YELLOW}⚠️  Файл существует, но не содержит универсальных правил${NC}"
-        
+
         # В автоматическом режиме добавляем правила без вопроса
         if [ ! -t 0 ] || [ ! -t 1 ]; then
             echo -e "${BLUE}📝 Автоматически добавляем универсальные правила...${NC}"
@@ -54,7 +54,7 @@ if [ -f "$CURSOR_RULES_FILE" ]; then
                 exit 0
             fi
         fi
-        
+
         # Создаем резервную копию существующего файла
         BACKUP_FILE="${CURSOR_RULES_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
         cp "$CURSOR_RULES_FILE" "$BACKUP_FILE"
@@ -69,11 +69,11 @@ mkdir -p "$HOME/.cursor/templates"
 if [ ! -f "$UNIVERSAL_RULES_PATH" ]; then
     echo -e "${YELLOW}⚠️  Универсальные правила не найдены в $UNIVERSAL_RULES_PATH${NC}"
     echo -e "${BLUE}📥 Копирование универсальных правил...${NC}"
-    
+
     # Ищем в проекте ATRA
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     ATRA_EXAMPLES="$SCRIPT_DIR/../docs/examples/universal-cursor-rules.md"
-    
+
     if [ -f "$ATRA_EXAMPLES" ]; then
         cp "$ATRA_EXAMPLES" "$UNIVERSAL_RULES_PATH"
         echo -e "${GREEN}✅ Универсальные правила скопированы${NC}"
@@ -296,4 +296,3 @@ echo -e "${YELLOW}📝 Не забудьте отредактировать фа
 if command -v code &> /dev/null; then
     echo -e "${BLUE}💡 Откройте файл в редакторе: code $CURSOR_RULES_FILE${NC}"
 fi
-

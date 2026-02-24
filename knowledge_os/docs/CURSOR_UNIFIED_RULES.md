@@ -43,6 +43,7 @@ code ~/.cursor/universal-rules.md
 ### Новый проект автоматически получит актуальные правила
 
 При создании нового проекта через `init-cursor-rules.sh`:
+
 - Автоматически копируются **актуальные** универсальные правила из `~/.cursor/universal-rules.md`
 - Не нужно ничего синхронизировать вручную
 
@@ -84,12 +85,14 @@ project3/
 ## 💡 Рекомендации
 
 1. **Версионируйте универсальные правила** в Git:
+
    ```bash
    git add ~/.cursor/universal-rules.md
    git commit -m "Update universal Cursor rules"
    ```
 
 2. **Создайте alias** для быстрой синхронизации:
+
    ```bash
    # В ~/.zshrc или ~/.bashrc
    alias sync-rules='~/Documents/GITHUB/atra/atra/scripts/sync-cursor-rules.sh ~'
@@ -106,4 +109,3 @@ project3/
 ---
 
 **Готово!** Теперь у вас единая база правил, которая автоматически применяется ко всем проектам! 🎉
-

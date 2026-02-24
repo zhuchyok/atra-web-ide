@@ -4,12 +4,14 @@
 Единая точка: при наличии orjson используем его, иначе stdlib json.
 Установка: orjson в requirements.txt (не в рантайме — 12-Factor).
 """
+
 from __future__ import annotations
 
 from typing import Any, Optional
 
 try:
     import orjson
+
     _HAS_ORJSON = True
 except ImportError:
     _HAS_ORJSON = False

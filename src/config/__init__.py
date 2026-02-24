@@ -8,8 +8,7 @@
 """
 
 __all__ = [
-    'PatternsConfig',
-    'MonitoringConfig',
-    'HybridConfig',
+    "PatternsConfig",
+    "MonitoringConfig",
+    "HybridConfig",
 ]
-

@@ -9,29 +9,33 @@
 # Файл конфигурации содержит множество настроек, что оправдывает большой размер
 
 import os
+
 try:
     from dotenv import load_dotenv
+
     _DOTENV_AVAILABLE = True
 except ImportError:
     _DOTENV_AVAILABLE = False
+
 
 def manual_load_dotenv(filepath):
     """Вручную загружает переменные окружения из файла, если python-dotenv недоступен"""
     if not os.path.exists(filepath):
         return False
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
-                if '=' in line:
-                    key, value = line.split('=', 1)
+                if "=" in line:
+                    key, value = line.split("=", 1)
                     key = key.strip()
                     value = value.strip()
                     # Удаляем кавычки, если они есть
-                    if (value.startswith('"') and value.endswith('"')) or \
-                       (value.startswith("'") and value.endswith("'")):
+                    if (value.startswith('"') and value.endswith('"')) or (
+                        value.startswith("'") and value.endswith("'")
+                    ):
                         value = value[1:-1]
                     if key and key not in os.environ:
                         os.environ[key] = value
@@ -40,59 +44,62 @@ def manual_load_dotenv(filepath):
         print(f"⚠️ Ошибка ручной загрузки {filepath}: {e}")
         return False
 
+
 # 🔐 ПРИОРИТЕТ ЗАГРУЗКИ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ:
 # 1. .env (в .gitignore) - для реальных ключей и секретов
 # 2. ATRA_ENV_FILE (переменная окружения)
 # 3. env.prod/env.dev (в зависимости от ATRA_ENV)
 # 4. env (шаблон, без реальных ключей)
 
+
 def load_all_dotenvs():
     """Загружает все необходимые .env файлы в правильном порядке"""
     # Сначала .env
     if _DOTENV_AVAILABLE:
-        if os.path.exists('.env'):
-            load_dotenv('.env', override=False)
+        if os.path.exists(".env"):
+            load_dotenv(".env", override=False)
     else:
-        manual_load_dotenv('.env')
+        manual_load_dotenv(".env")
 
     # Затем основной файл в зависимости от окружения
-    env_file = os.getenv('ATRA_ENV_FILE')
+    env_file = os.getenv("ATRA_ENV_FILE")
     if not env_file:
-        if os.path.exists('env.prod'):
+        if os.path.exists("env.prod"):
             if _DOTENV_AVAILABLE:
-                load_dotenv('env.prod', override=False)
+                load_dotenv("env.prod", override=False)
             else:
-                manual_load_dotenv('env.prod')
-            
-            atra_env_from_file = os.getenv('ATRA_ENV', 'prod').lower().strip()
-            if atra_env_from_file == 'prod':
-                env_file = 'env.prod'
+                manual_load_dotenv("env.prod")
+
+            atra_env_from_file = os.getenv("ATRA_ENV", "prod").lower().strip()
+            if atra_env_from_file == "prod":
+                env_file = "env.prod"
             else:
-                if os.path.exists('env.dev'):
-                    env_file = 'env.dev'
+                if os.path.exists("env.dev"):
+                    env_file = "env.dev"
                 else:
-                    env_file = 'env.prod'
-        elif os.path.exists('env.dev'):
-            env_file = 'env.dev'
+                    env_file = "env.prod"
+        elif os.path.exists("env.dev"):
+            env_file = "env.dev"
         else:
-            atra_env = os.getenv('ATRA_ENV', 'dev').lower().strip()
-            if atra_env == 'prod' and os.path.exists('env.prod'):
-                env_file = 'env.prod'
-            elif atra_env == 'dev' and os.path.exists('env.dev'):
-                env_file = 'env.dev'
+            atra_env = os.getenv("ATRA_ENV", "dev").lower().strip()
+            if atra_env == "prod" and os.path.exists("env.prod"):
+                env_file = "env.prod"
+            elif atra_env == "dev" and os.path.exists("env.dev"):
+                env_file = "env.dev"
             else:
-                env_file = 'env'
+                env_file = "env"
 
     if _DOTENV_AVAILABLE:
         if os.path.exists(env_file):
             load_dotenv(env_file, override=True)
         else:
-            load_dotenv('env', override=True)
+            load_dotenv("env", override=True)
     else:
         if os.path.exists(env_file):
             manual_load_dotenv(env_file)
         else:
-            manual_load_dotenv('env')
+            manual_load_dotenv("env")
+
 
 # Запускаем загрузку
 load_all_dotenvs()
@@ -101,10 +108,13 @@ load_all_dotenvs()
 try:
     # Попытка импорта из корня проекта
     try:
-        from adaptive_settings import get_adaptive_setting, AdaptiveKeys  # type: ignore
+        from adaptive_settings import AdaptiveKeys, get_adaptive_setting  # type: ignore
     except ImportError:
         # Fallback: импорт из archive/experimental
-        from archive.experimental.adaptive_settings import get_adaptive_setting, AdaptiveKeys  # type: ignore
+        from archive.experimental.adaptive_settings import (  # type: ignore
+            AdaptiveKeys,
+            get_adaptive_setting,
+        )
 except ImportError:
     # Если модуль недоступен, создаем заглушки
     def get_adaptive_setting(key: str, default_value):
@@ -113,6 +123,7 @@ except ImportError:
 
     class AdaptiveKeys:
         """Заглушка для AdaptiveKeys, если модуль недоступен"""
+
         DYNAMIC_CALC_INTERVAL = "DYNAMIC_CALC_INTERVAL"
         DYNAMIC_TP_ENABLED = "DYNAMIC_TP_ENABLED"
         VOLUME_BLOCKS_ENABLED = "VOLUME_BLOCKS_ENABLED"
@@ -134,14 +145,28 @@ except ImportError:
         MIN_ACTIVE_COINS = "MIN_ACTIVE_COINS"
         BLOCKLIST_CHURN_FRAC = "BLOCKLIST_CHURN_FRAC"
 
+
 # Default filter mode for signals if user has no explicit preference
 DEFAULT_FILTER_MODE = "strict"  # options: 'strict' | 'soft'
 
 # Список стейблкоинов - сигналы по ним не генерируются
 STABLECOIN_SYMBOLS = [
-    "USDTUSDT", "USDCUSDT", "BUSDUSDT", "FDUSDUSDT", "TUSDUSDT",
-    "USDDUSDT", "USDEUSDT", "DAIUSDT", "FRAXUSDT", "LUSDUSDT",
-    "USTCUSDT", "USTUSDT", "MIMUSDT", "ALGUSDT", "EURSUSDT", "USD1USDT"
+    "USDTUSDT",
+    "USDCUSDT",
+    "BUSDUSDT",
+    "FDUSDUSDT",
+    "TUSDUSDT",
+    "USDDUSDT",
+    "USDEUSDT",
+    "DAIUSDT",
+    "FRAXUSDT",
+    "LUSDUSDT",
+    "USTCUSDT",
+    "USTUSDT",
+    "MIMUSDT",
+    "ALGUSDT",
+    "EURSUSDT",
+    "USD1USDT",
 ]
 
 # --- BTC trend filter tuning (practical defaults) ---
@@ -176,7 +201,8 @@ SOL_TREND_EMA_STRICT = 200
 # - Торговля блокируется до завершения оптимизации
 # - intelligent_filter_system используется как источник оптимизированных параметров
 AUTO_FETCH_COINS = os.getenv(
-    "AUTO_FETCH_COINS", "true"  # 🔧 ИЗМЕНЕНО: используем авто-подбор как основной источник
+    "AUTO_FETCH_COINS",
+    "true",  # 🔧 ИЗМЕНЕНО: используем авто-подбор как основной источник
 ).lower() in ("1", "true", "yes")
 # Финальный портфель TOP-10 по результатам годового бектеста SOL_HIGH (2025-11-16)
 # См. отчёт: final_portfolio_backtest_20251116_230305.json
@@ -187,17 +213,15 @@ COINS = [
     "BTCUSDT",
     "ETHUSDT",
     "SOLUSDT",
-
     # Топ альткоины (высокая ликвидность)
     "BNBUSDT",
     "XRPUSDT",
-    "ADAUSDT",   # +182.40 USDT, WR 47.06%, PF 1.22
+    "ADAUSDT",  # +182.40 USDT, WR 47.06%, PF 1.22
     "DOGEUSDT",
     "LINKUSDT",
     "AVAXUSDT",  # +174.17 USDT, WR 61.90%, PF 1.15
     "LTCUSDT",
     "TRXUSDT",
-
     # Перспективные (средняя-высокая ликвидность)
     "UNIUSDT",
     "NEARUSDT",
@@ -206,20 +230,26 @@ COINS = [
     "FETUSDT",
     "TAOUSDT",
     "ATOMUSDT",
-    "OPUSDT",    # +19.56 USDT, WR 42.86%, PF 1.01
+    "OPUSDT",  # +19.56 USDT, WR 42.86%, PF 1.01
     "ARBUSDT",
-    "DOTUSDT",   # +123.54 USDT, WR 43.75%, PF 1.15
-    "CRVUSDT",   # +82.38 USDT, WR 43.48%, PF 1.06
+    "DOTUSDT",  # +123.54 USDT, WR 43.75%, PF 1.15
+    "CRVUSDT",  # +82.38 USDT, WR 43.48%, PF 1.06
 ]
+
+
 # Инициализация COINS отложена до запуска event loop
 # чтобы избежать вызова асинхронной функции при импорте
 def initialize_coins_sync():
     """Синхронная инициализация списка монет"""
     if AUTO_FETCH_COINS:
         try:
-            from src.execution.exchange_api import get_filtered_top_usdt_pairs_fast  # pylint: disable=import-outside-toplevel
             # Проверяем, есть ли уже запущенный event loop
             import asyncio  # pylint: disable=import-outside-toplevel
+
+            from src.execution.exchange_api import (
+                get_filtered_top_usdt_pairs_fast,  # pylint: disable=import-outside-toplevel
+            )
+
             try:
                 loop = asyncio.get_running_loop()
                 # Если есть запущенный loop, создаем новый в отдельном потоке
@@ -229,7 +259,9 @@ def initialize_coins_sync():
                     new_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(new_loop)
                     try:
-                        return new_loop.run_until_complete(get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=50))
+                        return new_loop.run_until_complete(
+                            get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=50)
+                        )
                     finally:
                         new_loop.close()
 
@@ -243,13 +275,23 @@ def initialize_coins_sync():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
-                    fetched_coins = loop.run_until_complete(get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=50))
+                    fetched_coins = loop.run_until_complete(
+                        get_filtered_top_usdt_pairs_fast(top_n=150, final_limit=50)
+                    )
                     return fetched_coins
                 finally:
                     loop.close()
-        except (ImportError, ModuleNotFoundError, ValueError, RuntimeError, OSError, concurrent.futures.TimeoutError):
+        except (
+            ImportError,
+            ModuleNotFoundError,
+            ValueError,
+            RuntimeError,
+            OSError,
+            concurrent.futures.TimeoutError,
+        ):
             pass
     return None
+
 
 # ============================================================================
 # ОБНОВЛЕННАЯ КОНФИГУРАЦИЯ С УСИЛЕННЫМИ БЛОКАМИ
@@ -269,18 +311,13 @@ NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY", "")
 ATRA_ENV = os.getenv("ATRA_ENV", "dev").lower().strip()
 # prod -> TELEGRAM_TOKEN, иначе -> TELEGRAM_TOKEN_DEV
 # (с фолбэком на prod, если dev пуст)
-TOKEN = (
-    TELEGRAM_TOKEN if ATRA_ENV == "prod" else (
-        TELEGRAM_TOKEN_DEV or TELEGRAM_TOKEN
-    )
-)
+TOKEN = TELEGRAM_TOKEN if ATRA_ENV == "prod" else (TELEGRAM_TOKEN_DEV or TELEGRAM_TOKEN)
 
 # Автоматическое исполнение ордеров
 # В DEV окружении всегда отключено, в PROD можно включить через переменную окружения
-AUTO_EXECUTION_ENABLED = (
-    ATRA_ENV == "prod" and
-    os.getenv("AUTO_EXECUTION_ENABLED", "false").lower() in ("1", "true", "yes")
-)
+AUTO_EXECUTION_ENABLED = ATRA_ENV == "prod" and os.getenv(
+    "AUTO_EXECUTION_ENABLED", "false"
+).lower() in ("1", "true", "yes")
 # --- TP adjustments (absolute percentage points to subtract) ---
 # Смещаем TP1 чуть ближе для ускоренного выхода, TP2 умеренно
 TP1_OFFSET_PCT = 0.9  # слегка ближе, чтобы чаще исполнялся TP1
@@ -300,8 +337,8 @@ TP2_INWARD_TICKS = int(os.getenv("TP2_INWARD_TICKS", "16"))
 # --- Комиссии (в процентах от нотионала) ---
 # По умолчанию считаем такерскую комиссию.
 # При необходимости можно расширить на мейкер.
-SPOT_TAKER_FEE_PCT = 0.10   # 0.10%
-FUTURES_TAKER_FEE_PCT = 0.04 # 0.04%
+SPOT_TAKER_FEE_PCT = 0.10  # 0.10%
+FUTURES_TAKER_FEE_PCT = 0.04  # 0.04%
 
 # --- DCA триггеры (адаптивные) ---
 # Минимальный кулдаун после принятия сигнала, прежде чем
@@ -346,14 +383,15 @@ PORTFOLIO_MAX_RISK_PCT = 8.0  # суммарный риск портфеля 8%
 PORTFOLIO_MIN_POSITIONS = 2
 PORTFOLIO_MAX_POSITIONS_HARD = 6  # Максимум 6 позиций одновременно
 
+
 # Таймфрейм для динамических расчётов при принятии сигнала (e.g., '1h', '1m')
 # Теперь из базы данных
 def _get_dynamic_calc_interval():
     """Получает интервал динамических расчётов из адаптивных настроек"""
     return get_adaptive_setting(
-        AdaptiveKeys.DYNAMIC_CALC_INTERVAL,
-        os.getenv("DYNAMIC_CALC_INTERVAL", "1h")
+        AdaptiveKeys.DYNAMIC_CALC_INTERVAL, os.getenv("DYNAMIC_CALC_INTERVAL", "1h")
     )
+
 
 DYNAMIC_CALC_INTERVAL = _get_dynamic_calc_interval()
 
@@ -533,26 +571,26 @@ ENHANCED_STRATEGY_CONFIG = {
             "LOW": {"max_ratio": 1.0, "min_ratio": 0.8, "atr_threshold": 0.01},
             "MEDIUM": {"max_ratio": 0.8, "min_ratio": 0.5, "atr_threshold": 0.025},
             "HIGH": {"max_ratio": 0.6, "min_ratio": 0.3, "atr_threshold": 0.05},
-            "EXTREME": {"max_ratio": 0.4, "min_ratio": 0.2, "atr_threshold": 0.1}
+            "EXTREME": {"max_ratio": 0.4, "min_ratio": 0.2, "atr_threshold": 0.1},
         },
         # Настройки тренда
         "trend_strength": {
-            "STRONG": 1.3,    # +30% при сильном тренде
-            "MEDIUM": 1.1,    # +10% при среднем тренде
-            "WEAK": 1.0,      # Без изменений
-            "RANGING": 0.7,   # -30% при боковике
-            "REVERSAL": 0.5   # -50% при развороте
+            "STRONG": 1.3,  # +30% при сильном тренде
+            "MEDIUM": 1.1,  # +10% при среднем тренде
+            "WEAK": 1.0,  # Без изменений
+            "RANGING": 0.7,  # -30% при боковике
+            "REVERSAL": 0.5,  # -50% при развороте
         },
         # Временные факторы
         "time_factors": {
             "HIGH_VOLATILITY_HOURS": [9, 10, 16, 17],  # Часы высокой волатильности
             "high_vol_multiplier": 0.8,
-            "low_vol_multiplier": 1.2
+            "low_vol_multiplier": 1.2,
         },
         # Дополнительные параметры
         "min_safe_distance_atr": 1.5,  # Минимальное расстояние в ATR
         "max_ratio": 1.2,
-        "min_ratio": 0.15
+        "min_ratio": 0.15,
     },
     # Настройки для краткосрочной торговли
     "profit_distribution_config": {
@@ -746,11 +784,11 @@ WHALE_TRACKING_ENABLED = True
 WHALE_FREE_MODE = True
 
 # === Defaults for tests ===
-if 'WHALE_WALLETS' not in globals():
+if "WHALE_WALLETS" not in globals():
     WHALE_WALLETS = []  # дефолт для тестов
 
 # Mapping chain tickers or symbols for whale tracking tests
-if 'WHALE_TOKEN_MAPPING' not in globals():
+if "WHALE_TOKEN_MAPPING" not in globals():
     WHALE_TOKEN_MAPPING = {
         "BTC": "bitcoin",
         "ETH": "ethereum",
@@ -798,7 +836,9 @@ WHALE_ENHANCEMENT_SETTINGS = {
 # Окно анализа (минуты), множитель базовой медианы и минимальный порог USD
 CONF_WINDOW_MIN = int(os.getenv("CONF_WINDOW_MIN", "60"))  # Увеличиваем окно до 60 минут
 CONF_K_MULTIPLIER = float(os.getenv("CONF_K_MULTIPLIER", "1.2"))  # Снижаем множитель
-CONF_MIN_THRESHOLD_USD = float(os.getenv("CONF_MIN_THRESHOLD_USD", "5000"))  # Снижаем порог до 5K USD
+CONF_MIN_THRESHOLD_USD = float(
+    os.getenv("CONF_MIN_THRESHOLD_USD", "5000")
+)  # Снижаем порог до 5K USD
 
 # ============================================================================
 # НАСТРОЙКИ ДИНАМИЧЕСКИХ ФИЛЬТРОВ
@@ -813,7 +853,11 @@ USE_BTC_TREND_FILTER = True
 
 # Включение/отключение фильтра тренда доминации BTC
 # По умолчанию ВКЛЮЧЕН (можно отключить через env: USE_DOMINANCE_TREND_FILTER=false)
-USE_DOMINANCE_TREND_FILTER = os.getenv("USE_DOMINANCE_TREND_FILTER", "true").lower() in ("1", "true", "yes")
+USE_DOMINANCE_TREND_FILTER = os.getenv("USE_DOMINANCE_TREND_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Настройки фильтра доминации BTC
 DOMINANCE_FILTER_CONFIG = {
@@ -825,7 +869,11 @@ DOMINANCE_FILTER_CONFIG = {
 
 # Включение/отключение фильтра зон интереса (Interest Zones)
 # По умолчанию ВКЛЮЧЕН (можно отключить через env: USE_INTEREST_ZONE_FILTER=false)
-USE_INTEREST_ZONE_FILTER = os.getenv("USE_INTEREST_ZONE_FILTER", "true").lower() in ("1", "true", "yes")
+USE_INTEREST_ZONE_FILTER = os.getenv("USE_INTEREST_ZONE_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Настройки фильтра зон интереса (ОПТИМИЗИРОВАНЫ)
 INTEREST_ZONE_FILTER_CONFIG = {
@@ -839,7 +887,11 @@ INTEREST_ZONE_FILTER_CONFIG = {
 
 # Включение/отключение фильтра Фибоначчи
 # По умолчанию ВКЛЮЧЕН (можно отключить через env: USE_FIBONACCI_ZONE_FILTER=false)
-USE_FIBONACCI_ZONE_FILTER = os.getenv("USE_FIBONACCI_ZONE_FILTER", "true").lower() in ("1", "true", "yes")
+USE_FIBONACCI_ZONE_FILTER = os.getenv("USE_FIBONACCI_ZONE_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Настройки фильтра Фибоначчи (ОПТИМИЗИРОВАНЫ)
 FIBONACCI_ZONE_FILTER_CONFIG = {
@@ -851,7 +903,11 @@ FIBONACCI_ZONE_FILTER_CONFIG = {
 # Включение/отключение фильтра имбалансов объема
 # 🔧 ВРЕМЕННО ОТКЛЮЧЕН для восстановления генерации сигналов
 # По умолчанию ОТКЛЮЧЕН (можно включить через env: USE_VOLUME_IMBALANCE_FILTER=true)
-USE_VOLUME_IMBALANCE_FILTER = os.getenv("USE_VOLUME_IMBALANCE_FILTER", "false").lower() in ("1", "true", "yes")
+USE_VOLUME_IMBALANCE_FILTER = os.getenv("USE_VOLUME_IMBALANCE_FILTER", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # ============================================================================
 # ПАРАМЕТРЫ НОВЫХ ФИЛЬТРОВ (ОПТИМИЗИРОВАНЫ)
@@ -859,17 +915,17 @@ USE_VOLUME_IMBALANCE_FILTER = os.getenv("USE_VOLUME_IMBALANCE_FILTER", "false").
 
 # Interest Zone Filter - оптимальные параметры
 INTEREST_ZONE_FILTER_CONFIG = {
-    'lookback_periods': 50,
-    'min_volume_cluster': 1.0,
-    'zone_width_pct': 0.3,
-    'min_zone_strength': 0.5
+    "lookback_periods": 50,
+    "min_volume_cluster": 1.0,
+    "zone_width_pct": 0.3,
+    "min_zone_strength": 0.5,
 }
 
 # Fibonacci Zone Filter - оптимальные параметры
 FIBONACCI_ZONE_FILTER_CONFIG = {
-    'lookback_periods': 50,
-    'tolerance_pct': 0.3,
-    'require_strong_levels': False
+    "lookback_periods": 50,
+    "tolerance_pct": 0.3,
+    "require_strong_levels": False,
 }
 
 # Volume Imbalance Filter - оптимальные параметры
@@ -878,10 +934,10 @@ FIBONACCI_ZONE_FILTER_CONFIG = {
 # Решение: отключаем требование подтверждения объемом, фильтр продолжает проверять имбаланс
 # ⚠️ ВРЕМЕННО: для восстановления генерации сигналов
 VOLUME_IMBALANCE_FILTER_CONFIG = {
-    'lookback_periods': 10,
-    'volume_spike_threshold': 1.5,
-    'min_volume_ratio': 0.5,  # 🔧 Исправлено: было 1.0 → 0.8 → 0.6 → 0.5
-    'require_volume_confirmation': False  # 🔧 ВРЕМЕННО ОТКЛЮЧЕНО: было True
+    "lookback_periods": 10,
+    "volume_spike_threshold": 1.5,
+    "min_volume_ratio": 0.5,  # 🔧 Исправлено: было 1.0 → 0.8 → 0.6 → 0.5
+    "require_volume_confirmation": False,  # 🔧 ВРЕМЕННО ОТКЛЮЧЕНО: было True
 }
 
 # ============================================================================
@@ -906,7 +962,11 @@ USE_ORDER_FLOW_FILTER = os.getenv("USE_ORDER_FLOW_FILTER", "true").lower() in ("
 USE_EXHAUSTION_FILTER = os.getenv("USE_EXHAUSTION_FILTER", "true").lower() in ("1", "true", "yes")
 
 # Включение/отключение Microstructure фильтра (Liquidity Zones, Absorption Levels)
-USE_MICROSTRUCTURE_FILTER = os.getenv("USE_MICROSTRUCTURE_FILTER", "true").lower() in ("1", "true", "yes")
+USE_MICROSTRUCTURE_FILTER = os.getenv("USE_MICROSTRUCTURE_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Включение/отключение Momentum фильтра (MFI, Stochastic RSI)
 # ✅ ВКЛЮЧЕН: Будет оптимизирован для отсечения убыточных сделок
@@ -914,18 +974,26 @@ USE_MOMENTUM_FILTER = os.getenv("USE_MOMENTUM_FILTER", "true").lower() in ("1", 
 
 # Включение/отключение Trend Strength фильтра (ADX, TSI)
 # ✅ ВКЛЮЧЕН: Будет оптимизирован для отсечения убыточных сделок
-USE_TREND_STRENGTH_FILTER = os.getenv("USE_TREND_STRENGTH_FILTER", "true").lower() in ("1", "true", "yes")
+USE_TREND_STRENGTH_FILTER = os.getenv("USE_TREND_STRENGTH_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Включение/отключение Auction Market Theory (AMT) фильтра
 USE_AMT_FILTER = os.getenv("USE_AMT_FILTER", "true").lower() in ("1", "true", "yes")
 
 # Включение/отключение Market Profile (TPO) фильтра
-USE_MARKET_PROFILE_FILTER = os.getenv("USE_MARKET_PROFILE_FILTER", "true").lower() in ("1", "true", "yes")
+USE_MARKET_PROFILE_FILTER = os.getenv("USE_MARKET_PROFILE_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Включение/отключение Institutional Patterns фильтра
-USE_INSTITUTIONAL_PATTERNS_FILTER = (
-    os.getenv("USE_INSTITUTIONAL_PATTERNS_FILTER", "true").lower() in ("1", "true", "yes")
-)
+USE_INSTITUTIONAL_PATTERNS_FILTER = os.getenv(
+    "USE_INSTITUTIONAL_PATTERNS_FILTER", "true"
+).lower() in ("1", "true", "yes")
 
 # Настройки Volume Profile
 # Оптимизированные параметры: volume_profile_threshold = 0.6
@@ -1009,7 +1077,11 @@ TREND_STRENGTH_FILTER_CONFIG = {
 
 # Включение/отключение динамических TP/SL от зон (Фибоначчи + Interest Zones)
 # По умолчанию ВКЛЮЧЕН (можно отключить через env: USE_DYNAMIC_TP_SL_FROM_ZONES=false)
-USE_DYNAMIC_TP_SL_FROM_ZONES = os.getenv("USE_DYNAMIC_TP_SL_FROM_ZONES", "true").lower() in ("1", "true", "yes")
+USE_DYNAMIC_TP_SL_FROM_ZONES = os.getenv("USE_DYNAMIC_TP_SL_FROM_ZONES", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Включение/отключение новой логики входа на откате (вместо EMA кроссовера)
 # По умолчанию ВКЛЮЧЕН для тестирования (можно отключить через env: USE_PULLBACK_ENTRY=false)
@@ -1040,17 +1112,19 @@ BTC_TREND_FILTER_SOFT = True
 # Включение/отключение расширенных фильтров
 ENHANCED_FILTERS = True
 
+
 # Динамические уровни take profit - теперь из базы данных
 def _get_dynamic_tp_settings():
     """Получает настройки динамических TP из адаптивных настроек"""
     return {
-        'DYNAMIC_TP_ENABLED': get_adaptive_setting(AdaptiveKeys.DYNAMIC_TP_ENABLED, True),
-        'VOLUME_BLOCKS_ENABLED': get_adaptive_setting(AdaptiveKeys.VOLUME_BLOCKS_ENABLED, True)
+        "DYNAMIC_TP_ENABLED": get_adaptive_setting(AdaptiveKeys.DYNAMIC_TP_ENABLED, True),
+        "VOLUME_BLOCKS_ENABLED": get_adaptive_setting(AdaptiveKeys.VOLUME_BLOCKS_ENABLED, True),
     }
 
+
 _dynamic_tp_settings = _get_dynamic_tp_settings()
-DYNAMIC_TP_ENABLED = _dynamic_tp_settings['DYNAMIC_TP_ENABLED']
-VOLUME_BLOCKS_ENABLED = _dynamic_tp_settings['VOLUME_BLOCKS_ENABLED']
+DYNAMIC_TP_ENABLED = _dynamic_tp_settings["DYNAMIC_TP_ENABLED"]
+VOLUME_BLOCKS_ENABLED = _dynamic_tp_settings["VOLUME_BLOCKS_ENABLED"]
 
 # ============================================================================
 # ДОПОЛНИТЕЛЬНЫЕ НАСТРОЙКИ
@@ -1092,10 +1166,10 @@ RETENTION_SIGNALS_DAYS = int(os.getenv("RETENTION_SIGNALS_DAYS", "90"))
 RETENTION_SIGNALS_LOG_DAYS = int(os.getenv("RETENTION_SIGNALS_LOG_DAYS", "365"))
 RETENTION_ACCUM_EVENTS_DAYS = int(os.getenv("RETENTION_ACCUM_EVENTS_DAYS", "2"))
 RETENTION_APP_CACHE_DAYS = int(os.getenv("RETENTION_APP_CACHE_DAYS", "3"))
-RETENTION_ENABLE_WEEKLY_VACUUM = (
-    os.getenv("RETENTION_ENABLE_WEEKLY_VACUUM", "true")
-    .lower()
-    in ("1", "true", "yes")
+RETENTION_ENABLE_WEEKLY_VACUUM = os.getenv("RETENTION_ENABLE_WEEKLY_VACUUM", "true").lower() in (
+    "1",
+    "true",
+    "yes",
 )
 
 # ============================================================================
@@ -1107,62 +1181,56 @@ RETENTION_ENABLE_WEEKLY_VACUUM = (
 # Главный флаг адаптивного движка
 ADAPTIVE_ENGINE_ENABLED = get_adaptive_setting(
     AdaptiveKeys.ADAPTIVE_ENGINE_ENABLED,
-    os.getenv("ADAPTIVE_ENGINE_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("ADAPTIVE_ENGINE_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 
 # Фидер метрик в БД (hourly)
 METRICS_FEEDER_ENABLED = get_adaptive_setting(
     AdaptiveKeys.METRICS_FEEDER_ENABLED,
-    os.getenv("METRICS_FEEDER_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("METRICS_FEEDER_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 METRICS_FEEDER_INTERVAL_SEC = get_adaptive_setting(
-    AdaptiveKeys.METRICS_FEEDER_INTERVAL_SEC,
-    int(os.getenv("METRICS_FEEDER_INTERVAL_SEC", "3600"))
+    AdaptiveKeys.METRICS_FEEDER_INTERVAL_SEC, int(os.getenv("METRICS_FEEDER_INTERVAL_SEC", "3600"))
 )
 METRICS_CACHE_TTL_SEC = get_adaptive_setting(
-    AdaptiveKeys.METRICS_CACHE_TTL_SEC,
-    int(os.getenv("METRICS_CACHE_TTL_SEC", "3600"))
+    AdaptiveKeys.METRICS_CACHE_TTL_SEC, int(os.getenv("METRICS_CACHE_TTL_SEC", "3600"))
 )
 
 # Сводные окна/пороги
 PERFORMANCE_LOOKBACK_DAYS = get_adaptive_setting(
-    AdaptiveKeys.PERFORMANCE_LOOKBACK_DAYS,
-    int(os.getenv("PERFORMANCE_LOOKBACK_DAYS", "7"))
+    AdaptiveKeys.PERFORMANCE_LOOKBACK_DAYS, int(os.getenv("PERFORMANCE_LOOKBACK_DAYS", "7"))
 )
 
 # Адаптивная подстройка порогов входа (мягкая)
 ADAPTIVE_ENTRY_ADJ_ENABLED = get_adaptive_setting(
     AdaptiveKeys.ADAPTIVE_ENTRY_ADJ_ENABLED,
-    os.getenv("ADAPTIVE_ENTRY_ADJ_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("ADAPTIVE_ENTRY_ADJ_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 # Максимальная величина корректировки базовых порогов (в процентах)
 ADAPTIVE_ENTRY_MAX_ADJUST_PCT = get_adaptive_setting(
     AdaptiveKeys.ADAPTIVE_ENTRY_MAX_ADJUST_PCT,
-    float(os.getenv("ADAPTIVE_ENTRY_MAX_ADJUST_PCT", "10.0"))
+    float(os.getenv("ADAPTIVE_ENTRY_MAX_ADJUST_PCT", "10.0")),
 )
 
 # Динамический свитчер режима фильтров strict/sof
 DYNAMIC_MODE_SWITCH_ENABLED = get_adaptive_setting(
     AdaptiveKeys.DYNAMIC_MODE_SWITCH_ENABLED,
-    os.getenv("DYNAMIC_MODE_SWITCH_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("DYNAMIC_MODE_SWITCH_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 
 # Корреляционный кулдаун (ограничение одновременных высоко-коррелированных сигналов)
 CORRELATION_COOLDOWN_ENABLED = get_adaptive_setting(
     AdaptiveKeys.CORRELATION_COOLDOWN_ENABLED,
-    os.getenv("CORRELATION_COOLDOWN_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("CORRELATION_COOLDOWN_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 CORRELATION_LOOKBACK_HOURS = get_adaptive_setting(
-    AdaptiveKeys.CORRELATION_LOOKBACK_HOURS,
-    int(os.getenv("CORRELATION_LOOKBACK_HOURS", "24"))
+    AdaptiveKeys.CORRELATION_LOOKBACK_HOURS, int(os.getenv("CORRELATION_LOOKBACK_HOURS", "24"))
 )
 CORRELATION_MAX_PAIRWISE = get_adaptive_setting(
-    AdaptiveKeys.CORRELATION_MAX_PAIRWISE,
-    float(os.getenv("CORRELATION_MAX_PAIRWISE", "0.85"))
+    AdaptiveKeys.CORRELATION_MAX_PAIRWISE, float(os.getenv("CORRELATION_MAX_PAIRWISE", "0.85"))
 )
 CORRELATION_COOLDOWN_SEC = get_adaptive_setting(
-    AdaptiveKeys.CORRELATION_COOLDOWN_SEC,
-    int(os.getenv("CORRELATION_COOLDOWN_SEC", "3600"))
+    AdaptiveKeys.CORRELATION_COOLDOWN_SEC, int(os.getenv("CORRELATION_COOLDOWN_SEC", "3600"))
 )
 
 # ============================================================================
@@ -1170,28 +1238,22 @@ CORRELATION_COOLDOWN_SEC = get_adaptive_setting(
 # ============================================================================
 SOFT_BLOCKLIST_ENABLED = get_adaptive_setting(
     AdaptiveKeys.SOFT_BLOCKLIST_ENABLED,
-    os.getenv("SOFT_BLOCKLIST_ENABLED", "true").lower() in ("1", "true", "yes")
+    os.getenv("SOFT_BLOCKLIST_ENABLED", "true").lower() in ("1", "true", "yes"),
 )
 SOFT_BLOCKLIST_HYSTERESIS = get_adaptive_setting(
-    AdaptiveKeys.SOFT_BLOCKLIST_HYSTERESIS,
-    int(os.getenv("SOFT_BLOCKLIST_HYSTERESIS", "2"))
+    AdaptiveKeys.SOFT_BLOCKLIST_HYSTERESIS, int(os.getenv("SOFT_BLOCKLIST_HYSTERESIS", "2"))
 )
 SOFT_BLOCK_COOLDOWN_HOURS = get_adaptive_setting(
-    AdaptiveKeys.SOFT_BLOCK_COOLDOWN_HOURS,
-    int(os.getenv("SOFT_BLOCK_COOLDOWN_HOURS", "6"))
+    AdaptiveKeys.SOFT_BLOCK_COOLDOWN_HOURS, int(os.getenv("SOFT_BLOCK_COOLDOWN_HOURS", "6"))
 )
 MIN_ACTIVE_COINS = get_adaptive_setting(
-    AdaptiveKeys.MIN_ACTIVE_COINS,
-    int(os.getenv("MIN_ACTIVE_COINS", "30"))
+    AdaptiveKeys.MIN_ACTIVE_COINS, int(os.getenv("MIN_ACTIVE_COINS", "30"))
 )
 BLOCKLIST_CHURN_FRAC = get_adaptive_setting(
-    AdaptiveKeys.BLOCKLIST_CHURN_FRAC,
-    float(os.getenv("BLOCKLIST_CHURN_FRAC", "0.2"))
+    AdaptiveKeys.BLOCKLIST_CHURN_FRAC, float(os.getenv("BLOCKLIST_CHURN_FRAC", "0.2"))
 )
 
-ALWAYS_ACTIVE_COINS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"
-]
+ALWAYS_ACTIVE_COINS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]
 
 # ============================================================================
 # АУДИТ, АЛЕРТЫ, СЕКТОРНЫЕ ЛИМИТЫ (БЕЗ КОНФЛИКТОВ)
@@ -1217,17 +1279,17 @@ MTF_TIMEFRAMES = ["1h", "4h", "1d"]
 MTF_WEIGHTS_BULL = {
     "1h": float(os.getenv("MTF_WEIGHT_1H_BULL", "0.3")),
     "4h": float(os.getenv("MTF_WEIGHT_4H_BULL", "0.5")),
-    "1d": float(os.getenv("MTF_WEIGHT_1D_BULL", "0.2"))
+    "1d": float(os.getenv("MTF_WEIGHT_1D_BULL", "0.2")),
 }
 MTF_WEIGHTS_BEAR = {
     "1h": float(os.getenv("MTF_WEIGHT_1H_BEAR", "0.6")),
     "4h": float(os.getenv("MTF_WEIGHT_4H_BEAR", "0.3")),
-    "1d": float(os.getenv("MTF_WEIGHT_1D_BEAR", "0.1"))
+    "1d": float(os.getenv("MTF_WEIGHT_1D_BEAR", "0.1")),
 }
 MTF_WEIGHTS_NEUTRAL = {
     "1h": float(os.getenv("MTF_WEIGHT_1H_NEUTRAL", "0.4")),
     "4h": float(os.getenv("MTF_WEIGHT_4H_NEUTRAL", "0.4")),
-    "1d": float(os.getenv("MTF_WEIGHT_1D_NEUTRAL", "0.2"))
+    "1d": float(os.getenv("MTF_WEIGHT_1D_NEUTRAL", "0.2")),
 }
 MTF_MIN_CONFIRMATIONS = int(os.getenv("MTF_MIN_CONFIRMATIONS", "2"))
 MTF_QUALITY_BOOST = float(os.getenv("MTF_QUALITY_BOOST", "0.15"))
@@ -1241,8 +1303,13 @@ ML_MIN_TRAINING_SAMPLES = int(os.getenv("ML_MIN_TRAINING_SAMPLES", "100"))
 ML_PREDICTION_THRESHOLD = float(os.getenv("ML_PREDICTION_THRESHOLD", "0.65"))
 ML_QUALITY_BOOST = float(os.getenv("ML_QUALITY_BOOST", "0.2"))
 ML_FEATURES = [
-    "rsi", "adx", "volume_ratio", "bollinger_position",
-    "ema_trend", "market_regime", "mtf_score"
+    "rsi",
+    "adx",
+    "volume_ratio",
+    "bollinger_position",
+    "ema_trend",
+    "market_regime",
+    "mtf_score",
 ]
 
 # ============================================================================
@@ -1250,52 +1317,51 @@ ML_FEATURES = [
 # ============================================================================
 
 # Asset-specific configurations (defaults for tests)
-if 'ASSET_SPECIFIC_CONFIG' not in globals():
+if "ASSET_SPECIFIC_CONFIG" not in globals():
     ASSET_SPECIFIC_CONFIG = {
-        'BTC': {'risk_multiplier': 0.8},
-        'ETH': {'risk_multiplier': 0.9},
+        "BTC": {"risk_multiplier": 0.8},
+        "ETH": {"risk_multiplier": 0.9},
     }
 
 # Enhanced strategy tuning (defaults for tests)
-if 'ENHANCED_STRATEGY_CONFIG' not in globals():
+if "ENHANCED_STRATEGY_CONFIG" not in globals():
     ENHANCED_STRATEGY_CONFIG = {
-        'bollinger': {'window': 20, 'std': 2.0},
-        'rsi': {'window': 14, 'overbought': 70, 'oversold': 30},
+        "bollinger": {"window": 20, "std": 2.0},
+        "rsi": {"window": 14, "overbought": 70, "oversold": 30},
     }
 
 # ============================================================================
 # ГИБРИДНАЯ MTF СИСТЕМА (HYBRID MTF CONFIRMATION)
 # ============================================================================
 HYBRID_MTF_CONFIG = {
-    'enabled': os.getenv("HYBRID_MTF_ENABLED", "true").lower() in ("1", "true", "yes"),
-    'primary_timeframe': '4h',  # Binance поддерживает
-    'compensation_timeframe': '1h',
+    "enabled": os.getenv("HYBRID_MTF_ENABLED", "true").lower() in ("1", "true", "yes"),
+    "primary_timeframe": "4h",  # Binance поддерживает
+    "compensation_timeframe": "1h",
     # Оптимизировано на основе бэктеста (3 месяца, топ-20 монет, 15 потоков)
     # Результаты: Win Rate 68.81%, Profit Factor 1.29, Total Return +0.52%, Max Drawdown 0.37%
     # См. docs/FILTER_PARAMETERS_OPTIMIZATION_RESULTS.md
     # 🔧 ПОДДЕРЖКА БЭКТЕСТОВ: Переопределение через environment variables
-    'min_h4_confidence': float(os.getenv("BACKTEST_min_h4_confidence") or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE", "0.4")),
-    'min_h4_confidence_short': float(os.getenv("BACKTEST_min_h4_confidence") or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE_SHORT", "0.4")),
-    'min_h4_confidence_long': float(os.getenv("BACKTEST_min_h4_confidence") or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE_LONG", "0.4")),
-    'max_hybrid_boost': float(os.getenv("HYBRID_MTF_MAX_BOOST", "0.35")),
-    'h1_trend_thresholds': {
-        'VERY_STRONG': 0.9,
-        'STRONG': 0.8,
-        'MODERATE': 0.7,
-        'WEAK': 0.6
+    "min_h4_confidence": float(
+        os.getenv("BACKTEST_min_h4_confidence") or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE", "0.4")
+    ),
+    "min_h4_confidence_short": float(
+        os.getenv("BACKTEST_min_h4_confidence")
+        or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE_SHORT", "0.4")
+    ),
+    "min_h4_confidence_long": float(
+        os.getenv("BACKTEST_min_h4_confidence")
+        or os.getenv("HYBRID_MTF_MIN_H4_CONFIDENCE_LONG", "0.4")
+    ),
+    "max_hybrid_boost": float(os.getenv("HYBRID_MTF_MAX_BOOST", "0.35")),
+    "h1_trend_thresholds": {"VERY_STRONG": 0.9, "STRONG": 0.8, "MODERATE": 0.7, "WEAK": 0.6},
+    "market_momentum_thresholds": {"VERY_STRONG": 0.8, "STRONG": 0.7, "MODERATE": 0.6},
+    "boost_multipliers": {
+        "h1_very_strong": 0.8,
+        "h1_strong": 0.6,
+        "h1_moderate": 0.4,
+        "h1_weak": 0.2,
+        "market_very_strong": 0.5,
+        "market_strong": 0.3,
+        "market_moderate": 0.15,
     },
-    'market_momentum_thresholds': {
-        'VERY_STRONG': 0.8,
-        'STRONG': 0.7,
-        'MODERATE': 0.6
-    },
-    'boost_multipliers': {
-        'h1_very_strong': 0.8,
-        'h1_strong': 0.6,
-        'h1_moderate': 0.4,
-        'h1_weak': 0.2,
-        'market_very_strong': 0.5,
-        'market_strong': 0.3,
-        'market_moderate': 0.15
-    }
 }

@@ -2,6 +2,7 @@
 Фаза 4: A/B тестирование улучшений качества RAG.
 Варианты: reranking method, query rewriting, similarity threshold.
 """
+
 import hashlib
 import json
 import logging
@@ -52,7 +53,7 @@ class QualityABTest:
     def _load_results(self) -> None:
         if self.results_path.exists():
             try:
-                with open(self.results_path, "r", encoding="utf-8") as f:
+                with open(self.results_path, encoding="utf-8") as f:
                     self.results = json.load(f)
             except Exception as e:
                 logger.debug("Load AB results failed: %s", e)
@@ -92,7 +93,7 @@ class QualityABTest:
         if key not in self.results:
             self.results[key] = {
                 "count": 0,
-                "metrics": {k: 0.0 for k in metrics.keys()},
+                "metrics": {k: 0.0 for k in metrics},
                 "users": [],
             }
         self.results[key]["count"] += 1
@@ -111,7 +112,9 @@ class QualityABTest:
         for variant in self.experiments[experiment]["variants"]:
             key = f"{experiment}:{variant}"
             if key in self.results and self.results[key]["count"] > 0:
-                avg = self.results[key]["metrics"].get(primary_metric, 0) / self.results[key]["count"]
+                avg = (
+                    self.results[key]["metrics"].get(primary_metric, 0) / self.results[key]["count"]
+                )
                 if avg > best_score:
                     best_score = avg
                     best_variant = variant
@@ -126,13 +129,14 @@ class QualityABTest:
             key = f"{experiment}:{variant}"
             if key in self.results and self.results[key]["count"] > 0:
                 count = self.results[key]["count"]
-                avg_metrics = {
-                    m: v / count
-                    for m, v in self.results[key]["metrics"].items()
-                }
+                avg_metrics = {m: v / count for m, v in self.results[key]["metrics"].items()}
                 variants[variant] = {
                     "count": count,
                     "avg_metrics": avg_metrics,
                     "users": len(self.results[key]["users"]),
                 }
-        return {"experiment": experiment, "variants": variants, "timestamp": datetime.now().isoformat()}
+        return {
+            "experiment": experiment,
+            "variants": variants,
+            "timestamp": datetime.now().isoformat(),
+        }

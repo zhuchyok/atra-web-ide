@@ -62,10 +62,10 @@ else
     echo "❌ Cron задача не найдена!"
     echo ""
     echo "📋 Добавление cron задачи..."
-    
+
     MORNING_REPORT_SCRIPT="$SERVER_PATH/app/victoria_morning_report.py"
     CRON_MORNING_REPORT="0 8 * * * cd $SERVER_PATH && python3 $MORNING_REPORT_SCRIPT >> logs/morning_report.log 2>&1"
-    
+
     ssh_with_password "(crontab -l 2>/dev/null; echo '$CRON_MORNING_REPORT') | crontab -" 2>&1 > /dev/null
     echo "✅ Cron задача добавлена (ежедневно в 8:00)"
 fi
@@ -116,10 +116,10 @@ echo ""
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🚀 Запуск тестового выполнения..."
     TEST_RESULT=$(ssh_with_password "cd $SERVER_PATH && python3 app/victoria_morning_report.py 2>&1" 2>&1)
-    
+
     echo "📋 Результат:"
     echo "$TEST_RESULT" | grep -v "password:" | grep -v "spawn" | tail -30
-    
+
     if echo "$TEST_RESULT" | grep -q "✅"; then
         echo ""
         echo "✅ Тестовый запуск успешен!"
@@ -157,4 +157,3 @@ echo "   crontab -l | grep victoria_morning_report"
 echo "   # Задача запускается ежедневно в 8:00 UTC"
 echo ""
 echo "======================================================================"
-

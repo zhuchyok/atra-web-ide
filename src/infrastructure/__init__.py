@@ -11,4 +11,3 @@ This layer implements interfaces from Domain and Application layers.
 """
 
 __all__ = []
-

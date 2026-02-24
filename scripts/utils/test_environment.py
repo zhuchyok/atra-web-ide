@@ -58,14 +58,14 @@ def test_reset_cache():
 if __name__ == "__main__":
     print("🧪 ТЕСТИРОВАНИЕ environment.py")
     print("=" * 60)
-    
+
     try:
         test_is_docker()
         test_get_database_url()
         test_get_mlx_api_url()
         test_get_ollama_url()
         test_reset_cache()
-        
+
         print("=" * 60)
         print("✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ")
     except AssertionError as e:

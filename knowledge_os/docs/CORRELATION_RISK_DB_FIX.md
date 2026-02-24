@@ -5,6 +5,7 @@
 **Ошибка:** `ERROR:src.risk.correlation_risk:❌ Курсор БД недоступен`
 
 **Причина:**
+
 - `Database` по умолчанию использует `use_connection_pool=True`
 - При использовании pool: `self.conn = None` и `self.cursor = None` при инициализации
 - Соединение получается динамически через `with self._pool.get_connection() as conn:`
@@ -25,6 +26,7 @@ self.db = Database(self.db_path, use_connection_pool=False)
 ```
 
 **Почему это безопасно:**
+
 - `CorrelationRiskManager` не критичен для производительности
 - Используется редко (только при проверке корреляционных рисков)
 - Прямое соединение проще и надежнее для этого модуля
@@ -42,4 +44,3 @@ self.db = Database(self.db_path, use_connection_pool=False)
 
 **Дата исправления:** 2025-12-01  
 **Файл:** `src/risk/correlation_risk.py` (строка 144)
-

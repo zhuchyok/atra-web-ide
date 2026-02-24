@@ -1,8 +1,8 @@
 <script>
   import { experts, selectedExpert } from '../stores/chat.js'
-  
+
   let isOpen = false
-  
+
   function selectExpert(expert) {
     selectedExpert.set(expert)
     isOpen = false
@@ -22,20 +22,20 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
     </svg>
   </button>
-  
+
   {#if isOpen}
     <!-- Backdrop -->
-    <div 
+    <div
       class="fixed inset-0 z-40"
       on:click={() => isOpen = false}
     ></div>
-    
+
     <!-- Dropdown -->
     <div class="absolute right-0 mt-2 w-64 bg-atra-darker border border-atra-accent rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
       <div class="p-2 border-b border-atra-accent text-xs text-gray-500 uppercase">
         Victoria ({$experts.length})
       </div>
-      
+
       {#each $experts as expert}
         <button
           class="w-full text-left px-3 py-2 hover:bg-atra-accent/50 transition-colors flex items-center gap-3
@@ -58,7 +58,7 @@
           {/if}
         </button>
       {/each}
-      
+
       {#if $experts.length === 0}
         <div class="p-4 text-center text-gray-500 text-sm">
           <div class="animate-pulse">Загрузка экспертов...</div>

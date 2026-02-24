@@ -46,10 +46,10 @@ sync_file() {
 # 1. Синхронизация Библии
 for project in "${PROJECTS[@]}"; do
     echo "📂 Обработка проекта: $project"
-    
+
     # Библия
     sync_file "${MAIN_PROJECT_PATH}/${BIBLE_REL_PATH}" "${project}/docs" "MASTER_REFERENCE.md"
-    
+
     # .cursorrules
     sync_file "${MAIN_PROJECT_PATH}/${CURSORRULES_REL_PATH}" "${project}" ".cursorrules"
 done

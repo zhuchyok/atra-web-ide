@@ -20,7 +20,7 @@ if pl['is_dca']:
 else:
     # Обычный сигнал
     is_dca_signal = False
-    
+
     # Проверка на дубликаты ТОЛЬКО для обычных сигналов
     entry_time = pl.get('ts', "")
     signal_key = f"{symbol}_{entry_time}"

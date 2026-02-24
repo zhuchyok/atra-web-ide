@@ -13,6 +13,7 @@
 ### 1. Заменена логика в setup_filter_mode_balanced
 
 **Было:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -37,6 +38,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "balanced")
 ```
 
 **Стало:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 # Используем ту же логику, что и в myreport_cmd
@@ -53,6 +55,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "balanced")
 ### 2. Заменена логика в setup_filter_mode_soft
 
 **Было:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 deposit = user_data.get("deposit", 0)
@@ -77,6 +80,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "soft")
 ```
 
 **Стало:**
+
 ```python
 # Пересчитываем плечо с новым режимом фильтров
 # Используем ту же логику, что и в myreport_cmd
@@ -93,6 +97,7 @@ user_data["leverage"] = calculate_user_leverage(deposit, trade_mode, "soft")
 ### 3. Заменена логика отображения депозита
 
 **Было:**
+
 ```python
 # Дополнительная проверка депозита из файла для отображения
 if deposit == 0:
@@ -112,6 +117,7 @@ if deposit == 0:
 ```
 
 **Стало:**
+
 ```python
 # Используем ту же логику, что и в myreport_cmd для отображения
 balance_update = recalculate_balance_and_risks(user_data, user_id)
@@ -124,6 +130,7 @@ else:
 ## 🧪 Тестирование
 
 ### Результаты теста логики myreport:
+
 ```
 🧪 ТЕСТ ЛОГИКИ MYREPORT ДЛЯ ДЕПОЗИТА
 ============================================================

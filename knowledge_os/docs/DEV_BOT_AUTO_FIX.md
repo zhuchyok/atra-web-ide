@@ -9,6 +9,7 @@
 ### 1. Добавлена двойная защита:
 
 **`signal_live.py` (строка 4220):**
+
 ```python
 if ATRA_ENV != "prod":
     logger.info("⏭️ [AUTO] %s: окружение=%s, авто-исполнение отключено", symbol, ATRA_ENV)
@@ -16,6 +17,7 @@ if ATRA_ENV != "prod":
 ```
 
 **`auto_execution.py` (строка 52):**
+
 ```python
 if ATRA_ENV != "prod":
     logger.error("🚫 [AUTO BLOCKED] %s: АВТО-ИСПОЛНЕНИЕ ЗАБЛОКИРОВАНО! Окружение=%s", symbol, ATRA_ENV)
@@ -123,12 +125,14 @@ ps aux | grep "python.*main" | grep -v grep
 Если проблема сохраняется:
 
 1. Проверить, какой `ATRA_ENV` читает бот:
+
    ```bash
    cd /root/atra
    python3 -c "import os; from dotenv import load_dotenv; load_dotenv('env'); print('ATRA_ENV:', os.getenv('ATRA_ENV'))"
    ```
 
 2. Проверить логи при генерации сигнала:
+
    ```bash
    tail -100 logs/dev_bot.log | grep -E "AUTO CHECK|ATRA_ENV|BLOCKED"
    ```
@@ -139,4 +143,3 @@ ps aux | grep "python.*main" | grep -v grep
    git log --oneline -5
    grep -A 5 "КРИТИЧЕСКАЯ ПРОВЕРКА" auto_execution.py
    ```
-

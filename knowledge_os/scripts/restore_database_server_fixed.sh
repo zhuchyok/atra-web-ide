@@ -21,14 +21,14 @@ expect {
     "# " {
         send "cd /root/atra\r"
         expect "# "
-        
+
         send "echo '=================================================================================='\r"
         expect "# "
         send "echo '🔧 ВОССТАНОВЛЕНИЕ БАЗЫ ДАННЫХ'\r"
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         # Проверка существования БД
         send "echo ''\r"
         expect "# "
@@ -36,7 +36,7 @@ expect {
         expect "# "
         send "test -f /root/atra/trading.db && echo '✅ БД найдена' && ls -lh /root/atra/trading.db || echo '❌ БД не найдена'\r"
         expect "# "
-        
+
         # Создание бэкапа
         send "echo ''\r"
         expect "# "
@@ -46,7 +46,7 @@ expect {
         expect "# "
         send "cp /root/atra/trading.db /root/atra/backups/trading.db.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null && echo '✅ Бэкап создан' || echo '⚠️ Ошибка создания бэкапа'\r"
         expect "# "
-        
+
         # Проверка целостности
         send "echo ''\r"
         expect "# "
@@ -69,7 +69,7 @@ expect {
         send "    print(f'❌ Ошибка: {e}')\r"
         send "PYEOF\r"
         expect "# "
-        
+
         # Попытка восстановления
         send "echo ''\r"
         expect "# "
@@ -116,7 +116,7 @@ expect {
         send "        os.remove(recovered_path)\r"
         send "PYEOF\r"
         expect "# "
-        
+
         # Финальная проверка
         send "echo ''\r"
         expect "# "
@@ -144,7 +144,7 @@ expect {
         send "    print(f'❌ Ошибка: {e}')\r"
         send "PYEOF\r"
         expect "# "
-        
+
         send "echo ''\r"
         expect "# "
         send "echo '=================================================================================='\r"
@@ -153,7 +153,7 @@ expect {
         expect "# "
         send "echo '=================================================================================='\r"
         expect "# "
-        
+
         send "exit\r"
         expect eof
     }
@@ -164,4 +164,3 @@ expect {
 }
 
 wait
-

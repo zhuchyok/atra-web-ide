@@ -16,7 +16,7 @@ cd /root/atra
 
 echo "📥 Обновление кода..."
 git fetch origin
-git checkout insight  
+git checkout insight
 git pull origin insight
 echo "✅ Код обновлен"
 
@@ -51,4 +51,3 @@ ENDSSH
 
 echo ""
 echo "✅ Готово!"
-

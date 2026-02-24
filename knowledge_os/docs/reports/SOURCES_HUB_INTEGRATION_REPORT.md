@@ -11,6 +11,7 @@
 При проверке кода выявлено, что система `SourcesHub` **НЕ полностью внедрена**:
 
 ### Текущее состояние:
+
 1. ✅ `SourcesHub` импортирован и используется в `ai_integration.py`
 2. ❌ `signal_live.py` использует прямые API запросы к биржам
 3. ❌ Отсутствует централизованное управление источниками данных
@@ -33,11 +34,13 @@ except ImportError as e:
 ### 2. Обновлена функция get_anomaly_data_with_fallback()
 
 **Было:**
+
 - Прямые запросы к CoinGecko, CoinLore, Binance
 - Нет кэширования
 - Нет circuit breakers
 
 **Стало:**
+
 - Приоритетное использование SourcesHub
 - Автоматический fallback к прямым запросам
 - Централизованное кэширование через БД
@@ -50,21 +53,23 @@ async def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900) ->
         market_cap_data = await sources_hub.get_market_cap_data(symbol)
         volume_data = await sources_hub.get_volume_data(symbol)
         # ... обработка данных ...
-    
+
     # Fallback: Прямые API запросы
     # ...
 ```
 
-### 3. Обновлена функция _binance_recent_notional()
+### 3. Обновлена функция \_binance_recent_notional()
 
 **Изменения:**
+
 - ✅ Добавлено использование SourcesHub для получения volume и price
 - ✅ Автоматический fallback к прямому API запросу
 - ✅ Улучшенное логирование источников данных
 
-### 4. Обновлена функция _bybit_recent_notional()
+### 4. Обновлена функция \_bybit_recent_notional()
 
 **Изменения:**
+
 - ✅ Добавлено использование SourcesHub для получения volume и price
 - ✅ Автоматический fallback к прямому API запросу
 - ✅ Улучшенное логирование источников данных
@@ -72,16 +77,19 @@ async def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900) ->
 ## 📈 Преимущества интеграции
 
 ### 1. **Надежность**
+
 - ✅ Автоматический fallback при недоступности источников
 - ✅ Circuit breakers защищают от rate limits
 - ✅ Централизованное управление ошибками
 
 ### 2. **Производительность**
+
 - ✅ Кэширование в БД (TTL: 5-60 минут)
 - ✅ Параллельные запросы к нескольким источникам
 - ✅ Медианная агрегация данных
 
 ### 3. **Масштабируемость**
+
 - ✅ Единый интерфейс для всех источников
 - ✅ Легкое добавление новых источников
 - ✅ Конфигурация через `source_config.py`
@@ -95,12 +103,12 @@ async def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900) ->
    - Использует `sources_hub.get_volume_data()`
    - Fallback на CoinGecko, CoinLore, Binance
 
-2. **_binance_recent_notional()** ✅
+2. **\_binance_recent_notional()** ✅
    - Использует `sources_hub.get_volume_data()`
    - Использует `sources_hub.get_price_data()`
    - Fallback на Binance API
 
-3. **_bybit_recent_notional()** ✅
+3. **\_bybit_recent_notional()** ✅
    - Использует `sources_hub.get_volume_data()`
    - Использует `sources_hub.get_price_data()`
    - Fallback на Bybit API
@@ -112,17 +120,19 @@ async def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900) ->
 ```python
 class SourcesHub:
     - get_market_cap_data(symbol)  # ✅ Используется
-    - get_volume_data(symbol)      # ✅ Используется  
+    - get_volume_data(symbol)      # ✅ Используется
     - get_price_data(symbol)       # ✅ Используется
     - get_news_data(symbol)        # ⏳ В планах
 ```
 
 ### Кэширование:
+
 - Market Cap: 3600 секунд (1 час)
 - Volume: 300 секунд (5 минут)
 - Цены: 60 секунд (1 минута)
 
 ### Circuit Breakers:
+
 - Защита от rate limits
 - Автоматическое восстановление
 - Логирование блокировок
@@ -130,6 +140,7 @@ class SourcesHub:
 ## 📝 Выводы
 
 **Что работает:**
+
 - ✅ SourcesHub интегрирован для получения anomaly данных
 - ✅ SourcesHub интегрирован для получения notional volume
 - ✅ Fallback механизм работает корректно во всех функциях
@@ -137,6 +148,7 @@ class SourcesHub:
 - ✅ Улучшенное логирование источников данных
 
 **Дополнительные улучшения:**
+
 - ✅ Все критические функции используют SourcesHub
 - ✅ Автоматический fallback на прямые API запросы
 - ✅ Централизованное управление ошибками

@@ -1,16 +1,17 @@
 import asyncio
 import logging
-from typing import Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 logger = logging.getLogger("RecursiveLearning")
+
 
 class RecursiveLearningManager:
     """
     [SINGULARITY 14.0] Recursive Learning Manager
     Записывает опыт мутаций кода в базу знаний, чтобы система училась на своих успехах и ошибках.
     """
-    
+
     def __init__(self, knowledge_service=None):
         self.knowledge_service = knowledge_service
 
@@ -19,7 +20,7 @@ class RecursiveLearningManager:
         Сохраняет результат мутации как новый узел знаний (knowledge_node).
         """
         timestamp = datetime.now(timezone.utc).isoformat()
-        
+
         insight = (
             f"МУТАЦИЯ КОДА: {mutation_data['original_file']} -> {mutation_data['shadow_file']}\n"
             f"ГИПОТЕЗА: {mutation_data['hypothesis']}\n"
@@ -27,12 +28,13 @@ class RecursiveLearningManager:
             f"ПРИРОСТ СКОРОСТИ: {mutation_data['speed_gain']:.2f}%\n"
             f"ТОЧНОСТЬ: {'СОХРАНЕНА' if mutation_data['is_accurate'] else 'НАРУШЕНА'}"
         )
-        
-        logger.info(f"🧠 [RECURSIVE] Запись опыта мутации в базу знаний...")
-        
+
+        logger.info("🧠 [RECURSIVE] Запись опыта мутации в базу знаний...")
+
         # В будущем: реальный вызов self.knowledge_service.add_node()
         # Сейчас эмулируем сохранение
         return insight
+
 
 if __name__ == "__main__":
     # Тестовый запуск
@@ -43,6 +45,6 @@ if __name__ == "__main__":
         "hypothesis": "Использование асинхронных генераторов",
         "is_winner": True,
         "speed_gain": 12.5,
-        "is_accurate": True
+        "is_accurate": True,
     }
     asyncio.run(rl.record_mutation_experience(test_data))

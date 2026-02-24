@@ -7,8 +7,8 @@ Agent Systems Integration
 import asyncio
 import logging
 import os
-from typing import Optional, Dict, List, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ except ImportError:
 
 try:
     from anomaly_detector import AnomalyDetector
+
     def get_anomaly_detector():
         return AnomalyDetector()
 except ImportError:
@@ -65,10 +66,11 @@ try:
 except ImportError:
     get_checklist_generator = None
 
+
 class AgentSystemsIntegration:
     """
     Интеграция всех систем агентов.
-    
+
     Объединяет все модули в единую систему:
     - Менторство
     - A/B тестирование
@@ -81,7 +83,7 @@ class AgentSystemsIntegration:
     - Самооценка
     - Чеклисты
     """
-    
+
     def __init__(self):
         """Инициализация всех систем агентов"""
         # Инициализируем все системы
@@ -95,47 +97,46 @@ class AgentSystemsIntegration:
         self.collab_forum = get_collaboration_forum() if get_collaboration_forum else None
         self.self_assessment = get_agent_self_assessment() if get_agent_self_assessment else None
         self.checklist_gen = get_checklist_generator() if get_checklist_generator else None
-        
+
         logger.info("✅ [AGENT SYSTEMS] Все системы агентов инициализированы")
-    
+
     async def process_agent_activity(
-        self,
-        agent_id: str,
-        activity_type: str,
-        activity_data: Dict[str, Any]
+        self, agent_id: str, activity_type: str, activity_data: Dict[str, Any]
     ):
         """
         Обрабатывает активность агента через все системы.
-        
+
         Args:
             agent_id: ID агента
             activity_type: Тип активности ('task_completed', 'signal_generated', etc.)
             activity_data: Данные активности
         """
         try:
-            success = activity_data.get('success', True)
-            metrics = activity_data.get('metrics', {})
-            
+            success = activity_data.get("success", True)
+            metrics = activity_data.get("metrics", {})
+
             # 1. Обновляем KPI
             if self.kpi_tracker:
                 await self.kpi_tracker.get_agent_metrics(agent_id)
-            
+
             # 2. Самооценка после задачи
-            if activity_type == 'task_completed' and self.self_assessment:
-                task_id = activity_data.get('task_id')
+            if activity_type == "task_completed" and self.self_assessment:
+                task_id = activity_data.get("task_id")
                 if task_id:
                     await self.self_assessment.assess_task_performance(
                         agent_id, task_id, activity_data
                     )
-            
+
             # 3. Проверка на аномалии
             if self.anomaly_detector:
-                prompt = activity_data.get('prompt', '')
+                prompt = activity_data.get("prompt", "")
                 if prompt:
                     is_injection, _ = self.anomaly_detector.detect_injection(prompt)
                     if is_injection:
-                        logger.warning(f"⚠️ [AGENT SYSTEMS] Обнаружена инъекция от агента {agent_id}")
-            
+                        logger.warning(
+                            f"⚠️ [AGENT SYSTEMS] Обнаружена инъекция от агента {agent_id}"
+                        )
+
             # 4. Проверка ранних предупреждений (раз в час или принудительно)
             if self.early_warning:
                 # Проверяем все предупреждения
@@ -145,38 +146,42 @@ class AgentSystemsIntegration:
                         await self.early_warning.save_warning(warning)
                     # Эскалируем критичные (отправка в Telegram)
                     await self.early_warning.escalate_critical_warnings()
-            
+
             # 5. Обновление рейтинга для менторства
             if self.mentor_system:
                 await self.mentor_system.calculate_agent_rating(agent_id)
-            
-            logger.debug(f"✅ [AGENT SYSTEMS] Активность {activity_type} агента {agent_id} обработана")
-            
+
+            logger.debug(
+                f"✅ [AGENT SYSTEMS] Активность {activity_type} агента {agent_id} обработана"
+            )
+
         except Exception as e:
             logger.error(f"❌ [AGENT SYSTEMS] Ошибка обработки активности: {e}")
-    
+
     async def get_system_status(self) -> Dict[str, Any]:
         """
         Получает статус всех систем агентов.
-        
+
         Returns:
             Словарь со статусом систем
         """
         return {
-            'mentor_system': self.mentor_system is not None,
-            'ab_testing': self.ab_testing is not None,
-            'task_prioritizer': self.task_prioritizer is not None,
-            'anomaly_detector': self.anomaly_detector is not None,
-            'early_warning': self.early_warning is not None,
-            'team_formation': self.team_formation is not None,
-            'kpi_tracker': self.kpi_tracker is not None,
-            'collab_forum': self.collab_forum is not None,
-            'self_assessment': self.self_assessment is not None,
-            'checklist_gen': self.checklist_gen is not None
+            "mentor_system": self.mentor_system is not None,
+            "ab_testing": self.ab_testing is not None,
+            "task_prioritizer": self.task_prioritizer is not None,
+            "anomaly_detector": self.anomaly_detector is not None,
+            "early_warning": self.early_warning is not None,
+            "team_formation": self.team_formation is not None,
+            "kpi_tracker": self.kpi_tracker is not None,
+            "collab_forum": self.collab_forum is not None,
+            "self_assessment": self.self_assessment is not None,
+            "checklist_gen": self.checklist_gen is not None,
         }
+
 
 # Singleton instance
 _agent_systems_integration_instance: Optional[AgentSystemsIntegration] = None
+
 
 def get_agent_systems_integration() -> AgentSystemsIntegration:
     """Получить singleton экземпляр AgentSystemsIntegration"""
@@ -184,4 +189,3 @@ def get_agent_systems_integration() -> AgentSystemsIntegration:
     if _agent_systems_integration_instance is None:
         _agent_systems_integration_instance = AgentSystemsIntegration()
     return _agent_systems_integration_instance
-

@@ -85,12 +85,12 @@ FAILED_COUNT=0
 
 for migration in "${MIGRATIONS[@]}"; do
     echo "📝 Применение: $migration..."
-    
+
     # Проверяем, существует ли файл миграции
     if ssh_with_password "test -f $SERVER_PATH/db/migrations/$migration" 2>&1 | grep -q "Connected"; then
         # Применяем миграцию
         RESULT=$(ssh_with_password "cd $SERVER_PATH && $PSQL_PATH -U $DB_USER -d $DB_NAME -f db/migrations/$migration 2>&1" 2>&1)
-        
+
         if echo "$RESULT" | grep -qi "error\|failed\|fatal"; then
             echo "❌ Ошибка при применении $migration"
             echo "$RESULT" | grep -i "error\|failed\|fatal" | head -3
@@ -147,7 +147,7 @@ TABLES=(
 echo "🔍 Проверка таблиц..."
 for table in "${TABLES[@]}"; do
     RESULT=$(ssh_with_password "cd $SERVER_PATH && $PSQL_PATH -U $DB_USER -d $DB_NAME -c \"SELECT COUNT(*) FROM $table;\" 2>&1" 2>&1)
-    
+
     if echo "$RESULT" | grep -qi "does not exist\|error\|failed"; then
         echo "❌ Таблица $table не существует"
     else
@@ -158,4 +158,3 @@ done
 
 echo ""
 echo "======================================================================"
-

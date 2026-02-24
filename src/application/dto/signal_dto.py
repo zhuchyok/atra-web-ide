@@ -14,7 +14,7 @@ from typing import Optional
 @dataclass
 class SignalDTO:
     """Data Transfer Object for Signal"""
-    
+
     id: str
     symbol: str
     side: str  # "long" or "short"
@@ -25,9 +25,9 @@ class SignalDTO:
     status: str
     confidence: Optional[Decimal] = None
     risk_percentage: Optional[Decimal] = None
-    
+
     @classmethod
-    def from_entity(cls, signal) -> 'SignalDTO':
+    def from_entity(cls, signal) -> "SignalDTO":
         """Create DTO from Signal entity"""
         return cls(
             id=signal.id,
@@ -41,19 +41,18 @@ class SignalDTO:
             confidence=signal.confidence,
             risk_percentage=signal.risk_percentage,
         )
-    
+
     def to_dict(self) -> dict:
         """Convert DTO to dictionary"""
         return {
-            'id': self.id,
-            'symbol': self.symbol,
-            'side': self.side,
-            'entry_price': str(self.entry_price),
-            'take_profit': str(self.take_profit),
-            'stop_loss': str(self.stop_loss),
-            'timestamp': self.timestamp.isoformat(),
-            'status': self.status,
-            'confidence': str(self.confidence) if self.confidence else None,
-            'risk_percentage': str(self.risk_percentage) if self.risk_percentage else None,
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side,
+            "entry_price": str(self.entry_price),
+            "take_profit": str(self.take_profit),
+            "stop_loss": str(self.stop_loss),
+            "timestamp": self.timestamp.isoformat(),
+            "status": self.status,
+            "confidence": str(self.confidence) if self.confidence else None,
+            "risk_percentage": str(self.risk_percentage) if self.risk_percentage else None,
         }
-

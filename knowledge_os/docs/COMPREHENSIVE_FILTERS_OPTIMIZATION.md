@@ -5,6 +5,7 @@
 ## ✅ ВСЕ ФИЛЬТРЫ ВКЛЮЧЕНЫ
 
 ### 📊 Активные фильтры:
+
 1. **Volume Profile (VP)** - ✅ Включен
 2. **VWAP** - ✅ Включен
 3. **Order Flow** - ✅ Включен
@@ -19,21 +20,25 @@
 ## 🔧 ПАРАМЕТРЫ ДЛЯ ОПТИМИЗАЦИИ
 
 ### 🔵 Order Flow
+
 - `required_confirmations`: [0, 1]
 - `pr_threshold`: [0.5, 0.6, 0.7]
 
 ### 🟢 Microstructure
+
 - `tolerance_pct`: [2.0, 2.5, 3.0]
 - `min_strength`: [0.1, 0.15]
 - `lookback`: [30, 40]
 
 ### 🟡 Momentum
+
 - `mfi_long`: [40, 45, 50]
 - `mfi_short`: [50, 55, 60]
 - `stoch_long`: [30, 40, 50]
 - `stoch_short`: [50, 60, 70]
 
 ### 🟣 Trend Strength
+
 - `adx_threshold`: [15, 18, 20]
 - `require_direction`: [True, False]
 
@@ -59,6 +64,7 @@
 4. **Количество сделок** - для статистической значимости
 
 **Формула оценки:**
+
 ```
 Score = Win Rate × Profit Factor × Return/сигнал × Количество сделок
 ```
@@ -80,6 +86,7 @@ Score = Win Rate × Profit Factor × Return/сигнал × Количество
 Результаты сохраняются в: `backtests/all_filters_optimization_results.json`
 
 После завершения оптимизации:
+
 1. Запустить: `python3 scripts/apply_optimized_filters.py`
 2. Параметры будут применены автоматически
 3. Система будет готова к использованию
@@ -101,8 +108,8 @@ ps aux | grep optimize_all_filters
 ## ✅ ФИНАЛЬНАЯ СИСТЕМА
 
 После оптимизации будет готова система со всеми фильтрами:
+
 - ✅ Все фильтры включены
 - ✅ Оптимальные параметры для каждого фильтра
 - ✅ Максимальное качество сигналов (Win Rate, Profit Factor)
 - ✅ Готова к использованию на реальном рынке
-

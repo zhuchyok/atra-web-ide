@@ -22,12 +22,13 @@ import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -70,7 +71,12 @@ async def _apply_lessons_to_guidance(conn: asyncpg.Connection) -> bool:
                     start = content.find(marker)
                     end = content.find("\n## ", start + 5)
                     end = end if end > 0 else len(content)
-                    new_content = content[:start] + block.rstrip() + "\n" + (content[end:] if end < len(content) else "")
+                    new_content = (
+                        content[:start]
+                        + block.rstrip()
+                        + "\n"
+                        + (content[end:] if end < len(content) else "")
+                    )
                 else:
                     new_content = content.rstrip() + "\n\n" + block + "\n"
                 path.write_text(new_content, encoding="utf-8")
@@ -100,9 +106,7 @@ async def _apply_retrospectives_to_knowledge(conn: asyncpg.Connection) -> bool:
         if not rows:
             return False
 
-        domain_id = await conn.fetchval(
-            "SELECT id FROM domains WHERE name ILIKE $1", "Feedback"
-        )
+        domain_id = await conn.fetchval("SELECT id FROM domains WHERE name ILIKE $1", "Feedback")
         if not domain_id:
             await conn.execute(
                 "INSERT INTO domains (name, description) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING",
@@ -117,17 +121,21 @@ async def _apply_retrospectives_to_knowledge(conn: asyncpg.Connection) -> bool:
         get_embedding_fn = None
         try:
             from semantic_cache import get_embedding as _ge
+
             get_embedding_fn = _ge
         except Exception:
             try:
                 from app.semantic_cache import get_embedding as _ge
+
                 get_embedding_fn = _ge
             except Exception:
                 pass
         for r in rows:
             content = f"Feedback (score={r['feedback_score']}): {r['feedback_text']}"
             content_trim = content[:5000]
-            metadata = json.dumps({"source": "interaction_logs", "feedback_score": r["feedback_score"]})
+            metadata = json.dumps(
+                {"source": "interaction_logs", "feedback_score": r["feedback_score"]}
+            )
             embedding = None
             if get_embedding_fn:
                 try:
@@ -135,15 +143,26 @@ async def _apply_retrospectives_to_knowledge(conn: asyncpg.Connection) -> bool:
                 except Exception:
                     pass
             if embedding is not None:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref, embedding)
                     VALUES ($1, $2, $3::jsonb, 0.7, 'retrospective', $4::vector)
-                """, domain_id, content_trim, metadata, str(embedding))
+                """,
+                    domain_id,
+                    content_trim,
+                    metadata,
+                    str(embedding),
+                )
             else:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score, source_ref)
                     VALUES ($1, $2, $3::jsonb, 0.7, 'retrospective')
-                """, domain_id, content_trim, metadata)
+                """,
+                    domain_id,
+                    content_trim,
+                    metadata,
+                )
             inserted += 1
 
         if inserted > 0:
@@ -177,17 +196,26 @@ async def _evolve_prompts_from_insights(conn: asyncpg.Connection) -> bool:
         # Создаём задачу для Prompt Engineer на основе топ-инсайтов
         insight_summary = "\n".join(f"- [{r['domain_name']}] {r['content'][:200]}..." for r in rows)
         title = "Prompt evolution from top insights"
-        description = f"Apply these verified insights to expert prompts:\n\n{insight_summary[:2000]}"
+        description = (
+            f"Apply these verified insights to expert prompts:\n\n{insight_summary[:2000]}"
+        )
 
-        metadata = json.dumps({
-            "source": "knowledge_applicator",
-            "insights_count": len(rows),
-            "assignee_hint": "Prompt Engineer",
-        })
-        await conn.execute("""
+        metadata = json.dumps(
+            {
+                "source": "knowledge_applicator",
+                "insights_count": len(rows),
+                "assignee_hint": "Prompt Engineer",
+            }
+        )
+        await conn.execute(
+            """
             INSERT INTO tasks (title, description, status, priority, metadata)
             VALUES ($1, $2, 'pending', 'medium', $3::jsonb)
-        """, title, description, metadata)
+        """,
+            title,
+            description,
+            metadata,
+        )
 
         logger.info("Created prompt evolution task with %d insights", len(rows))
         return True
@@ -198,10 +226,37 @@ async def _evolve_prompts_from_insights(conn: asyncpg.Connection) -> bool:
 
 # Ключевые слова для определения «код-релевантных» уроков (ExpeL: извлекаемые инсайты → actionable code tasks)
 _CODE_RELEVANT_KEYWORDS = (
-    "код", "code", "тест", "test", "api", "валидац", "validation", "ошибк", "error",
-    "файл", "file", "модуль", "module", "функци", "function", "класс", "class",
-    "база", "database", "запрос", "query", "безопасност", "security", "производительност",
-    "async", "таймаут", "timeout", "retry", "повтор", "логирован", "log",
+    "код",
+    "code",
+    "тест",
+    "test",
+    "api",
+    "валидац",
+    "validation",
+    "ошибк",
+    "error",
+    "файл",
+    "file",
+    "модуль",
+    "module",
+    "функци",
+    "function",
+    "класс",
+    "class",
+    "база",
+    "database",
+    "запрос",
+    "query",
+    "безопасност",
+    "security",
+    "производительност",
+    "async",
+    "таймаут",
+    "timeout",
+    "retry",
+    "повтор",
+    "логирован",
+    "log",
 )
 
 
@@ -233,14 +288,17 @@ async def _create_code_improvement_tasks(conn: asyncpg.Connection) -> bool:
             if not _is_code_relevant(insight):
                 continue
             # Не создаём дубликат по тому же уроку
-            exists = await conn.fetchval("""
+            exists = await conn.fetchval(
+                """
                 SELECT 1 FROM tasks
                 WHERE metadata->>'source' = 'knowledge_applicator_code_improvement'
                   AND description LIKE $1
                   AND status NOT IN ('completed', 'cancelled')
                   AND created_at > NOW() - INTERVAL '14 days'
                 LIMIT 1
-            """, insight[:80] + "%")
+            """,
+                insight[:80] + "%",
+            )
             if exists:
                 continue
             domain_id = await conn.fetchval(
@@ -248,17 +306,28 @@ async def _create_code_improvement_tasks(conn: asyncpg.Connection) -> bool:
             )
             if not domain_id:
                 domain_id = await conn.fetchval("SELECT id FROM domains LIMIT 1")
-            victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1")
-            meta = json.dumps({
-                "source": "knowledge_applicator_code_improvement",
-                "assignee_hint": "Backend Developer",
-                "lesson_impact": r["impact_score"],
-                "learning_type": r.get("learning_type"),
-            })
-            await conn.execute("""
+            victoria_id = await conn.fetchval(
+                "SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1"
+            )
+            meta = json.dumps(
+                {
+                    "source": "knowledge_applicator_code_improvement",
+                    "assignee_hint": "Backend Developer",
+                    "lesson_impact": r["impact_score"],
+                    "learning_type": r.get("learning_type"),
+                }
+            )
+            await conn.execute(
+                """
                 INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata)
                 VALUES ($1, $2, 'pending', 'medium', $3, $4, $5::jsonb)
-            """, "🔧 Внедрить в код: урок из обучения", insight[:3000], domain_id, victoria_id, meta)
+            """,
+                "🔧 Внедрить в код: урок из обучения",
+                insight[:3000],
+                domain_id,
+                victoria_id,
+                meta,
+            )
             created += 1
             if created >= 3:
                 break
@@ -278,14 +347,17 @@ async def _create_code_improvement_tasks(conn: asyncpg.Connection) -> bool:
                 content = (r["content"] or "").strip()
                 if not _is_code_relevant(content) or len(content) < 20:
                     continue
-                exists = await conn.fetchval("""
+                exists = await conn.fetchval(
+                    """
                     SELECT 1 FROM tasks
                     WHERE metadata->>'source' = 'knowledge_applicator_code_improvement'
                       AND description LIKE $1
                       AND status NOT IN ('completed', 'cancelled')
                       AND created_at > NOW() - INTERVAL '7 days'
                     LIMIT 1
-                """, content[:100] + "%")
+                """,
+                    content[:100] + "%",
+                )
                 if exists:
                     continue
                 domain_id = await conn.fetchval(
@@ -293,16 +365,27 @@ async def _create_code_improvement_tasks(conn: asyncpg.Connection) -> bool:
                 )
                 if not domain_id:
                     domain_id = await conn.fetchval("SELECT id FROM domains LIMIT 1")
-                victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1")
-                meta = json.dumps({
-                    "source": "knowledge_applicator_code_improvement",
-                    "assignee_hint": "Backend Developer",
-                    "knowledge_node_id": r["id"],
-                })
-                await conn.execute("""
+                victoria_id = await conn.fetchval(
+                    "SELECT id FROM experts WHERE name = 'Виктория' LIMIT 1"
+                )
+                meta = json.dumps(
+                    {
+                        "source": "knowledge_applicator_code_improvement",
+                        "assignee_hint": "Backend Developer",
+                        "knowledge_node_id": r["id"],
+                    }
+                )
+                await conn.execute(
+                    """
                     INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', 'medium', $3, $4, $5::jsonb)
-                """, "🔧 Внедрить в код: инсайт из базы знаний", content[:3000], domain_id, victoria_id, meta)
+                """,
+                    "🔧 Внедрить в код: инсайт из базы знаний",
+                    content[:3000],
+                    domain_id,
+                    victoria_id,
+                    meta,
+                )
                 created += 1
                 if created >= 5:
                     break
@@ -319,7 +402,12 @@ async def _create_code_improvement_tasks(conn: asyncpg.Connection) -> bool:
 async def _apply_all_knowledge_async() -> Dict[str, bool]:
     if not ASYNCPG_AVAILABLE:
         logger.warning("asyncpg not available, skipping knowledge application")
-        return {"guidance_updated": False, "knowledge_base_updated": False, "prompts_evolved": False, "code_tasks_created": False}
+        return {
+            "guidance_updated": False,
+            "knowledge_base_updated": False,
+            "prompts_evolved": False,
+            "code_tasks_created": False,
+        }
 
     conn = await asyncpg.connect(DB_URL)
     try:
@@ -346,7 +434,12 @@ def apply_all_knowledge() -> Dict[str, bool]:
         return asyncio.run(_apply_all_knowledge_async())
     except Exception as e:
         logger.error("apply_all_knowledge failed: %s", e, exc_info=True)
-        return {"guidance_updated": False, "knowledge_base_updated": False, "prompts_evolved": False, "code_tasks_created": False}
+        return {
+            "guidance_updated": False,
+            "knowledge_base_updated": False,
+            "prompts_evolved": False,
+            "code_tasks_created": False,
+        }
 
 
 async def apply_all_knowledge_async() -> Dict[str, bool]:
@@ -357,4 +450,9 @@ async def apply_all_knowledge_async() -> Dict[str, bool]:
         return await _apply_all_knowledge_async()
     except Exception as e:
         logger.error("apply_all_knowledge_async failed: %s", e, exc_info=True)
-        return {"guidance_updated": False, "knowledge_base_updated": False, "prompts_evolved": False, "code_tasks_created": False}
+        return {
+            "guidance_updated": False,
+            "knowledge_base_updated": False,
+            "prompts_evolved": False,
+            "code_tasks_created": False,
+        }

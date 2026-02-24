@@ -130,12 +130,12 @@ if [ -n "$VOLUME_FILES" ]; then
     for volume_file in $VOLUME_FILES; do
         volume_name=$(basename "$volume_file" .tar.gz)
         echo "   Импорт volume: $volume_name"
-        
+
         # Создаем volume если не существует
         if ! docker volume ls | grep -q "^${volume_name}$"; then
             docker volume create "$volume_name" 2>/dev/null || true
         fi
-        
+
         # Импортируем данные (используем --platform linux/amd64 для избежания проблем с keychain)
         docker run --rm --platform linux/amd64 -v "$volume_name":/data -v "$BACKUP_DIR":/backup alpine \
             sh -c "cd /data && tar xzf /backup/${volume_name}.tar.gz 2>&1" 2>/dev/null || {
@@ -144,7 +144,7 @@ if [ -n "$VOLUME_FILES" ]; then
                 echo "      ⚠️  Ошибка импорта $volume_name (может быть пустым)"
             }
         }
-        
+
         VOLUME_COUNT=$((VOLUME_COUNT + 1))
         echo "      ✅ Импортирован"
     done

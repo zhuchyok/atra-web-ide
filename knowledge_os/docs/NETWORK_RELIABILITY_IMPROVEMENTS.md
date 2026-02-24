@@ -1,7 +1,9 @@
 # Улучшения надёжности сети
 
 ## Проблема
+
 В логах системы наблюдались множественные ошибки подключения к Binance API:
+
 ```
 ERROR:root:Binance OHLC error: Cannot connect to host api.binance.com:443 ssl:default [Timeout while contacting DNS servers]
 ```
@@ -13,6 +15,7 @@ ERROR:root:Binance OHLC error: Cannot connect to host api.binance.com:443 ssl:de
 ### 1. Улучшенная обработка ошибок в API функциях
 
 #### BinanceAPI.get_ohlc()
+
 - ✅ Добавлен retry механизм (до 3 попыток)
 - ✅ Экспоненциальная задержка между попытками (1с, 2с, 4с)
 - ✅ Увеличены timeout'ы (total=30s, connect=10s)
@@ -20,17 +23,20 @@ ERROR:root:Binance OHLC error: Cannot connect to host api.binance.com:443 ssl:de
 - ✅ Обработка TimeoutError отдельно от других исключений
 
 #### BybitAPI.get_ohlc()
+
 - ✅ Аналогичные улучшения как в BinanceAPI
 - ✅ Исправлена карта интервалов для Bybit API
 - ✅ Поддержка всех стандартных интервалов
 
 #### MEXCAPI.get_ohlc()
+
 - ✅ Добавлен retry механизм
 - ✅ Улучшена обработка ошибок
 
 ### 2. Универсальная функция с автоматическим fallback
 
 Создана функция `get_ohlc_with_fallback()` которая:
+
 - 🔄 Автоматически пробует биржи в порядке: Binance → Bybit → MEXC
 - ✅ Останавливается при первом успешном результате
 - 📊 Логирует источник данных для мониторинга
@@ -62,21 +68,25 @@ ERROR:root:Binance OHLC error: Cannot connect to host api.binance.com:443 ssl:de
 ## Преимущества нового подхода
 
 ### 🔄 **Надёжность**
+
 - Автоматический fallback между биржами
 - Retry механизм для каждой биржи
 - Экспоненциальная задержка для избежания перегрузки
 
 ### ⚡ **Производительность**
+
 - Остановка при первом успешном результате
 - Увеличенные timeout'ы для проблем с сетью
 - Параллельная обработка в основном цикле
 
 ### 📊 **Мониторинг**
+
 - Детальное логирование источника данных
 - Отслеживание успешности каждой биржи
 - Информативные сообщения об ошибках
 
 ### 🛠️ **Поддержка**
+
 - Единая функция для всех OHLC запросов
 - Легко добавить новые биржи
 - Консистентная обработка ошибок
@@ -84,12 +94,14 @@ ERROR:root:Binance OHLC error: Cannot connect to host api.binance.com:443 ssl:de
 ## Использование
 
 Теперь в коде вместо:
+
 ```python
 # Старый подход
 btc_ohlc = await BinanceAPI.get_ohlc("BTCUSDT", interval="1h", limit=300)
 ```
 
 Используется:
+
 ```python
 # Новый подход
 btc_ohlc = await get_ohlc_with_fallback("BTCUSDT", interval="1h", limit=300)
@@ -100,6 +112,7 @@ btc_ohlc = await get_ohlc_with_fallback("BTCUSDT", interval="1h", limit=300)
 ## Статус
 
 ✅ **Готово к использованию**
+
 - Все функции протестированы
 - Fallback механизм работает корректно
 - Система готова к работе в условиях нестабильной сети

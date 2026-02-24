@@ -61,4 +61,3 @@ else
 fi
 
 echo "[$TIMESTAMP] Nightly Bitget checks finished" >> "$LOG_FILE"
-

@@ -30,4 +30,3 @@ echo "⏱️ Время работы:"
 if [ -n "$PID" ]; then
     ps -p $PID -o etime= 2>/dev/null | awk '{print "   "$0}'
 fi
-

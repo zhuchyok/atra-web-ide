@@ -12,6 +12,7 @@
 ### ✅ 1. Health Checks & System Monitoring
 
 **Созданные компоненты:**
+
 1. **`src/core/health.py`** - HealthCheckManager
    - Управление проверками здоровья системы
    - Декоратор `@health_check` для регистрации проверок
@@ -27,9 +28,11 @@
    - Health checks для Cache
 
 **Тесты:**
+
 - ✅ `tests/test_health.py` - 15 тестов
 
 **Критерии завершения:**
+
 - ✅ HealthCheckManager создан и протестирован
 - ✅ Health checks зарегистрированы для критичных компонентов
 - ✅ Тесты написаны и проходят
@@ -40,6 +43,7 @@
 ### ✅ 2. Configuration Validation
 
 **Созданные компоненты:**
+
 1. **`src/core/config_validator.py`** - ConfigValidator
    - Валидация конфигурации при старте
    - Декоратор `@validate_config` для автоматической валидации
@@ -53,9 +57,11 @@
    - Валидация ExchangeSettings
 
 **Тесты:**
+
 - ✅ `tests/test_config_validator.py` - 9 тестов
 
 **Критерии завершения:**
+
 - ✅ ConfigValidator создан и протестирован
 - ✅ Правила валидации зарегистрированы
 - ✅ Тесты написаны и проходят
@@ -65,6 +71,7 @@
 ### ✅ 3. State Machine Validation
 
 **Созданные компоненты:**
+
 1. **`src/core/state_machine.py`** - StateMachineValidator
    - Валидация переходов состояний
    - Декоратор `@valid_transition` для защиты методов
@@ -76,13 +83,16 @@
    - Правила переходов для Position
 
 **Интеграция:**
+
 - ✅ Валидация переходов в `Order.fill()` и `Order.cancel()`
 - ✅ Валидация переходов в `Position.close()`
 
 **Тесты:**
+
 - ✅ `tests/test_state_machine.py` - 8 тестов
 
 **Критерии завершения:**
+
 - ✅ StateMachineValidator создан и протестирован
 - ✅ Правила переходов зарегистрированы
 - ✅ Интеграция в Order и Position
@@ -93,6 +103,7 @@
 ## 📊 Статистика изменений
 
 ### Создано новых модулей:
+
 - ✅ `src/core/health.py` - HealthCheckManager
 - ✅ `src/core/health_checks.py` - Интеграция health checks
 - ✅ `src/core/config_validator.py` - ConfigValidator
@@ -101,6 +112,7 @@
 - ✅ `src/core/state_machine_rules.py` - Регистрация правил переходов
 
 ### Создано тестов:
+
 - ✅ `tests/test_health.py` - 15 тестов
 - ✅ `tests/test_config_validator.py` - 9 тестов
 - ✅ `tests/test_state_machine.py` - 8 тестов
@@ -199,4 +211,3 @@ validator.validate_transition(order, OrderStatus.PENDING, OrderStatus.REJECTED) 
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 3.0
-

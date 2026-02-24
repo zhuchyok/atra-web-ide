@@ -5,7 +5,7 @@
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'usage_count'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN usage_count INTEGER DEFAULT 0;
@@ -16,7 +16,7 @@ END $$;
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'knowledge_nodes' AND column_name = 'is_verified'
     ) THEN
         ALTER TABLE knowledge_nodes ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;

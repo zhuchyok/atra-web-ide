@@ -16,25 +16,25 @@ from src.infrastructure.persistence.models.position_model import PositionModel
 class PositionRepositoryImpl(PositionRepository):
     """
     SQLite implementation of PositionRepository
-    
+
     This is an infrastructure concern - it implements the domain interface.
     """
-    
+
     def __init__(self, db_connection):
         """Initialize with database connection"""
         self._db = db_connection
-    
+
     async def save(self, position: Position) -> Position:
         """Save position to database"""
         # Convert entity to model
         model = PositionModel.from_entity(position)
-        
+
         # Save to database (pseudo-code)
         # await self._db.execute(...)
-        
+
         # Return entity
         return position
-    
+
     async def get_by_id(self, position_id: str) -> Optional[Position]:
         """Get position by ID from database"""
         # Query database (pseudo-code)
@@ -42,17 +42,17 @@ class PositionRepositoryImpl(PositionRepository):
         # if model:
         #     return model.to_entity()
         return None
-    
+
     async def get_open_positions(self) -> List[Position]:
         """Get all open positions from database"""
         # Query database (pseudo-code)
         # models = await self._db.query(...)
         # return [model.to_entity() for model in models]
         return []
-    
+
     async def get_by_symbol(
-        self, 
-        symbol: Symbol, 
+        self,
+        symbol: Symbol,
         status: Optional[PositionStatus] = None,
         limit: int = 10
     ) -> List[Position]:
@@ -61,7 +61,7 @@ class PositionRepositoryImpl(PositionRepository):
         # models = await self._db.query(...)
         # return [model.to_entity() for model in models]
         return []
-    
+
     async def get_by_date_range(
         self,
         start_date: datetime,
@@ -72,4 +72,3 @@ class PositionRepositoryImpl(PositionRepository):
         # models = await self._db.query(...)
         # return [model.to_entity() for model in models]
         return []
-

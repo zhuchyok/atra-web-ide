@@ -8,8 +8,7 @@
 """
 
 __all__ = [
-    'LightGBMPredictor',
-    'AIIntegration',
-    'AILearningSystem',
+    "LightGBMPredictor",
+    "AIIntegration",
+    "AILearningSystem",
 ]
-

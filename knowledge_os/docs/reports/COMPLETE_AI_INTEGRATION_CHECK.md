@@ -7,6 +7,7 @@
 ## 📊 **1. ДАННЫЕ, ПОСТУПАЮЩИЕ В AI-РЕГУЛЯТОР:**
 
 ### **TradeResult содержит:**
+
 ```python
 @dataclass
 class TradeResult:
@@ -15,21 +16,21 @@ class TradeResult:
     pattern_type: str              ✅ (classic_ema, alternative_1, etc.)
     signal_type: str               ✅ (BUY/SELL)
     entry_price: float             ✅
-    
+
     # Результаты сделки
     exit_price: float              ✅
     pnl_pct: float                 ✅
     is_winner: bool                ✅
     duration_hours: float          ✅
-    
+
     # AI Score данные
     ai_score: float                ✅ (базовый AI score)
-    
+
     # Рыночные условия
     volume_usd: float              ✅
     volatility_pct: float          ✅
     market_regime: str             ✅ BULL/BEAR/HIGH_VOL/LOW_VOL/CRASH
-    
+
     # Composite Signal данные
     composite_score: float         ✅ (оценка 4 стратегий)
     composite_confidence: float    ✅ (согласованность стратегий)
@@ -136,6 +137,7 @@ class TradeResult:
 ## 🧠 **3. ЧТО AI ДЕЛАЕТ С ЭТИМИ ДАННЫМИ:**
 
 ### **3.1. PatternEffectivenessAnalyzer:**
+
 ```python
 # Анализирует эффективность паттернов ПО РЕЖИМАМ:
 
@@ -145,7 +147,7 @@ BULL_TREND:
     - WinRate: 72%
     - Avg composite_confidence: 0.80
     - Avg profit: +3.2%
-  
+
   alternative_1:
     - 80 сделок
     - WinRate: 58%
@@ -157,7 +159,7 @@ BEAR_TREND:
     - 90 сделок
     - WinRate: 48% ❌
     - Avg composite_confidence: 0.55
-    
+
   alternative_1:
     - 60 сделок
     - WinRate: 65% ✅
@@ -165,6 +167,7 @@ BEAR_TREND:
 ```
 
 **Вывод AI:**
+
 ```
 В BULL_TREND → использовать classic_ema (72% WinRate)
 В BEAR_TREND → использовать alternative_1 (65% WinRate)
@@ -173,17 +176,18 @@ BEAR_TREND:
 ---
 
 ### **3.2. ParameterOptimizer:**
+
 ```python
 # Оптимизирует параметры на основе данных:
 
 Обнаружено:
   - Сделки с composite_confidence > 0.8 имеют WinRate 78%
   - Сделки с composite_confidence < 0.6 имеют WinRate 52%
-  
+
 AI решение:
   - Повысить min_composite_confidence до 0.7
   - Добавить бонус к score при confidence > 0.8
-  
+
 Результат:
   ✅ Меньше ложных сигналов
   ✅ Выше WinRate
@@ -192,6 +196,7 @@ AI решение:
 ---
 
 ### **3.3. AdaptiveParameterController:**
+
 ```python
 # Применяет оптимизацию:
 
@@ -199,12 +204,12 @@ AI решение:
 Параметры:
   - soft_score_threshold: 15.0 × 0.9 = 13.5 (смягчено)
   - strict_score_threshold: 25.0 × 0.9 = 22.5 (смягчено)
-  
-Режим: BEAR_TREND  
+
+Режим: BEAR_TREND
 Параметры:
   - soft_score_threshold: 15.0 × 1.15 = 17.25 (ужесточено)
   - strict_score_threshold: 25.0 × 1.15 = 28.75 (ужесточено)
-  
+
 Режим: CRASH
 Параметры:
   - soft_score_threshold: 15.0 × 1.5 = 22.5 (СТРОГО!)
@@ -216,6 +221,7 @@ AI решение:
 ## 🎯 **4. ВЗАИМОДЕЙСТВИЕ ВСЕХ КОМПОНЕНТОВ:**
 
 ### **Market Regime → AI:**
+
 ```
 ✅ AI знает в каком режиме была сделка
 ✅ Анализирует эффективность ПО РЕЖИМАМ
@@ -223,6 +229,7 @@ AI решение:
 ```
 
 ### **Composite Signal → AI:**
+
 ```
 ✅ AI видит согласованность стратегий
 ✅ Учится какая confidence дает лучший WinRate
@@ -230,6 +237,7 @@ AI решение:
 ```
 
 ### **Correlation Penalty → Position Size:**
+
 ```
 ✅ Не блокирует, а УМЕНЬШАЕТ размер
 ✅ AI учится оптимальной диверсификации
@@ -237,6 +245,7 @@ AI решение:
 ```
 
 ### **Static Levels → Quality Score:**
+
 ```
 ✅ Бонус к качеству при близости к уровням
 ✅ AI видит эффект статических уровней
@@ -276,29 +285,30 @@ AI решение:
 
 ## ✅ **ФИНАЛЬНАЯ ПРОВЕРКА:**
 
-| Компонент | Интеграция с AI | Данные передаются | AI учится |
-|-----------|-----------------|-------------------|-----------|
-| **Market Regime** | ✅ Да | ✅ Да | ✅ Да |
-| **Composite Signal** | ✅ Да | ✅ Да | ✅ Да |
-| **Correlation Penalty** | ✅ Да | ✅ Косвенно | ✅ Да |
-| **Static Levels** | ✅ Да | ✅ Через quality | ✅ Да |
-| **Quality Validator** | ✅ Да | ✅ Да | ✅ Да |
-| **Pattern Confidence** | ✅ Да | ✅ Да | ✅ Да |
-| **Volume Quality** | ✅ Да | ✅ Да | ✅ Да |
-| **Symbol Blocker** | ✅ Да | ✅ Да | ✅ Да |
+| Компонент               | Интеграция с AI | Данные передаются | AI учится |
+| ----------------------- | --------------- | ----------------- | --------- |
+| **Market Regime**       | ✅ Да           | ✅ Да             | ✅ Да     |
+| **Composite Signal**    | ✅ Да           | ✅ Да             | ✅ Да     |
+| **Correlation Penalty** | ✅ Да           | ✅ Косвенно       | ✅ Да     |
+| **Static Levels**       | ✅ Да           | ✅ Через quality  | ✅ Да     |
+| **Quality Validator**   | ✅ Да           | ✅ Да             | ✅ Да     |
+| **Pattern Confidence**  | ✅ Да           | ✅ Да             | ✅ Да     |
+| **Volume Quality**      | ✅ Да           | ✅ Да             | ✅ Да     |
+| **Symbol Blocker**      | ✅ Да           | ✅ Да             | ✅ Да     |
 
 ---
 
 ## 🎯 **ПРИМЕР ПОЛНОГО ЦИКЛА ОБУЧЕНИЯ:**
 
 ### **День 1-7 (сбор данных):**
+
 ```
 AI собирает:
   - 500 сделок в BULL_TREND
   - 300 сделок в BEAR_TREND
   - 100 сделок в HIGH_VOL_RANGE
   - 50 сделок в CRASH
-  
+
 Для каждой сделки:
   - pattern_type
   - ai_score
@@ -309,20 +319,21 @@ AI собирает:
 ```
 
 ### **День 8 (первая оптимизация):**
+
 ```
 AI анализирует:
-  
+
 BULL_TREND (500 сделок):
   classic_ema + composite_conf > 0.8:
     - 120 сделок
     - WinRate: 78%
     - Avg PnL: +3.5%
-    
+
   alternative_1 + composite_conf < 0.6:
     - 80 сделок
     - WinRate: 45%
     - Avg PnL: +0.8%
-    
+
 AI решение:
   1. В BULL → повысить вес classic_ema
   2. Требовать composite_conf > 0.7 для всех
@@ -330,14 +341,15 @@ AI решение:
 ```
 
 ### **День 9+ (применение):**
+
 ```
 AI применяет новые параметры:
-  
+
 В BULL_TREND:
   - score_threshold: 15 × 0.9 = 13.5
   - min_composite_conf: 0.7
   - classic_ema weight: 1.5x
-  
+
 Результат:
   ✅ Больше качественных сигналов (+20%)
   ✅ WinRate повышен до 70%
@@ -351,6 +363,7 @@ AI применяет новые параметры:
 ### **AI учится:**
 
 1. **Какие паттерны лучше в каждом режиме**
+
    ```
    BULL: classic_ema (72% WR)
    BEAR: alternative_1 (65% WR)
@@ -358,6 +371,7 @@ AI применяет новые параметры:
    ```
 
 2. **Оптимальная composite_confidence**
+
    ```
    conf > 0.8 → WR 78%
    conf < 0.6 → WR 52%
@@ -365,6 +379,7 @@ AI применяет новые параметры:
    ```
 
 3. **Влияние корреляции**
+
    ```
    Позиции с low correlation → WR 68%
    Позиции с high correlation → WR 58%
@@ -372,6 +387,7 @@ AI применяет новые параметры:
    ```
 
 4. **Эффект static levels**
+
    ```
    С бонусом levels → WR 70%
    Без бонуса → WR 65%
@@ -391,12 +407,12 @@ AI применяет новые параметры:
 
 ### **Все новые компоненты интегрированы с AI:**
 
-| Компонент | AI получает данные | AI оптимизирует | Статус |
-|-----------|-------------------|-----------------|--------|
-| Market Regime | ✅ market_regime | ✅ Параметры по режимам | ✅ OK |
-| Composite Signal | ✅ composite_score, confidence | ✅ Требования к confidence | ✅ OK |
-| Correlation Penalty | ✅ Через результаты | ✅ Эффект диверсификации | ✅ OK |
-| Static Levels | ✅ Через quality_score | ✅ Вес levels bonus | ✅ OK |
+| Компонент           | AI получает данные             | AI оптимизирует            | Статус |
+| ------------------- | ------------------------------ | -------------------------- | ------ |
+| Market Regime       | ✅ market_regime               | ✅ Параметры по режимам    | ✅ OK  |
+| Composite Signal    | ✅ composite_score, confidence | ✅ Требования к confidence | ✅ OK  |
+| Correlation Penalty | ✅ Через результаты            | ✅ Эффект диверсификации   | ✅ OK  |
+| Static Levels       | ✅ Через quality_score         | ✅ Вес levels bonus        | ✅ OK  |
 
 ---
 
@@ -405,6 +421,7 @@ AI применяет новые параметры:
 # **ДА, AI ПОЛНОСТЬЮ УЧИТЫВАЕТ ВСЮ НОВУЮ ЛОГИКУ!** ✅
 
 **AI система:**
+
 - ✅ Получает данные о рыночном режиме
 - ✅ Получает composite signal данные
 - ✅ Видит эффект correlation penalty
@@ -415,4 +432,3 @@ AI применяет новые параметры:
 **Все взаимодействует и работает вместе!** 🎯
 
 **СИСТЕМА ГОТОВА К ЗАПУСКУ!** 🚀
-

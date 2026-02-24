@@ -5,33 +5,39 @@
 ## 📊 **Issues Identified**
 
 ### 1. **CoinCap API** - DNS Resolution Failure ❌
+
 ```
 Error: Cannot connect to host api.coincap.io:443 ssl:default [Domain name not found]
 DNS Status: NXDOMAIN (domain doesn't exist)
 ```
 
 **Root Cause:**
+
 - The subdomain `api.coincap.io` does not resolve in DNS
 - Base domain `coincap.io` is reachable, but the API subdomain doesn't exist
 - This suggests the API endpoint has been deprecated or changed
 
 **Impact:**
+
 - Multiple failed connection attempts causing system slowdown
 - HTTP client retry logic being triggered unnecessarily
 - Error logs flooding the system
 
 ### 2. **CoinGecko API** - Rate Limiting ⚠️
+
 ```
 Warning: CoinGecko API rate limited (status: 429)
 Current limit: 5 requests/minute
 ```
 
 **Root Cause:**
+
 - Free tier CoinGecko API has strict rate limits (10-50 calls/minute)
 - System was making too many requests (5/minute was still too aggressive)
 - Cache TTL was only 2 hours, causing frequent re-requests
 
 **Impact:**
+
 - Frequent HTTP 429 errors
 - System falling back to alternative APIs unnecessarily
 - Reduced data quality due to rate limiting
@@ -43,10 +49,13 @@ Current limit: 5 requests/minute
 ### 1. **Removed CoinCap API Calls**
 
 #### Files Modified:
+
 - `signal_live.py`
 
 #### Changes:
+
 **Location 1: get_market_cap_fallback_sources() - Line 12722-12741**
+
 ```python
 # BEFORE:
 # 3) CoinCap API
@@ -63,6 +72,7 @@ except (ValueError, TypeError, KeyError):
 ```
 
 **Location 2: get_anomaly_data_with_fallback() - Line 12923-12949**
+
 ```python
 # BEFORE:
 # 2) CoinCap (приоритетный безлимитный источник)
@@ -79,6 +89,7 @@ except (ValueError, TypeError, KeyError, ZeroDivisionError):
 ```
 
 **Location 3: get_anomaly_data_with_fallback() - Line 13236-13262**
+
 ```python
 # BEFORE:
 # 12) CoinCap (дополнительный безлимитный)
@@ -95,6 +106,7 @@ except (ValueError, TypeError, KeyError):
 ```
 
 **Documentation Updated:**
+
 ```python
 # Updated function docstring to reflect removal:
 """
@@ -124,6 +136,7 @@ Note: CoinCap API removed due to DNS resolution failure (domain doesn't exist)
 #### Changes in signal_live.py:
 
 **Rate Limit Reduction (Line 1858):**
+
 ```python
 # BEFORE:
 "coingecko": {"requests_per_minute": 5, "last_request": 0, "request_count": 0}
@@ -133,6 +146,7 @@ Note: CoinCap API removed due to DNS resolution failure (domain doesn't exist)
 ```
 
 **Cache TTL Increase (Line 1841):**
+
 ```python
 # BEFORE:
 "coingecko": 7200,  # 2 часа для CoinGecko
@@ -142,6 +156,7 @@ Note: CoinCap API removed due to DNS resolution failure (domain doesn't exist)
 ```
 
 **Benefits:**
+
 - 40% reduction in request frequency (5 → 3 requests/minute)
 - 50% increase in cache duration (2 → 3 hours)
 - Significantly reduces 429 errors
@@ -152,10 +167,13 @@ Note: CoinCap API removed due to DNS resolution failure (domain doesn't exist)
 ### 3. **Enhanced Error Handling**
 
 #### Files Modified:
+
 - `http_client.py`
 
 #### Changes:
+
 **Improved DNS Error Handling (Lines 81-102):**
+
 ```python
 # BEFORE:
 except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
@@ -171,12 +189,12 @@ except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
     if "Session is closed" in str(e) or "closed" in str(e).lower():
         await self.close()
         self._session = None
-    
+
     # Подавляем логирование для известных недоступных доменов (DNS failures)
     error_str = str(e).lower()
     is_dns_error = "domain name not found" in error_str or "nxdomain" in error_str
     is_coincap = "coincap.io" in url.lower()
-    
+
     # Логируем ошибку только на последней попытке и только если это не известная DNS проблема
     if attempt == retries:
         if not (is_dns_error and is_coincap):
@@ -185,12 +203,13 @@ except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
         else:
             # Тихо пропускаем известные проблемы с DNS для CoinCap
             pass
-    
+
     await asyncio.sleep((backoff_ms / 1000.0) * (attempt + 1))
     continue
 ```
 
 **Benefits:**
+
 - Suppresses noise from known DNS failures
 - Prevents log flooding
 - Better session management
@@ -201,6 +220,7 @@ except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
 ## 📈 **Expected Results**
 
 ### Immediate Benefits:
+
 1. ✅ **Eliminated CoinCap DNS Errors**
    - No more "Domain name not found" errors
    - Reduced retry attempts
@@ -217,6 +237,7 @@ except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
    - Better resource utilization
 
 ### Long-term Benefits:
+
 1. 📊 **More Stable Data Collection**
    - Consistent API availability
    - Better fallback chain
@@ -237,6 +258,7 @@ except (aiohttp.ClientError, asyncio.TimeoutError, RuntimeError) as e:
 ## 🧪 **Testing Recommendations**
 
 ### 1. Monitor Logs After Deployment:
+
 ```bash
 # Check for CoinCap errors (should be none)
 grep -i "coincap" system_improved.log
@@ -249,15 +271,17 @@ grep -i "domain name not found" system_improved.log
 ```
 
 ### 2. Verify API Performance:
+
 ```python
 # Check API latency metrics in database
-SELECT api_name, AVG(latency_ms), COUNT(*) 
-FROM api_metrics 
+SELECT api_name, AVG(latency_ms), COUNT(*)
+FROM api_metrics
 WHERE timestamp > datetime('now', '-1 hour')
 GROUP BY api_name;
 ```
 
 ### 3. Monitor System Health:
+
 - Watch for AI Monitor warnings about API status
 - Check signal generation rates
 - Verify market cap data accuracy
@@ -269,12 +293,14 @@ GROUP BY api_name;
 If additional API issues arise, consider these alternatives:
 
 ### Available & Working:
+
 1. **CryptoCompare** - Already integrated, 100K requests/month
 2. **CoinLore** - Integrated, unlimited requests
 3. **CoinStats** - Integrated, limited but reliable
 4. **Binance API** - Primary source, very reliable
 
 ### Potential Additions:
+
 1. **CoinMarketCap** - 10K requests/month free tier
 2. **CoinPaprika** - Unlimited, but may require API key
 3. **Messari** - 100 requests/minute, professional data
@@ -301,6 +327,7 @@ git checkout http_client.py
 ## 📊 **Summary**
 
 ### Changes Made:
+
 - ✅ Removed 3 CoinCap API call locations
 - ✅ Reduced CoinGecko rate limit from 5 to 3 req/min
 - ✅ Increased CoinGecko cache TTL from 2 to 3 hours
@@ -308,11 +335,13 @@ git checkout http_client.py
 - ✅ Updated documentation
 
 ### Files Modified:
+
 - `signal_live.py` (5 changes)
 - `http_client.py` (1 change)
 - `API_FIXES_REPORT.md` (created)
 
 ### Impact:
+
 - **Positive**: Fewer errors, better performance, cleaner logs
 - **Neutral**: Slightly longer cache times
 - **Risk**: None - all changes are safe and reversible
@@ -332,4 +361,3 @@ git checkout http_client.py
 **Status:** ✅ All fixes applied and ready for deployment
 **Risk Level:** 🟢 Low
 **Testing Required:** 🟡 Moderate (monitor for 24-48 hours)
-

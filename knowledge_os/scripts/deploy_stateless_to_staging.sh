@@ -154,4 +154,3 @@ echo "   1. Проверьте логи: tail -f $REMOTE_DIR/logs/system.log"
 echo "   2. Проверьте работу системы: ssh $USER@$SERVER 'cd $REMOTE_DIR && ./atra_server.sh status'"
 echo "   3. При необходимости перезапустите: ssh $USER@$SERVER 'cd $REMOTE_DIR && ./atra_server.sh restart'"
 echo ""
-

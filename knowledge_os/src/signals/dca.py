@@ -6,16 +6,19 @@ This module contains DCA calculation and management functions
 """
 
 import logging
-import pandas as pd
-from typing import Dict, Any, Tuple, List, Optional
 from decimal import Decimal
-from ..core.config import MAX_DCA, ALPHA
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
+
+from ..core.config import ALPHA, MAX_DCA
 
 logger = logging.getLogger(__name__)
 
 
 # Фибоначчи-шаги для DCA (процент просадки для каждого шага)
 DCA_FIB_STEPS = [1.3, 2.1, 3.4, 5.5, 8.9, 14.4]
+
 
 def calculate_dca_next_qty_and_tp(
     original_price: float,
@@ -24,7 +27,7 @@ def calculate_dca_next_qty_and_tp(
     current_dca_count: int,
     deposit_usdt: float,
     risk_pct: float = 2.0,
-    max_dca: int = None
+    max_dca: int = None,
 ) -> Dict[str, Any]:
     """
     Расчет следующего количества и TP для DCA.
@@ -47,10 +50,7 @@ def calculate_dca_next_qty_and_tp(
             max_dca = MAX_DCA
 
         if current_dca_count >= max_dca:
-            return {
-                "can_dca": False,
-                "reason": "Достигнут лимит DCA (%d)" % max_dca
-            }
+            return {"can_dca": False, "reason": "Достигнут лимит DCA (%d)" % max_dca}
 
         # Конвертируем все в Decimal для точности
         avg_price = Decimal(str(original_price))
@@ -71,17 +71,27 @@ def calculate_dca_next_qty_and_tp(
         if loss_pct < required_loss:
             return {
                 "can_dca": False,
-                "reason": "Убыток %.2f%% меньше требуемого шага %s%% (DCA #%d)" % (
-                    loss_pct_float, required_loss, current_dca_count + 1
-                )
+                "reason": "Убыток %.2f%% меньше требуемого шага %s%% (DCA #%d)"
+                % (loss_pct_float, required_loss, current_dca_count + 1),
             }
 
         # Расчет нового количества
         # Используем коэффициент ALPHA из конфига для агрессивности усреднения
         # Применяем множитель, зависящий от номера шага (тоже на основе Фибоначчи для объема)
-        fib_multipliers = [Decimal("1.0"), Decimal("1.0"), Decimal("2.0"), Decimal("3.0"), Decimal("5.0"), Decimal("8.0")]
-        vol_multiplier = fib_multipliers[step_index] if step_index < len(fib_multipliers) else fib_multipliers[-1]
-        
+        fib_multipliers = [
+            Decimal("1.0"),
+            Decimal("1.0"),
+            Decimal("2.0"),
+            Decimal("3.0"),
+            Decimal("5.0"),
+            Decimal("8.0"),
+        ]
+        vol_multiplier = (
+            fib_multipliers[step_index]
+            if step_index < len(fib_multipliers)
+            else fib_multipliers[-1]
+        )
+
         # Базовая сумма для этого шага
         base_step_risk = (deposit_usdt_dec * risk_pct_dec / Decimal("100")) * vol_multiplier
         new_qty = base_step_risk / current_price_dec
@@ -107,23 +117,17 @@ def calculate_dca_next_qty_and_tp(
             "dca_count": current_dca_count + 1,
             "loss_pct": loss_pct_float,
             "required_loss": float(required_loss),
-            "reason": "DCA #%d (Fib Step %s%%), убыток %.2f%%" % (
-                current_dca_count + 1, required_loss, loss_pct_float
-            )
+            "reason": "DCA #%d (Fib Step %s%%), убыток %.2f%%"
+            % (current_dca_count + 1, required_loss, loss_pct_float),
         }
 
     except Exception as e:
         logger.error("Ошибка расчета DCA: %s", e, exc_info=True)
-        return {
-            "can_dca": False,
-            "reason": "Ошибка расчета DCA: %s" % str(e)
-        }
+        return {"can_dca": False, "reason": "Ошибка расчета DCA: %s" % str(e)}
 
 
 def calculate_dca_profit_targets(
-    avg_price: float,
-    current_price: float,
-    dca_count: int
+    avg_price: float, current_price: float, dca_count: int
 ) -> Dict[str, float]:
     """
     Расчет целей профита для DCA позиции.
@@ -140,7 +144,7 @@ def calculate_dca_profit_targets(
     try:
         # Конвертируем в Decimal для точности
         avg_price_dec = Decimal(str(avg_price))
-        
+
         # Базовые цели профита (в процентах от СРЕДНЕЙ цены)
         # Для DCA мы хотим выйти быстрее, поэтому снижаем цели при росте кол-ва DCA
         if dca_count == 1:
@@ -163,7 +167,7 @@ def calculate_dca_profit_targets(
             "tp3": float(tp3_price),
             "tp1_pct": float(base_tp1),
             "tp2_pct": float(base_tp2),
-            "tp3_pct": float(base_tp3)
+            "tp3_pct": float(base_tp3),
         }
 
     except Exception as e:
@@ -175,7 +179,7 @@ def calculate_dca_profit_targets(
             "tp3": float(avg_price_dec * Decimal("1.03")),
             "tp1_pct": 1.0,
             "tp2_pct": 2.0,
-            "tp3_pct": 3.0
+            "tp3_pct": 3.0,
         }
 
 
@@ -184,7 +188,7 @@ def should_dca(
     current_price: float,
     current_dca_count: int,
     min_loss_pct: float = None,
-    max_dca: int = None
+    max_dca: int = None,
 ) -> Dict[str, Any]:
     """
     Определение необходимости DCA на основе Фибоначчи-шагов.
@@ -204,15 +208,12 @@ def should_dca(
             max_dca = MAX_DCA
 
         if current_dca_count >= max_dca:
-            return {
-                "should_dca": False,
-                "reason": "Достигнут лимит DCA (%d)" % max_dca
-            }
+            return {"should_dca": False, "reason": "Достигнут лимит DCA (%d)" % max_dca}
 
         # Конвертируем в Decimal для точности
         entry_price_dec = Decimal(str(entry_price))
         current_price_dec = Decimal(str(current_price))
-        
+
         # Определяем направление (BUY или SELL) по ценам
         # Если current_price < entry_price, считаем что это LONG
         loss_pct = abs(entry_price_dec - current_price_dec) / entry_price_dec * Decimal("100")
@@ -221,12 +222,12 @@ def should_dca(
         # Если цена выше входа для лонга или ниже для шорта (но тут мы берем abs)
         # Нам нужно знать сторону, но упростим: DCA только если убыток существенный
         if current_price_dec == entry_price_dec:
-             return {"should_dca": False, "reason": "Цена на уровне входа"}
+            return {"should_dca": False, "reason": "Цена на уровне входа"}
 
         # Фибоначчи порог для текущего шага
         step_index = min(current_dca_count, len(DCA_FIB_STEPS) - 1)
         fib_threshold = Decimal(str(DCA_FIB_STEPS[step_index]))
-        
+
         # Если передан min_loss_pct, используем макс из двух
         if min_loss_pct:
             min_loss_pct_dec = Decimal(str(min_loss_pct))
@@ -237,31 +238,25 @@ def should_dca(
         if loss_pct < required_threshold:
             return {
                 "should_dca": False,
-                "reason": "Текущий убыток %.2f%% меньше порога %s%% (DCA #%d)" % (
-                    loss_pct_float, required_threshold, current_dca_count + 1
-                )
+                "reason": "Текущий убыток %.2f%% меньше порога %s%% (DCA #%d)"
+                % (loss_pct_float, required_threshold, current_dca_count + 1),
             }
 
         return {
             "should_dca": True,
             "loss_pct": loss_pct_float,
             "threshold": float(required_threshold),
-            "reason": "Убыток %.2f%% превысил Фибо-порог %s%%" % (loss_pct_float, required_threshold)
+            "reason": "Убыток %.2f%% превысил Фибо-порог %s%%"
+            % (loss_pct_float, required_threshold),
         }
 
     except Exception as e:
         logger.error("Ошибка анализа DCA: %s", e, exc_info=True)
-        return {
-            "should_dca": False,
-            "reason": "Ошибка анализа DCA: %s" % str(e)
-        }
+        return {"should_dca": False, "reason": "Ошибка анализа DCA: %s" % str(e)}
 
 
 def calculate_dca_timeline(
-    total_qty: float,
-    total_cost: float,
-    current_price: float,
-    dca_count: int
+    total_qty: float, total_cost: float, current_price: float, dca_count: int
 ) -> Dict[str, Any]:
     """
     Расчет временной линии для DCA позиции
@@ -280,7 +275,7 @@ def calculate_dca_timeline(
         total_qty_dec = Decimal(str(total_qty))
         total_cost_dec = Decimal(str(total_cost))
         current_price_dec = Decimal(str(current_price))
-        
+
         avg_price = total_cost_dec / total_qty_dec
         current_value = total_qty_dec * current_price_dec
 
@@ -323,14 +318,12 @@ def calculate_dca_timeline(
             "breakeven_price": breakeven_price,
             "profit_1pct_price": profit_1pct_price,
             "profit_2pct_price": profit_2pct_price,
-            "dca_count": dca_count
+            "dca_count": dca_count,
         }
 
     except Exception as e:
         logger.error("Ошибка расчета временной линии DCA: %s", e, exc_info=True)
-        return {
-            "error": "Ошибка расчета временной линии DCA: %s" % str(e)
-        }
+        return {"error": "Ошибка расчета временной линии DCA: %s" % str(e)}
 
 
 def get_dca_recommendation(
@@ -338,7 +331,7 @@ def get_dca_recommendation(
     current_price: float,
     current_dca_count: int,
     deposit_usdt: float,
-    market_trend: str = "neutral"
+    market_trend: str = "neutral",
 ) -> Dict[str, Any]:
     """
     Получить рекомендацию по DCA
@@ -361,7 +354,7 @@ def get_dca_recommendation(
             return {
                 "recommendation": "HOLD",
                 "reason": dca_analysis["reason"],
-                "confidence": "high"
+                "confidence": "high",
             }
 
         # Расчет рекомендуемого количества
@@ -380,7 +373,7 @@ def get_dca_recommendation(
         current_price_dec = Decimal(str(current_price))
         deposit_usdt_dec = Decimal(str(deposit_usdt))
         qty_multiplier_dec = Decimal(str(qty_multiplier))
-        
+
         # Расчет количества на основе убытка
         if loss_pct < 5:
             base_risk = Decimal("2.0")
@@ -389,7 +382,9 @@ def get_dca_recommendation(
         else:
             base_risk = Decimal("4.0")
 
-        recommended_qty = (deposit_usdt_dec * base_risk / Decimal("100")) / current_price_dec * qty_multiplier_dec
+        recommended_qty = (
+            (deposit_usdt_dec * base_risk / Decimal("100")) / current_price_dec * qty_multiplier_dec
+        )
 
         # Определение уверенности
         if current_dca_count == 0 and loss_pct < 7:
@@ -407,7 +402,7 @@ def get_dca_recommendation(
             "recommended_qty": float(recommended_qty),
             "estimated_new_avg": float(estimated_new_avg),
             "confidence": confidence,
-            "market_trend": market_trend
+            "market_trend": market_trend,
         }
 
     except Exception as e:
@@ -415,5 +410,5 @@ def get_dca_recommendation(
         return {
             "recommendation": "HOLD",
             "reason": "Ошибка анализа DCA: %s" % str(e),
-            "confidence": "unknown"
+            "confidence": "unknown",
         }

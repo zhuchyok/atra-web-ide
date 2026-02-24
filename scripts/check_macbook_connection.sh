@@ -18,11 +18,11 @@ MACBOOK_IPS=(
 # Проверяем каждый IP
 for ip in "${MACBOOK_IPS[@]}"; do
     echo "🔍 Проверка $ip..."
-    
+
     # Ping
     if ping -c 1 -W 1 "$ip" > /dev/null 2>&1; then
         echo "  ✅ Ping OK"
-        
+
         # Проверяем PostgreSQL
         if psql -h "$ip" -U admin -d knowledge_os -c "SELECT 1;" > /dev/null 2>&1; then
             echo "  ✅ PostgreSQL доступен!"

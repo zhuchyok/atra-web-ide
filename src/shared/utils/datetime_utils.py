@@ -14,7 +14,7 @@ from typing import Optional
 def now() -> datetime:
     """
     Get current datetime in UTC
-    
+
     ВАЖНО: Всегда возвращает UTC время с явным timezone
     """
     return datetime.now(timezone.utc)
@@ -23,7 +23,7 @@ def now() -> datetime:
 def utc_now() -> datetime:
     """
     Get current UTC datetime (alias for now())
-    
+
     ВАЖНО: Использует datetime.now(timezone.utc) вместо устаревшего datetime.utcnow()
     """
     return datetime.now(timezone.utc)
@@ -32,7 +32,7 @@ def utc_now() -> datetime:
 def get_utc_now() -> datetime:
     """
     Get current UTC datetime (explicit function name)
-    
+
     Returns:
         Текущее время в UTC с явным timezone
     """
@@ -58,7 +58,7 @@ def is_expired(dt: datetime, expiry_minutes: int, current_time: Optional[datetim
     """Check if datetime is expired"""
     if current_time is None:
         current_time = now()
-    
+
     age_minutes = (current_time - dt).total_seconds() / 60
     return age_minutes > expiry_minutes
 
@@ -66,4 +66,3 @@ def is_expired(dt: datetime, expiry_minutes: int, current_time: Optional[datetim
 def format_datetime(dt: datetime, format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
     """Format datetime to string"""
     return dt.strftime(format_str)
-

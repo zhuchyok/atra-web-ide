@@ -12,6 +12,7 @@
 **Файл:** `observability/evolution_engine.py`
 
 **Компоненты:**
+
 - ✅ `analyze_agent_performance()` - анализ производительности агента
 - ✅ `generate_prompt_improvements()` - генерация улучшений
 - ✅ `create_prompt_variant()` - создание вариантов промптов
@@ -19,6 +20,7 @@
 - ✅ `apply_evolution()` - применение эволюции
 
 **Функциональность:**
+
 - Анализ производительности на основе lessons learned
 - Генерация улучшений промптов
 - Создание вариантов с улучшениями
@@ -30,6 +32,7 @@
 **Файл:** `scripts/evolve_prompts.py`
 
 **Использование:**
+
 ```bash
 # Эволюция всех агентов
 python3 scripts/evolve_prompts.py
@@ -51,6 +54,7 @@ python3 scripts/evolve_prompts.py --min-gain 0.10
 ### Процесс эволюции:
 
 1. **Анализ производительности:**
+
    ```python
    performance = engine.analyze_agent_performance("signal_live")
    # Результат: {
@@ -63,6 +67,7 @@ python3 scripts/evolve_prompts.py --min-gain 0.10
    ```
 
 2. **Генерация улучшений:**
+
    ```python
    improvements = engine.generate_prompt_improvements(
        agent="signal_live",
@@ -77,6 +82,7 @@ python3 scripts/evolve_prompts.py --min-gain 0.10
    ```
 
 3. **Создание варианта:**
+
    ```python
    variant = engine.create_prompt_variant(
        agent="signal_live",
@@ -87,6 +93,7 @@ python3 scripts/evolve_prompts.py --min-gain 0.10
    ```
 
 4. **Оценка варианта:**
+
    ```python
    variant_performance = engine.evaluate_variant(variant, performance)
    # Результат: 0.92 (улучшение на 7%)
@@ -103,6 +110,7 @@ python3 scripts/evolve_prompts.py --min-gain 0.10
 ## 🔄 Интеграция с Guidance System
 
 EvolutionEngine интегрирован с Guidance System:
+
 - Использует `get_guidance()` для получения lessons learned
 - Анализирует проблемы и рекомендации
 - Генерирует улучшения на основе рекомендаций
@@ -140,6 +148,6 @@ EvolutionEngine интегрирован с Guidance System:
 ---
 
 **См. также:**
+
 - [AGENT_DEVELOPMENT_ROADMAP.md](./AGENT_DEVELOPMENT_ROADMAP.md) - полный план развития
 - [AGENT_OPS_COMPLETE.md](./AGENT_OPS_COMPLETE.md) - Agent Ops
-

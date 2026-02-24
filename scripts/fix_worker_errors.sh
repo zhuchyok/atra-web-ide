@@ -15,13 +15,13 @@ if [ -n "$ERRORS" ]; then
     echo "$ERRORS"
     echo ""
     echo "🔍 Анализ ошибок..."
-    
+
     # Проверяем подключение к БД
     if docker logs knowledge_os_worker 2>&1 | grep -q "Name or service not known"; then
         echo "   ❌ Проблема: Неправильное имя хоста БД"
         echo "   ✅ Решение: Использовать knowledge_postgres вместо localhost"
     fi
-    
+
     # Проверяем Redis
     if docker logs knowledge_os_worker 2>&1 | grep -q "redis"; then
         echo "   ❌ Проблема: Redis недоступен"

@@ -24,7 +24,7 @@ BEGIN
             'timestamp', NOW()
         );
     END IF;
-    
+
     PERFORM pg_notify('experts_changed', payload::text);
     RETURN COALESCE(NEW, OLD);
 END;
@@ -38,5 +38,5 @@ CREATE TRIGGER experts_sync_trigger
     EXECUTE FUNCTION notify_experts_changed();
 
 -- Комментарий
-COMMENT ON FUNCTION notify_experts_changed() IS 
+COMMENT ON FUNCTION notify_experts_changed() IS
 'Отправляет pg_notify при изменениях в experts для автосинхронизации employees.json';

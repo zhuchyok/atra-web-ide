@@ -23,30 +23,36 @@ CollectiveMemorySystem = None
 
 try:
     from app.swarm_intelligence import SwarmIntelligence as _SI
+
     SwarmIntelligence = _SI
 except ImportError:
     try:
         from swarm_intelligence import SwarmIntelligence as _SI
+
         SwarmIntelligence = _SI
     except ImportError:
         pass
 
 try:
     from app.consensus_agent import ConsensusAgent as _CA
+
     ConsensusAgent = _CA
 except ImportError:
     try:
         from consensus_agent import ConsensusAgent as _CA
+
         ConsensusAgent = _CA
     except ImportError:
         pass
 
 try:
     from app.collective_memory import CollectiveMemorySystem as _CMS
+
     CollectiveMemorySystem = _CMS
 except ImportError:
     try:
         from collective_memory import CollectiveMemorySystem as _CMS
+
         CollectiveMemorySystem = _CMS
     except ImportError:
         pass
@@ -110,21 +116,25 @@ class EnhancedOrchestratorV2Swarm(EnhancedOrchestratorV2):
                 swarm_prompt = (
                     f"Задача: {description[:500]}\n\nПодзадачи: "
                     + ", ".join(
-                        f"{st.title} ({st.category})"
-                        for st in (graph.subtasks or {}).values()
+                        f"{st.title} ({st.category})" for st in (graph.subtasks or {}).values()
                     )
                     + ". Подбери оптимальную команду экспертов по категориям (coding, reasoning, vision, general)."
                 )
                 try:
                     from app.expert_services import get_all_expert_names
-                    swarm_agents = get_all_expert_names(max_count=getattr(self.swarm_intelligence, "swarm_size", 8))
+
+                    swarm_agents = get_all_expert_names(
+                        max_count=getattr(self.swarm_intelligence, "swarm_size", 8)
+                    )
                 except ImportError:
                     swarm_agents = None
                 await self.swarm_intelligence.solve(problem=swarm_prompt, agent_names=swarm_agents)
                 # Фактические назначения делаем через базовый ExpertMatchingEngine
             except Exception as e:
                 logger.debug("Swarm phase_5 failed, falling back: %s", e)
-        assignments = await super().phase_5_select_experts(task_id, graph=graph, description=description)
+        assignments = await super().phase_5_select_experts(
+            task_id, graph=graph, description=description
+        )
         if assignments and self.collective_memory:
             try:
                 await self.collective_memory.record_action(
@@ -154,6 +164,7 @@ class EnhancedOrchestratorV2Swarm(EnhancedOrchestratorV2):
             question = f"Итоговый результат для задачи {task_id} по подзадачам."
             try:
                 from app.expert_services import get_all_expert_names
+
                 consensus_agents = get_all_expert_names(max_count=8)
             except ImportError:
                 consensus_agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]

@@ -16,12 +16,14 @@
 **Проблема:** Секреты хранятся в файле `env` и могут попасть в Git
 
 **Решение:**
+
 1. Создать `.env.example` без секретов
 2. Добавить `.env` в `.gitignore`
 3. Использовать `python-dotenv` для загрузки
 4. Добавить валидацию обязательных переменных
 
 **Реализация:**
+
 ```python
 # src/core/secrets_manager.py
 import os
@@ -30,27 +32,27 @@ from dotenv import load_dotenv
 
 class SecretsManager:
     """Менеджер секретов из environment variables"""
-    
+
     REQUIRED_SECRETS = [
         "TELEGRAM_TOKEN",
         "ATRA_ENCRYPTION_KEY"
     ]
-    
+
     @classmethod
     def load_secrets(cls) -> bool:
         """Загрузить секреты из .env"""
         load_dotenv()
-        
+
         missing = []
         for secret in cls.REQUIRED_SECRETS:
             if not os.getenv(secret):
                 missing.append(secret)
-        
+
         if missing:
             raise ValueError(f"Missing required secrets: {missing}")
-        
+
         return True
-    
+
     @classmethod
     def get_secret(cls, key: str, default: Optional[str] = None) -> Optional[str]:
         """Получить секрет"""
@@ -61,6 +63,7 @@ class SecretsManager:
 ```
 
 **Файлы для изменения:**
+
 - `src/core/secrets_manager.py` (создать)
 - `.env.example` (создать)
 - `.gitignore` (проверить)
@@ -73,11 +76,13 @@ class SecretsManager:
 **Проблема:** 8+ одновременных подключений к SQLite
 
 **Решение:**
+
 1. Singleton для Database
 2. Connection pooling
 3. Lazy initialization
 
 **Реализация:**
+
 ```python
 # src/database/connection_manager.py
 import sqlite3
@@ -86,10 +91,10 @@ from typing import Optional
 
 class DatabaseConnectionManager:
     """Singleton для управления подключениями к БД"""
-    
+
     _instance: Optional['DatabaseConnectionManager'] = None
     _lock = threading.Lock()
-    
+
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
@@ -97,7 +102,7 @@ class DatabaseConnectionManager:
                     cls._instance = super().__new__(cls)
                     cls._instance._connection: Optional[sqlite3.Connection] = None
         return cls._instance
-    
+
     def get_connection(self) -> sqlite3.Connection:
         """Получить единственное подключение"""
         if self._connection is None:
@@ -111,6 +116,7 @@ class DatabaseConnectionManager:
 ```
 
 **Файлы для изменения:**
+
 - `src/database/connection_manager.py` (создать)
 - `src/database/db.py` (рефакторинг)
 - Все модули, использующие Database (обновить)
@@ -122,11 +128,13 @@ class DatabaseConnectionManager:
 **Проблема:** Использование float для финансовых расчетов
 
 **Решение:**
+
 1. Миграция на Decimal
 2. Валидация всех финансовых операций
 3. Автоматическая проверка в CI/CD
 
 **Реализация:**
+
 ```python
 # src/core/financial_utils.py
 from decimal import Decimal, ROUND_DOWN
@@ -164,6 +172,7 @@ def calculate_percentage(
 ```
 
 **Файлы для изменения:**
+
 - `src/core/financial_utils.py` (создать)
 - `src/execution/auto_execution.py` (миграция)
 - `src/execution/exchange_api.py` (миграция)
@@ -176,11 +185,13 @@ def calculate_percentage(
 **Проблема:** 2073 совпадения `except Exception`
 
 **Решение:**
+
 1. Замена на специфичные исключения
 2. Создание иерархии исключений
 3. Улучшенная обработка ошибок
 
 **Реализация:**
+
 ```python
 # src/core/exceptions.py
 class ATRAException(Exception):
@@ -209,6 +220,7 @@ class TelegramAPIError(APIError):
 ```
 
 **Файлы для изменения:**
+
 - `src/core/exceptions.py` (создать)
 - Все модули с `except Exception` (обновить)
 
@@ -221,11 +233,13 @@ class TelegramAPIError(APIError):
 **Проблема:** 430 совпадений `print()`
 
 **Решение:**
+
 1. Замена всех print() на logging
 2. Структурированное логирование
 3. Централизованная конфигурация
 
 **Реализация:**
+
 ```python
 # src/core/logging_config.py
 import logging
@@ -234,14 +248,14 @@ from pathlib import Path
 
 def setup_logging(log_level: str = "INFO"):
     """Настройка централизованного логирования"""
-    
+
     # Создаем директорию для логов
     log_dir = Path("logs")
     log_dir.mkdir(exist_ok=True)
-    
+
     # Формат логов
     log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    
+
     # Настройка root logger
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
@@ -251,7 +265,7 @@ def setup_logging(log_level: str = "INFO"):
             logging.StreamHandler(sys.stdout)
         ]
     )
-    
+
     # Отдельные логгеры для компонентов
     for component in ["signals", "execution", "telegram", "database"]:
         logger = logging.getLogger(component)
@@ -264,6 +278,7 @@ def setup_logging(log_level: str = "INFO"):
 ```
 
 **Файлы для изменения:**
+
 - `src/core/logging_config.py` (создать)
 - Все модули с `print()` (обновить)
 
@@ -274,11 +289,13 @@ def setup_logging(log_level: str = "INFO"):
 **Проблема:** 317 совпадений `datetime.now()` или `datetime.utcnow()`
 
 **Решение:**
+
 1. Замена на `get_utc_now()`
 2. Валидация временных меток
 3. Автоматическая проверка в CI/CD
 
 **Реализация:**
+
 ```python
 # src/shared/utils/datetime_utils.py (уже создан, расширить)
 from datetime import datetime, timezone
@@ -297,6 +314,7 @@ def validate_timestamp(ts: datetime) -> bool:
 ```
 
 **Файлы для изменения:**
+
 - Все модули с `datetime.now()` (обновить)
 
 ---
@@ -306,11 +324,13 @@ def validate_timestamp(ts: datetime) -> bool:
 **Проблема:** 639 совпадений TODO/FIXME
 
 **Решение:**
+
 1. Создать задачи в TODO системе
 2. Исправить критичные TODO
 3. Удалить устаревшие TODO
 
 **Реализация:**
+
 ```python
 # scripts/check_todos.py
 import re
@@ -319,7 +339,7 @@ from pathlib import Path
 def find_todos():
     """Найти все TODO/FIXME в коде"""
     todos = []
-    
+
     for py_file in Path("src").rglob("*.py"):
         with open(py_file, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
@@ -329,11 +349,12 @@ def find_todos():
                         "line": line_num,
                         "content": line.strip()
                     })
-    
+
     return todos
 ```
 
 **Файлы для изменения:**
+
 - `scripts/check_todos.py` (создать)
 - Все файлы с TODO (исправить)
 
@@ -344,11 +365,13 @@ def find_todos():
 **Проблема:** Низкое покрытие тестами
 
 **Решение:**
+
 1. Увеличить покрытие до 80%+
 2. Добавить integration тесты
 3. Добавить property-based тесты
 
 **Реализация:**
+
 ```python
 # tests/conftest.py (расширить)
 import pytest
@@ -374,6 +397,7 @@ def sample_signal():
 ```
 
 **Файлы для изменения:**
+
 - `tests/conftest.py` (расширить)
 - Добавить тесты для всех модулей
 
@@ -386,11 +410,13 @@ def sample_signal():
 **Проблема:** Backup файлы и дубликаты
 
 **Решение:**
+
 1. Удалить backup файлы
 2. Использовать Git для версионирования
 3. Добавить pre-commit hook
 
 **Реализация:**
+
 ```bash
 # scripts/cleanup_backups.sh
 #!/bin/bash
@@ -405,6 +431,7 @@ echo "✅ Backup файлы удалены"
 ```
 
 **Файлы для изменения:**
+
 - `scripts/cleanup_backups.sh` (создать)
 - Удалить backup файлы
 
@@ -415,11 +442,13 @@ echo "✅ Backup файлы удалены"
 **Проблема:** Отсутствие автоматических проверок
 
 **Решение:**
+
 1. Pre-commit hooks
 2. Code formatting (black, isort)
 3. Linting (pylint, mypy)
 
 **Реализация:**
+
 ```yaml
 # .pre-commit-config.yaml
 repos:
@@ -447,6 +476,7 @@ repos:
 ```
 
 **Файлы для изменения:**
+
 - `.pre-commit-config.yaml` (создать)
 - `setup.py` или `pyproject.toml` (обновить)
 
@@ -457,11 +487,13 @@ repos:
 ### 4.1 Observability
 
 **Решение:**
+
 1. Distributed tracing
 2. Metrics aggregation
 3. Alerting system
 
 **Реализация:**
+
 ```python
 # src/core/observability.py
 from opentelemetry import trace
@@ -473,15 +505,15 @@ def setup_tracing():
     """Настройка distributed tracing"""
     trace.set_tracer_provider(TracerProvider())
     tracer = trace.get_tracer(__name__)
-    
+
     otlp_exporter = OTLPSpanExporter(
         endpoint="http://localhost:4317",
         insecure=True
     )
-    
+
     span_processor = BatchSpanProcessor(otlp_exporter)
     trace.get_tracer_provider().add_span_processor(span_processor)
-    
+
     return tracer
 ```
 
@@ -490,11 +522,13 @@ def setup_tracing():
 ### 4.2 Performance Optimization
 
 **Решение:**
+
 1. Database query optimization
 2. Caching strategy
 3. Async optimization
 
 **Реализация:**
+
 ```python
 # src/core/query_optimizer.py
 from functools import lru_cache
@@ -502,7 +536,7 @@ from typing import Dict, Any
 
 class QueryOptimizer:
     """Оптимизатор запросов к БД"""
-    
+
     @staticmethod
     @lru_cache(maxsize=1000)
     def get_cached_query(query: str, params: tuple) -> Dict[str, Any]:
@@ -516,11 +550,13 @@ class QueryOptimizer:
 ### 4.3 Security Enhancements
 
 **Решение:**
+
 1. Rate limiting для API
 2. Input sanitization
 3. Audit logging
 
 **Реализация:**
+
 ```python
 # src/core/rate_limiter.py
 from collections import defaultdict
@@ -528,12 +564,12 @@ from datetime import datetime, timedelta
 
 class RateLimiter:
     """Rate limiter для API"""
-    
+
     def __init__(self, max_calls: int, period: int):
         self.max_calls = max_calls
         self.period = period
         self.calls = defaultdict(list)
-    
+
     def is_allowed(self, key: str) -> bool:
         """Проверить, разрешен ли запрос"""
         now = datetime.now()
@@ -541,10 +577,10 @@ class RateLimiter:
             call_time for call_time in self.calls[key]
             if now - call_time < timedelta(seconds=self.period)
         ]
-        
+
         if len(self.calls[key]) >= self.max_calls:
             return False
-        
+
         self.calls[key].append(now)
         return True
 ```
@@ -579,4 +615,3 @@ class RateLimiter:
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 1.0
-

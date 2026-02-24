@@ -11,6 +11,7 @@
 ### **1. Система приоритизации задач**
 
 **Функции:**
+
 - ✅ Автоматический расчет приоритета на основе:
   - Ключевых слов в названии/описании
   - Метаданных задачи
@@ -20,6 +21,7 @@
 - ✅ Веса приоритетов для сортировки
 
 **Приоритеты:**
+
 - **urgent** (100): Критичные задачи, требует немедленного внимания
 - **high** (50): Важные задачи, высокий приоритет
 - **medium** (25): Обычные задачи, стандартный приоритет
@@ -30,6 +32,7 @@
 ### **2. Балансировка нагрузки между экспертами**
 
 **Функции:**
+
 - ✅ Автоматический расчет загрузки эксперта:
   - Количество активных задач
   - Среднее время выполнения
@@ -40,6 +43,7 @@
 - ✅ Учет специализации эксперта (домен, роль)
 
 **Метрики загрузки:**
+
 ```python
 workload_score = active_tasks * 10 + (avg_duration_minutes / 10)
 ```
@@ -51,12 +55,14 @@ workload_score = active_tasks * 10 + (avg_duration_minutes / 10)
 **Файл:** `knowledge_os/db/migrations/add_tasks_table.sql`
 
 **Добавлено:**
+
 - ✅ Таблица `tasks` с полной поддержкой приоритетов
 - ✅ Поля для отслеживания времени выполнения
 - ✅ Индексы для быстрого поиска по приоритету и статусу
 - ✅ Миграции для существующих таблиц (usage_count, is_verified, etc.)
 
 **Структура tasks:**
+
 ```sql
 - id, title, description
 - status (pending, in_progress, completed, failed, cancelled)
@@ -74,6 +80,7 @@ workload_score = active_tasks * 10 + (avg_duration_minutes / 10)
 **Файл:** `knowledge_os/app/enhanced_orchestrator.py`
 
 **Фазы работы:**
+
 1. **Приоритизация существующих задач** — пересчет приоритетов
 2. **Назначение задач без исполнителя** — умное распределение
 3. **Перебалансировка нагрузки** — оптимизация распределения
@@ -117,12 +124,13 @@ await conn.execute("""
 ### **Запросы для анализа:**
 
 **Топ задач по приоритету:**
+
 ```sql
 SELECT priority, count(*) as count
 FROM tasks
 WHERE status = 'pending'
 GROUP BY priority
-ORDER BY 
+ORDER BY
     CASE priority
         WHEN 'urgent' THEN 1
         WHEN 'high' THEN 2
@@ -132,8 +140,9 @@ ORDER BY
 ```
 
 **Загрузка экспертов:**
+
 ```sql
-SELECT 
+SELECT
     e.name,
     count(t.id) FILTER (WHERE t.status IN ('pending', 'in_progress')) as active_tasks,
     avg(t.actual_duration_minutes) as avg_duration
@@ -144,8 +153,9 @@ ORDER BY active_tasks DESC;
 ```
 
 **Эффективность приоритизации:**
+
 ```sql
-SELECT 
+SELECT
     priority,
     avg(EXTRACT(EPOCH FROM (completed_at - created_at))/60) as avg_completion_time_minutes,
     count(*) FILTER (WHERE status = 'completed')::float / count(*)::float as completion_rate
@@ -218,18 +228,21 @@ knowledge_os/
 ## ✅ РЕЗУЛЬТАТЫ
 
 ### **До улучшения:**
+
 - ❌ Нет приоритизации задач
 - ❌ Случайное назначение экспертов
 - ❌ Нет балансировки нагрузки
 - ❌ Перегруженные эксперты
 
 ### **После улучшения:**
+
 - ✅ Автоматическая приоритизация задач
 - ✅ Умное назначение лучшему эксперту
 - ✅ Автоматическая балансировка нагрузки
 - ✅ Оптимальное распределение задач
 
 ### **Ожидаемый эффект:**
+
 - **Скорость обработки задач:** +30%
 - **Эффективность экспертов:** +25%
 - **Балансировка нагрузки:** +50%
@@ -247,4 +260,3 @@ knowledge_os/
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14  
 **Версия:** Singularity 3.2
-

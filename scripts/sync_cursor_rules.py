@@ -47,7 +47,7 @@ Leadership:
         "example_prompt": "Распредели задачу между экспертами: [описание задачи]",
         "quality_criteria": "- Task completion > 90%\n- On-time delivery > 85%\n- Team satisfaction > 4/5"
     },
-    
+
     "Backend Developer": {
         "emoji": "💻",
         "responsibilities": """- Разработка REST/GraphQL API
@@ -73,7 +73,7 @@ pytest / pytest-asyncio
         "example_prompt": "Создай REST API endpoint для управления ордерами с валидацией и тестами",
         "quality_criteria": "- Test coverage >= 80%\n- Type hints (mypy strict)\n- Code review approved\n- Documentation complete"
     },
-    
+
     "Frontend Developer": {
         "emoji": "🎨",
         "responsibilities": """- Разработка UI компонентов
@@ -98,7 +98,7 @@ Vitest / Playwright
         "example_prompt": "Создай responsive компонент для отображения портфеля с real-time обновлениями",
         "quality_criteria": "- Lighthouse score >= 90\n- WCAG 2.1 AA\n- Mobile-friendly\n- Test coverage >= 80%"
     },
-    
+
     "Full-stack Developer": {
         "emoji": "🔧",
         "responsibilities": """- End-to-end разработка функционала
@@ -118,7 +118,7 @@ PostgreSQL / Redis
         "example_prompt": "Реализуй фичу [название] от API до UI с тестами",
         "quality_criteria": "- Full-stack tests\n- Type-safe end-to-end\n- Performance optimized"
     },
-    
+
     "DevOps Engineer": {
         "emoji": "🔧",
         "responsibilities": """- CI/CD пайплайны
@@ -137,7 +137,7 @@ Monitoring: Prometheus, Grafana
         "example_prompt": "Настрой CI/CD для нового микросервиса с auto-deployment в staging",
         "quality_criteria": "- Deployment time < 15 min\n- Zero-downtime deploys\n- Infrastructure as Code 100%"
     },
-    
+
     "ML Engineer": {
         "emoji": "🤖",
         "responsibilities": """- ML models в production
@@ -159,7 +159,7 @@ ONNX / TensorRT
         "example_prompt": "Создай ML pipeline для предсказания оттока с автоматическим retraining",
         "quality_criteria": "- Model AUC >= 0.7\n- Inference latency < 50ms\n- Data drift monitored"
     },
-    
+
     "QA Engineer": {
         "emoji": "🧪",
         "responsibilities": """- Тестирование функционала
@@ -183,7 +183,7 @@ Allure / TestRail
         "example_prompt": "Напиши автотесты для API endpoint с покрытием edge cases",
         "quality_criteria": "- Test coverage >= 80%\n- Automation ratio >= 70%\n- Bug escape rate < 5%"
     },
-    
+
     "Data Analyst": {
         "emoji": "📊",
         "responsibilities": """- Анализ бизнес-данных
@@ -205,7 +205,7 @@ Metabase / Tableau
         "example_prompt": "Проанализируй конверсию воронки и найди узкие места",
         "quality_criteria": "- Data validated\n- Statistical significance\n- Actionable insights"
     },
-    
+
     "Product Manager": {
         "emoji": "📦",
         "responsibilities": """- Product strategy
@@ -225,7 +225,7 @@ Tools:
         "example_prompt": "Напиши PRD для новой фичи с user stories и acceptance criteria",
         "quality_criteria": "- Requirements clear\n- Metrics defined\n- Stakeholders aligned"
     },
-    
+
     "UI/UX Designer": {
         "emoji": "🎨",
         "responsibilities": """- Product design
@@ -248,7 +248,7 @@ Prototyping:
         "example_prompt": "Спроектируй UX для нового dashboard с фокусом на usability",
         "quality_criteria": "- User-tested\n- Accessibility compliant\n- Design system consistent"
     },
-    
+
     "Principal AI Coordination Architect": {
         "emoji": "🤖",
         "responsibilities": """- AI Agent координация и оркестрация
@@ -274,7 +274,7 @@ Vector DBs (Pinecone, Weaviate)
         "example_prompt": "Спроектируй multi-agent систему для автоматизации code review с fallback механизмами",
         "quality_criteria": "- Agent uptime > 99%\n- Task completion > 95%\n- Response time < 5s\n- Graceful degradation"
     },
-    
+
     "Team Lead": {
         "emoji": "👑",
         "responsibilities": """- Координация команды экспертов
@@ -294,7 +294,7 @@ Leadership:
         "example_prompt": "Распредели задачу между экспертами: [описание задачи]",
         "quality_criteria": "- Task completion > 90%\n- On-time delivery > 85%\n- Team satisfaction > 4/5"
     },
-    
+
     "Local Developer (Agent)": {
         "emoji": "💻",
         "responsibilities": """- Локальная разработка и тестирование
@@ -320,7 +320,7 @@ API clients
         "example_prompt": "Протестируй локально новый API endpoint с edge cases",
         "quality_criteria": "- Tests pass locally\n- No breaking changes\n- Documentation updated"
     },
-    
+
     "Chief Knowledge Officer": {
         "emoji": "🧠",
         "responsibilities": """- Knowledge management стратегия
@@ -344,7 +344,7 @@ LLM integration
         "example_prompt": "Разработай knowledge graph для корпоративной базы знаний с векторным поиском",
         "quality_criteria": "- Search recall > 90%\n- Response time < 200ms\n- Knowledge freshness < 1h"
     },
-    
+
     "CEO / Executive Director": {
         "emoji": "🎯",
         "responsibilities": """- Стратегическое видение
@@ -364,7 +364,7 @@ Business:
         "example_prompt": "Проанализируй Q4 результаты и предложи стратегию на следующий год",
         "quality_criteria": "- Revenue targets met\n- Strategic goals achieved\n- Team satisfaction > 4/5"
     },
-    
+
     "Trading Strategy Developer": {
         "emoji": "📈",
         "responsibilities": """- Разработка торговых стратегий
@@ -388,7 +388,7 @@ ML models
         "example_prompt": "Создай и протестируй mean-reversion стратегию для крипто рынка",
         "quality_criteria": "- Sharpe ratio > 1.5\n- Max drawdown < 20%\n- Win rate > 55%"
     },
-    
+
     "M&A Analyst": {
         "emoji": "💼",
         "responsibilities": """- M&A возможности анализ
@@ -475,18 +475,18 @@ def normalize_filename(name: str) -> str:
         'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch',
         'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
     }
-    
+
     normalized = name.lower()
     for ru, en in translit.items():
         normalized = normalized.replace(ru, en)
-    
+
     # Заменяем пробелы и спецсимволы
     normalized = normalized.replace(" ", "_").replace("/", "_").replace("&", "and")
-    
+
     # Убираем множественные underscore
     while "__" in normalized:
         normalized = normalized.replace("__", "_")
-    
+
     return normalized.strip("_")
 
 
@@ -504,12 +504,12 @@ def get_template_for_role(role: str) -> Dict:
     # Точное совпадение
     if role in ROLE_TEMPLATES:
         return ROLE_TEMPLATES[role]
-    
+
     # Частичное совпадение
     for template_role, template in ROLE_TEMPLATES.items():
         if template_role.lower() in role.lower() or role.lower() in template_role.lower():
             return template
-    
+
     return DEFAULT_TEMPLATE
 
 
@@ -517,9 +517,9 @@ def generate_file_content(employee: Dict, priority: int) -> str:
     """Генерировать содержимое файла для эксперта."""
     name = employee["name"]
     role = employee["role"]
-    
+
     template_data = get_template_for_role(role)
-    
+
     content = TEMPLATE.format(
         name=name,
         name_upper=name.upper(),
@@ -535,62 +535,62 @@ def generate_file_content(employee: Dict, priority: int) -> str:
         quality_criteria=template_data["quality_criteria"],
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     )
-    
+
     return content
 
 
 def sync_cursor_rules():
     """Синхронизировать .cursor/rules/ с employees.json."""
-    
+
     print("=" * 60)
     print("🔄 СИНХРОНИЗАЦИЯ .cursor/rules/")
     print("=" * 60)
     print(f"📂 Проект: {PROJECT_ROOT}")
     print(f"📄 Источник: {EMPLOYEES_JSON}")
     print(f"📁 Цель: {RULES_DIR}")
-    
+
     # 1. Загрузить текущий список сотрудников
     print("\n📋 Загрузка данных...")
     employees = load_employees_json()
-    
+
     if not employees:
         print("❌ Файл employees.json пуст или не найден")
         return
-    
+
     print(f"✅ Найдено сотрудников: {len(employees)}")
-    
+
     # 2. Создать директорию
     RULES_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     # 3. Собрать существующие файлы
     existing_files = {f for f in RULES_DIR.glob("*.md") if f.name != "atra.mdc"}
     existing_names = {f.stem.split("_", 1)[1] if "_" in f.stem else f.stem: f for f in existing_files}
-    
+
     # 4. Обработать каждого сотрудника
     current_files = set()
     stats = {"created": 0, "updated": 0, "skipped": 0}
-    
+
     for idx, employee in enumerate(employees, start=1):
         name = employee["name"]
         role = employee["role"]
         normalized_name = normalize_filename(name)
-        
+
         filename = f"{idx:02d}_{normalized_name}.md"
         filepath = RULES_DIR / filename
         current_files.add(filepath)
-        
+
         # Генерируем содержимое
         content = generate_file_content(employee, priority=idx)
-        
+
         # Проверяем существование
         if filepath.exists():
             # Читаем существующий
             existing_content = filepath.read_text(encoding="utf-8")
-            
+
             # Проверяем, изменилась ли роль или имя (не timestamp)
             existing_core = existing_content.split("*Автоматически")[0].strip() if "*Автоматически" in existing_content else existing_content
             new_core = content.split("*Автоматически")[0].strip()
-            
+
             if existing_core != new_core:
                 filepath.write_text(content, encoding="utf-8")
                 print(f"🔄 Обновлен  {filename} - {name} ({role})")
@@ -603,22 +603,22 @@ def sync_cursor_rules():
             filepath.write_text(content, encoding="utf-8")
             print(f"✅ Создан    {filename} - {name} ({role})")
             stats["created"] += 1
-    
+
     # 5. Найти устаревшие файлы (уволенные), не трогать служебные
     KEEP_FILES = {"README.md", "atra.mdc"}
     obsolete_files = existing_files - current_files - {RULES_DIR / name for name in KEEP_FILES}
-    
+
     if obsolete_files:
         print(f"\n⚠️  Найдено устаревших файлов: {len(obsolete_files)}")
         for file in sorted(obsolete_files):
             print(f"   🗑️  {file.name}")
-        
+
         # Автоматически удаляем (или можно сделать подтверждение)
         for file in obsolete_files:
             file.unlink()
             print(f"   ✅ Удален {file.name}")
         stats["deleted"] = len(obsolete_files)
-    
+
     # 6. Итоговая статистика
     print("\n" + "=" * 60)
     print("📊 СТАТИСТИКА СИНХРОНИЗАЦИИ")

@@ -30,7 +30,7 @@ expect "# "
 
 # Теперь pull с merge
 send "git pull origin worker_v2\r"
-expect -re "(conflict|CONFLICT|Merge made|Already up to date)" 
+expect -re "(conflict|CONFLICT|Merge made|Already up to date)"
 send "\r"
 expect "# "
 
@@ -48,4 +48,3 @@ EOF
 
 echo ""
 echo "✅ Готово!"
-

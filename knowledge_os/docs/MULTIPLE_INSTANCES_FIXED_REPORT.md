@@ -21,17 +21,17 @@ INFO:ai_integration:🤖 Создан новый экземпляр ИИ сис�
 ```python
 class AISingletonRegistry:
     """Реестр singleton экземпляров ИИ системы"""
-    
+
     _instances: Dict[str, Any] = {}
     _initialized = False
-    
+
     @classmethod
     def get_instance(cls, instance_type: str, factory_func=None, *args, **kwargs):
         """Получает или создает singleton экземпляр"""
         if not cls._initialized:
             cls._instances = {}
             cls._initialized = True
-        
+
         if instance_type not in cls._instances:
             if factory_func:
                 logger.info("🤖 Создаем новый экземпляр %s", instance_type)
@@ -41,13 +41,14 @@ class AISingletonRegistry:
                 return None
         else:
             logger.debug("✅ Используем существующий экземпляр %s", instance_type)
-        
+
         return cls._instances[instance_type]
 ```
 
 ### **2. Интегрирован во все ИИ модули**
 
 **ai_integration.py:**
+
 ```python
 def __init__(self):
     # Используем singleton registry для получения единственного экземпляра
@@ -61,6 +62,7 @@ def __init__(self):
 ```
 
 **Аналогично исправлено в:**
+
 - `ai_monitor.py`
 - `ai_auto_learning.py`
 - `ai_signal_generator.py`
@@ -83,6 +85,7 @@ def get_ai_integration():
 ## 🎯 РЕЗУЛЬТАТ
 
 ### **ДО исправления:**
+
 ```
 INFO:ai_learning_system:🤖 ИИ система инициализирована. Паттернов: 57
 INFO:ai_integration:🤖 Создан новый экземпляр ИИ системы (fallback)
@@ -93,6 +96,7 @@ INFO:ai_integration:🤖 Создан новый экземпляр ИИ сис�
 ```
 
 ### **ПОСЛЕ исправления:**
+
 ```
 INFO:ai_singleton:🤖 Создаем новый экземпляр ai_learning
 INFO:ai_learning_system:🤖 ИИ система инициализирована. Паттернов: 5
@@ -112,15 +116,16 @@ INFO:ai_monitor:✅ Используем singleton экземпляр ИИ си�
 ## 🧪 ТЕСТИРОВАНИЕ
 
 **Создан тест `test_singleton.py`:**
+
 ```python
 def test_singleton():
     """Тестирует singleton pattern"""
     print("🧪 Тестирование singleton registry...")
-    
+
     # Получаем экземпляры
     ai1 = get_ai_learning_system()
     ai2 = get_ai_learning_system()
-    
+
     if ai1 is ai2:
         print("✅ SUCCESS: Singleton pattern работает!")
     else:
@@ -128,6 +133,7 @@ def test_singleton():
 ```
 
 **Результат теста:**
+
 ```
 ✅ SUCCESS: Singleton pattern работает!
 AI Learning 1: 4313693680

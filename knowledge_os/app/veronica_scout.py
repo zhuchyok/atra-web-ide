@@ -1,19 +1,22 @@
 import asyncio
+import json
 import logging
 import os
-import json
 from datetime import datetime, timezone
-from typing import List, Dict, Any
-from app.veronica_web_researcher import VeronicaWebResearcher
+from typing import Any, Dict, List
+
 from app.services.knowledge_service import knowledge_service
+from app.veronica_web_researcher import VeronicaWebResearcher
 
 logger = logging.getLogger("VeronicaScout")
+
 
 class VeronicaScout:
     """
     Вероника-Разведчик: Автономный сбор знаний из внешних источников.
     Singularity 10.0: Global Intelligence Scouting
     """
+
     def __init__(self):
         self.researcher = VeronicaWebResearcher()
         self.targets = [
@@ -21,29 +24,31 @@ class VeronicaScout:
             "OpenAI Anthropic Google leaks and updates",
             "new LLM optimization techniques 2026",
             "autonomous agent architectures world class",
-            "Mac Studio M4 Max AI performance benchmarks"
+            "Mac Studio M4 Max AI performance benchmarks",
         ]
         self.is_running = False
 
     async def run_scouting_cycle(self):
         """Запуск цикла разведки."""
         logger.info(f"🕵️ [SCOUT] Начало цикла глобальной разведки: {datetime.now(timezone.utc)}")
-        
+
         all_insights = []
         for target in self.targets:
             try:
                 logger.info(f"🔍 [SCOUT] Исследование цели: {target}")
-                result = await self.researcher.research_and_analyze(target, category="research", use_web=True)
-                
+                result = await self.researcher.research_and_analyze(
+                    target, category="research", use_web=True
+                )
+
                 if result and result.get("analysis"):
                     insight = {
                         "topic": target,
                         "content": result["analysis"],
                         "sources": [r["url"] for r in result.get("web_results", [])],
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                     all_insights.append(insight)
-                    
+
                     # Сохраняем в базу знаний как 'research_kb' (табу для чистки)
                     await self._save_to_knowledge(insight)
             except Exception as e:
@@ -60,30 +65,32 @@ class VeronicaScout:
                 "type": "research_kb",
                 "source": "veronica_scout",
                 "urls": insight["sources"],
-                "scout_version": "1.0"
+                "scout_version": "1.0",
             }
-            
+
             # Используем knowledge_service для сохранения
             await knowledge_service.add_node(
                 content=content,
                 domain="Global Intelligence",
                 confidence_score=0.95,
                 metadata=metadata,
-                is_verified=True
+                is_verified=True,
             )
             logger.info(f"💾 [SCOUT] Инсайт по теме '{insight['topic']}' сохранен в Research KB")
         except Exception as e:
             logger.error(f"❌ [SCOUT] Ошибка сохранения в БД: {e}")
+
 
 async def start_scout_daemon(interval_hours: int = 6):
     """Запуск разведчика как фонового демона (Slow Mode)."""
     scout = VeronicaScout()
     while True:
         # [SLOW MODE] Работаем порциями, чтобы не перегружать Mac Studio
-        logger.info(f"🐢 [SCOUT] Запуск цикла разведки в фоновом режиме (не спеша)...")
+        logger.info("🐢 [SCOUT] Запуск цикла разведки в фоновом режиме (не спеша)...")
         await scout.run_scouting_cycle()
         logger.info(f"💤 [SCOUT] Сон на {interval_hours} часов до следующего цикла...")
         await asyncio.sleep(interval_hours * 3600)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

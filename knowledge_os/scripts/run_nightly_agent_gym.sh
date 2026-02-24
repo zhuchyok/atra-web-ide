@@ -43,5 +43,3 @@ run "agent_gym_nightly" "$PYTHON" scripts/run_agent_gym_nightly.py \
   --print-summary
 
 echo "[$TIMESTAMP] Nightly Agent Gym run finished" >> "$LOG_FILE"
-
-

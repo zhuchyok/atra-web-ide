@@ -5,24 +5,30 @@ Singularity 8.0: Performance Optimization
 """
 
 import asyncio
-import logging
 import hashlib
-import asyncpg
+import logging
 import os
-from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 
 # Rust-ускорение: нормализация + хэш для ключей кэша (опционально)
 try:
     from cache_normalizer import (
         normalize_and_hash as _rust_normalize_and_hash,
-        normalize_text as _rust_normalize_text,
+    )
+    from cache_normalizer import (
         normalize_and_hash_batch as _rust_normalize_and_hash_batch,
     )
+    from cache_normalizer import (
+        normalize_text as _rust_normalize_text,
+    )
+
     _USE_RUST_NORMALIZER = True
 except ImportError:
     _USE_RUST_NORMALIZER = False
@@ -30,12 +36,13 @@ except ImportError:
     _rust_normalize_text = None
     _rust_normalize_and_hash_batch = None
 
+
 class EmbeddingOptimizer:
     """
     Оптимизация эмбеддингов через кэширование и batch-обработку.
     Ускоряет поиск в кэше на 50-70%.
     """
-    
+
     def __init__(self, db_url: str = DB_URL):
         """
         Args:
@@ -47,13 +54,13 @@ class EmbeddingOptimizer:
         self._batch_queue: List[Dict[str, Any]] = []  # Очередь для batch-обработки
         self._batch_size = 10  # Размер батча
         self._batch_timeout = 0.5  # Таймаут батча в секундах
-    
+
     def _normalize_text(self, text: str) -> str:
         """Нормализует текст для кэширования (убирает лишние пробелы, приводит к нижнему регистру)"""
         if _USE_RUST_NORMALIZER and _rust_normalize_text:
             return _rust_normalize_text(text)
-        return ' '.join(text.lower().split())
-    
+        return " ".join(text.lower().split())
+
     def _get_text_hash(self, text: str) -> str:
         """Получает хэш нормализованного текста (Rust при наличии, иначе Python)"""
         if _USE_RUST_NORMALIZER:
@@ -76,7 +83,7 @@ class EmbeddingOptimizer:
             try:
                 table_exists = await conn.fetchval("""
                     SELECT EXISTS (
-                        SELECT 1 FROM information_schema.tables 
+                        SELECT 1 FROM information_schema.tables
                         WHERE table_name = 'embedding_cache'
                     )
                 """)
@@ -113,29 +120,31 @@ class EmbeddingOptimizer:
         if cached:
             logger.debug(f"✅ [EMBEDDING CACHE] Hit for: {text[:50]}...")
         return cached
-    
+
     async def save_embedding(self, text: str, embedding: List[float]):
         """
         Сохраняет эмбеддинг в кэш (память и БД).
-        
+
         Args:
             text: Текст
             embedding: Эмбеддинг
         """
         text_hash = self._get_text_hash(text)
         normalized_text = self._normalize_text(text)
-        
+
         # Сохраняем в memory cache
         if len(self._memory_cache) >= self._cache_size:
             # Удаляем старые (FIFO)
             oldest_key = next(iter(self._memory_cache))
             del self._memory_cache[oldest_key]
         self._memory_cache[text_hash] = embedding
-        
+
         # Сохраняем в БД (асинхронно, не блокируем)
         asyncio.create_task(self._save_embedding_to_db(text_hash, normalized_text, embedding))
-    
-    async def _save_embedding_to_db(self, text_hash: str, normalized_text: str, embedding: List[float]):
+
+    async def _save_embedding_to_db(
+        self, text_hash: str, normalized_text: str, embedding: List[float]
+    ):
         """Сохраняет эмбеддинг в БД"""
         try:
             conn = await asyncpg.connect(self.db_url)
@@ -143,36 +152,43 @@ class EmbeddingOptimizer:
                 # Проверяем наличие таблицы
                 table_exists = await conn.fetchval("""
                     SELECT EXISTS (
-                        SELECT 1 FROM information_schema.tables 
+                        SELECT 1 FROM information_schema.tables
                         WHERE table_name = 'embedding_cache'
                     )
                 """)
-                
+
                 if not table_exists:
                     logger.debug("⚠️ [EMBEDDING CACHE] Таблица embedding_cache не существует")
                     return
-                
-                await conn.execute("""
+
+                await conn.execute(
+                    """
                     INSERT INTO embedding_cache (text_hash, normalized_text, embedding, created_at)
                     VALUES ($1, $2, $3::vector, NOW())
-                    ON CONFLICT (text_hash) DO UPDATE 
+                    ON CONFLICT (text_hash) DO UPDATE
                     SET embedding = EXCLUDED.embedding,
                         created_at = NOW()
-                """, text_hash, normalized_text, str(embedding))
+                """,
+                    text_hash,
+                    normalized_text,
+                    str(embedding),
+                )
             finally:
                 await conn.close()
         except Exception as e:
             logger.debug(f"⚠️ [EMBEDDING CACHE] Failed to save to DB: {e}")
-    
-    async def get_embeddings_batch(self, texts: List[str], get_embedding_func) -> List[Optional[List[float]]]:
+
+    async def get_embeddings_batch(
+        self, texts: List[str], get_embedding_func
+    ) -> List[Optional[List[float]]]:
         """
         Получает эмбеддинги для батча текстов.
         Использует кэш для уже вычисленных эмбеддингов.
-        
+
         Args:
             texts: Список текстов
             get_embedding_func: Функция для генерации эмбеддинга
-        
+
         Returns:
             Список эмбеддингов
         """
@@ -188,15 +204,15 @@ class EmbeddingOptimizer:
             else:
                 texts_to_compute.append(text)
                 indices_to_compute.append(i)
-        
+
         # Генерируем эмбеддинги для текстов, которых нет в кэше
         if texts_to_compute:
             logger.debug(f"📦 [EMBEDDING BATCH] Computing {len(texts_to_compute)} embeddings...")
             # Можно использовать параллельную обработку
-            embeddings = await asyncio.gather(*[
-                get_embedding_func(text) for text in texts_to_compute
-            ], return_exceptions=True)
-            
+            embeddings = await asyncio.gather(
+                *[get_embedding_func(text) for text in texts_to_compute], return_exceptions=True
+            )
+
             # Сохраняем в кэш и добавляем в результаты
             for idx, text, embedding in zip(indices_to_compute, texts_to_compute, embeddings):
                 if isinstance(embedding, Exception):
@@ -207,13 +223,15 @@ class EmbeddingOptimizer:
                     results.append((idx, embedding))
                 else:
                     results.append((idx, None))
-        
+
         # Сортируем результаты по индексам
         results.sort(key=lambda x: x[0])
         return [emb for _, emb in results]
 
+
 # Singleton instance
 _optimizer_instance: Optional[EmbeddingOptimizer] = None
+
 
 def get_embedding_optimizer(db_url: str = DB_URL) -> EmbeddingOptimizer:
     """Получить singleton экземпляр оптимизатора"""
@@ -221,4 +239,3 @@ def get_embedding_optimizer(db_url: str = DB_URL) -> EmbeddingOptimizer:
     if _optimizer_instance is None:
         _optimizer_instance = EmbeddingOptimizer(db_url=db_url)
     return _optimizer_instance
-

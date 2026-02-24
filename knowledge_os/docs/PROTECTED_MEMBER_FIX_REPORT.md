@@ -3,6 +3,7 @@
 ## 📋 Описание проблемы
 
 **Ошибка в telegram_bot.py:**
+
 - **Строка 4300:** Access to a protected member `_safe_cache` of a client class
 - **Серьезность:** Warning
 - **Код:** [object Object]
@@ -12,6 +13,7 @@
 Проблема заключалась в использовании защищенных атрибутов (protected members) в коде:
 
 1. **В `telegram_bot.py` (строка 4300):**
+
    ```python
    if not hasattr(recalculate_balance_and_risks, '_safe_cache'):
        recalculate_balance_and_risks._safe_cache = {}
@@ -32,6 +34,7 @@
 ### 1. Исправление в `telegram_bot.py`
 
 **Было:**
+
 ```python
 if not hasattr(recalculate_balance_and_risks, '_safe_cache'):
     recalculate_balance_and_risks._safe_cache = {}
@@ -39,6 +42,7 @@ balance_cache = recalculate_balance_and_risks._safe_cache
 ```
 
 **Стало:**
+
 ```python
 # Используем глобальную переменную вместо защищенного атрибута
 global _balance_cache_safe
@@ -50,6 +54,7 @@ balance_cache = _balance_cache_safe
 ### 2. Исправление в `exchange_api.py`
 
 **Было:**
+
 ```python
 if not hasattr(get_top_usdt_pairs_by_volume, '_safe_cache'):
     get_top_usdt_pairs_by_volume._safe_cache = {}
@@ -57,6 +62,7 @@ pairs_cache = get_top_usdt_pairs_by_volume._safe_cache
 ```
 
 **Стало:**
+
 ```python
 # Используем глобальную переменную вместо защищенного атрибута
 global _pairs_cache_safe
@@ -68,12 +74,14 @@ pairs_cache = _pairs_cache_safe
 ### 3. Добавление глобальных переменных
 
 **В `telegram_bot.py` (после строки 100):**
+
 ```python
 # Глобальные переменные для кэширования
 _balance_cache_safe = {}
 ```
 
 **В `exchange_api.py` (после строки 30):**
+
 ```python
 # Глобальные переменные для кэширования
 _pairs_cache_safe = {}
@@ -88,6 +96,7 @@ python3 test_cache_fix.py
 ```
 
 **Результаты:**
+
 - ✅ Тест пройден успешно для `telegram_bot.py`
 - ✅ Тест пройден успешно для `exchange_api.py`
 - ✅ Все тесты завершены успешно
@@ -102,10 +111,12 @@ python3 test_cache_fix.py
 ## 🔧 Технические детали
 
 ### Использованные глобальные переменные:
+
 - `_balance_cache_safe` - для кэширования баланса в `telegram_bot.py`
 - `_pairs_cache_safe` - для кэширования пар в `exchange_api.py`
 
 ### Совместимость:
+
 - ✅ Обратная совместимость сохранена
 - ✅ Функциональность кэширования не изменилась
 - ✅ Все существующие вызовы функций работают корректно

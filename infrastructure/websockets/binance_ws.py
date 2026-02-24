@@ -32,7 +32,7 @@ class PriceStreamCache:
 
 class BinanceWebSocketStreamer:
     """Manages Binance WebSocket connection for real-time price updates."""
-    
+
     def __init__(self, url: str = "wss://stream.binance.com:9443/ws/!bookTicker"):
         self.url = url
         self.is_running = False
@@ -42,7 +42,7 @@ class BinanceWebSocketStreamer:
         """Starts the WebSocket stream with auto-reconnect."""
         self.is_running = True
         retry_delay = 1
-        
+
         while self.is_running:
             try:
                 async with aiohttp.ClientSession() as session:
@@ -50,7 +50,7 @@ class BinanceWebSocketStreamer:
                     async with session.ws_connect(self.url) as ws:
                         logger.info("✅ Connected to Binance WebSocket !bookTicker stream")
                         retry_delay = 1 # Reset retry delay on successful connection
-                        
+
                         async for msg in ws:
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 data = json.loads(msg.data)
@@ -58,21 +58,21 @@ class BinanceWebSocketStreamer:
                                 symbol = data.get('s')
                                 if symbol:
                                     PriceStreamCache.update_price(
-                                        symbol, 
-                                        float(data.get('b', 0)), 
+                                        symbol,
+                                        float(data.get('b', 0)),
                                         float(data.get('a', 0))
                                     )
                             elif msg.type == aiohttp.WSMsgType.CLOSED:
                                 break
                             elif msg.type == aiohttp.WSMsgType.ERROR:
                                 break
-                                
+
             except Exception as e:
                 if self.is_running:
                     logger.error(f"❌ Binance WebSocket error: {e}. Reconnecting in {retry_delay}s...")
                     await asyncio.sleep(retry_delay)
                     retry_delay = min(retry_delay * 2, 60) # Exponential backoff
-            
+
             if not self.is_running:
                 break
 
@@ -87,4 +87,3 @@ binance_ws_streamer = BinanceWebSocketStreamer()
 async def start_binance_ws():
     """Helper function to start the global streamer."""
     await binance_ws_streamer.start()
-

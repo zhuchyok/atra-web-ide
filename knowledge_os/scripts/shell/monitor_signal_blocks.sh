@@ -18,7 +18,7 @@ echo ""
 
 tail -f bot.log | grep --line-buffered -E "\[DIRECTION CHECK\]|\[QUALITY|\[RSI FILTER\]|\[VOLUME BLOCK\]|\[BREAKOUT BLOCK\]|\[MTF|\[SEND_SIGNAL BLOCK\]|NO SIGNAL" | while IFS= read -r line; do
     timestamp=$(date '+%H:%M:%S')
-    
+
     # Цветовая маркировка
     if echo "$line" | grep -q "BLOCK\|NO SIGNAL\|🚫"; then
         echo -e "\033[31m[$timestamp] $line\033[0m"
@@ -30,4 +30,3 @@ tail -f bot.log | grep --line-buffered -E "\[DIRECTION CHECK\]|\[QUALITY|\[RSI F
         echo "[$timestamp] $line"
     fi
 done
-

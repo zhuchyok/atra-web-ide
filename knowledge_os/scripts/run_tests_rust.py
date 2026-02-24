@@ -11,12 +11,12 @@ Rust-based Test Runner
     python scripts/run_tests_rust.py tests/test_signal.py  # Конкретный тест
 """
 
-import sys
 import argparse
 import logging
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
 # Добавляем корневую директорию в путь
 root_dir = Path(__file__).parent.parent
@@ -29,13 +29,13 @@ except ImportError:
     pass
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 try:
     import atra_rs
+
     RUST_AVAILABLE = True
     logger.info("✅ Rust модуль atra_rs доступен")
 except ImportError:
@@ -63,47 +63,45 @@ def run_tests_parallel(
 ) -> dict:
     """
     Запуск тестов через Rust с многопоточностью
-    
+
     Args:
         test_paths: Список путей к тестам (если None - автоматический поиск)
         num_threads: Количество потоков (по умолчанию 14)
         pytest_args: Дополнительные аргументы для pytest
-    
+
     Returns:
         Словарь с результатами выполнения
     """
     if not RUST_AVAILABLE:
         raise RuntimeError("Rust модуль atra_rs недоступен!")
-    
+
     # Если пути не указаны, находим все тесты
     if test_paths is None:
         test_paths = discover_test_files()
         if not test_paths:
             logger.warning("⚠️ Тестовые файлы не найдены")
             return {"success": False, "error": "No test files found"}
-    
+
     logger.info("🚀 Запуск %d тестов через Rust (%d потоков)", len(test_paths), num_threads)
     logger.info("=" * 80)
-    
+
     start_time = datetime.now()
-    
+
     try:
         results = atra_rs.run_tests_parallel(
-            test_paths=test_paths,
-            num_threads=num_threads,
-            pytest_args=pytest_args
+            test_paths=test_paths, num_threads=num_threads, pytest_args=pytest_args
         )
-        
+
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
+
         # Анализ результатов
         total = len(results)
         passed = sum(1 for r in results if r.status == "passed")
         failed = sum(1 for r in results if r.status == "failed")
         errors = sum(1 for r in results if r.status == "error")
         skipped = sum(1 for r in results if r.status == "skipped")
-        
+
         # Вывод результатов
         logger.info("=" * 80)
         logger.info("📊 РЕЗУЛЬТАТЫ ТЕСТОВ:")
@@ -114,7 +112,7 @@ def run_tests_parallel(
         logger.info("   ⏭️ Пропущено: %d", skipped)
         logger.info("   ⏱️ Время выполнения: %.2f сек", duration)
         logger.info("=" * 80)
-        
+
         # Детали проваленных тестов
         if failed > 0 or errors > 0:
             logger.warning("\n❌ ПРОВАЛЕННЫЕ ТЕСТЫ:")
@@ -123,7 +121,7 @@ def run_tests_parallel(
                     logger.warning("   - %s: %s", r.name, r.status)
                     if r.error:
                         logger.warning("     Ошибка: %s", r.error[:200])
-        
+
         return {
             "success": failed == 0 and errors == 0,
             "total": total,
@@ -133,57 +131,36 @@ def run_tests_parallel(
             "skipped": skipped,
             "duration_seconds": duration,
             "results": [
-                {
-                    "name": r.name,
-                    "status": r.status,
-                    "duration_ms": r.duration_ms,
-                    "error": r.error
-                }
+                {"name": r.name, "status": r.status, "duration_ms": r.duration_ms, "error": r.error}
                 for r in results
-            ]
+            ],
         }
-        
+
     except Exception as e:
         logger.error("❌ Критическая ошибка при запуске тестов: %s", e)
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 def main():
     """Главная функция"""
-    parser = argparse.ArgumentParser(
-        description="Запуск тестов через Rust с многопоточностью"
-    )
+    parser = argparse.ArgumentParser(description="Запуск тестов через Rust с многопоточностью")
     parser.add_argument(
-        "--threads", "-t",
-        type=int,
-        default=14,
-        help="Количество потоков (по умолчанию: 14)"
+        "--threads", "-t", type=int, default=14, help="Количество потоков (по умолчанию: 14)"
     )
+    parser.add_argument("--unit", action="store_true", help="Запустить только unit тесты")
     parser.add_argument(
-        "--unit",
-        action="store_true",
-        help="Запустить только unit тесты"
+        "--integration", action="store_true", help="Запустить только integration тесты"
     )
+    parser.add_argument("--slow", action="store_true", help="Включить медленные тесты")
     parser.add_argument(
-        "--integration",
-        action="store_true",
-        help="Запустить только integration тесты"
+        "test_paths", nargs="*", help="Конкретные пути к тестам (если не указано - все тесты)"
     )
-    parser.add_argument(
-        "--slow",
-        action="store_true",
-        help="Включить медленные тесты"
-    )
-    parser.add_argument(
-        "test_paths",
-        nargs="*",
-        help="Конкретные пути к тестам (если не указано - все тесты)"
-    )
-    
+
     args = parser.parse_args()
-    
+
     # Формируем pytest args
     pytest_args = []
     if args.unit:
@@ -192,7 +169,7 @@ def main():
         pytest_args.extend(["-m", "integration"])
     if not args.slow:
         pytest_args.extend(["-m", "not slow"])
-    
+
     # Определяем пути к тестам
     test_paths = None
     if args.test_paths:
@@ -201,18 +178,17 @@ def main():
         test_paths = discover_test_files("tests/unit")
     elif args.integration:
         test_paths = discover_test_files("tests/integration")
-    
+
     # Запуск тестов
     result = run_tests_parallel(
         test_paths=test_paths,
         num_threads=args.threads,
-        pytest_args=pytest_args if pytest_args else None
+        pytest_args=pytest_args if pytest_args else None,
     )
-    
+
     # Код выхода
     sys.exit(0 if result.get("success", False) else 1)
 
 
 if __name__ == "__main__":
     main()
-

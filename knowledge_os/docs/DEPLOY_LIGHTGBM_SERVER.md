@@ -3,12 +3,14 @@
 ## 📋 ЧТО НУЖНО ПРИМЕНИТЬ
 
 ### Новые файлы:
+
 1. ✅ `lightgbm_predictor.py` - основной модуль LightGBM
 2. ✅ `lightgbm_auto_retrain.py` - автоматическое переобучение
 3. ✅ `train_lightgbm_models.py` - скрипт обучения
 4. ✅ `deploy_lightgbm.sh` - скрипт деплоя
 
 ### Измененные файлы:
+
 1. ✅ `signal_live.py` - интеграция ML фильтра
 2. ✅ `main.py` - запуск автоматического переобучения
 
@@ -71,6 +73,7 @@ tail -50 main.log | grep -i lightgbm
 ```
 
 **Ожидаемый вывод:**
+
 ```
 ✅ LightGBM предсказатель доступен и модели загружены
 ✅ Автоматическое переобучение LightGBM запущено
@@ -85,6 +88,7 @@ ls -lh ai_learning_data/lightgbm_models/
 ```
 
 **Должны быть файлы:**
+
 - `classifier.txt`
 - `regressor.txt`
 - `metadata.json`
@@ -92,6 +96,7 @@ ls -lh ai_learning_data/lightgbm_models/
 ### 3. Проверить работу ML фильтра:
 
 В логах при генерации сигналов должны появляться:
+
 ```
 🤖 [ML PREDICTION] BTCUSDT BUY: success_prob=75.23%, expected_profit=2.45%, combined_score=1.842, recommendation=BUY
 ✅ [ML PASS] BTCUSDT LONG CLASSIC: ML фильтр пройден
@@ -104,6 +109,7 @@ ls -lh ai_learning_data/lightgbm_models/
 ### Проблема 1: libomp не найден
 
 **Решение:**
+
 ```bash
 # Ubuntu/Debian:
 apt-get install libomp-dev
@@ -117,6 +123,7 @@ export CPPFLAGS="-I/opt/homebrew/opt/libomp/include"
 ### Проблема 2: Модели не обучены
 
 **Решение:**
+
 ```bash
 # Обучить вручную:
 python3 train_lightgbm_models.py
@@ -128,6 +135,7 @@ python3 -c "import json; data=json.load(open('ai_learning_data/trading_patterns.
 ### Проблема 3: LightGBM не импортируется
 
 **Решение:**
+
 ```bash
 # Переустановить:
 python3 -m pip uninstall lightgbm -y
@@ -175,4 +183,3 @@ cat ai_learning_data/lightgbm_models/metadata.json | python3 -m json.tool
 
 **Статус**: ✅ Готово к деплою
 **Дата**: 2025-01-XX
-

@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from src.domain.entities.order import Order, OrderSide, OrderType, OrderStatus
+from src.domain.entities.order import Order, OrderSide, OrderStatus, OrderType
 from src.domain.value_objects.price import Price
 from src.domain.value_objects.symbol import Symbol
 
@@ -16,10 +16,10 @@ from src.domain.value_objects.symbol import Symbol
 class OrderModel:
     """
     ORM Model for Order
-    
+
     This is an infrastructure concern for database persistence.
     """
-    
+
     def __init__(
         self,
         id: str,
@@ -45,9 +45,9 @@ class OrderModel:
         self.filled_quantity = filled_quantity
         self.created_at = created_at
         self.filled_at = filled_at
-    
+
     @classmethod
-    def from_entity(cls, order: Order) -> 'OrderModel':
+    def from_entity(cls, order: Order) -> "OrderModel":
         """Create model from domain entity"""
         return cls(
             id=order.id,
@@ -62,12 +62,12 @@ class OrderModel:
             created_at=order.created_at,
             filled_at=order.filled_at,
         )
-    
+
     def to_entity(self) -> Order:
         """Convert model to domain entity"""
         symbol = Symbol(base=self.symbol_base, quote=self.symbol_quote)
         price = Price(self.price, "USDT") if self.price else None
-        
+
         return Order(
             id=self.id,
             symbol=symbol,
@@ -80,4 +80,3 @@ class OrderModel:
             created_at=self.created_at,
             filled_at=self.filled_at,
         )
-

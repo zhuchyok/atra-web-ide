@@ -3,6 +3,7 @@
 ## 📊 ТЕКУЩАЯ СИТУАЦИЯ
 
 **Проблемы:**
+
 - ❌ **261 Python файл в корне проекта** - все лежит вразброс
 - ❌ Нет четкой структуры модулей
 - ❌ Сложно найти нужный код
@@ -110,6 +111,7 @@ atra/
 ## 📋 ПЛАН МИГРАЦИИ
 
 ### Этап 1: Создание структуры директорий
+
 - [ ] Создать `src/execution/`
 - [ ] Создать `src/risk/`
 - [ ] Создать `src/database/`
@@ -118,6 +120,7 @@ atra/
 ### Этап 2: Перемещение файлов по категориям
 
 #### Execution (Исполнение ордеров):
+
 - `order_manager.py` → `src/execution/order_manager.py`
 - `exchange_adapter.py` → `src/execution/exchange_adapter.py`
 - `exchange_api.py` → `src/execution/exchange_api.py`
@@ -126,6 +129,7 @@ atra/
 - `auto_execution.py` → `src/execution/auto_execution.py`
 
 #### Risk Management (Управление рисками):
+
 - `risk_manager.py` → `src/risk/risk_manager.py`
 - `correlation_risk_manager.py` → `src/risk/correlation_risk.py`
 - `capital_management.py` → `src/risk/capital_management.py`
@@ -133,37 +137,44 @@ atra/
 - `risk_monitor.py` → `src/risk/monitor.py`
 
 #### Database (База данных):
+
 - `db.py` → `src/database/db.py`
 - `db_connection_pool.py` → `src/database/connection_pool.py`
 - `database_initialization.py` → `src/database/initialization.py`
 
 #### Adapters (Адаптеры):
+
 - `adaptive_cache.py` → `src/adapters/cache.py`
 - `adaptive_signal_system.py` → `src/adapters/signal.py`
 - `adaptive_parameter_controller.py` → `src/adapters/parameters.py`
 - `adaptive_position_sizer.py` → `src/adapters/position_sizer.py`
 
 #### Monitoring (Мониторинг):
+
 - `prometheus_metrics.py` → `src/monitoring/prometheus.py`
 - `alert_system.py` → `src/monitoring/alerts.py`
 - `monitoring_system.py` → `src/monitoring/system.py`
 
 #### ML (Machine Learning):
+
 - `lightgbm_predictor.py` → `src/ml/predictors/lightgbm.py`
 - `ai_integration.py` → `src/ml/integration.py`
 - `ai_learning_system.py` → `src/ml/learning.py`
 
 #### Scripts (Скрипты):
+
 - Все `*_test.py`, `check_*.py`, `analyze_*.py` → `scripts/analysis/`
 - Все `deploy_*.py`, `deploy_*.sh` → `scripts/deployment/`
 - Все `*_backup*.py` → `archive/`
 
 ### Этап 3: Обновление импортов
+
 - [ ] Найти все импорты перемещенных модулей
 - [ ] Обновить импорты в соответствии с новой структурой
 - [ ] Проверить, что все работает
 
 ### Этап 4: Очистка
+
 - [ ] Удалить старые файлы из корня
 - [ ] Удалить дубликаты
 - [ ] Удалить backup файлы
@@ -171,20 +182,15 @@ atra/
 ## 🚀 ПРИОРИТЕТЫ
 
 **Критично (Priority 1):**
+
 1. Создать структуру директорий
 2. Переместить execution модули
 3. Переместить risk модули
 4. Переместить database модули
 
-**Важно (Priority 2):**
-5. Переместить adapters
-6. Переместить monitoring
-7. Обновить импорты
+**Важно (Priority 2):** 5. Переместить adapters 6. Переместить monitoring 7. Обновить импорты
 
-**Желательно (Priority 3):**
-8. Переместить скрипты
-9. Очистить корень от backup файлов
-10. Создать документацию
+**Желательно (Priority 3):** 8. Переместить скрипты 9. Очистить корень от backup файлов 10. Создать документацию
 
 ## ⚠️ РИСКИ
 
@@ -199,4 +205,3 @@ atra/
 - [ ] Все импорты работают
 - [ ] Все тесты проходят
 - [ ] Документация обновлена
-

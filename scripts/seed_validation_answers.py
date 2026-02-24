@@ -45,7 +45,7 @@ async def seed_knowledge_nodes():
 
     # Используем nomic-embed-text через Ollama (768-dim, совместимо с RAG)
     print("📦 Получение эмбеддингов через Ollama nomic-embed-text (768-dim)...")
-    
+
     async with httpx.AsyncClient(timeout=60.0) as client:
         added = 0
         for query, answer in SEED_ANSWERS.items():
@@ -58,7 +58,7 @@ async def seed_knowledge_nodes():
                 if response.status_code != 200:
                     print(f"⚠️ Skipping '{query}': Ollama error {response.status_code}")
                     continue
-                
+
                 embedding = response.json().get("embedding", [])
                 if len(embedding) != 768:
                     print(f"⚠️ Skipping '{query}': wrong dimensions ({len(embedding)})")

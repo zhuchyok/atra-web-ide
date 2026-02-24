@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 CLI для управления risk_flags (аварийными стопами).
 
@@ -46,7 +45,9 @@ def main() -> None:
             print("risk_flags table empty")
             return
         for flag, info in flags.items():
-            print(f"{flag}: value={info.value}, updated_at={info.updated_at.isoformat()}, reason={info.reason}")
+            print(
+                f"{flag}: value={info.value}, updated_at={info.updated_at.isoformat()}, reason={info.reason}"
+            )
         return
 
     if not args.flag:
@@ -70,4 +71,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

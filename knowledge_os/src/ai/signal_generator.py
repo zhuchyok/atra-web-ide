@@ -5,23 +5,26 @@
 """
 
 import asyncio
-import logging
 import json
+import logging
 import os
 import random
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, List, Any, Optional, Tuple
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple
+
 import aiohttp
+import pandas as pd
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 # Импорты
 try:
-    from src.ai.learning import AILearningSystem
-    from src.ai.integration import AIIntegration
-    from src.ai.monitor import AIMonitor
     from src.ai.historical_analysis import HistoricalDataAnalyzer
-    from src.execution.exchange_api import get_ohlc_with_fallback, get_current_price_robust
+    from src.ai.integration import AIIntegration
+    from src.ai.learning import AILearningSystem
+    from src.ai.monitor import AIMonitor
+    from src.execution.exchange_api import get_current_price_robust, get_ohlc_with_fallback
+
     # from signal_live import get_anomaly_data_with_fallback  # Удален для избежания циклических импортов
     from src.telegram.handlers import notify_user as send_message
 except ImportError as e:
@@ -29,9 +32,10 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
+
 class AISignalGenerator:
     """ИИ генератор торговых сигналов"""
-    
+
     _instance = None
     _initialized = False
 
@@ -48,10 +52,14 @@ class AISignalGenerator:
         # Используем singleton registry для получения единственного экземпляра
         try:
             from src.ai.singleton import get_ai_learning_system
+
             self.ai_learning = get_ai_learning_system()
             logger.info("✅ Используем singleton экземпляр ИИ системы в генераторе сигналов")
         except (ImportError, AttributeError) as e:
-            logger.warning("⚠️ Singleton registry недоступен в генераторе сигналов, создаем новый экземпляр: %s", e)
+            logger.warning(
+                "⚠️ Singleton registry недоступен в генераторе сигналов, создаем новый экземпляр: %s",
+                e,
+            )
             self.ai_learning = AILearningSystem()
         self.ai_integration = AIIntegration()
         self.ai_monitor = AIMonitor()
@@ -60,7 +68,7 @@ class AISignalGenerator:
         # Настройки генерации сигналов
         self.signal_generation_active = True
         self.analysis_interval = 300  # 5 минут
-        self.signal_cooldown = 3600   # 1 час между сигналами для одного символа
+        self.signal_cooldown = 3600  # 1 час между сигналами для одного символа
 
         # Кэш последних сигналов
         self.last_signals = {}
@@ -84,7 +92,9 @@ class AISignalGenerator:
                     try:
                         await self._analyze_and_generate_signals(user_id, user_settings)
                     except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
-                        logger.error("❌ Ошибка генерации сигналов для пользователя %s: %s", user_id, e)
+                        logger.error(
+                            "❌ Ошибка генерации сигналов для пользователя %s: %s", user_id, e
+                        )
 
                 # Пауза между циклами анализа
                 await asyncio.sleep(self.analysis_interval)
@@ -97,10 +107,10 @@ class AISignalGenerator:
         """Загружает данные пользователей"""
         try:
             if os.path.exists("user_data.json"):
-                with open("user_data.json", 'r', encoding='utf-8') as f:
+                with open("user_data.json", encoding="utf-8") as f:
                     return json.load(f)
             return {}
-        except (ValueError, TypeError, KeyError, RuntimeError, OSError, IOError) as e:
+        except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка загрузки данных пользователей: %s", e)
             return {}
 
@@ -137,12 +147,30 @@ class AISignalGenerator:
                         # Обновляем кулдаун
                         self.last_signals[symbol] = get_utc_now()
 
-                        logger.info("📊 ИИ сигнал отправлен: %s для пользователя %s", symbol, user_id)
+                        logger.info(
+                            "📊 ИИ сигнал отправлен: %s для пользователя %s", symbol, user_id
+                        )
 
-                except (ValueError, TypeError, KeyError, RuntimeError, OSError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+                except (
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    RuntimeError,
+                    OSError,
+                    asyncio.TimeoutError,
+                    aiohttp.ClientError,
+                ) as e:
                     logger.error("❌ Ошибка анализа символа %s: %s", symbol, e)
 
-        except (ValueError, TypeError, KeyError, RuntimeError, OSError, asyncio.TimeoutError, aiohttp.ClientError) as e:
+        except (
+            ValueError,
+            TypeError,
+            KeyError,
+            RuntimeError,
+            OSError,
+            asyncio.TimeoutError,
+            aiohttp.ClientError,
+        ) as e:
             logger.error("❌ Ошибка генерации сигналов для пользователя %s: %s", user_id, e)
 
     async def _get_symbols_for_analysis(self, user_settings: Dict[str, Any]) -> List[str]:
@@ -150,12 +178,20 @@ class AISignalGenerator:
         try:
             # Базовые символы для анализа
             base_symbols = [
-                "BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT",
-                "XRPUSDT", "DOGEUSDT", "AVAXUSDT", "MATICUSDT", "LINKUSDT"
+                "BTCUSDT",
+                "ETHUSDT",
+                "BNBUSDT",
+                "ADAUSDT",
+                "SOLUSDT",
+                "XRPUSDT",
+                "DOGEUSDT",
+                "AVAXUSDT",
+                "MATICUSDT",
+                "LINKUSDT",
             ]
 
             # Получаем предпочтения пользователя
-            favorite_symbols = user_settings.get('favorite_symbols', [])
+            favorite_symbols = user_settings.get("favorite_symbols", [])
             if favorite_symbols:
                 return favorite_symbols[:5]  # Ограничиваем до 5 символов
 
@@ -175,7 +211,9 @@ class AISignalGenerator:
 
         return time_since_last < self.signal_cooldown
 
-    async def _analyze_symbol(self, symbol: str, _user_settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _analyze_symbol(
+        self, symbol: str, _user_settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Анализирует символ и возвращает данные для генерации сигнала"""
         try:
             # Получаем OHLC данные
@@ -208,113 +246,146 @@ class AISignalGenerator:
             historical_analysis = await self._analyze_historical_patterns(symbol)
 
             return {
-                'symbol': symbol,
-                'current_price': current_price,
-                'indicators': indicators,
-                'market_conditions': market_conditions,
-                'news_data': news_data,
-                'anomaly_data': anomaly_data,
-                'ai_recommendations': ai_recommendations,
-                'historical_analysis': historical_analysis,
-                'df': df,
-                'current_index': current_index
+                "symbol": symbol,
+                "current_price": current_price,
+                "indicators": indicators,
+                "market_conditions": market_conditions,
+                "news_data": news_data,
+                "anomaly_data": anomaly_data,
+                "ai_recommendations": ai_recommendations,
+                "historical_analysis": historical_analysis,
+                "df": df,
+                "current_index": current_index,
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка анализа символа %s: %s", symbol, e)
             return None
 
-    async def _calculate_indicators(self, df: pd.DataFrame, current_index: int, symbol: str = None) -> Dict[str, float]:
+    async def _calculate_indicators(
+        self, df: pd.DataFrame, current_index: int, symbol: str = None
+    ) -> Dict[str, float]:
         """Рассчитывает технические индикаторы"""
         try:
             indicators = {}
 
             # RSI
             if len(df) >= 14:
-                delta = df['close'].diff()
+                delta = df["close"].diff()
                 gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
                 loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
                 rs = gain / loss
                 rsi = 100 - (100 / (1 + rs))
-                indicators['RSI'] = float(rsi.iloc[current_index]) if not pd.isna(rsi.iloc[current_index]) else 50.0
+                indicators["RSI"] = (
+                    float(rsi.iloc[current_index]) if not pd.isna(rsi.iloc[current_index]) else 50.0
+                )
 
             # EMA
             if len(df) >= 7:
-                ema7 = df['close'].ewm(span=7).mean()
-                indicators['EMA7'] = float(ema7.iloc[current_index])
+                ema7 = df["close"].ewm(span=7).mean()
+                indicators["EMA7"] = float(ema7.iloc[current_index])
 
             if len(df) >= 25:
-                ema25 = df['close'].ewm(span=25).mean()
-                indicators['EMA25'] = float(ema25.iloc[current_index])
+                ema25 = df["close"].ewm(span=25).mean()
+                indicators["EMA25"] = float(ema25.iloc[current_index])
 
             # Bollinger Bands
             if len(df) >= 20:
-                sma20 = df['close'].rolling(window=20).mean()
-                std20 = df['close'].rolling(window=20).std()
+                sma20 = df["close"].rolling(window=20).mean()
+                std20 = df["close"].rolling(window=20).std()
                 bb_upper = sma20 + (std20 * 2)
                 bb_lower = sma20 - (std20 * 2)
-                indicators['BB_Upper'] = float(bb_upper.iloc[current_index])
-                indicators['BB_Lower'] = float(bb_lower.iloc[current_index])
-                indicators['BB_Middle'] = float(sma20.iloc[current_index])
+                indicators["BB_Upper"] = float(bb_upper.iloc[current_index])
+                indicators["BB_Lower"] = float(bb_lower.iloc[current_index])
+                indicators["BB_Middle"] = float(sma20.iloc[current_index])
 
             # Volume
-            if 'volume' in df.columns:
-                indicators['Volume'] = float(df['volume'].iloc[current_index])
+            if "volume" in df.columns:
+                indicators["Volume"] = float(df["volume"].iloc[current_index])
 
             # Аномалии - добавляем данные для ИИ анализа
             if symbol:
                 try:
                     from signal_live import calculate_anomaly_circles_with_fallback
-                    circles_count, activity_description, _, data_ok = await calculate_anomaly_circles_with_fallback(symbol, "long")
-                    
+
+                    (
+                        circles_count,
+                        activity_description,
+                        _,
+                        data_ok,
+                    ) = await calculate_anomaly_circles_with_fallback(symbol, "long")
+
                     if data_ok and circles_count is not None:
-                        indicators['Anomaly_Circles'] = float(circles_count)
-                        indicators['Anomaly_Activity'] = activity_description
-                        indicators['Anomaly_Data_Ok'] = True
-                        
+                        indicators["Anomaly_Circles"] = float(circles_count)
+                        indicators["Anomaly_Activity"] = activity_description
+                        indicators["Anomaly_Data_Ok"] = True
+
                         # Добавляем дополнительные данные аномалий для ИИ
                         try:
                             from src.filters.anomaly import anomaly_filter
-                            
+
                             # Определяем базовые значения
-                            base_volume = float(df['volume'].iloc[current_index]) if 'volume' in df.columns else 1000000.0
+                            base_volume = (
+                                float(df["volume"].iloc[current_index])
+                                if "volume" in df.columns
+                                else 1000000.0
+                            )
                             base_risk = 2.0  # Базовый риск 2%
-                            
+
                             # Создаем простой DataFrame для передачи в anomaly_filter
-                            simple_df = pd.DataFrame({'close': [df['close'].iloc[-1]]}) if len(df) > 0 else pd.DataFrame({'close': []})
-                            
+                            simple_df = (
+                                pd.DataFrame({"close": [df["close"].iloc[-1]]})
+                                if len(df) > 0
+                                else pd.DataFrame({"close": []})
+                            )
+
                             if not simple_df.empty:
-                                volume_result = anomaly_filter.calculate_anomaly_based_volume(simple_df, base_volume)
-                                risk_result = anomaly_filter.calculate_anomaly_based_risk(base_risk, simple_df)
+                                volume_result = anomaly_filter.calculate_anomaly_based_volume(
+                                    simple_df, base_volume
+                                )
+                                risk_result = anomaly_filter.calculate_anomaly_based_risk(
+                                    base_risk, simple_df
+                                )
                             else:
                                 volume_result = base_volume
                                 risk_result = base_risk
-                            
+
                             # Извлекаем значения из результатов
-                            volume_factor = (volume_result[0] if isinstance(volume_result, tuple) else volume_result) / base_volume
-                            risk_factor = (risk_result[0] if isinstance(risk_result, tuple) else risk_result) / base_risk
-                            
-                            indicators['Anomaly_Volume_Factor'] = volume_factor
-                            indicators['Anomaly_Risk_Factor'] = risk_factor
-                            
-                            logger.debug("🎯 Аномалии для ИИ: %s - %d кружков, volume_factor=%.2f, risk_factor=%.2f", 
-                                       symbol, circles_count, volume_factor, risk_factor)
+                            volume_factor = (
+                                volume_result[0]
+                                if isinstance(volume_result, tuple)
+                                else volume_result
+                            ) / base_volume
+                            risk_factor = (
+                                risk_result[0] if isinstance(risk_result, tuple) else risk_result
+                            ) / base_risk
+
+                            indicators["Anomaly_Volume_Factor"] = volume_factor
+                            indicators["Anomaly_Risk_Factor"] = risk_factor
+
+                            logger.debug(
+                                "🎯 Аномалии для ИИ: %s - %d кружков, volume_factor=%.2f, risk_factor=%.2f",
+                                symbol,
+                                circles_count,
+                                volume_factor,
+                                risk_factor,
+                            )
                         except Exception as e:
                             logger.warning("⚠️ Ошибка расчета факторов аномалий: %s", e)
                     else:
-                        indicators['Anomaly_Circles'] = 0.0
-                        indicators['Anomaly_Activity'] = "НЕТ ДАННЫХ"
-                        indicators['Anomaly_Data_Ok'] = False
-                        indicators['Anomaly_Volume_Factor'] = 1.0
-                        indicators['Anomaly_Risk_Factor'] = 1.0
-                        
+                        indicators["Anomaly_Circles"] = 0.0
+                        indicators["Anomaly_Activity"] = "НЕТ ДАННЫХ"
+                        indicators["Anomaly_Data_Ok"] = False
+                        indicators["Anomaly_Volume_Factor"] = 1.0
+                        indicators["Anomaly_Risk_Factor"] = 1.0
+
                 except Exception as e:
                     logger.warning("⚠️ Ошибка расчета аномалий для ИИ: %s", e)
-                    indicators['Anomaly_Circles'] = 0.0
-                    indicators['Anomaly_Activity'] = "ОШИБКА"
-                    indicators['Anomaly_Data_Ok'] = False
-                    indicators['Anomaly_Volume_Factor'] = 1.0
-                    indicators['Anomaly_Risk_Factor'] = 1.0
+                    indicators["Anomaly_Circles"] = 0.0
+                    indicators["Anomaly_Activity"] = "ОШИБКА"
+                    indicators["Anomaly_Data_Ok"] = False
+                    indicators["Anomaly_Volume_Factor"] = 1.0
+                    indicators["Anomaly_Risk_Factor"] = 1.0
 
             return indicators
 
@@ -322,7 +393,9 @@ class AISignalGenerator:
             logger.error("❌ Ошибка расчета индикаторов: %s", e)
             return {}
 
-    async def _get_market_conditions(self, _symbol: str, df: pd.DataFrame, current_index: int) -> Dict[str, Any]:
+    async def _get_market_conditions(
+        self, _symbol: str, df: pd.DataFrame, current_index: int
+    ) -> Dict[str, Any]:
         """Получает рыночные условия"""
         try:
             conditions = {}
@@ -333,35 +406,35 @@ class AISignalGenerator:
                 if btc_ohlc:
                     btc_df = pd.DataFrame(btc_ohlc)
                     if len(btc_df) >= 200:
-                        btc_price = btc_df['close'].iloc[-1]
-                        btc_ema200 = btc_df['close'].ewm(span=200).mean().iloc[-1]
-                        conditions['BTC_Trend'] = "BULLISH" if btc_price > btc_ema200 else "BEARISH"
+                        btc_price = btc_df["close"].iloc[-1]
+                        btc_ema200 = btc_df["close"].ewm(span=200).mean().iloc[-1]
+                        conditions["BTC_Trend"] = "BULLISH" if btc_price > btc_ema200 else "BEARISH"
                     else:
-                        conditions['BTC_Trend'] = "UNKNOWN"
+                        conditions["BTC_Trend"] = "UNKNOWN"
             except (ValueError, TypeError, KeyError, RuntimeError, OSError):
-                conditions['BTC_Trend'] = "UNKNOWN"
+                conditions["BTC_Trend"] = "UNKNOWN"
 
             # Объем торгов
-            if 'volume' in df.columns and current_index >= 20:
-                current_volume = df['volume'].iloc[current_index]
-                avg_volume = df['volume'].rolling(20).mean().iloc[current_index]
+            if "volume" in df.columns and current_index >= 20:
+                current_volume = df["volume"].iloc[current_index]
+                avg_volume = df["volume"].rolling(20).mean().iloc[current_index]
                 if current_volume > avg_volume * 1.5:
-                    conditions['Volume'] = "HIGH"
+                    conditions["Volume"] = "HIGH"
                 elif current_volume < avg_volume * 0.5:
-                    conditions['Volume'] = "LOW"
+                    conditions["Volume"] = "LOW"
                 else:
-                    conditions['Volume'] = "NORMAL"
+                    conditions["Volume"] = "NORMAL"
 
             # Волатильность
             if current_index >= 20:
-                recent_prices = df['close'].iloc[current_index-20:current_index+1]
+                recent_prices = df["close"].iloc[current_index - 20 : current_index + 1]
                 volatility = recent_prices.std() / recent_prices.mean() * 100
                 if volatility > 5:
-                    conditions['Volatility'] = "HIGH"
+                    conditions["Volatility"] = "HIGH"
                 elif volatility < 2:
-                    conditions['Volatility'] = "LOW"
+                    conditions["Volatility"] = "LOW"
                 else:
-                    conditions['Volatility'] = "NORMAL"
+                    conditions["Volatility"] = "NORMAL"
 
             return conditions
 
@@ -374,11 +447,7 @@ class AISignalGenerator:
         try:
             # Здесь можно интегрировать с новостными API
             # Пока возвращаем базовые данные
-            return {
-                'news_count': 0,
-                'sentiment': 'NEUTRAL',
-                'recent_news': []
-            }
+            return {"news_count": 0, "sentiment": "NEUTRAL", "recent_news": []}
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка получения новостей: %s", e)
             return {}
@@ -400,34 +469,44 @@ class AISignalGenerator:
             symbol_patterns = [p for p in self.ai_learning.patterns if p.symbol == symbol]
 
             if not symbol_patterns:
-                return {'confidence': 0.0, 'recommendation': 'NO_DATA'}
+                return {"confidence": 0.0, "recommendation": "NO_DATA"}
 
             # Рассчитываем успешность
             successful_patterns = [p for p in symbol_patterns if p.result == "WIN"]
-            success_rate = len(successful_patterns) / len(symbol_patterns) if symbol_patterns else 0.0
+            success_rate = (
+                len(successful_patterns) / len(symbol_patterns) if symbol_patterns else 0.0
+            )
 
             return {
-                'confidence': success_rate,
-                'total_patterns': len(symbol_patterns),
-                'success_rate': success_rate,
-                'recommendation': 'STRONG_BUY' if success_rate > 0.7 else 'BUY' if success_rate > 0.5 else 'HOLD'
+                "confidence": success_rate,
+                "total_patterns": len(symbol_patterns),
+                "success_rate": success_rate,
+                "recommendation": "STRONG_BUY"
+                if success_rate > 0.7
+                else "BUY"
+                if success_rate > 0.5
+                else "HOLD",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка анализа исторических паттернов: %s", e)
-            return {'confidence': 0.0, 'recommendation': 'NO_DATA'}
+            return {"confidence": 0.0, "recommendation": "NO_DATA"}
 
-    async def _generate_signal(self, symbol: str, analysis: Dict[str, Any], user_settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _generate_signal(
+        self, symbol: str, analysis: Dict[str, Any], user_settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Генерирует торговый сигнал на основе анализа"""
         try:
-            current_price = analysis['current_price']
-            indicators = analysis['indicators']
-            market_conditions = analysis['market_conditions']
-            ai_recommendations = analysis['ai_recommendations']
-            historical_analysis = analysis['historical_analysis']
+            current_price = analysis["current_price"]
+            indicators = analysis["indicators"]
+            market_conditions = analysis["market_conditions"]
+            ai_recommendations = analysis["ai_recommendations"]
+            historical_analysis = analysis["historical_analysis"]
 
             # Определяем тип сигнала
-            signal_type = await self._determine_signal_type(indicators, market_conditions, ai_recommendations)
+            signal_type = await self._determine_signal_type(
+                indicators, market_conditions, ai_recommendations
+            )
             if not signal_type:
                 return None
 
@@ -437,58 +516,66 @@ class AISignalGenerator:
             sl = await self._calculate_sl_level(entry_price, signal_type, indicators)
 
             # Рассчитываем параметры риска
-            risk_pct = user_settings.get('risk_pct', 2.0)
-            leverage = user_settings.get('leverage', 1)
-            deposit = user_settings.get('deposit', 1000)
+            risk_pct = user_settings.get("risk_pct", 2.0)
+            leverage = user_settings.get("leverage", 1)
+            deposit = user_settings.get("deposit", 1000)
 
             # Корректируем параметры на основе аномалий
-            anomaly_circles = indicators.get('Anomaly_Circles', 0)
-            anomaly_volume_factor = indicators.get('Anomaly_Volume_Factor', 1.0)
-            anomaly_risk_factor = indicators.get('Anomaly_Risk_Factor', 1.0)
-            
+            anomaly_circles = indicators.get("Anomaly_Circles", 0)
+            anomaly_volume_factor = indicators.get("Anomaly_Volume_Factor", 1.0)
+            anomaly_risk_factor = indicators.get("Anomaly_Risk_Factor", 1.0)
+
             # ИИ принимает решение на основе данных аномалий
-            if anomaly_circles > 0 and indicators.get('Anomaly_Data_Ok', False):
+            if anomaly_circles > 0 and indicators.get("Anomaly_Data_Ok", False):
                 # Корректируем размер позиции на основе аномалий
                 risk_pct = risk_pct * anomaly_risk_factor
                 leverage = leverage * anomaly_volume_factor
-                
-                logger.info("🎯 ИИ корректировка для %s: аномалии=%d кружков, risk_pct=%.2f%% (было %.2f%%), leverage=%.2fx (было %.2fx)", 
-                           symbol, anomaly_circles, risk_pct, user_settings.get('risk_pct', 2.0), 
-                           leverage, user_settings.get('leverage', 1))
+
+                logger.info(
+                    "🎯 ИИ корректировка для %s: аномалии=%d кружков, risk_pct=%.2f%% (было %.2f%%), leverage=%.2fx (было %.2fx)",
+                    symbol,
+                    anomaly_circles,
+                    risk_pct,
+                    user_settings.get("risk_pct", 2.0),
+                    leverage,
+                    user_settings.get("leverage", 1),
+                )
 
             # Рассчитываем размер позиции
-            position_size = await self._calculate_position_size(deposit, risk_pct, leverage, entry_price, sl)
+            position_size = await self._calculate_position_size(
+                deposit, risk_pct, leverage, entry_price, sl
+            )
 
             # Создаем сигнал
             signal = {
-                'symbol': symbol,
-                'signal_type': signal_type,
-                'entry_price': entry_price,
-                'tp1': tp1,
-                'tp2': tp2,
-                'sl': sl,
-                'risk_pct': risk_pct,
-                'leverage': leverage,
-                'position_size': position_size,
-                'indicators': indicators,
-                'market_conditions': market_conditions,
-                'ai_confidence': historical_analysis.get('confidence', 0.0),
-                'timestamp': get_utc_now(),
-                'anomaly_data': {
-                    'circles': anomaly_circles,
-                    'activity': indicators.get('Anomaly_Activity', 'НЕТ ДАННЫХ'),
-                    'volume_factor': anomaly_volume_factor,
-                    'risk_factor': anomaly_risk_factor,
-                    'data_ok': indicators.get('Anomaly_Data_Ok', False)
+                "symbol": symbol,
+                "signal_type": signal_type,
+                "entry_price": entry_price,
+                "tp1": tp1,
+                "tp2": tp2,
+                "sl": sl,
+                "risk_pct": risk_pct,
+                "leverage": leverage,
+                "position_size": position_size,
+                "indicators": indicators,
+                "market_conditions": market_conditions,
+                "ai_confidence": historical_analysis.get("confidence", 0.0),
+                "timestamp": get_utc_now(),
+                "anomaly_data": {
+                    "circles": anomaly_circles,
+                    "activity": indicators.get("Anomaly_Activity", "НЕТ ДАННЫХ"),
+                    "volume_factor": anomaly_volume_factor,
+                    "risk_factor": anomaly_risk_factor,
+                    "data_ok": indicators.get("Anomaly_Data_Ok", False),
                 },
-                'analysis': {
-                    'rsi': indicators.get('RSI', 50),
-                    'ema7': indicators.get('EMA7', entry_price),
-                    'ema25': indicators.get('EMA25', entry_price),
-                    'bb_position': self._get_bb_position(entry_price, indicators),
-                    'volume_status': market_conditions.get('Volume', 'NORMAL'),
-                    'btc_trend': market_conditions.get('BTC_Trend', 'UNKNOWN')
-                }
+                "analysis": {
+                    "rsi": indicators.get("RSI", 50),
+                    "ema7": indicators.get("EMA7", entry_price),
+                    "ema25": indicators.get("EMA25", entry_price),
+                    "bb_position": self._get_bb_position(entry_price, indicators),
+                    "volume_status": market_conditions.get("Volume", "NORMAL"),
+                    "btc_trend": market_conditions.get("BTC_Trend", "UNKNOWN"),
+                },
             }
 
             return signal
@@ -497,18 +584,23 @@ class AISignalGenerator:
             logger.error("❌ Ошибка генерации сигнала: %s", e)
             return None
 
-    async def _determine_signal_type(self, indicators: Dict[str, float], market_conditions: Dict[str, Any], ai_recommendations: Dict[str, Any]) -> Optional[str]:
+    async def _determine_signal_type(
+        self,
+        indicators: Dict[str, float],
+        market_conditions: Dict[str, Any],
+        ai_recommendations: Dict[str, Any],
+    ) -> Optional[str]:
         """Определяет тип сигнала"""
         try:
-            rsi = indicators.get('RSI', 50)
-            ema7 = indicators.get('EMA7', 0)
-            ema25 = indicators.get('EMA25', 0)
-            bb_upper = indicators.get('BB_Upper', 0)
-            bb_lower = indicators.get('BB_Lower', 0)
+            rsi = indicators.get("RSI", 50)
+            ema7 = indicators.get("EMA7", 0)
+            ema25 = indicators.get("EMA25", 0)
+            bb_upper = indicators.get("BB_Upper", 0)
+            bb_lower = indicators.get("BB_Lower", 0)
             current_price = (bb_upper + bb_lower) / 2
 
             # Получаем рекомендации ИИ
-            ai_confidence = ai_recommendations.get('confidence', 0.0)
+            ai_confidence = ai_recommendations.get("confidence", 0.0)
 
             # Анализируем условия для LONG
             long_conditions = []
@@ -518,7 +610,7 @@ class AISignalGenerator:
                 long_conditions.append("BB_OVERSOLD")
             if ema7 > ema25:  # Восходящий тренд
                 long_conditions.append("UPTREND")
-            if market_conditions.get('BTC_Trend') == 'BULLISH':
+            if market_conditions.get("BTC_Trend") == "BULLISH":
                 long_conditions.append("BTC_BULLISH")
             if ai_confidence > 0.6:
                 long_conditions.append("AI_CONFIDENT")
@@ -531,7 +623,7 @@ class AISignalGenerator:
                 short_conditions.append("BB_OVERBOUGHT")
             if ema7 < ema25:  # Нисходящий тренд
                 short_conditions.append("DOWNTREND")
-            if market_conditions.get('BTC_Trend') == 'BEARISH':
+            if market_conditions.get("BTC_Trend") == "BEARISH":
                 short_conditions.append("BTC_BEARISH")
             if ai_confidence > 0.6:
                 short_conditions.append("AI_CONFIDENT")
@@ -548,7 +640,9 @@ class AISignalGenerator:
             logger.error("❌ Ошибка определения типа сигнала: %s", e)
             return None
 
-    async def _calculate_tp_levels(self, entry_price: float, signal_type: str, _indicators: Dict[str, float]) -> Tuple[float, float]:
+    async def _calculate_tp_levels(
+        self, entry_price: float, signal_type: str, _indicators: Dict[str, float]
+    ) -> Tuple[float, float]:
         """Рассчитывает уровни тейк-профита"""
         try:
             if signal_type == "LONG":
@@ -564,7 +658,9 @@ class AISignalGenerator:
             logger.error("❌ Ошибка расчета TP уровней: %s", e)
             return entry_price * 1.02, entry_price * 1.04
 
-    async def _calculate_sl_level(self, entry_price: float, signal_type: str, _indicators: Dict[str, float]) -> float:
+    async def _calculate_sl_level(
+        self, entry_price: float, signal_type: str, _indicators: Dict[str, float]
+    ) -> float:
         """Рассчитывает уровень стоп-лосса"""
         try:
             if signal_type == "LONG":
@@ -578,7 +674,9 @@ class AISignalGenerator:
             logger.error("❌ Ошибка расчета SL уровня: %s", e)
             return entry_price * 0.98
 
-    async def _calculate_position_size(self, deposit: float, risk_pct: float, leverage: float, entry_price: float, sl: float) -> float:
+    async def _calculate_position_size(
+        self, deposit: float, risk_pct: float, leverage: float, entry_price: float, sl: float
+    ) -> float:
         """Рассчитывает размер позиции"""
         try:
             risk_amount = deposit * risk_pct / 100
@@ -594,9 +692,9 @@ class AISignalGenerator:
     def _get_bb_position(self, price: float, indicators: Dict[str, float]) -> str:
         """Определяет позицию цены в полосах Боллинджера"""
         try:
-            bb_upper = indicators.get('BB_Upper', price)
-            bb_lower = indicators.get('BB_Lower', price)
-            bb_middle = indicators.get('BB_Middle', price)
+            bb_upper = indicators.get("BB_Upper", price)
+            bb_lower = indicators.get("BB_Lower", price)
+            bb_middle = indicators.get("BB_Middle", price)
 
             if price > bb_upper:
                 return "ABOVE_UPPER"
@@ -611,7 +709,9 @@ class AISignalGenerator:
             logger.error("❌ Ошибка определения позиции BB: %s", e)
             return "UNKNOWN"
 
-    async def _send_signal_to_user(self, user_id: str, signal: Dict[str, Any], user_settings: Dict[str, Any]):
+    async def _send_signal_to_user(
+        self, user_id: str, signal: Dict[str, Any], user_settings: Dict[str, Any]
+    ):
         """Отправляет сигнал пользователю в Telegram"""
         try:
             # Формируем сообщение в том же формате, что и раньше
@@ -621,25 +721,36 @@ class AISignalGenerator:
             keyboard = await self._create_accept_button(signal, user_settings)
 
             # Отправляем сообщение с кнопкой
-            logger.info("📤 [AI_SIGNAL] %s: Отправка ИИ сигнала %s пользователю %s (источник: ai_signal_generator.py)",
-                       signal['symbol'], signal['signal_type'], user_id)
+            logger.info(
+                "📤 [AI_SIGNAL] %s: Отправка ИИ сигнала %s пользователю %s (источник: ai_signal_generator.py)",
+                signal["symbol"],
+                signal["signal_type"],
+                user_id,
+            )
             await send_message(user_id, message, reply_markup=keyboard)
 
             # Сохраняем сигнал в базу данных
             await self._save_signal_to_database(user_id, signal)
 
-            logger.info("✅ [AI_SIGNAL] %s: ИИ сигнал успешно отправлен пользователю %s: %s %s (источник: ai_signal_generator.py)",
-                       signal['symbol'], user_id, signal['symbol'], signal['signal_type'])
+            logger.info(
+                "✅ [AI_SIGNAL] %s: ИИ сигнал успешно отправлен пользователю %s: %s %s (источник: ai_signal_generator.py)",
+                signal["symbol"],
+                user_id,
+                signal["symbol"],
+                signal["signal_type"],
+            )
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка отправки сигнала пользователю %s: %s", user_id, e)
 
-    async def _format_signal_message(self, signal: Dict[str, Any], user_settings: Dict[str, Any]) -> str:
+    async def _format_signal_message(
+        self, signal: Dict[str, Any], user_settings: Dict[str, Any]
+    ) -> str:
         """Форматирует сообщение сигнала в том же формате, что и обычные сигналы"""
         try:
-            symbol = signal['symbol']
-            signal_type = signal['signal_type']
-            entry_price = signal['entry_price']
+            symbol = signal["symbol"]
+            signal_type = signal["signal_type"]
+            entry_price = signal["entry_price"]
             # tp1 = signal['tp1']  # Не используется в сообщении
             # tp2 = signal['tp2']  # Не используется в сообщении
             # sl = signal['sl']  # Не используется в сообщении
@@ -648,12 +759,12 @@ class AISignalGenerator:
             # position_size = signal['position_size']  # Не используется в сообщении
 
             # Анализ
-            analysis = signal['analysis']
-            rsi = analysis['rsi']
+            analysis = signal["analysis"]
+            rsi = analysis["rsi"]
             # ema7 = analysis['ema7']  # Не используется в сообщении
             # bb_position = analysis['bb_position']  # Не используется в новом формате
-            volume_status = analysis['volume_status']
-            btc_trend = analysis['btc_trend']
+            volume_status = analysis["volume_status"]
+            btc_trend = analysis["btc_trend"]
 
             # Определяем эмодзи для стороны
             side_emoji = "🟢" if signal_type == "LONG" else "🔴"
@@ -698,7 +809,13 @@ class AISignalGenerator:
             #     bb_text = "Нижняя зона"
 
             # BTC тренд
-            btc_trend_text = "🟢 БЫЧИЙ" if btc_trend == "BULLISH" else "🔴 МЕДВЕЖИЙ" if btc_trend == "BEARISH" else "🟡 НЕЙТРАЛЬНЫЙ"
+            btc_trend_text = (
+                "🟢 БЫЧИЙ"
+                if btc_trend == "BULLISH"
+                else "🔴 МЕДВЕЖИЙ"
+                if btc_trend == "BEARISH"
+                else "🟡 НЕЙТРАЛЬНЫЙ"
+            )
 
             # ETH и SOL тренды (симулируем)
             eth_trend = "🟢 БЫЧИЙ" if btc_trend == "BULLISH" else "🔴 МЕДВЕЖИЙ"
@@ -708,9 +825,9 @@ class AISignalGenerator:
             mtf_accumulation = random.randint(60, 90)
 
             # CONF сигнала (используем тот же формат, что и в обычных сигналах)
-            if signal['ai_confidence'] > 0.7:
+            if signal["ai_confidence"] > 0.7:
                 conf_text = "🟢 БЫЧИЙ"
-            elif signal['ai_confidence'] > 0.4:
+            elif signal["ai_confidence"] > 0.4:
                 conf_text = "⚪ НЕЙТРАЛЬНО"
             else:
                 conf_text = "🔴 МЕДВЕЖИЙ"
@@ -719,13 +836,15 @@ class AISignalGenerator:
             anomaly_detected = random.choice([True, False])
             if anomaly_detected:
                 # Симулируем аномалии в новом формате
-                risk_level = random.choice(['🟡 НИЗКИЙ РИСК', '🟠 ПОВЫШЕННЫЙ РИСК', '🔴 ВЫСОКИЙ РИСК'])
+                risk_level = random.choice(
+                    ["🟡 НИЗКИЙ РИСК", "🟠 ПОВЫШЕННЫЙ РИСК", "🔴 ВЫСОКИЙ РИСК"]
+                )
                 anomaly_text = f"• Аномалии: {risk_level}"
             else:
                 anomaly_text = "• Аномалии: ⚪ МИНИМАЛЬНЫЙ РИСК"
 
             # Оценка
-            score = int(signal['ai_confidence'] * 100)
+            score = int(signal["ai_confidence"] * 100)
             if score >= 80:
                 grade_text = "ВЫСОКАЯ"
             elif score >= 60:
@@ -747,8 +866,8 @@ class AISignalGenerator:
             recommendation = await self._generate_recommendation(signal, user_settings)
 
             # Получаем параметры из сигнала
-            risk_pct = signal.get('risk_pct', 2.0)
-            ai_confidence = signal.get('ai_confidence', 0.0)
+            risk_pct = signal.get("risk_pct", 2.0)
+            ai_confidence = signal.get("ai_confidence", 0.0)
 
             message = f"""{side_emoji} НОВЫЙ ТОРГОВЫЙ СИГНАЛ 🤖
 
@@ -771,7 +890,7 @@ class AISignalGenerator:
 {anomaly_text}
 
 💎 ОЦЕНКА: {grade_text} ({score}/100)
-⏱️ ETA: TP1 ~{eta_tp1}–{eta_tp1+1} ч; TP2 ~{eta_tp2}–{eta_tp2+12} ч
+⏱️ ETA: TP1 ~{eta_tp1}–{eta_tp1 + 1} ч; TP2 ~{eta_tp2}–{eta_tp2 + 12} ч
 ⏰ TTL: {ttl_hours:02d}:{ttl_mins:02d}:00
 ⏰ Уверенность: {int(ai_confidence * 100)}%
 
@@ -786,13 +905,13 @@ class AISignalGenerator:
     async def _create_accept_button(self, signal: Dict[str, Any], _user_settings: Dict[str, Any]):
         """Создает кнопку 'Принять' для ИИ сигнала"""
         try:
-            from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-            symbol = signal['symbol']
-            signal_type = signal['signal_type'].lower()
-            entry_price = signal['entry_price']
-            risk_pct = signal['risk_pct']
-            leverage = signal['leverage']
+            symbol = signal["symbol"]
+            signal_type = signal["signal_type"].lower()
+            entry_price = signal["entry_price"]
+            risk_pct = signal["risk_pct"]
+            leverage = signal["leverage"]
 
             # Форматируем время
             now = get_utc_now()
@@ -802,7 +921,7 @@ class AISignalGenerator:
             price_str = f"{entry_price:.8f}"
 
             # Форматируем размер позиции (упрощенно)
-            position_size = signal.get('position_size', 1.0)
+            position_size = signal.get("position_size", 1.0)
             qty_str = f"{position_size:.6f}"
 
             # Форматируем риск и плечо
@@ -822,18 +941,20 @@ class AISignalGenerator:
             logger.error("❌ Ошибка создания кнопки: %s", e)
             return None
 
-    async def _generate_recommendation(self, signal: Dict[str, Any], _user_settings: Dict[str, Any]) -> str:
+    async def _generate_recommendation(
+        self, signal: Dict[str, Any], _user_settings: Dict[str, Any]
+    ) -> str:
         """Генерирует краткую рекомендацию с анализом плюсов, минусов и рисков"""
         try:
             # symbol = signal['symbol']  # Не используется в функции
-            signal_type = signal['signal_type']
-            score = signal.get('score', 75)
+            signal_type = signal["signal_type"]
+            score = signal.get("score", 75)
 
             # Анализируем технические данные
-            rsi = signal.get('rsi', 50)
-            macd_status = signal.get('macd_status', 'Нейтральный')
-            volume_status = signal.get('volume_status', 'Средний')
-            btc_trend = signal.get('btc_trend', True)
+            rsi = signal.get("rsi", 50)
+            macd_status = signal.get("macd_status", "Нейтральный")
+            volume_status = signal.get("volume_status", "Средний")
+            btc_trend = signal.get("btc_trend", True)
 
             # Определяем плюсы
             pluses = []
@@ -893,11 +1014,15 @@ class AISignalGenerator:
 
             if pluses:
                 recommendation_parts.append("➕ ПЛЮСЫ:")
-                recommendation_parts.extend([f"  {plus}" for plus in pluses[:3]])  # Максимум 3 плюса
+                recommendation_parts.extend(
+                    [f"  {plus}" for plus in pluses[:3]]
+                )  # Максимум 3 плюса
 
             if minuses:
                 recommendation_parts.append("➖ МИНУСЫ:")
-                recommendation_parts.extend([f"  {minus}" for minus in minuses[:2]])  # Максимум 2 минуса
+                recommendation_parts.extend(
+                    [f"  {minus}" for minus in minuses[:2]]
+                )  # Максимум 2 минуса
 
             if risks:
                 recommendation_parts.append("⚠️ РИСКИ:")
@@ -914,7 +1039,9 @@ class AISignalGenerator:
         try:
             # Здесь можно добавить сохранение в базу данных
             # Пока просто логируем
-            logger.info("💾 Сигнал сохранен в БД: %s для пользователя %s", signal['symbol'], user_id)
+            logger.info(
+                "💾 Сигнал сохранен в БД: %s для пользователя %s", signal["symbol"], user_id
+            )
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
             logger.error("❌ Ошибка сохранения сигнала в БД: %s", e)
@@ -924,16 +1051,22 @@ class AISignalGenerator:
         self.signal_generation_active = False
         logger.info("🛑 Генерация ИИ сигналов остановлена")
 
-    async def test_analyze_symbol(self, symbol: str, user_settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def test_analyze_symbol(
+        self, symbol: str, user_settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Публичный метод для тестирования анализа символа"""
         return await self._analyze_symbol(symbol, user_settings)
 
-    async def test_generate_signal(self, symbol: str, analysis: Dict[str, Any], user_settings: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def test_generate_signal(
+        self, symbol: str, analysis: Dict[str, Any], user_settings: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Публичный метод для тестирования генерации сигнала"""
         return await self._generate_signal(symbol, analysis, user_settings)
 
+
 # Глобальный экземпляр генератора сигналов (lazy initialization)
 _ai_signal_generator = None
+
 
 def get_ai_signal_generator():
     """Получает или создает экземпляр генератора (singleton с lazy init)"""
@@ -942,23 +1075,29 @@ def get_ai_signal_generator():
         _ai_signal_generator = AISignalGenerator()
     return _ai_signal_generator
 
+
 # Для обратной совместимости (создается только при обращении)
 class _LazySignalGenerator:
     """Lazy proxy для ai_signal_generator"""
+
     def __getattr__(self, name):
         return getattr(get_ai_signal_generator(), name)
 
+
 ai_signal_generator = _LazySignalGenerator()
+
 
 async def start_ai_signal_generation():
     """Запускает генерацию ИИ сигналов"""
     logger.info("🚀 Запуск генерации ИИ сигналов...")
     await get_ai_signal_generator().start_signal_generation()
 
+
 async def stop_ai_signal_generation():
     """Останавливает генерацию ИИ сигналов"""
     if _ai_signal_generator is not None:
         await _ai_signal_generator.stop_signal_generation()
+
 
 if __name__ == "__main__":
     # Тестирование генератора сигналов
@@ -967,21 +1106,23 @@ if __name__ == "__main__":
     async def test():
         # Создаем тестовые настройки пользователя
         test_user_settings = {
-            'trade_mode': 'spot',
-            'filter_mode': 'soft',
-            'deposit': 1000,
-            'risk_pct': 2.0,
-            'leverage': 1,
-            'favorite_symbols': ['BTCUSDT', 'ETHUSDT']
+            "trade_mode": "spot",
+            "filter_mode": "soft",
+            "deposit": 1000,
+            "risk_pct": 2.0,
+            "leverage": 1,
+            "favorite_symbols": ["BTCUSDT", "ETHUSDT"],
         }
 
         # Тестируем анализ символа
-        analysis = await ai_signal_generator.test_analyze_symbol('BTCUSDT', test_user_settings)
+        analysis = await ai_signal_generator.test_analyze_symbol("BTCUSDT", test_user_settings)
         if analysis:
             print(f"✅ Анализ BTCUSDT: {analysis['indicators']}")
 
             # Тестируем генерацию сигнала
-            signal = await ai_signal_generator.test_generate_signal('BTCUSDT', analysis, test_user_settings)
+            signal = await ai_signal_generator.test_generate_signal(
+                "BTCUSDT", analysis, test_user_settings
+            )
             if signal:
                 print(f"✅ Сгенерирован сигнал: {signal['signal_type']} {signal['entry_price']}")
             else:
@@ -991,11 +1132,13 @@ if __name__ == "__main__":
 
     asyncio.run(test())
 
+
 # Ленивый импорт для избежания циклических зависимостей
 def get_anomaly_data_with_fallback(symbol: str, ttl_seconds: int = 900):
     """Ленивый импорт get_anomaly_data_with_fallback"""
     try:
         from signal_live import get_anomaly_data_with_fallback as _func
+
         return _func(symbol, ttl_seconds)
     except ImportError as e:
         logging.warning("Не удалось импортировать signal_live: %s", e)

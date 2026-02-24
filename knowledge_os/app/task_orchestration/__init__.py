@@ -11,16 +11,16 @@ Or from project root with app on path:
   from app.task_orchestration import ModelRegistry, TaskComplexityAnalyzer
 """
 
-from .model_registry import ModelRegistry
-from .task_complexity_analyzer import TaskComplexityAnalyzer
-from .model_availability_checker import ModelAvailabilityChecker
 from .expert_matching_engine import ExpertMatchingEngine
-from .task_decomposer import TaskDecomposer, TaskDependencyGraph, SubTask
 from .integration_bridge import IntegrationBridge
+from .jira_style_orchestrator import JiraStyleOrchestrator
+from .model_availability_checker import ModelAvailabilityChecker
+from .model_registry import ModelRegistry
+from .optimizer import OrchestrationOptimizer
 from .orchestration_monitor import OrchestrationMonitor
 from .smart_worker_integration import SmartWorkerIntegration
-from .jira_style_orchestrator import JiraStyleOrchestrator
-from .optimizer import OrchestrationOptimizer
+from .task_complexity_analyzer import TaskComplexityAnalyzer
+from .task_decomposer import SubTask, TaskDecomposer, TaskDependencyGraph
 
 __all__ = [
     "ModelRegistry",

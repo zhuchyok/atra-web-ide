@@ -33,6 +33,7 @@
 ### 1. Добавлена отладочная информация
 
 **Файл**: `shared_utils.py`
+
 ```python
 def get_dynamic_tp_levels(df, i, side="long", base_tp1_pct=2.0, base_tp2_pct=4.0):
     import logging
@@ -49,6 +50,7 @@ def get_dynamic_tp_levels(df, i, side="long", base_tp1_pct=2.0, base_tp2_pct=4.0
 ### 2. Исправлена команда `/accept`
 
 **Файл**: `signal_live.py`
+
 ```python
 # Было:
 f"<code>/accept {symbol} {now.strftime('%Y-%m-%dT%H:%M')} {price:.2f} 1.0 {side.lower()} {risk_pct:.1f} {leverage_for_callback}</code>"
@@ -60,6 +62,7 @@ f"<code>/accept {symbol} {now.strftime('%Y-%m-%dT%H:%M')} {price:.2f} {tp1_pct:.
 ### 3. Добавлена отладочная информация в сигналы
 
 **Файл**: `signal_live.py`
+
 ```python
 print(f"[DEBUG] Вызов get_dynamic_tp_levels для {symbol}: df.shape={df.shape if df is not None else 'None'}, current_index={current_index}, side={side.lower()}")
 tp1_pct, tp2_pct = get_dynamic_tp_levels(df, current_index, side.lower())
@@ -69,6 +72,7 @@ print(f"[DEBUG] Получены TP для {symbol}: TP1={tp1_pct}%, TP2={tp2_pc
 ### 4. Добавлена отладочная информация в DCA
 
 **Файлы**: `signal_live.py`, `telegram_bot.py`
+
 ```python
 print(f"[DEBUG] DCA: Вызов get_dynamic_tp_levels для {side}: df.shape={df.shape}, current_index={current_index}")
 dynamic_tp1_pct, dynamic_tp2_pct = get_dynamic_tp_levels(df, current_index, side)
@@ -161,11 +165,11 @@ final_tp2 = max(1.0, min(final_tp2, 15))  # от 1.0% до 15%
 
 ### Примеры работы комбинированных TP
 
-| Символ | Волатильность | BB средняя | TP1 (LONG) | TP2 (LONG) | TP1 (SHORT) | TP2 (SHORT) |
-|--------|---------------|------------|------------|------------|-------------|-------------|
-| BTCUSDT | 0.34% | 116802 | 2.02% | 4.04% | 1.37% | 2.37% |
-| ETHUSDT | 1.00% | 3868 | 2.05% | 4.10% | 2.05% | 3.27% |
-| ADAUSDT | 1.84% | 0.774 | 2.08% | 4.16% | 2.08% | 4.16% |
+| Символ  | Волатильность | BB средняя | TP1 (LONG) | TP2 (LONG) | TP1 (SHORT) | TP2 (SHORT) |
+| ------- | ------------- | ---------- | ---------- | ---------- | ----------- | ----------- |
+| BTCUSDT | 0.34%         | 116802     | 2.02%      | 4.04%      | 1.37%       | 2.37%       |
+| ETHUSDT | 1.00%         | 3868       | 2.05%      | 4.10%      | 2.05%       | 3.27%       |
+| ADAUSDT | 1.84%         | 0.774      | 2.08%      | 4.16%      | 2.08%       | 4.16%       |
 
 ### Преимущества комбинированного подхода
 
@@ -179,6 +183,7 @@ final_tp2 = max(1.0, min(final_tp2, 15))  # от 1.0% до 15%
 ### 1. Мониторинг логов
 
 Теперь в логах будет видно:
+
 - Когда используются статические TP и почему
 - Какие значения волатильности и BB получаются
 - Какой метод (волатильность или BB) дал больший TP
@@ -187,6 +192,7 @@ final_tp2 = max(1.0, min(final_tp2, 15))  # от 1.0% до 15%
 ### 2. Проверка данных
 
 Убедитесь, что:
+
 - Получается достаточно исторических данных (минимум 21 свеча)
 - DataFrame содержит колонки 'close' и 'bb_middle'
 - current_index корректно передается
@@ -194,6 +200,7 @@ final_tp2 = max(1.0, min(final_tp2, 15))  # от 1.0% до 15%
 ### 3. Настройка параметров
 
 Можно настроить:
+
 - Базовые значения TP (сейчас 2% и 4%)
 - Множитель волатильности (сейчас 2)
 - Проценты от средней линии BB (сейчас 1.5% и 2.5%)
@@ -209,6 +216,7 @@ final_tp2 = max(1.0, min(final_tp2, 15))  # от 1.0% до 15%
 4. **Fallback система** - надежность при отсутствии данных
 
 Основные проблемы исправлены:
+
 - ✅ Fallback значения при недостатке данных
 - ✅ Захардкоженные значения в команде `/accept`
 - ✅ Отсутствие отладочной информации

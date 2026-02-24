@@ -15,6 +15,7 @@
 ## ⚠️ ПРОБЛЕМА
 
 Ошибка переинициализации все еще возникает:
+
 - `ERROR:src.database.db:❌ [DB] self.conn is None в insert_signal_log_entry`
 - Но нет сообщения об успешной переинициализации
 

@@ -3,9 +3,10 @@
 ## ❌ ПРОБЛЕМА: Частое повреждение БД
 
 ### Симптомы:
+
 ```
 ❌ file is not a database
-❌ disk I/O error  
+❌ disk I/O error
 ❌ user_data_dict пуст
 ```
 
@@ -14,6 +15,7 @@
 ## 🔍 ПРИЧИНЫ ПРОБЛЕМЫ
 
 ### 1. **Множественные экземпляры Database**
+
 ```python
 # main.py
 Database()  # ← Экземпляр 1
@@ -31,6 +33,7 @@ db = Database()  # ← Экземпляр 4+
 **Проблема:** Каждый создает свое соединение → конфликты при записи
 
 ### 2. **Одновременная запись из разных компонентов:**
+
 - 📊 Main loop (генерация сигналов)
 - 💬 Telegram handlers (команды пользователей)
 - 📈 Price monitor (обновление позиций)
@@ -38,16 +41,19 @@ db = Database()  # ← Экземпляр 4+
 - 💱 Arbitrage checker (проверка арбитража)
 
 ### 3. **Внезапные остановки процессов:**
+
 ```bash
 pkill -9 -f main.py  # ← Убивает процесс БЕЗ graceful shutdown
 ```
 
 **Результат:**
+
 - WAL файлы не синхронизируются
 - Транзакции не завершаются
 - БД остается в неконсистентном состоянии
 
 ### 4. **SQLite ограничения:**
+
 - Одновременная запись из разных процессов → блокировки
 - Timeout 30s → если блокировка дольше → ошибка
 - WAL mode помогает, но не полностью решает проблему
@@ -61,6 +67,7 @@ pkill -9 -f main.py  # ← Убивает процесс БЕЗ graceful shutdow
 **Файл:** `db_health_monitor.py`
 
 **Функции:**
+
 - ✅ `check_db_integrity()` - проверка целостности
 - ✅ `auto_fix_database()` - автовосстановление
 - ✅ `restore_from_backup()` - восстановление из бэкапа
@@ -68,13 +75,14 @@ pkill -9 -f main.py  # ← Убивает процесс БЕЗ graceful shutdow
 - ✅ `get_db_health_status()` - полный статус здоровья
 
 **Интеграция в main.py:**
+
 ```python
 async def initialize_database_on_startup():
     # 🛡️ ЗАЩИТА: Проверяем здоровье БД перед запуском
     from db_health_monitor import auto_fix_database, get_db_health_status
-    
+
     health = get_db_health_status()
-    
+
     if not health["integrity_ok"]:
         logger.warning("⚠️ БД повреждена! Запуск автоматического восстановления...")
         if auto_fix_database():
@@ -92,6 +100,7 @@ self.conn.execute("PRAGMA busy_timeout=30000;")  # 30s
 ```
 
 **Преимущества:**
+
 - ✅ Concurrent читатели НЕ блокируют писателей
 - ✅ Лучшая производительность
 - ✅ Меньше блокировок
@@ -101,6 +110,7 @@ self.conn.execute("PRAGMA busy_timeout=30000;")  # 30s
 **Где:** В `db.py` уже есть функция `backup_file()`
 
 **Что делает:**
+
 - Создает бэкап перед критическими операциями
 - Сохраняет в `backups/` с timestamp
 
@@ -111,11 +121,13 @@ self.conn.execute("PRAGMA busy_timeout=30000;")  # 30s
 ### 1. **Graceful Shutdown вместо `pkill -9`**
 
 **❌ ПЛОХО:**
+
 ```bash
 pkill -9 -f main.py  # Убивает процесс мгновенно
 ```
 
 **✅ ХОРОШО:**
+
 ```bash
 pkill -15 -f main.py  # SIGTERM - дает время на закрытие
 # ИЛИ
@@ -123,6 +135,7 @@ kill -15 <PID>
 ```
 
 **Еще лучше - используй скрипт:**
+
 ```bash
 #!/bin/bash
 # safe_stop.sh
@@ -162,6 +175,7 @@ echo "✅ Готово!"
 ### 2. **Регулярный мониторинг БД**
 
 Добавь в cron:
+
 ```bash
 # Каждый час проверяем здоровье БД
 0 * * * * cd /root/atra && python3 -c "from db_health_monitor import get_db_health_status; print(get_db_health_status())"
@@ -188,16 +202,16 @@ _db_lock = threading.Lock()
 def get_database() -> Database:
     """
     Получить единственный экземпляр Database
-    
+
     Thread-safe singleton pattern
     """
     global _db_instance
-    
+
     if _db_instance is None:
         with _db_lock:
             if _db_instance is None:
                 _db_instance = Database()
-    
+
     return _db_instance
 
 
@@ -219,6 +233,7 @@ from db_singleton import db  # Использует существующее с�
 ### 4. **Ежедневный VACUUM**
 
 Добавь в cron:
+
 ```bash
 # Каждую ночь в 3:00
 0 3 * * * cd /root/atra && python3 -c "from db_health_monitor import optimize_database; optimize_database()"
@@ -263,6 +278,7 @@ EOF
 ```
 
 Запускай раз в час:
+
 ```bash
 chmod +x monitor_db_health.sh
 
@@ -312,22 +328,24 @@ python3 -c "from db_health_monitor import checkpoint_wal; checkpoint_wal()"
 ## 📝 ИТОГ
 
 ### ✅ Что уже работает:
+
 1. Автоматическая проверка БД при каждом запуске
 2. Автовосстановление из бэкапов
 3. WAL mode для лучшей concurrent работы
 4. Регулярные бэкапы
 
 ### 🔄 Что нужно сделать:
+
 1. Использовать graceful shutdown вместо `pkill -9`
 2. Внедрить singleton pattern для Database
 3. Настроить cron мониторинг
 4. Добавить ежедневный VACUUM
 
 ### 🚀 Результат:
+
 - ✅ БД автоматически восстанавливается при повреждении
 - ✅ Меньше конфликтов при записи (WAL)
 - ✅ Всегда есть свежие бэкапы
 - ✅ Мониторинг здоровья БД
 
 **Проблема с повреждением БД должна значительно уменьшиться!** 🎉
-

@@ -196,6 +196,5 @@ knowledge.share_knowledge_between_projects(
 
 ---
 
-*Документация создана: Виктор (Team Lead)*  
-*Дата: 2025-01-XX*
-
+_Документация создана: Виктор (Team Lead)_  
+_Дата: 2025-01-XX_

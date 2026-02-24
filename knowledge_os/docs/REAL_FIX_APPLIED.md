@@ -7,12 +7,15 @@
 ## 🔧 ИСПРАВЛЕНИЕ
 
 ### Правило проекта
+
 **НИКАКИХ ЗАГЛУШЕК** - все должно работать реально.
 
 ### Проблема
+
 Ошибка `cannot import name 'get_connection' from 'src.database.connection_pool'` возникала из-за того, что в `src/monitoring/system.py` был импорт `from src.database.connection_pool import get_db_pool`.
 
 ### Решение
+
 1. ✅ Удален импорт `connection_pool` из `src/monitoring/system.py`
 2. ✅ Исправление применено локально и на сервере
 3. ✅ Кэш Python очищен
@@ -23,8 +26,8 @@
 ## 📋 РЕЗУЛЬТАТЫ
 
 После исправления:
+
 - ✅ Импорт удален
 - ✅ Бот перезапущен
 - 🔄 Проверяется отсутствие ошибок connection_pool
 - 🔄 Проверяется сохранение сигналов в БД
-

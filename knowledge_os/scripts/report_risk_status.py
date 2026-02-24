@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Оперативный отчёт по рискам и live-статусу.
 
@@ -40,9 +39,7 @@ def format_bool(value: bool) -> str:
 
 
 def get_live_signal_stats(conn: sqlite3.Connection) -> Dict[str, Optional[str]]:
-    total = conn.execute(
-        "SELECT COUNT(*) FROM signals_log WHERE trade_mode = 'live'"
-    ).fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM signals_log WHERE trade_mode = 'live'").fetchone()[0]
     last = conn.execute(
         """
         SELECT entry_time, symbol
@@ -99,9 +96,7 @@ def weak_setup_recent(conn: sqlite3.Connection, limit: int = 10) -> bool:
     if len(rows) < limit:
         return False
     return all(
-        (row[0] == 0 or row[0] is None)
-        and row[1]
-        and row[1].startswith("WEAK_SETUP")
+        (row[0] == 0 or row[0] is None) and row[1] and row[1].startswith("WEAK_SETUP")
         for row in rows
     )
 
@@ -164,9 +159,7 @@ def format_risk_status(data: Dict[str, Any]) -> str:
         f"  - Max drawdown: {max_dd:.2f}%" if max_dd is not None else "  - Max drawdown: n/a"
     )
     lines.append(f"  - Daily loss (last {data['hours']}h): {data['daily_loss_pct']:.2f}%")
-    lines.append(
-        f"  - Weak setup streak >= {data['weak_limit']}: {data['weak_setup_streak']}"
-    )
+    lines.append(f"  - Weak setup streak >= {data['weak_limit']}: {data['weak_setup_streak']}")
     lines.append("")
     lines.append("Live Signals:")
     live_stats = data["live_stats"]
@@ -235,4 +228,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

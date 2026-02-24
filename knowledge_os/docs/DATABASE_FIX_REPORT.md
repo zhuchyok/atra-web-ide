@@ -1,6 +1,7 @@
 # ОТЧЕТ ОБ ИСПРАВЛЕНИИ ОШИБКИ БАЗЫ ДАННЫХ
 
 ## 🚨 Проблема
+
 На сервере возникала ошибка: **"no such column: created_at"**
 
 ## 🔍 Анализ проблемы
@@ -18,6 +19,7 @@
 ## ✅ Выполненные исправления
 
 ### 1. Исправлены запросы в `web/dashboard.py`
+
 ```sql
 -- БЫЛО (неправильно):
 SELECT COUNT(*) FROM signals WHERE created_at > datetime('now', '-24 hours')
@@ -27,6 +29,7 @@ SELECT COUNT(*) FROM signals WHERE datetime(ts) > datetime('now', '-24 hours')
 ```
 
 ### 2. Исправлены запросы в `enhanced_health_check.py`
+
 ```sql
 -- БЫЛО (неправильно):
 SELECT MAX(created_at) FROM signals WHERE created_at IS NOT NULL
@@ -36,6 +39,7 @@ SELECT MAX(datetime(ts)) FROM signals WHERE ts IS NOT NULL
 ```
 
 ### 3. Добавлена таблица `filter_checks` в схему базы данных (`db.py`)
+
 ```sql
 CREATE TABLE IF NOT EXISTS filter_checks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,6 +52,7 @@ CREATE TABLE IF NOT EXISTS filter_checks (
 ```
 
 ### 4. Созданы индексы для оптимизации
+
 ```sql
 CREATE INDEX IF NOT EXISTS idx_filter_checks_created_at ON filter_checks(created_at)
 ```
@@ -55,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_filter_checks_created_at ON filter_checks(created
 ## 🧪 Тестирование
 
 Создан скрипт `check_database_integrity.py` для проверки:
+
 - ✅ Все запросы теперь работают корректно
 - ✅ Таблица `filter_checks` существует и имеет правильную структуру
 - ✅ Таблица `signals_log` имеет столбец `created_at`
@@ -64,16 +70,17 @@ CREATE INDEX IF NOT EXISTS idx_filter_checks_created_at ON filter_checks(created
 
 ```
 ✅ Запрос 1: 37 (signals за 24 часа)
-✅ Запрос 2: 5 (filter_checks за 24 часа)  
+✅ Запрос 2: 5 (filter_checks за 24 часа)
 ✅ Запрос 3: 3 (прошедшие фильтры)
 ✅ Запрос 4: 2 (заблокированные фильтры)
 ```
 
 ## 🎯 Итог
 
-**Проблема полностью решена!** 
+**Проблема полностью решена!**
 
 Ошибка "no such column: created_at" больше не должна возникать, так как:
+
 1. Все запросы к таблице `signals` теперь используют правильный столбец `ts`
 2. Таблица `filter_checks` добавлена в схему базы данных
 3. Все индексы созданы для оптимизации производительности
@@ -92,4 +99,5 @@ CREATE INDEX IF NOT EXISTS idx_filter_checks_created_at ON filter_checks(created
 4. **Создавайте индексы** для часто используемых столбцов
 
 ---
-*Отчет создан: 2025-10-07*
+
+_Отчет создан: 2025-10-07_

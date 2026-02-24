@@ -13,6 +13,7 @@ import os
 # Third-party imports with fallback
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -22,20 +23,22 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_async
 except ImportError:
+
     async def run_smart_agent_async(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_async."""
         return None
+
 
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
-if USER_NAME == 'zhuchyok':
-    DEFAULT_DB_URL = f'postgresql://{USER_NAME}@localhost:5432/knowledge_os'
+if USER_NAME == "zhuchyok":
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
 else:
-    DEFAULT_DB_URL = 'postgresql://admin:secret@localhost:5432/knowledge_os'
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 # Use relative path for dataset
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -57,7 +60,8 @@ class SyntheticKnowledgeGenerator:
         try:
             conn = await asyncpg.connect(DB_URL)
             # Pick knowledge nodes that are verified but not yet used for synthesis
-            nodes = await conn.fetch("""
+            nodes = await conn.fetch(
+                """
                 SELECT k.id, k.content, d.name as domain
                 FROM knowledge_nodes k
                 JOIN domains d ON k.domain_id = d.id
@@ -65,7 +69,9 @@ class SyntheticKnowledgeGenerator:
                 AND (metadata->>'synthesized' IS NULL OR metadata->>'synthesized' = 'false')
                 ORDER BY RANDOM()
                 LIMIT $1
-            """, limit)
+            """,
+                limit,
+            )
 
             if not nodes:
                 await conn.close()
@@ -75,21 +81,19 @@ class SyntheticKnowledgeGenerator:
             for node in nodes:
                 prompt = (
                     "ВЫ - ГЕНЕРАТОР ОБУЧАЮЩИХ ДАННЫХ (УРОВЕНЬ 5).\n"
-                    f"НА ОСНОВЕ ФАКТА: \"{node['content']}\" (Домен: {node['domain']})\n\n"
+                    f'НА ОСНОВЕ ФАКТА: "{node["content"]}" (Домен: {node["domain"]})\n\n'
                     "ЗАДАЧА: Сформулируйте 3 разнообразных вопроса, которые Владелец мог бы задать "
                     "по этой теме, и дайте на них идеальные, краткие и технически точные ответы "
                     "в стиле корпорации ATRA.\n\n"
                     "ВЕРНИТЕ ТОЛЬКО JSON LIST:\n"
                     "[\n"
-                    "  {\"instruction\": \"Вопрос 1\", \"output\": \"Ответ 1\"},\n"
+                    '  {"instruction": "Вопрос 1", "output": "Ответ 1"},\n'
                     "  ...\n"
                     "]"
                 )
 
                 response = await run_smart_agent_async(
-                    prompt,
-                    expert_name="Виктория",
-                    category="synthesis"
+                    prompt, expert_name="Виктория", category="synthesis"
                 )
 
                 if not response:
@@ -103,25 +107,24 @@ class SyntheticKnowledgeGenerator:
 
                     samples = json.loads(response)
 
-                    with open(DISTILLATION_DATASET_PATH, 'a', encoding='utf-8') as f:
+                    with open(DISTILLATION_DATASET_PATH, "a", encoding="utf-8") as f:
                         for s in samples:
-                            s['metadata'] = {
-                                "type": "synthetic",
-                                "source_node_id": str(node['id'])
-                            }
-                            f.write(json.dumps(s, ensure_ascii=False) + '\n')
+                            s["metadata"] = {"type": "synthetic", "source_node_id": str(node["id"])}
+                            f.write(json.dumps(s, ensure_ascii=False) + "\n")
                             count += 1
 
                     # Mark node as synthesized
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         UPDATE knowledge_nodes
                         SET metadata = metadata || '{"synthesized": "true"}'::jsonb
                         WHERE id = $1
-                    """, node['id'])
+                    """,
+                        node["id"],
+                    )
 
                 except Exception as exc:  # pylint: disable=broad-exception-caught
-                    logger.error("Error parsing synthetic data for node %s: %s",
-                                 node['id'], exc)
+                    logger.error("Error parsing synthetic data for node %s: %s", node["id"], exc)
 
             await conn.close()
             return count

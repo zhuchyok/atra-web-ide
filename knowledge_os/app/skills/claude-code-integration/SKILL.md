@@ -4,7 +4,15 @@ description: Claude Code Integration - интеграция с Claude Code че�
 category: development
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["claude"]}, "emoji": "💻", "homepage": "https://docs.ollama.com/integrations/claude-code"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": { "bins": ["claude"] },
+        "emoji": "💻",
+        "homepage": "https://docs.ollama.com/integrations/claude-code",
+      },
+  }
 ---
 
 # Claude Code Integration Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["claude"]}, "emoji": "💻", "home
 ## Когда использовать
 
 Используй этот навык для:
+
 - Интеграции с Claude Code IDE
 - Использования локальных моделей в Claude Code
 - Разработки с поддержкой AI в IDE
@@ -29,6 +38,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["claude"]}, "emoji": "💻", "home
 ## Методология
 
 Claude Code Integration работает через:
+
 1. **Anthropic-compatible API** - Использование Ollama как Anthropic API
 2. **Environment Setup** - Настройка переменных окружения
 3. **Model Selection** - Выбор модели для Claude Code

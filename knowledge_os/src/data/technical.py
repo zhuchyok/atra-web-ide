@@ -7,24 +7,29 @@
 import logging
 import math
 import statistics
-from typing import Dict, List, Optional, Any, Tuple, Union
-from datetime import datetime, timedelta
-from src.shared.utils.datetime_utils import get_utc_now
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 # Попытка импорта Numba для JIT компиляции
 try:
     from numba import jit
+
     NUMBA_AVAILABLE = True
 except ImportError:
     NUMBA_AVAILABLE = False
+
     # Заглушка для декоратора jit
     def jit(*args, **kwargs):
         def decorator(func):
             return func
+
         return decorator
+
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +75,7 @@ class TechnicalIndicators:
 
             # Конвертируем в numpy array для векторизации
             prices_arr = np.array(prices, dtype=np.float64)
-            
+
             # Используем JIT-компилированное ядро если доступно
             if NUMBA_AVAILABLE:
                 rsi = TechnicalIndicators._calculate_rsi_core(prices_arr, period)
@@ -99,7 +104,7 @@ class TechnicalIndicators:
         Ядро расчета Momentum с Numba JIT компиляцией
         """
         current = prices_arr[-1]
-        previous = prices_arr[-period-1]
+        previous = prices_arr[-period - 1]
         if previous == 0:
             return 0.0
         return ((current - previous) / previous) * 100.0
@@ -123,13 +128,13 @@ class TechnicalIndicators:
 
             # Используем NumPy для быстрого доступа
             prices_arr = np.array(prices, dtype=np.float64)
-            
+
             # Используем JIT-компилированное ядро если доступно
             if NUMBA_AVAILABLE:
                 momentum = TechnicalIndicators._calculate_momentum_core(prices_arr, period)
             else:
                 current = prices_arr[-1]
-                previous = prices_arr[-period-1]
+                previous = prices_arr[-period - 1]
                 if previous == 0:
                     return None
                 momentum = ((current - previous) / previous) * 100.0
@@ -212,7 +217,9 @@ class TechnicalIndicators:
 
     @staticmethod
     @jit(nopython=True, cache=True) if NUMBA_AVAILABLE else lambda f: f
-    def _calculate_bollinger_core(prices_arr: np.ndarray, std_dev: float) -> Tuple[float, float, float]:
+    def _calculate_bollinger_core(
+        prices_arr: np.ndarray, std_dev: float
+    ) -> Tuple[float, float, float]:
         """
         Ядро расчета Bollinger Bands с Numba JIT компиляцией
         """
@@ -223,8 +230,9 @@ class TechnicalIndicators:
         return upper_band, sma, lower_band
 
     @staticmethod
-    def calculate_bollinger_bands(prices: List[float], period: int = 20,
-                                std_dev: float = 2.0) -> Optional[Dict[str, float]]:
+    def calculate_bollinger_bands(
+        prices: List[float], period: int = 20, std_dev: float = 2.0
+    ) -> Optional[Dict[str, float]]:
         """
         Расчет Bollinger Bands
         Оптимизировано с NumPy векторизацией и Numba JIT
@@ -243,10 +251,12 @@ class TechnicalIndicators:
 
             # Конвертируем в numpy array
             prices_arr = np.array(prices[-period:], dtype=np.float64)
-            
+
             # Используем JIT-компилированное ядро если доступно
             if NUMBA_AVAILABLE:
-                upper_band, sma, lower_band = TechnicalIndicators._calculate_bollinger_core(prices_arr, std_dev)
+                upper_band, sma, lower_band = TechnicalIndicators._calculate_bollinger_core(
+                    prices_arr, std_dev
+                )
             else:
                 # Fallback на векторизованный расчет
                 sma = np.mean(prices_arr)
@@ -255,9 +265,9 @@ class TechnicalIndicators:
                 lower_band = sma - (std * std_dev)
 
             return {
-                'upper': round(float(upper_band), 8),
-                'middle': round(float(sma), 8),
-                'lower': round(float(lower_band), 8)
+                "upper": round(float(upper_band), 8),
+                "middle": round(float(sma), 8),
+                "lower": round(float(lower_band), 8),
             }
 
         except Exception as e:
@@ -265,7 +275,9 @@ class TechnicalIndicators:
             return None
 
     @staticmethod
-    def calculate_moving_averages(prices: List[float], periods: List[int] = None) -> Dict[str, Optional[float]]:
+    def calculate_moving_averages(
+        prices: List[float], periods: List[int] = None
+    ) -> Dict[str, Optional[float]]:
         """
         Расчет скользящих средних
         Оптимизировано с NumPy векторизацией
@@ -287,22 +299,23 @@ class TechnicalIndicators:
         for period in periods:
             try:
                 if len(prices_arr) < period:
-                    result[f'sma_{period}'] = None
+                    result[f"sma_{period}"] = None
                     continue
 
                 # Векторизованный расчет SMA
                 sma = np.mean(prices_arr[-period:])
-                result[f'sma_{period}'] = round(float(sma), 8)
+                result[f"sma_{period}"] = round(float(sma), 8)
 
             except Exception as e:
                 logger.error("Ошибка расчета SMA %d: %s", period, e)
-                result[f'sma_{period}'] = None
+                result[f"sma_{period}"] = None
 
         return result
 
     @staticmethod
-    def calculate_trend_strength(prices: List[float], sma_short: int = 20,
-                               sma_long: int = 50) -> Optional[Dict[str, Any]]:
+    def calculate_trend_strength(
+        prices: List[float], sma_short: int = 20, sma_long: int = 50
+    ) -> Optional[Dict[str, Any]]:
         """
         Расчет силы тренда
         Оптимизировано с NumPy векторизацией
@@ -321,28 +334,28 @@ class TechnicalIndicators:
 
             # Конвертируем в numpy array
             prices_arr = np.array(prices, dtype=np.float64)
-            
+
             # Векторизованный расчет скользящих средних
             sma_short_value = np.mean(prices_arr[-sma_short:])
             sma_long_value = np.mean(prices_arr[-sma_long:])
 
             # Определение тренда
             if sma_short_value > sma_long_value * 1.02:  # 2% выше
-                trend = 'bullish'
+                trend = "bullish"
                 strength = min(100.0, ((sma_short_value / sma_long_value) - 1.0) * 5000.0)
             elif sma_short_value < sma_long_value * 0.98:  # 2% ниже
-                trend = 'bearish'
+                trend = "bearish"
                 strength = min(100.0, (1.0 - (sma_short_value / sma_long_value)) * 5000.0)
             else:
-                trend = 'neutral'
+                trend = "neutral"
                 strength = 0.0
 
             return {
-                'trend': trend,
-                'strength': round(float(strength), 2),
-                'sma_short': round(float(sma_short_value), 8),
-                'sma_long': round(float(sma_long_value), 8),
-                'ratio': round(float(sma_short_value / sma_long_value), 4)
+                "trend": trend,
+                "strength": round(float(strength), 2),
+                "sma_short": round(float(sma_short_value), 8),
+                "sma_long": round(float(sma_long_value), 8),
+                "ratio": round(float(sma_short_value / sma_long_value), 4),
             }
 
         except Exception as e:
@@ -350,8 +363,9 @@ class TechnicalIndicators:
             return None
 
     @staticmethod
-    def calculate_volume_profile(volumes: List[float], prices: List[float],
-                               num_bins: int = 10) -> Optional[Dict[str, Any]]:
+    def calculate_volume_profile(
+        volumes: List[float], prices: List[float], num_bins: int = 10
+    ) -> Optional[Dict[str, Any]]:
         """
         Расчет профиля объема
         Оптимизировано с NumPy векторизацией
@@ -387,32 +401,33 @@ class TechnicalIndicators:
             for i in range(num_bins):
                 bin_start = price_min + (i * bin_size)
                 bin_end = bin_start + bin_size
-                bins.append({'range': [float(bin_start), float(bin_end)], 'volume': 0.0})
+                bins.append({"range": [float(bin_start), float(bin_end)], "volume": 0.0})
 
             # Векторизованное распределение объемов по бинам
             bin_indices = np.clip(
-                ((prices_arr - price_min) / bin_size).astype(np.int32),
-                0, num_bins - 1
+                ((prices_arr - price_min) / bin_size).astype(np.int32), 0, num_bins - 1
             )
-            
+
             # Векторизованное суммирование объемов по бинам
             for i in range(num_bins):
                 mask = bin_indices == i
-                bins[i]['volume'] = float(np.sum(volumes_arr[mask]))
+                bins[i]["volume"] = float(np.sum(volumes_arr[mask]))
 
             # Нахождение максимального объема
-            volumes_list = [bin['volume'] for bin in bins]
+            volumes_list = [bin["volume"] for bin in bins]
             max_volume = max(volumes_list)
             max_volume_bin = bins[volumes_list.index(max_volume)]
 
             total_volume = np.sum(volumes_arr)
 
             return {
-                'bins': bins,
-                'max_volume': float(max_volume),
-                'max_volume_range': max_volume_bin['range'],
-                'average_volume': float(np.mean(volumes_arr)),
-                'volume_concentration': float(max_volume / total_volume) if total_volume > 0 else 0.0
+                "bins": bins,
+                "max_volume": float(max_volume),
+                "max_volume_range": max_volume_bin["range"],
+                "average_volume": float(np.mean(volumes_arr)),
+                "volume_concentration": float(max_volume / total_volume)
+                if total_volume > 0
+                else 0.0,
             }
 
         except Exception as e:
@@ -435,8 +450,8 @@ class TechnicalIndicators:
                 return None
 
             # Извлечение данных
-            closes = [item.get('close', 0) for item in ohlc_data]
-            volumes = [item.get('volume', 0) for item in ohlc_data]
+            closes = [item.get("close", 0) for item in ohlc_data]
+            volumes = [item.get("volume", 0) for item in ohlc_data]
 
             if len([p for p in closes if p > 0]) < 5:  # Уменьшено требование
                 return None
@@ -445,57 +460,67 @@ class TechnicalIndicators:
             rsi = TechnicalIndicators.calculate_rsi(closes)
             momentum = TechnicalIndicators.calculate_momentum(closes)
             volume_ratio = TechnicalIndicators.calculate_volume_ratio(
-                volumes[-1], sum(volumes[-5:]) / 5 if volumes else 0  # Уменьшено
+                volumes[-1],
+                sum(volumes[-5:]) / 5 if volumes else 0,  # Уменьшено
             )
             fear_greed = TechnicalIndicators.calculate_fear_greed_index(closes, volumes)
             bollinger = TechnicalIndicators.calculate_bollinger_bands(closes)
             moving_averages = TechnicalIndicators.calculate_moving_averages(closes)
             trend_strength = TechnicalIndicators.calculate_trend_strength(closes)
             volume_profile = TechnicalIndicators.calculate_volume_profile(volumes, closes)
-            
+
             # Расчет VWAP (если доступен модуль)
             vwap_data = None
             try:
-                from src.analysis.vwap import VWAPCalculator
                 import pandas as pd
-                
+
+                from src.analysis.vwap import VWAPCalculator
+
                 # Преобразуем данные в DataFrame для VWAP
                 df_vwap = pd.DataFrame(ohlc_data)
-                if 'timestamp' in df_vwap.columns:
-                    df_vwap['timestamp'] = pd.to_datetime(df_vwap['timestamp'])
-                    df_vwap.set_index('timestamp', inplace=True)
-                
+                if "timestamp" in df_vwap.columns:
+                    df_vwap["timestamp"] = pd.to_datetime(df_vwap["timestamp"])
+                    df_vwap.set_index("timestamp", inplace=True)
+
                 vwap_calc = VWAPCalculator()
                 vwap = vwap_calc.calculate_daily_vwap(df_vwap)
                 vwap_bands = vwap_calc.calculate_vwap_bands(vwap, df_vwap)
-                
+
                 if len(vwap) > 0:
                     vwap_data = {
-                        'vwap': float(vwap.iloc[-1]) if hasattr(vwap, 'iloc') else float(vwap),
-                        'upper_band_1': float(vwap_bands['upper_band_1'].iloc[-1]) if hasattr(vwap_bands['upper_band_1'], 'iloc') else None,
-                        'lower_band_1': float(vwap_bands['lower_band_1'].iloc[-1]) if hasattr(vwap_bands['lower_band_1'], 'iloc') else None,
-                        'upper_band_2': float(vwap_bands['upper_band_2'].iloc[-1]) if hasattr(vwap_bands['upper_band_2'], 'iloc') else None,
-                        'lower_band_2': float(vwap_bands['lower_band_2'].iloc[-1]) if hasattr(vwap_bands['lower_band_2'], 'iloc') else None,
+                        "vwap": float(vwap.iloc[-1]) if hasattr(vwap, "iloc") else float(vwap),
+                        "upper_band_1": float(vwap_bands["upper_band_1"].iloc[-1])
+                        if hasattr(vwap_bands["upper_band_1"], "iloc")
+                        else None,
+                        "lower_band_1": float(vwap_bands["lower_band_1"].iloc[-1])
+                        if hasattr(vwap_bands["lower_band_1"], "iloc")
+                        else None,
+                        "upper_band_2": float(vwap_bands["upper_band_2"].iloc[-1])
+                        if hasattr(vwap_bands["upper_band_2"], "iloc")
+                        else None,
+                        "lower_band_2": float(vwap_bands["lower_band_2"].iloc[-1])
+                        if hasattr(vwap_bands["lower_band_2"], "iloc")
+                        else None,
                     }
             except (ImportError, Exception) as e:
                 logger.debug("VWAP недоступен или ошибка расчета: %s", e)
 
             result = {
-                'timestamp': get_utc_now().isoformat(),
-                'rsi': rsi,
-                'momentum': momentum,
-                'volume_ratio': volume_ratio,
-                'fear_greed_index': fear_greed,
-                'bollinger_bands': bollinger,
-                'moving_averages': moving_averages,
-                'trend_strength': trend_strength,
-                'volume_profile': volume_profile,
-                'data_points': len(ohlc_data)
+                "timestamp": get_utc_now().isoformat(),
+                "rsi": rsi,
+                "momentum": momentum,
+                "volume_ratio": volume_ratio,
+                "fear_greed_index": fear_greed,
+                "bollinger_bands": bollinger,
+                "moving_averages": moving_averages,
+                "trend_strength": trend_strength,
+                "volume_profile": volume_profile,
+                "data_points": len(ohlc_data),
             }
-            
+
             if vwap_data:
-                result['vwap'] = vwap_data
-            
+                result["vwap"] = vwap_data
+
             return result
 
         except Exception as e:
@@ -506,14 +531,17 @@ class TechnicalIndicators:
 # Глобальный экземпляр для удобства использования
 technical_indicators = TechnicalIndicators()
 
+
 # Экспорт для обратной совместимости
 def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
     """Обратная совместимость"""
     return technical_indicators.calculate_rsi(prices, period)
 
+
 def calculate_volume_ratio(current_volume: float, avg_volume: float) -> Optional[float]:
     """Обратная совместимость"""
     return technical_indicators.calculate_volume_ratio(current_volume, avg_volume)
+
 
 def get_technical_indicators(ohlc_data: List[Dict]) -> Optional[Dict[str, Any]]:
     """Обратная совместимость"""

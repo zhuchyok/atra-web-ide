@@ -8,9 +8,11 @@
 ## 📊 ПАРАМЕТРЫ ОПТИМИЗАЦИИ
 
 ### **Период тестирования:**
+
 - **30 дней** исторических данных
 
 ### **Символы:**
+
 - BTCUSDT
 - ETHUSDT
 - BNBUSDT
@@ -18,6 +20,7 @@
 - ADAUSDT
 
 ### **Фильтры для оптимизации:**
+
 1. ✅ Volume Profile (3 варианта)
 2. ✅ VWAP (3 варианта)
 3. ✅ AMT Filter (2 варианта)
@@ -28,6 +31,7 @@
 8. ✅ Volume Imbalance Filter (3 варианта) - **НОВЫЙ**
 
 ### **Используются оптимальные параметры:**
+
 - Order Flow: `required_confirmations=0, pr_threshold=0.5`
 - Microstructure: `tolerance_pct=2.5, min_strength=0.1, lookback=30`
 - Momentum: все пороги=50
@@ -38,10 +42,12 @@
 ## 📊 СТАТИСТИКА
 
 ### **Комбинации:**
+
 - Всего комбинаций: **1,944**
 - Всего тестов: **9,720** (1,944 × 5 символов)
 
 ### **Производительность:**
+
 - Потоков: **20** (Rust ускорение)
 - Ожидаемое время: **~5-7 часов**
 
@@ -50,12 +56,15 @@
 ## 📁 ФАЙЛЫ
 
 ### **Логи:**
+
 - `/tmp/all_filters_optimization_new.log` - полный лог оптимизации
 
 ### **Результаты:**
+
 - `backtests/all_filters_optimization_results.json` - результаты оптимизации
 
 ### **Мониторинг:**
+
 ```bash
 # Просмотр логов в реальном времени
 tail -f /tmp/all_filters_optimization_new.log
@@ -74,6 +83,7 @@ ps aux | grep optimize_all_filters_comprehensive.py
 Оптимизация запущена и работает в фоне.
 
 **Проверка статуса:**
+
 ```bash
 tail -f /tmp/all_filters_optimization_new.log
 ```
@@ -91,6 +101,7 @@ tail -f /tmp/all_filters_optimization_new.log
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 После завершения оптимизации получим:
+
 - Оптимальные параметры для всех 8 фильтров
 - Метрики качества (Win Rate, Profit Factor, Return/сигнал)
 - Рекомендации по применению параметров
@@ -98,4 +109,3 @@ tail -f /tmp/all_filters_optimization_new.log
 ---
 
 **Статус:** 🟢 **ОПТИМИЗАЦИЯ ЗАПУЩЕНА**
-

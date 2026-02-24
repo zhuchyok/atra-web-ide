@@ -1,20 +1,23 @@
-import os
+import asyncio
 import json
 import logging
-import asyncio
-from typing import Any, Optional, Dict, List
-import redis.asyncio as redis
+import os
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
 
 class RedisManager:
     """
     Централизованный менеджер для работы с Redis: кэш, состояние задач и очереди.
     Реализует лучшие мировые практики: пулинг соединений, асинхронность, JSON-сериализация.
     """
+
     _instance = None
     _pool = None
 
@@ -24,7 +27,7 @@ class RedisManager:
         return cls._instance
 
     def __init__(self, url: str = REDIS_URL):
-        if not hasattr(self, 'initialized'):
+        if not hasattr(self, "initialized"):
             self.url = url
             self.initialized = True
 
@@ -33,9 +36,7 @@ class RedisManager:
         if self._pool is None:
             try:
                 self._pool = redis.ConnectionPool.from_url(
-                    self.url, 
-                    max_connections=20, 
-                    decode_responses=True
+                    self.url, max_connections=20, decode_responses=True
                 )
                 logger.info(f"✅ [REDIS] Пул соединений создан: {self.url}")
             except Exception as e:
@@ -66,18 +67,21 @@ class RedisManager:
             return None
 
     # --- СОСТОЯНИЕ ЗАДАЧ (Shared State) ---
-    async def update_task_status(self, task_id: str, status: str, result: Any = None, metadata: Dict = None):
+    async def update_task_status(
+        self, task_id: str, status: str, result: Any = None, metadata: Dict = None
+    ):
         """Обновляет состояние задачи в Redis (для мгновенного доступа Gateway)."""
         try:
             client = await self.get_client()
-            data = {
-                "status": status,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-            if result is not None: data["result"] = result
-            if metadata: data["metadata"] = metadata
-            
-            await client.hset(f"task:{task_id}", mapping={k: json.dumps(v) for k, v in data.items()})
+            data = {"status": status, "updated_at": datetime.now(timezone.utc).isoformat()}
+            if result is not None:
+                data["result"] = result
+            if metadata:
+                data["metadata"] = metadata
+
+            await client.hset(
+                f"task:{task_id}", mapping={k: json.dumps(v) for k, v in data.items()}
+            )
             # TTL для статуса задачи - 24 часа
             await client.expire(f"task:{task_id}", 86400)
         except Exception as e:
@@ -102,23 +106,28 @@ class RedisManager:
         try:
             client = await self.get_client()
             task_id = data.get("task_id")
-            
+
             if deduplicate and task_id:
                 # Проверяем, не обрабатывается ли уже эта задача (идемпотентность)
                 lock_key = f"lock:task:{task_id}"
-                is_locked = await client.set(lock_key, "processing", ex=1800, nx=True) # Блокировка на 30 мин
+                is_locked = await client.set(
+                    lock_key, "processing", ex=1800, nx=True
+                )  # Блокировка на 30 мин
                 if not is_locked:
                     logger.warning(f"🚫 [REDIS] Дубликат задачи {task_id} проигнорирован")
                     return False
 
             # Сингулярность 10.0: Добавляем время создания и метаданные для RAG
             data["created_at"] = datetime.now(timezone.utc).isoformat()
-            
+
             # Если в данных есть ключевые слова AI, помечаем для воркера
             goal = data.get("description", "").lower()
-            if any(kw in goal for kw in ["anthropic", "google", "openai", "deepseek", "claude", "gemini"]):
+            if any(
+                kw in goal
+                for kw in ["anthropic", "google", "openai", "deepseek", "claude", "gemini"]
+            ):
                 data["rag_domain"] = "AI Research"
-            
+
             # Ограничиваем длину потока 10000 записей (мировая практика)
             await client.xadd(f"stream:{stream_name}", {"payload": json.dumps(data)}, maxlen=10000)
             logger.info(f"📥 [REDIS] Задача {task_id} добавлена в поток {stream_name}")
@@ -127,7 +136,9 @@ class RedisManager:
             logger.error(f"❌ [REDIS] Ошибка записи в поток {stream_name}: {e}")
             return False
 
-    async def autoclaim_tasks(self, stream_name: str, group_name: str, consumer_name: str, min_idle_time_ms: int = 60000):
+    async def autoclaim_tasks(
+        self, stream_name: str, group_name: str, consumer_name: str, min_idle_time_ms: int = 60000
+    ):
         """
         Мировая практика (Reliable Queue): Перехватывает зависшие задачи других воркеров.
         Если воркер упал, задача через min_idle_time_ms будет переназначена текущему воркеру.
@@ -136,15 +147,17 @@ class RedisManager:
             client = await self.get_client()
             # XAUTOCLAIM возвращает [next_start_id, [entries], [deleted_ids]]
             res = await client.xautoclaim(
-                f"stream:{stream_name}", 
-                group_name, 
-                consumer_name, 
-                min_idle_time_ms, 
-                start_id="0-0", 
-                count=5
+                f"stream:{stream_name}",
+                group_name,
+                consumer_name,
+                min_idle_time_ms,
+                start_id="0-0",
+                count=5,
             )
             if res and res[1]:
-                logger.info(f"🔄 [REDIS] Перехвачено {len(res[1])} зависших задач из потока {stream_name}")
+                logger.info(
+                    f"🔄 [REDIS] Перехвачено {len(res[1])} зависших задач из потока {stream_name}"
+                )
                 return res[1]
             return []
         except Exception as e:
@@ -164,6 +177,7 @@ class RedisManager:
         if self._pool:
             await self._pool.disconnect()
             logger.info("🛑 [REDIS] Пул соединений закрыт")
+
 
 # Синглтон для удобного импорта
 redis_manager = RedisManager()

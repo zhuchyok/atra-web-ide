@@ -54,6 +54,7 @@ signal_live.py передает: 8 features
 ### **ЭТАП 2: ОПТИМИЗАЦИЯ ПАРАМЕТРОВ** ⏱️ 15 мин
 
 **Максим (Analyst):** Обновить config.py:
+
 - ML пороги: 0.40 / 0.50
 - Монеты: ТОП-20
 - Убрать ADX/TIME фильтры
@@ -62,7 +63,8 @@ signal_live.py передает: 8 features
 
 ### **ЭТАП 3: ДЕПЛОЙ** ⏱️ 10 мин
 
-**Сергей (DevOps):** 
+**Сергей (DevOps):**
+
 - Загрузить изменения на прод
 - Перезапустить signal_live.py
 - Проверить запуск
@@ -72,6 +74,7 @@ signal_live.py передает: 8 features
 ### **ЭТАП 4: ВАЛИДАЦИЯ** ⏱️ 5 мин
 
 **Анна (QA):** Проверить что:
+
 - ML модель загружается
 - Features передаются корректно
 - Сигналы генерируются
@@ -95,59 +98,59 @@ def _extract_features(self, indicators: Dict, market_conditions: Dict, signal_pa
         macd = float(indicators.get('macd', 0.0))
         volume_ratio = float(market_conditions.get('volume_ratio', 1.0))
         volatility = float(market_conditions.get('volatility', 0.02))
-        
+
         # EMA distance
         ema_fast = float(indicators.get('ema_fast', 0))
         ema_slow = float(indicators.get('ema_slow', 0))
         entry_price = float(signal_params.get('entry_price', 1.0))
-        
+
         if entry_price > 0 and ema_fast > 0 and ema_slow > 0:
             ema_distance = abs(ema_fast - ema_slow) / entry_price
         else:
             ema_distance = 0.01
-        
+
         # BB position
         bb_upper = float(indicators.get('bb_upper', entry_price * 1.02))
         bb_lower = float(indicators.get('bb_lower', entry_price * 0.98))
-        
+
         if bb_upper > bb_lower and entry_price > 0:
             bb_position = (entry_price - bb_lower) / (bb_upper - bb_lower)
         else:
             bb_position = 0.5
-        
+
         # ATR %
         atr = float(indicators.get('atr', entry_price * 0.015))
         if entry_price > 0:
             atr_pct = atr / entry_price
         else:
             atr_pct = 0.015
-        
+
         # Signal direction
         side = signal_params.get('side', 'LONG')
         signal_is_long = 1.0 if side in ['LONG', 'BUY'] else 0.0
-        
+
         # Risk params
         risk_pct = float(signal_params.get('risk_pct', 2.0))
         leverage = float(signal_params.get('leverage', 1.0))
-        
+
         # TP distances
         tp1 = float(signal_params.get('tp1', entry_price * 1.025))
         tp2 = float(signal_params.get('tp2', entry_price * 1.05))
-        
+
         if entry_price > 0:
             tp1_distance_pct = abs(tp1 - entry_price) / entry_price * 100
             tp2_distance_pct = abs(tp2 - entry_price) / entry_price * 100
         else:
             tp1_distance_pct = 2.5
             tp2_distance_pct = 5.0
-        
+
         # Time features
         from datetime import datetime
         now = datetime.utcnow()
         hour_of_day = now.hour
         day_of_week = now.weekday()
         is_weekend = 1.0 if day_of_week >= 5 else 0.0
-        
+
         # Собираем features в правильном порядке
         features = {
             'rsi': rsi,
@@ -166,12 +169,12 @@ def _extract_features(self, indicators: Dict, market_conditions: Dict, signal_pa
             'day_of_week': day_of_week,
             'is_weekend': is_weekend
         }
-        
+
         # Преобразуем в DataFrame
         df = pd.DataFrame([features])
-        
+
         return df
-        
+
     except Exception as e:
         logger.error(f"❌ Ошибка извлечения features: {e}")
         # Возвращаем дефолтные значения
@@ -204,9 +207,9 @@ ML_MIN_EXPECTED_PROFIT = 0.50  # 0.5% (было 1.0)
 COINS = [
     # Базовые (топ-3)
     "BTCUSDT",
-    "ETHUSDT", 
+    "ETHUSDT",
     "SOLUSDT",
-    
+
     # Топ альткоины (высокая ликвидность)
     "BNBUSDT",
     "XRPUSDT",
@@ -216,7 +219,7 @@ COINS = [
     "AVAXUSDT",
     "LTCUSDT",
     "TRXUSDT",
-    
+
     # Перспективные (средняя ликвидность)
     "UNIUSDT",
     "NEARUSDT",
@@ -262,6 +265,7 @@ USE_LIQUIDITY_FILTER = True
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **ДО ИСПРАВЛЕНИЙ:**
+
 ```
 ML вероятность:  0.02% ❌ (features не совпадают)
 Сигналов:        0/день
@@ -269,6 +273,7 @@ ML вероятность:  0.02% ❌ (features не совпадают)
 ```
 
 ### **ПОСЛЕ ИСПРАВЛЕНИЙ:**
+
 ```
 ML вероятность:  40-70% ✅ (правильные features)
 Сигналов:        1-2/день
@@ -278,6 +283,7 @@ Profit Factor:   2.0-2.5
 ```
 
 ### **ПОСЛЕ ОПТИМИЗАЦИИ (ТОП-20 монет):**
+
 ```
 Сигналов:        3-5/день
 Доходность:      +4-6% годовых
@@ -290,23 +296,24 @@ Profit Factor:   2.0-2.5
 
 ## ⏱️ TIMELINE
 
-| Время | Действие | Ответственный | Статус |
-|-------|----------|---------------|--------|
-| **00:00** | Начало работы | Виктор | ✅ |
-| **00:05** | Анализ проблемы | Дмитрий | ✅ |
-| **00:15** | Исправление ML features | Дмитрий | 🔄 |
-| **00:30** | Обновление config.py | Максим | ⏳ |
-| **00:40** | Git commit & push | Игорь | ⏳ |
-| **00:45** | Деплой на прод | Сергей | ⏳ |
-| **00:50** | Перезапуск signal_live | Сергей | ⏳ |
-| **00:55** | Валидация | Анна | ⏳ |
-| **01:00** | **✅ ГОТОВО!** | Все | 🎯 |
+| Время     | Действие                | Ответственный | Статус |
+| --------- | ----------------------- | ------------- | ------ |
+| **00:00** | Начало работы           | Виктор        | ✅     |
+| **00:05** | Анализ проблемы         | Дмитрий       | ✅     |
+| **00:15** | Исправление ML features | Дмитрий       | 🔄     |
+| **00:30** | Обновление config.py    | Максим        | ⏳     |
+| **00:40** | Git commit & push       | Игорь         | ⏳     |
+| **00:45** | Деплой на прод          | Сергей        | ⏳     |
+| **00:50** | Перезапуск signal_live  | Сергей        | ⏳     |
+| **00:55** | Валидация               | Анна          | ⏳     |
+| **01:00** | **✅ ГОТОВО!**          | Все           | 🎯     |
 
 ---
 
 ## 🔍 ВАЛИДАЦИОННЫЕ ЧЕКЛИСТЫ
 
 ### **Анна (QA) - Проверка ML:**
+
 - [ ] ML модель загружается без ошибок
 - [ ] Все 15 features передаются корректно
 - [ ] ML вероятность > 1% (не 0.02%!)
@@ -314,6 +321,7 @@ Profit Factor:   2.0-2.5
 - [ ] Логи без критических ошибок
 
 ### **Елена (Monitor) - Проверка метрик:**
+
 - [ ] signal_live.py запущен
 - [ ] CPU < 30%
 - [ ] RAM < 1GB
@@ -321,6 +329,7 @@ Profit Factor:   2.0-2.5
 - [ ] Сигналы появляются в БД
 
 ### **Сергей (DevOps) - Проверка инфраструктуры:**
+
 - [ ] Диск < 95% (сейчас 90%)
 - [ ] Все процессы запущены
 - [ ] База данных работает
@@ -331,6 +340,7 @@ Profit Factor:   2.0-2.5
 ## 📋 КОМАНДЫ ДЛЯ ДЕПЛОЯ
 
 ### **Шаг 1: Commit изменений (локально)**
+
 ```bash
 cd /Users/zhuchyok/Documents/GITHUB/atra/atra
 
@@ -341,6 +351,7 @@ git push origin insight
 ```
 
 ### **Шаг 2: Деплой на прод**
+
 ```bash
 ssh root@185.177.216.15
 
@@ -357,6 +368,7 @@ tail -f signal_live.log
 ```
 
 ### **Шаг 3: Валидация (через 2-3 минуты)**
+
 ```bash
 # Проверить ML работает
 tail -100 signal_live.log | grep "ML вероятность\|success_probability"
@@ -370,12 +382,14 @@ tail -100 signal_live.log | grep "SIGNAL GENERATED\|✅.*сигнал"
 ## 🎯 КРИТЕРИИ УСПЕХА
 
 ### ✅ **ОБЯЗАТЕЛЬНЫЕ:**
+
 1. ML вероятность > 1% (не 0.02%)
 2. Нет ошибок "Отсутствуют features"
 3. signal_live.py работает стабильно
 4. Логи чистые (без критических ошибок)
 
 ### 🎉 **ЖЕЛАЕМЫЕ:**
+
 1. ML вероятность 40-70% (нормальное распределение)
 2. Сигналы генерируются (хотя бы 1 за 4 часа)
 3. Win Rate первых сделок > 60%
@@ -385,24 +399,31 @@ tail -100 signal_live.log | grep "SIGNAL GENERATED\|✅.*сигнал"
 ## 💬 КОММУНИКАЦИЯ КОМАНДЫ
 
 ### **Виктор (Lead):**
+
 > "Команда, у нас экстренная ситуация! ML features не совпадают. Дмитрий, ты исправляешь код. Максим - параметры. Сергей готовится к деплою. Работаем быстро и качественно! Время: 60 минут."
 
 ### **Дмитрий (ML):**
-> "Понял! Проблема в _extract_features. Не хватает 7 features. Пишу исправление... готово за 15 минут!"
+
+> "Понял! Проблема в \_extract_features. Не хватает 7 features. Пишу исправление... готово за 15 минут!"
 
 ### **Максим (Analyst):**
+
 > "Параметры из Plan C готов применить: ML 0.40/0.50, ТОП-20 монет, убираем ADX и TIME. Оптимально!"
 
 ### **Игорь (Backend):**
+
 > "Тестирую локально... ML модель работает! Вероятности теперь 40-60%. Коммичу!"
 
 ### **Сергей (DevOps):**
+
 > "Готов к деплою! Git pull, перезапуск, мониторинг. Жду команды!"
 
 ### **Анна (QA):**
+
 > "Чеклист готов! Буду проверять ML, features, сигналы. Дайте 5 минут после деплоя."
 
 ### **Елена (Monitor):**
+
 > "Мониторю логи и метрики. Алерты настроены. Сообщу о любых проблемах!"
 
 ---
@@ -410,6 +431,7 @@ tail -100 signal_live.log | grep "SIGNAL GENERATED\|✅.*сигнал"
 ## 🚀 ФИНАЛЬНЫЙ СТАТУС
 
 ### **ЧЕРЕЗ 1 ЧАС:**
+
 ```
 ✅ ML features исправлены (15/15)
 ✅ Параметры оптимизированы
@@ -420,6 +442,7 @@ tail -100 signal_live.log | grep "SIGNAL GENERATED\|✅.*сигнал"
 ```
 
 ### **РЕЗУЛЬТАТ:**
+
 ```
 Система: РАБОТАЕТ ✅
 ML: КОРРЕКТНО ✅
@@ -432,12 +455,14 @@ ML: КОРРЕКТНО ✅
 ## 🎉 ЗАКЛЮЧЕНИЕ
 
 **Виктор (Lead):**
+
 > "Отличная работа, команда! За 60 минут мы:
+>
 > 1. Исправили критическую проблему ML features
 > 2. Оптимизировали все параметры
 > 3. Задеплоили на прод
 > 4. Провалидировали систему
-> 
+>
 > Система теперь работает правильно! ML модель возвращает корректные вероятности 40-70%. Ожидаем первые сигналы в течение 2-4 часов. Елена продолжает мониторинг. Все свободны!"
 
 ---
@@ -449,4 +474,3 @@ ML: КОРРЕКТНО ✅
 ---
 
 **#ЭкстреннаяРабота #КомандаРулит #MLFixed** 🚀🎉
-

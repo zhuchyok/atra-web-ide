@@ -94,7 +94,7 @@ async def get_experts_from_db():
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         experts = await conn.fetch("""
-            SELECT 
+            SELECT
                 id,
                 name,
                 role,
@@ -139,10 +139,10 @@ def generate_file_content(employee: dict, priority: int) -> str:
     """Генерировать содержимое файла для эксперта."""
     name = employee["name"]
     role = employee["role"]
-    
+
     # Выбираем шаблон по роли или используем default
     template_data = ROLE_TEMPLATES.get(role, DEFAULT_TEMPLATE)
-    
+
     content = TEMPLATE.format(
         name=name,
         role=role,
@@ -156,53 +156,53 @@ def generate_file_content(employee: dict, priority: int) -> str:
         example_prompt=template_data["example_prompt"],
         quality_criteria=template_data["quality_criteria"]
     )
-    
+
     return content
 
 
 async def generate_rules_files():
     """Основная функция генерации файлов."""
-    
+
     print("🔍 Загрузка данных экспертов...")
-    
+
     # Загружаем из employees.json (основной источник)
     employees = load_employees_json()
-    
+
     if not employees:
         print("❌ employees.json пуст или не найден")
         return
-    
+
     print(f"✅ Найдено {len(employees)} экспертов")
-    
+
     # Создаем директорию если не существует
     RULES_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     # Получаем существующие файлы
     existing_files = set(RULES_DIR.glob("*.md"))
     generated_files = set()
-    
+
     # Генерируем файлы для каждого эксперта
     for idx, employee in enumerate(employees, start=1):
         name = employee["name"]
         role = employee["role"]
-        
+
         # Формируем имя файла
         filename = f"{idx:02d}_{normalize_filename(name)}.md"
         filepath = RULES_DIR / filename
         generated_files.add(filepath)
-        
+
         # Проверяем, существует ли файл
         if filepath.exists():
             print(f"⏭️  Пропускаем {filename} (уже существует)")
             continue
-        
+
         # Генерируем содержимое
         content = generate_file_content(employee, priority=idx)
-        
+
         # Записываем файл
         filepath.write_text(content, encoding="utf-8")
         print(f"✅ Создан {filename} - {name} ({role})")
-    
+
     # Опционально: удалить файлы для уволенных
     obsolete_files = existing_files - generated_files - {RULES_DIR / "atra.mdc"}
     if obsolete_files:
@@ -214,7 +214,7 @@ async def generate_rules_files():
             for file in obsolete_files:
                 file.unlink()
                 print(f"🗑️  Удален {file.name}")
-    
+
     print(f"\n✅ Готово! Обработано {len(employees)} экспертов")
     print(f"📁 Папка: {RULES_DIR}")
 

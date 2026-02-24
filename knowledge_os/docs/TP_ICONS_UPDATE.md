@@ -5,16 +5,19 @@
 Добавлены единообразные иконки для TP1 и TP2 во всех местах системы:
 
 ### **🎯 TP1 (основная цель):**
+
 - **Иконка:** 🎯
 - **Значение:** Основная цель прибыли
 
 ### **🚀 TP2 (максимальная цель):**
+
 - **Иконка:** 🚀
 - **Значение:** Максимальная цель прибыли
 
 ## 📁 **ОБНОВЛЕННЫЕ ФАЙЛЫ:**
 
 ### **1. signal_live.py (основные торговые сигналы):**
+
 ```python
 # Было:
 tp_info = f"TP1: {fmt.format(tp1)} ({'+' if side == 'LONG' else '-'}{tp1_pct:.1f}%)\nTP2: {fmt.format(tp2)} ({'+' if side == 'LONG' else '-'}{tp2_pct:.1f}%)"
@@ -24,6 +27,7 @@ tp_info = f"🎯 TP1: {fmt.format(tp1)} ({'+' if side == 'LONG' else '-'}{tp1_pc
 ```
 
 ### **2. telegram_bot.py (позиции):**
+
 ```python
 # Было:
 pos_str = f"{pos['symbol']} | Вход: {pos['entry_price']} | TP1: {pos['tp1']} | TP2: {pos['tp2']} | Стадия: {pos.get('stage', 'open')}"
@@ -33,6 +37,7 @@ pos_str = f"{pos['symbol']} | Вход: {pos['entry_price']} | 🎯 TP1: {pos['t
 ```
 
 ### **3. telegram_bot.py (статистика сигналов):**
+
 ```python
 # Было:
 f"🎯 TP1: `{tp1:.6f}` | 🎯 TP2: `{tp2:.6f}`\n\n"
@@ -42,6 +47,7 @@ f"🎯 TP1: `{tp1:.6f}` | 🚀 TP2: `{tp2:.6f}`\n\n"
 ```
 
 ### **4. telegram_bot.py (тестовые сигналы):**
+
 ```python
 # Было:
 f"Монета: {symbol}\nВход: {entry_price}\nTP1: {tp1}\nTP2: {tp2}\nРиск: {risk_pct:.2f}%"
@@ -51,6 +57,7 @@ f"Монета: {symbol}\nВход: {entry_price}\n🎯 TP1: {tp1}\n🚀 TP2: {t
 ```
 
 ### **5. telegram_bot.py (открытие позиций):**
+
 ```python
 # Было:
 f"Средняя цена: {fmt.format(avg_price_new)}\nTP1: {fmt.format(tp1)}\nTP2: {fmt.format(tp2)}\n"

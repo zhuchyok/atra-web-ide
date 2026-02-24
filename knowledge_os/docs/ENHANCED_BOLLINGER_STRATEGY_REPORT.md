@@ -72,6 +72,7 @@ ENHANCED_STRATEGY_CONFIG = {
 ### **2. Новые функции (`signal_live.py`)**
 
 #### **A. Расширенные индикаторы**
+
 ```python
 def add_enhanced_indicators(df):
     # EMA50 для определения глобального тренда
@@ -90,6 +91,7 @@ def add_enhanced_indicators(df):
 ```
 
 #### **B. Определение squeeze**
+
 ```python
 def detect_bb_squeeze(df, i):
     # Сжатие: текущая ширина меньше средней
@@ -102,6 +104,7 @@ def detect_bb_squeeze(df, i):
 ```
 
 #### **C. Сигналы пробоя**
+
 ```python
 def breakout_signal(df, i):
     # LONG: пробой верхней полосы + золотой крест
@@ -124,6 +127,7 @@ def breakout_signal(df, i):
 ```
 
 #### **D. Сигналы возврата к средней**
+
 ```python
 def mean_reversion_signal(df, i):
     # LONG: возврат от нижней полосы к средней
@@ -146,6 +150,7 @@ def mean_reversion_signal(df, i):
 ```
 
 #### **E. ATR-базированные стоп-лоссы**
+
 ```python
 def get_atr_based_stop_loss(df, i, side="long", entry_price=None):
     atr = df["atr"].iloc[i]
@@ -160,6 +165,7 @@ def get_atr_based_stop_loss(df, i, side="long", entry_price=None):
 ```
 
 #### **F. Корректировка размера позиции**
+
 ```python
 def get_volatility_adjusted_position_size(df, i, base_size=1.0):
     volatility_pct = df["volatility_pct"].iloc[i]
@@ -198,11 +204,13 @@ def get_volatility_adjusted_position_size(df, i, base_size=1.0):
 ## 🔄 Интеграция с существующей системой
 
 ### **1. Обратная совместимость**
+
 - ✅ Все существующие режимы (`strict`, `soft`, `enhanced`) продолжают работать
 - ✅ Добавлен новый режим `enhanced_bollinger` для расширенной стратегии
 - ✅ Существующая логика не нарушена
 
 ### **2. Автоматическая интеграция**
+
 ```python
 # Проверяем расширенную стратегию, если обычная не дала сигнала
 if not signal_type and ENHANCED_BOLLINGER_STRATEGY:
@@ -213,6 +221,7 @@ if not signal_type and ENHANCED_BOLLINGER_STRATEGY:
 ```
 
 ### **3. Динамическое управление**
+
 - ATR-базированные стоп-лоссы автоматически применяются
 - Корректировка размера позиции по волатильности
 - Интеграция с существующей системой новостных фильтров
@@ -222,12 +231,14 @@ if not signal_type and ENHANCED_BOLLINGER_STRATEGY:
 ## 📊 Результаты тестирования
 
 ### **Тест компонентов:**
+
 - ✅ Расширенные индикаторы: добавлены корректно
 - ✅ Squeeze detection: работает (обнаружено сжатие на индексе 94)
 - ✅ ATR стоп-лоссы: рассчитываются корректно
 - ✅ Корректировка размера позиции: работает (1.0 → 0.85 при волатильности 3.35%)
 
 ### **Проверенные функции:**
+
 - ✅ `add_enhanced_indicators()` - добавление индикаторов
 - ✅ `detect_bb_squeeze()` - определение сжатия
 - ✅ `breakout_signal()` - сигналы пробоя
@@ -242,6 +253,7 @@ if not signal_type and ENHANCED_BOLLINGER_STRATEGY:
 ## 🚀 Использование
 
 ### **1. Включение/отключение**
+
 ```python
 # В config.py
 ENHANCED_BOLLINGER_STRATEGY = True  # Включить
@@ -249,6 +261,7 @@ ENHANCED_BOLLINGER_STRATEGY = False # Отключить
 ```
 
 ### **2. Настройка режимов**
+
 ```python
 # Включение/отключение отдельных компонентов
 ENHANCED_STRATEGY_MODES = {
@@ -259,6 +272,7 @@ ENHANCED_STRATEGY_MODES = {
 ```
 
 ### **3. Новый режим фильтров**
+
 ```python
 # Для пользователей можно установить новый режим
 filter_mode = "enhanced_bollinger"  # Только расширенная стратегия
@@ -269,16 +283,19 @@ filter_mode = "enhanced_bollinger"  # Только расширенная стр
 ## 📈 Преимущества новой стратегии
 
 ### **1. Многоуровневая фильтрация**
+
 - Пробой полос с подтверждением EMA
 - Возврат к средней с фильтрацией тренда
 - Squeeze detection для избежания ложных сигналов
 
 ### **2. Динамическое управление рисками**
+
 - ATR-базированные стоп-лоссы адаптируются к волатильности
 - Корректировка размера позиции по волатильности
 - Автоматическая оптимизация параметров
 
 ### **3. Интеграция с существующей системой**
+
 - Сохранена вся существующая функциональность
 - Добавлена новая логика без конфликтов
 - Обратная совместимость обеспечена
@@ -288,17 +305,20 @@ filter_mode = "enhanced_bollinger"  # Только расширенная стр
 ## 🔧 Настройка параметров
 
 ### **Основные параметры:**
+
 - `bb_window`: 20 (период Bollinger Bands)
 - `bb_std`: 2.0 (стандартное отклонение)
 - `ema_trend`: 50 (период для определения тренда)
 - `atr_multiplier_sl`: 2.0 (множитель ATR для стоп-лосса)
 
 ### **Параметры пробоя:**
+
 - `min_breakout_pct`: 0.5 (минимальный процент пробоя)
 - `volume_confirmation`: True (подтверждение объемом)
 - `rsi_confirmation`: True (подтверждение RSI)
 
 ### **Параметры возврата к средней:**
+
 - `trend_filter`: True (фильтрация по тренду)
 - `volume_enhancement`: True (усиление объемом)
 

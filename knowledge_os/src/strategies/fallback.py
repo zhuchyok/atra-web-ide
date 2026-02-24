@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Fallback 15m momentum + liquidity стратегия.
 
@@ -13,20 +12,24 @@ import dataclasses
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+from market_regime_detector import MarketRegimeDetector
 
 from src.database.db import Database
-from market_regime_detector import MarketRegimeDetector
+from src.shared.utils.datetime_utils import get_utc_now
+
 try:
     from src.utils.ohlc_utils import get_ohlc_binance_sync_range
 except ImportError:
     try:
         from ohlc_utils import get_ohlc_binance_sync_range
     except ImportError:
-        def get_ohlc_binance_sync_range(*args, **kwargs): return None
+
+        def get_ohlc_binance_sync_range(*args, **kwargs):
+            return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FallbackConfig:
     """Конфигурация fallback-стратегии на 15m с подтверждением тренда."""
+
     symbols: List[str]
     interval: str = "15m"
     confirmation_interval: str = "1h"
@@ -77,7 +81,9 @@ class FallbackMomentumStrategy:
                 df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                 df = df.set_index("timestamp")
             else:
-                logger.error("❌ [Fallback] Неизвестный формат OHLC для %s: колонки %s", symbol, df.columns)
+                logger.error(
+                    "❌ [Fallback] Неизвестный формат OHLC для %s: колонки %s", symbol, df.columns
+                )
                 return None
             return df
         except Exception as exc:  # noqa: BLE001
@@ -88,24 +94,23 @@ class FallbackMomentumStrategy:
         """Добавляет необходимые индикаторы через централизованный модуль."""
         if df.empty:
             return df
-        
+
         from src.signals.indicators import add_technical_indicators
-        
+
         # Используем централизованный модуль
         # EMA 34 и 89 не стандартные, укажем их явно
-        work = add_technical_indicators(
-            df,
-            rsi_period=14,
-            ema_periods=[34, 89],
-            atr_period=14
-        )
-        
+        work = add_technical_indicators(df, rsi_period=14, ema_periods=[34, 89], atr_period=14)
+
         # Backward compatibility для имен в этой стратегии
-        if 'ema34' in work.columns: work['ema34'] = work['ema34']
-        if 'ema89' in work.columns: work['ema89'] = work['ema89']
-        if 'rsi_14' in work.columns: work['rsi14'] = work['rsi_14']
-        if 'atr' in work.columns: work['atr14'] = work['atr']
-        
+        if "ema34" in work.columns:
+            work["ema34"] = work["ema34"]
+        if "ema89" in work.columns:
+            work["ema89"] = work["ema89"]
+        if "rsi_14" in work.columns:
+            work["rsi14"] = work["rsi_14"]
+        if "atr" in work.columns:
+            work["atr14"] = work["atr"]
+
         # Volume ratio уже есть в add_technical_indicators
         return work
 
@@ -143,16 +148,17 @@ class FallbackMomentumStrategy:
                 data_1h = self._fetch_confirmation_data(symbol, self.config.days)
             if data_1h is None or data_1h.empty:
                 return False, "Недостаточно 1h данных"
-            
+
             df = data_1h
             if timestamp is not None:
                 df = df[df.index <= timestamp]
                 if df.empty:
                     return False, "Нет 1h истории до точки входа"
-            
+
             from src.signals.indicators import add_technical_indicators
+
             df = add_technical_indicators(df, ema_periods=[34, 89])
-            
+
             if df["ema34"].iloc[-1] > df["ema89"].iloc[-1]:
                 return True, "1h trend up"
             return False, "1h trend down"
@@ -392,13 +398,15 @@ class FallbackMomentumStrategy:
         if pnl_history:
             mean = sum(pnl_history) / len(pnl_history)
             variance = sum((p - mean) ** 2 for p in pnl_history) / max(1, len(pnl_history) - 1)
-            std = variance ** 0.5
+            std = variance**0.5
             if std > 0:
                 report["totals"]["sharpe"] = (mean / std) * (len(pnl_history) ** 0.5)
         report["totals"]["max_drawdown_pct"] = max_drawdown_pct * 100
         return report
 
-    def to_signal_log(self, signal: Dict[str, any], params: Optional[Dict[str, any]] = None) -> Dict[str, any]:
+    def to_signal_log(
+        self, signal: Dict[str, any], params: Optional[Dict[str, any]] = None
+    ) -> Dict[str, any]:
         """Формирует запись для signals_log."""
         params = params or {}
         return {

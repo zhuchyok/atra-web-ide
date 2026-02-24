@@ -22,6 +22,7 @@ INFO:ai_learning_system:🤖 ИИ система инициализирован�
 ## ✅ РЕШЕНИЕ
 
 ### **1. Singleton Pattern в main.py**
+
 ```python
 # Глобальные экземпляры ИИ системы (singleton pattern)
 _ai_instances = {}
@@ -31,7 +32,7 @@ async def run_ai_learning_system():
     if 'ai_learning' in _ai_instances:
         print("⚠️ ИИ система уже инициализирована, пропускаем дублирование...")
         return
-    
+
     # Инициализируем ИИ компоненты ОДИН РАЗ
     _ai_instances['ai_learning'] = AILearningSystem()
     _ai_instances['ai_monitor'] = AIMonitor()
@@ -42,6 +43,7 @@ async def run_ai_learning_system():
 ### **2. Исправлены модули ИИ**
 
 #### **ai_integration.py:**
+
 ```python
 def __init__(self):
     # Используем singleton pattern - получаем экземпляр из main
@@ -57,6 +59,7 @@ def __init__(self):
 ```
 
 #### **ai_historical_analysis.py:**
+
 ```python
 # Используем singleton pattern
 try:
@@ -70,17 +73,20 @@ except (ImportError, AttributeError):
 ```
 
 #### **ai_signal_generator.py, ai_auto_learning.py, ai_monitor.py:**
+
 Аналогичные исправления применены ко всем модулям.
 
 ## 📊 РЕЗУЛЬТАТ
 
 ### **До исправления:**
+
 - ❌ 8+ экземпляров `AILearningSystem()`
 - ❌ Дублирование инициализации
 - ❌ Избыточное потребление памяти
 - ❌ Конфликты между экземплярами
 
 ### **После исправления:**
+
 - ✅ 1 экземпляр `AILearningSystem()` (singleton)
 - ✅ Переиспользование существующих экземпляров
 - ✅ Оптимизированное потребление памяти

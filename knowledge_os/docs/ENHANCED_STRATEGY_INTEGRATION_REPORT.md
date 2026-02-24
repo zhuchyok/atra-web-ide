@@ -9,6 +9,7 @@
 ## 🔍 Архитектура интеграции
 
 ### 1. Функция выбора режима
+
 ```python
 def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
     """Выбор функции входа в зависимости от режима фильтров"""
@@ -21,11 +22,13 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 ```
 
 ### 2. Общая конфигурация
+
 Оба режима используют **одну и ту же конфигурацию** `ENHANCED_STRATEGY_CONFIG`, которая автоматически оптимизируется системой оптимизации.
 
 ## 🎯 Режим SOFT (Мягкий)
 
 ### Приоритет сигналов:
+
 1. **ENHANCED BOLLINGER СИГНАЛЫ** (высший приоритет)
    - `improved_mean_reversion_signal()` - улучшенный возврат к средней
    - `improved_breakout_signal()` - улучшенный пробой полос
@@ -36,6 +39,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
    - Меньше требований к техническим индикаторам
 
 ### Настройки фильтров:
+
 - `sentiment_threshold = 0.6` (более мягкий)
 - `fear_greed_soft_threshold = 85` (более мягкий)
 - Более мягкие условия RSI, объема, волатильности
@@ -43,6 +47,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 ## 🔒 Режим STRICT (Строгий)
 
 ### Приоритет сигналов:
+
 1. **ПРОСТАЯ ЛОГИКА** (без enhanced функций)
    - Прямые условия для LONG/SHORT
    - Более строгие требования к техническим индикаторам
@@ -51,6 +56,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
    - Пересечение EMA (золотой/мертвый крест)
 
 ### Настройки фильтров:
+
 - `sentiment_threshold = 0.4` (более строгий)
 - `fear_greed_strict_threshold = 75` (более строгий)
 - Более строгие условия RSI, объема, волатильности
@@ -58,7 +64,9 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 ## ⚙️ Общие компоненты
 
 ### 1. Расширенные индикаторы
+
 Оба режима используют `add_enhanced_indicators()`:
+
 - Bollinger Bands (BB)
 - EMA (7, 25, 50, 200)
 - RSI
@@ -68,6 +76,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 - Sentiment score
 
 ### 2. Конфигурация ENHANCED_STRATEGY_CONFIG
+
 ```python
 ENHANCED_STRATEGY_CONFIG = {
     # Bollinger Bands
@@ -102,38 +111,42 @@ ENHANCED_STRATEGY_CONFIG = {
 ## 🔄 Автоматическая оптимизация
 
 ### Что оптимизируется:
+
 - **Только ENHANCED_STRATEGY_CONFIG** (общая для обоих режимов)
 - Параметры EMA, RSI, ATR, Bollinger Bands
 - Настройки breakout, mean reversion, squeeze
 - Параметры динамического управления
 
 ### Что НЕ оптимизируется:
+
 - Логика режимов soft/strict (захардкожена)
 - Условия в `soft_entry_signal()` и `strict_entry_signal()`
 - Пороги фильтров для каждого режима
 
 ## 📊 Сравнение режимов
 
-| Параметр | SOFT | STRICT |
-|----------|------|--------|
-| **Приоритет сигналов** | Enhanced → Classic | Simple → EMA Cross |
-| **Sentiment threshold** | 0.6 | 0.4 |
-| **Fear/Greed threshold** | 85 | 75 |
-| **RSI условия** | Более мягкие | Более строгие |
-| **Volume требования** | Более мягкие | Более строгие |
-| **Volatility требования** | Более мягкие | Более строгие |
-| **Количество сигналов** | Больше | Меньше |
-| **Качество сигналов** | Среднее | Высокое |
+| Параметр                  | SOFT               | STRICT             |
+| ------------------------- | ------------------ | ------------------ |
+| **Приоритет сигналов**    | Enhanced → Classic | Simple → EMA Cross |
+| **Sentiment threshold**   | 0.6                | 0.4                |
+| **Fear/Greed threshold**  | 85                 | 75                 |
+| **RSI условия**           | Более мягкие       | Более строгие      |
+| **Volume требования**     | Более мягкие       | Более строгие      |
+| **Volatility требования** | Более мягкие       | Более строгие      |
+| **Количество сигналов**   | Больше             | Меньше             |
+| **Качество сигналов**     | Среднее            | Высокое            |
 
 ## 🎯 Практическое применение
 
 ### Когда использовать SOFT:
+
 - Волатильный рынок
 - Нужно больше сигналов
 - Готовность к более высокому риску
 - Интрадей торговля
 
 ### Когда использовать STRICT:
+
 - Боковой рынок
 - Нужны только качественные сигналы
 - Консервативный подход

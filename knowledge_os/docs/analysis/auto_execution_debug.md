@@ -1,9 +1,11 @@
 # 🔍 Диагностика проблемы автоисполнения
 
 ## Проблема
+
 Сигналы приходят в Telegram, но позиции не открываются на бирже.
 
 ## Сигналы для проверки
+
 - LINKUSDT SHORT 13.11.2025 05:15
 - ETHUSDT SHORT 13.11.2025 05:28
 - LINKUSDT SHORT 13.11.2025 05:46
@@ -11,27 +13,32 @@
 ## Проверка на сервере
 
 ### 1. Проверить логи автоисполнения
+
 ```bash
 # На сервере
 grep -i "AUTO CHECK\|AUTO\]\|execute_and_open" logs/system.log | tail -50
 ```
 
 ### 2. Проверить режим пользователя
+
 ```bash
 sqlite3 trading.db "SELECT user_id, trade_mode FROM user_settings WHERE user_id = 556251171;"
 ```
 
 ### 3. Проверить наличие ключей API
+
 ```bash
 sqlite3 trading.db "SELECT user_id, exchange_name FROM user_exchange_keys WHERE user_id = 556251171 AND exchange_name = 'bitget';"
 ```
 
 ### 4. Проверить сигналы в БД
+
 ```bash
 sqlite3 trading.db "SELECT symbol, direction, entry_price, created_at FROM signals_log WHERE symbol IN ('LINKUSDT', 'ETHUSDT') AND date(created_at) = date('now') ORDER BY created_at DESC;"
 ```
 
 ### 5. Проверить активные позиции
+
 ```bash
 sqlite3 trading.db "SELECT symbol, direction, entry_price, status FROM active_positions WHERE symbol IN ('LINKUSDT', 'ETHUSDT') AND status = 'open';"
 ```
@@ -57,4 +64,3 @@ sqlite3 trading.db "SELECT symbol, direction, entry_price, status FROM active_po
 2. Убедиться, что режим пользователя = 'auto'
 3. Убедиться, что ключи API есть
 4. Проверить, что переменные правильно получаются
-

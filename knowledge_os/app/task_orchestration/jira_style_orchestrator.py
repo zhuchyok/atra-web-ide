@@ -20,7 +20,9 @@ class JiraStyleOrchestrator:
     def __init__(self, base_orchestrator: Any):
         self.orchestrator = base_orchestrator
 
-    async def create_epic(self, summary: str, description: str, metadata: Optional[Dict] = None) -> str:
+    async def create_epic(
+        self, summary: str, description: str, metadata: Optional[Dict] = None
+    ) -> str:
         """Создать Epic (родительскую задачу) через phase_1 и вернуть task_id."""
         task_id = None
         if hasattr(self.orchestrator, "run_phases_1_to_5"):
@@ -31,6 +33,7 @@ class JiraStyleOrchestrator:
             task_id = result.get("task_id")
         if not task_id and hasattr(self.orchestrator, "active_tasks"):
             import uuid
+
             task_id = str(uuid.uuid4())
             self.orchestrator.active_tasks[task_id] = {
                 "description": f"EPIC: {summary}\n\n{description}",
@@ -47,12 +50,14 @@ class JiraStyleOrchestrator:
         if "stories" not in epic:
             epic["stories"] = []
         story_id = f"{epic_id}_story_{len(epic['stories']) + 1}"
-        epic["stories"].append({
-            "id": story_id,
-            "summary": summary,
-            "description": description or summary,
-            "status": "todo",
-        })
+        epic["stories"].append(
+            {
+                "id": story_id,
+                "summary": summary,
+                "description": description or summary,
+                "status": "todo",
+            }
+        )
         return story_id
 
     async def create_subtask(self, story_id: str, summary: str, description: str = "") -> str:
@@ -65,11 +70,13 @@ class JiraStyleOrchestrator:
                     if "subtasks" not in story:
                         story["subtasks"] = []
                     subtask_id = f"{story_id}_subtask_{len(story['subtasks']) + 1}"
-                    story["subtasks"].append({
-                        "id": subtask_id,
-                        "summary": summary,
-                        "description": description or summary,
-                        "status": "todo",
-                    })
+                    story["subtasks"].append(
+                        {
+                            "id": subtask_id,
+                            "summary": summary,
+                            "description": description or summary,
+                            "status": "todo",
+                        }
+                    )
                     return subtask_id
         raise ValueError(f"Story {story_id} not found")

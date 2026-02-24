@@ -13,7 +13,7 @@ if ollama list | grep -q "glm-4.7-flash"; then
 else
     echo "⏳ Модель еще не установлена"
     echo ""
-    
+
     # Проверяем, идет ли загрузка
     if ps aux | grep -q "[o]llama pull glm-4.7-flash"; then
         echo "📥 Загрузка в процессе..."

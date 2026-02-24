@@ -11,14 +11,14 @@ log() {
 
 scan_models() {
     log "🔍 Сканирование моделей..."
-    
+
     # Запускаем Python скрипт сканирования
     cd "$(dirname "$0")/.."
     python3 scripts/scan_available_models.py >> "$LOG_FILE" 2>&1
-    
+
     # Генерируем отчет об использовании
     python3 scripts/model_usage_report.py >> "$LOG_FILE" 2>&1
-    
+
     log "✅ Сканирование завершено"
 }
 

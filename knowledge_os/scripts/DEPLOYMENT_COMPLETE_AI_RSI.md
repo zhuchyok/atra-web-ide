@@ -12,6 +12,7 @@
 **Файл:** `signal_live.py` строка 1807
 
 **Было:**
+
 ```python
 def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
     # 50% символов → группа A (Smart RSI)
@@ -21,6 +22,7 @@ def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
 ```
 
 **Стало:**
+
 ```python
 def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
     # 100% символов → группа A (Smart RSI с AI)
@@ -28,6 +30,7 @@ def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
 ```
 
 **Эффект:**
+
 - **Было:** 50% Smart RSI + 50% Legacy (65/35)
 - **Стало:** 100% Smart RSI (AI)
 - **Блокировок:** 48.2% → **~5-10%** (ожидается)
@@ -39,18 +42,21 @@ def get_rsi_experiment_group(symbol: str, timestamp: Optional[datetime]) -> str:
 **Файл:** `src/signals/filters.py` строки 213, 232
 
 **Было:**
+
 ```python
 if trend_strength > 0.01:  # 1% - блокировал при ETH 1.446%
     # Блокируем
 ```
 
 **Стало:**
+
 ```python
 if trend_strength > 0.02:  # 2% - разрешит при ETH 1.446%
     # Блокируем только очень сильные тренды
 ```
 
 **Эффект:**
+
 - **Блокировок:** 6.1% → **~1-2%** (ожидается)
 
 ---
@@ -60,18 +66,21 @@ if trend_strength > 0.02:  # 2% - разрешит при ETH 1.446%
 **Файл:** `signal_live.py` строки 5794, 5802
 
 **Было:**
+
 ```python
 if signal_type == "BUY" and rsi_value > 65:  # Слишком строго
 if signal_type == "SELL" and rsi_value < 35:  # Слишком строго
 ```
 
 **Стало:**
+
 ```python
 if signal_type == "BUY" and rsi_value > 70:  # Стандарт
 if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 ```
 
 **Эффект:**
+
 - Legacy группа больше не используется (все на группе A)
 - Но пороги исправлены для fallback
 
@@ -80,6 +89,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 ## 📊 ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 ### До внедрения:
+
 - **RSI Warning:** 2,694 блокировок (48.2%)
   - Legacy группа (B): 65/35 пороги
   - Smart RSI группа (A): AI регулировка
@@ -87,6 +97,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 - **Сигналов:** 0 за день
 
 ### После внедрения (ожидается):
+
 - **RSI Warning:** ~300-600 блокировок (~5-10%)
   - ВСЕ на Smart RSI (AI) ✅
   - AI динамически оценивает RSI с контекстом
@@ -94,6 +105,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 - **Сигналов:** ~100-200 за день
 
 ### Сравнение с вчера:
+
 - **Вчера:** 286 сигналов
 - **Сегодня (ожидается):** ~100-200 сигналов
 - **Разница:** Восстановлено ~50-70% от вчера
@@ -105,6 +117,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 ### Как работает:
 
 **Учитываемые факторы:**
+
 1. **RSI значение** (базовый показатель)
 2. **Сила тренда** (trend_strength > 0.7 → +2.0 балла)
 3. **Объем** (volume_ratio > 1.5 → +1.5 балла)
@@ -112,6 +125,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 5. **BTC alignment** (согласованность с BTC → +1.0 балл)
 
 **Логика принятия решений:**
+
 - RSI > 85 или RSI < 15 → **блокировать** (экстремальная зона)
 - RSI в зоне 70-85 или 15-30:
   - AI уверенность < 0.6 → **блокировать**
@@ -120,6 +134,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 - RSI вне зон → **разрешить**
 
 **Примеры:**
+
 ```
 ✅ RSI 72 + тренд 0.8 + объем 1.8 + AI 0.9 + BTC ✓ → РАЗРЕШИТЬ (score=5.5)
 ❌ RSI 72 + тренд 0.3 + объем 1.0 + AI 0.4 + BTC ✗ → БЛОКИРОВАТЬ (score=0)
@@ -137,6 +152,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
    - `src/signals/filters.py`: ETH порог 2%
 
 2. ✅ **Git коммит:**
+
    ```bash
    git add signal_live.py src/signals/filters.py
    git commit -m "🔧 URGENT FIX: Переведены все на Smart RSI (AI)"
@@ -144,6 +160,7 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
    ```
 
 3. ✅ **Деплой на сервер:**
+
    ```bash
    cd /root/atra
    git pull
@@ -177,11 +194,11 @@ if signal_type == "SELL" and rsi_value < 30:  # Стандарт
 
 ```sql
 -- Блокировки за последний час
-SELECT filter_type, 
+SELECT filter_type,
        SUM(CASE WHEN passed = 0 THEN 1 ELSE 0 END) as blocked,
        COUNT(*) as total,
        ROUND(SUM(CASE WHEN passed = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) as block_pct
-FROM filter_checks 
+FROM filter_checks
 WHERE created_at >= datetime('now', '-1 hour')
 GROUP BY filter_type
 ORDER BY blocked DESC;
@@ -199,6 +216,7 @@ WHERE created_at >= datetime('now', '-1 hour');
 **Деплой завершен успешно!** 🎉
 
 **Изменения:**
+
 1. ✅ Все символы → Smart RSI (AI)
 2. ✅ ETH Trend порог → 2%
 3. ✅ Legacy RSI → 70/30 (fallback)
@@ -207,6 +225,7 @@ WHERE created_at >= datetime('now', '-1 hour');
 6. ✅ Бот перезапущен
 
 **Ожидаемый результат:**
+
 - Сигналов: 0 → ~5-10 в час (~100-200 в день)
 - Блокировок RSI: 48.2% → ~5-10%
 - Блокировок ETH: 6.1% → ~1-2%
@@ -215,5 +234,4 @@ WHERE created_at >= datetime('now', '-1 hour');
 
 ---
 
-*Деплой выполнен 2025-11-20*
-
+_Деплой выполнен 2025-11-20_

@@ -6,4 +6,3 @@
 
 # Еженедельный отчёт в понедельник в 00:00 UTC
 0 0 * * 1 cd /root/atra && /root/atra/.venv/bin/python3 scripts/pm_weekly_report.py >> logs/pm_weekly.log 2>&1
-

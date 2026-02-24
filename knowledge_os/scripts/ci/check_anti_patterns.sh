@@ -17,16 +17,16 @@ warnings = 0
 for root, dirs, files in os.walk('src'):
     # Пропускаем __pycache__
     dirs[:] = [d for d in dirs if d != '__pycache__']
-    
+
     for file in files:
         if file.endswith('.py'):
             filepath = os.path.join(root, file)
             try:
                 with open(filepath, 'r', encoding='utf-8') as f:
                     code = f.read()
-                
+
                 patterns = detector.detect_in_code(code, filepath)
-                
+
                 for p in patterns:
                     if p.severity == 'error':
                         print(f'❌ {filepath}:{p.line_number}: {p.message}')
@@ -48,4 +48,3 @@ else:
     print('\n✅ Антипаттерны не обнаружены')
     sys.exit(0)
 EOF
-

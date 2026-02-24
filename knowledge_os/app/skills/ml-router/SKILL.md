@@ -4,7 +4,7 @@ description: ML Router - машинное обучение для выбора �
 category: optimization
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🤖"}}
+metadata: { "clawdbot": { "requires": { "bins": ["python"] }, "emoji": "🤖" } }
 ---
 
 # ML Router Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🤖"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Оптимального выбора модели
 - Экономии токенов
 - Баланса качества и стоимости
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🤖"}}
 ## Методология
 
 ML Router работает через:
+
 1. **Task Analysis** - Анализ задачи
 2. **Model Selection** - Выбор модели на основе ML
 3. **Cost-Quality Balance** - Баланс стоимости и качества

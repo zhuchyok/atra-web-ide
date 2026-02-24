@@ -9,12 +9,14 @@
 ## 📊 **ТЕКУЩИЙ СТАТУС**
 
 ### ✅ **Что работает:**
+
 - **`quotes`: 11 записей** (исправлено!)
 - **`signals_log`: 36 записей** (основные сигналы)
 - **`active_signals`: 28 записей** (активные сигналы)
 - **`telemetry_api`: 7204 записей** (телеметрия)
 
 ### ❌ **Что НЕ работает (9 таблиц):**
+
 1. **`signals: 0 записей`** - КРИТИЧНО!
 2. **`arbitrage_events: 0 записей`** - упущенная прибыль
 3. **`manual_trades: 0 записей`** - нет ручной торговли
@@ -31,6 +33,7 @@
 ### **ЭТАП 1: КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ**
 
 #### **1.1 Исправить сохранение торговых сигналов**
+
 **Файл:** `signal_live.py` (после строки 9645)
 **Действие:** Добавить код сохранения в таблицу `signals`
 
@@ -40,20 +43,20 @@ try:
     # Вычисляем RSI и EMA индикаторы
     import ta
     import pandas as pd
-    
+
     if len(df) >= 14:  # Минимум для RSI
         # RSI
         rsi_indicator = ta.momentum.RSIIndicator(df['close'], window=14)
         rsi_value = rsi_indicator.rsi().iloc[-1]
-        
+
         # EMA Fast (7 периодов)
         ema_fast_indicator = ta.trend.EMAIndicator(df['close'], window=7)
         ema_fast_value = ema_fast_indicator.ema_indicator().iloc[-1]
-        
+
         # EMA Slow (25 периодов)
         ema_slow_indicator = ta.trend.EMAIndicator(df['close'], window=25)
         ema_slow_value = ema_slow_indicator.ema_indicator().iloc[-1]
-        
+
         # Сохраняем в таблицу signals
         signal_data = {
             "exchange": "binance",
@@ -63,17 +66,18 @@ try:
             "ema_slow": float(ema_slow_value) if not pd.isna(ema_slow_value) else float(signal_price),
             "price": float(signal_price)
         }
-        
+
         db.insert_signal(signal_data)
         logging.info(f"✅ Сигнал сохранен в БД: {symbol} (RSI: {rsi_value:.2f})")
     else:
         logging.warning(f"⚠️ Недостаточно данных для расчета индикаторов: {symbol}")
-        
+
 except Exception as e:
     logging.error(f"❌ Ошибка сохранения сигнала в БД: {e}")
 ```
 
 #### **1.2 Включить систему арбитража**
+
 **Файл:** `signal_live.py` (добавить новую функцию)
 **Действие:** Создать функцию проверки арбитража
 
@@ -83,25 +87,25 @@ async def check_arbitrage_opportunities():
     try:
         from exchanges.binance_api import BinanceAPI
         from exchanges.mexc_api import MEXCAPI
-        
+
         symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT"]
-        
+
         binance_prices = await BinanceAPI.get_prices(symbols)
         mexc_prices = await MEXCAPI.get_prices(symbols)
-        
+
         for symbol in symbols:
             if symbol in binance_prices and symbol in mexc_prices:
                 binance_bid = binance_prices[symbol]["bid"]
                 binance_ask = binance_prices[symbol]["ask"]
                 mexc_bid = mexc_prices[symbol]["bid"]
                 mexc_ask = mexc_prices[symbol]["ask"]
-                
+
                 # Проверяем арбитражные возможности
                 profit_binance_mexc = (mexc_bid - binance_ask) / binance_ask * 100
                 profit_mexc_binance = (binance_bid - mexc_ask) / mexc_ask * 100
-                
+
                 min_profit = 0.5  # Минимальная прибыль 0.5%
-                
+
                 if profit_binance_mexc > min_profit:
                     db.save_arbitrage_event(
                         symbol=symbol,
@@ -114,7 +118,7 @@ async def check_arbitrage_opportunities():
                         net_profit_pct=profit_binance_mexc
                     )
                     logging.info(f"💰 Арбитраж найден: {symbol} - прибыль {profit_binance_mexc:.2f}%")
-                    
+
     except Exception as e:
         logging.error(f"❌ Ошибка проверки арбитража: {e}")
 ```
@@ -122,6 +126,7 @@ async def check_arbitrage_opportunities():
 ### **ЭТАП 2: СИСТЕМЫ ТОРГОВЛИ**
 
 #### **2.1 Создать систему ручной торговли**
+
 **Файл:** `manual_trading.py` (создать новый)
 **Действие:** Создать интерфейс ручной торговли
 
@@ -131,10 +136,10 @@ def save_manual_trade(trade_data):
     try:
         db.cursor.execute("""
             INSERT INTO manual_trades (
-                ts, symbol, buy_exchange, sell_exchange, buy_price, sell_price, 
-                amount, notified_profit, notified_profit_pct, withdraw_fee, 
-                final_profit, final_profit_pct, status, real_buy_price, 
-                real_sell_price, real_amount, real_profit, real_profit_pct, 
+                ts, symbol, buy_exchange, sell_exchange, buy_price, sell_price,
+                amount, notified_profit, notified_profit_pct, withdraw_fee,
+                final_profit, final_profit_pct, status, real_buy_price,
+                real_sell_price, real_amount, real_profit, real_profit_pct,
                 trade_completed
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
@@ -167,6 +172,7 @@ def save_manual_trade(trade_data):
 ### **ЭТАП 3: СИСТЕМЫ АУДИТА И МОНИТОРИНГА**
 
 #### **3.1 Включить все системы аудита**
+
 **Файл:** `audit_systems.py` (создать новый)
 **Действие:** Создать все функции аудита
 
@@ -246,6 +252,7 @@ def add_to_market_cap_blacklist(symbol, market_cap, reason=""):
 ### **ЭТАП 4: ИНТЕГРАЦИЯ В ОСНОВНОЙ ЦИКЛ**
 
 #### **4.1 Интегрировать в main.py**
+
 **Файл:** `main.py`
 **Действие:** Добавить вызовы всех систем в основной цикл
 
@@ -253,31 +260,34 @@ def add_to_market_cap_blacklist(symbol, market_cap, reason=""):
 # В основной цикл добавить:
 async def main():
     # ... существующий код ...
-    
+
     # Добавляем проверку арбитража
     arbitrage_task = asyncio.create_task(check_arbitrage_opportunities())
     tasks.append(arbitrage_task)
-    
+
     # Добавляем системы аудита
     audit_task = asyncio.create_task(run_audit_systems())
     tasks.append(audit_task)
-    
+
     # ... остальной код ...
 ```
 
 ## 🎯 **ПРИОРИТЕТЫ ИСПРАВЛЕНИЯ**
 
 ### **КРИТИЧНО (сделать в первую очередь):**
+
 1. **Исправить сохранение сигналов** - добавить код в signal_live.py
 2. **Включить систему арбитража** - создать функцию проверки
 3. **Создать систему ручной торговли** - интерфейс для пользователей
 
 ### **ВАЖНО (сделать во вторую очередь):**
+
 4. **Включить все системы аудита** - мониторинг и логирование
 5. **Создать систему накопления событий** - анализ трендов
 6. **Включить фильтрацию по капитализации** - улучшение качества сигналов
 
 ### **ЖЕЛАТЕЛЬНО (сделать в третью очередь):**
+
 7. **Включить систему бэктестов** - тестирование стратегий
 8. **Создать систему проверок** - мониторинг состояния
 9. **Интегрировать все в основной цикл** - автоматизация
@@ -285,6 +295,7 @@ async def main():
 ## 📈 **ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ**
 
 После исправления:
+
 - **`signals`** - будет заполняться торговыми сигналами с техническими индикаторами
 - **`arbitrage_events`** - будет отслеживать арбитражные возможности
 - **`manual_trades`** - будет сохранять ручные сделки пользователей
@@ -296,6 +307,7 @@ async def main():
 **СИСТЕМА НЕПОЛНАЯ И ТРЕБУЕТ ЗАВЕРШЕНИЯ!**
 
 Нужно:
+
 1. **Исправить критические проблемы** (signals, arbitrage)
 2. **Создать недостающие системы** (manual trading, audit)
 3. **Интегрировать все компоненты** в основной поток

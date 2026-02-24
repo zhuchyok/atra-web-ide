@@ -9,8 +9,9 @@
 ## 🎯 КОНЦЕПЦИЯ УСКОРЕНИЯ
 
 **Виктор (Team Lead):**
+
 > "Мы не просто учимся - мы **ЛЕТАЕМ**! Внедряем 7 методов ускоренного обучения:
-> 
+>
 > 1. **Practice-First** (Практика-первая) - 80% практики, 20% теории
 > 2. **Pair Programming** (Парное программирование) - учимся друг у друга
 > 3. **Micro-Tasks** (Микро-задачи) - маленькие шаги, большой результат
@@ -18,7 +19,7 @@
 > 5. **Automation** (Автоматизация) - скрипты для рутины
 > 6. **Mentorship** (Менторство) - старшие учат младших
 > 7. **Challenges** (Челленджи) - соревновательное обучение
-> 
+>
 > **Результат:** От новичка до эксперта за недели, а не месяцы!"
 
 ---
@@ -30,7 +31,9 @@
 ## 1️⃣ ДМИТРИЙ (ML ENGINEER) - УСКОРЕННАЯ ПРОГРАММА
 
 ### **Текущий уровень:** ⭐⭐⭐⭐ Master
+
 ### **Цель:** ⭐⭐⭐⭐⭐ Guru за 2 недели
+
 ### **Фокус:** Автоматизация ML, новые алгоритмы, feature engineering
 
 ---
@@ -54,48 +57,48 @@ import logging
 
 class QuickMLTrainer:
     """Быстрое обучение ML моделей с автоматической валидацией"""
-    
+
     def __init__(self, model_type='lightgbm'):
         self.model_type = model_type
         self.logger = logging.getLogger(__name__)
-        
-    def train_classifier(self, X_train, y_train, X_test, y_test, 
+
+    def train_classifier(self, X_train, y_train, X_test, y_test,
                         feature_names=None, save_path=None):
         """
         Обучение классификатора за 1 команду
-        
+
         Returns:
             model, metrics_dict
         """
-        
+
         # Auto-detect optimal parameters
         params = self._get_optimal_params(X_train.shape)
-        
+
         # Train
         if self.model_type == 'lightgbm':
             model = lgb.LGBMClassifier(**params)
             model.fit(X_train, y_train, feature_name=feature_names)
-        
+
         # Validate
         y_pred_proba = model.predict_proba(X_test)[:, 1]
         y_pred = model.predict(X_test)
-        
+
         metrics = {
             'roc_auc': roc_auc_score(y_test, y_pred_proba),
             'accuracy': accuracy_score(y_test, y_pred),
             'best_iteration': getattr(model, 'best_iteration_', None)
         }
-        
+
         # Auto-save if metrics are good
         if metrics['roc_auc'] > 0.7 and save_path:
             self._save_model(model, save_path, metrics)
-            
+
         return model, metrics
-    
+
     def _get_optimal_params(self, shape):
         """Автоматический подбор параметров по размеру данных"""
         n_samples, n_features = shape
-        
+
         return {
             'n_estimators': min(500, n_samples // 10),
             'max_depth': min(10, n_features // 2),
@@ -126,66 +129,66 @@ print(f"ROC AUC: {metrics['roc_auc']:.3f}")
 
 class MLDiagnostics:
     """Быстрая диагностика ML проблем"""
-    
+
     def diagnose_all(self, model_path, data_sample):
         """
         Проверяет все типичные проблемы за 1 запуск
-        
+
         Returns:
             report: dict с проблемами и решениями
         """
-        
+
         report = {
             'issues': [],
             'recommendations': [],
             'severity': 'OK'
         }
-        
+
         # 1. Check model exists
         if not os.path.exists(model_path):
             report['issues'].append("❌ Model file not found")
             report['recommendations'].append("Retrain model")
             report['severity'] = 'CRITICAL'
             return report
-        
+
         # 2. Load and check model
         model = self._load_model(model_path)
-        
+
         # 3. Check features
         expected_features = model.feature_name_
         provided_features = list(data_sample.columns)
-        
+
         missing = set(expected_features) - set(provided_features)
         extra = set(provided_features) - set(expected_features)
-        
+
         if missing:
             report['issues'].append(f"❌ Missing features: {missing}")
             report['recommendations'].append("Update feature extraction")
             report['severity'] = 'CRITICAL'
-            
+
         if extra:
             report['issues'].append(f"⚠️ Extra features: {extra}")
             report['recommendations'].append("Remove unused features")
-            
+
         # 4. Check predictions
         try:
             pred = model.predict_proba(data_sample)
-            
+
             if np.all(pred < 0.01):
                 report['issues'].append("❌ All predictions near 0%")
                 report['recommendations'].append("Check feature values or retrain")
                 report['severity'] = 'HIGH'
-                
+
         except Exception as e:
             report['issues'].append(f"❌ Prediction failed: {e}")
             report['severity'] = 'CRITICAL'
-        
+
         # 5. Feature importance check
         importance = model.feature_importances_
         if np.std(importance) < 0.01:
             report['issues'].append("⚠️ All features have similar importance")
             report['recommendations'].append("Review feature engineering")
-        
+
         return report
 
 # ИСПОЛЬЗОВАНИЕ (автоматическая диагностика!):
@@ -205,6 +208,7 @@ for rec in report['recommendations']:
 ### **📚 УСКОРЕННОЕ ОБУЧЕНИЕ:**
 
 #### **Неделя 1: Advanced ML**
+
 ```
 📖 Теория (2 часа):
    - XGBoost vs LightGBM
@@ -222,6 +226,7 @@ for rec in report['recommendations']:
 ```
 
 #### **Неделя 2: Автоматизация и Production**
+
 ```
 📖 Теория (2 часа):
    - MLOps best practices
@@ -244,7 +249,9 @@ for rec in report['recommendations']:
 ## 2️⃣ МАКСИМ (DATA ANALYST) - УСКОРЕННАЯ ПРОГРАММА
 
 ### **Текущий уровень:** ⭐⭐⭐⭐ Master
+
 ### **Цель:** ⭐⭐⭐⭐⭐ Guru за 2 недели
+
 ### **Фокус:** Продвинутый анализ, автоматизация отчётов, прогнозирование
 
 ---
@@ -262,85 +269,85 @@ for rec in report['recommendations']:
 
 class QuickBacktestAnalyzer:
     """Быстрый анализ торговой стратегии"""
-    
+
     def analyze_all(self, trades_df):
         """
         Полный анализ за 1 запуск
-        
+
         Returns:
             report: dict со всеми метриками
         """
-        
+
         # Calculate all metrics at once
         metrics = {}
-        
+
         # Basic
         metrics['total_trades'] = len(trades_df)
         metrics['win_rate'] = (trades_df['pnl'] > 0).mean() * 100
         metrics['total_pnl'] = trades_df['pnl'].sum()
-        
+
         # Risk
         wins = trades_df[trades_df['pnl'] > 0]['pnl']
         losses = trades_df[trades_df['pnl'] < 0]['pnl']
-        
+
         if len(losses) > 0:
             metrics['profit_factor'] = wins.sum() / abs(losses.sum())
             metrics['win_loss_ratio'] = wins.mean() / abs(losses.mean())
-        
+
         # Drawdown
         cumulative = trades_df['pnl'].cumsum()
         running_max = cumulative.expanding().max()
         drawdown = cumulative - running_max
         metrics['max_drawdown'] = abs(drawdown.min())
         metrics['max_drawdown_pct'] = (drawdown.min() / running_max.max() * 100) if running_max.max() > 0 else 0
-        
+
         # Sharpe & Sortino
         returns = trades_df['pnl'] / trades_df['capital']
         metrics['sharpe_ratio'] = self._calculate_sharpe(returns, periods_per_year=365)
         metrics['sortino_ratio'] = self._calculate_sortino(returns, periods_per_year=365)
-        
+
         # Consistency
         metrics['avg_win'] = wins.mean() if len(wins) > 0 else 0
         metrics['avg_loss'] = losses.mean() if len(losses) > 0 else 0
         metrics['largest_win'] = wins.max() if len(wins) > 0 else 0
         metrics['largest_loss'] = losses.min() if len(losses) > 0 else 0
-        
+
         # Time-based
         trades_df['date'] = pd.to_datetime(trades_df['entry_time'])
         daily_pnl = trades_df.groupby(trades_df['date'].dt.date)['pnl'].sum()
-        
+
         metrics['profitable_days'] = (daily_pnl > 0).sum()
         metrics['total_days'] = len(daily_pnl)
         metrics['daily_win_rate'] = metrics['profitable_days'] / metrics['total_days'] * 100
-        
+
         # Generate recommendations
         recommendations = self._generate_recommendations(metrics)
-        
+
         return {
             'metrics': metrics,
             'recommendations': recommendations,
             'risk_level': self._assess_risk(metrics)
         }
-    
+
     def _generate_recommendations(self, metrics):
         """Автоматические рекомендации"""
         recs = []
-        
+
         if metrics['win_rate'] < 50:
             recs.append("⚠️ Win Rate < 50% - улучшить фильтрацию сигналов")
-        
+
         if metrics['profit_factor'] < 1.5:
             recs.append("⚠️ Profit Factor < 1.5 - увеличить TP или улучшить entry")
-            
+
         if metrics['max_drawdown_pct'] > 20:
             recs.append("❌ Drawdown > 20% - снизить risk_pct")
-        
+
         if metrics['sharpe_ratio'] < 1.0:
             recs.append("⚠️ Sharpe < 1.0 - стратегия нестабильна")
-            
+
         if not recs:
             recs.append("✅ Стратегия выглядит хорошо!")
-            
+
         return recs
 
 # ИСПОЛЬЗОВАНИЕ (1 строка!):
@@ -369,12 +376,12 @@ for rec in result['recommendations']:
 
 class AutoReportGenerator:
     """Автоматическая генерация отчётов"""
-    
+
     def generate_strategy_report(self, backtest_results, output_path='report.md'):
         """
         Создаёт полный отчёт в markdown за секунды
         """
-        
+
         report = f"""# 📊 АВТОМАТИЧЕСКИЙ ОТЧЁТ О СТРАТЕГИИ
 
 **Дата:** {datetime.now().strftime('%Y-%m-%d %H:%M')}
@@ -404,10 +411,10 @@ class AutoReportGenerator:
 ## 🎯 РЕКОМЕНДАЦИИ
 
 """
-        
+
         for i, rec in enumerate(backtest_results['recommendations'], 1):
             report += f"{i}. {rec}\n"
-        
+
         report += f"""
 ---
 
@@ -421,12 +428,12 @@ class AutoReportGenerator:
 
 *Отчёт сгенерирован автоматически системой Quick Analysis*
 """
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(report)
-            
+
         return output_path
-    
+
     def _rate(self, value, min_good, max_excellent):
         """Автоматическая оценка метрики"""
         if value >= max_excellent:
@@ -449,6 +456,7 @@ print(f"✅ Отчёт создан: {report_path}")
 ### **📚 УСКОРЕННОЕ ОБУЧЕНИЕ:**
 
 #### **Неделя 1: Advanced Analytics**
+
 ```
 🔨 Практика (10 часов):
    ✅ Task 1: Walk-forward analysis (3 часа)
@@ -461,6 +469,7 @@ print(f"✅ Отчёт создан: {report_path}")
 ```
 
 #### **Неделя 2: Predictive Analytics**
+
 ```
 🔨 Практика (10 часов):
    ✅ Task 1: Market regime detection (3 часа)
@@ -477,6 +486,7 @@ print(f"✅ Отчёт создан: {report_path}")
 ## 3️⃣ ИГОРЬ (BACKEND DEV) - УСКОРЕННАЯ ПРОГРАММА
 
 ### **Текущий уровень:** ⭐⭐⭐ Advanced
+
 ### **Цель:** ⭐⭐⭐⭐⭐ Guru за 3 недели
 
 ---
@@ -511,11 +521,11 @@ class DBConnection:
     def __init__(self, db_path='trading.db'):
         self.db_path = db_path
         self.conn = None
-        
+
     def __enter__(self):
         self.conn = sqlite3.connect(self.db_path)
         return self.conn
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.conn:
             self.conn.close()
@@ -531,39 +541,39 @@ with DBConnection() as conn:
 def extract_features(data, indicators):
     """Универсальный извлекатель features"""
     features = {}
-    
+
     # Required features
     required = ['rsi', 'macd', 'volume_ratio', 'volatility']
     for feat in required:
         features[feat] = indicators.get(feat, 0.0)
-    
+
     # Calculated features
     if 'bb_upper' in indicators and 'bb_lower' in indicators:
         price = data.get('close', 0)
         features['bb_position'] = (price - indicators['bb_lower']) / (indicators['bb_upper'] - indicators['bb_lower'])
-    
+
     # Time features
     now = datetime.now()
     features['hour_of_day'] = now.hour
     features['day_of_week'] = now.weekday()
     features['is_weekend'] = 1.0 if now.weekday() >= 5 else 0.0
-    
+
     return features
 
 # SNIPPET 4: Config validator
 def validate_config(config):
     """Проверка конфигурации перед запуском"""
     errors = []
-    
+
     if not config.get('COINS'):
         errors.append("❌ COINS list is empty")
-    
+
     if config.get('ML_MIN_WIN_PROBABILITY', 0) < 0.3:
         errors.append("⚠️ ML_MIN_WIN_PROBABILITY слишком низкая")
-        
+
     if len(config.get('COINS', [])) < 5:
         errors.append("⚠️ Рекомендуется минимум 5 монет")
-    
+
     return errors if errors else None
 
 # SNIPPET 5: Performance logger
@@ -572,11 +582,11 @@ class PerformanceLogger:
     def __init__(self, func_name):
         self.func_name = func_name
         self.start_time = None
-        
+
     def __enter__(self):
         self.start_time = time.time()
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         elapsed = time.time() - self.start_time
         if elapsed > 1.0:
@@ -649,35 +659,35 @@ echo "✅ Деплой завершён!"
 
 class AutoValidator:
     """Проверяет всё автоматически"""
-    
+
     def validate_deployment(self):
         """Полная валидация деплоя"""
-        
+
         checks = []
-        
+
         # 1. Git version
         git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode().strip()
         checks.append(('Git commit', git_hash, 'PASS'))
-        
+
         # 2. Processes
         processes = subprocess.check_output(['ps', 'aux']).decode()
         has_signal_live = 'signal_live' in processes
         has_main = 'main.py' in processes
         checks.append(('signal_live running', has_signal_live, 'PASS' if has_signal_live else 'FAIL'))
         checks.append(('main.py running', has_main, 'PASS' if has_main else 'FAIL'))
-        
+
         # 3. ML model
         model_path = 'ai_learning_data/lightgbm_models/classifier.txt'
         model_exists = os.path.exists(model_path)
         checks.append(('ML model exists', model_exists, 'PASS' if model_exists else 'FAIL'))
-        
+
         # 4. Database
         conn = sqlite3.connect('trading.db')
         tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         has_positions = ('active_positions',) in tables
         checks.append(('Database OK', has_positions, 'PASS' if has_positions else 'FAIL'))
         conn.close()
-        
+
         # Generate report
         return self._generate_report(checks)
 
@@ -701,7 +711,7 @@ print(report)
 
 class SmartLogAnalyzer:
     """Умный анализ логов с паттернами"""
-    
+
     def __init__(self):
         self.patterns = {
             'ml_zero': r'ML ZERO PROB.*success_probability = (\d+\.\d+)',
@@ -709,34 +719,34 @@ class SmartLogAnalyzer:
             'missing_features': r'Missing features: (.*)',
             'polling_active': r'getUpdates.*200 OK',
         }
-        
+
     def quick_diagnosis(self, log_file):
         """Быстрая диагностика за секунды"""
-        
+
         issues = []
-        
+
         with open(log_file, 'r') as f:
             logs = f.readlines()
-        
+
         # Analyze last 1000 lines
         recent = logs[-1000:]
-        
+
         # Check patterns
         ml_zero_count = sum(1 for line in recent if 'ML ZERO PROB' in line)
         if ml_zero_count > 10:
             issues.append(("❌ ML returning 0%", "HIGH", "Check features or retrain model"))
-        
+
         disk_errors = sum(1 for line in recent if 'No space' in line)
         if disk_errors > 0:
             issues.append(("🔴 Disk full", "CRITICAL", "Clean backups/logs immediately"))
-        
+
         polling_ok = sum(1 for line in recent if 'getUpdates' in line and '200 OK' in line)
         if polling_ok == 0:
             issues.append(("⚠️ Bot not polling", "HIGH", "Restart telegram bot"))
-        
+
         if not issues:
             return "✅ Всё работает нормально!"
-        
+
         return issues
 
 # ИСПОЛЬЗОВАНИЕ:
@@ -759,12 +769,12 @@ print(diagnosis)
 
 class TeamCoordinator:
     """Автоматическое распределение задач"""
-    
+
     def analyze_task(self, task_description):
         """Автоматически определяет кого подключить"""
-        
+
         team = []
-        
+
         keywords = {
             'ml': ['Дмитрий (ML Engineer)'],
             'model': ['Дмитрий (ML Engineer)'],
@@ -780,20 +790,20 @@ class TeamCoordinator:
             'логи': ['Елена (Monitor)'],
             'мониторинг': ['Елена (Monitor)'],
         }
-        
+
         task_lower = task_description.lower()
-        
+
         for keyword, experts in keywords.items():
             if keyword in task_lower:
                 team.extend(experts)
-        
+
         # Remove duplicates
         team = list(set(team))
-        
+
         # Always include Team Lead
         if len(team) > 1:
             team.insert(0, 'Виктор (Team Lead)')
-        
+
         return team
 
 # ИСПОЛЬЗОВАНИЕ:
@@ -828,6 +838,7 @@ print(f"Подключаем: {', '.join(team)}")
 ## 📊 МЕТРИКИ УСКОРЕНИЯ
 
 ### **До внедрения системы:**
+
 ```
 Типовая задача: 60-90 минут
 Обучение новому навыку: 2-4 недели
@@ -835,6 +846,7 @@ print(f"Подключаем: {', '.join(team)}")
 ```
 
 ### **После внедрения системы:**
+
 ```
 Типовая задача: 10-15 минут ⚡ (6x быстрее!)
 Обучение новому навыку: 3-7 дней ⚡ (5x быстрее!)
@@ -846,22 +858,24 @@ print(f"Подключаем: {', '.join(team)}")
 ## 🎓 ИТОГО
 
 **Виктор (Team Lead):**
+
 > **Система ускоренного обучения активирована!**
-> 
+>
 > ✅ Каждый эксперт получил:
->    - Готовые шаблоны и скрипты
->    - Автоматизацию рутины
->    - Персональную программу обучения
->    - Практические челленджи
-> 
+>
+> - Готовые шаблоны и скрипты
+> - Автоматизацию рутины
+> - Персональную программу обучения
+> - Практические челленджи
+>
 > ✅ Результат:
->    - Скорость работы: **6x быстрее**
->    - Обучение навыкам: **5x быстрее**
->    - Достижение Guru: **8x быстрее**
-> 
+>
+> - Скорость работы: **6x быстрее**
+> - Обучение навыкам: **5x быстрее**
+> - Достижение Guru: **8x быстрее**
+>
 > **От новичка до гуру за недели, а не месяцы!** 🚀⚡
 
 ---
 
 **#AcceleratedLearning #FastTrack #TeamEvolution** ⚡🎓🏆
-

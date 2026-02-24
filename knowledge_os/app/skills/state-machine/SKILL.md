@@ -4,7 +4,15 @@ description: State Machines - оркестрация и восстановлен
 category: orchestration
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🔄", "homepage": "https://langchain-ai.github.io/langgraph/"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🔄",
+        "homepage": "https://langchain-ai.github.io/langgraph/",
+      },
+  }
 ---
 
 # State Machine Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🔄", "homepage": "https://la
 ## Когда использовать
 
 Используй этот навык для:
+
 - Сложных многошаговых процессов
 - Задач, требующих восстановления после сбоя
 - Оркестрации с четкими состояниями
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🔄", "homepage": "https://la
 ## Методология
 
 State Machine работает через:
+
 1. **State Definition** - Определение состояний
 2. **Transition Rules** - Правила переходов
 3. **Checkpoint** - Сохранение состояния

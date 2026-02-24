@@ -10,59 +10,74 @@ license: Apache-2.0
 ## Document Types
 
 ### Status Report
+
 ```markdown
 # [Project Name] Status Report
+
 **Date:** [Date]
 **Author:** [Name]
 **Status:** 🟢 On Track / 🟡 At Risk / 🔴 Blocked
 
 ## Summary
+
 [2-3 sentence overview]
 
 ## Progress This Week
+
 - Completed: [items]
 - In Progress: [items]
 - Blocked: [items with owners]
 
 ## Key Metrics
-| Metric | Target | Actual | Trend |
-|--------|--------|--------|-------|
+
+| Metric   | Target   | Actual   | Trend    |
+| -------- | -------- | -------- | -------- |
 | [Metric] | [Target] | [Actual] | ⬆️/➡️/⬇️ |
 
 ## Next Week
+
 - [Planned items]
 
 ## Risks & Mitigations
-| Risk | Impact | Mitigation | Owner |
-|------|--------|------------|-------|
-| [Risk] | H/M/L | [Action] | [Name] |
+
+| Risk   | Impact | Mitigation | Owner  |
+| ------ | ------ | ---------- | ------ |
+| [Risk] | H/M/L  | [Action]   | [Name] |
 
 ## Asks
+
 - [Any blockers needing escalation]
 ```
 
 ### Leadership Update
+
 ```markdown
 # [Team] Update - [Date]
 
 ## TL;DR
+
 [One paragraph executive summary - the only thing busy execs will read]
 
 ## Wins
+
 - [Key accomplishment with impact]
 - [Key accomplishment with impact]
 
 ## Challenges
+
 - [Challenge]: [What we're doing about it]
 
 ## Key Decisions Needed
+
 1. [Decision]: [Context, options, recommendation]
 
 ## Metrics Dashboard
+
 [Include 3-5 key metrics with trends]
 ```
 
 ### Incident Report
+
 ```markdown
 # Incident Report: [Title]
 
@@ -72,27 +87,33 @@ license: Apache-2.0
 **Status:** Resolved/Monitoring/Active
 
 ## Timeline
-| Time (UTC) | Event |
-|------------|-------|
-| [Time] | [What happened] |
+
+| Time (UTC) | Event           |
+| ---------- | --------------- |
+| [Time]     | [What happened] |
 
 ## Root Cause
+
 [Clear explanation of what went wrong]
 
 ## Resolution
+
 [What was done to fix it]
 
 ## Action Items
-| Item | Owner | Due Date | Status |
-|------|-------|----------|--------|
-| [Action] | [Name] | [Date] | ⬜/✅ |
+
+| Item     | Owner  | Due Date | Status |
+| -------- | ------ | -------- | ------ |
+| [Action] | [Name] | [Date]   | ⬜/✅  |
 
 ## Lessons Learned
+
 - [What we learned]
 - [What we'll do differently]
 ```
 
 ### All-Hands Announcement
+
 ```markdown
 # [Announcement Title]
 
@@ -107,6 +128,7 @@ Hey team,
 **What you need to do:** [Specific actions if any]
 
 **Timeline:**
+
 - [Date]: [Milestone]
 - [Date]: [Milestone]
 

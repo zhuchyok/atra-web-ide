@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import asyncio
-import aiohttp
-import time
 import logging
-from typing import Optional, Dict, List
+import time
 from functools import lru_cache
+from typing import Dict, List, Optional
+
+import aiohttp
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class PriceCache:
     """Кэш для цен с TTL"""
@@ -37,8 +38,10 @@ class PriceCache:
         """Очистить кэш"""
         self.cache.clear()
 
+
 # Глобальный кэш цен
 price_cache = PriceCache(ttl_seconds=10)
+
 
 # Состояние источников (health/circuit-breaker)
 class SourceState:
@@ -70,7 +73,9 @@ class SourceState:
                 info["disabled_until"] = now + self.cooldown_sec
                 logger.warning(
                     "⛔ Источник %s временно отключён на %ds (сбои=%d)",
-                    name, self.cooldown_sec, info["fails"]
+                    name,
+                    self.cooldown_sec,
+                    info["fails"],
                 )
         self.state[name] = info
 
@@ -79,7 +84,9 @@ class SourceState:
         lat = info.get("latency_ms")
         return float(lat) if lat is not None else float("inf")
 
+
 source_state = SourceState(fail_threshold=3, cooldown_sec=300)
+
 
 class PriceAPI:
     """Улучшенный API для получения цен с множественными источниками"""
@@ -88,11 +95,12 @@ class PriceAPI:
         self.session = None
         self.timeout = aiohttp.ClientTimeout(total=10)
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         }
 
     async def __aenter__(self):
         from src.utils.session_manager import session_manager
+
         self.session = await session_manager.get_session()
         return self
 
@@ -108,10 +116,13 @@ class PriceAPI:
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    price = float(data['price'])
+                    price = float(data["price"])
                     try:
                         from db import Database
-                        Database().log_api_latency("price:binance", int((time.perf_counter()-start)*1000), True)
+
+                        Database().log_api_latency(
+                            "price:binance", int((time.perf_counter() - start) * 1000), True
+                        )
                     except Exception:
                         pass
                     return price
@@ -119,7 +130,10 @@ class PriceAPI:
                     logger.warning(f"Binance API error for {symbol}: HTTP {response.status}")
                     try:
                         from db import Database
-                        Database().log_api_latency("price:binance", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:binance", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -127,6 +141,7 @@ class PriceAPI:
             logger.warning(f"Binance API error for {symbol}: {e}")
             try:
                 from db import Database
+
                 Database().log_api_latency("price:binance", 0, False)
             except Exception:
                 pass
@@ -140,17 +155,23 @@ class PriceAPI:
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if data.get('result', {}).get('list'):
-                        price = float(data['result']['list'][0]['lastPrice'])
+                    if data.get("result", {}).get("list"):
+                        price = float(data["result"]["list"][0]["lastPrice"])
                         try:
                             from db import Database
-                            Database().log_api_latency("price:bybit", int((time.perf_counter()-start)*1000), True)
+
+                            Database().log_api_latency(
+                                "price:bybit", int((time.perf_counter() - start) * 1000), True
+                            )
                         except Exception:
                             pass
                         return price
                     try:
                         from db import Database
-                        Database().log_api_latency("price:bybit", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:bybit", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -158,7 +179,10 @@ class PriceAPI:
                     logger.warning(f"Bybit API error for {symbol}: HTTP {response.status}")
                     try:
                         from db import Database
-                        Database().log_api_latency("price:bybit", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:bybit", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -166,6 +190,7 @@ class PriceAPI:
             logger.warning(f"Bybit API error for {symbol}: {e}")
             try:
                 from db import Database
+
                 Database().log_api_latency("price:bybit", 0, False)
             except Exception:
                 pass
@@ -179,17 +204,23 @@ class PriceAPI:
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if data.get('data'):
-                        price = float(data['data']['last'])
+                    if data.get("data"):
+                        price = float(data["data"]["last"])
                         try:
                             from db import Database
-                            Database().log_api_latency("price:mexc", int((time.perf_counter()-start)*1000), True)
+
+                            Database().log_api_latency(
+                                "price:mexc", int((time.perf_counter() - start) * 1000), True
+                            )
                         except Exception:
                             pass
                         return price
                     try:
                         from db import Database
-                        Database().log_api_latency("price:mexc", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:mexc", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -197,7 +228,10 @@ class PriceAPI:
                     logger.warning(f"MEXC API error for {symbol}: HTTP {response.status}")
                     try:
                         from db import Database
-                        Database().log_api_latency("price:mexc", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:mexc", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -205,6 +239,7 @@ class PriceAPI:
             logger.warning(f"MEXC API error for {symbol}: {e}")
             try:
                 from db import Database
+
                 Database().log_api_latency("price:mexc", 0, False)
             except Exception:
                 pass
@@ -214,27 +249,35 @@ class PriceAPI:
         """Получить цену с OKX"""
         try:
             start = time.perf_counter()
+
             # OKX использует формат BTC-USDT вместо BTCUSDT
             def _okx_symbol(sym: str) -> str:
                 if sym.endswith("USDT") and len(sym) > 4:
                     return f"{sym[:-4]}-USDT"
                 return sym
+
             okx_sym = _okx_symbol(symbol)
             url = f"https://www.okx.com/api/v5/market/ticker?instId={okx_sym}"
             async with self.session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if data.get('data'):
-                        price = float(data['data'][0]['last'])
+                    if data.get("data"):
+                        price = float(data["data"][0]["last"])
                         try:
                             from db import Database
-                            Database().log_api_latency("price:okx", int((time.perf_counter()-start)*1000), True)
+
+                            Database().log_api_latency(
+                                "price:okx", int((time.perf_counter() - start) * 1000), True
+                            )
                         except Exception:
                             pass
                         return price
                     try:
                         from db import Database
-                        Database().log_api_latency("price:okx", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:okx", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -242,7 +285,10 @@ class PriceAPI:
                     logger.warning(f"OKX API error for {symbol}: HTTP {response.status}")
                     try:
                         from db import Database
-                        Database().log_api_latency("price:okx", int((time.perf_counter()-start)*1000), False)
+
+                        Database().log_api_latency(
+                            "price:okx", int((time.perf_counter() - start) * 1000), False
+                        )
                     except Exception:
                         pass
                     return None
@@ -250,10 +296,12 @@ class PriceAPI:
             logger.warning(f"OKX API error for {symbol}: {e}")
             try:
                 from db import Database
+
                 Database().log_api_latency("price:okx", 0, False)
             except Exception:
                 pass
             return None
+
 
 async def get_current_price_robust(symbol: str, max_retries: int = 3) -> Optional[float]:
     """
@@ -268,13 +316,14 @@ async def get_current_price_robust(symbol: str, max_retries: int = 3) -> Optiona
     """
 
     # Фильтруем тестовые символы
-    if symbol.upper().startswith('TEST'):
+    if symbol.upper().startswith("TEST"):
         logger.debug(f"Пропускаем тестовый символ: {symbol}")
         return None
 
     # Глобальная фильтрация стейблкоинов для общих запросов цены
     try:
         from stablecoin_filter import should_skip_stablecoin
+
         if should_skip_stablecoin(symbol, context="price_update"):
             logger.debug(f"🛑 Пропуск запроса цены для стейблкоина: {symbol}")
             return None
@@ -290,6 +339,7 @@ async def get_current_price_robust(symbol: str, max_retries: int = 3) -> Optiona
     # Сначала пробуем универсальный менеджер источников данных
     try:
         from src.data.sources_manager import data_manager
+
         price_data = await data_manager.get_price_data(symbol)
         if price_data and "price" in price_data:
             price = float(price_data["price"])
@@ -309,14 +359,16 @@ async def get_current_price_robust(symbol: str, max_retries: int = 3) -> Optiona
         ("KuCoin", "get_price_kucoin"),
         ("Gate.io", "get_price_gateio"),
         ("Huobi", "get_price_huobi"),
-        ("Coinbase", "get_price_coinbase")
+        ("Coinbase", "get_price_coinbase"),
     ]
+
     # Динамическая сортировка: доступные вперёд, затем по последней латентности
     def _sort_key(item):
         name = item[0]
         avail = 0 if source_state.is_available(name) else 1
         lat = source_state.get_latency(name)
         return (avail, lat)
+
     sources.sort(key=_sort_key)
 
     async with PriceAPI() as api:
@@ -346,6 +398,7 @@ async def get_current_price_robust(symbol: str, max_retries: int = 3) -> Optiona
 
     logger.error(f"❌ Не удалось получить цену для {symbol} после {max_retries} попыток")
     return None
+
 
 async def get_prices_bulk(symbols: List[str], max_retries: int = 3) -> Dict[str, float]:
     """
@@ -377,10 +430,12 @@ async def get_prices_bulk(symbols: List[str], max_retries: int = 3) -> Dict[str,
 
     return results
 
+
 # Функция для обратной совместимости
 async def get_current_price_simple(symbol: str) -> Optional[float]:
     """Простая функция для получения текущей цены (обратная совместимость)"""
     return await get_current_price_robust(symbol, max_retries=2)
+
 
 # Тестовая функция
 async def test_price_api():
@@ -408,6 +463,7 @@ async def test_price_api():
 
     print(f"\n📈 Получено цен: {len(prices)}/{len(symbols)}")
     print("✅ ТЕСТ ЗАВЕРШЕН!")
+
 
 if __name__ == "__main__":
     asyncio.run(test_price_api())

@@ -4,11 +4,11 @@ Accelerated Signal Service
 Uses Rust acceleration for high-performance signal generation.
 """
 
-from typing import List, Dict, Any
 from decimal import Decimal
+from typing import Any, Dict, List
 
-from src.domain.services.indicator_calculator import IndicatorCalculator
 from src.application.services.signal_service import SignalService
+from src.domain.services.indicator_calculator import IndicatorCalculator
 from src.infrastructure.performance.rust_accelerator import (
     get_rust_accelerator,
     is_rust_available,
@@ -18,22 +18,22 @@ from src.infrastructure.performance.rust_accelerator import (
 class AcceleratedSignalService(SignalService):
     """
     Signal Service with Rust acceleration
-    
+
     Provides 10-100x performance improvement for indicator calculations
     and signal processing.
     """
-    
+
     def __init__(self, *args, **kwargs):
         """Initialize accelerated signal service"""
         super().__init__(*args, **kwargs)
         self._indicator_calculator = IndicatorCalculator()
         self._rust_available = is_rust_available()
-        
+
         if self._rust_available:
             print("✅ Rust acceleration enabled - 10-100x faster!")
         else:
             print("⚠️  Rust acceleration not available - using Python fallback")
-    
+
     async def calculate_indicators_for_symbol(
         self,
         symbol: str,
@@ -41,11 +41,11 @@ class AcceleratedSignalService(SignalService):
     ) -> Dict[str, Any]:
         """
         Calculate all indicators for a symbol using Rust acceleration
-        
+
         Args:
             symbol: Trading symbol
             prices: List of prices
-            
+
         Returns:
             Dictionary with calculated indicators
         """
@@ -59,7 +59,7 @@ class AcceleratedSignalService(SignalService):
         upper_bb, middle_bb, lower_bb = self._indicator_calculator.calculate_bollinger_bands(
             prices, period=20, std_dev=2.0
         )
-        
+
         return {
             "symbol": symbol,
             "rsi": rsi[-1] if rsi else 50.0,
@@ -72,22 +72,22 @@ class AcceleratedSignalService(SignalService):
             "bb_middle": middle_bb[-1] if middle_bb else prices[-1] if prices else 0.0,
             "bb_lower": lower_bb[-1] if lower_bb else prices[-1] if prices else 0.0,
         }
-    
+
     async def process_multiple_symbols_parallel(
         self,
         symbols_data: Dict[str, List[float]],
     ) -> Dict[str, Dict[str, Any]]:
         """
         Process multiple symbols in parallel using Rust
-        
+
         Args:
             symbols_data: Dictionary mapping symbol to price array
-            
+
         Returns:
             Dictionary mapping symbol to calculated indicators
         """
         rust = get_rust_accelerator()
-        
+
         if rust and self._rust_available:
             # Use Rust batch processing (10-50x faster)
             indicator_config = {
@@ -101,4 +101,3 @@ class AcceleratedSignalService(SignalService):
             for symbol, prices in symbols_data.items():
                 results[symbol] = await self.calculate_indicators_for_symbol(symbol, prices)
             return results
-

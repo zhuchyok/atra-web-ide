@@ -1,10 +1,14 @@
 #!/bin/sh
-# При коммите изменённого employees.json автоматически запускается sync_employees.py
-# и в коммит добавляются обновлённые _known_names_generated.py, seed_experts.json, employees.md
+# ATRA Web IDE Pre-commit Hook (Combined)
+# 1. Existing custom logic (employees.json sync)
+# 2. Pre-commit framework (ruff, prettier, detect-secrets)
 
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
 cd "$ROOT" || exit 1
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STEP 1: Custom logic - employees.json sync
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 if git diff --cached --name-only | grep -q 'configs/experts/employees.json'; then
   echo "[pre-commit] configs/experts/employees.json изменён — запуск sync_employees.py..."
   if ! python3 scripts/sync_employees.py; then
@@ -14,4 +18,27 @@ if git diff --cached --name-only | grep -q 'configs/experts/employees.json'; the
   git add configs/experts/_known_names_generated.py knowledge_os/db/seed_experts.json configs/experts/employees.md
   echo "[pre-commit] Добавлены в коммит: _known_names_generated.py, seed_experts.json, employees.md"
 fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STEP 2: Pre-commit framework (ruff, prettier, security)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Check if pre-commit is installed
+if command -v pre-commit >/dev/null 2>&1; then
+    echo "[pre-commit] Running pre-commit hooks (ruff, prettier, detect-secrets)..."
+    # Run pre-commit on staged files only
+    if ! pre-commit run --config .pre-commit-config.yaml; then
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "❌ Pre-commit checks failed!"
+        echo "   Run 'pre-commit run --all-files' to see all issues"
+        echo "   or 'git commit --no-verify' to skip (not recommended)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        exit 1
+    fi
+else
+    echo "[pre-commit] WARNING: pre-commit not installed, skipping framework checks"
+    echo "           Install with: brew install pre-commit"
+fi
+
+echo "✅ All pre-commit checks passed!"
 exit 0

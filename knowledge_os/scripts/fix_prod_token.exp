@@ -94,4 +94,3 @@ send "exit\r"
 expect eof
 
 puts "\n✅ PROD токен установлен и бот перезапущен."
-

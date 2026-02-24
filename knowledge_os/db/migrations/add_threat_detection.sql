@@ -19,4 +19,3 @@ CREATE INDEX IF NOT EXISTS idx_threat_detection_resolved ON threat_detection_log
 COMMENT ON TABLE threat_detection_logs IS 'Логи детектирования угроз безопасности';
 COMMENT ON COLUMN threat_detection_logs.threat_type IS 'Тип угрозы';
 COMMENT ON COLUMN threat_detection_logs.severity IS 'Уровень серьезности угрозы';
-

@@ -2,9 +2,10 @@
 Integration tests for REST API
 """
 
-import pytest
 import httpx
+import pytest
 from fastapi.testclient import TestClient
+
 from knowledge_os.app.rest_api import app
 
 
@@ -37,10 +38,10 @@ def test_register_user(client):
             "username": "testuser",
             "password": "testpassword123",
             "email": "test@example.com",
-            "role": "user"
-        }
+            "role": "user",
+        },
     )
-    
+
     # Может быть 200 (успех) или 400 (пользователь уже существует)
     assert response.status_code in [200, 400]
 
@@ -48,23 +49,13 @@ def test_register_user(client):
 def test_login_user(client):
     """Test user login"""
     # Сначала регистрируем
-    client.post(
-        "/auth/register",
-        json={
-            "username": "testuser2",
-            "password": "testpassword123"
-        }
-    )
-    
+    client.post("/auth/register", json={"username": "testuser2", "password": "testpassword123"})
+
     # Затем логинимся
     response = client.post(
-        "/auth/login",
-        json={
-            "username": "testuser2",
-            "password": "testpassword123"
-        }
+        "/auth/login", json={"username": "testuser2", "password": "testpassword123"}
     )
-    
+
     if response.status_code == 200:
         assert "access_token" in response.json()
         assert "token_type" in response.json()
@@ -80,31 +71,18 @@ def test_protected_endpoint_without_token(client):
 def test_protected_endpoint_with_token(client):
     """Test accessing protected endpoint with token"""
     # Регистрируем и логинимся
-    client.post(
-        "/auth/register",
-        json={
-            "username": "testuser3",
-            "password": "testpassword123"
-        }
-    )
-    
+    client.post("/auth/register", json={"username": "testuser3", "password": "testpassword123"})
+
     login_response = client.post(
-        "/auth/login",
-        json={
-            "username": "testuser3",
-            "password": "testpassword123"
-        }
+        "/auth/login", json={"username": "testuser3", "password": "testpassword123"}
     )
-    
+
     if login_response.status_code == 200:
         token = login_response.json()["access_token"]
-        
+
         # Используем токен
-        response = client.get(
-            "/stats",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
+        response = client.get("/stats", headers={"Authorization": f"Bearer {token}"})
+
         # Может быть 200 (успех) или 500 (если БД не настроена)
         assert response.status_code in [200, 500]
 
@@ -134,7 +112,9 @@ def test_board_consult_without_api_key_returns_401(client):
         },
     )
     assert response.status_code == 401
-    assert "Invalid API Key" in response.json().get("detail", "") or "Unauthorized" in str(response.json())
+    assert "Invalid API Key" in response.json().get("detail", "") or "Unauthorized" in str(
+        response.json()
+    )
 
 
 def test_board_consult_with_wrong_api_key_returns_401(client):
@@ -159,4 +139,3 @@ def test_metrics_include_deferred_to_human(client):
     assert response.status_code == 200
     text = response.text
     assert "knowledge_os_tasks_deferred_to_human_total" in text
-

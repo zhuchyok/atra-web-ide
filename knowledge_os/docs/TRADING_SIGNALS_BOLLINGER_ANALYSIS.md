@@ -35,6 +35,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 Система использует **комбинированный подход** с несколькими типами сигналов:
 
 #### 1. **Mean Reversion (Возврат к средней)**
+
 ```python
 def improved_mean_reversion_signal(df, i):
     """УЛУЧШЕННЫЙ сигнал возврата к средней полосе Боллинджера"""
@@ -57,6 +58,7 @@ def improved_mean_reversion_signal(df, i):
 ```
 
 #### 2. **Breakout (Пробой полос)**
+
 ```python
 def improved_breakout_signal(df, i):
     """УЛУЧШЕННЫЙ сигнал пробоя полос Боллинджера"""
@@ -66,6 +68,7 @@ def improved_breakout_signal(df, i):
 ```
 
 #### 3. **Squeeze Breakout (Пробой после сжатия)**
+
 ```python
 def improved_squeeze_breakout_signal(df, i):
     """УЛУЧШЕННЫЙ пробой после squeeze"""
@@ -79,6 +82,7 @@ def improved_squeeze_breakout_signal(df, i):
 ### 🟢 SOFT режим (по умолчанию)
 
 **Приоритет сигналов:**
+
 1. **Enhanced Bollinger** (высший приоритет)
    - Mean Reversion
    - Breakout
@@ -86,6 +90,7 @@ def improved_squeeze_breakout_signal(df, i):
 2. **Классические условия** (fallback)
 
 **Условия для LONG:**
+
 ```python
 long_conditions = [
     current_price <= bb_middle * 0.998,  # Цена немного ниже средней полосы
@@ -98,6 +103,7 @@ long_conditions = [
 ```
 
 **Условия для SHORT:**
+
 ```python
 short_conditions = [
     current_price >= bb_middle * 1.002,  # Цена немного выше средней полосы
@@ -114,6 +120,7 @@ short_conditions = [
 **Более строгие условия:**
 
 **Условия для LONG:**
+
 ```python
 long_conditions = [
     current_price <= bb_middle * 0.995,  # Цена ниже средней полосы
@@ -126,6 +133,7 @@ long_conditions = [
 ```
 
 **Условия для SHORT:**
+
 ```python
 short_conditions = [
     current_price >= bb_middle * 1.005,  # Цена выше средней полосы
@@ -140,6 +148,7 @@ short_conditions = [
 ## 🛠️ Дополнительные фильтры
 
 ### 📊 Fear & Greed Index
+
 ```python
 # Рассчитываем индикатор жадности
 fear_greed_value = calculate_fear_greed_index(df, i)
@@ -149,6 +158,7 @@ fear_greed_allowed, fear_greed_reason = apply_fear_greed_filter(fear_greed_value
 ```
 
 ### 📰 Sentiment Analysis
+
 ```python
 # Получаем настроения
 sentiment_score = df['sentiment_score'].iloc[i]
@@ -159,6 +169,7 @@ if reversion_side == "LONG" and sentiment_score > -sentiment_threshold:
 ```
 
 ### 🕐 Time Filters
+
 ```python
 # Проверяем торговые часы пользователя
 if not check_user_trading_hours(user_data):
@@ -168,6 +179,7 @@ if not check_user_trading_hours(user_data):
 ## 📈 Индикаторы Bollinger Bands
 
 ### 🔧 Расчет индикаторов
+
 ```python
 def add_enhanced_indicators(df):
     # Bollinger Bands
@@ -212,21 +224,25 @@ def add_enhanced_indicators(df):
 ## ✅ Преимущества системы
 
 ### 🎯 **Комбинированный подход**
+
 - **Mean Reversion** - для боковых рынков
 - **Breakout** - для трендовых движений
 - **Squeeze** - для периодов низкой волатильности
 
 ### 🔧 **Адаптивность**
+
 - **SOFT режим** - больше сигналов, умеренное качество
 - **STRICT режим** - меньше сигналов, высокое качество
 
 ### 📊 **Множественные фильтры**
+
 - **Fear & Greed** - рыночные настроения
 - **Sentiment** - новостные настроения
 - **Time** - торговые часы
 - **Volume** - подтверждение объемом
 
 ### 🎨 **Гибкость**
+
 - Fallback на классические условия
 - Настраиваемые пороги
 - Разные режимы для разных пользователей

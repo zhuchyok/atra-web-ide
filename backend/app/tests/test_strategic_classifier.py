@@ -6,8 +6,8 @@ VERIFICATION_CHECKLIST §36, PROJECT_GAPS §2: сценарий стратеги
 import pytest
 
 from app.services.strategic_classifier import (
-    is_strategic_question,
     get_risk_level_from_question,
+    is_strategic_question,
 )
 
 
@@ -15,11 +15,13 @@ class TestIsStrategicQuestion:
     """is_strategic_question: True для стратегических, False для обычных."""
 
     def test_strategic_two_keywords(self):
-        is_st, reason = is_strategic_question(
-            "Как расставить приоритеты по архитектуре и срокам?"
-        )
+        is_st, reason = is_strategic_question("Как расставить приоритеты по архитектуре и срокам?")
         assert is_st is True
-        assert "strategic" in reason.lower() or "priority" in reason.lower() or "architect" in reason.lower()
+        assert (
+            "strategic" in reason.lower()
+            or "priority" in reason.lower()
+            or "architect" in reason.lower()
+        )
 
     def test_strategic_keyword_with_question(self):
         is_st, reason = is_strategic_question(

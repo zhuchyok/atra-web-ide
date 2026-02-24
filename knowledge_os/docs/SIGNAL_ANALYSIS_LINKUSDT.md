@@ -32,15 +32,18 @@ if signal_type == "SELL" and btc_trend == "BUY":
 ## 🔍 Что проверить
 
 ### 1. Логи системы:
+
 ```bash
 grep -i "LINKUSDT.*BTC\|BTC.*FILTER.*LINK" logs/system.log
 ```
 
 ### 2. Проверка данных BTC:
+
 - Доступны ли данные BTC в момент генерации сигнала?
 - Корректно ли определяется тренд BTC?
 
 ### 3. Проверка вызова функции:
+
 - Вызывается ли `check_btc_alignment` для SHORT сигналов?
 - В каком месте кода происходит проверка?
 
@@ -77,4 +80,3 @@ grep -i "LINKUSDT.*BTC\|BTC.*FILTER.*LINK" logs/system.log
 ---
 
 **Статус:** Требуется анализ логов и исправление логики проверки BTC alignment.
-

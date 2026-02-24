@@ -100,4 +100,3 @@ echo "📝 Логи:"
 echo "   - $SERVER_PATH/logs/nightly_learner.log"
 echo ""
 echo "======================================================================"
-

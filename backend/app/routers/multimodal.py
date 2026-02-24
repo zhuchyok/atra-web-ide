@@ -23,12 +23,14 @@ router = APIRouter()
 
 class ProcessImageRequest(BaseModel):
     """Запрос на описание изображения (base64)."""
+
     image_base64: str = Field(..., description="Base64 изображения (или data:image/...;base64,...)")
     prompt: Optional[str] = Field(default="Опиши это изображение подробно.", max_length=2000)
 
 
 class ProcessResponse(BaseModel):
     """Ответ: извлечённый/описанный текст для RAG или чата."""
+
     text: Optional[str] = None
     content_type: str = "unknown"
     error: Optional[str] = None
@@ -47,7 +49,9 @@ async def process_image(body: ProcessImageRequest) -> ProcessResponse:
             prompt=body.prompt or "Опиши это изображение подробно.",
         )
         if text is None:
-            return ProcessResponse(text=None, content_type="image", error="Vision unavailable or failed")
+            return ProcessResponse(
+                text=None, content_type="image", error="Vision unavailable or failed"
+            )
         return ProcessResponse(text=text, content_type="image")
     except Exception as e:
         logger.exception("process_image failed")
@@ -62,7 +66,10 @@ async def process_document(file: UploadFile = File(...)) -> ProcessResponse:
     """
     content_type = detect_content_type(filename=file.filename, content_type=file.content_type)
     if content_type != "document":
-        raise HTTPException(400, f"Expected document (PDF/DOCX/TXT/HTML/ODT/RTF), got: {file.content_type or file.filename}")
+        raise HTTPException(
+            400,
+            f"Expected document (PDF/DOCX/TXT/HTML/ODT/RTF), got: {file.content_type or file.filename}",
+        )
 
     processor = get_multimodal_processor()
     try:
@@ -81,6 +88,8 @@ async def process_document(file: UploadFile = File(...)) -> ProcessResponse:
 
 
 @router.get("/content-type")
-async def get_content_type(filename: Optional[str] = None, content_type: Optional[str] = None) -> dict:
+async def get_content_type(
+    filename: Optional[str] = None, content_type: Optional[str] = None
+) -> dict:
     """Определение типа контента для маршрутизации (image | document | unknown)."""
     return {"content_type": detect_content_type(filename=filename, content_type=content_type)}

@@ -7,12 +7,14 @@
 **Добавлены методы:**
 
 #### `check_portfolio_correlation_risk()`
+
 - Проверяет корреляционный риск портфеля к SOL
 - Вычисляет среднюю корреляцию активных позиций
 - Определяет уровень риска (LOW/MEDIUM/HIGH/CRITICAL)
 - Генерирует предупреждения
 
 **Возвращает:**
+
 ```python
 {
     'correlation_to_sol': float,      # Средняя корреляция к SOL
@@ -24,12 +26,14 @@
 ```
 
 #### `calculate_dynamic_limit()`
+
 - Вычисляет динамический лимит на основе волатильности
 - Высокая волатильность (>0.15) → уменьшает лимит до 60%
 - Низкая волатильность (<0.05) → полный лимит
 - Средняя волатильность → 80% лимита
 
 #### `get_risk_alerts()`
+
 - Получает список алертов по рискам
 - Уровни: CRITICAL, WARNING, INFO, ERROR
 - Типы: CORRELATION, CONCENTRATION, PORTFOLIO, SYSTEM
@@ -39,6 +43,7 @@
 **`scripts/monitor_portfolio_risk.py`**
 
 **Функционал:**
+
 - Периодическая проверка рисков портфеля
 - Форматированный отчет в консоль
 - Сохранение JSON отчетов в `data/reports/`
@@ -46,6 +51,7 @@
 - Exit code 1 при критических алертах
 
 **Пороги:**
+
 ```python
 ALERT_THRESHOLDS = {
     "max_sol_positions": 8,           # Предупреждение при 8+ позициях
@@ -128,7 +134,7 @@ async def periodic_risk_check():
             if correlation_manager:
                 portfolio_risk = await correlation_manager.check_portfolio_correlation_risk()
                 alerts = await correlation_manager.get_risk_alerts()
-                
+
                 # Критические алерты → логируем и уведомляем
                 critical = [a for a in alerts if a['level'] == 'CRITICAL']
                 if critical:
@@ -136,10 +142,10 @@ async def periodic_risk_check():
                     for alert in critical:
                         logger.warning("  %s", alert['message'])
                         # Отправляем в Telegram администратору
-                
+
         except Exception as e:
             logger.error("Ошибка проверки рисков: %s", e)
-        
+
         await asyncio.sleep(1800)  # 30 минут
 ```
 
@@ -152,4 +158,3 @@ async def periodic_risk_check():
 - ⏳ Автоматические действия - ожидает
 
 **Готово к тестированию!** 🚀
-

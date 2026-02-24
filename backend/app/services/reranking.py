@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Опционально: sentence-transformers для cross-encoder
 try:
     from sentence_transformers import CrossEncoder
+
     CROSS_ENCODER_AVAILABLE = True
 except ImportError:
     CROSS_ENCODER_AVAILABLE = False
@@ -37,7 +38,9 @@ class RerankingService:
         self._cross_encoder = None
         if method == "cross_encoder" and CROSS_ENCODER_AVAILABLE and CrossEncoder:
             try:
-                self._cross_encoder = CrossEncoder(model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2")
+                self._cross_encoder = CrossEncoder(
+                    model_name or "cross-encoder/ms-marco-MiniLM-L-6-v2"
+                )
             except Exception as e:
                 logger.warning("CrossEncoder init failed, fallback to text_similarity: %s", e)
                 self.method = "text_similarity"
@@ -64,9 +67,7 @@ class RerankingService:
             return await self._rerank_hybrid(query, chunks, k)
         return await self._rerank_text_similarity(query, chunks, k)
 
-    async def _rerank_cross_encoder(
-        self, query: str, chunks: List[str], top_k: int
-    ) -> List[str]:
+    async def _rerank_cross_encoder(self, query: str, chunks: List[str], top_k: int) -> List[str]:
         """Реранкинг через cross-encoder (точнее, но медленнее)."""
         try:
             pairs = [(query, c) for c in chunks]
@@ -88,17 +89,13 @@ class RerankingService:
         matches = sum(1 for w in q_words if w in c_lower)
         return matches / len(q_words) if q_words else 0.0
 
-    async def _rerank_text_similarity(
-        self, query: str, chunks: List[str], top_k: int
-    ) -> List[str]:
+    async def _rerank_text_similarity(self, query: str, chunks: List[str], top_k: int) -> List[str]:
         """Реранкинг по текстовому сходству (быстро, без тяжёлых моделей)."""
         scored = [(self._text_score(query, c), c) for c in chunks]
         scored.sort(key=lambda x: x[0], reverse=True)
         return [c for _, c in scored[:top_k]]
 
-    async def _rerank_hybrid(
-        self, query: str, chunks: List[str], top_k: int
-    ) -> List[str]:
+    async def _rerank_hybrid(self, query: str, chunks: List[str], top_k: int) -> List[str]:
         """Гибрид: сначала text_similarity отбирает кандидатов, затем cross_encoder (если есть)."""
         # Сначала отбираем больше кандидатов текстовым методом
         candidates = await self._rerank_text_similarity(query, chunks, min(top_k * 2, len(chunks)))

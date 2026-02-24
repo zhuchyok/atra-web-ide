@@ -50,7 +50,7 @@ def extract_knowledge_nodes_from_dump(path: Path) -> list[dict]:
     nodes = []
     in_copy = False
     columns = None
-    
+
     with gzip.open(path, "rt", encoding="utf-8", errors="replace") as f:
         for line in f:
             if line.startswith("COPY public.knowledge_nodes "):
@@ -177,7 +177,7 @@ async def import_nodes(nodes: list[dict]) -> int:
             skipped += 1
             if "duplicate" not in str(e).lower() and "violates" not in str(e).lower():
                 print(f"   ⚠️ {e}")
-    
+
     total = await conn.fetchval("SELECT COUNT(*) FROM knowledge_nodes")
     await conn.close()
     print(f"Импортировано: {inserted}, пропущено: {skipped}, всего в БД: {total}")
@@ -189,16 +189,16 @@ async def main():
     if not dump:
         print("❌ Дамп не найден. Проверьте:", ATRA_BACKUPS)
         return 1
-    
+
     print(f"📂 Дамп: {dump} ({dump.stat().st_size / 1e6:.1f} MB)")
     print("📥 Извлечение узлов...")
     nodes = extract_knowledge_nodes_from_dump(dump)
     print(f"   Найдено: {len(nodes)} узлов")
-    
+
     if not nodes:
         print("❌ Узлы не найдены")
         return 1
-    
+
     print("💾 Импорт в БД...")
     await import_nodes(nodes)
     return 0

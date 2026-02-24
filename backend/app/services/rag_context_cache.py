@@ -2,6 +2,7 @@
 RAG Context Cache — кэш результатов векторного поиска (Ollama + MLX контекст).
 Снижает latency при повторных запросах: embedding + БД не вызываются.
 """
+
 import hashlib
 import json
 import logging
@@ -57,6 +58,7 @@ def _get_redis():
         return _redis_client
     try:
         import redis.asyncio as aioredis
+
         settings = get_settings()
         url = getattr(settings, "redis_url", None) or os.getenv("REDIS_URL")
         if url:
@@ -81,7 +83,8 @@ def _generate_key(
         "goal": (goal or "").strip().lower(),
         "user_id": user_id or "global",
         "collection": collection,
-        "embedding_model": embedding_model or getattr(settings, "ollama_embed_model", "nomic-embed-text"),
+        "embedding_model": embedding_model
+        or getattr(settings, "ollama_embed_model", "nomic-embed-text"),
         "limit": limit,
         "threshold": round(threshold, 2),
     }

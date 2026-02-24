@@ -3,6 +3,7 @@
 ## 🔍 Проблема
 
 В логах системы постоянно появлялось сообщение:
+
 ```
 [DEBUG] BTCUSDT: Некорректная цена сигнала: None, используем текущую цену
 ```
@@ -49,11 +50,13 @@ def optimized_enhanced_bollinger_entry_signal(df, i, symbol=None):  # ✅ Доб
 ### 2. Обновлены все вызовы функции
 
 **В `get_entry_signal_by_mode`:**
+
 ```python
 return optimized_enhanced_bollinger_entry_signal(df, i, symbol)  # ✅ Передается symbol
 ```
 
 **В основном цикле обработки сигналов:**
+
 ```python
 enhanced_signal_side, enhanced_signal_price = optimized_enhanced_bollinger_entry_signal(df, current_index, symbol)  # ✅ Передается symbol
 ```
@@ -107,6 +110,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 Создан тестовый скрипт `test_price_fix.py` для проверки исправления:
 
 ### Результаты тестирования:
+
 - ✅ **8 функций протестировано** - все работают корректно
 - ✅ **400+ вызовов функций** - все без ошибок
 - ✅ **0 ошибок NameError/KeyError** - проблемы исправлены
@@ -115,6 +119,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 - ✅ **Безопасная работа** - функции работают как с символом, так и без него
 
 ### Тестовые сценарии:
+
 1. **optimized_enhanced_bollinger_entry_signal**: `side=None, price=None` (корректно)
 2. **get_entry_signal_by_mode (enhanced_bollinger)**: `side=None, price=None` (корректно)
 3. **get_entry_signal_by_mode (soft)**: `side=LONG, price=53820.73` (корректно, генерирует сигналы)
@@ -126,27 +131,29 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 
 ## 📊 Статистика исправлений
 
-| Файл | Строки | Изменения |
-|------|--------|-----------|
-| `signal_live.py` | 4356 | Добавлен параметр `symbol=None` |
-| `signal_live.py` | 1831 | Обновлен вызов с передачей `symbol` |
-| `signal_live.py` | 3059 | Обновлен вызов с передачей `symbol` |
-| `signal_live.py` | 4375 | Улучшена обработка фильтров |
-| `signal_live.py` | 1898-1910 | Добавлены недостающие колонки для совместимости |
-| `config.py` | 125 | Снижен порог силы тренда с 0.5% до 0.1% |
-| `signal_live.py` | 3022 | Изменен режим по умолчанию с 'enhanced_bollinger' на 'soft' |
-| `signal_live.py` | 1824 | Изменен режим по умолчанию в функции get_entry_signal_by_mode |
-| `signal_live.py` | 1720-1730 | Смягчены условия в strict режиме для генерации сигналов |
-| `signal_live.py` | 1740-1750 | Смягчены условия в strict режиме для SHORT сигналов |
+| Файл             | Строки    | Изменения                                                     |
+| ---------------- | --------- | ------------------------------------------------------------- |
+| `signal_live.py` | 4356      | Добавлен параметр `symbol=None`                               |
+| `signal_live.py` | 1831      | Обновлен вызов с передачей `symbol`                           |
+| `signal_live.py` | 3059      | Обновлен вызов с передачей `symbol`                           |
+| `signal_live.py` | 4375      | Улучшена обработка фильтров                                   |
+| `signal_live.py` | 1898-1910 | Добавлены недостающие колонки для совместимости               |
+| `config.py`      | 125       | Снижен порог силы тренда с 0.5% до 0.1%                       |
+| `signal_live.py` | 3022      | Изменен режим по умолчанию с 'enhanced_bollinger' на 'soft'   |
+| `signal_live.py` | 1824      | Изменен режим по умолчанию в функции get_entry_signal_by_mode |
+| `signal_live.py` | 1720-1730 | Смягчены условия в strict режиме для генерации сигналов       |
+| `signal_live.py` | 1740-1750 | Смягчены условия в strict режиме для SHORT сигналов           |
 
 ## 🎯 Результат
 
 ### До исправления:
+
 ```
 [DEBUG] BTCUSDT: Некорректная цена сигнала: None, используем текущую цену
 ```
 
 ### После исправления:
+
 - ✅ **Нет ошибок NameError**
 - ✅ **Корректные цены сигналов**
 - ✅ **Стабильная работа системы**
@@ -181,5 +188,5 @@ def get_entry_signal_by_mode(df, i, filter_mode="soft", symbol=None):
 
 ---
 
-*Отчет создан: $(date)*
-*Статус: ✅ ИСПРАВЛЕНО*
+_Отчет создан: $(date)_
+_Статус: ✅ ИСПРАВЛЕНО_

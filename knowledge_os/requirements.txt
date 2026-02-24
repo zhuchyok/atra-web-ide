@@ -47,6 +47,7 @@ asyncpg>=0.29.0
 pytest>=7.0.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
+pytest-codspeed>=2.0.0  # Performance regression testing
 
 # Логирование
 colorama>=0.4.4

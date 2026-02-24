@@ -72,4 +72,3 @@ echo "📊 Финальная проверка:"
 grep "^ATRA_ENV=" env
 echo ""
 echo "✅ Готово! Проверьте логи: tail -f logs/system.log"
-

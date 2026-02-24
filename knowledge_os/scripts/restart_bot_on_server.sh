@@ -36,4 +36,3 @@ echo "✅ Бот перезапущен на сервере"
 echo ""
 echo "Проверить статус бота можно командой:"
 echo "ssh root@$SERVER_IP 'ps aux | grep main.py | grep -v grep'"
-

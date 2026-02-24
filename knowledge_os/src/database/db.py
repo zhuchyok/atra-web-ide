@@ -7,58 +7,59 @@
 """
 
 # pylint: disable=too-many-lines
-import sqlite3
-import logging
-import shutil
-import os
-import time
-import re
-import json
-import threading
-import random
 import ast
 import asyncio
+import json
+import logging
+import os
+import random
+import re
+import shutil
+import sqlite3
+import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
-from src.shared.utils.datetime_utils import get_utc_now
-from src.database.fetch_optimizer import fetch_all_optimized
-from src.core.exceptions import (
-    DatabaseError,
-    DatabaseConnectionError,
-    DatabaseQueryError,
-    DatabaseTransactionError,
-)
+from typing import Any, Dict, List, Optional, Tuple
+
 from config import (
+    # Адаптивные параметры
+    ADAPTIVE_ENGINE_ENABLED,
+    ADAPTIVE_ENTRY_ADJ_ENABLED,
+    ADAPTIVE_ENTRY_MAX_ADJUST_PCT,
+    BLOCKLIST_CHURN_FRAC,
+    CORRELATION_COOLDOWN_ENABLED,
+    CORRELATION_COOLDOWN_SEC,
+    CORRELATION_LOOKBACK_HOURS,
+    CORRELATION_MAX_PAIRWISE,
     DATABASE,
-    RETENTION_QUOTES_DAYS,
-    RETENTION_SIGNALS_DAYS,
-    RETENTION_SIGNALS_LOG_DAYS,
+    DYNAMIC_CALC_INTERVAL,
+    DYNAMIC_MODE_SWITCH_ENABLED,
+    DYNAMIC_TP_ENABLED,
+    METRICS_CACHE_TTL_SEC,
+    METRICS_FEEDER_ENABLED,
+    METRICS_FEEDER_INTERVAL_SEC,
+    MIN_ACTIVE_COINS,
+    PERFORMANCE_LOOKBACK_DAYS,
     RETENTION_ACCUM_EVENTS_DAYS,
     RETENTION_APP_CACHE_DAYS,
     RETENTION_ENABLE_WEEKLY_VACUUM,
-    # Адаптивные параметры
-    ADAPTIVE_ENGINE_ENABLED,
-    METRICS_FEEDER_ENABLED,
-    METRICS_FEEDER_INTERVAL_SEC,
-    METRICS_CACHE_TTL_SEC,
-    PERFORMANCE_LOOKBACK_DAYS,
-    ADAPTIVE_ENTRY_ADJ_ENABLED,
-    ADAPTIVE_ENTRY_MAX_ADJUST_PCT,
-    DYNAMIC_MODE_SWITCH_ENABLED,
-    CORRELATION_COOLDOWN_ENABLED,
-    CORRELATION_LOOKBACK_HOURS,
-    CORRELATION_MAX_PAIRWISE,
-    CORRELATION_COOLDOWN_SEC,
+    RETENTION_QUOTES_DAYS,
+    RETENTION_SIGNALS_DAYS,
+    RETENTION_SIGNALS_LOG_DAYS,
+    SOFT_BLOCK_COOLDOWN_HOURS,
     SOFT_BLOCKLIST_ENABLED,
     SOFT_BLOCKLIST_HYSTERESIS,
-    SOFT_BLOCK_COOLDOWN_HOURS,
-    MIN_ACTIVE_COINS,
-    BLOCKLIST_CHURN_FRAC,
-    DYNAMIC_CALC_INTERVAL,
-    DYNAMIC_TP_ENABLED,
     VOLUME_BLOCKS_ENABLED,
 )
+from src.core.exceptions import (
+    DatabaseConnectionError,
+    DatabaseError,
+    DatabaseQueryError,
+    DatabaseTransactionError,
+)
+from src.database.fetch_optimizer import fetch_all_optimized
+from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ def _safe_float(value: Any) -> Optional[float]:
 # Декоратор для профилирования
 def profile(func):
     """Декоратор для профилирования времени выполнения функций"""
+
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
         result = func(*args, **kwargs)
@@ -126,7 +128,7 @@ class Database:
 
     def __new__(cls, *args, **kwargs):
         # Проверяем, запрашивается ли read-only соединение
-        readonly = kwargs.get('readonly', False)
+        readonly = kwargs.get("readonly", False)
 
         with cls._instance_lock:
             if readonly:
@@ -151,11 +153,11 @@ class Database:
             use_connection_pool: Использовать connection pool (ОТКЛЮЧЕНО)
             readonly: Использовать read-only соединение (для ридеров)
         """
-        if getattr(self, '_initialized', False):
+        if getattr(self, "_initialized", False):
             return
 
         self.db_path = db_path
-        self._is_readonly = getattr(self, '_is_readonly', readonly)
+        self._is_readonly = getattr(self, "_is_readonly", readonly)
         # 🔧 ИСПРАВЛЕНО: всегда отключаем connection_pool
         self.use_connection_pool = False
         self._pool = None
@@ -175,8 +177,7 @@ class Database:
                     self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=60.0)
                 except sqlite3.Error as e:
                     raise DatabaseConnectionError(
-                        f"Failed to connect to database: {e}",
-                        context={"db_path": db_path}
+                        f"Failed to connect to database: {e}", context={"db_path": db_path}
                     ) from e
                 # Включаем WAL и другие оптимизации сразу для основного соединения
                 try:
@@ -205,6 +206,7 @@ class Database:
                     self.conn.execute("PRAGMA busy_timeout=60000;")  # Увеличено до 60s
                     # Оптимизация cache_size: используем 64MB или 25% от RAM (мин 64MB)
                     import psutil
+
                     try:
                         available_ram_mb = psutil.virtual_memory().total / (1024 * 1024)
                         # Используем 25% от RAM, но минимум 64MB и максимум 512MB
@@ -223,38 +225,43 @@ class Database:
 
         # Инициализация таблиц
         self._initialize_tables_on_init()
-        
+
         # Автоматическое применение оптимизаций (ТОЛЬКО если явно разрешено через ENV)
         try:
-            if os.getenv('AUTO_APPLY_OPTIMIZATIONS', 'false').lower() == 'true':
+            if os.getenv("AUTO_APPLY_OPTIMIZATIONS", "false").lower() == "true":
                 from src.database.optimization_manager import DatabaseOptimizationManager
+
                 opt_manager = DatabaseOptimizationManager(self)
                 opt_manager.apply_all_optimizations()
                 logging.debug("✅ [DB] Автоматические оптимизации применены")
         except Exception as e:
             logging.debug("⚠️ [DB] Ошибка автоматического применения оптимизаций: %s", e)
-        
+
         # Инициализация write queue (ленивая, при первом async вызове)
         self._write_queue: Optional[Any] = None
         self._write_queue_initialized = False
-        
+
         # Prepared statements cache для переиспользования планов запросов
         self._prepared_statements: Dict[str, Any] = {}
-        
+
         # Query cache для кэширования результатов запросов
         self._query_cache_enabled = True
         try:
             from src.database.query_cache import get_query_cache
+
             self._query_cache = get_query_cache()
         except ImportError:
             self._query_cache = None
             self._query_cache_enabled = False
-        
+
         self._initialized = True
 
     def _get_db_executor(self):
         """Получить функцию-исполнитель для write queue"""
-        def db_executor(query: str, params: Any = (), is_write: bool = True, executemany: bool = False):
+
+        def db_executor(
+            query: str, params: Any = (), is_write: bool = True, executemany: bool = False
+        ):
             """Синхронный исполнитель для write queue"""
             with self._lock:
                 if executemany:
@@ -264,6 +271,7 @@ class Database:
                 if is_write:
                     self.conn.commit()
                 return fetch_all_optimized(self.cursor) if not is_write else True
+
         return db_executor
 
     async def _ensure_write_queue(self):
@@ -271,6 +279,7 @@ class Database:
         if not self._write_queue_initialized:
             try:
                 from src.database.write_queue import get_write_queue
+
                 self._write_queue = await get_write_queue(
                     db_executor=self._get_db_executor(),
                     max_retries=5,
@@ -312,6 +321,7 @@ class Database:
         if use_queue and self._write_queue is not None:
             try:
                 from src.database.write_queue import WriteOperationType
+
                 result = await self._write_queue.execute(
                     query=query,
                     params=params,
@@ -320,17 +330,11 @@ class Database:
                 )
                 return result
             except Exception as e:
-                logging.warning(
-                    "⚠️ [DB] Ошибка в write queue, fallback на синхронный метод: %s", e
-                )
+                logging.warning("⚠️ [DB] Ошибка в write queue, fallback на синхронный метод: %s", e)
 
         # Fallback на синхронный метод через asyncio.to_thread
         return await asyncio.to_thread(
-            self.execute_with_retry,
-            query,
-            params,
-            is_write,
-            max_retries
+            self.execute_with_retry, query, params, is_write, max_retries
         )
 
     def _get_prepared_statement(self, query: str):
@@ -339,15 +343,15 @@ class Database:
         Ускоряет повторяющиеся запросы на 10-20%
         """
         # Используем нормализованный ключ (убираем пробелы, приводим к нижнему регистру)
-        query_key = ' '.join(query.strip().split()).lower()
-        
+        query_key = " ".join(query.strip().split()).lower()
+
         if query_key not in self._prepared_statements:
             # SQLite автоматически кэширует prepared statements, но мы можем
             # явно подготовить запрос для лучшей производительности
             self._prepared_statements[query_key] = query
-        
+
         return self._prepared_statements[query_key]
-    
+
     def _serialize_quality_meta(self, quality_meta: Any) -> Optional[str]:
         """
         Быстрая сериализация quality_meta с использованием MessagePack
@@ -355,12 +359,14 @@ class Database:
         """
         if not isinstance(quality_meta, dict):
             return None
-        
+
         try:
-            from src.data.serialization import serialize_fast
             import base64
+
+            from src.data.serialization import serialize_fast
+
             data_serialized = serialize_fast(quality_meta)
-            return base64.b64encode(data_serialized).decode('utf-8')
+            return base64.b64encode(data_serialized).decode("utf-8")
         except (ImportError, Exception):
             # Fallback на JSON
             return json.dumps(quality_meta, ensure_ascii=False)
@@ -373,12 +379,12 @@ class Database:
         max_retries: int = 5,
         use_prepared: bool = True,
         use_cache: bool = True,
-        cache_ttl: int = 300
+        cache_ttl: int = 300,
     ):
         """
         SQL запрос с повторными попытками при блокировке.
         Поддерживает prepared statements и Redis кэширование для ускорения.
-        
+
         Args:
             query: SQL запрос
             params: Параметры запроса
@@ -392,6 +398,7 @@ class Database:
         if not is_write and use_cache:
             try:
                 from src.database.redis_cache import get_from_cache
+
                 cached_result = get_from_cache(query, params, ttl=cache_ttl)
                 if cached_result is not None:
                     # Конвертируем обратно в кортежи если нужно
@@ -401,13 +408,13 @@ class Database:
                     return cached_result
             except Exception as e:
                 logging.debug("⚠️ [DB] Ошибка проверки кэша: %s", e)
-        
+
         retry_delay = 0.5
-        
+
         # Используем prepared statement если включено и запрос повторяющийся
         if use_prepared and not is_write:
             query = self._get_prepared_statement(query)
-        
+
         for attempt in range(max_retries):
             try:
                 with self._lock:
@@ -418,8 +425,10 @@ class Database:
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < max_retries - 1:
                     logging.warning(
-                        "⚠️ БД заблокирована (попытка %d/%d), ждем %.1fс...", 
-                        attempt + 1, max_retries, retry_delay
+                        "⚠️ БД заблокирована (попытка %d/%d), ждем %.1fс...",
+                        attempt + 1,
+                        max_retries,
+                        retry_delay,
                     )
                     time.sleep(retry_delay)
                     retry_delay *= 2
@@ -427,37 +436,35 @@ class Database:
                 logging.error("❌ Ошибка БД после %d попыток: %s", max_retries, e)
                 raise DatabaseQueryError(
                     f"Database query failed after {max_retries} attempts: {e}",
-                    context={"query": query[:100], "attempts": max_retries}
+                    context={"query": query[:100], "attempts": max_retries},
                 ) from e
             except sqlite3.DatabaseError as e:
                 logging.error("❌ Ошибка базы данных: %s", e)
-                raise DatabaseError(
-                    f"Database error: {e}",
-                    context={"query": query[:100]}
-                ) from e
+                raise DatabaseError(f"Database error: {e}", context={"query": query[:100]}) from e
             except Exception as e:
                 logging.error("❌ Критическая ошибка БД: %s", e, exc_info=True)
                 raise DatabaseError(
-                    f"Unexpected database error: {e}",
-                    context={"query": query[:100]}
+                    f"Unexpected database error: {e}", context={"query": query[:100]}
                 ) from e
         return False
 
-    def execute_batch(self, queries: List[Tuple[str, tuple]], is_write: bool = True, max_retries: int = 5) -> bool:
+    def execute_batch(
+        self, queries: List[Tuple[str, tuple]], is_write: bool = True, max_retries: int = 5
+    ) -> bool:
         """
         Выполнение batch операций в одной транзакции
         Оптимизировано для массовых операций (50-90% ускорение)
-        
+
         Args:
             queries: Список кортежей (query, params)
             is_write: Являются ли операции записями
             max_retries: Максимальное количество попыток
-            
+
         Returns:
             True при успехе, False при ошибке
         """
         retry_delay = 0.5
-        
+
         for attempt in range(max_retries):
             try:
                 with self._lock:
@@ -474,41 +481,45 @@ class Database:
                         self.conn.rollback()
                         raise DatabaseTransactionError(
                             f"Transaction error in batch operation: {e}",
-                            context={"queries_count": len(queries)}
+                            context={"queries_count": len(queries)},
                         ) from e
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < max_retries - 1:
-                    logging.warning("⚠️ БД заблокирована при batch операции (попытка %d/%d), ждем %.1fс...", 
-                                    attempt + 1, max_retries, retry_delay)
+                    logging.warning(
+                        "⚠️ БД заблокирована при batch операции (попытка %d/%d), ждем %.1fс...",
+                        attempt + 1,
+                        max_retries,
+                        retry_delay,
+                    )
                     time.sleep(retry_delay)
                     retry_delay *= 2
                     continue
                 logging.error("❌ Ошибка batch операции после %d попыток: %s", max_retries, e)
                 raise DatabaseQueryError(
                     f"Batch operation failed after {max_retries} attempts: {e}",
-                    context={"queries_count": len(queries), "attempts": max_retries}
+                    context={"queries_count": len(queries), "attempts": max_retries},
                 ) from e
             except sqlite3.DatabaseError as e:
                 logging.error("❌ Ошибка базы данных в batch операции: %s", e)
                 raise DatabaseError(
                     f"Database error in batch operation: {e}",
-                    context={"queries_count": len(queries)}
+                    context={"queries_count": len(queries)},
                 ) from e
             except Exception as e:
                 logging.error("❌ Критическая ошибка batch операции: %s", e, exc_info=True)
                 raise DatabaseError(
                     f"Unexpected error in batch operation: {e}",
-                    context={"queries_count": len(queries)}
+                    context={"queries_count": len(queries)},
                 ) from e
         return False
 
     def _get_table_indexes(self, table_name: str) -> List[Tuple[str, str]]:
         """
         Получает список индексов для таблицы
-        
+
         Args:
             table_name: Имя таблицы
-            
+
         Returns:
             Список кортежей (index_name, create_sql)
         """
@@ -516,10 +527,13 @@ class Database:
         try:
             with self._lock:
                 # Получаем все индексы для таблицы
-                cursor = self.conn.execute("""
-                    SELECT name, sql FROM sqlite_master 
+                cursor = self.conn.execute(
+                    """
+                    SELECT name, sql FROM sqlite_master
                     WHERE type='index' AND tbl_name=? AND sql IS NOT NULL
-                """, (table_name,))
+                """,
+                    (table_name,),
+                )
                 indexes = [(row[0], row[1]) for row in fetch_all_optimized(cursor)]
         except sqlite3.Error as e:
             logging.warning("⚠️ [DB] Ошибка получения индексов для %s: %s", table_name, e)
@@ -529,17 +543,17 @@ class Database:
     def _disable_indexes_for_table(self, table_name: str) -> List[Tuple[str, str]]:
         """
         Временно отключает индексы для таблицы (удаляет их)
-        
+
         Args:
             table_name: Имя таблицы
-            
+
         Returns:
             Список кортежей (index_name, create_sql) для последующего восстановления
         """
         indexes = self._get_table_indexes(table_name)
         if not indexes:
             return []
-        
+
         disabled_indexes = []
         try:
             with self._lock:
@@ -554,22 +568,22 @@ class Database:
         except sqlite3.Error as e:
             logging.warning("⚠️ [DB] Ошибка отключения индексов для %s: %s", table_name, e)
             raise DatabaseQueryError(f"Failed to disable indexes for {table_name}: {e}") from e
-        
+
         return disabled_indexes
 
     def _restore_indexes(self, disabled_indexes: List[Tuple[str, str]]) -> bool:
         """
         Восстанавливает ранее отключенные индексы
-        
+
         Args:
             disabled_indexes: Список кортежей (index_name, create_sql)
-            
+
         Returns:
             True если успешно восстановлены все индексы
         """
         if not disabled_indexes:
             return True
-        
+
         success_count = 0
         try:
             with self._lock:
@@ -580,92 +594,103 @@ class Database:
                         success_count += 1
                         logging.debug("✅ [DB] Восстановлен индекс: %s", index_name)
                     except sqlite3.Error as e:
-                        logging.warning("⚠️ [DB] Ошибка восстановления индекса %s: %s", index_name, e)
+                        logging.warning(
+                            "⚠️ [DB] Ошибка восстановления индекса %s: %s", index_name, e
+                        )
         except sqlite3.Error as e:
             logging.warning("⚠️ [DB] Ошибка восстановления индексов: %s", e)
             raise DatabaseQueryError(f"Failed to restore indexes: {e}") from e
-        
+
         return success_count == len(disabled_indexes)
 
     def executemany_optimized(
-        self, 
-        query: str, 
-        params_list: List[tuple], 
+        self,
+        query: str,
+        params_list: List[tuple],
         max_retries: int = 5,
-        disable_indexes: bool = True
+        disable_indexes: bool = True,
     ) -> bool:
         """
         Оптимизированный executemany с отключением индексов для массовой вставки
         Ускорение на 50-90% для массовых операций
-        
+
         Args:
             query: SQL запрос
             params_list: Список параметров для executemany
             max_retries: Максимальное количество попыток
             disable_indexes: Отключать ли индексы перед вставкой (ускорение 50-90%)
-            
+
         Returns:
             True при успехе, False при ошибке
         """
         # Извлекаем имя таблицы из INSERT запроса
         table_name = None
         disabled_indexes = []
-        
-        if disable_indexes and query.strip().upper().startswith('INSERT'):
+
+        if disable_indexes and query.strip().upper().startswith("INSERT"):
             try:
                 # Парсим имя таблицы из INSERT запроса
-                match = re.search(r'INSERT\s+INTO\s+(\w+)', query, re.IGNORECASE)
+                match = re.search(r"INSERT\s+INTO\s+(\w+)", query, re.IGNORECASE)
                 if match:
                     table_name = match.group(1)
                     # Отключаем индексы перед массовой вставкой
                     disabled_indexes = self._disable_indexes_for_table(table_name)
                     if disabled_indexes:
-                        logging.info("✅ [DB] Отключено %d индексов для массовой вставки в %s", 
-                                   len(disabled_indexes), table_name)
+                        logging.info(
+                            "✅ [DB] Отключено %d индексов для массовой вставки в %s",
+                            len(disabled_indexes),
+                            table_name,
+                        )
             except sqlite3.Error as e:
                 logging.warning("⚠️ [DB] Ошибка определения таблицы для отключения индексов: %s", e)
             except Exception as e:
-                logging.error("❌ Критическая ошибка при подготовке executemany: %s", e, exc_info=True)
-        
+                logging.error(
+                    "❌ Критическая ошибка при подготовке executemany: %s", e, exc_info=True
+                )
+
         retry_delay = 0.5
-        
+
         try:
             for attempt in range(max_retries):
                 try:
                     with self._lock:
                         # Сохраняем текущие настройки
                         old_synchronous = self.conn.execute("PRAGMA synchronous").fetchone()[0]
-                        
+
                         try:
                             # Отключаем синхронность для массовой вставки
                             self.conn.execute("PRAGMA synchronous=OFF")
                             self.conn.execute("BEGIN TRANSACTION")
-                            
+
                             self.cursor.executemany(query, params_list)
                             self.conn.commit()
-                            
+
                             # Включаем обратно
                             self.conn.execute(f"PRAGMA synchronous={old_synchronous}")
-                            
+
                             # Восстанавливаем индексы после успешной вставки
                             if disabled_indexes:
                                 self._restore_indexes(disabled_indexes)
-                                logging.info("✅ [DB] Восстановлено %d индексов после массовой вставки", 
-                                           len(disabled_indexes))
-                            
+                                logging.info(
+                                    "✅ [DB] Восстановлено %d индексов после массовой вставки",
+                                    len(disabled_indexes),
+                                )
+
                             # Автоматически выполняем ANALYZE после массовой вставки для обновления статистики
                             try:
                                 self.conn.execute("ANALYZE")
                                 logging.debug("✅ [DB] ANALYZE выполнен после массовой вставки")
                             except sqlite3.Error as e:
                                 logging.debug("⚠️ [DB] Ошибка ANALYZE после массовой вставки: %s", e)
-                            
+
                             return True
                         except sqlite3.Error as e:
                             self.conn.rollback()
                             # Восстанавливаем настройки даже при ошибке
                             self.conn.execute(f"PRAGMA synchronous={old_synchronous}")
-                            raise DatabaseTransactionError(f"Executemany transaction failed: {e}") from e
+                            raise DatabaseTransactionError(
+                                f"Executemany transaction failed: {e}"
+                            ) from e
                         except Exception as e:
                             self.conn.rollback()
                             # Восстанавливаем настройки даже при ошибке
@@ -673,13 +698,19 @@ class Database:
                             raise DatabaseError(f"Unexpected error in executemany: {e}") from e
                 except sqlite3.OperationalError as e:
                     if "locked" in str(e).lower() and attempt < max_retries - 1:
-                        logging.warning("⚠️ БД заблокирована при executemany (попытка %d/%d), ждем %.1fс...", 
-                                        attempt + 1, max_retries, retry_delay)
+                        logging.warning(
+                            "⚠️ БД заблокирована при executemany (попытка %d/%d), ждем %.1fс...",
+                            attempt + 1,
+                            max_retries,
+                            retry_delay,
+                        )
                         time.sleep(retry_delay)
                         retry_delay *= 2
                         continue
                     logging.error("❌ Ошибка executemany после %d попыток: %s", max_retries, e)
-                    raise DatabaseQueryError(f"Executemany failed after {max_retries} attempts: {e}") from e
+                    raise DatabaseQueryError(
+                        f"Executemany failed after {max_retries} attempts: {e}"
+                    ) from e
                 except sqlite3.Error as e:
                     logging.error("❌ Ошибка базы данных в executemany: %s", e)
                     raise DatabaseError(f"Database error in executemany: {e}") from e
@@ -693,7 +724,7 @@ class Database:
                     self._restore_indexes(disabled_indexes)
                 except Exception as e:
                     logging.error("❌ Критическая ошибка восстановления индексов: %s", e)
-        
+
         return False
 
     def _initialize_tables_on_init(self):
@@ -707,9 +738,7 @@ class Database:
         except sqlite3.DatabaseError as e:
             # Финальный фолбэк: если схема повреждена — создаём новый файл БД.
             if "malformed database schema" in str(e).lower():
-                logging.error(
-                    "Схема БД повреждена. Пересоздаю БД (бэкап будет сохранён)…"
-                )
+                logging.error("Схема БД повреждена. Пересоздаю БД (бэкап будет сохранён)…")
                 self._reset_database_preserving_backup()
             else:
                 raise
@@ -759,24 +788,18 @@ class Database:
                 break
             except sqlite3.DatabaseError as e:
                 msg = str(e)
-                m = re.search(
-                    r"malformed database schema \(([^)]+)\)", msg, flags=re.IGNORECASE
-                )
+                m = re.search(r"malformed database schema \(([^)]+)\)", msg, flags=re.IGNORECASE)
                 if not m:
                     logging.warning("DB init error: %s", e)
                     return
                 bad_object = m.group(1)
                 try:
-                    logging.warning(
-                        "Обнаружен повреждённый объект '%s'. Удаляем…", bad_object
-                    )
+                    logging.warning("Обнаружен повреждённый объект '%s'. Удаляем…", bad_object)
                     with self._lock:
                         # Пытаемся обычными способами
                         for drop_type in ["TABLE", "INDEX", "VIEW", "TRIGGER"]:
                             try:
-                                self.conn.execute(
-                                    f"DROP {drop_type} IF EXISTS \"{bad_object}\""
-                                )
+                                self.conn.execute(f'DROP {drop_type} IF EXISTS "{bad_object}"')
                             except sqlite3.Error:
                                 pass
                         self.conn.commit()
@@ -787,9 +810,7 @@ class Database:
                 try:
                     with self._lock:
                         self.conn.execute("PRAGMA writable_schema=ON;")
-                        self.conn.execute(
-                            "DELETE FROM sqlite_master WHERE name=?", (bad_object,)
-                        )
+                        self.conn.execute("DELETE FROM sqlite_master WHERE name=?", (bad_object,))
                         self.conn.execute("PRAGMA writable_schema=OFF;")
                         self.conn.commit()
                         try:
@@ -797,9 +818,7 @@ class Database:
                         except sqlite3.Error:
                             pass
                 except sqlite3.Error as e2:
-                    logging.error(
-                        "Не удалось удалить объект '%s': %s", bad_object, e2
-                    )
+                    logging.error("Не удалось удалить объект '%s': %s", bad_object, e2)
                     return
                 continue
         # Профилактика: удалим подозрительные объекты (например, ETHUSDT)
@@ -815,21 +834,29 @@ class Database:
         for name, obj_type in rows:
             # Системные таблицы
             known = {
-                'fees','quotes','arbitrage_events','pairs','manual_trades',
-                'active_signals','signals','signals_log','users_data',
-                'signal_accum_events','app_cache','backtest_results',
-                'telemetry_cycles','telemetry_api'
+                "fees",
+                "quotes",
+                "arbitrage_events",
+                "pairs",
+                "manual_trades",
+                "active_signals",
+                "signals",
+                "signals_log",
+                "users_data",
+                "signal_accum_events",
+                "app_cache",
+                "backtest_results",
+                "telemetry_cycles",
+                "telemetry_api",
             }
             if name in known:
                 continue
             try:
                 with self._lock:
-                    if obj_type in ['table', 'index', 'view', 'trigger']:
-                        self.conn.execute(f"DROP {obj_type.upper()} IF EXISTS \"{name}\"")
+                    if obj_type in ["table", "index", "view", "trigger"]:
+                        self.conn.execute(f'DROP {obj_type.upper()} IF EXISTS "{name}"')
                     self.conn.commit()
-                    logging.warning(
-                        "Удалён подозрительный объект: %s (%s)", name, obj_type
-                    )
+                    logging.warning("Удалён подозрительный объект: %s (%s)", name, obj_type)
             except sqlite3.Error:
                 # Жёсткая чистка, если обычный DROP не помогает
                 try:
@@ -842,7 +869,9 @@ class Database:
                             self.conn.execute("VACUUM;")
                         except sqlite3.Error:
                             pass
-                    logging.warning("Принудительно удалён объект схемы через writable_schema: %s", name)
+                    logging.warning(
+                        "Принудительно удалён объект схемы через writable_schema: %s", name
+                    )
                 except sqlite3.Error as e3:
                     logging.error("Не удалось удалить объект схемы '%s': %s", name, e3)
                     # Продолжаем, чтобы попытаться восстановиться максимально
@@ -852,7 +881,7 @@ class Database:
             with self._lock:
                 cur = self.conn.execute("PRAGMA integrity_check;")
                 res = cur.fetchone()
-                if res and str(res[0]).lower() != 'ok':
+                if res and str(res[0]).lower() != "ok":
                     logging.warning("PRAGMA integrity_check вернул: %s", res[0])
         except sqlite3.Error:
             pass
@@ -871,7 +900,7 @@ class Database:
             # Бэкапим исходную БД
             try:
                 backup_file(self.db_path)
-            except (OSError, IOError):
+            except OSError:
                 logging.warning("Не удалось создать бэкап перед сбросом БД")
             # Удаляем повреждённый файл и создаём заново
             try:
@@ -880,9 +909,7 @@ class Database:
             except OSError as e:
                 logging.error("Не удалось удалить старый файл БД: %s", e)
             # Новое соединение
-            self.conn = sqlite3.connect(
-                self.db_path, check_same_thread=False, timeout=30.0
-            )
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
             self.cursor = self.conn.cursor()
             # Применяем PRAGMA
             try:
@@ -892,11 +919,10 @@ class Database:
                     self.conn.execute("PRAGMA busy_timeout=60000;")
                     # Оптимизация cache_size
                     import psutil
+
                     try:
                         available_ram_mb = psutil.virtual_memory().total / (1024 * 1024)
-                        optimal_cache_mb = max(
-                            64, min(512, int(available_ram_mb * 0.25))
-                        )
+                        optimal_cache_mb = max(64, min(512, int(available_ram_mb * 0.25)))
                         cache_size_kb = -optimal_cache_mb * 1024
                         self.conn.execute(f"PRAGMA cache_size={cache_size_kb};")
                     except Exception:
@@ -1098,16 +1124,13 @@ class Database:
         )
         # Индексы для сигналов
         self.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_signals_log_sym_time "
-            "ON signals_log(symbol, entry_time)"
+            "CREATE INDEX IF NOT EXISTS idx_signals_log_sym_time ON signals_log(symbol, entry_time)"
         )
         self.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_signals_log_created_at "
-            "ON signals_log(created_at)"
+            "CREATE INDEX IF NOT EXISTS idx_signals_log_created_at ON signals_log(created_at)"
         )
         self.cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_signals_log_result_on "
-            "ON signals_log(result)"
+            "CREATE INDEX IF NOT EXISTS idx_signals_log_result_on ON signals_log(result)"
         )
         # Удаляем дубликаты
         try:
@@ -1169,40 +1192,44 @@ class Database:
         self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol)")
         self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_exit_time ON trades(exit_time)")
         self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_user_id ON trades(user_id)")
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_exit_reason ON trades(exit_reason)")
-        
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_trades_exit_reason ON trades(exit_reason)"
+        )
+
         # Частичные индексы для приоритетных символов (ускорение на 30-50%)
         self._create_partial_indexes()
-        
+
         # Добавляем CHECK constraints для существующих таблиц через триггеры валидации
         # (SQLite не поддерживает ALTER TABLE ADD CONSTRAINT, используем триггеры)
         self._add_validation_triggers()
-        
+
         # Миграции для signals_log: добавляем user_id
         try:
             with self._lock:
                 self.conn.execute("ALTER TABLE signals_log ADD COLUMN user_id INTEGER")
         except sqlite3.Error:
             pass
-        
+
         # Миграции: добавляем суррогатные ключи для временных меток (ускорение на 20-40%)
         self._add_surrogate_time_keys()
         # Миграции: добавляем недостающие колонки (если отсутствуют)
-        for attempt, col_def in enumerate([
-            ("leverage_used", "INTEGER"),
-            ("risk_pct_used", "REAL"),
-            ("entry_amount_usd", "REAL"),
-            ("trade_mode", "TEXT"),
-            ("funding_rate", "REAL"),
-            ("quote24h_usd", "REAL"),
-            ("depth_usd", "REAL"),
-            ("spread_pct", "REAL"),
-            ("exposure_pct", "REAL"),
-            ("mtf_score", "REAL"),
-            ("sector", "TEXT"),
-            ("expected_cost_usd", "REAL"),
-            ("impact_bp", "REAL"),
-        ]):
+        for attempt, col_def in enumerate(
+            [
+                ("leverage_used", "INTEGER"),
+                ("risk_pct_used", "REAL"),
+                ("entry_amount_usd", "REAL"),
+                ("trade_mode", "TEXT"),
+                ("funding_rate", "REAL"),
+                ("quote24h_usd", "REAL"),
+                ("depth_usd", "REAL"),
+                ("spread_pct", "REAL"),
+                ("exposure_pct", "REAL"),
+                ("mtf_score", "REAL"),
+                ("sector", "TEXT"),
+                ("expected_cost_usd", "REAL"),
+                ("impact_bp", "REAL"),
+            ]
+        ):
             try:
                 with self._lock:
                     self.conn.execute(
@@ -1211,7 +1238,7 @@ class Database:
             except sqlite3.OperationalError as e:
                 if "database is locked" in str(e):
                     # Экспоненциальный backoff
-                    wait_time = 0.1 * (2 ** attempt) + random.uniform(0, 0.1)
+                    wait_time = 0.1 * (2**attempt) + random.uniform(0, 0.1)
                     time.sleep(wait_time)
                     try:
                         with self._lock:
@@ -1234,11 +1261,11 @@ class Database:
             )
         except sqlite3.Error:
             pass
-        
+
         # Добавляем CHECK constraints для существующих таблиц через триггеры валидации
         # (SQLite не поддерживает ALTER TABLE ADD CONSTRAINT, используем триггеры)
         self._add_validation_triggers()
-        
+
         self.cursor.execute(
             """
         CREATE TABLE IF NOT EXISTS users_data (
@@ -1278,7 +1305,9 @@ class Database:
         )
         """
         )
-        self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_app_cache_expires_at ON app_cache(expires_at)")
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_app_cache_expires_at ON app_cache(expires_at)"
+        )
 
         # Таблица для системных настроек (адаптивная система)
         self.cursor.execute(
@@ -1428,7 +1457,9 @@ class Database:
             ("adaptive_components", "TEXT"),
         ]:
             try:
-                self.cursor.execute(f"ALTER TABLE position_sizing_events ADD COLUMN {column_def[0]} {column_def[1]}")
+                self.cursor.execute(
+                    f"ALTER TABLE position_sizing_events ADD COLUMN {column_def[0]} {column_def[1]}"
+                )
             except sqlite3.OperationalError:
                 pass
 
@@ -1463,11 +1494,65 @@ class Database:
         )
         """
         )
+
+        # Таблицы для Strategy Session Manager
+        self.cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS strategy_sessions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT DEFAULT 'discovery',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+        )
+        self.cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS strategy_questions (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            question_text TEXT NOT NULL,
+            answer_text TEXT,
+            asked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            answered_at DATETIME,
+            FOREIGN KEY (session_id) REFERENCES strategy_sessions(id)
+        )
+        """
+        )
+        self.cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS strategy_plans (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            level TEXT NOT NULL,
+            parent_plan_id TEXT,
+            role_hint TEXT,
+            title TEXT NOT NULL,
+            markdown_body TEXT NOT NULL,
+            status TEXT DEFAULT 'active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES strategy_sessions(id),
+            FOREIGN KEY (parent_plan_id) REFERENCES strategy_plans(id)
+        )
+        """
+        )
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_strategy_questions_session ON strategy_questions(session_id)"
+        )
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_strategy_plans_session ON strategy_plans(session_id)"
+        )
+
         self.conn.commit()
         self.periodic_backup()
 
     # Простое планирование бэкапов (вызовом по таймеру из внешнего цикла)
     _last_backup_ts = 0
+
     def periodic_backup(self, min_interval_sec: int = 600):
         """Выполняет периодическое резервное копирование базы данных"""
         now = time.time()
@@ -1549,11 +1634,9 @@ class Database:
         # Оптимизация: сначала получаем все существующие fees одним запросом
         existing_fees = set()
         with self._lock:
-            cur = self.conn.execute(
-                "SELECT symbol FROM fees WHERE exchange=?", (exchange,)
-            )
+            cur = self.conn.execute("SELECT symbol FROM fees WHERE exchange=?", (exchange,))
             existing_fees = {row[0] for row in fetch_all_optimized(cur)}
-        
+
         # Оптимизация: используем batch операцию вместо множественных INSERT
         to_insert = [
             (
@@ -1567,7 +1650,7 @@ class Database:
             for pair in pairs
             if (pair["symbol"] if isinstance(pair, dict) else pair) not in existing_fees
         ]
-        
+
         if to_insert:
             query = """
                 INSERT INTO fees (exchange, symbol, maker_fee, taker_fee, withdraw_fee, network)
@@ -1581,7 +1664,7 @@ class Database:
         try:
             self.cursor.execute(
                 "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                (key, value, get_utc_now().isoformat())
+                (key, value, get_utc_now().isoformat()),
             )
             self.conn.commit()
             self.periodic_backup()
@@ -1590,23 +1673,50 @@ class Database:
             logging.error("❌ Ошибка сохранения настройки %s: %s", key, e)
             return False
 
-# Старые дублированные методы удалены - используются новые версии ниже
+    # Старые дублированные методы удалены - используются новые версии ниже
 
     def save_backtest_result(
-        self, symbol, interval, since_days, bars, signals, tp1, tp2, sl, pnl,
-        mae_avg_pct, mfe_avg_pct, avg_duration_sec, started_at, ended_at
+        self,
+        symbol,
+        interval,
+        since_days,
+        bars,
+        signals,
+        tp1,
+        tp2,
+        sl,
+        pnl,
+        mae_avg_pct,
+        mfe_avg_pct,
+        avg_duration_sec,
+        started_at,
+        ended_at,
     ):
         """Сохраняет результат бэктеста"""
         try:
             self.cursor.execute(
                 """INSERT INTO backtest_results
                 (symbol, interval, since_days, bars, signals, tp1, tp2, sl, pnl,
-                 mae_avg_pct, mfe_avg_pct, avg_duration_sec, 
+                 mae_avg_pct, mfe_avg_pct, avg_duration_sec,
                  started_at, ended_at, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (symbol, interval, since_days, bars, signals, tp1, tp2, sl, pnl,
-                 mae_avg_pct, mfe_avg_pct, avg_duration_sec, started_at, ended_at,
-                 get_utc_now().isoformat())
+                (
+                    symbol,
+                    interval,
+                    since_days,
+                    bars,
+                    signals,
+                    tp1,
+                    tp2,
+                    sl,
+                    pnl,
+                    mae_avg_pct,
+                    mfe_avg_pct,
+                    avg_duration_sec,
+                    started_at,
+                    ended_at,
+                    get_utc_now().isoformat(),
+                ),
             )
             self.conn.commit()
             self.periodic_backup()
@@ -1622,12 +1732,11 @@ class Database:
                 self.cursor.execute(
                     "SELECT * FROM backtest_results WHERE symbol = ? "
                     "ORDER BY created_at DESC LIMIT ?",
-                    (symbol, limit)
+                    (symbol, limit),
                 )
             else:
                 self.cursor.execute(
-                    "SELECT * FROM backtest_results ORDER BY created_at DESC LIMIT ?", 
-                    (limit,)
+                    "SELECT * FROM backtest_results ORDER BY created_at DESC LIMIT ?", (limit,)
                 )
             return fetch_all_optimized(self.cursor)
         except Exception as e:
@@ -1723,11 +1832,9 @@ class Database:
         # Оптимизация: сначала получаем все существующие пары одним запросом
         existing_pairs = set()
         with self._lock:
-            cur = self.conn.execute(
-                "SELECT symbol FROM pairs WHERE exchange=?", (exchange,)
-            )
+            cur = self.conn.execute("SELECT symbol FROM pairs WHERE exchange=?", (exchange,))
             existing_pairs = {row[0] for row in fetch_all_optimized(cur)}
-        
+
         # Оптимизация: используем list comprehension вместо цикла с append
         to_insert = [
             (
@@ -1829,7 +1936,7 @@ class Database:
         entry_time: str = None,
         chat_id: int = None,
         message_id: int = None,
-        symbol: str = None
+        symbol: str = None,
     ):
         """
         Добавляет активный сигнал с временем истечения.
@@ -1938,7 +2045,9 @@ class Database:
         return False
 
     # ===== Накопитель сигналов =====
-    def add_accum_event(self, symbol: str, event: str, weight: float, ttl_sec: int, meta: Optional[dict] = None):
+    def add_accum_event(
+        self, symbol: str, event: str, weight: float, ttl_sec: int, meta: Optional[dict] = None
+    ):
         """
         Добавляет событие в накопитель сигналов.
 
@@ -2068,12 +2177,14 @@ class Database:
             },
         }
 
-    def get_signal_performance_stats(self, symbol: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+    def get_signal_performance_stats(
+        self, symbol: Optional[str] = None, days: int = 30
+    ) -> Dict[str, Any]:
         """
         Получает статистику производительности из signals_log.
         """
         try:
-            lookback_date = (get_utc_now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+            lookback_date = (get_utc_now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
 
             query = """
                 SELECT
@@ -2097,10 +2208,10 @@ class Database:
 
             if not row or row[0] == 0:
                 return {
-                    'total_trades': 0,
-                    'win_rate': 0.55,  # Fallback
-                    'profit_factor': 1.5,  # Fallback
-                    'avg_win_loss_ratio': 1.5
+                    "total_trades": 0,
+                    "win_rate": 0.55,  # Fallback
+                    "profit_factor": 1.5,  # Fallback
+                    "avg_win_loss_ratio": 1.5,
                 }
 
             total, wins, losses, gross_profit, gross_loss = row
@@ -2118,18 +2229,18 @@ class Database:
             avg_win_loss_ratio = avg_win / avg_loss if avg_loss > 0 else 1.5
 
             return {
-                'total_trades': total,
-                'win_rate': float(win_rate),
-                'profit_factor': float(profit_factor),
-                'avg_win_loss_ratio': float(avg_win_loss_ratio)
+                "total_trades": total,
+                "win_rate": float(win_rate),
+                "profit_factor": float(profit_factor),
+                "avg_win_loss_ratio": float(avg_win_loss_ratio),
             }
         except Exception as e:
             logger.error("❌ Ошибка получения статистики производительности: %s", e)
             return {
-                'total_trades': 0,
-                'win_rate': 0.55,
-                'profit_factor': 1.5,
-                'avg_win_loss_ratio': 1.5
+                "total_trades": 0,
+                "win_rate": 0.55,
+                "profit_factor": 1.5,
+                "avg_win_loss_ratio": 1.5,
             }
 
     def get_weekly_stats(self, week_start=None):
@@ -2366,7 +2477,9 @@ class Database:
 
         # 🔧 ИСПРАВЛЕНО: Проверяем, что conn инициализирован
         if self.conn is None:
-            logger.error("❌ [DB] self.conn is None в insert_signal_log_entry, пытаемся переинициализировать")
+            logger.error(
+                "❌ [DB] self.conn is None в insert_signal_log_entry, пытаемся переинициализировать"
+            )
             try:
                 # Всегда используем прямое соединение для надежности
                 self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
@@ -2377,6 +2490,7 @@ class Database:
                     self.conn.execute("PRAGMA busy_timeout=60000;")  # 60s для конкурентности
                     # Оптимизация cache_size
                     import psutil
+
                     try:
                         available_ram_mb = psutil.virtual_memory().total / (1024 * 1024)
                         optimal_cache_mb = max(64, min(512, int(available_ram_mb * 0.25)))
@@ -2426,13 +2540,15 @@ class Database:
                 return duplicate[0]
 
             self.conn.execute(
-                f"INSERT INTO signals_log ({', '.join(columns)}) VALUES ({', '.join(['?']*len(columns))})",
+                f"INSERT INTO signals_log ({', '.join(columns)}) VALUES ({', '.join(['?'] * len(columns))})",
                 values,
             )
             self.conn.commit()
         self.periodic_backup()
 
-    def update_signal_close_db(self, symbol: str, entry_time: str, exit_time: str, result: str, net_profit: float):
+    def update_signal_close_db(
+        self, symbol: str, entry_time: str, exit_time: str, result: str, net_profit: float
+    ):
         """
         Обновляет данные о закрытии сигнала в базе данных.
 
@@ -2470,7 +2586,7 @@ class Database:
                         ORDER BY datetime(created_at) DESC
                         LIMIT 1
                     """,
-                        (user_id,)
+                        (user_id,),
                     )
                 else:
                     cur.execute(
@@ -2507,7 +2623,7 @@ class Database:
                             ORDER BY datetime(created_at) DESC
                             LIMIT 1
                         """,
-                            (user_id,)
+                            (user_id,),
                         )
                     else:
                         self.cursor.execute(
@@ -2602,10 +2718,21 @@ class Database:
             # Оптимизация: используем list comprehension вместо цикла с append
             return [
                 {
-                    "symbol": r[0], "interval": r[1], "since_days": r[2], "bars": r[3], "signals": r[4],
-                    "tp1": r[5], "tp2": r[6], "sl": r[7], "pnl": r[8],
-                    "mae_avg_pct": r[9], "mfe_avg_pct": r[10], "avg_duration_sec": r[11],
-                    "start": r[12], "end": r[13], "created_at": r[14],
+                    "symbol": r[0],
+                    "interval": r[1],
+                    "since_days": r[2],
+                    "bars": r[3],
+                    "signals": r[4],
+                    "tp1": r[5],
+                    "tp2": r[6],
+                    "sl": r[7],
+                    "pnl": r[8],
+                    "mae_avg_pct": r[9],
+                    "mfe_avg_pct": r[10],
+                    "avg_duration_sec": r[11],
+                    "start": r[12],
+                    "end": r[13],
+                    "created_at": r[14],
                 }
                 for r in rows
             ]
@@ -2616,14 +2743,14 @@ class Database:
     def get_false_breakout_summary(self, hours: int = 24) -> Dict[str, Any]:
         """Возвращает статистику детектора ложных пробоев за последние N часов."""
         summary: Dict[str, Any] = {
-            'window_hours': hours,
-            'total_events': 0,
-            'pass_rate': None,
-            'avg_confidence': None,
-            'avg_threshold': None,
-            'avg_volatility_pct': None,
-            'avg_recent_pass_rate': None,
-            'regime_breakdown': []
+            "window_hours": hours,
+            "total_events": 0,
+            "pass_rate": None,
+            "avg_confidence": None,
+            "avg_threshold": None,
+            "avg_volatility_pct": None,
+            "avg_recent_pass_rate": None,
+            "regime_breakdown": [],
         }
         try:
             window_clause = f"-{int(hours)} hours"
@@ -2646,13 +2773,13 @@ class Database:
                 row = cur.fetchone()
                 if row:
                     total, passed, avg_conf, avg_threshold, avg_vol, avg_recent = row
-                    summary['total_events'] = int(total or 0)
+                    summary["total_events"] = int(total or 0)
                     if total:
-                        summary['pass_rate'] = (passed or 0) / total
-                    summary['avg_confidence'] = avg_conf
-                    summary['avg_threshold'] = avg_threshold
-                    summary['avg_volatility_pct'] = avg_vol
-                    summary['avg_recent_pass_rate'] = avg_recent
+                        summary["pass_rate"] = (passed or 0) / total
+                    summary["avg_confidence"] = avg_conf
+                    summary["avg_threshold"] = avg_threshold
+                    summary["avg_volatility_pct"] = avg_vol
+                    summary["avg_recent_pass_rate"] = avg_recent
 
                 cur = self.conn.execute(
                     """
@@ -2668,11 +2795,11 @@ class Database:
                     """,
                     (window_clause,),
                 )
-                summary['regime_breakdown'] = [
+                summary["regime_breakdown"] = [
                     {
-                        'regime': regime,
-                        'total': int(total or 0),
-                        'pass_rate': (passed or 0) / total if total else None,
+                        "regime": regime,
+                        "total": int(total or 0),
+                        "pass_rate": (passed or 0) / total if total else None,
                     }
                     for regime, total, passed in fetch_all_optimized(cur)
                 ]
@@ -2683,11 +2810,11 @@ class Database:
     def get_mtf_confirmation_summary(self, hours: int = 24) -> Dict[str, Any]:
         """Возвращает статистику MTF-подтверждений за последние N часов."""
         summary: Dict[str, Any] = {
-            'window_hours': hours,
-            'total_events': 0,
-            'confirmation_rate': None,
-            'error_rate': None,
-            'regime_breakdown': []
+            "window_hours": hours,
+            "total_events": 0,
+            "confirmation_rate": None,
+            "error_rate": None,
+            "regime_breakdown": [],
         }
         try:
             window_clause = f"-{int(hours)} hours"
@@ -2706,10 +2833,10 @@ class Database:
                 row = cur.fetchone()
                 if row:
                     total, confirmed, errors = row
-                    summary['total_events'] = int(total or 0)
+                    summary["total_events"] = int(total or 0)
                     if total:
-                        summary['confirmation_rate'] = (confirmed or 0) / total
-                        summary['error_rate'] = (errors or 0) / total
+                        summary["confirmation_rate"] = (confirmed or 0) / total
+                        summary["error_rate"] = (errors or 0) / total
 
                 cur = self.conn.execute(
                     """
@@ -2724,11 +2851,11 @@ class Database:
                     """,
                     (window_clause,),
                 )
-                summary['regime_breakdown'] = [
+                summary["regime_breakdown"] = [
                     {
-                        'regime': regime,
-                        'total': int(total or 0),
-                        'confirmation_rate': (confirmed or 0) / total if total else None,
+                        "regime": regime,
+                        "total": int(total or 0),
+                        "confirmation_rate": (confirmed or 0) / total if total else None,
                     }
                     for regime, total, confirmed in fetch_all_optimized(cur)
                 ]
@@ -2849,10 +2976,11 @@ class Database:
                     "INSERT INTO audit_dynamic_params(ts, scope, param, old_value, new_value, note) "
                     "VALUES(datetime('now'),?,?,?,?,?)",
                     (
-                        scope, param,
+                        scope,
+                        param,
                         json.dumps(old_value, ensure_ascii=False),
                         json.dumps(new_value, ensure_ascii=False),
-                        note
+                        note,
                     ),
                 )
                 self.conn.commit()
@@ -2902,24 +3030,32 @@ class Database:
             logging.warning("select_signals_for_backtest error: %s", e)
             return []
 
-    def insert_signal_log(self, symbol: str, entry: float, stop: float, tp1: float, tp2: float,
-                           entry_time: str, quality_score: Optional[float] = None,
-                           quality_meta: Optional[dict] = None,
-                           leverage_used: Optional[float] = None,
-                           risk_pct_used: Optional[float] = None,
-                           entry_amount_usd: Optional[float] = None,
-                           trade_mode: Optional[str] = None,
-                           funding_rate: Optional[float] = None,
-                           quote24h_usd: Optional[float] = None,
-                           depth_usd: Optional[float] = None,
-                           spread_pct: Optional[float] = None,
-                           exposure_pct: Optional[float] = None,
-                           mtf_score: Optional[float] = None,
-                           sector: Optional[str] = None,
-                           expected_cost_usd: Optional[float] = None,
-                           impact_bp: Optional[float] = None,
-                           user_id: Optional[int] = None,
-                           direction: Optional[str] = None):
+    def insert_signal_log(
+        self,
+        symbol: str,
+        entry: float,
+        stop: float,
+        tp1: float,
+        tp2: float,
+        entry_time: str,
+        quality_score: Optional[float] = None,
+        quality_meta: Optional[dict] = None,
+        leverage_used: Optional[float] = None,
+        risk_pct_used: Optional[float] = None,
+        entry_amount_usd: Optional[float] = None,
+        trade_mode: Optional[str] = None,
+        funding_rate: Optional[float] = None,
+        quote24h_usd: Optional[float] = None,
+        depth_usd: Optional[float] = None,
+        spread_pct: Optional[float] = None,
+        exposure_pct: Optional[float] = None,
+        mtf_score: Optional[float] = None,
+        sector: Optional[str] = None,
+        expected_cost_usd: Optional[float] = None,
+        impact_bp: Optional[float] = None,
+        user_id: Optional[int] = None,
+        direction: Optional[str] = None,
+    ):
         """
         Вставляет запись о сигнале в лог сигналов.
 
@@ -2950,23 +3086,33 @@ class Database:
         """
         try:
             # 🛡️ НОРМАЛИЗАЦИЯ СИМВОЛА: Приводим к единому формату перед сохранением в БД
-            user_trade_mode = 'spot'  # По умолчанию
+            user_trade_mode = "spot"  # По умолчанию
             if user_id is not None:
                 try:
                     user_data_temp = self.get_user_data(str(user_id)) or {}
-                    user_trade_mode = user_data_temp.get('trade_mode', 'spot')
+                    user_trade_mode = user_data_temp.get("trade_mode", "spot")
                 except Exception:
                     pass  # Используем 'spot' по умолчанию
 
             # Нормализуем символ
             try:
                 from src.utils.shared_utils import normalize_symbol_for_db
+
                 symbol_normalized = normalize_symbol_for_db(symbol, user_trade_mode)
                 if symbol_normalized != symbol:
-                    logging.getLogger(__name__).debug("🔄 [DB] Символ нормализован в signals_log: %s → %s (режим: %s)", symbol, symbol_normalized, user_trade_mode)
+                    logging.getLogger(__name__).debug(
+                        "🔄 [DB] Символ нормализован в signals_log: %s → %s (режим: %s)",
+                        symbol,
+                        symbol_normalized,
+                        user_trade_mode,
+                    )
                 symbol = symbol_normalized
             except Exception as e:
-                logging.getLogger(__name__).warning("⚠️ [DB] Не удалось нормализовать символ %s в signals_log: %s. Сохраняем как есть", symbol, e)
+                logging.getLogger(__name__).warning(
+                    "⚠️ [DB] Не удалось нормализовать символ %s в signals_log: %s. Сохраняем как есть",
+                    symbol,
+                    e,
+                )
 
             with self._lock:
                 self.conn.execute(
@@ -2980,8 +3126,17 @@ class Database:
                     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        symbol, float(entry), float(stop), float(tp1), float(tp2), entry_time,
-                        "PENDING", None, None, 0.0, trade_mode.lower() if isinstance(trade_mode, str) else None,
+                        symbol,
+                        float(entry),
+                        float(stop),
+                        float(tp1),
+                        float(tp2),
+                        entry_time,
+                        "PENDING",
+                        None,
+                        None,
+                        0.0,
+                        trade_mode.lower() if isinstance(trade_mode, str) else None,
                         float(leverage_used) if leverage_used is not None else None,
                         float(risk_pct_used) if risk_pct_used is not None else None,
                         float(entry_amount_usd) if entry_amount_usd is not None else None,
@@ -2998,7 +3153,7 @@ class Database:
                         # Оптимизация: используем быструю сериализацию
                         self._serialize_quality_meta(quality_meta),
                         int(user_id) if user_id is not None else None,
-                        direction
+                        direction,
                     ),
                 )
                 self.conn.commit()
@@ -3027,7 +3182,7 @@ class Database:
                 self.conn.execute(
                     "INSERT INTO audit_strategy_pauses(ts, action, reason, window_hours, "
                     "sl_count, net_profit_sum) VALUES(datetime('now'),?,?,?,?,?)",
-                    (action, reason, int(window_hours), int(sl_count), float(net_profit_sum))
+                    (action, reason, int(window_hours), int(sl_count), float(net_profit_sum)),
                 )
                 self.conn.commit()
         except sqlite3.Error as e:
@@ -3078,7 +3233,9 @@ class Database:
                     _safe_float(event.get("composite_score")),
                     _safe_float(event.get("pattern_confidence")),
                     event.get("adaptive_reason"),
-                    json.dumps(event.get("adaptive_components"), ensure_ascii=False) if event.get("adaptive_components") is not None else None,
+                    json.dumps(event.get("adaptive_components"), ensure_ascii=False)
+                    if event.get("adaptive_components") is not None
+                    else None,
                 )
                 self.conn.execute(query, params)
                 self.conn.commit()
@@ -3147,10 +3304,10 @@ class Database:
                         (cache_type, cache_key),
                     )
                     row = cur.fetchone()
-                
+
                 if not row:
                     return None
-                
+
                 payload_json, expires_at = row
                 if expires_at and int(expires_at) > now_ts:
                     try:
@@ -3254,7 +3411,9 @@ class Database:
                 summary["net_profit_sum"] = float(agg[0] or 0.0)
                 summary["net_profit_avg"] = float(agg[1] or 0.0)
 
-                total_trades = summary["tp2_count"] + summary["tp1_partial_count"] + summary["sl_count"]
+                total_trades = (
+                    summary["tp2_count"] + summary["tp1_partial_count"] + summary["sl_count"]
+                )
                 if total_trades > 0:
                     successful_trades = summary["tp2_count"] + summary["tp1_partial_count"]
                     summary["winrate"] = (successful_trades / total_trades) * 100.0
@@ -3272,17 +3431,18 @@ class Database:
                     (f"-{days} days",),
                 )
                 daily_profits = [row[1] for row in cur.fetchall() if row[1] is not None]
-                
+
                 if len(daily_profits) >= 2:
                     import numpy as np
+
                     profits_arr = np.array(daily_profits, dtype=float)
-                    
+
                     # Sharpe (аннуализированный sqrt(365) для крипто)
                     mean_p = np.mean(profits_arr)
                     std_p = np.std(profits_arr)
                     if std_p > 0:
                         summary["sharpe_ratio"] = float((mean_p / std_p) * np.sqrt(365))
-                    
+
                     # Sortino (Downside risk)
                     downside_returns = profits_arr[profits_arr < 0]
                     if len(downside_returns) > 0:
@@ -3290,8 +3450,8 @@ class Database:
                         if downside_std > 0:
                             summary["sortino_ratio"] = float((mean_p / downside_std) * np.sqrt(365))
                     else:
-                        summary["sortino_ratio"] = 100.0 # Ошибок нет
-                    
+                        summary["sortino_ratio"] = 100.0  # Ошибок нет
+
                     # Max Drawdown
                     cumulative = np.cumsum(profits_arr)
                     peak = np.maximum.accumulate(cumulative)
@@ -3335,17 +3495,17 @@ class Database:
             cached = self._query_cache.get("SELECT user_id FROM users_data", ())
             if cached is not None:
                 return cached
-        
+
         with self._lock:
             if self.conn:
                 cur = self.conn.execute("SELECT user_id FROM users_data")
                 rows = fetch_all_optimized(cur)
                 result = [r[0] for r in rows]
-                
+
                 # Сохраняем в кэш на 5 минут (список пользователей меняется редко)
                 if self._query_cache_enabled and self._query_cache:
                     self._query_cache.set("SELECT user_id FROM users_data", (), result, ttl=300.0)
-                
+
                 return result
             else:
                 logger.error("❌ БД не инициализирована (conn=None)")
@@ -3355,7 +3515,9 @@ class Database:
         """Получает данные пользователя из БД"""
         with self._lock:
             if self.conn:
-                cur = self.conn.execute("SELECT data FROM users_data WHERE user_id=?", (str(user_id),))
+                cur = self.conn.execute(
+                    "SELECT data FROM users_data WHERE user_id=?", (str(user_id),)
+                )
                 row = cur.fetchone()
             else:
                 logger.error("❌ БД не инициализирована (conn=None)")
@@ -3365,8 +3527,10 @@ class Database:
             try:
                 # Пробуем использовать быструю сериализацию (MessagePack), fallback на JSON
                 try:
-                    from src.data.serialization import deserialize_fast
                     import base64
+
+                    from src.data.serialization import deserialize_fast
+
                     # Если данные в формате base64 (MessagePack)
                     if isinstance(row[0], str) and len(row[0]) > 0:
                         try:
@@ -3380,18 +3544,30 @@ class Database:
                 except (ImportError, Exception):
                     # Fallback на стандартный JSON
                     parsed_data = json.loads(row[0])
-                
+
                 if not isinstance(parsed_data, dict):
-                    logger.warning("⚠️ Данные пользователя %s не являются dict: %s", user_id, type(parsed_data))
+                    logger.warning(
+                        "⚠️ Данные пользователя %s не являются dict: %s", user_id, type(parsed_data)
+                    )
                     return None
-                
+
                 # Сохраняем в кэш на 30 секунд (данные пользователя могут часто запрашиваться)
                 if self._query_cache_enabled and self._query_cache:
-                    self._query_cache.set("SELECT data FROM users_data WHERE user_id=?", (str(user_id),), parsed_data, ttl=30.0)
-                
+                    self._query_cache.set(
+                        "SELECT data FROM users_data WHERE user_id=?",
+                        (str(user_id),),
+                        parsed_data,
+                        ttl=30.0,
+                    )
+
                 return parsed_data
             except (json.JSONDecodeError, TypeError) as e:
-                logger.warning("⚠️ Ошибка парсинга JSON для пользователя %s: %s (данные: %s)", user_id, e, str(row[0])[:100] if row[0] else "None")
+                logger.warning(
+                    "⚠️ Ошибка парсинга JSON для пользователя %s: %s (данные: %s)",
+                    user_id,
+                    e,
+                    str(row[0])[:100] if row[0] else "None",
+                )
                 return None
         logger.debug("⚠️ Пользователь %s не найден в БД или данные пусты", user_id)
         return None
@@ -3401,11 +3577,13 @@ class Database:
             # Пробуем использовать быструю сериализацию (MessagePack), fallback на JSON
             try:
                 from src.data.serialization import serialize_fast
+
                 data_serialized = serialize_fast(data)
                 # MessagePack возвращает bytes, но SQLite TEXT требует строку
                 # Используем base64 для хранения bytes в TEXT поле
                 import base64
-                data_json = base64.b64encode(data_serialized).decode('utf-8')
+
+                data_json = base64.b64encode(data_serialized).decode("utf-8")
             except (ImportError, Exception):
                 # Fallback на стандартный JSON
                 data_json = json.dumps(data, ensure_ascii=False)
@@ -3673,10 +3851,10 @@ class Database:
         """
         Выполняет ANALYZE для обновления статистики БД
         Улучшает планы запросов на 5-15%
-        
+
         Args:
             force: Принудительное выполнение даже если недавно выполнялось
-            
+
         Returns:
             True если успешно выполнено
         """
@@ -3739,7 +3917,7 @@ class Database:
                     WHERE datetime(created_at) >= datetime('now', ?)
                     AND (result IS NULL OR result = '' OR result LIKE 'OPEN%')
                     """,
-                    (f'-{h} hours',),
+                    (f"-{h} hours",),
                 )
                 row = cur.fetchone()
                 return int((row or (0,))[0] or 0)
@@ -3762,7 +3940,7 @@ class Database:
                     return 0.0
                 cur = self.conn.execute(
                     "SELECT COUNT(*) FROM signal_accum_events WHERE ts >= ? AND event = ?",
-                    (min_ts, 'bb_squeeze'),
+                    (min_ts, "bb_squeeze"),
                 )
                 squeezes = int((cur.fetchone() or (0,))[0] or 0)
                 ratio = max(0.0, min(1.0, float(squeezes) / float(total)))
@@ -3781,7 +3959,9 @@ class Database:
         except (ValueError, TypeError):
             return {}
 
-    def set_symbol_profile(self, symbol: str, profile_data: dict, ttl_seconds: int = 12 * 3600) -> bool:
+    def set_symbol_profile(
+        self, symbol: str, profile_data: dict, ttl_seconds: int = 12 * 3600
+    ) -> bool:
         try:
             if not isinstance(profile_data, dict):
                 return False
@@ -3835,7 +4015,7 @@ class Database:
                 "symbol": symbol,
                 "timeframe": timeframe,
                 "data": [],  # Заглушка - в реальности здесь будут OHLC данные
-                "timestamp": int(time.time())
+                "timestamp": int(time.time()),
             }
         except (ValueError, TypeError, RuntimeError) as e:
             logging.warning("get_mtf_data error for %s %s: %s", symbol, timeframe, e)
@@ -3847,6 +4027,7 @@ class Database:
             # Импортируем необходимые библиотеки
             try:
                 import pandas as pd
+
                 from src.utils.ohlc_utils import get_ohlc_binance_sync
             except ImportError as e:
                 logging.debug("MTF скоринг: зависимости недоступны: %s", e)
@@ -3871,9 +4052,9 @@ class Database:
 
                     # Создаем DataFrame
                     df = pd.DataFrame(ohlc)
-                    if 'timestamp' in df.columns:
+                    if "timestamp" in df.columns:
                         df["open_time"] = pd.to_datetime(df["timestamp"], unit="ms")
-                    elif 'open_time' in df.columns:
+                    elif "open_time" in df.columns:
                         df["open_time"] = pd.to_datetime(df["open_time"])
                     else:
                         continue
@@ -3882,6 +4063,7 @@ class Database:
 
                     # Рассчитываем индикаторы через централизованный модуль
                     from src.signals.indicators import add_technical_indicators
+
                     df = add_technical_indicators(df)
 
                     # Берем последние значения
@@ -3973,6 +4155,7 @@ class Database:
             # Пробуем использовать LightGBM predictor если доступен
             try:
                 from src.ai.lightgbm_predictor import get_lightgbm_predictor
+
                 predictor = get_lightgbm_predictor()
 
                 # Загружаем модели если они не загружены
@@ -3986,19 +4169,27 @@ class Database:
 
                 # 1. Indicators dict
                 indicators = {
-                    'rsi': float(features.get("rsi", 50.0)),
-                    'macd': float(features.get("macd", 0.0)),
-                    'ema_fast': float(features.get("ema_fast", features.get("entry_price", 100.0) * 1.01)),
-                    'ema_slow': float(features.get("ema_slow", features.get("entry_price", 100.0) * 0.99)),
-                    'bb_upper': float(features.get("bb_upper", features.get("entry_price", 100.0) * 1.02)),
-                    'bb_lower': float(features.get("bb_lower", features.get("entry_price", 100.0) * 0.98)),
-                    'atr': float(features.get("atr", features.get("entry_price", 100.0) * 0.015)),
+                    "rsi": float(features.get("rsi", 50.0)),
+                    "macd": float(features.get("macd", 0.0)),
+                    "ema_fast": float(
+                        features.get("ema_fast", features.get("entry_price", 100.0) * 1.01)
+                    ),
+                    "ema_slow": float(
+                        features.get("ema_slow", features.get("entry_price", 100.0) * 0.99)
+                    ),
+                    "bb_upper": float(
+                        features.get("bb_upper", features.get("entry_price", 100.0) * 1.02)
+                    ),
+                    "bb_lower": float(
+                        features.get("bb_lower", features.get("entry_price", 100.0) * 0.98)
+                    ),
+                    "atr": float(features.get("atr", features.get("entry_price", 100.0) * 0.015)),
                 }
 
                 # 2. Market conditions dict
                 market_conditions = {
-                    'volume_ratio': float(features.get("volume_ratio", 1.0)),
-                    'volatility': float(features.get("volatility", 0.02)),
+                    "volume_ratio": float(features.get("volume_ratio", 1.0)),
+                    "volatility": float(features.get("volatility", 0.02)),
                 }
 
                 # 3. Signal params dict
@@ -4007,27 +4198,27 @@ class Database:
                 tp2 = float(features.get("tp2", entry_price * 1.05))
 
                 signal_params = {
-                    'entry_price': entry_price,
-                    'tp1': tp1,
-                    'tp2': tp2,
-                    'risk_pct': float(features.get("risk_pct", 2.0)),
-                    'leverage': float(features.get("leverage", 1.0)),
-                    'quality_score': float(features.get("quality_score", 0.5)),
-                    'mtf_score': float(features.get("mtf_score", 0.5)),
-                    'spread_pct': float(features.get("spread_pct", 0.0)),
-                    'depth_usd': float(features.get("depth_usd", 0.0)),
+                    "entry_price": entry_price,
+                    "tp1": tp1,
+                    "tp2": tp2,
+                    "risk_pct": float(features.get("risk_pct", 2.0)),
+                    "leverage": float(features.get("leverage", 1.0)),
+                    "quality_score": float(features.get("quality_score", 0.5)),
+                    "mtf_score": float(features.get("mtf_score", 0.5)),
+                    "spread_pct": float(features.get("spread_pct", 0.0)),
+                    "depth_usd": float(features.get("depth_usd", 0.0)),
                 }
 
                 # Получаем предсказание от LightGBM
                 prediction = predictor.predict(
                     market_conditions=market_conditions,
                     indicators=indicators,
-                    signal_params=signal_params
+                    signal_params=signal_params,
                 )
 
                 # Предсказание возвращает dict с 'success_probability'
                 if isinstance(prediction, dict):
-                    score = float(prediction.get('success_probability', 0.5))
+                    score = float(prediction.get("success_probability", 0.5))
                 else:
                     score = float(prediction) if prediction is not None else 0.5
 
@@ -4053,7 +4244,9 @@ class Database:
             logging.warning("calculate_ml_score error: %s", e)
             return 0.5
 
-    def save_ml_prediction(self, symbol: str, features: dict, prediction: float, timestamp: int) -> bool:
+    def save_ml_prediction(
+        self, symbol: str, features: dict, prediction: float, timestamp: int
+    ) -> bool:
         """Сохраняет ML предсказание для аудита."""
         try:
             # В реальной реализации здесь будет сохранение в отдельную таблицу
@@ -4078,8 +4271,7 @@ class Database:
                 user_id, data_json = row
                 try:
                     data = json.loads(data_json) if data_json else {}
-                    if (str(data.get("role", "")).lower() == "admin" or
-                        bool(data.get("is_admin"))):
+                    if str(data.get("role", "")).lower() == "admin" or bool(data.get("is_admin")):
                         admin_users.append(int(user_id))
                 except (json.JSONDecodeError, ValueError, TypeError):
                     continue
@@ -4096,22 +4288,19 @@ class Database:
         """Получает системную настройку из базы данных."""
         try:
             with self._lock:
-                cur = self.conn.execute(
-                    "SELECT value FROM system_settings WHERE key = ?",
-                    (key,)
-                )
+                cur = self.conn.execute("SELECT value FROM system_settings WHERE key = ?", (key,))
                 row = cur.fetchone()
                 if row:
                     value = row[0]
                     # Пытаемся преобразовать в соответствующий тип
                     try:
                         # Проверяем, является ли это булевым значением
-                        if value.lower() in ('true', 'false'):
-                            return value.lower() == 'true'
+                        if value.lower() in ("true", "false"):
+                            return value.lower() == "true"
                         # Проверяем, является ли это числом
-                        if '.' in value:
+                        if "." in value:
                             return float(value)
-                        elif value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
+                        elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
                             return int(value)
                         # Иначе возвращаем как строку
                         return value
@@ -4134,7 +4323,7 @@ class Database:
                         value = excluded.value,
                         updated_at = CURRENT_TIMESTAMP
                     """,
-                    (key, str(value))
+                    (key, str(value)),
                 )
                 self.conn.commit()
             return True
@@ -4152,11 +4341,11 @@ class Database:
                 for key, value in rows:
                     try:
                         # Пытаемся преобразовать в соответствующий тип
-                        if value.lower() in ('true', 'false'):
-                            settings[key] = value.lower() == 'true'
-                        elif '.' in value:
+                        if value.lower() in ("true", "false"):
+                            settings[key] = value.lower() == "true"
+                        elif "." in value:
                             settings[key] = float(value)
-                        elif value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
+                        elif value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
                             settings[key] = int(value)
                         else:
                             settings[key] = value
@@ -4180,7 +4369,9 @@ class Database:
 
     # --- Config Snapshots (Rollback System) ---
 
-    def save_config_snapshot(self, config_dict: dict, win_rate: float, pnl_pct: float, is_stable: bool = False) -> bool:
+    def save_config_snapshot(
+        self, config_dict: dict, win_rate: float, pnl_pct: float, is_stable: bool = False
+    ) -> bool:
         """Сохраняет снимок текущей конфигурации."""
         try:
             config_json = json.dumps(config_dict)
@@ -4190,7 +4381,7 @@ class Database:
                     INSERT INTO system_config_history (config_json, win_rate, pnl_pct, is_stable)
                     VALUES (?, ?, ?, ?)
                     """,
-                    (config_json, win_rate, pnl_pct, 1 if is_stable else 0)
+                    (config_json, win_rate, pnl_pct, 1 if is_stable else 0),
                 )
                 self.conn.commit()
             return True
@@ -4219,36 +4410,31 @@ class Database:
             # Список всех адаптивных параметров для миграции
             adaptive_params = {
                 # Адаптивный движок
-                'ADAPTIVE_ENGINE_ENABLED': ADAPTIVE_ENGINE_ENABLED,
-                'METRICS_FEEDER_ENABLED': METRICS_FEEDER_ENABLED,
-                'METRICS_FEEDER_INTERVAL_SEC': METRICS_FEEDER_INTERVAL_SEC,
-                'METRICS_CACHE_TTL_SEC': METRICS_CACHE_TTL_SEC,
-                'PERFORMANCE_LOOKBACK_DAYS': PERFORMANCE_LOOKBACK_DAYS,
-
+                "ADAPTIVE_ENGINE_ENABLED": ADAPTIVE_ENGINE_ENABLED,
+                "METRICS_FEEDER_ENABLED": METRICS_FEEDER_ENABLED,
+                "METRICS_FEEDER_INTERVAL_SEC": METRICS_FEEDER_INTERVAL_SEC,
+                "METRICS_CACHE_TTL_SEC": METRICS_CACHE_TTL_SEC,
+                "PERFORMANCE_LOOKBACK_DAYS": PERFORMANCE_LOOKBACK_DAYS,
                 # Адаптивная подстройка порогов
-                'ADAPTIVE_ENTRY_ADJ_ENABLED': ADAPTIVE_ENTRY_ADJ_ENABLED,
-                'ADAPTIVE_ENTRY_MAX_ADJUST_PCT': ADAPTIVE_ENTRY_MAX_ADJUST_PCT,
-
+                "ADAPTIVE_ENTRY_ADJ_ENABLED": ADAPTIVE_ENTRY_ADJ_ENABLED,
+                "ADAPTIVE_ENTRY_MAX_ADJUST_PCT": ADAPTIVE_ENTRY_MAX_ADJUST_PCT,
                 # Динамический свитчер режимов
-                'DYNAMIC_MODE_SWITCH_ENABLED': DYNAMIC_MODE_SWITCH_ENABLED,
-
+                "DYNAMIC_MODE_SWITCH_ENABLED": DYNAMIC_MODE_SWITCH_ENABLED,
                 # Корреляционный кулдаун
-                'CORRELATION_COOLDOWN_ENABLED': CORRELATION_COOLDOWN_ENABLED,
-                'CORRELATION_LOOKBACK_HOURS': CORRELATION_LOOKBACK_HOURS,
-                'CORRELATION_MAX_PAIRWISE': CORRELATION_MAX_PAIRWISE,
-                'CORRELATION_COOLDOWN_SEC': CORRELATION_COOLDOWN_SEC,
-
+                "CORRELATION_COOLDOWN_ENABLED": CORRELATION_COOLDOWN_ENABLED,
+                "CORRELATION_LOOKBACK_HOURS": CORRELATION_LOOKBACK_HOURS,
+                "CORRELATION_MAX_PAIRWISE": CORRELATION_MAX_PAIRWISE,
+                "CORRELATION_COOLDOWN_SEC": CORRELATION_COOLDOWN_SEC,
                 # Мягкий блоклист
-                'SOFT_BLOCKLIST_ENABLED': SOFT_BLOCKLIST_ENABLED,
-                'SOFT_BLOCKLIST_HYSTERESIS': SOFT_BLOCKLIST_HYSTERESIS,
-                'SOFT_BLOCK_COOLDOWN_HOURS': SOFT_BLOCK_COOLDOWN_HOURS,
-                'MIN_ACTIVE_COINS': MIN_ACTIVE_COINS,
-                'BLOCKLIST_CHURN_FRAC': BLOCKLIST_CHURN_FRAC,
-
+                "SOFT_BLOCKLIST_ENABLED": SOFT_BLOCKLIST_ENABLED,
+                "SOFT_BLOCKLIST_HYSTERESIS": SOFT_BLOCKLIST_HYSTERESIS,
+                "SOFT_BLOCK_COOLDOWN_HOURS": SOFT_BLOCK_COOLDOWN_HOURS,
+                "MIN_ACTIVE_COINS": MIN_ACTIVE_COINS,
+                "BLOCKLIST_CHURN_FRAC": BLOCKLIST_CHURN_FRAC,
                 # Динамические параметры
-                'DYNAMIC_CALC_INTERVAL': DYNAMIC_CALC_INTERVAL,
-                'DYNAMIC_TP_ENABLED': DYNAMIC_TP_ENABLED,
-                'VOLUME_BLOCKS_ENABLED': VOLUME_BLOCKS_ENABLED,
+                "DYNAMIC_CALC_INTERVAL": DYNAMIC_CALC_INTERVAL,
+                "DYNAMIC_TP_ENABLED": DYNAMIC_TP_ENABLED,
+                "VOLUME_BLOCKS_ENABLED": VOLUME_BLOCKS_ENABLED,
             }
 
             # Сохраняем параметры в базу данных
@@ -4270,10 +4456,11 @@ class Database:
     # БЛОКЛИСТ КАПИТАЛИЗАЦИИ (MARKET CAP BLACKLIST)
     # ============================================================================
 
-    def add_to_market_cap_blacklist(self, symbol: str, market_cap: float, reason: str = "low_market_cap") -> bool:
+    def add_to_market_cap_blacklist(
+        self, symbol: str, market_cap: float, reason: str = "low_market_cap"
+    ) -> bool:
         """Добавляет монету в блоклист капитализации."""
         try:
-
             # Устанавливаем дату размораживания на неделю вперед
             unfreeze_date = (get_utc_now() + timedelta(days=7)).isoformat()
 
@@ -4288,10 +4475,14 @@ class Database:
                         unfreeze_date = excluded.unfreeze_date,
                         reason = excluded.reason
                     """,
-                    (symbol, market_cap, unfreeze_date, reason)
+                    (symbol, market_cap, unfreeze_date, reason),
                 )
                 self.conn.commit()
-            logging.info("Монета %s добавлена в блоклист капитализации (cap: $%.0fM)", symbol, market_cap / 1_000_000)
+            logging.info(
+                "Монета %s добавлена в блоклист капитализации (cap: $%.0fM)",
+                symbol,
+                market_cap / 1_000_000,
+            )
             return True
         except (sqlite3.Error, ValueError, TypeError) as e:
             logging.warning("Ошибка добавления в блоклист капитализации %s: %s", symbol, e)
@@ -4306,7 +4497,7 @@ class Database:
                     SELECT symbol FROM market_cap_blacklist
                     WHERE symbol = ? AND datetime(unfreeze_date) > datetime('now')
                     """,
-                    (symbol,)
+                    (symbol,),
                 )
                 row = cur.fetchone()
             return row is not None
@@ -4333,7 +4524,7 @@ class Database:
                     "market_cap": row[1],
                     "blacklisted_at": row[2],
                     "unfreeze_date": row[3],
-                    "reason": row[4]
+                    "reason": row[4],
                 }
                 for row in rows
             ]
@@ -4362,10 +4553,7 @@ class Database:
         """Удаляет монету из блоклиста капитализации."""
         try:
             with self._lock:
-                self.conn.execute(
-                    "DELETE FROM market_cap_blacklist WHERE symbol = ?",
-                    (symbol,)
-                )
+                self.conn.execute("DELETE FROM market_cap_blacklist WHERE symbol = ?", (symbol,))
                 self.conn.commit()
             logging.info("Монета %s удалена из блоклиста капитализации", symbol)
             return True
@@ -4379,7 +4567,7 @@ class Database:
             with self._lock:
                 self.conn.execute(
                     "UPDATE market_cap_blacklist SET last_checked = CURRENT_TIMESTAMP WHERE symbol = ?",
-                    (symbol,)
+                    (symbol,),
                 )
                 self.conn.commit()
             return True
@@ -4408,7 +4596,7 @@ class Database:
                     END;
                 END;
             """)
-            
+
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS validate_quotes_update
                 BEFORE UPDATE ON quotes
@@ -4423,7 +4611,7 @@ class Database:
                     END;
                 END;
             """)
-            
+
             # Триггер валидации для signals_log (entry, stop, tp1, tp2)
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS validate_signals_log_insert
@@ -4449,7 +4637,7 @@ class Database:
                     END;
                 END;
             """)
-            
+
             # Триггер валидации для trades
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS validate_trades_insert
@@ -4477,7 +4665,7 @@ class Database:
                     END;
                 END;
             """)
-            
+
             self.conn.commit()
             logging.debug("✅ [DB] Триггеры валидации добавлены")
         except sqlite3.Error as e:
@@ -4495,19 +4683,19 @@ class Database:
                     self.conn.execute("ALTER TABLE signals_log ADD COLUMN time_surrogate INTEGER")
             except sqlite3.Error:
                 pass  # Колонка уже существует
-            
+
             # Заполняем time_surrogate для существующих записей
             try:
                 with self._lock:
                     self.conn.execute("""
-                        UPDATE signals_log 
+                        UPDATE signals_log
                         SET time_surrogate = CAST(strftime('%s', entry_time) AS INTEGER)
                         WHERE time_surrogate IS NULL AND entry_time IS NOT NULL
                     """)
                     self.conn.commit()
             except sqlite3.Error as e:
                 logging.debug("⚠️ [DB] Ошибка заполнения time_surrogate для signals_log: %s", e)
-            
+
             # Создаем индекс на time_surrogate
             try:
                 self.cursor.execute(
@@ -4516,46 +4704,48 @@ class Database:
                 )
             except sqlite3.Error:
                 pass
-            
+
             # Триггер для автоматического заполнения time_surrogate при INSERT/UPDATE
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS signals_log_time_surrogate_insert
                 AFTER INSERT ON signals_log
                 BEGIN
-                    UPDATE signals_log 
+                    UPDATE signals_log
                     SET time_surrogate = CAST(strftime('%s', entry_time) AS INTEGER)
                     WHERE id = NEW.id AND time_surrogate IS NULL AND entry_time IS NOT NULL;
                 END;
             """)
-            
+
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS signals_log_time_surrogate_update
                 AFTER UPDATE OF entry_time ON signals_log
                 BEGIN
-                    UPDATE signals_log 
+                    UPDATE signals_log
                     SET time_surrogate = CAST(strftime('%s', NEW.entry_time) AS INTEGER)
                     WHERE id = NEW.id;
                 END;
             """)
-            
+
             # Аналогично для active_signals
             try:
                 with self._lock:
-                    self.conn.execute("ALTER TABLE active_signals ADD COLUMN time_surrogate INTEGER")
+                    self.conn.execute(
+                        "ALTER TABLE active_signals ADD COLUMN time_surrogate INTEGER"
+                    )
             except sqlite3.Error:
                 pass
-            
+
             try:
                 with self._lock:
                     self.conn.execute("""
-                        UPDATE active_signals 
+                        UPDATE active_signals
                         SET time_surrogate = CAST(strftime('%s', ts) AS INTEGER)
                         WHERE time_surrogate IS NULL AND ts IS NOT NULL
                     """)
                     self.conn.commit()
             except sqlite3.Error:
                 pass
-            
+
             try:
                 self.cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_active_signals_time_surrogate "
@@ -4563,17 +4753,17 @@ class Database:
                 )
             except sqlite3.Error:
                 pass
-            
+
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS active_signals_time_surrogate_insert
                 AFTER INSERT ON active_signals
                 BEGIN
-                    UPDATE active_signals 
+                    UPDATE active_signals
                     SET time_surrogate = CAST(strftime('%s', ts) AS INTEGER)
                     WHERE id = NEW.id AND time_surrogate IS NULL AND ts IS NOT NULL;
                 END;
             """)
-            
+
             # Для trades
             try:
                 with self._lock:
@@ -4581,23 +4771,23 @@ class Database:
                     self.conn.execute("ALTER TABLE trades ADD COLUMN exit_time_surrogate INTEGER")
             except sqlite3.Error:
                 pass
-            
+
             try:
                 with self._lock:
                     self.conn.execute("""
-                        UPDATE trades 
+                        UPDATE trades
                         SET entry_time_surrogate = CAST(strftime('%s', entry_time) AS INTEGER)
                         WHERE entry_time_surrogate IS NULL AND entry_time IS NOT NULL
                     """)
                     self.conn.execute("""
-                        UPDATE trades 
+                        UPDATE trades
                         SET exit_time_surrogate = CAST(strftime('%s', exit_time) AS INTEGER)
                         WHERE exit_time_surrogate IS NULL AND exit_time IS NOT NULL
                     """)
                     self.conn.commit()
             except sqlite3.Error:
                 pass
-            
+
             try:
                 self.cursor.execute(
                     "CREATE INDEX IF NOT EXISTS idx_trades_entry_time_surrogate "
@@ -4609,27 +4799,27 @@ class Database:
                 )
             except sqlite3.Error:
                 pass
-            
+
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS trades_entry_time_surrogate_insert
                 AFTER INSERT ON trades
                 BEGIN
-                    UPDATE trades 
+                    UPDATE trades
                     SET entry_time_surrogate = CAST(strftime('%s', entry_time) AS INTEGER)
                     WHERE id = NEW.id AND entry_time_surrogate IS NULL AND entry_time IS NOT NULL;
                 END;
             """)
-            
+
             self.cursor.execute("""
                 CREATE TRIGGER IF NOT EXISTS trades_exit_time_surrogate_update
                 AFTER UPDATE OF exit_time ON trades
                 BEGIN
-                    UPDATE trades 
+                    UPDATE trades
                     SET exit_time_surrogate = CAST(strftime('%s', NEW.exit_time) AS INTEGER)
                     WHERE id = NEW.id AND NEW.exit_time IS NOT NULL;
                 END;
             """)
-            
+
             self.conn.commit()
             logging.debug("✅ [DB] Суррогатные ключи для временных меток добавлены")
         except sqlite3.Error as e:
@@ -4643,51 +4833,59 @@ class Database:
         try:
             # Приоритетные символы (топ-10 по объему торгов)
             priority_symbols = [
-                'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT',
-                'ADAUSDT', 'DOGEUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'
+                "BTCUSDT",
+                "ETHUSDT",
+                "BNBUSDT",
+                "SOLUSDT",
+                "XRPUSDT",
+                "ADAUSDT",
+                "DOGEUSDT",
+                "TRXUSDT",
+                "AVAXUSDT",
+                "LINKUSDT",
             ]
-            
+
             # Формируем WHERE clause для частичного индекса
             symbols_condition = "', '".join(priority_symbols)
             where_clause = f"symbol IN ('{symbols_condition}')"
-            
+
             # Частичный индекс для signals_log (приоритетные символы)
             self.cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_signals_log_priority_symbols
                 ON signals_log(symbol, entry_time, created_at)
                 WHERE {where_clause}
             """)
-            
+
             # Частичный индекс для trades (приоритетные символы)
             self.cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_trades_priority_symbols
                 ON trades(symbol, entry_time, exit_time)
                 WHERE {where_clause}
             """)
-            
+
             # Частичный индекс для active_signals (приоритетные символы)
             # Проверяем какую колонку использовать: ts или created_at
             cur = self.conn.execute("PRAGMA table_info(active_signals)")
             cols = [row[1] for row in cur.fetchall()]
             active_signals_ts_col = "ts" if "ts" in cols else "created_at"
-            
+
             self.cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_active_signals_priority_symbols
                 ON active_signals(symbol, {active_signals_ts_col})
                 WHERE {where_clause}
             """)
-            
+
             # Частичный индекс для signals (приоритетные символы)
             cur = self.conn.execute("PRAGMA table_info(signals)")
             cols = [row[1] for row in cur.fetchall()]
             signals_ts_col = "ts" if "ts" in cols else "created_at"
-            
+
             self.cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS idx_signals_priority_symbols
                 ON signals(symbol, {signals_ts_col})
                 WHERE {where_clause}
             """)
-            
+
             self.conn.commit()
             logging.debug("✅ [DB] Частичные индексы для приоритетных символов созданы")
         except sqlite3.Error as e:
@@ -4696,31 +4894,31 @@ class Database:
     def update_priority_symbols(self, symbols: list):
         """
         Обновляет список приоритетных символов и пересоздает частичные индексы.
-        
+
         Args:
             symbols: Список приоритетных символов
         """
         try:
             # Удаляем старые частичные индексы
             indexes_to_drop = [
-                'idx_signals_log_priority_symbols',
-                'idx_trades_priority_symbols',
-                'idx_active_signals_priority_symbols',
-                'idx_signals_priority_symbols'
+                "idx_signals_log_priority_symbols",
+                "idx_trades_priority_symbols",
+                "idx_active_signals_priority_symbols",
+                "idx_signals_priority_symbols",
             ]
-            
+
             for index_name in indexes_to_drop:
                 try:
                     self.cursor.execute(f"DROP INDEX IF EXISTS {index_name}")
                 except sqlite3.Error:
                     pass
-            
+
             # Сохраняем новый список приоритетных символов
             # (можно сохранить в system_settings для персистентности)
             if symbols:
-                symbols_str = ','.join(symbols)
-                self.save_system_setting('priority_symbols', symbols_str)
-            
+                symbols_str = ",".join(symbols)
+                self.save_system_setting("priority_symbols", symbols_str)
+
             # Пересоздаем индексы с новым списком
             self._create_partial_indexes()
             logging.info("✅ [DB] Приоритетные символы обновлены: %s", symbols)
@@ -4730,7 +4928,7 @@ class Database:
     def _profile_slow_query(self, query: str, params: tuple, duration: float):
         """
         Профилирует медленный запрос и логирует информацию для оптимизации.
-        
+
         Args:
             query: SQL запрос
             params: Параметры запроса
@@ -4750,28 +4948,30 @@ class Database:
                 plan = "\n".join([str(row) for row in plan_rows])
             except Exception:
                 pass
-            
+
             # Логируем медленный запрос
             logging.warning(
-                "⚠️ [DB] Медленный запрос (%.2f сек):\n"
-                "  Query: %s\n"
-                "  Params: %s\n"
-                "  Plan: %s",
-                duration, query[:200], params, (plan[:200] if plan else 'N/A')
+                "⚠️ [DB] Медленный запрос (%.2f сек):\n  Query: %s\n  Params: %s\n  Plan: %s",
+                duration,
+                query[:200],
+                params,
+                (plan[:200] if plan else "N/A"),
             )
-            
+
         except Exception as e:
             logging.debug("⚠️ [DB] Ошибка профилирования запроса: %s", e)
 
 
 class DatabaseSingleton(Database):
     """Классический singleton для базы данных через __new__"""
+
     _instance = None
 
     def __new__(cls, *args, **kwargs):  # pylint: disable=unused-argument
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+
 
 def get_db():
     """Получает singleton экземпляр базы данных"""

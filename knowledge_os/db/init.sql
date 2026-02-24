@@ -82,4 +82,3 @@ CREATE TRIGGER update_knowledge_nodes_updated_at
     BEFORE UPDATE ON knowledge_nodes
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-

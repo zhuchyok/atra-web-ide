@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Генерация тестовых событий position_sizing и связанных сделок.
 
@@ -14,13 +13,12 @@ import argparse
 import logging
 import random
 import sqlite3
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Optional
 
 from src.shared.utils.datetime_utils import get_utc_now
-
-import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -331,6 +329,8 @@ def _generate_from_real_signals(
             return inserted_events, 0
 
     return inserted_events, 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Генерация тестовых событий position sizing и связанных сделок"
@@ -435,4 +435,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -53,12 +53,14 @@ ls -la backtest_results/filter_parameters/
 ## Следующие шаги после завершения
 
 1. **Проанализировать результаты:**
+
    ```bash
    source venv/bin/activate
    python scripts/analyze_filter_parameters_results.py
    ```
 
 2. **Просмотреть отчет:**
+
    ```bash
    cat docs/FILTER_PARAMETERS_OPTIMIZATION_RESULTS.md
    ```
@@ -78,4 +80,4 @@ ls -la backtest_results/filter_parameters/
 
 ---
 
-*Бэктесты запущены. Проверьте логи для отслеживания прогресса.*
+_Бэктесты запущены. Проверьте логи для отслеживания прогресса._

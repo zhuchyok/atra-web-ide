@@ -79,35 +79,64 @@ increment_restart_count() {
 # Функция перезапуска MLX API Server
 restart_mlx_server() {
     log "🔄 Перезапуск MLX API Server..."
-    
-    # Убиваем старый процесс если есть
+
+    # 1. Сначала пробуем исправить launchd (Documents access workaround)
+    # Если com.atra.mlx-api-server имеет статус 126 или 127 в launchctl list,
+    # значит macOS заблокировала доступ к Documents.
+    # См. docs/MLX_CRASH_ACCOUNTABILITY.md §5
+    local launchd_status
+    launchd_status=$(launchctl list gui/$(id -u) 2>/dev/null | grep "com.atra.mlx-api-server" | awk '{print $2}' || echo "0")
+    if [[ "$launchd_status" == "126" || "$launchd_status" == "127" ]]; then
+        log "⚠️ Обнаружена блокировка launchd (код $launchd_status). Перезапускаю setup_mlx_autostart.sh..."
+        bash scripts/setup_mlx_autostart.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" || true
+        sleep 5
+    fi
+
+    # 1.1. Проверка монитора
+    local monitor_status
+    monitor_status=$(launchctl list 2>/dev/null | grep "com.atra.mlx-monitor" | awk '{print $2}' || echo "0")
+    if [[ "$monitor_status" == "126" || "$monitor_status" == "127" ]]; then
+        log "⚠️ Обнаружена блокировка монитора (код $monitor_status). Перезапускаю setup_system_auto_recovery.sh..."
+        bash scripts/setup_system_auto_recovery.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" || true
+        sleep 5
+    fi
+
+    # 2. Убиваем старый процесс если есть
     pkill -f "uvicorn.*mlx_api_server" 2>/dev/null || true
     pkill -f "python.*mlx_api_server" 2>/dev/null || true
     sleep 2
-    
+
     # Проверяем лимит перезапусков
     local restart_count=$(get_restart_count)
     if [ "$restart_count" -ge "$MAX_RESTARTS_PER_HOUR" ]; then
         log_error "❌ Достигнут лимит перезапусков ($MAX_RESTARTS_PER_HOUR/час). Требуется ручное вмешательство."
         return 1
     fi
-    
-    # Запускаем MLX API Server
-    if [ -f "scripts/start_mlx_api_server.sh" ]; then
-        bash scripts/start_mlx_api_server.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" &
-        sleep 5
-        
-        # Проверяем, запустился ли
-        if check_mlx_server; then
-            local new_count=$(increment_restart_count)
-            log "✅ MLX API Server успешно перезапущен (перезапуск #$new_count за этот час)"
-            return 0
-        else
-            log_error "❌ MLX API Server не запустился после перезапуска"
-            return 1
+
+    # 3. Запускаем MLX API Server
+    # Сначала пробуем через launchd (так как мы его починили выше)
+    log "🚀 Запуск через launchctl kickstart..."
+    launchctl kickstart -k "gui/$(id -u)/com.atra.mlx-api-server" 2>/dev/null || \
+    launchctl start com.atra.mlx-api-server 2>/dev/null || true
+
+    sleep 10
+
+    # Если через launchd не поднялся, используем прямой запуск как fallback
+    if ! check_mlx_server; then
+        log "⚠️ launchd не помог, пробую прямой запуск через start_mlx_api_server.sh..."
+        if [ -f "scripts/start_mlx_api_server.sh" ]; then
+            bash scripts/start_mlx_api_server.sh >> "$LOG_FILE" 2>> "$ERROR_LOG" &
+            sleep 10
         fi
+    fi
+
+    # Финальная проверка
+    if check_mlx_server; then
+        local new_count=$(increment_restart_count)
+        log "✅ MLX API Server успешно перезапущен (перезапуск #$new_count за этот час)"
+        return 0
     else
-        log_error "❌ Скрипт start_mlx_api_server.sh не найден"
+        log_error "❌ MLX API Server не запустился после всех попыток"
         return 1
     fi
 }
@@ -136,6 +165,6 @@ while true; do
             log "✅ MLX API Server работает нормально (health OK)"
         fi
     fi
-    
+
     sleep "$CHECK_INTERVAL"
 done

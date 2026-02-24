@@ -18,7 +18,7 @@ if ! docker info >/dev/null 2>&1; then
     echo ""
     echo "Запускаю Docker Desktop..."
     open -a Docker
-    
+
     echo "⏳ Ожидание запуска Docker (до 60 секунд)..."
     MAX_WAIT=60
     WAITED=0

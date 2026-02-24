@@ -38,7 +38,7 @@ async def sync_trades_to_patterns(
 
         # Проверяем наличие таблицы trades
         cursor = conn.execute("""
-            SELECT name FROM sqlite_master 
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name='trades'
         """)
         if not cursor.fetchone():
@@ -47,8 +47,9 @@ async def sync_trades_to_patterns(
             return {"synced": 0, "errors": 0, "message": "Таблица trades не найдена"}
 
         # Получаем закрытые сделки
-        cursor = conn.execute("""
-            SELECT 
+        cursor = conn.execute(
+            """
+            SELECT
                 symbol,
                 direction,
                 entry_price,
@@ -63,7 +64,9 @@ async def sync_trades_to_patterns(
             WHERE datetime(exit_time) >= datetime(?)
               AND exit_time IS NOT NULL
             ORDER BY exit_time DESC
-        """, (since.isoformat(),))
+        """,
+            (since.isoformat(),),
+        )
 
         trades = cursor.fetchall()
         conn.close()
@@ -90,7 +93,11 @@ async def sync_trades_to_patterns(
                 if dry_run:
                     logger.info(
                         "🔍 [DRY RUN] Обновление паттерна: %s %s entry=%.8f exit=%.8f profit=%.2f%%",
-                        symbol, direction, entry_price, exit_price, profit_pct
+                        symbol,
+                        direction,
+                        entry_price,
+                        exit_price,
+                        profit_pct,
                     )
                     synced += 1
                 else:
@@ -106,8 +113,7 @@ async def sync_trades_to_patterns(
                     )
                     synced += 1
                     logger.debug(
-                        "✅ Обновлён паттерн: %s %s (%.2f%%)",
-                        symbol, direction, profit_pct
+                        "✅ Обновлён паттерн: %s %s (%.2f%%)", symbol, direction, profit_pct
                     )
 
             except Exception as e:
@@ -154,4 +160,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

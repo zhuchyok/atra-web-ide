@@ -42,7 +42,7 @@ cat >> "$SHELL_RC" << EOF
 # Автоматическая инициализация .cursorrules при открытии проекта
 init_cursor_rules_auto() {
     local project_path="\$(pwd)"
-    
+
     # Проверяем, нужно ли создавать .cursorrules
     if [ ! -f "\$project_path/.cursorrules" ]; then
         # Нет .cursorrules - создаем
@@ -85,4 +85,3 @@ echo "   source $SHELL_RC"
 echo ""
 echo "💡 Или запускайте вручную:"
 echo "   $INIT_SCRIPT"
-

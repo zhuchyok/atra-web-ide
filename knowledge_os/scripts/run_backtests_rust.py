@@ -10,12 +10,12 @@ Rust-based Backtest Runner
     python scripts/run_backtests_rust.py scripts/backtest_5coins_intelligent.py  # Конкретный бэктест
 """
 
-import sys
 import argparse
 import logging
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from datetime import datetime
 
 # Добавляем корневую директорию в путь
 root_dir = Path(__file__).parent.parent
@@ -28,13 +28,13 @@ except ImportError:
     pass
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 try:
     import atra_rs
+
     RUST_AVAILABLE = True
     logger.info("✅ Rust модуль atra_rs доступен")
 except ImportError:
@@ -45,13 +45,12 @@ except ImportError:
 
 
 def discover_backtest_files(
-    backtest_dirs: Optional[List[str]] = None,
-    pattern: str = "backtest*.py"
+    backtest_dirs: Optional[List[str]] = None, pattern: str = "backtest*.py"
 ) -> List[str]:
     """Обнаружить все бэктест скрипты"""
     if backtest_dirs is None:
         backtest_dirs = ["scripts", "backtests"]
-    
+
     try:
         backtest_files = atra_rs.discover_backtests(backtest_dirs, pattern)
         logger.info("📁 Найдено %d бэктест скриптов", len(backtest_files))
@@ -68,46 +67,46 @@ def run_backtests_parallel(
 ) -> dict:
     """
     Запуск бэктестов через Rust с многопоточностью
-    
+
     Args:
         backtest_scripts: Список путей к бэктестам (если None - автоматический поиск)
         num_threads: Количество потоков (по умолчанию 14)
         python_args: Дополнительные аргументы для Python
-    
+
     Returns:
         Словарь с результатами выполнения
     """
     if not RUST_AVAILABLE:
         raise RuntimeError("Rust модуль atra_rs недоступен!")
-    
+
     # Если скрипты не указаны, находим все бэктесты
     if backtest_scripts is None:
         backtest_scripts = discover_backtest_files()
         if not backtest_scripts:
             logger.warning("⚠️ Бэктест скрипты не найдены")
             return {"success": False, "error": "No backtest scripts found"}
-    
-        logger.info("🚀 Запуск %d бэктестов через Rust (%d потоков)", len(backtest_scripts), num_threads)
+
+        logger.info(
+            "🚀 Запуск %d бэктестов через Rust (%d потоков)", len(backtest_scripts), num_threads
+        )
     logger.info("=" * 80)
-    
+
     start_time = datetime.now()
-    
+
     try:
         results = atra_rs.run_backtests_parallel(
-            backtest_scripts=backtest_scripts,
-            num_threads=num_threads,
-            python_args=python_args
+            backtest_scripts=backtest_scripts, num_threads=num_threads, python_args=python_args
         )
-        
+
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        
+
         # Анализ результатов
         total = len(results)
         completed = sum(1 for r in results if r.status == "completed")
         failed = sum(1 for r in results if r.status == "failed")
         errors = sum(1 for r in results if r.status == "error")
-        
+
         # Вывод результатов
         logger.info("=" * 80)
         logger.info("📊 РЕЗУЛЬТАТЫ БЭКТЕСТОВ:")
@@ -117,7 +116,7 @@ def run_backtests_parallel(
         logger.info("   ⚠️ Ошибки: %d", errors)
         logger.info("   ⏱️ Время выполнения: %.2f сек", duration)
         logger.info("=" * 80)
-        
+
         # Детали проваленных бэктестов
         if failed > 0 or errors > 0:
             logger.warning("\n❌ ПРОВАЛЕННЫЕ БЭКТЕСТЫ:")
@@ -126,14 +125,14 @@ def run_backtests_parallel(
                     logger.warning("   - %s: %s", r.script, r.status)
                     if r.error:
                         logger.warning("     Ошибка: %s", r.error[:200])
-        
+
         # Детали успешных бэктестов
         if completed > 0:
             logger.info("\n✅ УСПЕШНЫЕ БЭКТЕСТЫ:")
             for r in results:
                 if r.status == "completed":
                     logger.info("   - %s: %dms", r.script, r.duration_ms)
-        
+
         return {
             "success": failed == 0 and errors == 0,
             "total": total,
@@ -146,48 +145,40 @@ def run_backtests_parallel(
                     "script": r.script,
                     "status": r.status,
                     "duration_ms": r.duration_ms,
-                    "error": r.error
+                    "error": r.error,
                 }
                 for r in results
-            ]
+            ],
         }
-        
+
     except Exception as e:
         logger.error("❌ Критическая ошибка при запуске бэктестов: %s", e)
         import traceback
+
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 
 def main():
     """Главная функция"""
-    parser = argparse.ArgumentParser(
-        description="Запуск бэктестов через Rust с многопоточностью"
+    parser = argparse.ArgumentParser(description="Запуск бэктестов через Rust с многопоточностью")
+    parser.add_argument(
+        "--threads", "-t", type=int, default=14, help="Количество потоков (по умолчанию: 14)"
     )
     parser.add_argument(
-        "--threads", "-t",
-        type=int,
-        default=14,
-        help="Количество потоков (по умолчанию: 14)"
+        "--scripts", action="store_true", help="Искать только в scripts/ директории"
     )
     parser.add_argument(
-        "--scripts",
-        action="store_true",
-        help="Искать только в scripts/ директории"
-    )
-    parser.add_argument(
-        "--backtests",
-        action="store_true",
-        help="Искать только в backtests/ директории"
+        "--backtests", action="store_true", help="Искать только в backtests/ директории"
     )
     parser.add_argument(
         "backtest_scripts",
         nargs="*",
-        help="Конкретные пути к бэктестам (если не указано - все бэктесты)"
+        help="Конкретные пути к бэктестам (если не указано - все бэктесты)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Определяем пути к бэктестам
     backtest_scripts = None
     if args.backtest_scripts:
@@ -200,19 +191,15 @@ def main():
             backtest_dirs.append("backtests")
         else:
             backtest_dirs = ["scripts", "backtests"]
-        
+
         backtest_scripts = discover_backtest_files(backtest_dirs)
-    
+
     # Запуск бэктестов
-    result = run_backtests_parallel(
-        backtest_scripts=backtest_scripts,
-        num_threads=args.threads
-    )
-    
+    result = run_backtests_parallel(backtest_scripts=backtest_scripts, num_threads=args.threads)
+
     # Код выхода
     sys.exit(0 if result.get("success", False) else 1)
 
 
 if __name__ == "__main__":
     main()
-

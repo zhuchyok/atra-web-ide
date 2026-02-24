@@ -5,11 +5,12 @@
 При ошибке/таймауте — ретраи с экспоненциальной задержкой, затем следующий провайдер.
 Таймауты на провайдера: WEB_SEARCH_TIMEOUT_DUCKDUCKGO, WEB_SEARCH_TIMEOUT_OLLAMA (сек).
 """
+
 import hashlib
 import logging
 import os
 import time
-from typing import List, Dict, Any, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,9 @@ WEB_SEARCH_CACHE_MAX_SIZE = int(os.getenv("WEB_SEARCH_CACHE_MAX_SIZE", "500"))
 OLLAMA_WEB_SEARCH_URL = "https://ollama.com/api/web_search"
 
 # Конфиг: порядок провайдеров (через запятую), таймауты в секундах, макс ретраев на провайдера
-WEB_SEARCH_PROVIDERS = (os.getenv("WEB_SEARCH_PROVIDERS") or "duckduckgo,ollama").strip().lower().split(",")
+WEB_SEARCH_PROVIDERS = (
+    (os.getenv("WEB_SEARCH_PROVIDERS") or "duckduckgo,ollama").strip().lower().split(",")
+)
 WEB_SEARCH_TIMEOUT_DUCKDUCKGO = float(os.getenv("WEB_SEARCH_TIMEOUT_DUCKDUCKGO", "30"))
 WEB_SEARCH_TIMEOUT_OLLAMA = float(os.getenv("WEB_SEARCH_TIMEOUT_OLLAMA", "45"))
 WEB_SEARCH_MAX_RETRIES = int(os.getenv("WEB_SEARCH_MAX_RETRIES", "2"))
@@ -30,16 +33,19 @@ WEB_SEARCH_MAX_RETRIES = int(os.getenv("WEB_SEARCH_MAX_RETRIES", "2"))
 def _search_duckduckgo(query: str, max_results: int, timeout: float) -> List[Dict[str, Any]]:
     """Один вызов DuckDuckGo. При ошибке пробрасывает исключение."""
     from duckduckgo_search import DDGS
+
     with DDGS() as ddgs:
         results = list(ddgs.text(query, max_results=max_results))
     out = []
     for r in results:
-        out.append({
-            "title": r.get("title", ""),
-            "url": r.get("href", ""),
-            "snippet": r.get("body", ""),
-            "source": "duckduckgo",
-        })
+        out.append(
+            {
+                "title": r.get("title", ""),
+                "url": r.get("href", ""),
+                "snippet": r.get("body", ""),
+                "source": "duckduckgo",
+            }
+        )
     return out
 
 
@@ -49,6 +55,7 @@ def _search_ollama(query: str, max_results: int, timeout: float) -> List[Dict[st
     if not api_key:
         return []
     import httpx
+
     n = min(max_results, 10)
     with httpx.Client(timeout=timeout) as client:
         r = client.post(
@@ -63,12 +70,14 @@ def _search_ollama(query: str, max_results: int, timeout: float) -> List[Dict[st
     out = []
     for item in (data if isinstance(data, list) else data.get("results", data.get("data", [])))[:n]:
         if isinstance(item, dict):
-            out.append({
-                "title": item.get("title", item.get("name", "")),
-                "url": item.get("url", item.get("link", "")),
-                "snippet": item.get("snippet", item.get("body", item.get("content", ""))),
-                "source": "ollama_web_search",
-            })
+            out.append(
+                {
+                    "title": item.get("title", item.get("name", "")),
+                    "url": item.get("url", item.get("link", "")),
+                    "snippet": item.get("snippet", item.get("body", item.get("content", ""))),
+                    "source": "ollama_web_search",
+                }
+            )
     return out
 
 
@@ -101,7 +110,9 @@ def web_search_sync(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         provider = provider.strip()
         if not provider:
             continue
-        timeout = WEB_SEARCH_TIMEOUT_DUCKDUCKGO if provider == "duckduckgo" else WEB_SEARCH_TIMEOUT_OLLAMA
+        timeout = (
+            WEB_SEARCH_TIMEOUT_DUCKDUCKGO if provider == "duckduckgo" else WEB_SEARCH_TIMEOUT_OLLAMA
+        )
         for attempt in range(WEB_SEARCH_MAX_RETRIES):
             try:
                 if provider == "duckduckgo":
@@ -119,8 +130,14 @@ def web_search_sync(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 if provider == "ollama":
                     break  # пустой ответ — не ретраим
             except Exception as e:
-                delay = (2 ** attempt) if attempt < WEB_SEARCH_MAX_RETRIES - 1 else 0
-                logger.debug("[WEB_SEARCH] %s attempt %s failed: %s; delay=%.1fs", provider, attempt + 1, e, delay)
+                delay = (2**attempt) if attempt < WEB_SEARCH_MAX_RETRIES - 1 else 0
+                logger.debug(
+                    "[WEB_SEARCH] %s attempt %s failed: %s; delay=%.1fs",
+                    provider,
+                    attempt + 1,
+                    e,
+                    delay,
+                )
                 if delay > 0:
                     time.sleep(delay)
         # перед следующим провайдером короткая пауза

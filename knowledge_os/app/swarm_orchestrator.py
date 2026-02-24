@@ -14,6 +14,7 @@ from typing import List
 # Third-party imports with fallback
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -23,20 +24,22 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_async
 except ImportError:
+
     async def run_smart_agent_async(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_async."""
         return None
+
 
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
-if USER_NAME == 'zhuchyok':
-    DEFAULT_DB_URL = f'postgresql://{USER_NAME}@localhost:5432/knowledge_os'
+if USER_NAME == "zhuchyok":
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
 else:
-    DEFAULT_DB_URL = 'postgresql://admin:secret@localhost:5432/knowledge_os'
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 
 class SwarmOrchestrator:
@@ -76,9 +79,7 @@ class SwarmOrchestrator:
         synthesis_prompt += "\nФИНАЛЬНОЕ РЕШЕНИЕ (в стиле ATRA):"
 
         final_decision = await run_smart_agent_async(
-            synthesis_prompt,
-            expert_name="Виктория",
-            category="swarm_consensus"
+            synthesis_prompt, expert_name="Виктория", category="swarm_consensus"
         )
         return final_decision
 
@@ -106,15 +107,14 @@ class SwarmOrchestrator:
                 return "No repeated failures found."
 
             for fail in failures:
-                query = fail['user_query']
+                query = fail["user_query"]
                 logger.info("🚨 Repeated failure: %s. Triggering Swarm War-Room.", query)
 
                 # Experts for the War-Room
                 war_room_experts = ["Дмитрий", "Мария", "Максим"]
 
                 decision = await self.assemble_swarm(
-                    f"Повторяющийся сбой на запрос: {query}",
-                    war_room_experts
+                    f"Повторяющийся сбой на запрос: {query}", war_room_experts
                 )
 
                 # Log the swarm decision
@@ -123,10 +123,14 @@ class SwarmOrchestrator:
                     f"{decision[:200]}..."
                 )
                 node_meta = json.dumps({"type": "swarm_resolution", "query": query})
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
                     VALUES ((SELECT id FROM domains WHERE name = 'Risk' LIMIT 1), $1, true, 0.99, $2)
-                """, node_content, node_meta)
+                """,
+                    node_content,
+                    node_meta,
+                )
 
                 logger.info("✅ Swarm resolved failure for: %s", query)
 

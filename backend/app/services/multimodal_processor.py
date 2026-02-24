@@ -25,24 +25,36 @@ IMAGE_CONTENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "im
 
 # Документы (10+ форматов: PDF, DOCX, DOC, TXT, HTML, ODT, RTF и др.)
 DOCUMENT_EXTENSIONS = {
-    ".pdf", ".docx", ".doc",
-    ".txt", ".text",
-    ".html", ".htm", ".xhtml",
-    ".odt", ".ods", ".odp",
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".txt",
+    ".text",
+    ".html",
+    ".htm",
+    ".xhtml",
+    ".odt",
+    ".ods",
+    ".odp",
     ".rtf",
 }
 DOCUMENT_CONTENT_TYPES = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/msword",
-    "text/plain", "text/html", "application/xhtml+xml",
+    "text/plain",
+    "text/html",
+    "application/xhtml+xml",
     "application/vnd.oasis.opendocument.text",
-    "application/rtf", "text/rtf",
+    "application/rtf",
+    "text/rtf",
 }
 
 
 def _get_moondream_url() -> str:
-    return getattr(get_settings(), "moondream_station_url", None) or os.getenv("MOONDREAM_STATION_URL", "http://localhost:2020")
+    return getattr(get_settings(), "moondream_station_url", None) or os.getenv(
+        "MOONDREAM_STATION_URL", "http://localhost:2020"
+    )
 
 
 def _get_ollama_url() -> str:
@@ -190,6 +202,7 @@ class MultimodalProcessor:
             if content[:2] == b"PK":
                 try:
                     import zipfile
+
                     z = zipfile.ZipFile(io.BytesIO(content), "r")
                     names = z.namelist()
                     z.close()
@@ -201,9 +214,15 @@ class MultimodalProcessor:
                     pass
             elif ext in (".docx", ".doc") or b"[Content_Types].xml" in content[:65536]:
                 return self._extract_docx(content=content)
-            if ext in (".txt", ".text") or (not ext and b"<" not in content[:200] and content[:2] != b"PK"):
+            if ext in (".txt", ".text") or (
+                not ext and b"<" not in content[:200] and content[:2] != b"PK"
+            ):
                 return self._extract_txt(content=content)
-            if ext in (".html", ".htm", ".xhtml") or content[:20].strip().lower().startswith(b"<!doctype") or content[:10].strip().lower().startswith(b"<html"):
+            if (
+                ext in (".html", ".htm", ".xhtml")
+                or content[:20].strip().lower().startswith(b"<!doctype")
+                or content[:10].strip().lower().startswith(b"<html")
+            ):
                 return self._extract_html(content=content)
             if ext == ".odt":
                 return self._extract_odt(content=content)
@@ -211,7 +230,9 @@ class MultimodalProcessor:
                 return self._extract_rtf(content=content)
         return None
 
-    def _extract_pdf(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_pdf(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         try:
             import fitz  # PyMuPDF
         except ImportError:
@@ -231,7 +252,9 @@ class MultimodalProcessor:
             logger.warning("PDF extraction failed: %s", e)
             return None
 
-    def _extract_docx(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_docx(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         try:
             from docx import Document
         except ImportError:
@@ -247,18 +270,22 @@ class MultimodalProcessor:
             logger.warning("DOCX extraction failed: %s", e)
             return None
 
-    def _extract_txt(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_txt(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         """TXT: чтение текста (built-in, без зависимостей)."""
         try:
             if content:
                 return content.decode("utf-8", errors="replace").strip()
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            with open(file_path, encoding="utf-8", errors="replace") as f:
                 return f.read().strip()
         except Exception as e:
             logger.warning("TXT extraction failed: %s", e)
             return None
 
-    def _extract_html(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_html(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         """HTML: извлечение текста (built-in html.parser)."""
         import html.parser
 
@@ -273,7 +300,11 @@ class MultimodalProcessor:
                     self.text.append(s)
 
         try:
-            raw = content.decode("utf-8", errors="replace") if content else Path(file_path).read_text(encoding="utf-8", errors="replace")
+            raw = (
+                content.decode("utf-8", errors="replace")
+                if content
+                else Path(file_path).read_text(encoding="utf-8", errors="replace")
+            )
             parser = TextExtractor()
             parser.feed(raw)
             return "\n\n".join(parser.text) if parser.text else None
@@ -281,10 +312,12 @@ class MultimodalProcessor:
             logger.warning("HTML extraction failed: %s", e)
             return None
 
-    def _extract_odt(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_odt(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         """ODT: OpenDocument Text (zip + content.xml)."""
-        import zipfile
         import xml.etree.ElementTree as ET
+        import zipfile
 
         try:
             if content:
@@ -302,11 +335,18 @@ class MultimodalProcessor:
             logger.warning("ODT extraction failed: %s", e)
             return None
 
-    def _extract_rtf(self, file_path: Optional[str] = None, content: Optional[bytes] = None) -> Optional[str]:
+    def _extract_rtf(
+        self, file_path: Optional[str] = None, content: Optional[bytes] = None
+    ) -> Optional[str]:
         """RTF: базовая декодировка (удаление тегов)."""
         import re
+
         try:
-            raw = content.decode("utf-8", errors="replace") if content else Path(file_path).read_text(encoding="utf-8", errors="replace")
+            raw = (
+                content.decode("utf-8", errors="replace")
+                if content
+                else Path(file_path).read_text(encoding="utf-8", errors="replace")
+            )
             text = re.sub(r"\\[a-z]+\d*\s?", " ", raw)
             text = re.sub(r"[{}]", " ", text)
             text = re.sub(r"\s+", " ", text).strip()

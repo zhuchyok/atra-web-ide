@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS contextual_patterns (
     last_used_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(context_hash, pattern_type)
 );
 
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     confidence FLOAT DEFAULT 0.5, -- Уверенность в предпочтении
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     UNIQUE(user_identifier, preference_type, preference_key)
 );
 
@@ -87,7 +87,7 @@ BEGIN
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
     END IF;
-    
+
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_user_preferences_updated_at') THEN
         CREATE TRIGGER update_user_preferences_updated_at
             BEFORE UPDATE ON user_preferences
@@ -105,8 +105,8 @@ CREATE OR REPLACE FUNCTION extract_context_hash(
 BEGIN
     -- Простой хеш контекста (в реальности можно использовать более сложную логику)
     RETURN encode(digest(
-        COALESCE(query_text, '') || 
-        COALESCE(domain_name, '') || 
+        COALESCE(query_text, '') ||
+        COALESCE(domain_name, '') ||
         COALESCE(expert_name, ''),
         'sha256'
     ), 'hex');
@@ -128,7 +128,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         cp.id,
         cp.pattern_data,
         cp.success_score,
@@ -147,4 +147,3 @@ COMMENT ON TABLE contextual_patterns IS 'Контекстная память у�
 COMMENT ON TABLE user_preferences IS 'Персонализация: предпочтения пользователей';
 COMMENT ON TABLE need_predictions IS 'Прогнозирование потребностей пользователей';
 COMMENT ON TABLE adaptive_learning_logs IS 'Логи адаптивного обучения на основе обратной связи';
-

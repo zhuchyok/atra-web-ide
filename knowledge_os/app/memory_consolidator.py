@@ -13,6 +13,7 @@ import os
 # Third-party imports with fallback
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -22,20 +23,22 @@ except ImportError:
 try:
     from ai_core import run_smart_agent_async
 except ImportError:
+
     async def run_smart_agent_async(prompt, **kwargs):  # pylint: disable=unused-argument
         """Fallback for run_smart_agent_async."""
         return None
+
 
 logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
-if USER_NAME == 'zhuchyok':
-    DEFAULT_DB_URL = f'postgresql://{USER_NAME}@localhost:5432/knowledge_os'
+if USER_NAME == "zhuchyok":
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
 else:
-    DEFAULT_DB_URL = 'postgresql://admin:secret@localhost:5432/knowledge_os'
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 
 class MemoryConsolidator:
@@ -66,16 +69,19 @@ class MemoryConsolidator:
             domains = await conn.fetch("SELECT id, name FROM domains")
 
             for domain in domains:
-                nodes = await conn.fetch("""
+                nodes = await conn.fetch(
+                    """
                     SELECT id, content FROM knowledge_nodes
                     WHERE domain_id = $1 AND confidence_score < 1.0
                     ORDER BY created_at ASC LIMIT 10
-                """, domain['id'])
+                """,
+                    domain["id"],
+                )
 
                 if len(nodes) < 5:
                     continue
 
-                logger.info("  Processing domain: %s (%d nodes)", domain['name'], len(nodes))
+                logger.info("  Processing domain: %s (%d nodes)", domain["name"], len(nodes))
 
                 # 2. Use Victoria to synthesize fundamental principles
                 synthesis_prompt = (
@@ -85,7 +91,7 @@ class MemoryConsolidator:
                     "ФАКТЫ:"
                 )
                 for i, node in enumerate(nodes):
-                    synthesis_prompt += f"\n{i+1}. {node['content']}"
+                    synthesis_prompt += f"\n{i + 1}. {node['content']}"
 
                 synthesis_prompt += (
                     "\n\nЗАДАЧА: Сформулируйте 1-2 фундаментальных принципа или обобщенных знания, "
@@ -95,33 +101,41 @@ class MemoryConsolidator:
                 )
 
                 consolidated_knowledge = await run_smart_agent_async(
-                    synthesis_prompt,
-                    expert_name="Виктория",
-                    category="memory_consolidation"
+                    synthesis_prompt, expert_name="Виктория", category="memory_consolidation"
                 )
 
                 if consolidated_knowledge and len(consolidated_knowledge) > 50:
                     # 3. Insert fundamental knowledge
-                    metadata_json = json.dumps({
-                        "source": "memory_consolidator",
-                        "merged_nodes": [str(n['id']) for n in nodes]
-                    })
-                    new_id = await conn.fetchval("""
+                    metadata_json = json.dumps(
+                        {
+                            "source": "memory_consolidator",
+                            "merged_nodes": [str(n["id"]) for n in nodes],
+                        }
+                    )
+                    new_id = await conn.fetchval(
+                        """
                         INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
                         VALUES ($1, $2, 1.0, $3, true)
                         RETURNING id
-                    """, domain['id'], f"💎 ФУНДАМЕНТАЛЬНОЕ ЗНАНИЕ: {consolidated_knowledge}",
-                    metadata_json)
+                    """,
+                        domain["id"],
+                        f"💎 ФУНДАМЕНТАЛЬНОЕ ЗНАНИЕ: {consolidated_knowledge}",
+                        metadata_json,
+                    )
 
                     # 4. Mark old nodes as "archived" or remove them
                     # For safety, we just lower their confidence and mark as consolidated
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         UPDATE knowledge_nodes SET confidence_score = 0.1,
                         metadata = metadata || ('{"consolidated_into": "' || $1 || '"}')::jsonb
                         WHERE id = ANY($2)
-                    """, str(new_id), [n['id'] for n in nodes])
+                    """,
+                        str(new_id),
+                        [n["id"] for n in nodes],
+                    )
 
-                    logger.info("✅ Consolidated %d nodes in %s.", len(nodes), domain['name'])
+                    logger.info("✅ Consolidated %d nodes in %s.", len(nodes), domain["name"])
 
             return "Memory consolidation finished."
         except Exception as exc:  # pylint: disable=broad-exception-caught

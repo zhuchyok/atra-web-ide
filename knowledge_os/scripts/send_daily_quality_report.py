@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Отправляет последний отчёт daily_quality_report в Telegram.
 
@@ -12,16 +11,16 @@ import argparse
 import asyncio
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
-
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from telegram_bot_core import notify_user  # noqa: E402
+
 REPORT_DIR = ROOT / "data" / "reports"
 USER_DATA_PATH = ROOT / "user_data.json"
 
@@ -100,7 +99,12 @@ def _load_default_user_id() -> Optional[int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Отправка daily_quality_report в Telegram")
-    parser.add_argument("--user-id", type=int, default=None, help="ID пользователя Telegram (если не задан, берём из user_data)")
+    parser.add_argument(
+        "--user-id",
+        type=int,
+        default=None,
+        help="ID пользователя Telegram (если не задан, берём из user_data)",
+    )
     args = parser.parse_args()
 
     report_path = _find_latest_report(REPORT_DIR)
@@ -123,4 +127,3 @@ def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     main()
-

@@ -22,6 +22,7 @@
    - Логика обработки корректна
 
 ### **Корень проблемы:**
+
 ```python
 # В функции button - БЫЛО:
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,6 +57,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 📊 **Тестирование**
 
 ### **Проверка создания кнопок:**
+
 ```
 === Тест создания кнопок в /positions ===
 ✅ Кнопки созданы успешно
@@ -76,6 +78,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 ### **Проверка парсинга callback_data:**
+
 ```
 === Тест парсинга callback_data ===
 
@@ -100,6 +103,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 ### **Проверка структуры данных:**
+
 ```
 === Тест структуры данных пользователя ===
 ✅ Тестовые данные созданы
@@ -119,25 +123,28 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🔧 **Технические детали**
 
 ### **Файлы изменены:**
+
 - `telegram_bot.py` (строка 852) - добавлена загрузка данных в функцию `button`
 
 ### **Функции затронуты:**
+
 - `button()` - добавлена загрузка данных из файла
 - `positions_cmd()` - уже загружала данные правильно
 - `load_user_data()` - уже работала правильно
 
 ### **Кнопки в команде `/positions`:**
 
-| Кнопка | Действие | Callback Data | Статус |
-|--------|----------|---------------|--------|
-| 🔴 Закрыть | Закрыть всю позицию | `close_position\|SYMBOL\|current\|all` | ✅ Работает |
-| 📊 Детали | Показать детали позиции | `position_details\|SYMBOL` | ✅ Работает |
-| 💰 Закрыть 50% | Закрыть половину позиции | `close_position\|SYMBOL\|current\|half` | ✅ Работает |
-| 📈 Обновить P&L | Обновить прибыль/убыток | `refresh_position\|SYMBOL` | ✅ Работает |
+| Кнопка          | Действие                 | Callback Data                           | Статус      |
+| --------------- | ------------------------ | --------------------------------------- | ----------- |
+| 🔴 Закрыть      | Закрыть всю позицию      | `close_position\|SYMBOL\|current\|all`  | ✅ Работает |
+| 📊 Детали       | Показать детали позиции  | `position_details\|SYMBOL`              | ✅ Работает |
+| 💰 Закрыть 50%  | Закрыть половину позиции | `close_position\|SYMBOL\|current\|half` | ✅ Работает |
+| 📈 Обновить P&L | Обновить прибыль/убыток  | `refresh_position\|SYMBOL`              | ✅ Работает |
 
 ## 🎯 **Результат**
 
 ### **✅ Что исправлено:**
+
 1. **Загрузка данных:** Теперь `button` загружает данные из файла перед обработкой кнопок
 2. **Работа кнопок:** Все кнопки в команде `/positions` теперь работают корректно
 3. **Обработка позиций:** Кнопки могут найти и обработать позиции пользователя
@@ -145,6 +152,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ### **📱 Пример работы кнопок:**
 
 **Кнопка "🔴 Закрыть":**
+
 ```
 🟢 ПОЗИЦИЯ ЗАКРЫТА
 
@@ -165,6 +173,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ```
 
 **Кнопка "📊 Детали":**
+
 ```
 📊 ДЕТАЛИ ПОЗИЦИИ
 
@@ -181,6 +190,7 @@ TP2: 51000.000000 (-2.0%)
 ```
 
 **Кнопка "📈 Обновить P&L":**
+
 ```
 🟢 BTCUSDT (SHORT) - ОБНОВЛЕНО
 

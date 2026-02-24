@@ -7,15 +7,18 @@
 ## 🔍 **АНАЛИЗ ПРИЧИНЫ**
 
 ### **1. Версия python-telegram-bot**
+
 - **Установлена версия:** 22.3
 - **Требуемая версия:** 13.15 (согласно предыдущим отчетам)
 - **Проблема:** Несоответствие версий
 
 ### **2. Отсутствие allowed_updates**
+
 - **Проблема:** В функции запуска бота не было явного указания `allowed_updates`
 - **Результат:** Telegram не отправлял `callback_query` события
 
 ### **3. Неправильная обработка callback_data**
+
 - **Проблема:** Возможные ошибки в разборе callback_data
 - **Результат:** Кнопки не обрабатывались
 
@@ -24,11 +27,13 @@
 ### **1. Добавлено явное указание allowed_updates**
 
 **Было:**
+
 ```python
 await app.updater.start_polling(drop_pending_updates=True)
 ```
 
 **Стало:**
+
 ```python
 await app.updater.start_polling(
     drop_pending_updates=True,
@@ -39,11 +44,13 @@ await app.updater.start_polling(
 ### **2. Проверена корректность callback_data**
 
 **Формат callback_data в test_signal_cmd:**
+
 ```python
 callback_data=f"accept|{symbol}|test|{entry_price}|1|long|{risk_pct}"
 ```
 
 **Пример:**
+
 ```
 accept|TESTLONG|test|100.0|1|long|3.5
 ```
@@ -51,6 +58,7 @@ accept|TESTLONG|test|100.0|1|long|3.5
 ### **3. Проверена функция button**
 
 **Структура обработки:**
+
 ```python
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -72,6 +80,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ### **✅ Тест отладки пройден:**
 
 **Данные пользователя:**
+
 - 👤 Пользователь: 556251171
 - 💰 Депозит: 10,000 USDT
 - 🔧 Режим торговли: spot
@@ -79,6 +88,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - 📝 Принятые сигналы: 1
 
 **Проверка callback_data:**
+
 - ✅ action: accept
 - ✅ symbol: TESTLONG
 - ✅ entry_time: test
@@ -88,6 +98,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 - ✅ risk_pct: 3.5 (число)
 
 **Проверка логики:**
+
 - ✅ Депозит установлен: 10,000 USDT
 - ✅ Новая позиция: TESTLONG long
 - ✅ Риск на сделку: 3.5% = 350.00 USDT
@@ -96,12 +107,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🚀 **ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ**
 
 ### **✅ При успешном исправлении:**
+
 1. **Кнопка "Принять" работает** - обрабатывает callback_query
 2. **Сообщение "✅ Сигнал принят!"** отображается
 3. **Позиция добавляется** в open_positions
 4. **Данные сохраняются** в user_data.json
 
 ### **📱 Инструкции для тестирования:**
+
 1. **Отправьте команду:** `/test_signal`
 2. **Нажмите кнопку:** `Принять LONG` или `Принять SHORT`
 3. **Проверьте сообщение:** `✅ Сигнал принят!`
@@ -110,14 +123,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🔧 **ТЕХНИЧЕСКИЕ ДЕТАЛИ**
 
 ### **Файлы изменены:**
+
 - `telegram_bot.py` - добавлено allowed_updates в функцию запуска
 
 ### **Ключевые изменения:**
+
 1. **Явное указание allowed_updates** для получения callback_query
 2. **Проверка корректности** callback_data
 3. **Валидация логики** обработки кнопок
 
 ### **Совместимость:**
+
 - ✅ **Версия 22.3** python-telegram-bot
 - ✅ **ContextTypes.DEFAULT_TYPE** для контекста
 - ✅ **Application** вместо Updater

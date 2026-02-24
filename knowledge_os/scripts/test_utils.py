@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Общие утилиты для тестовых скриптов
 """
 
-import os
-import sys
 import json
-import time
-import sqlite3
 import logging
+import os
+import sqlite3
+import sys
+import time
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.shared.utils.datetime_utils import get_utc_now
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 class TestStatus(Enum):
     """Статусы проверок"""
+
     PASS = "PASS"
     FAIL = "FAIL"
     WARNING = "WARNING"
@@ -35,7 +34,7 @@ class TestStatus(Enum):
 
 class TestResult:
     """Результат проверки"""
-    
+
     def __init__(
         self,
         name: str,
@@ -44,7 +43,7 @@ class TestResult:
         details: Optional[Dict[str, Any]] = None,
         recommendations: Optional[List[str]] = None,
         metrics: Optional[Dict[str, Any]] = None,
-        duration: float = 0.0
+        duration: float = 0.0,
     ):
         self.name = name
         self.status = status
@@ -54,7 +53,7 @@ class TestResult:
         self.metrics = metrics or {}
         self.duration = duration
         self.timestamp = get_utc_now().isoformat()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Преобразует результат в словарь"""
         return {
@@ -65,15 +64,15 @@ class TestResult:
             "recommendations": self.recommendations,
             "metrics": self.metrics,
             "duration": self.duration,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
-    
+
     def __str__(self) -> str:
         status_icon = {
             TestStatus.PASS: "✅",
             TestStatus.FAIL: "❌",
             TestStatus.WARNING: "⚠️",
-            TestStatus.SKIP: "⏭️"
+            TestStatus.SKIP: "⏭️",
         }
         icon = status_icon.get(self.status, "❓")
         return f"{icon} {self.name}: {self.status.value} - {self.message}"
@@ -85,7 +84,7 @@ def get_db_connection(db_path: str = "trading.db") -> Optional[sqlite3.Connectio
         if not os.path.exists(db_path):
             logger.warning(f"База данных {db_path} не найдена")
             return None
-        
+
         conn = sqlite3.connect(db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
         return conn
@@ -99,8 +98,7 @@ def check_table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (table_name,)
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,)
         )
         return cursor.fetchone() is not None
     except sqlite3.Error as e:
@@ -115,13 +113,15 @@ def get_table_structure(conn: sqlite3.Connection, table_name: str) -> List[Dict[
         cursor.execute(f"PRAGMA table_info({table_name})")
         columns = []
         for row in cursor.fetchall():
-            columns.append({
-                "name": row[1],
-                "type": row[2],
-                "not_null": bool(row[3]),
-                "default_value": row[4],
-                "primary_key": bool(row[5])
-            })
+            columns.append(
+                {
+                    "name": row[1],
+                    "type": row[2],
+                    "not_null": bool(row[3]),
+                    "default_value": row[4],
+                    "primary_key": bool(row[5]),
+                }
+            )
         return columns
     except sqlite3.Error as e:
         logger.error(f"Ошибка получения структуры таблицы {table_name}: {e}")
@@ -182,6 +182,7 @@ def check_function_exists(module_name: str, function_name: str) -> Tuple[bool, O
 
 def measure_time(func):
     """Декоратор для измерения времени выполнения"""
+
     def wrapper(*args, **kwargs):
         start_time = time.perf_counter()
         result = func(*args, **kwargs)
@@ -189,6 +190,7 @@ def measure_time(func):
         if isinstance(result, TestResult):
             result.duration = duration
         return result
+
     return wrapper
 
 
@@ -204,7 +206,7 @@ def format_duration(seconds: float) -> str:
 
 def format_bytes(bytes_count: int) -> str:
     """Форматирует размер в байтах"""
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if bytes_count < 1024.0:
             return f"{bytes_count:.2f} {unit}"
         bytes_count /= 1024.0
@@ -248,9 +250,9 @@ def save_json_report(results: List[TestResult], output_path: str) -> bool:
             "failed": sum(1 for r in results if r.status == TestStatus.FAIL),
             "warnings": sum(1 for r in results if r.status == TestStatus.WARNING),
             "skipped": sum(1 for r in results if r.status == TestStatus.SKIP),
-            "results": [r.to_dict() for r in results]
+            "results": [r.to_dict() for r in results],
         }
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
         return True
     except Exception as e:
@@ -265,7 +267,7 @@ def print_test_summary(results: List[TestResult]):
     failed = sum(1 for r in results if r.status == TestStatus.FAIL)
     warnings = sum(1 for r in results if r.status == TestStatus.WARNING)
     skipped = sum(1 for r in results if r.status == TestStatus.SKIP)
-    
+
     print("\n" + "=" * 60)
     print("СВОДКА РЕЗУЛЬТАТОВ ТЕСТИРОВАНИЯ")
     print("=" * 60)
@@ -274,7 +276,7 @@ def print_test_summary(results: List[TestResult]):
     print(f"❌ Провалено: {failed}")
     print(f"⚠️  Предупреждений: {warnings}")
     print(f"⏭️  Пропущено: {skipped}")
-    
+
     if failed > 0:
         print("\n❌ ПРОВАЛЕННЫЕ ПРОВЕРКИ:")
         for result in results:
@@ -283,28 +285,27 @@ def print_test_summary(results: List[TestResult]):
                 if result.recommendations:
                     for rec in result.recommendations:
                         print(f"    💡 {rec}")
-    
+
     if warnings > 0:
         print("\n⚠️  ПРЕДУПРЕЖДЕНИЯ:")
         for result in results:
             if result.status == TestStatus.WARNING:
                 print(f"  - {result.name}: {result.message}")
-    
+
     print("=" * 60)
 
 
 if __name__ == "__main__":
     # Тестирование утилит
     print("Тестирование утилит...")
-    
+
     # Тест проверки файла
     test_file = "test_utils.py"
     exists = check_file_exists(test_file)
     print(f"Файл {test_file} существует: {exists}")
-    
+
     # Тест импорта модуля
     success, error = check_module_import("os")
     print(f"Импорт модуля 'os': {success}, ошибка: {error}")
-    
-    print("Тестирование завершено")
 
+    print("Тестирование завершено")

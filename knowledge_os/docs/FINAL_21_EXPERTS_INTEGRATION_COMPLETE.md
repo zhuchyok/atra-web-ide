@@ -9,19 +9,20 @@
 
 ### ✅ **1. Добавлено 7 новых экспертов для веб-разработки:**
 
-| # | Имя | Роль | Приоритет | Статус |
-|---|-----|------|-----------|--------|
-| 15 | **Андрей** | Frontend Developer | 15 | ✅ |
-| 16 | **София** | UI/UX Designer | 16 | ✅ |
-| 17 | **Никита** | Full-stack Developer | 17 | ✅ |
-| 18 | **Дарья** | SEO & AI Visibility Specialist | 18 | ✅ |
-| 19 | **Марина** | Content Manager | 19 | ✅ |
-| 20 | **Юлия** | Legal Counsel | 20 | ✅ |
-| 21 | **Артем** | Code Reviewer | 21 | ✅ |
+| #   | Имя        | Роль                           | Приоритет | Статус |
+| --- | ---------- | ------------------------------ | --------- | ------ |
+| 15  | **Андрей** | Frontend Developer             | 15        | ✅     |
+| 16  | **София**  | UI/UX Designer                 | 16        | ✅     |
+| 17  | **Никита** | Full-stack Developer           | 17        | ✅     |
+| 18  | **Дарья**  | SEO & AI Visibility Specialist | 18        | ✅     |
+| 19  | **Марина** | Content Manager                | 19        | ✅     |
+| 20  | **Юлия**   | Legal Counsel                  | 20        | ✅     |
+| 21  | **Артем**  | Code Reviewer                  | 21        | ✅     |
 
 ### ✅ **2. Созданы все файлы:**
 
 **Правила (15 файлов):**
+
 - ✅ `.cursor/rules/15_frontend_developer.md`
 - ✅ `.cursor/rules/16_ui_ux_designer.md`
 - ✅ `.cursor/rules/17_fullstack_developer.md`
@@ -31,6 +32,7 @@
 - ✅ `.cursor/rules/21_code_reviewer.md`
 
 **Базы знаний (8 файлов):**
+
 - ✅ `scripts/andrey_knowledge.md`
 - ✅ `scripts/sofia_knowledge.md`
 - ✅ `scripts/nikita_knowledge.md`
@@ -41,6 +43,7 @@
 - ✅ `scripts/ekaterina_knowledge.md`
 
 **Программы обучения (8 файлов):**
+
 - ✅ `scripts/learning_programs/andrey_program.md`
 - ✅ `scripts/learning_programs/sofia_program.md`
 - ✅ `scripts/learning_programs/nikita_program.md`
@@ -63,6 +66,7 @@
 ## 👥 ПОЛНАЯ КОМАНДА ИЗ 21 ЭКСПЕРТА
 
 ### **Торговля и финансы:**
+
 1. Виктор - Team Lead
 2. Дмитрий - ML Engineer
 3. Павел - Trading Strategy Developer
@@ -70,12 +74,14 @@
 5. Екатерина - Financial Analyst
 
 ### **Backend и инфраструктура:**
+
 6. Игорь - Backend Developer
 7. Роман - Database Engineer
 8. Сергей - DevOps Engineer
 9. Ольга - Performance Engineer
 
 ### **Веб-разработка:** ⭐ НОВОЕ
+
 15. **Андрей - Frontend Developer** ⭐
 16. **София - UI/UX Designer** ⭐
 17. **Никита - Full-stack Developer** ⭐
@@ -84,12 +90,14 @@
 20. **Юлия - Legal Counsel** ⭐
 
 ### **Качество и безопасность:**
+
 10. Анна - QA Engineer
 11. Алексей - Security Engineer
 12. Елена - Monitor
-21. **Артем - Code Reviewer** ⭐ **НОВЫЙ**
+13. **Артем - Code Reviewer** ⭐ **НОВЫЙ**
 
 ### **Аналитика и документация:**
+
 13. Максим - Data Analyst
 14. Татьяна - Technical Writer
 
@@ -98,6 +106,7 @@
 ## 🚀 КЛЮЧЕВЫЕ ВОЗМОЖНОСТИ
 
 ### **Веб-разработка:**
+
 - ✅ Современные сайты (React, Next.js, TypeScript)
 - ✅ Корпоративные сайты премиум-класса
 - ✅ Высококонверсионные лендинги (10%+)
@@ -105,18 +114,21 @@
 - ✅ Enterprise веб-приложения
 
 ### **AI Visibility:**
+
 - ✅ Видимость в ChatGPT
 - ✅ Видимость в Perplexity
 - ✅ Видимость в Google Gemini
 - ✅ Оптимизация для нейроботов
 
 ### **Legal Compliance:**
+
 - ✅ GDPR требования
 - ✅ CCPA требования
 - ✅ Криптовалютное право
 - ✅ Финансовое регулирование
 
 ### **Качество:**
+
 - ✅ **Артем проверяет код после каждого внедрения**
 - ✅ Исправляет линтер ошибки
 - ✅ Проверяет интеграцию
@@ -149,4 +161,3 @@
 **Автор:** Команда ATRA из 21 эксперта  
 **Дата:** 2025-01-XX  
 **Статус:** ✅ **ПОЛНОСТЬЮ ЗАВЕРШЕНО**
-

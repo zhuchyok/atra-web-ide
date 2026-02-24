@@ -31,4 +31,3 @@ send "tail -50 server.log | grep -E '(Lock|Bot authorized|Polling|ERROR|COMMAND|
 expect "# "
 send "exit\r"
 expect eof
-

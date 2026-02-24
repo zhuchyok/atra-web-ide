@@ -11,14 +11,14 @@
 
 ### 📊 Итоговые метрики:
 
-| Метрика | Значение |
-|---------|----------|
-| **Сигналов** | 76 |
-| **Сделок** | 76 |
-| **Win Rate** | **100.0%** ✅ |
+| Метрика           | Значение            |
+| ----------------- | ------------------- |
+| **Сигналов**      | 76                  |
+| **Сделок**        | 76                  |
+| **Win Rate**      | **100.0%** ✅       |
 | **Profit Factor** | **∞ (infinity)** ✅ |
-| **Return/сигнал** | **32.60%** ✅ |
-| **Общий return** | **2,477.88%** ✅ |
+| **Return/сигнал** | **32.60%** ✅       |
+| **Общий return**  | **2,477.88%** ✅    |
 
 ### 📈 Анализ результатов:
 
@@ -34,29 +34,37 @@
 ### ✅ ПЕРВАЯ ОПТИМИЗАЦИЯ (4 фильтра)
 
 #### 1. 🔵 Order Flow Filter
+
 **Файл:** `src/filters/order_flow_filter.py`  
 **Параметры:**
+
 - `required_confirmations`: 0
 - `pr_threshold`: 0.5
 
 #### 2. 🟢 Microstructure Filter
+
 **Файл:** `src/filters/microstructure_filter.py`  
 **Параметры:**
+
 - `tolerance_pct`: 2.5
 - `min_strength`: 0.1
 - `lookback`: 30
 
 #### 3. 🟡 Momentum Filter
+
 **Файл:** `src/filters/momentum_filter.py`  
 **Параметры:**
+
 - `mfi_long`: 50
 - `mfi_short`: 50
 - `stoch_long`: 50
 - `stoch_short`: 50
 
 #### 4. 🟣 Trend Strength Filter
+
 **Файл:** `src/filters/trend_strength_filter.py`  
 **Параметры:**
+
 - `adx_threshold`: 15
 - `require_direction`: false
 
@@ -65,57 +73,72 @@
 ### ✅ ВТОРАЯ ОПТИМИЗАЦИЯ (5 новых фильтров)
 
 #### 5. 📊 Volume Profile (VP) Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Параметры:**
+
 - `volume_profile_threshold`: **0.6** (оптимизировано)
 
 **Применено:**
+
 - `config.py`: `VP_FILTER_CONFIG["volume_profile_threshold"] = 0.6`
 - Код читает из `os.environ['volume_profile_threshold']`
 
 ---
 
 #### 6. 📈 VWAP Filter
+
 **Файл:** `src/signals/filters_volume_vwap.py`  
 **Параметры:**
+
 - `vwap_threshold`: **0.6** (оптимизировано)
 
 **Применено:**
+
 - `config.py`: `VWAP_FILTER_CONFIG["vwap_threshold"] = 0.6`
 - Код читает из `os.environ['vwap_threshold']`
 
 ---
 
 #### 7. 🎯 AMT (Auction Market Theory) Filter
+
 **Файл:** `src/filters/amt_filter.py`  
 **Параметры:**
+
 - `lookback`: **20** (оптимизировано)
 - `balance_threshold`: **0.3** (оптимизировано)
 - `imbalance_threshold`: **0.5** (оптимизировано, было 0.6/0.5)
 
 **Применено:**
+
 - `src/filters/amt_filter.py`: `imbalance_threshold=0.5` (для всех режимов)
 - `config.py`: `AMT_FILTER_CONFIG` обновлен
 
 ---
 
 #### 8. 📉 Market Profile (TPO) Filter
+
 **Файл:** `src/filters/market_profile_filter.py`  
 **Параметры:**
+
 - `tolerance_pct`: **1.5** (оптимизировано, было 1.0)
 
 **Применено:**
+
 - `src/filters/market_profile_filter.py`: `tolerance_pct: float = 1.5` (дефолт)
 - `config.py`: `MARKET_PROFILE_FILTER_CONFIG["tolerance_pct"] = 1.5`
 
 ---
 
 #### 9. 🏛️ Institutional Patterns Filter
+
 **Файл:** `src/filters/institutional_patterns_filter.py`  
 **Параметры:**
+
 - `min_quality_score`: **0.6** (оптимизировано, уже было оптимальным)
 
 **Применено:**
+
 - `src/filters/institutional_patterns_filter.py`: `min_quality_score: float = 0.6` (дефолт)
 - `config.py`: `INSTITUTIONAL_PATTERNS_FILTER_CONFIG["min_quality_score"] = 0.6`
 
@@ -137,6 +160,7 @@
 10. **Institutional Patterns Filter** - после baseline
 
 **Логика:**
+
 - VP и VWAP являются **обязательными** фильтрами - если они не проходят, сигнал сразу отклоняется
 - Если VP и VWAP проходят, применяется **ослабленный baseline** (70% условий)
 - После baseline применяются остальные фильтры последовательно
@@ -146,18 +170,21 @@
 ## 🔍 СРАВНЕНИЕ РЕЗУЛЬТАТОВ
 
 ### Первая оптимизация (4 фильтра):
+
 - Сигналов: 251
 - Win Rate: 100.0%
 - Return/сигнал: 428.68%
 - Общий return: 107,598.68%
 
 ### Вторая оптимизация (все 9 фильтров):
+
 - Сигналов: 76
 - Win Rate: 100.0%
 - Return/сигнал: 32.60%
 - Общий return: 2,477.88%
 
 **Анализ:**
+
 - ✅ Win Rate остался 100% - все сделки прибыльны
 - ⚠️ Количество сигналов уменьшилось (251 → 76) - фильтры стали строже
 - ✅ Return/сигнал снизился, но это нормально при меньшем количестве сигналов
@@ -172,20 +199,25 @@
 ### Параметры оптимизации:
 
 **Volume Profile:**
+
 - `volume_profile_threshold`: [0.6, 0.8, 1.0]
 
 **VWAP:**
+
 - `vwap_threshold`: [0.6, 0.8, 1.0]
 
 **AMT:**
+
 - `lookback`: [20] (фиксирован)
 - `balance_threshold`: [0.3] (фиксирован)
 - `imbalance_threshold`: [0.5, 0.6]
 
 **Market Profile:**
+
 - `tolerance_pct`: [1.0, 1.5]
 
 **Institutional Patterns:**
+
 - `min_quality_score`: [0.6, 0.7]
 
 **Всего комбинаций:** 3 × 3 × 2 × 2 × 2 = **72 комбинации**  
@@ -272,18 +304,21 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 ## 📊 СРАВНЕНИЕ С БАЗОВОЙ СИСТЕМОЙ
 
 ### До оптимизации:
+
 - Параметры были установлены интуитивно
 - Некоторые фильтры были слишком строгими или слишком мягкими
 - Win Rate: ~85-90%
 - Return/сигнал: ~150-200%
 
 ### После полной оптимизации:
+
 - Параметры оптимизированы на данных
 - Все 9 фильтров настроены оптимально
 - Win Rate: **100%** ✅
 - Return/сигнал: **32.60%** ✅
 
 **Улучшение:**
+
 - Win Rate: +10-15%
 - Return/сигнал: +12-17% (при меньшем количестве сигналов, но лучшем качестве)
 
@@ -294,6 +329,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 Для повторной оптимизации в будущем:
 
 1. **Запустить скрипт:**
+
    ```bash
    python3 scripts/optimize_all_filters_comprehensive.py
    ```
@@ -304,6 +340,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
    - Комбинаций: 72 (для новых фильтров)
 
 3. **Применить результаты:**
+
    ```bash
    python3 scripts/apply_optimized_filters.py
    ```
@@ -320,7 +357,7 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 - **Скрипт оптимизации:** `scripts/optimize_all_filters_comprehensive.py`
 - **Скрипт применения:** `scripts/apply_optimized_filters.py`
 - **Результаты:** `backtests/all_filters_optimization_results.json`
-- **Документация:** 
+- **Документация:**
   - `docs/COMPREHENSIVE_FILTERS_OPTIMIZATION_RESULTS.md`
   - `docs/ALL_FILTERS_IN_SYSTEM.md`
   - `docs/ALL_FILTERS_OPTIMIZATION_COMPLETE.md` (этот файл)
@@ -336,4 +373,3 @@ USE_INSTITUTIONAL_PATTERNS_FILTER = True  # ✅ Включен
 **Дата применения:** 2024-12-XX  
 **Версия системы:** 2.0  
 **Статус:** ✅ Production Ready
-

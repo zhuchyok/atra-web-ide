@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """Модуль управления зависимостями ATRA.
 
@@ -8,10 +7,10 @@
 """
 
 import logging
-import subprocess
-import sys
 import os
 import py_compile
+import subprocess
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +125,7 @@ def restore_critical_fixes():
                     py_compile.compile(file_path, doraise=True)
                     logger.info("✅ Синтаксис %s корректен", file_path)
                 except SyntaxError as syntax_error:
-                    logger.error(
-                        "❌ Синтаксическая ошибка в %s: %s", file_path, syntax_error
-                    )
+                    logger.error("❌ Синтаксическая ошибка в %s: %s", file_path, syntax_error)
 
                     # Автоматическое исправление известных ошибок
                     if file_path == "signal_live.py":
@@ -160,7 +157,7 @@ def fix_telegram_bot_syntax():
     logger.info("🔧 Автоматическое исправление telegram_bot.py...")
 
     try:
-        with open("telegram_bot.py", "r", encoding="utf-8") as f:
+        with open("telegram_bot.py", encoding="utf-8") as f:
             content = f.read()
 
         # Известные исправления для telegram_bot.py

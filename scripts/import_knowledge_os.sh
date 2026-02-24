@@ -23,19 +23,19 @@ echo ""
 # Проверяем Docker
 if docker ps >/dev/null 2>&1; then
     echo "🐳 Docker запущен"
-    
+
     # Проверяем есть ли контейнер БД
     if docker ps --format '{{.Names}}' | grep -q "knowledge_os_db\|postgres"; then
         CONTAINER=$(docker ps --format '{{.Names}}' | grep -E "knowledge_os_db|postgres" | head -1)
         echo "✅ Найден контейнер: $CONTAINER"
-        
+
         echo ""
         echo "⏳ Импортирую дамп..."
         docker exec -i "$CONTAINER" psql -U admin -d knowledge_os < "$DUMP_FILE"
-        
+
         echo ""
         echo "✅ Импорт завершён!"
-        
+
         # Проверка
         echo ""
         echo "📊 Проверка данных:"
@@ -58,11 +58,11 @@ if docker ps >/dev/null 2>&1; then
 else
     echo "⚠️  Docker не запущен"
     echo ""
-    
+
     # Проверяем локальный PostgreSQL
     if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
         echo "✅ Локальный PostgreSQL запущен"
-        
+
         # Проверяем БД
         if psql -h localhost -p 5432 -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw knowledge_os; then
             echo "✅ БД knowledge_os существует"
@@ -70,11 +70,11 @@ else
             echo "⏳ Создаю БД knowledge_os..."
             createdb knowledge_os 2>/dev/null || true
         fi
-        
+
         echo ""
         echo "⏳ Импортирую дамп..."
         psql -h localhost -p 5432 -d knowledge_os < "$DUMP_FILE"
-        
+
         echo ""
         echo "✅ Импорт завершён!"
     else

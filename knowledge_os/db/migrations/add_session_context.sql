@@ -21,4 +21,3 @@ COMMENT ON TABLE session_context IS 'Контекст сессий пользо�
 COMMENT ON COLUMN session_context.session_id IS 'Уникальный ID сессии (MD5 hash от user_id + expert_name)';
 COMMENT ON COLUMN session_context.query_text IS 'Запрос пользователя (ограничено 500 символов)';
 COMMENT ON COLUMN session_context.response_text IS 'Ответ системы (ограничено 2000 символов)';
-

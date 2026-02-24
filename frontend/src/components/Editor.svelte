@@ -13,7 +13,7 @@
   import { lintGutter, lintKeymap } from '@codemirror/lint'
   import { Decoration, WidgetType, GutterMarker, gutter } from '@codemirror/view'
   import { currentFile, saveFile, markUnsaved } from '../stores/files.js'
-  
+
   let editorContainer
   let editorView
   let comments = []
@@ -63,10 +63,10 @@
 
   function updateDecorations() {
     if (!editorView) return
-    
+
     const deco = []
     const markers = []
-    
+
     comments.forEach(c => {
       let line
       if (c.line_number) {
@@ -78,7 +78,7 @@
           line = editorView.state.doc.lineAt(index)
         }
       }
-      
+
       if (line) {
         deco.push(Decoration.widget({
           widget: new CommentWidget(c),
@@ -86,7 +86,7 @@
         }).range(line.to))
       }
     })
-    
+
     // В реальном приложении здесь бы использовался StateField для декораций
     // Для прототипа обновляем через dispatch если нужно
   }
@@ -97,7 +97,7 @@
     const code = state.doc.toString()
     const line = state.doc.lineAt(pos)
     const filename = $currentFile?.name || 'untitled'
-    
+
     try {
       const response = await fetch('/api/editor/autocomplete', {
         method: 'POST',
@@ -109,7 +109,7 @@
           column: pos - line.from
         })
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         return {
@@ -129,16 +129,16 @@
     } catch (e) {
       console.error('Autocomplete error:', e)
     }
-    
+
     return null
   }
-  
+
   // Linting через backend
   function getLinter(filename) {
     return async (view) => {
       const code = view.state.doc.toString()
       if (!code.trim()) return []
-      
+
       try {
         const response = await fetch('/api/editor/lint', {
           method: 'POST',
@@ -148,7 +148,7 @@
             filename: filename || 'untitled'
           })
         })
-        
+
         if (response.ok) {
           const data = await response.json()
           return data.errors.map(err => {
@@ -164,19 +164,19 @@
       } catch (e) {
         console.error('Lint error:', e)
       }
-      
+
       return []
     }
   }
-  
+
   // Определение языка по расширению
   function getLanguageExtension(filename) {
     if (!filename) return []
-    
+
     const parts = filename.split('.')
     const ext = parts.length > 1 ? parts[parts.length - 1].toLowerCase() : ''
     const extensions = []
-    
+
     switch (ext) {
       case 'js':
       case 'jsx':
@@ -203,21 +203,21 @@
         extensions.push(markdown())
         break
     }
-    
+
     // Добавляем AI автодополнение для всех языков
     extensions.push(autocompletion({
       override: [aiAutocomplete]
     }))
-    
+
     // Добавляем linting
     if (filename) {
       extensions.push(lintGutter())
       extensions.push(getLinter(filename))
     }
-    
+
     return extensions
   }
-  
+
   // Тёмная тема
   const darkTheme = EditorView.theme({
     '&': {
@@ -248,12 +248,12 @@
       backgroundColor: 'rgba(102, 126, 234, 0.2)'
     }
   }, { dark: true })
-  
+
   function initEditor(content = '', filename = '') {
     if (editorView) {
       editorView.destroy()
     }
-    
+
     const state = EditorState.create({
       doc: content,
       extensions: [
@@ -290,19 +290,19 @@
         })
       ]
     })
-    
+
     editorView = new EditorView({
       state,
       parent: editorContainer
     })
   }
-  
+
   async function handleSave() {
     if (!$currentFile) return
-    
+
     const content = editorView.state.doc.toString()
     const success = await saveFile($currentFile.path, content)
-    
+
     if (success) {
       // Показываем уведомление о сохранении
       const notification = document.createElement('div')
@@ -318,7 +318,7 @@
       setTimeout(() => notification.remove(), 3000)
     }
   }
-  
+
   onMount(() => {
     if ($currentFile) {
       initEditor($currentFile.content, $currentFile.name)
@@ -326,13 +326,13 @@
       initEditor('// Welcome to ATRA Web IDE\n// Open a file to start editing', '')
     }
   })
-  
+
   onDestroy(() => {
     if (editorView) {
       editorView.destroy()
     }
   })
-  
+
   // Реакция на изменение файла
   $: if ($currentFile) {
     if (editorView) {

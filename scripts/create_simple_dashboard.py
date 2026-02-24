@@ -308,13 +308,13 @@ def main():
     history = load_validation_results()
     latest = load_latest_report()
     alerts = load_quality_alerts()
-    
+
     html = generate_dashboard_html(history, latest, alerts)
     output = REPO_ROOT / "quality_dashboard.html"
-    
+
     with open(output, "w", encoding="utf-8") as f:
         f.write(html)
-    
+
     print(f"✅ Дашборд создан: {output}")
     print(f"🌐 Откройте в браузере: file://{output.resolve()}")
     print(f"   или: cd {REPO_ROOT} && python3 -m http.server 8000")

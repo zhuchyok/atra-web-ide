@@ -6,6 +6,7 @@
 ## 🔴 ПРОБЛЕМА
 
 По скриншоту истории ордеров видно:
+
 1. **19:59:16** - Открытие SHORT позиции ETHFIUSDT (26.4 ETHFI, 2x плечо)
 2. **19:59:17** - Закрытие позиции (Reduce Only: Yes, PnL: +0.00792 USDT)
 
@@ -16,12 +17,14 @@
 ### 1. Увеличено время защиты с 5 до 10 минут
 
 **Было:**
+
 ```python
 if time_since_entry < timedelta(minutes=5):
     # Пропускаем закрытие
 ```
 
 **Стало:**
+
 ```python
 if time_since_entry < timedelta(minutes=10):
     # Пропускаем закрытие (защита от преждевременного закрытия)
@@ -30,6 +33,7 @@ if time_since_entry < timedelta(minutes=10):
 ### 2. Улучшена защита при ошибках парсинга
 
 **Было:**
+
 ```python
 except (ValueError, TypeError) as e:
     logger.debug("Не удалось распарсить время")
@@ -37,6 +41,7 @@ except (ValueError, TypeError) as e:
 ```
 
 **Стало:**
+
 ```python
 except (ValueError, TypeError) as e:
     logger.warning("Не удалось распарсить время. Защита: НЕ закрываем позицию (безопасный режим)")
@@ -58,21 +63,21 @@ except (ValueError, TypeError) as e:
 try:
     from datetime import timedelta
     import sqlite3
-    
+
     # Получаем время создания позиции из БД
     with sqlite3.connect(adb_local.db_path) as conn:
         cursor = conn.cursor()
         cursor.execute(
             """
             SELECT entry_time, created_at FROM active_positions
-            WHERE symbol = ? AND accepted_by = ? 
+            WHERE symbol = ? AND accepted_by = ?
               AND UPPER(IFNULL(status,'open')) LIKE 'OPEN%'
             ORDER BY created_at DESC LIMIT 1
             """,
             (sym, str(uid))
         )
         result = cursor.fetchone()
-        
+
         if result:
             entry_time_str = result[0] or result[1]
             if entry_time_str:
@@ -82,10 +87,10 @@ try:
                         entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
                     else:
                         entry_time = datetime.fromtimestamp(entry_time_str)
-                    
+
                     # Проверяем, прошло ли 10 минут (увеличено для надежности)
                     time_since_entry = datetime.now() - entry_time.replace(tzinfo=None) if entry_time.tzinfo else datetime.now() - entry_time
-                    
+
                     if time_since_entry < timedelta(minutes=10):
                         logger.warning(
                             "⏸️ [SYNC] Позиция %s для пользователя %d слишком новая "
@@ -115,11 +120,13 @@ except Exception as e:
 ## 🎯 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### До исправления:
+
 - Позиции закрывались через 1-2 секунды после открытия
 - Защита 5 минут не всегда срабатывала
 - При ошибках парсинга позиции могли закрываться
 
 ### После исправления:
+
 - Позиции не закрываются в течение 10 минут после открытия
 - При ошибках парсинга позиции НЕ закрываются (безопасный режим)
 - Подробное логирование помогает понять, что происходит
@@ -127,6 +134,7 @@ except Exception as e:
 ## 🔍 МОНИТОРИНГ
 
 ### Ключевые метрики для отслеживания:
+
 1. **Логи синхронизации:**
    - Предупреждения о новых позициях (<10 минут)
    - Ошибки парсинга времени
@@ -156,4 +164,3 @@ except Exception as e:
 
 **Время исправления:** 2025-11-06 20:10 MSK  
 **Статус:** ✅ Исправлено и готово к тестированию
-

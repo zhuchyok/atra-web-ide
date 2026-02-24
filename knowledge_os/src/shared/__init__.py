@@ -10,4 +10,3 @@ This layer can be used by all other layers.
 """
 
 __all__ = []
-

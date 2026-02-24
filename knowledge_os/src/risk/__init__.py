@@ -9,9 +9,8 @@
 """
 
 __all__ = [
-    'RiskManager',
-    'CorrelationRiskManager',
-    'CapitalManager',
-    'PositionTracker',
+    "RiskManager",
+    "CorrelationRiskManager",
+    "CapitalManager",
+    "PositionTracker",
 ]
-

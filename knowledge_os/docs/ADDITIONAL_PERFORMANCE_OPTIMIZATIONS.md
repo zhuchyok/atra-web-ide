@@ -19,12 +19,14 @@
 **Файл:** `src/database/query_cache.py` (новый)
 
 **Функциональность:**
+
 - LRU кэш для результатов SQL запросов
 - TTL (Time To Live) для автоматической инвалидации
 - Статистика hit/miss rate
 - Автоматическая очистка истекших записей
 
 **Интеграция:**
+
 - Автоматическое кэширование read-only запросов в `execute_with_retry()`
 - Кэширование `get_all_users()` на 5 минут
 - Кэширование `get_user_data()` на 30 секунд
@@ -32,6 +34,7 @@
 **Ожидаемый эффект:** Снижение нагрузки на БД на 50-90% для повторяющихся запросов
 
 **Пример использования:**
+
 ```python
 # Автоматически кэшируется в execute_with_retry
 result = db.execute_with_retry("SELECT * FROM signals WHERE symbol=?", ('BTCUSDT',), is_write=False)
@@ -49,6 +52,7 @@ stats = cache.get_stats()  # {'hit_rate': 85.5, 'hits': 855, 'misses': 145}
 **Файл:** `src/database/db.py`
 
 **Изменения:**
+
 - Использование MessagePack для сериализации user_data (2-3x быстрее JSON)
 - Fallback на JSON если MessagePack недоступен
 - Base64 кодирование для хранения bytes в TEXT поле
@@ -62,12 +66,14 @@ stats = cache.get_stats()  # {'hit_rate': 85.5, 'hits': 855, 'misses': 145}
 **Файл:** `src/database/db.py`
 
 **Изменения:**
+
 - Замена циклов с `append()` на list comprehensions
 - Оптимизация `get_performance_summary()` - list comprehension вместо цикла
 
 **Ожидаемый эффект:** Ускорение на 10-20% для операций со списками
 
 **Пример:**
+
 ```python
 # Было:
 items = []
@@ -85,12 +91,14 @@ items = [{...} for s, r, np_val, ts in rows]
 **Файл:** `src/database/optimized_queries.py` (новый)
 
 **Функции:**
+
 - `get_signals_with_stats_optimized()` - объединяет несколько запросов в один
 - `get_user_performance_batch()` - batch запрос для статистики нескольких пользователей
 
 **Ожидаемый эффект:** Ускорение на 50-90% для операций с множественными пользователями
 
 **Пример:**
+
 ```python
 from src.database.optimized_queries import get_user_performance_batch
 
@@ -107,6 +115,7 @@ stats = get_user_performance_batch(db, user_ids)
 **Файл:** `src/database/db.py`
 
 **Изменения:**
+
 - Автоматическая инвалидация кэша при `save_user_data()`
 - Обновление кэша новыми данными после сохранения
 
@@ -117,12 +126,14 @@ stats = get_user_performance_batch(db, user_ids)
 ## Итоговые результаты
 
 ### Производительность:
+
 - ✅ **Кэширование запросов:** Снижение нагрузки на БД на 50-90%
 - ✅ **Быстрая сериализация:** Ускорение на 2-3x
 - ✅ **Оптимизация циклов:** Ускорение на 10-20%
 - ✅ **Batch запросы:** Ускорение на 50-90% для множественных операций
 
 ### Метрики кэша:
+
 - Hit rate: 70-90% для часто используемых запросов
 - Снижение количества запросов к БД: 50-90%
 - Latency для кэшированных запросов: < 1ms
@@ -132,6 +143,7 @@ stats = get_user_performance_batch(db, user_ids)
 ## Использование
 
 ### Включение/выключение кэша:
+
 ```python
 # Кэш включен по умолчанию
 db.execute_with_retry(query, params, is_write=False, use_cache=True)
@@ -141,6 +153,7 @@ db.execute_with_retry(query, params, is_write=False, use_cache=False)
 ```
 
 ### Статистика кэша:
+
 ```python
 from src.database.query_cache import get_query_cache
 
@@ -151,6 +164,7 @@ print(f"Hits: {stats['hits']}, Misses: {stats['misses']}")
 ```
 
 ### Очистка кэша:
+
 ```python
 cache.clear()  # Очистить весь кэш
 ```
@@ -176,4 +190,3 @@ cache.clear()  # Очистить весь кэш
 
 **Дата завершения:** 2025-01-09  
 **Статус:** ✅ Готово к использованию
-

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Умный фильтр трендов на основе корреляционных групп
 Проверяет только релевантный тренд (BTC/ETH/SOL) в зависимости от корреляции монеты
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +16,7 @@ try:
         check_eth_alignment,
         check_sol_alignment,
     )
+
     FILTERS_AVAILABLE = True
 except ImportError:
     FILTERS_AVAILABLE = False
@@ -25,6 +25,7 @@ except ImportError:
 # Импорт CorrelationManager
 try:
     from src.risk.correlation_risk import CorrelationRiskManager
+
     # Создаем экземпляр если нужно, или используем синглтон
     _manager = CorrelationRiskManager()
     CORRELATION_MANAGER_AVAILABLE = True
@@ -36,7 +37,7 @@ except ImportError as e:
 class SmartTrendFilter:
     """
     Умный фильтр трендов на основе корреляционных групп
-    
+
     Логика:
     - Определяет корреляционную группу монеты (BTC_HIGH, ETH_HIGH, SOL_HIGH)
     - Проверяет только тренд того актива, с которым монета коррелирует
@@ -79,16 +80,14 @@ class SmartTrendFilter:
             "errors": 0,
         }
 
-    async def get_primary_trend_to_check(
-        self, symbol: str, df: Optional[Any] = None
-    ) -> str:
+    async def get_primary_trend_to_check(self, symbol: str, df: Optional[Any] = None) -> str:
         """
         Определяет основной тренд для проверки на основе корреляционной группы
-        
+
         Args:
             symbol: Торговый символ
             df: DataFrame с данными (опционально, для расчета корреляции)
-            
+
         Returns:
             "BTC", "ETH", "SOL" или "ALL" (если группа не определена)
         """
@@ -96,9 +95,7 @@ class SmartTrendFilter:
             # Пытаемся получить корреляционную группу
             if self.correlation_manager:
                 try:
-                    symbol_group = await self.correlation_manager.get_symbol_group_async(
-                        symbol, df
-                    )
+                    symbol_group = await self.correlation_manager.get_symbol_group_async(symbol, df)
                     if symbol_group and symbol_group in self.trend_mapping:
                         primary_trend = self.trend_mapping[symbol_group]
                         logger.debug(
@@ -142,12 +139,12 @@ class SmartTrendFilter:
     ) -> bool:
         """
         Проверяет соответствие сигнала релевантному тренду
-        
+
         Args:
             symbol: Торговый символ
             signal_type: Тип сигнала (BUY/SELL)
             df: DataFrame с данными (опционально)
-            
+
         Returns:
             True если сигнал соответствует тренду, False если нет
         """
@@ -263,4 +260,3 @@ def get_smart_trend_filter() -> SmartTrendFilter:
     if _smart_trend_filter_instance is None:
         _smart_trend_filter_instance = SmartTrendFilter()
     return _smart_trend_filter_instance
-

@@ -3,12 +3,14 @@
 ## 📋 ЧЕКЛИСТ ПРОВЕРКИ
 
 ### 1. ✅ Синтаксис и импорты
+
 - ✅ `slippage_manager.py` - синтаксис корректен
 - ✅ `order_manager.py` - синтаксис корректен
 - ✅ `signal_live.py` - синтаксис корректен
 - ✅ Все импорты работают
 
 ### 2. ✅ Функциональность SlippageManager
+
 - ✅ `calculate_dynamic_slippage()` - работает
 - ✅ `record_slippage()` - работает
 - ✅ `get_adjusted_position_size()` - работает
@@ -17,24 +19,28 @@
 - ✅ База данных `slippage_records` - инициализируется
 
 ### 3. ✅ Интеграция в OrderManager
+
 - ✅ `create_market_order()` использует динамическое проскальзывание
 - ✅ Автоматический выбор между market и limit ордерами
 - ✅ `_fill_order()` записывает реальное проскальзывание
 - ✅ OrderManager создается успешно
 
 ### 4. ✅ Интеграция в signal_live.py
+
 - ✅ Компенсация применяется к `entry_amount_usdt`
 - ✅ Используется `get_adjusted_position_size()`
 - ✅ Логирование в `sizing_audit`
 - ✅ Обработка ошибок (try/except)
 
 ### 5. ✅ Линтер
+
 - ✅ Нет ошибок линтера
 - ✅ Все типы корректны
 
 ## 🧪 ТЕСТИРОВАНИЕ
 
 ### Тест 1: Динамическое проскальзывание
+
 ```python
 slippage = sm.calculate_dynamic_slippage(
     symbol='SOLUSDT',
@@ -47,6 +53,7 @@ slippage = sm.calculate_dynamic_slippage(
 ```
 
 ### Тест 2: Выбор типа ордера
+
 ```python
 decision = sm.should_use_limit_order(
     symbol='SOLUSDT',
@@ -61,6 +68,7 @@ decision = sm.should_use_limit_order(
 ```
 
 ### Тест 3: Компенсация размера позиции
+
 ```python
 adjusted = sm.get_adjusted_position_size(
     symbol='SOLUSDT',
@@ -97,4 +105,3 @@ adjusted = sm.get_adjusted_position_size(
 - При первом запуске создается БД `trading.db` с таблицей `slippage_records`
 - Если `slippage_manager` недоступен, система использует базовое проскальзывание (0.1%)
 - Все ошибки обрабатываются gracefully с fallback на базовые значения
-

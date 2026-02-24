@@ -173,4 +173,3 @@ echo "  - Утренние отчеты: $SERVER_PATH/logs/morning_report.log"
 echo "  - Webhook отчеты: $SERVER_PATH/logs/webhook_reports.log"
 echo ""
 echo "======================================================================"
-

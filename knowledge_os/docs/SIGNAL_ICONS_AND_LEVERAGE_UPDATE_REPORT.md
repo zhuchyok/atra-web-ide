@@ -9,11 +9,13 @@
 **Исправление:** Убрана иконка из `tp_info`, оставлена только в отображении
 
 **Было:**
+
 ```python
 tp_info = f"🎯 TP1: {fmt.format(tp1)} (+{tp1_pct:.1f}%)\n🚀 TP2: {fmt.format(tp2)} (+{tp2_pct:.1f}%)"
 ```
 
 **Стало:**
+
 ```python
 tp_info = f"TP1: {fmt.format(tp1)} (+{tp1_pct:.1f}%)\n🚀 TP2: {fmt.format(tp2)} (+{tp2_pct:.1f}%)"
 ```
@@ -23,6 +25,7 @@ tp_info = f"TP1: {fmt.format(tp1)} (+{tp1_pct:.1f}%)\n🚀 TP2: {fmt.format(tp2)
 **Новая функциональность:** После риска теперь отображается динамическое плечо для пользователей с режимом фьючерсов
 
 **Добавлен расчет плеча:**
+
 ```python
 # Динамическое плечо для фьючерсов
 dynamic_leverage = None
@@ -32,6 +35,7 @@ if trade_mode == 'futures':
 ```
 
 **Обновлено отображение:**
+
 ```python
 f"⚠️ Риск: <code>{risk_pct:.2f}%</code>"
 f"{f' | ⚡ Плечо: <code>x{dynamic_leverage}</code>' if dynamic_leverage else ''}\n"
@@ -42,11 +46,13 @@ f"{f' | ⚡ Плечо: <code>x{dynamic_leverage}</code>' if dynamic_leverage el
 **DCA LONG и SHORT сигналы** также обновлены с новой иконкой плеча:
 
 **Было:**
+
 ```python
 leverage_info = f" | Плечо: x{leverage}" if trade_mode == 'futures' else ""
 ```
 
 **Стало:**
+
 ```python
 leverage_info = f" | ⚡ Плечо: x{leverage}" if trade_mode == 'futures' else ""
 ```
@@ -56,6 +62,7 @@ leverage_info = f" | ⚡ Плечо: x{leverage}" if trade_mode == 'futures' els
 ### Новые торговые сигналы теперь отображают:
 
 **Для SPOT режима:**
+
 ```
 🟢 НОВЫЙ ТОРГОВЫЙ СИГНАЛ
 
@@ -69,6 +76,7 @@ leverage_info = f" | ⚡ Плечо: x{leverage}" if trade_mode == 'futures' els
 ```
 
 **Для FUTURES режима:**
+
 ```
 🟢 НОВЫЙ ТОРГОВЫЙ СИГНАЛ
 
@@ -84,6 +92,7 @@ leverage_info = f" | ⚡ Плечо: x{leverage}" if trade_mode == 'futures' els
 ### DCA сигналы теперь отображают:
 
 **Для фьючерсов:**
+
 ```
 СИГНАЛ УСРЕДНЕНИЯ (LONG): BTCUSDT
 Режим: FUTURES | ⚡ Плечо: x1.5

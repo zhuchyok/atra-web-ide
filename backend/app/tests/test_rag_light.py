@@ -2,6 +2,7 @@
 Тесты RAG-light: extract_direct_answer и классификация запросов (без бэкенда).
 Запуск: cd backend && python -m pytest app/tests/test_rag_light.py -v
 """
+
 import pytest
 
 

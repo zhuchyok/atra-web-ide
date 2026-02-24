@@ -2,6 +2,7 @@
 Тесты батчинга эмбеддингов (Фаза 3, день 3–4).
 Запуск: cd backend && python -m pytest app/tests/test_embedding_batch.py -v
 """
+
 import asyncio
 from unittest.mock import AsyncMock, patch
 
@@ -10,6 +11,7 @@ from app.services.embedding_batch import EmbeddingBatchProcessor
 
 def test_embedding_batch_cache():
     """Кэш и очистка кэша."""
+
     async def _run():
         with patch.object(
             EmbeddingBatchProcessor,
@@ -28,11 +30,13 @@ def test_embedding_batch_cache():
             assert emb == [0.1, 0.2, 0.3]
             proc.clear_cache()
             assert len(proc.results_cache) == 0
+
     asyncio.run(_run())
 
 
 def test_embedding_batch_stats():
     """Статистика процессора."""
+
     async def _run():
         proc = EmbeddingBatchProcessor(
             ollama_url="http://localhost:11434",
@@ -44,4 +48,5 @@ def test_embedding_batch_stats():
         assert "queue_size" in stats
         assert "cache_size" in stats
         assert stats["batch_size"] == 10
+
     asyncio.run(_run())

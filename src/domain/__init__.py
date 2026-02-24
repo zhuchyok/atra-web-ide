@@ -12,4 +12,3 @@ This layer has NO dependencies on external frameworks or libraries.
 """
 
 __all__ = []
-

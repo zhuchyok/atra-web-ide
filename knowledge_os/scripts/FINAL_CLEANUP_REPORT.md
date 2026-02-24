@@ -11,11 +11,13 @@
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### До очистки:
+
 - ❌ **134 Python файла в корне**
 - ❌ Много backup файлов
 - ❌ Файлы без группировки
 
 ### После очистки:
+
 - ✅ **~20-30 файлов в корне** (только основные)
 - ✅ **Backup файлы** → `archive/backups/`
 - ✅ **Все файлы логически сгруппированы**
@@ -25,57 +27,67 @@
 ## ✅ ВЫПОЛНЕНО
 
 ### 1. Backup файлы → `archive/backups/`:
+
 - ✅ Все `signal_live_backup_*.py` файлы
 - ✅ Все backup файлы
 
 ### 2. Indicators → `src/indicators/`:
+
 - ✅ `indicators.py`
 - ✅ `talib_wrapper.py`
 
 ### 3. Patterns → `src/patterns/`:
+
 - ✅ `improved_bos_retest_system.py`
 
 ### 4. Filters → `src/filters/`:
+
 - ✅ `simplified_filter_system.py`
 
 ### 5. ML → `scripts/ml/`:
+
 - ✅ `retrain_lightgbm.py`
 
 ### 6. Recovery → `scripts/recovery/`:
+
 - ✅ `recovery_system.py`
 - ✅ `emergency_button_fix.py`
 - ✅ `fix_deposit.py`
 
 ### 7. Optimization → `scripts/optimization/`:
+
 - ✅ `entry_timing_optimizer.py`
 
 ### 8. Setup → `scripts/setup/`:
+
 - ✅ `apply_improved_settings.py`
 
 ### 9. Analysis → `scripts/analysis/`:
+
 - ✅ `volume_blocks_analysis.py`
 - ✅ `show_signals_slice.py`
 
 ### 10. Misc → `scripts/misc/`:
+
 - ✅ Остальные некритичные файлы
 
 ---
 
 ## 📊 СТАТИСТИКА
 
-| Категория | Файлов перемещено | Куда |
-|-----------|-------------------|------|
-| Backups | ~10+ | `archive/backups/` |
-| Indicators | 2 | `src/indicators/` |
-| Patterns | 1 | `src/patterns/` |
-| Filters | 1 | `src/filters/` |
-| ML | 1 | `scripts/ml/` |
-| Recovery | 3 | `scripts/recovery/` |
-| Optimization | 1 | `scripts/optimization/` |
-| Setup | 1 | `scripts/setup/` |
-| Analysis | 2 | `scripts/analysis/` |
-| Misc | ~20+ | `scripts/misc/` |
-| **ИТОГО** | **~40+** | |
+| Категория    | Файлов перемещено | Куда                    |
+| ------------ | ----------------- | ----------------------- |
+| Backups      | ~10+              | `archive/backups/`      |
+| Indicators   | 2                 | `src/indicators/`       |
+| Patterns     | 1                 | `src/patterns/`         |
+| Filters      | 1                 | `src/filters/`          |
+| ML           | 1                 | `scripts/ml/`           |
+| Recovery     | 3                 | `scripts/recovery/`     |
+| Optimization | 1                 | `scripts/optimization/` |
+| Setup        | 1                 | `scripts/setup/`        |
+| Analysis     | 2                 | `scripts/analysis/`     |
+| Misc         | ~20+              | `scripts/misc/`         |
+| **ИТОГО**    | **~40+**          |                         |
 
 ---
 
@@ -141,4 +153,3 @@ atra/
 ---
 
 **Команда из 13 экспертов:** ✅ **ОЧИСТКА ЗАВЕРШЕНА УСПЕШНО**
-

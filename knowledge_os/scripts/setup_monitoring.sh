@@ -49,4 +49,3 @@ echo "  - Логи мониторинга: /root/knowledge_os/logs/monitor.log"
 echo ""
 echo "🧪 Тестовый запуск мониторинга:"
 echo "  cd /root/knowledge_os && python3 app/enhanced_monitor.py"
-

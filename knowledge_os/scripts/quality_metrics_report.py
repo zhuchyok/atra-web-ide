@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Отчёт по качеству фильтров сигналов (False Breakout + MTF confirmation).
 
@@ -27,28 +26,36 @@ def _print_section(title: str, summary: Dict[str, Any]) -> None:
     print(f"Интервал: последние {summary.get('window_hours')} ч.")
     print(f"Всего событий: {summary.get('total_events')}")
 
-    if 'pass_rate' in summary:
-        pass_rate = summary.get('pass_rate')
-        print(f"Доля прошедших: {pass_rate:.2%}" if pass_rate is not None else "Доля прошедших: неизвестно")
+    if "pass_rate" in summary:
+        pass_rate = summary.get("pass_rate")
+        print(
+            f"Доля прошедших: {pass_rate:.2%}"
+            if pass_rate is not None
+            else "Доля прошедших: неизвестно"
+        )
         print(f"Средняя уверенность: {summary.get('avg_confidence')}")
         print(f"Средний порог: {summary.get('avg_threshold')}")
         print(f"Средняя волатильность (%): {summary.get('avg_volatility_pct')}")
         print(f"Средний recent pass-rate: {summary.get('avg_recent_pass_rate')}")
     else:
-        conf_rate = summary.get('confirmation_rate')
-        err_rate = summary.get('error_rate')
-        print(f"Доля подтверждений: {conf_rate:.2%}" if conf_rate is not None else "Доля подтверждений: неизвестно")
+        conf_rate = summary.get("confirmation_rate")
+        err_rate = summary.get("error_rate")
+        print(
+            f"Доля подтверждений: {conf_rate:.2%}"
+            if conf_rate is not None
+            else "Доля подтверждений: неизвестно"
+        )
         print(f"Доля ошибок: {err_rate:.2%}" if err_rate is not None else "Доля ошибок: неизвестно")
 
-    breakdown = summary.get('regime_breakdown') or []
+    breakdown = summary.get("regime_breakdown") or []
     if breakdown:
         print("\nРазбивка по режимам:")
         for item in breakdown:
-            if 'pass_rate' in item:
-                rate = item.get('pass_rate')
+            if "pass_rate" in item:
+                rate = item.get("pass_rate")
                 rate_str = f"{rate:.2%}" if rate is not None else "n/a"
             else:
-                rate = item.get('confirmation_rate')
+                rate = item.get("confirmation_rate")
                 rate_str = f"{rate:.2%}" if rate is not None else "n/a"
             print(f"  • {item.get('regime'):<16} | total={item.get('total'):>4} | rate={rate_str}")
 
@@ -75,7 +82,13 @@ def main() -> None:
     mtf_summary = db.get_mtf_confirmation_summary(hours=args.hours)
 
     if args.json:
-        print(json.dumps({"false_breakout": fb_summary, "mtf_confirmation": mtf_summary}, ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"false_breakout": fb_summary, "mtf_confirmation": mtf_summary},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return
 
     _print_section("False Breakout Detector", fb_summary)
@@ -84,4 +97,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

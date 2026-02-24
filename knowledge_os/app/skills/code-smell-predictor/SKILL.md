@@ -4,7 +4,7 @@ description: Code Smell Predictor - предсказание багов на 30 
 category: quality
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔮"}}
+metadata: { "clawdbot": { "requires": { "bins": ["python"] }, "emoji": "🔮" } }
 ---
 
 # Code Smell Predictor Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔮"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Предсказания потенциальных багов
 - Проактивного исправления проблем
 - Улучшения качества кода
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "🔮"}}
 ## Методология
 
 Code Smell Predictor работает через:
+
 1. **Code Analysis** - Анализ кода
 2. **Pattern Recognition** - Распознавание паттернов code smells
 3. **ML Prediction** - ML предсказание багов

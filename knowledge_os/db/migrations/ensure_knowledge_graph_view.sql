@@ -1,6 +1,6 @@
 -- Создать представление knowledge_graph_view, если отсутствует (миграция add_knowledge_links_table могла не дойти до VIEW из-за триггера).
 CREATE OR REPLACE VIEW knowledge_graph_view AS
-SELECT 
+SELECT
     kl.id as link_id,
     kl.source_node_id,
     kl.target_node_id,

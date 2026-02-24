@@ -3,6 +3,7 @@ ApprovalManager — проверка необходимости подтверж
 Фаза 2 (упрощённая): при AGENT_APPROVAL_REQUIRED=true — отказ в записи в критичные файлы.
 Полный flow (pause/resume, UI) — отдельная итерация.
 """
+
 import logging
 import os
 from pathlib import Path

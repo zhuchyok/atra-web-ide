@@ -57,17 +57,17 @@ ERRORS=0
 # Функция для проверки, является ли директория проектом
 is_project() {
     local dir="$1"
-    
+
     # Пропускаем скрытые директории и системные
     if [[ "$(basename "$dir")" =~ ^\. ]]; then
         return 1
     fi
-    
+
     # Пропускаем node_modules, venv, .git и т.д.
     if [[ "$(basename "$dir")" =~ ^(node_modules|venv|\.git|\.venv|__pycache__|\.cache|target|dist|build)$ ]]; then
         return 1
     fi
-    
+
     # Проверяем признаки проекта
     if [ -f "$dir/.git/config" ] || \
        [ -f "$dir/package.json" ] || \
@@ -80,14 +80,14 @@ is_project() {
        [ -f "$dir/README.md" ]; then
         return 0
     fi
-    
+
     return 1
 }
 
 # Функция для извлечения универсальных правил из файла
 extract_universal_rules() {
     local file="$1"
-    
+
     # Ищем начало универсальных правил
     awk '/## 🌍 УНИВЕРСАЛЬНЫЕ ПРАВИЛА/,/^---$/' "$file" 2>/dev/null || echo ""
 }
@@ -97,19 +97,19 @@ sync_project_rules() {
     local project_path="$1"
     local project_name=$(basename "$project_path")
     local cursor_rules_file="$project_path/.cursorrules"
-    
+
     TOTAL_PROJECTS=$((TOTAL_PROJECTS + 1))
-    
+
     # Если нет .cursorrules, пропускаем (должен быть создан через init-cursor-rules.sh)
     if [ ! -f "$cursor_rules_file" ]; then
         echo -e "${YELLOW}⏭️  $project_name - нет .cursorrules, пропускаем${NC}"
         SKIPPED=$((SKIPPED + 1))
         return 0
     fi
-    
+
     # Читаем универсальные правила
     UNIVERSAL_CONTENT=$(cat "$UNIVERSAL_RULES_PATH")
-    
+
     # Определяем тип проекта
     detect_project_type() {
         local path="$1"
@@ -127,17 +127,17 @@ sync_project_rules() {
             echo "generic"
         fi
     }
-    
+
     PROJECT_TYPE=$(detect_project_type "$project_path")
     PROJECT_NAME=$(basename "$project_path")
-    
+
     # Создаем резервную копию
     BACKUP_FILE="${cursor_rules_file}.backup.$(date +%Y%m%d_%H%M%S)"
     cp "$cursor_rules_file" "$BACKUP_FILE" 2>/dev/null || true
-    
+
     # Извлекаем специфичные правила из существующего файла (все что после "## 🎯 СПЕЦИФИЧНЫЕ")
     SPECIFIC_RULES=$(awk '/## 🎯 СПЕЦИФИЧНЫЕ/,0' "$cursor_rules_file" 2>/dev/null || echo "")
-    
+
     # Если специфичных правил нет, создаем шаблон
     if [ -z "$SPECIFIC_RULES" ] || [ "$SPECIFIC_RULES" = "" ]; then
         SPECIFIC_RULES="# 🎯 СПЕЦИФИЧНЫЕ ДЛЯ ПРОЕКТА ПРАВИЛА
@@ -172,7 +172,7 @@ sync_project_rules() {
 **Версия универсальных правил:** $(md5sum "$UNIVERSAL_RULES_PATH" 2>/dev/null | cut -d' ' -f1 || md5 -q "$UNIVERSAL_RULES_PATH" 2>/dev/null || echo "unknown")
 "
     fi
-    
+
     # Создаем новый .cursorrules с обновленными универсальными правилами
     cat > "$cursor_rules_file" << EOF
 ---
@@ -190,7 +190,7 @@ $UNIVERSAL_CONTENT
 
 $SPECIFIC_RULES
 EOF
-    
+
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ $project_name - правила синхронизированы${NC}"
         SYNCED=$((SYNCED + 1))
@@ -213,19 +213,19 @@ find_projects() {
     local dir="$1"
     local depth="${2:-0}"
     local max_depth="${3:-3}"  # Максимальная глубина поиска
-    
+
     # Ограничиваем глубину поиска
     if [ "$depth" -ge "$max_depth" ]; then
         return
     fi
-    
+
     # Обрабатываем текущую директорию
     if is_project "$dir"; then
         sync_project_rules "$dir"
         # Если нашли проект, не идем глубже
         return
     fi
-    
+
     # Рекурсивно ищем в поддиректориях
     if [ -d "$dir" ]; then
         for subdir in "$dir"/*; do
@@ -270,4 +270,3 @@ if [ $ERRORS -gt 0 ]; then
 fi
 
 exit 0
-

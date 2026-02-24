@@ -54,10 +54,12 @@ class ContinuousWorkflowRunner:
     async def _execute_step(self, step: str) -> None:
         handlers: Dict[str, asyncio.coroutine] = {
             "analyze_performance": self._cmd_quant("analyze_current_performance"),
-            "generate_improvements": self._sequence([
-                self._cmd_quant("suggest_strategy_improvements"),
-                self._cmd_trader("validate_improvements"),
-            ]),
+            "generate_improvements": self._sequence(
+                [
+                    self._cmd_quant("suggest_strategy_improvements"),
+                    self._cmd_trader("validate_improvements"),
+                ]
+            ),
             "implement_changes": self._cmd_quant("implement_optimizations"),
             "run_backtests": self._cmd_quant("run_backtest_suite"),
             "deploy_to_staging": self._cmd_devops("deploy_strategy_updates"),
@@ -101,6 +103,7 @@ class ContinuousWorkflowRunner:
         async def _runner() -> None:
             for task in tasks:
                 await task()
+
         return _runner
 
     def _cursor_cmd(self, command: str) -> asyncio.coroutine:
@@ -116,6 +119,7 @@ class ContinuousWorkflowRunner:
                 )
             except FileNotFoundError:
                 LOGGER.warning("Cursor CLI not available. Skipping command %s", command)
+
         return _runner
 
     async def run_continuous_loop(self) -> None:

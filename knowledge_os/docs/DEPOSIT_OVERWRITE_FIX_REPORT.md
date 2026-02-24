@@ -13,6 +13,7 @@
 3. **`telegram_bot.py:5258`** - строка `free_deposit = 0` при ошибках
 
 ### Логика проблемы:
+
 ```python
 # В функции recalculate_balance_and_risks:
 deposit = user_data.get("deposit", 0)  # Получаем оригинальный депозит
@@ -26,6 +27,7 @@ user_data["deposit"] = updated_deposit  # ❌ ПЕРЕЗАПИСЫВАЕМ ОР�
 ### 1. Исправлена функция `recalculate_balance_and_risks`
 
 **Удалена строка перезаписи:**
+
 ```python
 # БЫЛО:
 user_data["deposit"] = updated_deposit
@@ -35,6 +37,7 @@ user_data["deposit"] = updated_deposit
 ```
 
 **Улучшена обработка ошибок:**
+
 ```python
 # БЫЛО:
 if not isinstance(deposit, (int, float)) or deposit < 0:
@@ -46,6 +49,7 @@ if not isinstance(deposit, (int, float)) or deposit < 0:
 ```
 
 **Исправлен расчет free_deposit:**
+
 ```python
 # БЫЛО:
 else:
@@ -68,6 +72,7 @@ save_user_data_to_file(user_id, user_data)
 **Файл:** `fix_all_users_deposit_issue.py`
 
 **Функциональность:**
+
 - Проверяет всех пользователей в `user_data.json`
 - Исправляет несоответствия между `deposit` и `free_deposit`
 - Добавляет недостающие поля
@@ -77,10 +82,12 @@ save_user_data_to_file(user_id, user_data)
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### До исправления:
+
 - Пользователь 556251171: `deposit: 0`, `free_deposit: 0`
 - Пользователь 958930260: `deposit: 1000`, `free_deposit: 1000`
 
 ### После исправления:
+
 - Пользователь 556251171: `deposit: 10000`, `free_deposit: 10000`
 - Пользователь 958930260: `deposit: 1000`, `free_deposit: 1000`
 
@@ -107,5 +114,6 @@ save_user_data_to_file(user_id, user_data)
 4. **Валидация:** Добавить проверки целостности данных при загрузке
 
 ---
-*Отчет создан: 30.07.2025*
-*Статус: ЗАВЕРШЕНО*
+
+_Отчет создан: 30.07.2025_
+_Статус: ЗАВЕРШЕНО_

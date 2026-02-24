@@ -9,13 +9,16 @@
 ## 🔥 КРИТИЧНЫЕ ЗАДАЧИ (Приоритет 1)
 
 ### **1. ДМИТРИЙ: SHAP для интерпретации моделей** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Интерпретация моделей
 
 #### **Задача:**
+
 Добавить SHAP для интерпретации ML моделей.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: ml/shap_explainer.py
 import shap
@@ -26,12 +29,12 @@ class SHAPExplainer:
     def __init__(self, predictor: LightGBMPredictor):
         self.predictor = predictor
         self.explainer = None
-    
+
     def fit(self, X_train):
         """Обучает SHAP explainer"""
         if self.predictor.classifier:
             self.explainer = shap.TreeExplainer(self.predictor.classifier)
-    
+
     def explain(self, X):
         """Объясняет предсказания"""
         shap_values = self.explainer.shap_values(X)
@@ -43,13 +46,16 @@ class SHAPExplainer:
 ---
 
 ### **2. МАКСИМ: Monte Carlo Simulation** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Stress testing
 
 #### **Задача:**
+
 Реализовать Monte Carlo simulation для stress testing.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: risk/monte_carlo.py
 def monte_carlo_simulation(
@@ -67,13 +73,16 @@ def monte_carlo_simulation(
 ---
 
 ### **3. ИГОРЬ: Cython Optimization** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Ускорение на 30-40%
 
 #### **Задача:**
+
 Оптимизировать критичные функции с Cython.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: optimizations/cython_utils.pyx
 # Cython код для ускорения
@@ -84,19 +93,23 @@ def monte_carlo_simulation(
 ---
 
 ### **4. СЕРГЕЙ: Auto-scaling Configuration** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Улучшение reliability
 
 #### **Задача:**
+
 Настроить auto-scaling для системы.
 
 ---
 
 ### **5. АННА: Self-Healing Tests** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Улучшение качества тестов
 
 #### **Задача:**
+
 Внедрить self-healing механизм для тестов.
 
 ---
@@ -105,5 +118,4 @@ def monte_carlo_simulation(
 
 **Финальные задачи готовы к выполнению!** 🚀
 
-*Задачи созданы: Виктор (Team Lead)*
-
+_Задачи созданы: Виктор (Team Lead)_

@@ -19,4 +19,3 @@ COMMENT ON TABLE user_style_profiles IS 'Стилевые профили пол�
 COMMENT ON COLUMN user_style_profiles.style_vector IS 'Embedding вектор стиля пользователя (для cosine similarity)';
 COMMENT ON COLUMN user_style_profiles.preferences IS 'JSON с предпочтениями стиля: naming_convention, error_handling, testing_style, documentation_style, code_structure, variable_naming, function_style';
 COMMENT ON COLUMN user_style_profiles.similarity_score IS 'Cosine similarity между стилем пользователя и эталонным стилем (для метрик)';
-

@@ -1,164 +1,180 @@
-import { writable, derived } from 'svelte/store'
+import { writable, derived } from "svelte/store";
 
 // Дерево файлов
-export const fileTree = writable([])
+export const fileTree = writable([]);
 
 // Текущий открытый файл
-export const currentFile = writable(null)
+export const currentFile = writable(null);
 
 // Открытые файлы (табы)
-export const openFiles = writable([])
+export const openFiles = writable([]);
 
 // Содержимое файлов (кэш)
-export const fileContents = writable({})
+export const fileContents = writable({});
 
 // Несохранённые изменения
-export const unsavedChanges = writable({})
+export const unsavedChanges = writable({});
 
 // Загрузить дерево файлов
-export async function loadFileTree(path = '') {
+export async function loadFileTree(path = "") {
   try {
-    const response = await fetch(`/api/files/list?path=${encodeURIComponent(path)}`)
+    // Используем порт 8081 для Rust Gateway
+    const response = await fetch(
+      `http://${window.location.hostname}:8081/api/files/list_v2?path=${encodeURIComponent(path)}`,
+    );
     if (response.ok) {
-      const data = await response.json()
-      if (path === '') {
+      const data = await response.json();
+      if (path === "") {
         // Корневой уровень - обновляем всё дерево
-        fileTree.set(data)
+        fileTree.set(data);
       }
       // Возвращаем данные для вложенных директорий
-      return data
+      return data;
     }
   } catch (e) {
-    console.error('Failed to load file tree:', e)
+    console.error("Failed to load file tree:", e);
   }
-  return []
+  return [];
 }
 
 // Загрузить файл
 export async function loadFile(filePath) {
   try {
-    const response = await fetch(`/api/files/read?path=${encodeURIComponent(filePath)}`)
+    const response = await fetch(
+      `http://${window.location.hostname}:8081/api/files/read_v2?path=${encodeURIComponent(filePath)}`,
+    );
     if (response.ok) {
-      const data = await response.json()
-      
+      const data = await response.json();
+
       // Обновить кэш
-      fileContents.update(cache => ({
+      fileContents.update((cache) => ({
         ...cache,
-        [filePath]: data.content
-      }))
-      
+        [filePath]: data.content,
+      }));
+
       // Установить текущий файл
-      const fileName = filePath.split('/').pop()
+      const fileName = filePath.split("/").pop();
       currentFile.set({
         name: fileName,
         path: filePath,
-        content: data.content
-      })
-      
+        content: data.content,
+      });
+
       // Добавить в открытые файлы
-      openFiles.update(files => {
-        if (!files.find(f => f.path === filePath)) {
-          return [...files, { name: fileName, path: filePath }]
+      openFiles.update((files) => {
+        if (!files.find((f) => f.path === filePath)) {
+          return [...files, { name: fileName, path: filePath }];
         }
-        return files
-      })
-      
-      return data.content
+        return files;
+      });
+
+      return data.content;
     }
   } catch (e) {
-    console.error('Failed to load file:', e)
+    console.error("Failed to load file:", e);
   }
-  return null
+  return null;
 }
 
 // Сохранить файл
 export async function saveFile(filePath, content) {
   try {
-    const response = await fetch(`/api/files/write?path=${encodeURIComponent(filePath)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
+    const response = await fetch(
+      `http://${window.location.hostname}:8081/api/files/write_v2`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ path: filePath, content }),
       },
-      body: JSON.stringify({ content })
-    })
-    
+    );
+
     if (response.ok) {
       // Убрать из несохранённых
-      unsavedChanges.update(changes => {
-        const { [filePath]: _, ...rest } = changes
-        return rest
-      })
-      
+      unsavedChanges.update((changes) => {
+        const { [filePath]: _, ...rest } = changes;
+        return rest;
+      });
+
       // Обновить кэш
-      fileContents.update(cache => ({
+      fileContents.update((cache) => ({
         ...cache,
-        [filePath]: content
-      }))
-      
-      return true
+        [filePath]: content,
+      }));
+
+      return true;
     }
   } catch (e) {
-    console.error('Failed to save file:', e)
+    console.error("Failed to save file:", e);
   }
-  return false
+  return false;
 }
 
 // Создать файл
-export async function createFile(path, type = 'file', content = '') {
+export async function createFile(path, type = "file", content = "") {
   try {
-    const response = await fetch(`/api/files/create?path=${encodeURIComponent(path)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
+    // Используем порт 8081 для Rust Gateway
+    const response = await fetch(
+      `http://${window.location.hostname}:8081/api/files/create_v2`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ path, type, content }),
       },
-      body: JSON.stringify({ type, content })
-    })
-    
+    );
+
     if (response.ok) {
       // Перезагрузить дерево
-      await loadFileTree()
-      return true
+      await loadFileTree();
+      return true;
     }
   } catch (e) {
-    console.error('Failed to create file:', e)
+    console.error("Failed to create file:", e);
   }
-  return false
+  return false;
 }
 
 // Удалить файл
 export async function deleteFile(path) {
   try {
-    const response = await fetch(`/api/files/delete?path=${encodeURIComponent(path)}`, {
-      method: 'DELETE'
-    })
-    
+    // Используем порт 8081 для Rust Gateway
+    const response = await fetch(
+      `http://${window.location.hostname}:8081/api/files/delete_v2?path=${encodeURIComponent(path)}`,
+      {
+        method: "DELETE",
+      },
+    );
+
     if (response.ok) {
       // Убрать из открытых
-      openFiles.update(files => files.filter(f => f.path !== path))
-      
+      openFiles.update((files) => files.filter((f) => f.path !== path));
+
       // Если это текущий файл, сбросить
-      currentFile.update(file => file?.path === path ? null : file)
-      
+      currentFile.update((file) => (file?.path === path ? null : file));
+
       // Перезагрузить дерево
-      await loadFileTree()
-      return true
+      await loadFileTree();
+      return true;
     }
   } catch (e) {
-    console.error('Failed to delete file:', e)
+    console.error("Failed to delete file:", e);
   }
-  return false
+  return false;
 }
 
 // Отметить изменения
 export function markUnsaved(filePath, content) {
-  unsavedChanges.update(changes => ({
+  unsavedChanges.update((changes) => ({
     ...changes,
-    [filePath]: content
-  }))
+    [filePath]: content,
+  }));
 }
 
 // Закрыть файл
 export function closeFile(filePath) {
-  openFiles.update(files => files.filter(f => f.path !== filePath))
-  currentFile.update(file => file?.path === filePath ? null : file)
+  openFiles.update((files) => files.filter((f) => f.path !== filePath));
+  currentFile.update((file) => (file?.path === filePath ? null : file));
 }

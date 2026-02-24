@@ -1,6 +1,6 @@
 import asyncio
-import os
 import json
+import os
 import subprocess
 import sys
 
@@ -12,6 +12,7 @@ try:
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "asyncpg"])
     import asyncpg
+
 
 async def main():
     conn_str = "postgresql://admin:secret@127.0.0.1:5432/knowledge_os"
@@ -31,36 +32,43 @@ async def main():
             WHERE t.status = 'pending' AND t.title LIKE '%2026%'
             LIMIT 5
         """)
-        
+
         if not tasks:
             print("No 2026 research tasks found. Waiting...")
             await asyncio.sleep(30)
             continue
-            
+
         print(f"Found {len(tasks)} tasks. Starting processing...")
         for t in tasks:
-            t_id = t['id']
-            name = t['expert_name']
+            t_id = t["id"]
+            name = t["expert_name"]
             print(f"Processing {t['title']} by {name}...")
-            
+
             # Start
             await pool.execute("UPDATE tasks SET status = 'in_progress' WHERE id = $1", t_id)
-            await asyncio.sleep(3) # Real work simulation
-            
+            await asyncio.sleep(3)  # Real work simulation
+
             # Complete
             res = f"Gained critical insights for 2026 in {name}'s field. System capital increased."
-            await pool.execute("UPDATE tasks SET status = 'completed', result = $2 WHERE id = $1", t_id, res)
-            
+            await pool.execute(
+                "UPDATE tasks SET status = 'completed', result = $2 WHERE id = $1", t_id, res
+            )
+
             # Add knowledge
-            await pool.execute("""
+            await pool.execute(
+                """
                 INSERT INTO knowledge_nodes (domain_id, content, metadata, confidence_score)
                 SELECT (SELECT domain_id FROM experts WHERE name = $1 LIMIT 1), $2, $3, 0.99
-            """, name, res, json.dumps({"source": "force_worker", "year": 2026}))
-            
+            """,
+                name,
+                res,
+                json.dumps({"source": "force_worker", "year": 2026}),
+            )
+
             print(f"Task {t_id} DONE.")
-            
+
         await asyncio.sleep(5)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
-

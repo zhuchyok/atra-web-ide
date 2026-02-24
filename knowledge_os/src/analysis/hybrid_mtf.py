@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Hybrid MTF Confirmation - гибридная система подтверждения на нескольких таймфреймах
@@ -8,7 +7,7 @@ Hybrid MTF Confirmation - гибридная система подтвержде
 """
 
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 import pandas as pd
 
@@ -24,7 +23,7 @@ class HybridMTFConfirmation:
 
     def __init__(self, config: Dict):
         self.config = config
-        self.mtf_config = config.get('HYBRID_MTF_CONFIG', {})
+        self.mtf_config = config.get("HYBRID_MTF_CONFIG", {})
 
     def _validate_dataframe(self, df: pd.DataFrame, min_rows: int = 10, symbol: str = "") -> bool:
         """
@@ -50,17 +49,17 @@ class HybridMTFConfirmation:
             logger.warning("⚠️ %s: Недостаточно строк (%d < %d)", symbol, len(df), min_rows)
             return False
 
-        if 'close' not in df.columns:
+        if "close" not in df.columns:
             logger.warning("⚠️ %s: Отсутствует колонка 'close'", symbol)
             return False
 
         # Проверка на NaN
-        if df['close'].isna().any():
+        if df["close"].isna().any():
             logger.warning("⚠️ %s: Обнаружены NaN значения в 'close'", symbol)
             return False
 
         # Проверка на некорректные значения
-        if (df['close'] <= 0).any():
+        if (df["close"] <= 0).any():
             logger.warning("⚠️ %s: Обнаружены некорректные цены (<= 0)", symbol)
             return False
 
@@ -72,7 +71,7 @@ class HybridMTFConfirmation:
         signal_type: str,
         df_h4: pd.DataFrame,
         df_h1: pd.DataFrame,
-        market_context: Optional[Dict] = None
+        market_context: Optional[Dict] = None,
     ) -> Tuple[bool, float, Dict]:
         """
         Гибридная проверка MTF подтверждения
@@ -92,7 +91,7 @@ class HybridMTFConfirmation:
         try:
             # Валидация данных
             if not self._validate_dataframe(df_h4, min_rows=15, symbol=f"{symbol} H4"):
-                return False, 0.0, {'error': 'invalid_h4_data'}
+                return False, 0.0, {"error": "invalid_h4_data"}
 
             if not self._validate_dataframe(df_h1, min_rows=30, symbol=f"{symbol} H1"):
                 # H1 не критичен, используем только H4
@@ -102,7 +101,7 @@ class HybridMTFConfirmation:
                     h1_trend_strength = 0.2  # Минимальный тренд для fallback
                 else:
                     h1_trend_strength = 0.5  # Нейтральный для LONG
-                h1_details = {'error': 'insufficient_h1_data'}
+                h1_details = {"error": "insufficient_h1_data"}
             else:
                 h1_trend_strength, h1_details = self._analyze_h1_trend_strength(
                     symbol, signal_type, df_h1
@@ -121,25 +120,31 @@ class HybridMTFConfirmation:
                 h4_confirmed, h4_confidence, h1_trend_strength, market_momentum, signal_type
             )
 
-            final_confidence = hybrid_result['confidence']
-            final_confirmed = hybrid_result['confirmed']
+            final_confidence = hybrid_result["confidence"]
+            final_confirmed = hybrid_result["confirmed"]
 
             details = {
-                'primary_tf': '4h',
-                'h4_confidence': h4_confidence,
-                'h4_confirmed': h4_confirmed,
-                'h1_trend_strength': h1_trend_strength,
-                'market_momentum': market_momentum,
-                'hybrid_boost': hybrid_result['boost_applied'],
-                'final_confidence': final_confidence,
-                'reason': hybrid_result['reason'],
-                'h4_details': h4_details,
-                'h1_details': h1_details
+                "primary_tf": "4h",
+                "h4_confidence": h4_confidence,
+                "h4_confirmed": h4_confirmed,
+                "h1_trend_strength": h1_trend_strength,
+                "market_momentum": market_momentum,
+                "hybrid_boost": hybrid_result["boost_applied"],
+                "final_confidence": final_confidence,
+                "reason": hybrid_result["reason"],
+                "h4_details": h4_details,
+                "h1_details": h1_details,
             }
 
-            logger.info("🎯 Гибридный MTF %s %s: H4=%.2f, H1=%.2f, market=%.2f, final=%.2f",
-                       symbol, signal_type, h4_confidence, h1_trend_strength,
-                       market_momentum, final_confidence)
+            logger.info(
+                "🎯 Гибридный MTF %s %s: H4=%.2f, H1=%.2f, market=%.2f, final=%.2f",
+                symbol,
+                signal_type,
+                h4_confidence,
+                h1_trend_strength,
+                market_momentum,
+                final_confidence,
+            )
 
             return final_confirmed, final_confidence, details
 
@@ -153,33 +158,30 @@ class HybridMTFConfirmation:
                 return h4_confirmed, h4_confidence, h4_details
             except Exception as fallback_error:
                 logger.error("❌ Fallback также не сработал: %s", fallback_error)
-                return False, 0.0, {'error': str(e), 'fallback_error': str(fallback_error)}
+                return False, 0.0, {"error": str(e), "fallback_error": str(fallback_error)}
 
     async def _check_h4_confirmation(
-        self,
-        symbol: str,
-        signal_type: str,
-        df_h4: pd.DataFrame
+        self, symbol: str, signal_type: str, df_h4: pd.DataFrame
     ) -> Tuple[bool, float, Dict]:
         """Проверка подтверждения на 4h таймфрейме"""
         try:
             # Дополнительная валидация
             if not self._validate_dataframe(df_h4, min_rows=15, symbol=symbol):
-                return False, 0.0, {'error': 'insufficient_h4_data'}
+                return False, 0.0, {"error": "insufficient_h4_data"}
 
             # Проверка длины перед iloc
             if len(df_h4) < 1:
-                return False, 0.0, {'error': 'empty_dataframe'}
+                return False, 0.0, {"error": "empty_dataframe"}
 
-            current_price = float(df_h4['close'].iloc[-1])
+            current_price = float(df_h4["close"].iloc[-1])
 
             # EMA расчеты для 4h
-            ema_fast = float(df_h4['close'].ewm(span=8).mean().iloc[-1])
-            ema_slow = float(df_h4['close'].ewm(span=21).mean().iloc[-1])
+            ema_fast = float(df_h4["close"].ewm(span=8).mean().iloc[-1])
+            ema_slow = float(df_h4["close"].ewm(span=21).mean().iloc[-1])
 
             # MACD для 4h
-            exp1 = df_h4['close'].ewm(span=12).mean()
-            exp2 = df_h4['close'].ewm(span=26).mean()
+            exp1 = df_h4["close"].ewm(span=12).mean()
+            exp2 = df_h4["close"].ewm(span=26).mean()
             macd = exp1 - exp2
             signal_line = macd.ewm(span=9).mean()
             macd_histogram = macd - signal_line
@@ -275,50 +277,49 @@ class HybridMTFConfirmation:
             # Минимальный порог уверенности для 4h
             # 🔧 ИСПРАВЛЕНО: Для SHORT сигналов используем более мягкий порог
             if signal_type.upper() == "SHORT":
-                min_confidence = self.mtf_config.get('min_h4_confidence_short', 0.4)  # Снижено с 0.6 для SHORT
+                min_confidence = self.mtf_config.get(
+                    "min_h4_confidence_short", 0.4
+                )  # Снижено с 0.6 для SHORT
             else:
-                min_confidence = self.mtf_config.get('min_h4_confidence', 0.6)
+                min_confidence = self.mtf_config.get("min_h4_confidence", 0.6)
             confirmed = confirmed and confidence >= min_confidence
 
             details = {
-                'confidence': confidence,
-                'ema_fast': ema_fast,
-                'ema_slow': ema_slow,
-                'macd': current_macd,
-                'macd_signal': current_signal,
-                'macd_histogram': current_histogram,
-                'reason': reason
+                "confidence": confidence,
+                "ema_fast": ema_fast,
+                "ema_slow": ema_slow,
+                "macd": current_macd,
+                "macd_signal": current_signal,
+                "macd_histogram": current_histogram,
+                "reason": reason,
             }
 
             return confirmed, confidence, details
 
         except Exception as e:
             logger.error("❌ Ошибка 4h подтверждения для %s: %s", symbol, e, exc_info=True)
-            return False, 0.0, {'error': str(e)}
+            return False, 0.0, {"error": str(e)}
 
     def _analyze_h1_trend_strength(
-        self,
-        symbol: str,
-        signal_type: str,
-        df_h1: pd.DataFrame
+        self, symbol: str, signal_type: str, df_h1: pd.DataFrame
     ) -> Tuple[float, Dict]:
         """Анализ силы тренда на H1 для компенсации"""
         try:
             if not self._validate_dataframe(df_h1, min_rows=30, symbol=symbol):
-                return 0.5, {'error': 'insufficient_h1_data'}
+                return 0.5, {"error": "insufficient_h1_data"}
 
             if len(df_h1) < 1:
-                return 0.5, {'error': 'empty_dataframe'}
+                return 0.5, {"error": "empty_dataframe"}
 
-            current_price = float(df_h1['close'].iloc[-1])
+            current_price = float(df_h1["close"].iloc[-1])
 
             # Быстрые EMA для H1
-            ema_9 = float(df_h1['close'].ewm(span=9).mean().iloc[-1])
-            ema_21 = float(df_h1['close'].ewm(span=21).mean().iloc[-1])
-            ema_50 = float(df_h1['close'].ewm(span=50).mean().iloc[-1])
+            ema_9 = float(df_h1["close"].ewm(span=9).mean().iloc[-1])
+            ema_21 = float(df_h1["close"].ewm(span=21).mean().iloc[-1])
+            ema_50 = float(df_h1["close"].ewm(span=50).mean().iloc[-1])
 
             # RSI для импульса
-            delta = df_h1['close'].diff()
+            delta = df_h1["close"].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
 
@@ -327,12 +328,12 @@ class HybridMTFConfirmation:
             rsi = 100 - (100 / (1 + rs)).iloc[-1]
 
             # Объемный анализ
-            volume_sma = float(df_h1['volume'].rolling(20).mean().iloc[-1])
-            current_volume = float(df_h1['volume'].iloc[-1])
+            volume_sma = float(df_h1["volume"].rolling(20).mean().iloc[-1])
+            current_volume = float(df_h1["volume"].iloc[-1])
             volume_ratio = current_volume / (volume_sma + 1e-10) if volume_sma > 0 else 1.0
 
             # Волатильность на H1
-            atr = float((df_h1['high'] - df_h1['low']).rolling(14).mean().iloc[-1])
+            atr = float((df_h1["high"] - df_h1["low"]).rolling(14).mean().iloc[-1])
             atr_pct = atr / (current_price + 1e-10) if current_price > 0 else 0
 
             trend_strength = 0.0
@@ -381,14 +382,14 @@ class HybridMTFConfirmation:
                     trend_strength = 0.2  # Минимум 0.2 вместо 0.0
 
                 details = {
-                    'price_above_ema9': current_price > ema_9,
-                    'ema9_above_ema21': ema_9 > ema_21,
-                    'ema21_above_ema50': ema_21 > ema_50,
-                    'rsi_bullish': rsi > 50,
-                    'rsi_strong_bullish': rsi > 60,
-                    'volume_boost': volume_ratio,
-                    'rsi_value': rsi,
-                    'atr_pct': atr_pct
+                    "price_above_ema9": current_price > ema_9,
+                    "ema9_above_ema21": ema_9 > ema_21,
+                    "ema21_above_ema50": ema_21 > ema_50,
+                    "rsi_bullish": rsi > 50,
+                    "rsi_strong_bullish": rsi > 60,
+                    "volume_boost": volume_ratio,
+                    "rsi_value": rsi,
+                    "atr_pct": atr_pct,
                 }
 
             elif signal_type.upper() == "SHORT":
@@ -434,23 +435,23 @@ class HybridMTFConfirmation:
                     trend_strength = 0.2  # Минимум 0.2 вместо 0.0
 
                 details = {
-                    'price_below_ema9': current_price < ema_9,
-                    'ema9_below_ema21': ema_9 < ema_21,
-                    'ema21_below_ema50': ema_21 < ema_50,
-                    'rsi_bearish': rsi < 50,
-                    'rsi_strong_bearish': rsi < 40,
-                    'volume_boost': volume_ratio,
-                    'rsi_value': rsi,
-                    'atr_pct': atr_pct,
-                    'bearish_conditions': bearish_conditions,
-                    'trend_strength': trend_strength
+                    "price_below_ema9": current_price < ema_9,
+                    "ema9_below_ema21": ema_9 < ema_21,
+                    "ema21_below_ema50": ema_21 < ema_50,
+                    "rsi_bearish": rsi < 50,
+                    "rsi_strong_bearish": rsi < 40,
+                    "volume_boost": volume_ratio,
+                    "rsi_value": rsi,
+                    "atr_pct": atr_pct,
+                    "bearish_conditions": bearish_conditions,
+                    "trend_strength": trend_strength,
                 }
 
             return trend_strength, details
 
         except Exception as e:
             logger.error("❌ Ошибка анализа H1 тренда для %s: %s", symbol, e, exc_info=True)
-            return 0.5, {'error': str(e)}
+            return 0.5, {"error": str(e)}
 
     def _analyze_market_momentum(self, market_context: Optional[Dict]) -> float:
         """
@@ -462,11 +463,11 @@ class HybridMTFConfirmation:
                 return 0.5
 
             # Анализ роста основных активов
-            btc_change_12h = market_context.get('btc_change_12h', 0)
-            eth_change_12h = market_context.get('eth_change_12h', 0)
-            sol_change_12h = market_context.get('sol_change_12h', 0)  # ✅ ДОБАВЛЕНО
-            market_regime = market_context.get('market_regime', 'NEUTRAL')
-            overall_trend = market_context.get('overall_trend', 'NEUTRAL')
+            btc_change_12h = market_context.get("btc_change_12h", 0)
+            eth_change_12h = market_context.get("eth_change_12h", 0)
+            sol_change_12h = market_context.get("sol_change_12h", 0)  # ✅ ДОБАВЛЕНО
+            market_regime = market_context.get("market_regime", "NEUTRAL")
+            overall_trend = market_context.get("overall_trend", "NEUTRAL")
 
             momentum_score = 0.5  # Нейтральный
 
@@ -507,9 +508,9 @@ class HybridMTFConfirmation:
                 momentum_score -= 0.1
 
             # Учет рыночного режима (вес 20%, было 30%)
-            if market_regime == 'BULL_TREND' or overall_trend == 'BULLISH':
+            if market_regime == "BULL_TREND" or overall_trend == "BULLISH":
                 momentum_score += 0.2
-            elif market_regime == 'BEAR_TREND' or overall_trend == 'BEARISH':
+            elif market_regime == "BEAR_TREND" or overall_trend == "BEARISH":
                 momentum_score -= 0.2
 
             # Ограничение диапазона
@@ -527,17 +528,22 @@ class HybridMTFConfirmation:
         h4_confidence: float,
         h1_trend_strength: float,
         market_momentum: float,
-        signal_type: str
+        signal_type: str,
     ) -> Dict:
         """Применение гибридной компенсации"""
 
         # 🔧 ДОБАВЛЕНО: Логирование входных параметров для диагностики
-        logger.info("🔍 _apply_hybrid_compensation: signal_type=%s, h4_confidence=%.6f, "
-                   "h1_trend_strength=%.6f, market_momentum=%.6f",
-                   signal_type, h4_confidence, h1_trend_strength, market_momentum)
+        logger.info(
+            "🔍 _apply_hybrid_compensation: signal_type=%s, h4_confidence=%.6f, "
+            "h1_trend_strength=%.6f, market_momentum=%.6f",
+            signal_type,
+            h4_confidence,
+            h1_trend_strength,
+            market_momentum,
+        )
 
-        min_confidence = self.mtf_config.get('min_h4_confidence', 0.6)
-        max_boost = self.mtf_config.get('max_hybrid_boost', 0.35)
+        min_confidence = self.mtf_config.get("min_h4_confidence", 0.6)
+        max_boost = self.mtf_config.get("max_hybrid_boost", 0.35)
 
         hybrid_boost = 0.0
         reason_parts = []
@@ -595,7 +601,9 @@ class HybridMTFConfirmation:
         is_long = signal_type.upper() in ("LONG", "BUY")
         if (is_short or is_long) and h4_confidence < 0.4:  # Расширенный диапазон для fallback
             # Умный fallback с учетом всех факторов
-            logger.info("🔧 %(signal_type)s Fallback check: H4=%(h4_confidence:.3f)s, H1=%(h1_trend_strength:.3f)s, market=%(market_momentum:.3f)s")
+            logger.info(
+                "🔧 %(signal_type)s Fallback check: H4=%(h4_confidence:.3f)s, H1=%(h1_trend_strength:.3f)s, market=%(market_momentum:.3f)s"
+            )
 
             fallback_score = 0.0
             fallback_reasons = []
@@ -659,23 +667,36 @@ class HybridMTFConfirmation:
                     fallback_boost = 0.45  # Слабый fallback
 
                 boosted_confidence = max(boosted_confidence, fallback_boost)
-                logger.info("✅ %s Fallback ПРИМЕНЕН (score=%.2f): "
-                           "H4=%.3f, H1=%.3f, market=%.3f, boosted_confidence=%.3f, reasons=%s",
-                           signal_type, fallback_score, h4_confidence, h1_trend_strength,
-                           market_momentum, boosted_confidence, ', '.join(fallback_reasons))
-                reason_parts.append(f"Fallback boost +{fallback_boost:.2f} (score={fallback_score:.2f})")
+                logger.info(
+                    "✅ %s Fallback ПРИМЕНЕН (score=%.2f): "
+                    "H4=%.3f, H1=%.3f, market=%.3f, boosted_confidence=%.3f, reasons=%s",
+                    signal_type,
+                    fallback_score,
+                    h4_confidence,
+                    h1_trend_strength,
+                    market_momentum,
+                    boosted_confidence,
+                    ", ".join(fallback_reasons),
+                )
+                reason_parts.append(
+                    f"Fallback boost +{fallback_boost:.2f} (score={fallback_score:.2f})"
+                )
             else:
-                logger.warning("⚠️ %s Fallback НЕ применен (score=%.2f < 0.3): "
-                              "H1=%.3f, market=%.3f, H4=%.3f",
-                              signal_type, fallback_score, h1_trend_strength,
-                              market_momentum, h4_confidence)
+                logger.warning(
+                    "⚠️ %s Fallback НЕ применен (score=%.2f < 0.3): H1=%.3f, market=%.3f, H4=%.3f",
+                    signal_type,
+                    fallback_score,
+                    h1_trend_strength,
+                    market_momentum,
+                    h4_confidence,
+                )
 
         # 🔧 ИСПРАВЛЕНО: Для SHORT и LONG используем более мягкий min_confidence
         # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: signal_type может быть "SELL", "SHORT", "BUY" или "LONG"
         if is_short:
-            min_confidence_for_final = self.mtf_config.get('min_h4_confidence_short', 0.4)
+            min_confidence_for_final = self.mtf_config.get("min_h4_confidence_short", 0.4)
         elif is_long:
-            min_confidence_for_final = self.mtf_config.get('min_h4_confidence_long', 0.4)
+            min_confidence_for_final = self.mtf_config.get("min_h4_confidence_long", 0.4)
         else:
             min_confidence_for_final = min_confidence
 
@@ -693,8 +714,8 @@ class HybridMTFConfirmation:
                 reason += f" (компенсация {hybrid_boost:.2f} недостаточна)"
 
         return {
-            'confirmed': final_confirmed,
-            'confidence': boosted_confidence,
-            'boost_applied': hybrid_boost,
-            'reason': reason
+            "confirmed": final_confirmed,
+            "confidence": boosted_confidence,
+            "boost_applied": hybrid_boost,
+            "reason": reason,
         }

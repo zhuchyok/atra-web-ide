@@ -3,16 +3,19 @@
 ## ✅ ЧТО СДЕЛАНО ЛОКАЛЬНО
 
 ### 1. Созданы файлы:
+
 - ✅ `lightgbm_predictor.py` - основной модуль LightGBM
 - ✅ `lightgbm_auto_retrain.py` - автоматическое переобучение
 - ✅ `train_lightgbm_models.py` - скрипт обучения
 - ✅ `deploy_lightgbm.sh` - скрипт деплоя
 
 ### 2. Изменены файлы:
+
 - ✅ `signal_live.py` - добавлен ML фильтр (строки 1289-1303, 4479-4624, 2519-2550)
 - ✅ `main.py` - добавлен запуск авто-переобучения (строки 1929-1937)
 
 ### 3. Создана документация:
+
 - ✅ `docs/ML_LIGHTGBM_IMPLEMENTATION_PLAN.md`
 - ✅ `docs/ML_LIGHTGBM_STATUS_REPORT.md`
 - ✅ `docs/ML_LIGHTGBM_INTEGRATION_COMPLETE.md`
@@ -20,6 +23,7 @@
 - ✅ `docs/DEPLOY_LIGHTGBM_SERVER.md`
 
 ### 4. Git:
+
 - ✅ Изменения закоммичены локально
 - ⏳ Ожидает отправки на сервер (git push)
 
@@ -35,6 +39,7 @@
 ```
 
 Этот скрипт:
+
 1. Подключится к серверу
 2. Обновит код (git pull)
 3. Установит зависимости (libomp, lightgbm)
@@ -72,27 +77,32 @@ nohup python3 main.py > main.log 2>&1 &
 ## ✅ ПРОВЕРКА ПОСЛЕ ДЕПЛОЯ
 
 ### 1. Проверить логи:
+
 ```bash
 tail -50 main.log | grep -i lightgbm
 ```
 
 **Ожидаемый вывод:**
+
 ```
 ✅ LightGBM предсказатель доступен и модели загружены
 ✅ Автоматическое переобучение LightGBM запущено
 ```
 
 ### 2. Проверить модели:
+
 ```bash
 ls -lh ai_learning_data/lightgbm_models/
 ```
 
 **Должны быть:**
+
 - `classifier.txt`
 - `regressor.txt`
 - `metadata.json`
 
 ### 3. Проверить работу ML фильтра:
+
 ```bash
 tail -100 main.log | grep "ML PREDICTION\|ML PASS\|ML BLOCK"
 ```
@@ -110,12 +120,15 @@ tail -100 main.log | grep "ML PREDICTION\|ML PASS\|ML BLOCK"
 ## 🎯 СЛЕДУЮЩИЕ ШАГИ
 
 1. **Отправить изменения на сервер:**
+
    ```bash
    git push origin insight
    ```
+
    (Если нужна аутентификация - ввести credentials)
 
 2. **Запустить деплой:**
+
    ```bash
    ./deploy_lightgbm.sh
    ```
@@ -129,4 +142,3 @@ tail -100 main.log | grep "ML PREDICTION\|ML PASS\|ML BLOCK"
 
 **Статус**: ✅ Локально готово, ожидает деплоя на сервер
 **Дата**: 2025-01-XX
-

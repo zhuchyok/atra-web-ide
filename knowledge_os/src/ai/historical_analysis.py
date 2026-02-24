@@ -5,19 +5,21 @@
 """
 
 import asyncio
-import logging
 import json
-import sqlite3
+import logging
 import os
+import sqlite3
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, List, Any, Optional
 
 # Импорты
 AI_MODULES_AVAILABLE = False
 try:
-    from src.ai.learning import AILearningSystem, TradingPattern
     from src.ai.integration import AIIntegration
+    from src.ai.learning import AILearningSystem, TradingPattern
+
     AI_MODULES_AVAILABLE = True
 except ImportError as e:
     logging.warning("Не удалось импортировать модули ИИ: %s", e)
@@ -27,9 +29,10 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
+
 class HistoricalDataAnalyzer:
     """Анализатор исторических данных для обучения ИИ"""
-    
+
     _instance = None
     _initialized = False
 
@@ -44,22 +47,27 @@ class HistoricalDataAnalyzer:
             return
         HistoricalDataAnalyzer._initialized = True
         self.db_path = "trading.db"
-        self.log_files = [
-            "trading_log.json",
-            "user_data.json"
-        ]
+        self.log_files = ["trading_log.json", "user_data.json"]
         # Исключаем тестовые данные ИИ системы
         try:
-            from src.config.patterns import get_patterns_file_path, get_learning_metrics_path, get_optimized_parameters_path
+            from src.config.patterns import (
+                get_learning_metrics_path,
+                get_optimized_parameters_path,
+                get_patterns_file_path,
+            )
         except ImportError:
             try:
                 from src.config.patterns import get_patterns_file_path
             except ImportError:
-                from patterns_config import get_patterns_file_path, get_learning_metrics_path, get_optimized_parameters_path
+                from patterns_config import (
+                    get_learning_metrics_path,
+                    get_optimized_parameters_path,
+                    get_patterns_file_path,
+                )
         self.excluded_files = [
             get_patterns_file_path("main"),
             get_learning_metrics_path(),
-            get_optimized_parameters_path()
+            get_optimized_parameters_path(),
         ]
 
         # Инициализируем ИИ компоненты только если они доступны
@@ -68,10 +76,16 @@ class HistoricalDataAnalyzer:
                 # Используем singleton registry для получения единственного экземпляра
                 try:
                     from src.ai.singleton import get_ai_learning_system
+
                     self.ai_learning = get_ai_learning_system()
-                    logger.info("✅ Используем singleton экземпляр ИИ системы в историческом анализе")
+                    logger.info(
+                        "✅ Используем singleton экземпляр ИИ системы в историческом анализе"
+                    )
                 except (ImportError, AttributeError) as e:
-                    logger.warning("⚠️ Singleton registry недоступен в историческом анализе, создаем новый экземпляр: %s", e)
+                    logger.warning(
+                        "⚠️ Singleton registry недоступен в историческом анализе, создаем новый экземпляр: %s",
+                        e,
+                    )
                     self.ai_learning = AILearningSystem()
                 self.ai_integration = AIIntegration()
                 logger.info("📊 Анализатор исторических данных инициализирован с ИИ поддержкой")
@@ -96,7 +110,7 @@ class HistoricalDataAnalyzer:
             "total_signals": 0,
             "profitable_signals": 0,
             "loss_signals": 0,
-            "recommendations": []
+            "recommendations": [],
         }
 
         try:
@@ -138,7 +152,9 @@ class HistoricalDataAnalyzer:
             if signals_log_data and signals_log_data.get("total_signals", 0) > 0:
                 # Есть данные в signals_log
                 analysis_results["total_signals"] = signals_log_data.get("total_signals", 0)
-                analysis_results["profitable_signals"] = signals_log_data.get("profitable_signals", 0)
+                analysis_results["profitable_signals"] = signals_log_data.get(
+                    "profitable_signals", 0
+                )
                 analysis_results["loss_signals"] = signals_log_data.get("loss_signals", 0)
 
                 # Генерируем рекомендации на основе реальных данных
@@ -152,10 +168,12 @@ class HistoricalDataAnalyzer:
                 analysis_results["recommendations"] = [
                     "⚠️ В таблице signals_log нет торговых сигналов для анализа",
                     "📊 Рекомендуется проверить, сохраняются ли сигналы в базу данных",
-                    "🔧 Возможно, система работает только с файлами, а не с базой данных"
+                    "🔧 Возможно, система работает только с файлами, а не с базой данных",
                 ]
 
-            logger.info("✅ Анализ завершен: %d паттернов изучено", analysis_results['patterns_learned'])
+            logger.info(
+                "✅ Анализ завершен: %d паттернов изучено", analysis_results["patterns_learned"]
+            )
             return analysis_results
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -175,14 +193,14 @@ class HistoricalDataAnalyzer:
                 "timestamp": get_utc_now().isoformat(),
                 "tables": {},
                 "patterns_learned": 0,
-                "total_records": 0
+                "total_records": 0,
             }
 
             # Получаем список таблиц
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             tables = cursor.fetchall()
 
-            for table_name, in tables:
+            for (table_name,) in tables:
                 try:
                     # Анализируем каждую таблицу
                     table_analysis = await self._analyze_table(cursor, table_name)
@@ -215,7 +233,7 @@ class HistoricalDataAnalyzer:
                 "table_name": table_name,
                 "columns": [col[1] for col in columns],
                 "total_records": total_records,
-                "patterns_learned": 0
+                "patterns_learned": 0,
             }
 
             # Анализируем данные в зависимости от типа таблицы
@@ -252,7 +270,7 @@ class HistoricalDataAnalyzer:
                     # Создаем паттерн из данных сигнала (только если ИИ доступен)
                     if self.ai_learning:
                         pattern = await self._create_pattern_from_signals_log(signal)
-                        if pattern and hasattr(self.ai_learning, 'add_pattern'):
+                        if pattern and hasattr(self.ai_learning, "add_pattern"):
                             try:
                                 self.ai_learning.add_pattern(pattern)
                                 patterns_learned += 1
@@ -273,7 +291,7 @@ class HistoricalDataAnalyzer:
                 "total_signals": total_signals,
                 "profitable_signals": profitable_signals,
                 "loss_signals": loss_signals,
-                "analysis": f"Проанализировано {total_signals} сигналов из основной таблицы"
+                "analysis": f"Проанализировано {total_signals} сигналов из основной таблицы",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -289,7 +307,15 @@ class HistoricalDataAnalyzer:
             column_names = [col[1] for col in columns]
 
             # Определяем колонку для сортировки
-            order_column = "ts" if "ts" in column_names else "id" if "id" in column_names else column_names[0] if column_names else "id"
+            order_column = (
+                "ts"
+                if "ts" in column_names
+                else "id"
+                if "id" in column_names
+                else column_names[0]
+                if column_names
+                else "id"
+            )
 
             # Получаем все сигналы
             cursor.execute(f"SELECT * FROM {table_name} ORDER BY {order_column} DESC LIMIT 1000;")
@@ -302,7 +328,7 @@ class HistoricalDataAnalyzer:
                     # Создаем паттерн из данных сигнала (только если ИИ доступен)
                     if self.ai_learning:
                         pattern = await self._create_pattern_from_signal(signal)
-                        if pattern and hasattr(self.ai_learning, 'add_pattern'):
+                        if pattern and hasattr(self.ai_learning, "add_pattern"):
                             try:
                                 self.ai_learning.add_pattern(pattern)
                                 patterns_learned += 1
@@ -315,7 +341,7 @@ class HistoricalDataAnalyzer:
             return {
                 "type": "signals",
                 "patterns_learned": patterns_learned,
-                "analysis": f"Проанализировано {len(signals)} сигналов"
+                "analysis": f"Проанализировано {len(signals)} сигналов",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -331,7 +357,15 @@ class HistoricalDataAnalyzer:
             column_names = [col[1] for col in columns]
 
             # Определяем колонку для сортировки
-            order_column = "ts" if "ts" in column_names else "id" if "id" in column_names else column_names[0] if column_names else "id"
+            order_column = (
+                "ts"
+                if "ts" in column_names
+                else "id"
+                if "id" in column_names
+                else column_names[0]
+                if column_names
+                else "id"
+            )
 
             # Получаем все сделки
             cursor.execute(f"SELECT * FROM {table_name} ORDER BY {order_column} DESC LIMIT 1000;")
@@ -346,7 +380,7 @@ class HistoricalDataAnalyzer:
                     # Анализируем результат сделки (только если ИИ доступен)
                     if self.ai_learning:
                         pattern = await self._create_pattern_from_trade(trade)
-                        if pattern and hasattr(self.ai_learning, 'add_pattern'):
+                        if pattern and hasattr(self.ai_learning, "add_pattern"):
                             try:
                                 self.ai_learning.add_pattern(pattern)
                                 patterns_learned += 1
@@ -366,7 +400,7 @@ class HistoricalDataAnalyzer:
                 "patterns_learned": patterns_learned,
                 "profitable_trades": profitable_trades,
                 "loss_trades": loss_trades,
-                "analysis": f"Проанализировано {len(trades)} сделок"
+                "analysis": f"Проанализировано {len(trades)} сделок",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -383,7 +417,7 @@ class HistoricalDataAnalyzer:
             return {
                 "type": "users",
                 "total_users": len(users),
-                "analysis": f"Найдено {len(users)} пользователей"
+                "analysis": f"Найдено {len(users)} пользователей",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -402,7 +436,11 @@ class HistoricalDataAnalyzer:
 
                 # Безопасная конвертация entry_price
                 try:
-                    entry_price = float(signal_data[3]) if len(signal_data) > 3 and signal_data[3] is not None else 0.0
+                    entry_price = (
+                        float(signal_data[3])
+                        if len(signal_data) > 3 and signal_data[3] is not None
+                        else 0.0
+                    )
                 except (ValueError, TypeError):
                     entry_price = 0.0
 
@@ -414,8 +452,14 @@ class HistoricalDataAnalyzer:
                 # Проверяем, что timestamp не является символом или другим некорректным значением
                 if isinstance(timestamp, str):
                     # Если это выглядит как символ (содержит только буквы и цифры без T), пропускаем
-                    if not any(char in timestamp for char in ['T', '-', ':', ' ']) and timestamp.isalnum():
-                        logger.warning("⚠️ Пропускаем некорректный timestamp '%s' (похож на символ), используем текущее время", timestamp)
+                    if (
+                        not any(char in timestamp for char in ["T", "-", ":", " "])
+                        and timestamp.isalnum()
+                    ):
+                        logger.warning(
+                            "⚠️ Пропускаем некорректный timestamp '%s' (похож на символ), используем текущее время",
+                            timestamp,
+                        )
                         timestamp = get_utc_now()
 
                 # Безопасное создание timestamp
@@ -435,7 +479,11 @@ class HistoricalDataAnalyzer:
                     else:
                         pattern_timestamp = get_utc_now()
                 except (ValueError, TypeError) as e:
-                    logger.warning("⚠️ Ошибка парсинга timestamp '%s': %s, используем текущее время", timestamp, e)
+                    logger.warning(
+                        "⚠️ Ошибка парсинга timestamp '%s': %s, используем текущее время",
+                        timestamp,
+                        e,
+                    )
                     pattern_timestamp = get_utc_now()
 
                 # Создаем базовый паттерн с проверкой данных
@@ -449,7 +497,7 @@ class HistoricalDataAnalyzer:
                     risk_pct=2.0,
                     leverage=1.0,
                     indicators={},
-                    market_conditions={}
+                    market_conditions={},
                 )
 
                 return pattern
@@ -466,8 +514,16 @@ class HistoricalDataAnalyzer:
         try:
             if len(signal_data) >= 12:  # Минимальные поля для signals_log
                 symbol = signal_data[1] if len(signal_data) > 1 else "UNKNOWN"
-                entry_price = float(signal_data[2]) if len(signal_data) > 2 and signal_data[2] is not None else 0.0
-                exit_price = float(signal_data[3]) if len(signal_data) > 3 and signal_data[3] is not None else entry_price
+                entry_price = (
+                    float(signal_data[2])
+                    if len(signal_data) > 2 and signal_data[2] is not None
+                    else 0.0
+                )
+                exit_price = (
+                    float(signal_data[3])
+                    if len(signal_data) > 3 and signal_data[3] is not None
+                    else entry_price
+                )
 
                 # Безопасная обработка timestamp
                 entry_time = signal_data[6] if len(signal_data) > 6 else get_utc_now()
@@ -484,8 +540,14 @@ class HistoricalDataAnalyzer:
                 # Проверяем, что entry_time не является символом или другим некорректным значением
                 if isinstance(entry_time, str):
                     # Если это выглядит как символ (содержит только буквы и цифры без T), пропускаем
-                    if not any(char in entry_time for char in ['T', '-', ':', ' ']) and entry_time.isalnum():
-                        logger.warning("⚠️ Пропускаем некорректный entry_time '%s' (похож на символ), используем текущее время", entry_time)
+                    if (
+                        not any(char in entry_time for char in ["T", "-", ":", " "])
+                        and entry_time.isalnum()
+                    ):
+                        logger.warning(
+                            "⚠️ Пропускаем некорректный entry_time '%s' (похож на символ), используем текущее время",
+                            entry_time,
+                        )
                         entry_time = get_utc_now()
 
                 # Безопасное создание timestamp
@@ -502,7 +564,11 @@ class HistoricalDataAnalyzer:
                     else:
                         pattern_timestamp = get_utc_now()
                 except (ValueError, TypeError) as e:
-                    logger.warning("⚠️ Ошибка парсинга entry_time '%s': %s, используем текущее время", entry_time, e)
+                    logger.warning(
+                        "⚠️ Ошибка парсинга entry_time '%s': %s, используем текущее время",
+                        entry_time,
+                        e,
+                    )
                     pattern_timestamp = get_utc_now()
 
                 # Определяем результат (ИСПРАВЛЕНО: учитываем TP1_PARTIAL как прибыльный)
@@ -532,7 +598,7 @@ class HistoricalDataAnalyzer:
                     indicators={},
                     market_conditions={},
                     result=result_status or "UNKNOWN",
-                    profit_pct=profit_pct or 0.0
+                    profit_pct=profit_pct or 0.0,
                 )
 
                 return pattern
@@ -553,12 +619,20 @@ class HistoricalDataAnalyzer:
 
                 # Безопасная конвертация цен
                 try:
-                    entry_price = float(trade_data[3]) if len(trade_data) > 3 and trade_data[3] is not None else 0.0
+                    entry_price = (
+                        float(trade_data[3])
+                        if len(trade_data) > 3 and trade_data[3] is not None
+                        else 0.0
+                    )
                 except (ValueError, TypeError):
                     entry_price = 0.0
 
                 try:
-                    exit_price = float(trade_data[4]) if len(trade_data) > 4 and trade_data[4] is not None else 0.0
+                    exit_price = (
+                        float(trade_data[4])
+                        if len(trade_data) > 4 and trade_data[4] is not None
+                        else 0.0
+                    )
                 except (ValueError, TypeError):
                     exit_price = entry_price
 
@@ -570,8 +644,14 @@ class HistoricalDataAnalyzer:
                 # Проверяем, что timestamp не является символом или другим некорректным значением
                 if isinstance(timestamp, str):
                     # Если это выглядит как символ (содержит только буквы и цифры без T), пропускаем
-                    if not any(char in timestamp for char in ['T', '-', ':', ' ']) and timestamp.isalnum():
-                        logger.warning("⚠️ Пропускаем некорректный timestamp '%s' (похож на символ), используем текущее время", timestamp)
+                    if (
+                        not any(char in timestamp for char in ["T", "-", ":", " "])
+                        and timestamp.isalnum()
+                    ):
+                        logger.warning(
+                            "⚠️ Пропускаем некорректный timestamp '%s' (похож на символ), используем текущее время",
+                            timestamp,
+                        )
                         timestamp = get_utc_now()
 
                 # Безопасное создание timestamp
@@ -591,14 +671,20 @@ class HistoricalDataAnalyzer:
                     else:
                         pattern_timestamp = get_utc_now()
                 except (ValueError, TypeError) as e:
-                    logger.warning("⚠️ Ошибка парсим timestamp '%s': %s, используем текущее время", timestamp, e)
+                    logger.warning(
+                        "⚠️ Ошибка парсим timestamp '%s': %s, используем текущее время", timestamp, e
+                    )
                     pattern_timestamp = get_utc_now()
 
                 # Определяем результат
                 if signal_type == "LONG":
-                    profit_pct = (exit_price - entry_price) / entry_price * 100 if entry_price > 0 else 0
+                    profit_pct = (
+                        (exit_price - entry_price) / entry_price * 100 if entry_price > 0 else 0
+                    )
                 else:
-                    profit_pct = (entry_price - exit_price) / entry_price * 100 if entry_price > 0 else 0
+                    profit_pct = (
+                        (entry_price - exit_price) / entry_price * 100 if entry_price > 0 else 0
+                    )
 
                 result = "WIN" if profit_pct > 0 else "LOSS" if profit_pct < 0 else "NEUTRAL"
 
@@ -615,7 +701,7 @@ class HistoricalDataAnalyzer:
                     indicators={},
                     market_conditions={},
                     result=result,
-                    profit_pct=profit_pct
+                    profit_pct=profit_pct,
                 )
 
                 return pattern
@@ -642,11 +728,11 @@ class HistoricalDataAnalyzer:
                     "file_size": os.path.getsize(log_file) if os.path.exists(log_file) else 0,
                     "patterns_learned": 0,
                     "data_type": "ai_test_data",
-                    "analysis": "Пропущены тестовые данные ИИ системы"
+                    "analysis": "Пропущены тестовые данные ИИ системы",
                 }
 
-            with open(log_file, 'r', encoding='utf-8') as f:
-                if log_file.endswith('.json'):
+            with open(log_file, encoding="utf-8") as f:
+                if log_file.endswith(".json"):
                     data = json.load(f)
                 else:
                     # Для текстовых логов
@@ -657,7 +743,7 @@ class HistoricalDataAnalyzer:
                 "file_name": log_file,
                 "file_size": os.path.getsize(log_file),
                 "patterns_learned": 0,
-                "data_type": "json"
+                "data_type": "json",
             }
 
             # Анализируем в зависимости от типа файла
@@ -684,19 +770,27 @@ class HistoricalDataAnalyzer:
                     try:
                         if self.ai_learning:
                             pattern = await self._create_pattern_from_signal_data(signal_data)
-                            if pattern and hasattr(self.ai_learning, 'add_pattern'):
+                            if pattern and hasattr(self.ai_learning, "add_pattern"):
                                 try:
                                     self.ai_learning.add_pattern(pattern)
                                     patterns_learned += 1
-                                except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
-                                    logger.warning("⚠️ Ошибка добавления паттерна из данных сигнала: %s", e)
+                                except (
+                                    ValueError,
+                                    TypeError,
+                                    KeyError,
+                                    RuntimeError,
+                                    OSError,
+                                ) as e:
+                                    logger.warning(
+                                        "⚠️ Ошибка добавления паттерна из данных сигнала: %s", e
+                                    )
                     except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                         logger.error("❌ Ошибка анализа сигнала %s: %s", key, e)
 
             return {
                 "type": "signal_log",
                 "patterns_learned": patterns_learned,
-                "total_signals": len(data) if isinstance(data, dict) else 0
+                "total_signals": len(data) if isinstance(data, dict) else 0,
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -711,7 +805,7 @@ class HistoricalDataAnalyzer:
             total_positions = 0
             total_signals = 0
             total_trades = 0
-            
+
             if isinstance(data, dict):
                 for user_id, user_data in data.items():
                     try:
@@ -719,17 +813,17 @@ class HistoricalDataAnalyzer:
                             # Считаем торговые данные пользователей
                             open_positions = user_data.get("open_positions", [])
                             total_positions += len(open_positions)
-                            
+
                             accepted_signals = user_data.get("accepted_signals", [])
                             total_signals += len(accepted_signals)
-                            
+
                             trade_history = user_data.get("trade_history", [])
                             total_trades += len(trade_history)
-                            
+
                             total_users += 1
                     except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                         logger.warning("⚠️ Ошибка анализа данных пользователя %s: %s", user_id, e)
-            
+
             return {
                 "type": "user_log",
                 "total_users": total_users,
@@ -737,7 +831,7 @@ class HistoricalDataAnalyzer:
                 "total_signals": total_signals,
                 "total_trades": total_trades,
                 "patterns_learned": 0,  # Пользовательские данные НЕ являются паттернами ИИ
-                "analysis": f"Данные пользователей: {total_users} пользователей, {total_positions} позиций, {total_signals} сигналов, {total_trades} сделок"
+                "analysis": f"Данные пользователей: {total_users} пользователей, {total_positions} позиций, {total_signals} сигналов, {total_trades} сделок",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -750,25 +844,29 @@ class HistoricalDataAnalyzer:
             if not os.path.exists(patterns_file):
                 return {"error": f"Файл {patterns_file} не найден"}
 
-            with open(patterns_file, 'r', encoding='utf-8') as f:
+            with open(patterns_file, encoding="utf-8") as f:
                 patterns_data = json.load(f)
 
             patterns_count = len(patterns_data) if isinstance(patterns_data, list) else 0
-            
+
             # Анализируем качество паттернов
             valid_patterns = 0
             profitable_patterns = 0
             symbols_count = set()
-            
+
             for pattern in patterns_data:
                 if isinstance(pattern, dict):
                     # Проверяем валидность паттерна
-                    if pattern.get('symbol') and pattern.get('timestamp'):
+                    if pattern.get("symbol") and pattern.get("timestamp"):
                         valid_patterns += 1
-                        symbols_count.add(pattern.get('symbol', '').split('|')[0] if '|' in pattern.get('symbol', '') else pattern.get('symbol', ''))
-                    
+                        symbols_count.add(
+                            pattern.get("symbol", "").split("|")[0]
+                            if "|" in pattern.get("symbol", "")
+                            else pattern.get("symbol", "")
+                        )
+
                     # Проверяем прибыльность
-                    profit_pct = pattern.get('profit_pct')
+                    profit_pct = pattern.get("profit_pct")
                     if profit_pct is not None and profit_pct > 0:
                         profitable_patterns += 1
 
@@ -780,8 +878,10 @@ class HistoricalDataAnalyzer:
                 "valid_patterns": valid_patterns,
                 "profitable_patterns": profitable_patterns,
                 "unique_symbols": len(symbols_count),
-                "profitability_rate": (profitable_patterns / valid_patterns * 100) if valid_patterns > 0 else 0,
-                "analysis": f"Паттерны ИИ: {patterns_count} всего, {valid_patterns} валидных, {profitable_patterns} прибыльных ({len(symbols_count)} символов)"
+                "profitability_rate": (profitable_patterns / valid_patterns * 100)
+                if valid_patterns > 0
+                else 0,
+                "analysis": f"Паттерны ИИ: {patterns_count} всего, {valid_patterns} валидных, {profitable_patterns} прибыльных ({len(symbols_count)} символов)",
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -798,19 +898,27 @@ class HistoricalDataAnalyzer:
                     try:
                         if self.ai_learning:
                             pattern = await self._create_pattern_from_trade_data(trade_data)
-                            if pattern and hasattr(self.ai_learning, 'add_pattern'):
+                            if pattern and hasattr(self.ai_learning, "add_pattern"):
                                 try:
                                     self.ai_learning.add_pattern(pattern)
                                     patterns_learned += 1
-                                except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
-                                    logger.warning("⚠️ Ошибка добавления паттерна из данных сделки: %s", e)
+                                except (
+                                    ValueError,
+                                    TypeError,
+                                    KeyError,
+                                    RuntimeError,
+                                    OSError,
+                                ) as e:
+                                    logger.warning(
+                                        "⚠️ Ошибка добавления паттерна из данных сделки: %s", e
+                                    )
                     except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                         logger.error("❌ Ошибка анализа сделки %s: %s", key, e)
 
             return {
                 "type": "trading_log",
                 "patterns_learned": patterns_learned,
-                "total_trades": len(data) if isinstance(data, dict) else 0
+                "total_trades": len(data) if isinstance(data, dict) else 0,
             }
 
         except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
@@ -826,23 +934,25 @@ class HistoricalDataAnalyzer:
                 return None
 
             # Извлекаем данные
-            symbol = signal_data.get('symbol', 'UNKNOWN')
-            signal_type = signal_data.get('side', signal_data.get('signal_type', 'UNKNOWN'))
-            entry_price = float(signal_data.get('entry_price', 0))
-            timestamp = signal_data.get('timestamp', get_utc_now())
+            symbol = signal_data.get("symbol", "UNKNOWN")
+            signal_type = signal_data.get("side", signal_data.get("signal_type", "UNKNOWN"))
+            entry_price = float(signal_data.get("entry_price", 0))
+            timestamp = signal_data.get("timestamp", get_utc_now())
 
             # Создаем паттерн с проверкой данных
             pattern = TradingPattern(
                 symbol=symbol or "UNKNOWN",
-                timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else (timestamp or get_utc_now()),
+                timestamp=datetime.fromisoformat(timestamp)
+                if isinstance(timestamp, str)
+                else (timestamp or get_utc_now()),
                 signal_type=signal_type or "UNKNOWN",
                 entry_price=entry_price if entry_price > 0 else 0.0,
                 tp1=entry_price * 1.02 if entry_price > 0 else 0.0,
                 tp2=entry_price * 1.04 if entry_price > 0 else 0.0,
-                risk_pct=float(signal_data.get('risk_pct', 2.0)),
-                leverage=float(signal_data.get('leverage', 1.0)),
-                indicators=signal_data.get('indicators', {}),
-                market_conditions=signal_data.get('market_conditions', {})
+                risk_pct=float(signal_data.get("risk_pct", 2.0)),
+                leverage=float(signal_data.get("leverage", 1.0)),
+                indicators=signal_data.get("indicators", {}),
+                market_conditions=signal_data.get("market_conditions", {}),
             )
 
             return pattern
@@ -860,11 +970,13 @@ class HistoricalDataAnalyzer:
                 return None
 
             # Извлекаем данные
-            symbol = trade_data.get('symbol', 'UNKNOWN')
-            signal_type = trade_data.get('side', trade_data.get('signal_type', 'UNKNOWN'))
-            entry_price = float(trade_data.get('entry_price', 0))
-            exit_price = float(trade_data.get('exit_price', trade_data.get('close_price', entry_price)))
-            timestamp = trade_data.get('timestamp', get_utc_now())
+            symbol = trade_data.get("symbol", "UNKNOWN")
+            signal_type = trade_data.get("side", trade_data.get("signal_type", "UNKNOWN"))
+            entry_price = float(trade_data.get("entry_price", 0))
+            exit_price = float(
+                trade_data.get("exit_price", trade_data.get("close_price", entry_price))
+            )
+            timestamp = trade_data.get("timestamp", get_utc_now())
 
             # Определяем результат
             if signal_type == "LONG":
@@ -877,17 +989,19 @@ class HistoricalDataAnalyzer:
             # Создаем паттерн с проверкой данных
             pattern = TradingPattern(
                 symbol=symbol or "UNKNOWN",
-                timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else (timestamp or get_utc_now()),
+                timestamp=datetime.fromisoformat(timestamp)
+                if isinstance(timestamp, str)
+                else (timestamp or get_utc_now()),
                 signal_type=signal_type or "UNKNOWN",
                 entry_price=entry_price if entry_price > 0 else 0.0,
                 tp1=exit_price if exit_price > 0 else entry_price * 1.02,
                 tp2=exit_price if exit_price > 0 else entry_price * 1.04,
-                risk_pct=float(trade_data.get('risk_pct', 2.0)),
-                leverage=float(trade_data.get('leverage', 1.0)),
-                indicators=trade_data.get('indicators', {}),
-                market_conditions=trade_data.get('market_conditions', {}),
+                risk_pct=float(trade_data.get("risk_pct", 2.0)),
+                leverage=float(trade_data.get("leverage", 1.0)),
+                indicators=trade_data.get("indicators", {}),
+                market_conditions=trade_data.get("market_conditions", {}),
                 result=result or "UNKNOWN",
-                profit_pct=profit_pct or 0.0
+                profit_pct=profit_pct or 0.0,
             )
 
             return pattern
@@ -909,58 +1023,98 @@ class HistoricalDataAnalyzer:
                 success_rate = profitable_signals / total_signals
 
                 if success_rate > 0.7:
-                    recommendations.append(f"✅ Высокая успешность: {success_rate:.1%}. Система работает хорошо!")
+                    recommendations.append(
+                        f"✅ Высокая успешность: {success_rate:.1%}. Система работает хорошо!"
+                    )
                 elif success_rate < 0.3:
-                    recommendations.append(f"⚠️ Низкая успешность: {success_rate:.1%}. Рекомендуется пересмотреть стратегию")
+                    recommendations.append(
+                        f"⚠️ Низкая успешность: {success_rate:.1%}. Рекомендуется пересмотреть стратегию"
+                    )
                 else:
-                    recommendations.append(f"📊 Средняя успешность: {success_rate:.1%}. Есть потенциал для улучшения")
+                    recommendations.append(
+                        f"📊 Средняя успешность: {success_rate:.1%}. Есть потенциал для улучшения"
+                    )
 
             # Анализ по символам (только если ИИ доступен)
-            if self.ai_learning and hasattr(self.ai_learning, 'patterns') and self.ai_learning.patterns:
+            if (
+                self.ai_learning
+                and hasattr(self.ai_learning, "patterns")
+                and self.ai_learning.patterns
+            ):
                 try:
-                    if hasattr(self.ai_learning, 'analyze_patterns'):
+                    if hasattr(self.ai_learning, "analyze_patterns"):
                         # Добавляем дополнительную проверку перед вызовом
-                        if not hasattr(self.ai_learning, 'patterns') or not self.ai_learning.patterns:
+                        if (
+                            not hasattr(self.ai_learning, "patterns")
+                            or not self.ai_learning.patterns
+                        ):
                             logger.warning("⚠️ ИИ система не имеет паттернов для анализа")
                             recommendations.append("ℹ️ ИИ система: нет паттернов для анализа")
                         else:
                             logger.info("🔍 Начинаем анализ паттернов ИИ системы...")
                             symbol_analysis = self.ai_learning.analyze_patterns()
-                            
+
                             # Детальная проверка результата
-                            logger.info("🔍 Результат analyze_patterns: %s (тип: %s)", symbol_analysis, type(symbol_analysis))
-                            
+                            logger.info(
+                                "🔍 Результат analyze_patterns: %s (тип: %s)",
+                                symbol_analysis,
+                                type(symbol_analysis),
+                            )
+
                             # Проверяем, что analyze_patterns вернул словарь, а не строку
-                            if isinstance(symbol_analysis, dict) and symbol_analysis.get("success_rates"):
+                            if isinstance(symbol_analysis, dict) and symbol_analysis.get(
+                                "success_rates"
+                            ):
                                 best_symbols = sorted(
                                     symbol_analysis["success_rates"].items(),
                                     key=lambda x: x[1],
-                                    reverse=True
+                                    reverse=True,
                                 )[:3]
 
                                 for symbol, rate in best_symbols:
                                     if rate > 0.6:
-                                        recommendations.append(f"🎯 Лучший символ: {symbol} (успешность {rate:.1%})")
+                                        recommendations.append(
+                                            f"🎯 Лучший символ: {symbol} (успешность {rate:.1%})"
+                                        )
                                     elif rate < 0.3:
-                                        recommendations.append(f"⚠️ Проблемный символ: {symbol} (успешность {rate:.1%})")
+                                        recommendations.append(
+                                            f"⚠️ Проблемный символ: {symbol} (успешность {rate:.1%})"
+                                        )
                             elif isinstance(symbol_analysis, dict) and "error" in symbol_analysis:
-                                logger.warning("⚠️ ИИ система сообщает: %s", symbol_analysis["error"])
+                                logger.warning(
+                                    "⚠️ ИИ система сообщает: %s", symbol_analysis["error"]
+                                )
                                 recommendations.append(f"ℹ️ ИИ анализ: {symbol_analysis['error']}")
                             elif isinstance(symbol_analysis, str):
-                                logger.warning("⚠️ analyze_patterns вернул строку вместо словаря: '%s'", symbol_analysis)
-                                recommendations.append(f"⚠️ ИИ анализ: неожиданный результат '{symbol_analysis}'")
+                                logger.warning(
+                                    "⚠️ analyze_patterns вернул строку вместо словаря: '%s'",
+                                    symbol_analysis,
+                                )
+                                recommendations.append(
+                                    f"⚠️ ИИ анализ: неожиданный результат '{symbol_analysis}'"
+                                )
                             else:
-                                logger.warning("⚠️ analyze_patterns вернул неожиданный результат: %s (тип: %s)", symbol_analysis, type(symbol_analysis))
-                                recommendations.append("⚠️ ИИ анализ недоступен - неожиданный формат данных")
+                                logger.warning(
+                                    "⚠️ analyze_patterns вернул неожиданный результат: %s (тип: %s)",
+                                    symbol_analysis,
+                                    type(symbol_analysis),
+                                )
+                                recommendations.append(
+                                    "⚠️ ИИ анализ недоступен - неожиданный формат данных"
+                                )
                     else:
                         recommendations.append("ℹ️ Метод анализа паттернов недоступен в ИИ системе")
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                     logger.warning("⚠️ Ошибка анализа символов: %s", e)
                     # Более информативное сообщение об ошибке
                     if "BTCUSDT" in str(e):
-                        recommendations.append("⚠️ Ошибка анализа BTCUSDT: проблема с данными символа")
+                        recommendations.append(
+                            "⚠️ Ошибка анализа BTCUSDT: проблема с данными символа"
+                        )
                     elif "KeyError" in str(type(e).__name__):
-                        recommendations.append("⚠️ Ошибка анализа: отсутствуют необходимые поля данных")
+                        recommendations.append(
+                            "⚠️ Ошибка анализа: отсутствуют необходимые поля данных"
+                        )
                     elif "TypeError" in str(type(e).__name__):
                         recommendations.append("⚠️ Ошибка анализа: неверный тип данных")
                     else:
@@ -968,7 +1122,9 @@ class HistoricalDataAnalyzer:
 
             # Рекомендации по объему данных
             if total_signals < 10:
-                recommendations.append("📊 Недостаточно данных для анализа. Рекомендуется больше торговли")
+                recommendations.append(
+                    "📊 Недостаточно данных для анализа. Рекомендуется больше торговли"
+                )
             elif total_signals > 1000:
                 recommendations.append("📈 Большой объем данных. ИИ может дать точные рекомендации")
 
@@ -985,15 +1141,15 @@ class HistoricalDataAnalyzer:
 
             report = f"""
 📊 ОТЧЕТ ОБ АНАЛИЗЕ ИСТОРИЧЕСКИХ ДАННЫХ ИИ
-{'='*60}
+{"=" * 60}
 
-⏰ ВРЕМЯ АНАЛИЗА: {analysis.get('timestamp', 'Неизвестно')}
+⏰ ВРЕМЯ АНАЛИЗА: {analysis.get("timestamp", "Неизвестно")}
 
 📈 ОБЩАЯ СТАТИСТИКА:
-• Всего сигналов проанализировано: {analysis.get('total_signals', 0)}
-• Прибыльных сигналов: {analysis.get('profitable_signals', 0)}
-• Убыточных сигналов: {analysis.get('loss_signals', 0)}
-• Паттернов изучено: {analysis.get('patterns_learned', 0)}
+• Всего сигналов проанализировано: {analysis.get("total_signals", 0)}
+• Прибыльных сигналов: {analysis.get("profitable_signals", 0)}
+• Убыточных сигналов: {analysis.get("loss_signals", 0)}
+• Паттернов изучено: {analysis.get("patterns_learned", 0)}
 
 🗄️ АНАЛИЗ БАЗЫ ДАННЫХ:
 """
@@ -1003,7 +1159,7 @@ class HistoricalDataAnalyzer:
                 report += f"• Всего записей: {db_analysis.get('total_records', 0)}\n"
                 report += f"• Таблиц проанализировано: {len(db_analysis.get('tables', {}))}\n"
 
-                for table_name, table_data in db_analysis.get('tables', {}).items():
+                for table_name, table_data in db_analysis.get("tables", {}).items():
                     report += f"  - {table_name}: {table_data.get('total_records', 0)} записей\n"
             else:
                 report += "• База данных не найдена или недоступна\n"
@@ -1014,13 +1170,13 @@ class HistoricalDataAnalyzer:
 
             log_analysis = analysis.get("log_files_analysis", {})
             for log_file, log_data in log_analysis.items():
-                if log_data.get('type') == 'ai_patterns':
+                if log_data.get("type") == "ai_patterns":
                     # Специальный формат для паттернов ИИ
                     report += f"• {log_file}: {log_data.get('patterns_learned', 0)} паттернов ИИ\n"
                     report += f"  - Валидных: {log_data.get('valid_patterns', 0)}\n"
                     report += f"  - Прибыльных: {log_data.get('profitable_patterns', 0)}\n"
                     report += f"  - Символов: {log_data.get('unique_symbols', 0)}\n"
-                elif log_data.get('type') == 'user_log':
+                elif log_data.get("type") == "user_log":
                     # Формат для пользовательских данных
                     report += f"• {log_file}: {log_data.get('total_users', 0)} пользователей\n"
                     report += f"  - Позиций: {log_data.get('total_positions', 0)}\n"
@@ -1047,13 +1203,15 @@ class HistoricalDataAnalyzer:
             logger.error("❌ Ошибка генерации отчета: %s", e)
             return f"❌ Ошибка генерации отчета: {e}"
 
+
 # Глобальный экземпляр анализатора
 historical_analyzer = HistoricalDataAnalyzer()
+
 
 async def run_historical_analysis():
     """Запускает анализ исторических данных в цикле"""
     logger.info("🚀 Запуск системы анализа исторических данных...")
-    
+
     # Импортируем shutdown_manager из main.py
     try:
         from main import shutdown_manager
@@ -1062,15 +1220,17 @@ async def run_historical_analysis():
         class DummyShutdownManager:
             def __init__(self):
                 self._shutdown_requested = False
+
             @property
             def shutdown_requested(self):
                 return self._shutdown_requested
+
         shutdown_manager = DummyShutdownManager()
-    
+
     while not shutdown_manager.shutdown_requested:
         try:
             logger.info("📊 Начало цикла анализа исторических данных...")
-            
+
             # Выполняем полный анализ
             await historical_analyzer.analyze_all_historical_data()
 
@@ -1081,18 +1241,18 @@ async def run_historical_analysis():
             # Сохраняем результаты (только если ИИ доступен)
             if historical_analyzer.ai_learning:
                 try:
-                    if hasattr(historical_analyzer.ai_learning, 'save_patterns'):
+                    if hasattr(historical_analyzer.ai_learning, "save_patterns"):
                         historical_analyzer.ai_learning.save_patterns()
-                    if hasattr(historical_analyzer.ai_learning, 'save_learning_model'):
+                    if hasattr(historical_analyzer.ai_learning, "save_learning_model"):
                         historical_analyzer.ai_learning.save_learning_model()
-                    if hasattr(historical_analyzer.ai_learning, 'save_metrics'):
+                    if hasattr(historical_analyzer.ai_learning, "save_metrics"):
                         historical_analyzer.ai_learning.save_metrics()
                     logger.info("✅ ИИ данные сохранены")
                 except (ValueError, TypeError, KeyError, RuntimeError, OSError) as e:
                     logger.warning("⚠️ Ошибка сохранения ИИ данных: %s", e)
 
             logger.info("✅ Цикл анализа исторических данных завершен, следующий через 24 часа...")
-            
+
             # Ждем 24 часа до следующего анализа с проверкой shutdown каждую минуту
             for _ in range(24 * 60):  # 24 часа * 60 минут
                 if shutdown_manager.shutdown_requested:
@@ -1109,6 +1269,7 @@ async def run_historical_analysis():
         except asyncio.CancelledError:
             logger.info("🛑 Анализ исторических данных отменен")
             break
+
 
 if __name__ == "__main__":
     # Запуск анализа исторических данных

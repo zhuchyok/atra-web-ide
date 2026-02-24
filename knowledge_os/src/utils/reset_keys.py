@@ -4,12 +4,13 @@
 import sqlite3
 import sys
 
+
 def reset_bitget_keys(user_id=None):
     """Удаляет все ключи Bitget и переводит пользователей в manual режим"""
     try:
-        conn = sqlite3.connect('trading.db')
+        conn = sqlite3.connect("trading.db")
         cursor = conn.cursor()
-        
+
         # Создаём таблицы если не существуют
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_exchange_keys (
@@ -25,7 +26,7 @@ def reset_bitget_keys(user_id=None):
                 UNIQUE(user_id, exchange_name)
             )
         """)
-        
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_settings (
                 user_id INTEGER PRIMARY KEY,
@@ -33,12 +34,15 @@ def reset_bitget_keys(user_id=None):
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
         if user_id:
             # Для конкретного пользователя
             cursor.execute("DELETE FROM user_exchange_keys WHERE user_id = ?", (int(user_id),))
             deleted = cursor.rowcount
-            cursor.execute("INSERT OR REPLACE INTO user_settings(user_id, trade_mode) VALUES(?, 'manual')", (int(user_id),))
+            cursor.execute(
+                "INSERT OR REPLACE INTO user_settings(user_id, trade_mode) VALUES(?, 'manual')",
+                (int(user_id),),
+            )
             print(f"✅ Удалено {deleted} ключей для user {user_id}")
             print(f"✅ Режим переключён на manual для user {user_id}")
         else:
@@ -48,20 +52,21 @@ def reset_bitget_keys(user_id=None):
             cursor.execute("UPDATE user_settings SET trade_mode = 'manual'")
             print(f"✅ Удалено {deleted} ключей Bitget")
             print("✅ Все пользователи переключены на manual")
-        
+
         conn.commit()
         conn.close()
         print("\n🎯 Готово! Теперь переподключите ключи:")
         print("   /connect_bitget <api_key> <secret> <passphrase>")
-        
+
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         reset_bitget_keys(sys.argv[1])
     else:
         reset_bitget_keys()
-

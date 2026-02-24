@@ -14,6 +14,7 @@
 **Статус:** ✅ **ЗАВЕРШЕНО**
 
 **Созданные компоненты:**
+
 1. **`src/core/reproducibility.py`** - ReproducibilityManager
    - Централизованное управление seed для всех генераторов случайных чисел
    - Поддержка random и numpy.random
@@ -22,6 +23,7 @@
    - Логирование seed для воспроизводимости
 
 **Функциональность:**
+
 - ✅ Инициализация seed для random и numpy
 - ✅ Валидация детерминированности функций
 - ✅ Логирование seed для воспроизводимости
@@ -29,9 +31,11 @@
 - ✅ Глобальный менеджер для удобства использования
 
 **Тесты:**
+
 - ✅ `tests/test_reproducibility.py` - полное покрытие тестами
 
 **Пример использования:**
+
 ```python
 from src.core.reproducibility import ReproducibilityManager, ReproducibilityConfig
 
@@ -51,6 +55,7 @@ def run_backtest(seed: int = 42):
 **Статус:** ✅ **ЗАВЕРШЕНО**
 
 **Добавленные правила:**
+
 1. **`.cursorrules`** - раздел "💰 ФИНАНСОВАЯ ТОЧНОСТЬ (DECIMAL)"
    - Правило: "Всегда Decimal для денег"
    - Примеры правильного и неправильного использования
@@ -58,11 +63,13 @@ def run_backtest(seed: int = 42):
    - Где использовать Decimal (цены, суммы, проценты, комиссии, PnL)
 
 **Текущее состояние:**
+
 - ✅ Новая архитектура уже использует Decimal (`src/shared`, `src/domain`, `src/application`)
 - ✅ Правила добавлены в `.cursorrules` для будущего кода
 - ⚠️ Старый код требует постепенной миграции (низкий приоритет)
 
 **Рекомендации:**
+
 - При рефакторинге старого кода мигрировать на Decimal
 - Использовать `Decimal(str(value))` для конвертации
 - Все математические операции с Decimal константами
@@ -74,6 +81,7 @@ def run_backtest(seed: int = 42):
 **Статус:** ✅ **ЗАВЕРШЕНО**
 
 **Обновлённые компоненты:**
+
 1. **`src/shared/utils/datetime_utils.py`** - обновлены функции
    - `now()` - теперь возвращает `datetime.now(timezone.utc)`
    - `utc_now()` - alias для `now()` с явным timezone
@@ -81,6 +89,7 @@ def run_backtest(seed: int = 42):
    - Все функции используют `timezone.utc` вместо устаревшего `datetime.utcnow()`
 
 **Добавленные правила:**
+
 1. **`.cursorrules`** - раздел "🕐 ВРЕМЕННАЯ КОНСИСТЕНТНОСТЬ (UTC)"
    - Правило: "Всегда UTC для временных меток"
    - Использование `datetime.now(timezone.utc)` вместо `datetime.utcnow()`
@@ -88,6 +97,7 @@ def run_backtest(seed: int = 42):
    - Валидация временных меток
 
 **Пример использования:**
+
 ```python
 from src.shared.utils.datetime_utils import get_utc_now
 
@@ -102,6 +112,7 @@ timestamp = get_utc_now()
 **Статус:** ✅ **ЗАВЕРШЕНО**
 
 **Созданные компоненты:**
+
 1. **`src/core/idempotency.py`** - IdempotencyManager
    - Генерация уникальных ключей идемпотентности (SHA256)
    - Проверка дублирования операций
@@ -110,6 +121,7 @@ timestamp = get_utc_now()
    - Декоратор `@idempotent` для удобного использования
 
 **Функциональность:**
+
 - ✅ Генерация ключей на основе данных (SHA256)
 - ✅ Проверка дублирования перед выполнением
 - ✅ Сохранение результатов с TTL
@@ -117,9 +129,11 @@ timestamp = get_utc_now()
 - ✅ Декоратор для автоматической идемпотентности
 
 **Тесты:**
+
 - ✅ `tests/test_idempotency.py` - полное покрытие тестами
 
 **Пример использования:**
+
 ```python
 from src.core.idempotency import idempotent, generate_idempotency_key, check_idempotency
 
@@ -148,6 +162,7 @@ def create_signal(signal_data):
 **Статус:** ✅ **ЗАВЕРШЕНО**
 
 **Созданные компоненты:**
+
 1. **`src/core/retry.py`** - RetryManager
    - Централизованная retry логика с exponential backoff
    - Настраиваемые типы ошибок для retry
@@ -156,6 +171,7 @@ def create_signal(signal_data):
    - Декораторы `@retry_with_backoff` и `@graceful_degradation`
 
 **Функциональность:**
+
 - ✅ Exponential backoff с настраиваемыми параметрами
 - ✅ Настраиваемые типы ошибок (retry_on, retry_on_not)
 - ✅ Jitter для распределения нагрузки
@@ -163,9 +179,11 @@ def create_signal(signal_data):
 - ✅ Graceful degradation для некритичных операций
 
 **Тесты:**
+
 - ✅ `tests/test_retry.py` - полное покрытие тестами
 
 **Пример использования:**
+
 ```python
 from src.core.retry import retry_with_backoff, RetryConfig, graceful_degradation
 
@@ -194,15 +212,18 @@ def get_optional_data():
 ## 📊 Статистика изменений
 
 ### Создано новых модулей:
+
 - ✅ `src/core/reproducibility.py` - ReproducibilityManager
 - ✅ `src/core/idempotency.py` - IdempotencyManager
 - ✅ `src/core/retry.py` - RetryManager
 
 ### Обновлено модулей:
+
 - ✅ `src/shared/utils/datetime_utils.py` - обновлены функции для UTC
 - ✅ `.cursorrules` - добавлены правила для всех принципов
 
 ### Создано тестов:
+
 - ✅ `tests/test_reproducibility.py` - 8 тестов
 - ✅ `tests/test_idempotency.py` - 7 тестов
 - ✅ `tests/test_retry.py` - 8 тестов
@@ -214,30 +235,35 @@ def get_optional_data():
 ## 📋 Добавленные правила в .cursorrules
 
 ### 1. 💰 ФИНАНСОВАЯ ТОЧНОСТЬ (DECIMAL)
+
 - Правило: "Всегда Decimal для денег"
 - Примеры правильного и неправильного использования
 - Правила конвертации в Decimal
 - Где использовать Decimal
 
 ### 2. 🔢 ВОСПРОИЗВОДИМОСТЬ (REPRODUCIBILITY)
+
 - Правило: "Все бэктесты должны быть воспроизводимы"
 - Использование ReproducibilityManager
 - Context manager для автоматической инициализации
 - Валидация детерминированности
 
 ### 3. 🕐 ВРЕМЕННАЯ КОНСИСТЕНТНОСТЬ (UTC)
+
 - Правило: "Всегда UTC для временных меток"
 - Использование `datetime.now(timezone.utc)`
 - Централизованная утилита `get_utc_now()`
 - Валидация временных меток
 
 ### 4. 🔄 ИДЕМПОТЕНТНОСТЬ (IDEMPOTENCY)
+
 - Правило: "Безопасность повторных операций"
 - Проверка дублирования перед выполнением
 - Idempotency keys для критичных операций
 - Декоратор `@idempotent`
 
 ### 5. 🔁 ОБРАБОТКА ОШИБОК (RETRY LOGIC)
+
 - Правило: "Централизованная retry логика с exponential backoff"
 - Использование RetryManager
 - Декораторы `@retry_with_backoff` и `@graceful_degradation`
@@ -248,26 +274,31 @@ def get_optional_data():
 ## 🎯 Преимущества внедрения
 
 ### 1. Воспроизводимость
+
 - ✅ Все бэктесты теперь воспроизводимы
 - ✅ Можно сравнивать результаты разных запусков
 - ✅ Легко отлаживать проблемы
 
 ### 2. Финансовая точность
+
 - ✅ Нет ошибок округления float
 - ✅ Точные финансовые расчёты
 - ✅ Правила для будущего кода
 
 ### 3. Временная консистентность
+
 - ✅ Корректная работа с временем независимо от часового пояса
 - ✅ Централизованные утилиты
 - ✅ Явное использование UTC
 
 ### 4. Идемпотентность
+
 - ✅ Безопасные повторные операции
 - ✅ Защита от дублирования сигналов
 - ✅ Удобные декораторы
 
 ### 5. Обработка ошибок
+
 - ✅ Надёжная обработка временных ошибок
 - ✅ Exponential backoff для распределения нагрузки
 - ✅ Graceful degradation для некритичных операций
@@ -279,9 +310,10 @@ def get_optional_data():
 ### Рекомендации по использованию:
 
 1. **В бэктестах:**
+
    ```python
    from src.core.reproducibility import ReproducibilityManager, ReproducibilityConfig
-   
+
    def run_backtest(seed: int = 42):
        config = ReproducibilityConfig(seed=seed, log_seed=True)
        with ReproducibilityManager(config) as repro:
@@ -290,9 +322,10 @@ def get_optional_data():
    ```
 
 2. **При создании сигналов:**
+
    ```python
    from src.core.idempotency import idempotent
-   
+
    @idempotent(prefix="signal", ttl_hours=12)
    def create_signal(symbol: str, price: float):
        # Логика создания сигнала
@@ -300,9 +333,10 @@ def get_optional_data():
    ```
 
 3. **При API вызовах:**
+
    ```python
    from src.core.retry import retry_with_backoff, RetryConfig
-   
+
    @retry_with_backoff(
        RetryConfig(
            max_retries=3,
@@ -314,16 +348,18 @@ def get_optional_data():
    ```
 
 4. **При работе с временем:**
+
    ```python
    from src.shared.utils.datetime_utils import get_utc_now
-   
+
    timestamp = get_utc_now()
    ```
 
 5. **При финансовых расчётах:**
+
    ```python
    from decimal import Decimal
-   
+
    price = Decimal(str(df['close'].iloc[-1]))
    profit = entry_price * Decimal("1.05")
    ```
@@ -354,4 +390,3 @@ def get_optional_data():
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 1.0
-

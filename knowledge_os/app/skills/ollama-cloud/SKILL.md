@@ -4,7 +4,15 @@ description: Ollama Cloud Models - использование облачных �
 category: infrastructure
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"env": ["OLLAMA_API_KEY"]}, "emoji": "☁️", "homepage": "https://docs.ollama.com/cloud"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": { "env": ["OLLAMA_API_KEY"] },
+        "emoji": "☁️",
+        "homepage": "https://docs.ollama.com/cloud",
+      },
+  }
 ---
 
 # Ollama Cloud Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {"env": ["OLLAMA_API_KEY"]}, "emoji": "☁�
 ## Когда использовать
 
 Используй этот навык для:
+
 - Запуска больших моделей без локального GPU
 - Использования моделей, которые не помещаются на локальной машине
 - Масштабирования на облачные ресурсы
@@ -29,6 +38,7 @@ metadata: {"clawdbot": {"requires": {"env": ["OLLAMA_API_KEY"]}, "emoji": "☁�
 ## Методология
 
 Ollama Cloud работает через:
+
 1. **Authentication** - Аутентификация через OLLAMA_API_KEY
 2. **Model Selection** - Выбор cloud модели
 3. **API Request** - Запрос к https://ollama.com API

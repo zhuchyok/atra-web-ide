@@ -3,14 +3,16 @@ Filter Manager - Central filter management system
 Менеджер фильтров - центральная система управления фильтрами
 """
 
-from typing import Dict, Any, List, Tuple
 import logging
 from datetime import datetime
+from typing import Any, Dict, List, Tuple
+
 from src.shared.utils.datetime_utils import get_utc_now
-from .base import FilterManager, BaseFilter
+
 from .anomaly import AnomalyFilter
-from .interest_zone import InterestZoneFilter
+from .base import BaseFilter, FilterManager
 from .btc_trend import BTCTrendFilter
+from .interest_zone import InterestZoneFilter
 from .news import NewsFilter
 from .whale import WhaleFilter
 
@@ -63,7 +65,9 @@ class ATRAFilterManager(FilterManager):
 
         logger.info("✅ Все фильтры по умолчанию инициализированы")
 
-    async def apply_all_filters(self, signal_data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str, Any]]:
+    async def apply_all_filters(
+        self, signal_data: Dict[str, Any]
+    ) -> Tuple[bool, List[str], Dict[str, Any]]:
         """
         Применить все фильтры к сигналу
 
@@ -79,8 +83,10 @@ class ATRAFilterManager(FilterManager):
         # Сбор дополнительной информации от фильтров
         additional_info = {}
         for filter_instance in self.filters:
-            if hasattr(filter_instance, 'get_additional_info'):
-                additional_info[filter_instance.name] = filter_instance.get_additional_info(signal_data)
+            if hasattr(filter_instance, "get_additional_info"):
+                additional_info[filter_instance.name] = filter_instance.get_additional_info(
+                    signal_data
+                )
 
         return passed, reasons, additional_info
 
@@ -89,10 +95,10 @@ class ATRAFilterManager(FilterManager):
         status = {}
         for filter_instance in self.filters:
             status[filter_instance.name] = {
-                'enabled': filter_instance.enabled,
-                'priority': filter_instance.priority,
-                'stats': filter_instance.get_stats(),
-                'class': filter_instance.__class__.__name__
+                "enabled": filter_instance.enabled,
+                "priority": filter_instance.priority,
+                "stats": filter_instance.get_stats(),
+                "class": filter_instance.__class__.__name__,
             }
         return status
 
@@ -130,23 +136,23 @@ class ATRAFilterManager(FilterManager):
             stats = filter_instance.get_stats()
             filter_stats[filter_instance.name] = stats
 
-            total_checked += stats.get('total_checked', 0)
-            total_passed += stats.get('passed', 0)
-            total_blocked += stats.get('blocked', 0)
-            total_errors += stats.get('errors', 0)
+            total_checked += stats.get("total_checked", 0)
+            total_passed += stats.get("passed", 0)
+            total_blocked += stats.get("blocked", 0)
+            total_errors += stats.get("errors", 0)
 
         overall_pass_rate = (total_passed / total_checked) * 100 if total_checked > 0 else 0
 
         return {
-            'timestamp': get_utc_now(),
-            'summary': {
-                'total_checked': total_checked,
-                'total_passed': total_passed,
-                'total_blocked': total_blocked,
-                'total_errors': total_errors,
-                'overall_pass_rate': overall_pass_rate
+            "timestamp": get_utc_now(),
+            "summary": {
+                "total_checked": total_checked,
+                "total_passed": total_passed,
+                "total_blocked": total_blocked,
+                "total_errors": total_errors,
+                "overall_pass_rate": overall_pass_rate,
             },
-            'filters': filter_stats
+            "filters": filter_stats,
         }
 
 

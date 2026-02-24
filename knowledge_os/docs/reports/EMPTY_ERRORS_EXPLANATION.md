@@ -3,9 +3,9 @@
 ## ⚠️ **ЧТО ВИДНО В ЛОГАХ:**
 
 ```
-ERROR | Error getting price from Binance: 
-ERROR | Error getting price from OKX: 
-ERROR | Error getting price from Bybit: 
+ERROR | Error getting price from Binance:
+ERROR | Error getting price from OKX:
+ERROR | Error getting price from Bybit:
 ERROR | No valid prices received for ETHUSDT
 ```
 
@@ -14,11 +14,13 @@ ERROR | No valid prices received for ETHUSDT
 ### **1. Пустые ошибки - это не критично:**
 
 **Причина:**
+
 - API возвращает пустой ответ (не ошибку)
 - Python exception `e` пустой
 - Логируется как пустая строка
 
 **Код (data_sources_manager.py, строка 190):**
+
 ```python
 except Exception as e:
     logger.error("Error getting price from Binance: %s", e)
@@ -30,6 +32,7 @@ except Exception as e:
 ### **2. Система РАБОТАЕТ благодаря fallback:**
 
 **Цепочка:**
+
 ```
 1. Пробуем get_price_binance() → пусто
 2. Пробуем get_price_okx() → пусто
@@ -39,6 +42,7 @@ except Exception as e:
 ```
 
 **Доказательство (строка 869):**
+
 ```
 ✅ Binance OHLC: успешно получено 1 свечей для CAKEUSDT
 ```
@@ -50,12 +54,14 @@ except Exception as e:
 ### **3. Почему Price API может не работать:**
 
 **Возможные причины:**
+
 - ⏱️ Rate limit превышен (слишком много запросов)
 - 🌐 Временная недоступность API
 - 🔒 IP ограничения
 - 📊 Формат символа (хотя ETHUSDT должен работать)
 
 **НО это НЕ критично**, потому что:
+
 - ✅ OHLC данные получаются успешно
 - ✅ Цена берется из OHLC[0]['close']
 - ✅ Сигналы генерируются нормально
@@ -88,6 +94,7 @@ except Exception as e:
 ### **НИЧЕГО!** Система работает правильно.
 
 **Эти ошибки - это нормальная работа fallback механизма:**
+
 1. Price API не отвечает (временно)
 2. Система переключается на OHLC
 3. Получает данные успешно
@@ -96,6 +103,7 @@ except Exception as e:
 ### **Если хотите убрать из логов:**
 
 **Опция 1: Понизить уровень логирования**
+
 ```python
 # В data_sources_manager.py, строка 190:
 logger.debug("Price API unavailable: %s", e or "empty response")
@@ -103,12 +111,14 @@ logger.debug("Price API unavailable: %s", e or "empty response")
 ```
 
 **Опция 2: Улучшить сообщение**
+
 ```python
 error_msg = str(e) if e else "Empty response from API"
 logger.warning("Price API fallback for %s: %s", symbol, error_msg)
 ```
 
 **Опция 3: Игнорировать**
+
 ```python
 # Если система работает - игнорируем
 # Fallback механизм делает свое дело
@@ -118,12 +128,12 @@ logger.warning("Price API fallback for %s: %s", symbol, error_msg)
 
 ## 📊 **ИТОГ:**
 
-| Проблема | Критичность | Решение |
-|----------|-------------|---------|
-| Пустые ошибки в логах | ⚠️ Низкая | Косметическая |
-| Price API не отвечает | ⚠️ Низкая | Fallback работает |
-| OHLC получаются | ✅ OK | Система работает |
-| Сигналы генерируются | ✅ OK | Все в порядке |
+| Проблема              | Критичность | Решение           |
+| --------------------- | ----------- | ----------------- |
+| Пустые ошибки в логах | ⚠️ Низкая   | Косметическая     |
+| Price API не отвечает | ⚠️ Низкая   | Fallback работает |
+| OHLC получаются       | ✅ OK       | Система работает  |
+| Сигналы генерируются  | ✅ OK       | Все в порядке     |
 
 ## ✅ **ВЫВОД:**
 
@@ -134,4 +144,3 @@ logger.warning("Price API fallback for %s: %s", symbol, error_msg)
 **OHLC работает → Цены получаются → Сигналы генерируются → Все OK!** 🚀
 
 **Можно игнорировать или понизить уровень логирования.** ℹ️
-

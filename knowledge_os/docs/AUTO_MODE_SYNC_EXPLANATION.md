@@ -7,6 +7,7 @@
 ## 🔄 КАК ЭТО РАБОТАЕТ (пошагово)
 
 ### Шаг 1: Получение списка пользователей
+
 ```python
 # Получаем пользователей в auto режиме И с активными ключами
 user_ids = await adb_local.get_users_by_mode('auto')
@@ -20,19 +21,21 @@ user_ids = list(set(user_ids + all_users_with_keys))
 ---
 
 ### Шаг 2: Получение позиций с биржи
+
 ```python
 for uid in user_ids:
     # Получаем API ключи пользователя
     keys = await adb_local.get_active_exchange_keys(uid, 'bitget')
-    
+
     # Создаем адаптер для работы с биржей
     adapter = ExchangeAdapter('bitget', keys=keys or {}, sandbox=False)
-    
+
     # Получаем ВСЕ открытые позиции с биржи
     positions = await adapter.fetch_positions()
 ```
 
 **Что возвращает `fetch_positions()`:**
+
 ```python
 [
     {
@@ -57,13 +60,14 @@ for uid in user_ids:
 ---
 
 ### Шаг 3: Сбор символов с биржи
+
 ```python
 # Собираем набор символов, которые биржа считает открытыми
 open_symbols_remote = set()
 for p in (positions or []):
     symbol = p.get('symbol')  # Например: 'ETHFIUSDT'
     contracts = float(p.get('contracts') or 0)
-    
+
     if contracts and abs(contracts) > 0:  # Если позиция не нулевая
         open_symbols_remote.add(symbol)  # Добавляем в набор
 ```
@@ -73,6 +77,7 @@ for p in (positions or []):
 ---
 
 ### Шаг 4: Получение локальных позиций
+
 ```python
 # Получаем символы, которые система считает открытыми локально
 local_open = set(await adb_local.get_user_active_symbols(uid))
@@ -83,6 +88,7 @@ local_open = set(await adb_local.get_user_active_symbols(uid))
 ---
 
 ### Шаг 5: Сравнение и закрытие
+
 ```python
 # Находим позиции, которые есть локально, но НЕТ на бирже
 to_close = local_open - open_symbols_remote
@@ -95,14 +101,14 @@ to_close = local_open - open_symbols_remote
 for sym in to_close:
     # Проверяем режим пользователя
     user_mode = await adb_local.get_user_mode(uid)
-    
+
     if user_mode == 'manual':
         # Для manual режима НЕ закрываем (сигнал-провайдер)
         continue
-    
+
     # Для auto режима закрываем локально
     await adb_local.close_active_position_by_symbol(uid, sym)
-    
+
     # Отправляем уведомление
     await alert_svc.alert_position_closed_by_exchange(uid, sym)
 ```
@@ -114,10 +120,12 @@ for sym in to_close:
 ### Сценарий 1: Позиция закрыта на бирже вручную
 
 **Ситуация:**
+
 - Локально: `ETHFIUSDT` открыта
 - На бирже: `ETHFIUSDT` закрыта пользователем вручную
 
 **Что происходит:**
+
 1. Система получает позиции с биржи → `ETHFIUSDT` нет в списке
 2. Сравнивает: `local_open = {'ETHFIUSDT'}`, `open_symbols_remote = {}`
 3. Находит: `to_close = {'ETHFIUSDT'}`
@@ -129,10 +137,12 @@ for sym in to_close:
 ### Сценарий 2: Позиция закрыта по Stop Loss
 
 **Ситуация:**
+
 - Локально: `WLDUSDT` открыта, SL = 0.70
 - На бирже: Цена упала до 0.70, SL сработал, позиция закрыта
 
 **Что происходит:**
+
 1. Система получает позиции с биржи → `WLDUSDT` нет в списке
 2. Сравнивает: `local_open = {'WLDUSDT'}`, `open_symbols_remote = {}`
 3. Находит: `to_close = {'WLDUSDT'}`
@@ -144,10 +154,12 @@ for sym in to_close:
 ### Сценарий 3: Позиция закрыта по Take Profit
 
 **Ситуация:**
+
 - Локально: `ARBUSDT` открыта, TP2 = 0.85
 - На бирже: Цена достигла 0.85, TP2 сработал, позиция закрыта
 
 **Что происходит:**
+
 1. Система получает позиции с биржи → `ARBUSDT` нет в списке
 2. Сравнивает: `local_open = {'ARBUSDT'}`, `open_symbols_remote = {}`
 3. Находит: `to_close = {'ARBUSDT'}`
@@ -159,10 +171,12 @@ for sym in to_close:
 ### Сценарий 4: Позиция все еще открыта
 
 **Ситуация:**
+
 - Локально: `ETHFIUSDT` открыта
 - На бирже: `ETHFIUSDT` все еще открыта
 
 **Что происходит:**
+
 1. Система получает позиции с биржи → `ETHFIUSDT` есть в списке
 2. Сравнивает: `local_open = {'ETHFIUSDT'}`, `open_symbols_remote = {'ETHFIUSDT'}`
 3. Находит: `to_close = {}` (пусто)
@@ -173,7 +187,9 @@ for sym in to_close:
 ## ⚙️ ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ
 
 ### 1. Мониторинг TP1/TP2
+
 Система отслеживает размер позиции и определяет, когда сработал TP1:
+
 ```python
 # Запоминаем начальный размер позиции
 if pos_key not in position_sizes:
@@ -186,13 +202,17 @@ if size_reduction_pct >= 40 and size_reduction_pct <= 60:
 ```
 
 ### 2. Автоматическое создание защитных ордеров
+
 При обнаружении новой позиции на бирже система автоматически создает:
+
 - **TP1 ордер** (50% позиции)
 - **TP2 ордер** (50% позиции)
 - **SL ордер** (100% позиции)
 
 ### 3. Защита от hedge-позиций
+
 Система обнаруживает и автоматически закрывает hedge-позиции (LONG+SHORT на один символ):
+
 ```python
 hedge_conflicts = await detect_hedge_positions(positions)
 if hedge_conflicts:
@@ -210,6 +230,7 @@ await asyncio.sleep(120)
 ```
 
 **Это значит:**
+
 - Каждые 2 минуты система проверяет все позиции
 - Если позиция закрыта на бирже, она будет закрыта локально в течение 2 минут
 - Для auto режима это обеспечивает актуальность данных
@@ -219,12 +240,14 @@ await asyncio.sleep(120)
 ## 🎯 РАЗНИЦА МЕЖДУ MANUAL И AUTO РЕЖИМАМИ
 
 ### MANUAL режим (сигнал-провайдер):
+
 - ✅ Позиции **НЕ закрываются** автоматически, если не найдены на бирже
 - ✅ Пользователь использует бота только для получения сигналов
 - ✅ Позиции остаются открытыми локально для отслеживания
 - ✅ Пользователь может вручную закрыть через `/positions`
 
 ### AUTO режим (реальная торговля):
+
 - ✅ Позиции **закрываются** автоматически, если не найдены на бирже
 - ✅ Система синхронизируется с реальными позициями на бирже
 - ✅ Обеспечивает актуальность данных (позиция закрыта на бирже → закрыта локально)
@@ -242,4 +265,3 @@ await asyncio.sleep(120)
 ---
 
 **Итог:** Для auto режима система работает как "зеркало" биржи — если позиция закрыта на бирже, она закрывается и локально. Это обеспечивает синхронизацию данных и актуальность информации.
-

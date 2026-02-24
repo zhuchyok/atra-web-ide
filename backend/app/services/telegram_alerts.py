@@ -3,6 +3,7 @@ Telegram alerts для мониторинга (6.2 плана Resilient Task Exe
 Отправка уведомлений при высоком deferred/failed ratio.
 С cooldown 1 час, чтобы не спамить (мировые практики: rate limit алертов).
 """
+
 from __future__ import annotations
 
 import json
@@ -16,7 +17,11 @@ import httpx
 logger = logging.getLogger(__name__)
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
-TELEGRAM_ALERT_CHAT_ID = os.getenv("TELEGRAM_ALERT_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID") or os.getenv("TELEGRAM_USER_ID", "")
+TELEGRAM_ALERT_CHAT_ID = (
+    os.getenv("TELEGRAM_ALERT_CHAT_ID")
+    or os.getenv("TELEGRAM_CHAT_ID")
+    or os.getenv("TELEGRAM_USER_ID", "")
+)
 ALERT_COOLDOWN_SEC = int(os.getenv("TELEGRAM_ALERT_COOLDOWN_SEC", "3600"))  # 1 час
 _ALERT_STATE_FILE = Path("/tmp/telegram_task_alert_state.json")
 
@@ -51,7 +56,9 @@ def _mark_alert_sent(alert_type: str) -> None:
     _save_alert_state(state)
 
 
-async def send_task_execution_alert(deferred_ratio: float, failed_ratio: float, details: str) -> bool:
+async def send_task_execution_alert(
+    deferred_ratio: float, failed_ratio: float, details: str
+) -> bool:
     """
     Отправка алерта в Telegram при высоком deferred/failed ratio.
     Returns True если отправлено, False если пропущено (cooldown или нет настроек).

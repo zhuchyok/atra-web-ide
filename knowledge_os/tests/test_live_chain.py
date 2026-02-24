@@ -13,6 +13,7 @@
 """
 
 import os
+
 import pytest
 
 try:
@@ -56,9 +57,12 @@ def test_live_chain_run_completes_successfully(wait_for_victoria):
     if not requests:
         pytest.skip("requests не установлен")
     if not _victoria_health():
-        pytest.skip(f"Victoria недоступна: {VICTORIA_URL}. Запустите: docker-compose -f knowledge_os/docker-compose.yml up -d")
+        pytest.skip(
+            f"Victoria недоступна: {VICTORIA_URL}. Запустите: docker-compose -f knowledge_os/docker-compose.yml up -d"
+        )
 
     import time
+
     payload = {"goal": LIVE_GOAL, "project_context": "atra-web-ide", "chat_history": []}
     t0 = time.monotonic()
     r = requests.post(
@@ -77,7 +81,9 @@ def test_live_chain_run_completes_successfully(wait_for_victoria):
     status_url = f"{VICTORIA_URL}/run/status/{task_id}"
     # Для «Привет» Victoria завершает без LLM (quick_answer). В CI можно сократить таймаут.
     default_poll = "90" if os.getenv("CI") else "300"
-    poll_timeout = int(os.getenv("LIVE_CHAIN_POLL_TIMEOUT", default_poll))  # до 5 мин на выполнение (в CI 90 с)
+    poll_timeout = int(
+        os.getenv("LIVE_CHAIN_POLL_TIMEOUT", default_poll)
+    )  # до 5 мин на выполнение (в CI 90 с)
     poll_interval = 2
     for _ in range(max(1, poll_timeout // poll_interval)):
         try:
@@ -89,13 +95,19 @@ def test_live_chain_run_completes_successfully(wait_for_victoria):
         rec = sr.json()
         status = rec.get("status")
         if status == "completed":
-            if rec.get("clarification_questions") or (rec.get("knowledge") or {}).get("clarification_questions"):
+            if rec.get("clarification_questions") or (rec.get("knowledge") or {}).get(
+                "clarification_questions"
+            ):
                 return
             output = (rec.get("output") or "").strip()
             assert output, "output не должен быть пустым при completed (без clarify)"
             knowledge = rec.get("knowledge") or {}
             if knowledge.get("method") in ("department_heads", "task_distribution"):
-                assert "department" in str(knowledge.get("metadata", {})).lower() or "department" in str(knowledge).lower() or True
+                assert (
+                    "department" in str(knowledge.get("metadata", {})).lower()
+                    or "department" in str(knowledge).lower()
+                    or True
+                )
             assert len(output) > 10, "Ответ слишком короткий"
             return
         if status == "failed":
@@ -117,6 +129,7 @@ def test_live_chain_run_async_poll_until_completed(wait_for_victoria):
         pytest.skip(f"Victoria недоступна: {VICTORIA_URL}")
 
     import time
+
     payload = {"goal": LIVE_GOAL, "project_context": "atra-web-ide", "chat_history": []}
     t0 = time.monotonic()
     r = requests.post(
@@ -148,9 +161,13 @@ def test_live_chain_run_async_poll_until_completed(wait_for_victoria):
         status = rec.get("status")
         if status == "completed":
             # При needs_clarification в фоне output может быть пустым, есть clarification_questions
-            if rec.get("clarification_questions") or (rec.get("knowledge") or {}).get("clarification_questions"):
+            if rec.get("clarification_questions") or (rec.get("knowledge") or {}).get(
+                "clarification_questions"
+            ):
                 return
-            assert (rec.get("output") or "").strip(), "output не должен быть пустым при completed (без clarify)"
+            assert (rec.get("output") or "").strip(), (
+                "output не должен быть пустым при completed (без clarify)"
+            )
             return
         if status == "failed":
             pytest.fail(f"Задача завершилась с ошибкой: {rec.get('error', 'unknown')}")
@@ -169,7 +186,9 @@ def run_manual():
         print("Запустите: docker-compose -f knowledge_os/docker-compose.yml up -d")
         return 1
     payload = {"goal": LIVE_GOAL, "project_context": "atra-web-ide", "chat_history": []}
-    r = requests.post(f"{VICTORIA_URL}/run", json=payload, params={"async_mode": "false"}, timeout=120)
+    r = requests.post(
+        f"{VICTORIA_URL}/run", json=payload, params={"async_mode": "false"}, timeout=120
+    )
     print(f"HTTP {r.status_code}")
     if r.status_code != 200:
         print(r.text[:1000])

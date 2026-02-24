@@ -1,0 +1,91 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт о баге! Пожалуйста, заполните форму ниже.
+  
+  - type: textarea
+    id: description
+    attributes:
+      label: Описание бага
+      description: Чёткое описание проблемы
+      placeholder: Что произошло?
+    validations:
+      required: true
+  
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги для воспроизведения
+      description: Как воспроизвести проблему?
+      placeholder: |
+        1. Перейти в '...'
+        2. Нажать на '...'
+        3. Увидеть ошибку
+    validations:
+      required: true
+  
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемое поведение
+      description: Что должно было произойти?
+    validations:
+      required: true
+  
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактическое поведение
+      description: Что произошло на самом деле?
+    validations:
+      required: true
+  
+  - type: dropdown
+    id: component
+    attributes:
+      label: Компонент
+      description: Какой компонент затронут?
+      options:
+        - Backend (FastAPI)
+        - Frontend (Svelte)
+        - Knowledge OS
+        - Rust Gateway
+        - atra-cli
+        - Victoria Agent
+        - Veronica Agent
+        - Database
+        - Docker
+        - Другое
+    validations:
+      required: true
+  
+  - type: textarea
+    id: environment
+    attributes:
+      label: Окружение
+      description: Версии, OS, браузер
+      placeholder: |
+        - OS: macOS 14.2
+        - Browser: Chrome 120
+        - Python: 3.11
+        - Node: 20.x
+    validations:
+      required: true
+  
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи
+      description: Релевантные логи (если есть)
+      render: shell
+  
+  - type: textarea
+    id: additional
+    attributes:
+      label: Дополнительная информация
+      description: Скриншоты, видео, дополнительный контекст

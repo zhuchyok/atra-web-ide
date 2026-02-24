@@ -5,6 +5,7 @@ ConversationContextManager: хранение истории диалога (sess
 Окно контекста: последние N сообщений, ограничение по токенам (приближённо).
 Рекомендации: Backend (единая точка хранения), SRE (TTL, опционально Redis), QA (предсказуемый формат).
 """
+
 import asyncio
 import json
 import logging
@@ -32,6 +33,7 @@ def _get_redis():
         return None
     try:
         import redis.asyncio as aioredis
+
         return aioredis.from_url(url, decode_responses=True)
     except Exception as e:
         logger.debug("ConversationContext Redis init skipped: %s", e)
@@ -70,7 +72,9 @@ class ConversationContextManager:
                 self._memory[session_id] = []
             self._memory[session_id].append(item)
             if len(self._memory[session_id]) > self.max_messages_per_session:
-                self._memory[session_id] = self._memory[session_id][-self.max_messages_per_session:]
+                self._memory[session_id] = self._memory[session_id][
+                    -self.max_messages_per_session :
+                ]
         if self.use_redis:
             await self._redis_append(session_id, item)
 

@@ -3,12 +3,12 @@ Pullback Entry Logic - логика входа на откате к поддер
 """
 
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from src.analysis.market_structure import MarketStructureAnalyzer
 from src.analysis.entry_quality import EntryQualityScorer
+from src.analysis.market_structure import MarketStructureAnalyzer
 from src.patterns.candle_patterns import CandlePatternDetector
 from src.technical.fibonacci import FibonacciCalculator
 
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # Импорт адаптивной стратегии (опционально)
 try:
     from src.strategies.adaptive_strategy import AdaptiveStrategySelector
+
     ADAPTIVE_STRATEGY_AVAILABLE = True
     logger.debug("✅ AdaptiveStrategySelector доступен")
 except ImportError as e:
@@ -54,7 +55,7 @@ class PullbackEntryLogic:
         self,
         df: pd.DataFrame,
         current_price: float,
-        tolerance_pct: float = 0.8  # Оптимизировано: уменьшено с 1.0 до 0.8 для более строгих уровней
+        tolerance_pct: float = 0.8,  # Оптимизировано: уменьшено с 1.0 до 0.8 для более строгих уровней
     ) -> Tuple[bool, Optional[float]]:
         """
         Проверяет, находится ли цена вблизи уровня поддержки
@@ -73,14 +74,16 @@ class PullbackEntryLogic:
 
             # Ищем уровни поддержки (локальные минимумы)
             lookback = min(50, len(df))
-            recent_lows = df['low'].tail(lookback).values
+            recent_lows = df["low"].tail(lookback).values
 
             support_levels = []
             for i in range(2, len(recent_lows) - 2):
-                if (recent_lows[i] < recent_lows[i-1] and
-                    recent_lows[i] < recent_lows[i-2] and
-                    recent_lows[i] < recent_lows[i+1] and
-                    recent_lows[i] < recent_lows[i+2]):
+                if (
+                    recent_lows[i] < recent_lows[i - 1]
+                    and recent_lows[i] < recent_lows[i - 2]
+                    and recent_lows[i] < recent_lows[i + 1]
+                    and recent_lows[i] < recent_lows[i + 2]
+                ):
                     support_levels.append(recent_lows[i])
 
             if not support_levels:
@@ -93,8 +96,8 @@ class PullbackEntryLogic:
                     return True, support
 
             # Проверяем EMA как поддержку
-            if 'ema_fast' in df.columns and 'ema_slow' in df.columns:
-                ema_fast = df['ema_fast'].iloc[-1]
+            if "ema_fast" in df.columns and "ema_slow" in df.columns:
+                ema_fast = df["ema_fast"].iloc[-1]
 
                 # Для LONG: цена должна быть выше EMA, но близко к ней
                 if current_price >= ema_fast:
@@ -103,7 +106,9 @@ class PullbackEntryLogic:
                         return True, ema_fast
 
             # Проверяем уровни Фибоначчи
-            fib_levels = self.fib_calculator.calculate_fibonacci_levels(df, lookback_periods=lookback)
+            fib_levels = self.fib_calculator.calculate_fibonacci_levels(
+                df, lookback_periods=lookback
+            )
             if fib_levels:
                 for fib_level in fib_levels:
                     if fib_level.price < current_price:
@@ -120,7 +125,7 @@ class PullbackEntryLogic:
         self,
         df: pd.DataFrame,
         current_price: float,
-        tolerance_pct: float = 0.8  # Оптимизировано: уменьшено с 1.0 до 0.8 для более строгих уровней
+        tolerance_pct: float = 0.8,  # Оптимизировано: уменьшено с 1.0 до 0.8 для более строгих уровней
     ) -> Tuple[bool, Optional[float]]:
         """
         Проверяет, находится ли цена вблизи уровня сопротивления
@@ -139,14 +144,16 @@ class PullbackEntryLogic:
 
             # Ищем уровни сопротивления (локальные максимумы)
             lookback = min(50, len(df))
-            recent_highs = df['high'].tail(lookback).values
+            recent_highs = df["high"].tail(lookback).values
 
             resistance_levels = []
             for i in range(2, len(recent_highs) - 2):
-                if (recent_highs[i] > recent_highs[i-1] and
-                    recent_highs[i] > recent_highs[i-2] and
-                    recent_highs[i] > recent_highs[i+1] and
-                    recent_highs[i] > recent_highs[i+2]):
+                if (
+                    recent_highs[i] > recent_highs[i - 1]
+                    and recent_highs[i] > recent_highs[i - 2]
+                    and recent_highs[i] > recent_highs[i + 1]
+                    and recent_highs[i] > recent_highs[i + 2]
+                ):
                     resistance_levels.append(recent_highs[i])
 
             if not resistance_levels:
@@ -159,8 +166,8 @@ class PullbackEntryLogic:
                     return True, resistance
 
             # Проверяем EMA как сопротивление
-            if 'ema_fast' in df.columns and 'ema_slow' in df.columns:
-                ema_fast = df['ema_fast'].iloc[-1]
+            if "ema_fast" in df.columns and "ema_slow" in df.columns:
+                ema_fast = df["ema_fast"].iloc[-1]
 
                 # Для SHORT: цена должна быть ниже EMA, но близко к ней
                 if current_price <= ema_fast:
@@ -169,7 +176,9 @@ class PullbackEntryLogic:
                         return True, ema_fast
 
             # Проверяем уровни Фибоначчи
-            fib_levels = self.fib_calculator.calculate_fibonacci_levels(df, lookback_periods=lookback)
+            fib_levels = self.fib_calculator.calculate_fibonacci_levels(
+                df, lookback_periods=lookback
+            )
             if fib_levels:
                 for fib_level in fib_levels:
                     if fib_level.price > current_price:
@@ -218,7 +227,10 @@ class PullbackEntryLogic:
                     min_quality_score = adaptive_config.get("min_quality_score", min_quality_score)
                     require_trend = adaptive_config.get("require_trend", require_trend)
                     details["adaptive_config"] = adaptive_config
-                    logger.debug("🎯 Используется адаптивная конфигурация: %s", adaptive_config.get("regime", "UNKNOWN"))
+                    logger.debug(
+                        "🎯 Используется адаптивная конфигурация: %s",
+                        adaptive_config.get("regime", "UNKNOWN"),
+                    )
                 except Exception as e:
                     logger.debug("⚠️ Ошибка адаптивной конфигурации: %s, используем базовую", e)
 
@@ -253,7 +265,9 @@ class PullbackEntryLogic:
             details["quality_details"] = quality_details
 
             if quality_score < min_quality_score:
-                details["reason"] = f"Низкое качество входа: {quality_score:.2f} < {min_quality_score}"
+                details["reason"] = (
+                    f"Низкое качество входа: {quality_score:.2f} < {min_quality_score}"
+                )
                 return False, details
 
             # 5. Проверка силы тренда (ADX)
@@ -330,7 +344,9 @@ class PullbackEntryLogic:
             details["quality_details"] = quality_details
 
             if quality_score < min_quality_score:
-                details["reason"] = f"Низкое качество входа: {quality_score:.2f} < {min_quality_score}"
+                details["reason"] = (
+                    f"Низкое качество входа: {quality_score:.2f} < {min_quality_score}"
+                )
                 return False, details
 
             # 5. Проверка силы тренда (ADX)
@@ -346,4 +362,3 @@ class PullbackEntryLogic:
         except Exception as e:
             logger.error("❌ Ошибка проверки входа SHORT: %s", e)
             return False, {"reason": f"Ошибка: {str(e)}"}
-

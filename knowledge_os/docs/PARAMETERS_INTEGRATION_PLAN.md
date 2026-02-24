@@ -3,6 +3,7 @@
 ## 🎯 ЦЕЛЬ
 
 Интегрировать оптимизированные параметры из:
+
 1. `src/ai/intelligent_filter_system.py` - функция `get_symbol_specific_parameters()`
 2. `backtests/optimize_intelligent_params_*.json` - результаты оптимизации
 
@@ -38,12 +39,14 @@
 
 **Файл:** `backtests/all_filters_optimization_results.json`  
 **Результаты:**
+
 - ✅ Доходность: +2,477.88%
 - ✅ Win Rate: 100% (76 сделок)
 - ✅ Profit Factor: Infinity
 - ✅ Return per Signal: 32.60%
 
 **Оптимальные параметры фильтров:**
+
 - Volume Profile: `threshold=0.6`
 - VWAP: `threshold=0.6`
 - AMT: `lookback=20, balance_threshold=0.3, imbalance_threshold=0.5`
@@ -65,16 +68,16 @@
 ```
 1. all_filters_optimization_results.json - ВЫСШИЙ ПРИОРИТЕТ (для фильтров)
    └─ Оптимальные параметры всех фильтров (+2,477% доходность)
-   
+
 2. JSON файлы (optimize_intelligent_params_*.json) - ВЫСОКИЙ ПРИОРИТЕТ
    └─ Если монета есть в JSON → используем best_params
-   
+
 3. get_symbol_specific_parameters() - СРЕДНИЙ ПРИОРИТЕТ
    └─ Если монеты нет в JSON → используем из intelligent_filter_system.py
-   
+
 4. SYMBOL_SPECIFIC_CONFIG - НИЗКИЙ ПРИОРИТЕТ
    └─ Если монеты нет нигде → используем из config.py
-   
+
 5. DEFAULT значения - ПОСЛЕДНИЙ ПРИОРИТЕТ
    └─ Если ничего не найдено → используем дефолты
 ```
@@ -82,6 +85,7 @@
 ### **Где применять параметры:**
 
 #### **1. `volume_ratio` в `soft_entry_signal()`:**
+
 ```python
 # Текущий код (строка 487-546):
 base_threshold = SOFT_VOLUME_RATIO_MIN  # 0.3
@@ -97,6 +101,7 @@ final_volume_ratio = optimized_volume_ratio or ai_threshold or base_threshold
 ```
 
 #### **2. `quality_score` в `_generate_signal_impl()`:**
+
 ```python
 # Текущий код (строка 2482):
 min_quality_threshold = max(0.33, base_quality_threshold + market_adjustment)
@@ -110,6 +115,7 @@ final_quality_threshold = optimized_quality_score or min_quality_threshold
 ```
 
 #### **3. `rsi_oversold/overbought` в фильтрах:**
+
 ```python
 # ✅ ДОБАВИТЬ:
 symbol_params = get_symbol_specific_parameters(symbol)
@@ -168,7 +174,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
     if json_params:
         logger.debug("✅ [%s] Параметры из JSON: %s", symbol, json_params)
         return json_params
-    
+
     # 2. Пробуем intelligent_filter_system
     try:
         from src.ai.intelligent_filter_system import get_symbol_specific_parameters
@@ -178,7 +184,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
             return intelligent_params
     except Exception as e:
         logger.debug("⚠️ [%s] Ошибка загрузки intelligent_params: %s", symbol, e)
-    
+
     # 3. Пробуем SYMBOL_SPECIFIC_CONFIG
     try:
         from src.core.config import SYMBOL_SPECIFIC_CONFIG, DEFAULT_SYMBOL_CONFIG
@@ -193,7 +199,7 @@ def get_symbol_optimized_params(symbol: str) -> Dict[str, Any]:
             }
     except Exception as e:
         logger.debug("⚠️ [%s] Ошибка загрузки config_params: %s", symbol, e)
-    
+
     # 4. DEFAULT
     return {
         'volume_ratio': 0.4,
@@ -256,6 +262,7 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 ## 📊 ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 После интеграции:
+
 - ✅ Параметры из JSON будут использоваться автоматически
 - ✅ Параметры из `intelligent_filter_system.py` будут использоваться для монет без JSON
 - ✅ Каждая монета будет использовать свои оптимизированные параметры
@@ -265,4 +272,3 @@ rsi_overbought = symbol_params.get('rsi_overbought', base_rsi_overbought)
 
 **Дата:** 2025-12-02  
 **Статус:** План готов к реализации
-

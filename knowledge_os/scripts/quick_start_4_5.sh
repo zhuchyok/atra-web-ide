@@ -77,7 +77,7 @@ FAILED=0
 for migration in "${MIGRATIONS[@]}"; do
     echo "📝 Применение: $migration..."
     RESULT=$(ssh_with_password "cd $SERVER_PATH && $PSQL_PATH -U admin -d knowledge_os -f db/migrations/$migration 2>&1" 2>&1)
-    
+
     if echo "$RESULT" | grep -qi "error\|failed\|fatal"; then
         echo "❌ Ошибка при применении $migration"
         FAILED=$((FAILED + 1))
@@ -140,7 +140,7 @@ TABLES=("tasks" "knowledge_links" "webhooks" "users" "knowledge_translations")
 
 for table in "${TABLES[@]}"; do
     RESULT=$(ssh_with_password "cd $SERVER_PATH && $PSQL_PATH -U admin -d knowledge_os -c \"SELECT COUNT(*) FROM $table;\" 2>&1" 2>&1)
-    
+
     if echo "$RESULT" | grep -qi "does not exist\|error"; then
         echo "❌ Таблица $table не существует"
     else
@@ -166,4 +166,3 @@ echo "   2. Настроить webhooks (опционально)"
 echo "   3. Запустить REST API (опционально)"
 echo ""
 echo "======================================================================"
-

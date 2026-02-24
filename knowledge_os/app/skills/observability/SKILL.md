@@ -4,7 +4,15 @@ description: Observability - полная диагностика системы 
 category: monitoring
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "📊", "homepage": "https://opentelemetry.io/"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": { "bins": ["python"] },
+        "emoji": "📊",
+        "homepage": "https://opentelemetry.io/",
+      },
+  }
 ---
 
 # Observability Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "📊", "home
 ## Когда использовать
 
 Используй этот навык для:
+
 - Диагностики проблем
 - Мониторинга производительности
 - Отслеживания выполнения задач
@@ -23,6 +32,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "📊", "home
 ## Методология
 
 Observability работает через:
+
 1. **Tracing** - Трассировка выполнения
 2. **Metrics** - Сбор метрик
 3. **Logging** - Структурированное логирование

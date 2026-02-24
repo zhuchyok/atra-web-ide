@@ -1,0 +1,60 @@
+# GitHub Labels Configuration
+# For use with latest-changes.yml
+
+# Breaking changes
+- name: breaking
+  color: "d73a4a"
+  description: "Breaking changes"
+
+# Feature work
+- name: feature
+  color: "0e8a16"
+  description: "New features"
+
+- name: enhancement
+  color: "a2eeef"
+  description: "Enhancements to existing features"
+
+# Bug fixes
+- name: bug
+  color: "d73a4a"
+  description: "Bug fixes"
+
+# Security
+- name: security
+  color: "ee0701"
+  description: "Security fixes"
+
+# Performance
+- name: performance
+  color: "fbca04"
+  description: "Performance improvements"
+
+# Code quality
+- name: refactor
+  color: "1d76db"
+  description: "Code refactoring"
+
+- name: tests
+  color: "0e8a16"
+  description: "Test improvements"
+
+# Documentation
+- name: docs
+  color: "0075ca"
+  description: "Documentation"
+
+# Dependencies
+- name: dependencies
+  color: "0366d6"
+  description: "Dependency updates"
+
+# CI/CD
+- name: ci
+  color: "purple"
+  description: "CI/CD improvements"
+
+# Chores
+- name: chore
+  color: "fef2c0"
+  description: "Chores and maintenance"

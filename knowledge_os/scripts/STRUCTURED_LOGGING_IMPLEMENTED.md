@@ -10,17 +10,22 @@
 ## 🎯 WHAT WAS DONE
 
 ### 1. Added structlog to requirements.txt
+
 **File:** `requirements.txt`
+
 - Added `structlog>=23.2.0`
 
 ### 2. Created Structured Logging Module
+
 **File:** `structured_logging.py`
+
 - `configure_structured_logging()` - настройка логирования
 - `get_logger()` - получение структурированного logger
 - Поддержка JSON формата
 - Fallback на стандартный logging если structlog не установлен
 
 ### 3. Features
+
 - ✅ JSON формат для production
 - ✅ Human-readable формат для development
 - ✅ Timestamp в ISO формате
@@ -33,6 +38,7 @@
 ## 📊 USAGE EXAMPLE
 
 ### Setup (once at startup):
+
 ```python
 from structured_logging import configure_structured_logging, get_logger
 
@@ -46,6 +52,7 @@ configure_structured_logging(
 ```
 
 ### Usage:
+
 ```python
 # Получить logger
 logger = get_logger(__name__)
@@ -67,6 +74,7 @@ logger.info("Signal validated", validation_score=0.92)
 ```
 
 ### Output (JSON):
+
 ```json
 {
   "event": "Signal generated",
@@ -86,11 +94,13 @@ logger.info("Signal validated", validation_score=0.92)
 ## 🔧 NEXT STEPS (Migration)
 
 ### Phase 1: Install structlog
+
 ```bash
 pip install structlog>=23.2.0
 ```
 
 ### Phase 2: Update signal_live.py
+
 ```python
 # Old:
 import logging
@@ -102,13 +112,16 @@ logger = get_logger(__name__)
 ```
 
 ### Phase 3: Update other key files
+
 - `telegram_bot_core.py`
 - `lightgbm_predictor.py`
 - `exchange_adapter.py`
 - `risk_manager.py`
 
 ### Phase 4: Add structured context
+
 Replace string formatting with structured fields:
+
 ```python
 # Old:
 logger.info(f"Signal {symbol} {signal_type} at {price}")
@@ -127,11 +140,13 @@ logger.info(
 ## 📈 BENEFITS
 
 ### Before (Standard Logging):
+
 ```
 2025-11-22 23:56:00 - signal_live - INFO - Signal BTCUSDT LONG at 50000.0
 ```
 
 ### After (Structured Logging):
+
 ```json
 {
   "event": "Signal generated",
@@ -144,6 +159,7 @@ logger.info(
 ```
 
 **Benefits:**
+
 - ✅ Easy to parse (JSON)
 - ✅ Easy to filter (by symbol, type, etc.)
 - ✅ Easy to aggregate (count signals per symbol)
@@ -157,9 +173,10 @@ logger.info(
 **Infrastructure:** ✅ Complete  
 **Module Created:** ✅ `structured_logging.py`  
 **Requirements Updated:** ✅ `requirements.txt`  
-**Documentation:** ✅ This file  
+**Documentation:** ✅ This file
 
 **Next Steps:**
+
 1. Install structlog: `pip install structlog>=23.2.0`
 2. Migrate key files to use structured logging
 3. Update logging calls to use structured fields
@@ -168,6 +185,5 @@ logger.info(
 
 **Status:** ✅ **TASK #3 INFRASTRUCTURE COMPLETE!**
 
-*Implemented by: Елена (Monitor) + Игорь (Backend)*  
-*Quality: ⭐⭐⭐⭐⭐*
-
+_Implemented by: Елена (Monitor) + Игорь (Backend)_  
+_Quality: ⭐⭐⭐⭐⭐_

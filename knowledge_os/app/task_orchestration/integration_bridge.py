@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 try:
     from app.config import ORCHESTRATION_V2_ENABLED, ORCHESTRATION_V2_PERCENTAGE
 except ImportError:
-    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in ("1", "true", "yes")
+    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10"))
 
 EnhancedOrchestratorV2 = None
@@ -23,20 +27,24 @@ ExpertMatchingEngine = None
 
 try:
     from app.enhanced_orchestrator_v2 import EnhancedOrchestratorV2 as _EOV2
+
     EnhancedOrchestratorV2 = _EOV2
 except ImportError:
     try:
         from enhanced_orchestrator_v2 import EnhancedOrchestratorV2 as _EOV2
+
         EnhancedOrchestratorV2 = _EOV2
     except ImportError:
         pass
 
 try:
     from .expert_matching_engine import ExpertMatchingEngine as _EME
+
     ExpertMatchingEngine = _EME
 except ImportError:
     try:
         from task_orchestration.expert_matching_engine import ExpertMatchingEngine as _EME
+
         ExpertMatchingEngine = _EME
     except ImportError:
         pass
@@ -57,14 +65,21 @@ class IntegrationBridge:
         use_new_orchestration: Optional[bool] = None,
         v2_percentage: Optional[float] = None,
     ):
-        self.use_new_orchestration = use_new_orchestration if use_new_orchestration is not None else _use_v2_default()
-        self.v2_percentage = v2_percentage if v2_percentage is not None else ORCHESTRATION_V2_PERCENTAGE
+        self.use_new_orchestration = (
+            use_new_orchestration if use_new_orchestration is not None else _use_v2_default()
+        )
+        self.v2_percentage = (
+            v2_percentage if v2_percentage is not None else ORCHESTRATION_V2_PERCENTAGE
+        )
         self._orchestrator_v2 = None
         if EnhancedOrchestratorV2:
             try:
                 self._orchestrator_v2 = EnhancedOrchestratorV2()
                 if self.use_new_orchestration:
-                    logger.info("IntegrationBridge: EnhancedOrchestratorV2 ready (A/B %s%%)", self.v2_percentage)
+                    logger.info(
+                        "IntegrationBridge: EnhancedOrchestratorV2 ready (A/B %s%%)",
+                        self.v2_percentage,
+                    )
             except Exception as e:
                 logger.warning("IntegrationBridge: V2 init failed: %s", e)
                 self._orchestrator_v2 = None
@@ -78,41 +93,55 @@ class IntegrationBridge:
         """Обработка через EnhancedOrchestratorV2 (фазы 1–5)."""
         if not self._orchestrator_v2:
             return await self._process_with_existing(task_description, metadata, kwargs)
-        
+
         # ПРИНУДИТЕЛЬНО: для кодинга всегда добавляем Веронику, даже в V2
-        is_coding = any(w in (task_description or "").lower() for w in ["код", "функци", "програм", "рефактор", "скрипт", "python"])
-        
+        is_coding = any(
+            w in (task_description or "").lower()
+            for w in ["код", "функци", "програм", "рефактор", "скрипт", "python"]
+        )
+
         try:
             result = await self._orchestrator_v2.run_phases_1_to_5(
                 description=task_description,
                 metadata=metadata or {},
                 task_type_hint=kwargs.get("task_type_hint"),
             )
-            
+
             assignments = result.get("assignments", {})
             if is_coding:
                 # Проверяем, есть ли уже Вероника
-                has_veronica = any("veronica" in str(a.get("expert_name", "")).lower() or "вероника" in str(a.get("expert_name", "")).lower() for a in assignments.values())
+                has_veronica = any(
+                    "veronica" in str(a.get("expert_name", "")).lower()
+                    or "вероника" in str(a.get("expert_name", "")).lower()
+                    for a in assignments.values()
+                )
                 if not has_veronica:
                     assignments["developer_forced"] = {
                         "expert_name": "Вероника",
                         "role": "Local Developer",
                         "score": 1.0,
-                        "assigned_models": ["ollama:qwen2.5-coder:32b"]
+                        "assigned_models": ["ollama:qwen2.5-coder:32b"],
                     }
-            
+
             # ПРИНУДИТЕЛЬНО: для БД всегда добавляем Романа
-            is_db = any(w in (task_description or "").lower() for w in ["бд", "база дан", "database", "sql", "postgres"])
+            is_db = any(
+                w in (task_description or "").lower()
+                for w in ["бд", "база дан", "database", "sql", "postgres"]
+            )
             if is_db:
-                has_roman = any("roman" in str(a.get("expert_name", "")).lower() or "роман" in str(a.get("expert_name", "")).lower() for a in assignments.values())
+                has_roman = any(
+                    "roman" in str(a.get("expert_name", "")).lower()
+                    or "роман" in str(a.get("expert_name", "")).lower()
+                    for a in assignments.values()
+                )
                 if not has_roman:
                     assignments["db_engineer_forced"] = {
                         "expert_name": "Роман",
                         "role": "Database Engineer",
                         "score": 1.0,
-                        "assigned_models": ["ollama:qwen2.5-coder:32b"]
+                        "assigned_models": ["ollama:qwen2.5-coder:32b"],
                     }
-            
+
             return {
                 "orchestrator": "v2",
                 "task_id": result.get("task_id"),
@@ -122,7 +151,7 @@ class IntegrationBridge:
                 "has_graph": result.get("has_graph", False),
                 "execution_order": result.get("execution_order"),
                 "parallel_estimate": result.get("parallel_estimate"),
-                "recommend_veronica": is_coding
+                "recommend_veronica": is_coding,
             }
         except Exception as e:
             logger.warning("V2 process_task failed, falling back to existing: %s", e)
@@ -137,15 +166,20 @@ class IntegrationBridge:
         """Обработка через ExpertMatchingEngine (существующая система)."""
         expert_assignments = {}
         # ПРИОРИТЕТ: для кодинга всегда предлагаем Веронику (мировая практика: Local Developer)
-        is_coding = any(w in (task_description or "").lower() for w in ["код", "функци", "програм", "рефактор", "скрипт", "python"])
-        
+        is_coding = any(
+            w in (task_description or "").lower()
+            for w in ["код", "функци", "програм", "рефактор", "скрипт", "python"]
+        )
+
         if ExpertMatchingEngine:
             try:
                 engine = ExpertMatchingEngine()
                 category = "coding" if is_coding else "general"
-                if not is_coding and any(w in (task_description or "").lower() for w in ["анализ", "план", "решен"]):
+                if not is_coding and any(
+                    w in (task_description or "").lower() for w in ["анализ", "план", "решен"]
+                ):
                     category = "reasoning"
-                
+
                 best = await engine.find_best_expert_for_task(
                     task_id="bridge_" + str(hash(task_description) % 10**8),
                     task_description=task_description,
@@ -155,7 +189,7 @@ class IntegrationBridge:
                     expert_assignments["main"] = best
             except Exception as e:
                 logger.debug("ExpertMatchingEngine fallback failed: %s", e)
-        
+
         # Если это кодинг и Вероника не назначена основным — добавляем её рекомендацию
         status = "ready_for_smart_worker"
         if is_coding:
@@ -166,14 +200,14 @@ class IntegrationBridge:
                 expert_assignments["developer"] = {
                     "expert_name": "Вероника",
                     "role": "Local Developer",
-                    "score": 1.0
+                    "score": 1.0,
                 }
-        
+
         return {
             "orchestrator": "existing",
             "status": status,
             "assignments": expert_assignments,
-            "recommend_veronica": is_coding
+            "recommend_veronica": is_coding,
         }
 
     async def process_task(

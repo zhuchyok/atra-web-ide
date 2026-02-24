@@ -126,6 +126,7 @@ class RAGEvaluator:
         """BLEU (упрощённо): совпадение 1-gram и 2-gram."""
         try:
             from nltk.translate.bleu_score import sentence_bleu
+
             ref = [reference.split()]
             hyp = response.split()
             return float(sentence_bleu(ref, hyp, weights=(0.5, 0.5)))
@@ -144,6 +145,7 @@ class RAGEvaluator:
         """ROUGE (упрощённо): recall по 1-gram."""
         try:
             from rouge_score import rouge_scorer
+
             scorer = rouge_scorer.RougeScorer(["rouge1"], use_stemmer=False)
             s = scorer.score(reference, response)
             return s["rouge1"].recall

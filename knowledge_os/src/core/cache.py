@@ -6,7 +6,8 @@ using stateless architecture principles, replacing module-level variables
 with explicit state management.
 """
 
-from typing import Optional, Any
+from typing import Any, Optional
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 try:
@@ -18,26 +19,26 @@ except ImportError:
 class CacheRegistry:
     """
     Centralized cache registry for ATRA trading system.
-    
+
     This class manages all caches using stateless architecture:
     - Sent signals cache (prevents duplicate signals)
     - Anomaly cache (volume/market cap anomalies)
     - News cache (news filtering)
-    
+
     Example:
         ```python
         registry = get_cache_registry()
-        
+
         # Use sent signals cache
         cached = registry.sent_signals.get("signal_key")
         registry.sent_signals.set("signal_key", data, ttl=60)
-        
+
         # Use anomaly cache
         cached = registry.anomalies.get("anomaly_key")
         registry.anomalies.set("anomaly_key", data, ttl=600)
         ```
     """
-    
+
     def __init__(self):
         """Initialize cache registry with stateless cache managers"""
         if StatelessCacheManager is not None:
@@ -56,7 +57,7 @@ class CacheRegistry:
             self.news_positive = {}
             self.news_combined = {}
             self._use_dict_cache = True
-    
+
     def clear_all(self) -> None:
         """Clear all caches"""
         if self._use_dict_cache:
@@ -71,17 +72,17 @@ class CacheRegistry:
             self.news_blocked.clear()
             self.news_positive.clear()
             self.news_combined.clear()
-    
+
     def get_sent_signals_dict(self) -> dict:
         """
         Get sent signals cache as dict (for backward compatibility).
-        
+
         Returns:
             Dictionary representation of sent signals cache
         """
         if self._use_dict_cache:
             return self.sent_signals
-        
+
         # Convert StatelessCacheManager to dict
         result = {}
         for key in self.sent_signals.get_all_keys():
@@ -89,17 +90,17 @@ class CacheRegistry:
             if value:
                 result[key] = value
         return result
-    
+
     def get_anomaly_cache_dict(self) -> dict:
         """
         Get anomaly cache as dict (for backward compatibility).
-        
+
         Returns:
             Dictionary representation of anomaly cache
         """
         if self._use_dict_cache:
             return self.anomalies
-        
+
         # Convert StatelessCacheManager to dict
         result = {}
         for key in self.anomalies.get_all_keys():
@@ -107,43 +108,39 @@ class CacheRegistry:
             if value:
                 result[key] = value
         return result
-    
+
     def get_news_cache_dict(self) -> dict:
         """
         Get news cache as dict (for backward compatibility).
-        
+
         Returns:
             Dictionary representation of news cache
         """
         if self._use_dict_cache:
             return {
-                'blocked': self.news_blocked,
-                'positive': self.news_positive,
-                'combined': self.news_combined
+                "blocked": self.news_blocked,
+                "positive": self.news_positive,
+                "combined": self.news_combined,
             }
-        
+
         # Convert StatelessCacheManager to dict
-        result = {
-            'blocked': {},
-            'positive': {},
-            'combined': {}
-        }
-        
+        result = {"blocked": {}, "positive": {}, "combined": {}}
+
         for key in self.news_blocked.get_all_keys():
             value = self.news_blocked.get(key)
             if value:
-                result['blocked'][key] = value
-        
+                result["blocked"][key] = value
+
         for key in self.news_positive.get_all_keys():
             value = self.news_positive.get(key)
             if value:
-                result['positive'][key] = value
-        
+                result["positive"][key] = value
+
         for key in self.news_combined.get_all_keys():
             value = self.news_combined.get(key)
             if value:
-                result['combined'][key] = value
-        
+                result["combined"][key] = value
+
         return result
 
 
@@ -154,7 +151,7 @@ _cache_registry: Optional[CacheRegistry] = None
 def get_cache_registry() -> CacheRegistry:
     """
     Get singleton cache registry instance.
-    
+
     Returns:
         CacheRegistry instance
     """
@@ -173,7 +170,7 @@ def reset_cache_registry() -> None:
 def get_cache_stats() -> dict:
     """
     Get cache statistics (for monitoring).
-    
+
     Returns:
         Dictionary with cache statistics
     """
@@ -181,7 +178,7 @@ def get_cache_stats() -> dict:
     stats = {
         "sent_signals": len(registry.get_sent_signals_dict()),
         "anomalies": len(registry.get_anomaly_cache_dict()),
-        "news_combined": len(registry.news_combined) if registry._use_dict_cache else "active"
+        "news_combined": len(registry.news_combined) if registry._use_dict_cache else "active",
     }
     return stats
 
@@ -190,10 +187,10 @@ def get_cache_stats() -> dict:
 def get_cached_news(symbol: str) -> Optional[Any]:
     """
     Get cached news for symbol (backward compatibility)
-    
+
     Args:
         symbol: Trading symbol (e.g., 'BTCUSDT')
-        
+
     Returns:
         Cached news data or None
     """
@@ -204,7 +201,7 @@ def get_cached_news(symbol: str) -> Optional[Any]:
 def cache_news(symbol: str, news_data: Any, ttl: Optional[int] = 900):
     """
     Cache news for symbol (backward compatibility)
-    
+
     Args:
         symbol: Trading symbol (e.g., 'BTCUSDT')
         news_data: News data to cache
@@ -217,10 +214,10 @@ def cache_news(symbol: str, news_data: Any, ttl: Optional[int] = 900):
 def get_cached_anomaly(symbol: str) -> Optional[Any]:
     """
     Get cached anomaly data for symbol (backward compatibility)
-    
+
     Args:
         symbol: Trading symbol (e.g., 'BTCUSDT')
-        
+
     Returns:
         Cached anomaly data or None
     """
@@ -231,7 +228,7 @@ def get_cached_anomaly(symbol: str) -> Optional[Any]:
 def cache_anomaly(symbol: str, anomaly_data: Any, ttl: Optional[int] = 600):
     """
     Cache anomaly data for symbol (backward compatibility)
-    
+
     Args:
         symbol: Trading symbol (e.g., 'BTCUSDT')
         anomaly_data: Anomaly data to cache

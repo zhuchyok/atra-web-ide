@@ -60,27 +60,27 @@ async def scan_ollama_models() -> List[str]:
 async def scan_all_models() -> Dict:
     """Сканирование всех доступных моделей"""
     print("🔍 Сканирование моделей...")
-    
+
     mlx_models = await scan_mlx_models()
     ollama_models = await scan_ollama_models()
-    
+
     result = {
         "timestamp": datetime.now().isoformat(),
         "mlx_models": sorted(mlx_models),
         "ollama_models": sorted(ollama_models),
         "all_models": sorted(set(mlx_models + ollama_models))
     }
-    
+
     # Сохраняем результат
     with open(OUTPUT_FILE, 'w') as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-    
+
     print(f"✅ Найдено моделей:")
     print(f"   MLX: {len(mlx_models)}")
     print(f"   Ollama: {len(ollama_models)}")
     print(f"   Всего уникальных: {len(result['all_models'])}")
     print(f"📄 Результат сохранен в: {OUTPUT_FILE}")
-    
+
     return result
 
 if __name__ == '__main__':

@@ -95,4 +95,3 @@ echo "📝 Логи:"
 echo "   - $SERVER_PATH/logs/cursorrules_update.log"
 echo ""
 echo "======================================================================"
-

@@ -4,7 +4,7 @@ description: Hierarchical Orchestration - иерархическая коорд�
 category: orchestration
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🏗️"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🏗️" } }
 ---
 
 # Hierarchical Orchestration Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🏗️"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Очень сложных задач с множеством подзадач
 - Задач, требующих координации нескольких агентов
 - Проектов с зависимостями
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🏗️"}}
 ## Методология
 
 Hierarchical Orchestration работает через:
+
 1. **Task Decomposition** - Разбиение на подзадачи
 2. **Hierarchy Creation** - Создание иерархии агентов
 3. **Dependency Resolution** - Разрешение зависимостей

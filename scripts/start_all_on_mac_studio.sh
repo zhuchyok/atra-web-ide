@@ -92,10 +92,10 @@ echo "[5/6] Запуск Docker контейнеров..."
 if [ -f "knowledge_os/docker-compose.yml" ]; then
     echo "   Запуск через docker-compose..."
     docker-compose -f knowledge_os/docker-compose.yml up -d
-    
+
     echo "   ⏳ Ожидание готовности сервисов (20 секунд)..."
     sleep 20
-    
+
     echo "   📊 Статус контейнеров:"
     docker-compose -f knowledge_os/docker-compose.yml ps
     echo "   ✅ Контейнеры запущены"

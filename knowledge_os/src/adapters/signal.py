@@ -8,16 +8,18 @@
 - Фильтры качества
 """
 
-import sqlite3
 import json
-import time
 import logging
-from datetime import datetime, timedelta
-from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, List, Tuple, Optional
+import sqlite3
 import statistics
+import time
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
+
 
 class AdaptiveSignalSystem:
     def __init__(self, db_path: str = "trading.db"):
@@ -34,16 +36,16 @@ class AdaptiveSignalSystem:
 
         # Веса индикаторов (для будущего развития)
         self.indicator_weights = {
-            'bb_position': 1.0,
-            'ema_trend': 1.0,
-            'rsi': 1.0,
-            'volume_ratio': 1.0,
-            'volatility': 1.0,
-            'momentum': 1.0,
-            'trend_strength': 1.0,
-            'adx': 1.0,
-            'ema50_slope': 1.0,
-            'bb_direction': 1.0
+            "bb_position": 1.0,
+            "ema_trend": 1.0,
+            "rsi": 1.0,
+            "volume_ratio": 1.0,
+            "volatility": 1.0,
+            "momentum": 1.0,
+            "trend_strength": 1.0,
+            "adx": 1.0,
+            "ema50_slope": 1.0,
+            "bb_direction": 1.0,
         }
 
     def get_last_analysis_time(self) -> Optional[datetime]:
@@ -67,10 +69,13 @@ class AdaptiveSignalSystem:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO system_settings (key, value)
                     VALUES ('last_adaptive_analysis', ?)
-                """, (analysis_time.isoformat(),))
+                """,
+                    (analysis_time.isoformat(),),
+                )
                 conn.commit()
         except Exception as e:
             logger.warning(f"Ошибка сохранения времени анализа: {e}")
@@ -83,24 +88,27 @@ class AdaptiveSignalSystem:
 
                 # Получаем все сигналы за период
                 start_time = get_utc_now() - timedelta(days=days_back)
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT
                         symbol, side, entry_price, tp1_price, tp2_price,
                         sl_price, created_at, status, score_threshold
                     FROM signals
                     WHERE created_at >= ?
                     ORDER BY created_at DESC
-                """, (start_time.isoformat(),))
+                """,
+                    (start_time.isoformat(),),
+                )
 
                 signals = cursor.fetchall()
 
                 if len(signals) < self.min_signals_for_analysis:
                     return {
-                        'total_signals': len(signals),
-                        'insufficient_data': True,
-                        'win_rate': 0.0,
-                        'avg_daily_signals': 0.0,
-                        'avg_score_threshold': self.current_score_threshold
+                        "total_signals": len(signals),
+                        "insufficient_data": True,
+                        "win_rate": 0.0,
+                        "avg_daily_signals": 0.0,
+                        "avg_score_threshold": self.current_score_threshold,
                     }
 
                 # Анализируем результаты
@@ -109,15 +117,25 @@ class AdaptiveSignalSystem:
                 score_thresholds = []
 
                 for signal in signals:
-                    symbol, side, entry_price, tp1_price, tp2_price, sl_price, created_at, status, score_threshold = signal
+                    (
+                        symbol,
+                        side,
+                        entry_price,
+                        tp1_price,
+                        tp2_price,
+                        sl_price,
+                        created_at,
+                        status,
+                        score_threshold,
+                    ) = signal
 
                     if score_threshold:
                         score_thresholds.append(score_threshold)
 
                     # Определяем успешность сигнала
-                    if status in ['tp1_hit', 'tp2_hit']:
+                    if status in ["tp1_hit", "tp2_hit"]:
                         successful_signals += 1
-                    elif status == 'sl_hit':
+                    elif status == "sl_hit":
                         pass  # Неуспешный сигнал
                     else:
                         # Для активных сигналов проверяем текущую цену
@@ -130,34 +148,38 @@ class AdaptiveSignalSystem:
 
                 win_rate = successful_signals / total_signals if total_signals > 0 else 0.0
                 avg_daily_signals = total_signals / days_back
-                avg_score_threshold = statistics.mean(score_thresholds) if score_thresholds else self.current_score_threshold
+                avg_score_threshold = (
+                    statistics.mean(score_thresholds)
+                    if score_thresholds
+                    else self.current_score_threshold
+                )
 
                 return {
-                    'total_signals': total_signals,
-                    'successful_signals': successful_signals,
-                    'win_rate': win_rate,
-                    'avg_daily_signals': avg_daily_signals,
-                    'avg_score_threshold': avg_score_threshold,
-                    'insufficient_data': False
+                    "total_signals": total_signals,
+                    "successful_signals": successful_signals,
+                    "win_rate": win_rate,
+                    "avg_daily_signals": avg_daily_signals,
+                    "avg_score_threshold": avg_score_threshold,
+                    "insufficient_data": False,
                 }
 
         except Exception as e:
             logger.error(f"Ошибка получения статистики сигналов: {e}")
             return {
-                'total_signals': 0,
-                'insufficient_data': True,
-                'win_rate': 0.0,
-                'avg_daily_signals': 0.0,
-                'avg_score_threshold': self.current_score_threshold
+                "total_signals": 0,
+                "insufficient_data": True,
+                "win_rate": 0.0,
+                "avg_daily_signals": 0.0,
+                "avg_score_threshold": self.current_score_threshold,
             }
 
     def calculate_optimal_threshold(self, stats: Dict) -> int:
         """Рассчитать оптимальный порог очков на основе статистики"""
-        if stats['insufficient_data']:
+        if stats["insufficient_data"]:
             return self.current_score_threshold
 
-        win_rate = stats['win_rate']
-        avg_daily_signals = stats['avg_daily_signals']
+        win_rate = stats["win_rate"]
+        avg_daily_signals = stats["avg_daily_signals"]
 
         # Логика адаптации
         new_threshold = self.current_score_threshold
@@ -165,21 +187,32 @@ class AdaptiveSignalSystem:
         # Если win rate слишком низкий - увеличиваем порог (строже)
         if win_rate < self.target_win_rate - 0.05:  # Ниже 50%
             new_threshold = min(self.max_score_threshold, self.current_score_threshold + 1)
-            logger.info(f"Win rate {win_rate:.2%} слишком низкий, увеличиваем порог до {new_threshold}")
+            logger.info(
+                f"Win rate {win_rate:.2%} слишком низкий, увеличиваем порог до {new_threshold}"
+            )
 
         # Если win rate хороший, но сигналов мало - снижаем порог (мягче)
         elif win_rate >= self.target_win_rate and avg_daily_signals < self.target_signal_frequency:
             new_threshold = max(self.min_score_threshold, self.current_score_threshold - 1)
-            logger.info(f"Win rate {win_rate:.2%} хороший, но сигналов мало ({avg_daily_signals:.1f}/день), снижаем порог до {new_threshold}")
+            logger.info(
+                f"Win rate {win_rate:.2%} хороший, но сигналов мало ({avg_daily_signals:.1f}/день), снижаем порог до {new_threshold}"
+            )
 
         # Если win rate отличный и сигналов достаточно - оставляем как есть
-        elif win_rate >= self.target_win_rate + 0.05 and avg_daily_signals >= self.target_signal_frequency:
-            logger.info(f"Win rate {win_rate:.2%} отличный, сигналов достаточно ({avg_daily_signals:.1f}/день), оставляем порог {new_threshold}")
+        elif (
+            win_rate >= self.target_win_rate + 0.05
+            and avg_daily_signals >= self.target_signal_frequency
+        ):
+            logger.info(
+                f"Win rate {win_rate:.2%} отличный, сигналов достаточно ({avg_daily_signals:.1f}/день), оставляем порог {new_threshold}"
+            )
 
         # Если сигналов слишком много - увеличиваем порог
         elif avg_daily_signals > self.target_signal_frequency * 2:
             new_threshold = min(self.max_score_threshold, self.current_score_threshold + 1)
-            logger.info(f"Слишком много сигналов ({avg_daily_signals:.1f}/день), увеличиваем порог до {new_threshold}")
+            logger.info(
+                f"Слишком много сигналов ({avg_daily_signals:.1f}/день), увеличиваем порог до {new_threshold}"
+            )
 
         return new_threshold
 
@@ -188,10 +221,13 @@ class AdaptiveSignalSystem:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT OR REPLACE INTO system_settings (key, value)
                     VALUES ('score_threshold', ?)
-                """, (str(new_threshold),))
+                """,
+                    (str(new_threshold),),
+                )
                 conn.commit()
 
             self.current_score_threshold = new_threshold
@@ -236,8 +272,10 @@ class AdaptiveSignalSystem:
             # Анализируем статистику
             stats = self.get_signal_statistics(self.analysis_interval_days)
 
-            if stats['insufficient_data']:
-                logger.warning(f"Недостаточно данных для анализа: {stats['total_signals']} сигналов")
+            if stats["insufficient_data"]:
+                logger.warning(
+                    f"Недостаточно данных для анализа: {stats['total_signals']} сигналов"
+                )
                 return False
 
             # Рассчитываем новый порог
@@ -251,10 +289,10 @@ class AdaptiveSignalSystem:
                 logger.info(f"""
 === АДАПТИВНАЯ КОРРЕКТИРОВКА ===
 Период анализа: {self.analysis_interval_days} дней
-Всего сигналов: {stats['total_signals']}
-Успешных: {stats['successful_signals']}
-Win rate: {stats['win_rate']:.2%}
-Среднее сигналов/день: {stats['avg_daily_signals']:.1f}
+Всего сигналов: {stats["total_signals"]}
+Успешных: {stats["successful_signals"]}
+Win rate: {stats["win_rate"]:.2%}
+Среднее сигналов/день: {stats["avg_daily_signals"]:.1f}
 Старый порог: {self.current_score_threshold}
 Новый порог: {new_threshold}
 ===============================
@@ -279,13 +317,13 @@ Win rate: {stats['win_rate']:.2%}
             report = f"""
 === ОТЧЕТ АДАПТИВНОЙ СИСТЕМЫ ===
 Текущий порог очков: {current_threshold}
-Последний анализ: {last_analysis.strftime('%d.%m.%Y %H:%M') if last_analysis else 'Никогда'}
+Последний анализ: {last_analysis.strftime("%d.%m.%Y %H:%M") if last_analysis else "Никогда"}
 
 Статистика за {self.analysis_interval_days} дней:
-• Всего сигналов: {stats['total_signals']}
-• Успешных: {stats['successful_signals']}
-• Win rate: {stats['win_rate']:.2%}
-• Сигналов/день: {stats['avg_daily_signals']:.1f}
+• Всего сигналов: {stats["total_signals"]}
+• Успешных: {stats["successful_signals"]}
+• Win rate: {stats["win_rate"]:.2%}
+• Сигналов/день: {stats["avg_daily_signals"]:.1f}
 
 Цели:
 • Целевой win rate: {self.target_win_rate:.0%}

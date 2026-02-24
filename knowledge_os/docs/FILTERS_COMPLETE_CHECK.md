@@ -30,6 +30,7 @@
 ### В src/signals/core.py:
 
 #### ✅ ИНТЕГРИРОВАНЫ:
+
 - ✅ Volume Profile (check_volume_profile_filter)
 - ✅ VWAP (check_vwap_filter)
 - ✅ Market Profile (check_market_profile_filter)
@@ -46,6 +47,7 @@
 - ✅ Whale (check_whale_filter)
 
 #### ⚠️ НУЖНО ПРОВЕРИТЬ:
+
 - ❓ BTC Trend (check_btc_trend_filter)
 - ❓ ETH Trend (check_eth_trend_filter)
 - ❓ SOL Trend (check_sol_trend_filter)
@@ -56,4 +58,3 @@
 ## 📝 СТАТУС ПРОВЕРКИ
 
 Нужно проверить интеграцию всех фильтров в core.py и signal_live.py
-

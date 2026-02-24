@@ -1,6 +1,7 @@
 """
 API Auto-Optimizer: статус, дашборд, управление.
 """
+
 from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/auto-optimizer", tags=["auto-optimizer"])
@@ -11,6 +12,7 @@ def get_auto_optimizer(request: Request):
     opt = getattr(request.app.state, "auto_optimizer", None)
     if opt is None:
         from app.services.optimization.auto_optimizer import AutoOptimizer
+
         opt = AutoOptimizer()
     return opt
 

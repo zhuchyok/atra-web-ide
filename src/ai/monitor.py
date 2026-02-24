@@ -8,18 +8,20 @@ import asyncio
 import logging
 import os
 from datetime import datetime
+from typing import Any, Dict, List
+
 from src.shared.utils.datetime_utils import get_utc_now
-from typing import Dict, List, Any
 
 # Импорты
 try:
-    from src.ai.learning import AILearningSystem
     from src.ai.integration import AIIntegration
+    from src.ai.learning import AILearningSystem
     from src.utils.user_utils import load_user_data_for_signals
 except ImportError as e:
     logging.warning("Не удалось импортировать модули: %s", e)
 
 logger = logging.getLogger(__name__)
+
 
 class AIMonitor:
     """Автоматический мониторинг и обучение ИИ"""
@@ -40,10 +42,13 @@ class AIMonitor:
         # Используем singleton registry для получения единственного экземпляра
         try:
             from src.ai.singleton import get_ai_learning_system
+
             self.ai_learning = get_ai_learning_system()
             logger.info("✅ Используем singleton экземпляр ИИ системы в мониторе")
         except (ImportError, AttributeError) as e:
-            logger.warning("⚠️ Singleton registry недоступен в мониторе, создаем новый экземпляр: %s", e)
+            logger.warning(
+                "⚠️ Singleton registry недоступен в мониторе, создаем новый экземпляр: %s", e
+            )
             self.ai_learning = AILearningSystem()
         self.ai_integration = AIIntegration()
         self.monitoring_active = True
@@ -56,7 +61,7 @@ class AIMonitor:
             "checks_performed": 0,
             "errors_found": 0,
             "optimizations_applied": 0,
-            "patterns_learned": 0
+            "patterns_learned": 0,
         }
 
         logger.info("🔍 ИИ мониторинг инициализирован")
@@ -71,7 +76,10 @@ class AIMonitor:
                 await self._perform_system_checks()
 
                 # Обучение каждые N минут
-                if self.stats["checks_performed"] % (self.learning_interval // self.check_interval) == 0:
+                if (
+                    self.stats["checks_performed"] % (self.learning_interval // self.check_interval)
+                    == 0
+                ):
                     await self._perform_learning_cycle()
 
                 # Пауза между проверками
@@ -90,25 +98,25 @@ class AIMonitor:
         """Выполняет проверки системы"""
         self.stats["checks_performed"] += 1
 
-        logger.info("🔍 Проверка #%s...", self.stats['checks_performed'])
+        logger.info("🔍 Проверка #%s...", self.stats["checks_performed"])
 
         # Проверка 1: Валидация данных
         validation = self.ai_learning.validate_system_data()
         if validation["errors"]:
-            logger.warning("⚠️ Найдены ошибки: %s", validation['errors'])
+            logger.warning("⚠️ Найдены ошибки: %s", validation["errors"])
             self.stats["errors_found"] += len(validation["errors"])
 
         # Проверка 2: Анализ производительности
         performance = await self._analyze_system_performance()
         if performance["issues"]:
-            logger.warning("⚠️ Проблемы производительности: %s", performance['issues'])
+            logger.warning("⚠️ Проблемы производительности: %s", performance["issues"])
 
         # Проверка 3: Мониторинг API
         api_status = await self._check_api_status()
         if api_status["problems"]:
-            logger.warning("⚠️ Проблемы API: %s", api_status['problems'])
+            logger.warning("⚠️ Проблемы API: %s", api_status["problems"])
 
-        logger.info("✅ Проверка #%s завершена", self.stats['checks_performed'])
+        logger.info("✅ Проверка #%s завершена", self.stats["checks_performed"])
 
     async def _analyze_system_performance(self) -> Dict[str, Any]:
         """Анализирует производительность системы"""
@@ -117,7 +125,7 @@ class AIMonitor:
                 "timestamp": get_utc_now().isoformat(),
                 "issues": [],
                 "recommendations": [],
-                "data_status": {}
+                "data_status": {},
             }
 
             # Проверка размера файлов данных
@@ -125,22 +133,22 @@ class AIMonitor:
                 from src.config.patterns import get_patterns_file_path
             except ImportError:
                 from patterns_config import get_patterns_file_path
-            
-            data_files = [
-                "user_data.json",
-                get_patterns_file_path("main")
-            ]
+
+            data_files = ["user_data.json", get_patterns_file_path("main")]
 
             for file in data_files:
                 if os.path.exists(file):
                     size_mb = os.path.getsize(file) / (1024 * 1024)
                     if size_mb > 100:  # Больше 100MB
                         performance["issues"].append(f"📁 Большой файл {file}: {size_mb:.1f}MB")
-                        performance["recommendations"].append(f"💡 Рекомендуется архивировать {file}")
+                        performance["recommendations"].append(
+                            f"💡 Рекомендуется архивировать {file}"
+                        )
 
             # Проверка базы данных вместо signal_history.json
             try:
                 import sqlite3
+
                 conn = sqlite3.connect("trading.db")
                 cursor = conn.cursor()
                 cursor.execute("SELECT COUNT(*) FROM signals_log")
@@ -149,16 +157,22 @@ class AIMonitor:
 
                 if signal_count > 0:
                     performance["data_status"]["signals_in_db"] = signal_count
-                    performance["recommendations"].append(f"✅ История сигналов в БД: {signal_count:,} записей")
+                    performance["recommendations"].append(
+                        f"✅ История сигналов в БД: {signal_count:,} записей"
+                    )
                 else:
                     # Проверяем, сколько времени работает система
-                    system_uptime_hours = (get_utc_now() - self.stats["start_time"]).total_seconds() / 3600
+                    system_uptime_hours = (
+                        get_utc_now() - self.stats["start_time"]
+                    ).total_seconds() / 3600
 
                     # Показываем предупреждение только если система работает больше 2 часов без сигналов
                     if system_uptime_hours > 2:
                         performance["issues"].append("❌ База данных сигналов пуста")
                     else:
-                        performance["recommendations"].append("ℹ️ База данных сигналов пуста (система недавно запущена)")
+                        performance["recommendations"].append(
+                            "ℹ️ База данных сигналов пуста (система недавно запущена)"
+                        )
             except (sqlite3.Error, OSError) as e:
                 performance["issues"].append(f"❌ Ошибка проверки БД: {e}")
 
@@ -168,7 +182,9 @@ class AIMonitor:
                 performance["issues"].append(f"📊 Много паттернов: {pattern_count}")
                 performance["recommendations"].append("💡 Система автоматически очистит паттерны")
             elif pattern_count > 25000:
-                performance["recommendations"].append(f"ℹ️ Паттернов: {pattern_count}/30000 - автоочистка скоро")
+                performance["recommendations"].append(
+                    f"ℹ️ Паттернов: {pattern_count}/30000 - автоочистка скоро"
+                )
 
             return performance
 
@@ -182,27 +198,32 @@ class AIMonitor:
             api_status = {
                 "timestamp": get_utc_now().isoformat(),
                 "problems": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Проверка доступности основных API
             apis_to_check = [
                 ("Binance", "https://api.binance.com/api/v3/ping"),
                 ("Bybit", "https://api.bybit.com/v5/market/time"),
-                ("CoinGecko", "https://api.coingecko.com/api/v3/ping")
+                ("CoinGecko", "https://api.coingecko.com/api/v3/ping"),
             ]
 
             for name, url in apis_to_check:
                 try:
                     import aiohttp
+
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url, timeout=10) as response:
                             if response.status != 200:
                                 # Для CoinGecko 429 ошибка не критична (rate limiting)
                                 if name == "CoinGecko" and response.status == 429:
-                                    api_status["problems"].append(f"⚠️ {name} API rate limited (статус: {response.status}) - ожидание")
+                                    api_status["problems"].append(
+                                        f"⚠️ {name} API rate limited (статус: {response.status}) - ожидание"
+                                    )
                                 else:
-                                    api_status["problems"].append(f"❌ {name} API недоступен (статус: {response.status})")
+                                    api_status["problems"].append(
+                                        f"❌ {name} API недоступен (статус: {response.status})"
+                                    )
                 except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
                     api_status["problems"].append(f"❌ {name} API ошибка: {e}")
 
@@ -227,7 +248,7 @@ class AIMonitor:
             optimization = self.ai_learning.auto_optimize_parameters()
             if optimization["improvements"]:
                 self.stats["optimizations_applied"] += len(optimization["improvements"])
-                logger.info("🔧 Применено %s оптимизаций", len(optimization['improvements']))
+                logger.info("🔧 Применено %s оптимизаций", len(optimization["improvements"]))
 
             # Генерация отчета
             # report = await self.ai_integration.generate_learning_report()
@@ -255,11 +276,13 @@ class AIMonitor:
                     recommendations = await self.ai_integration.get_ai_recommendations(symbol)
 
                     if recommendations.get("confidence", 0) > 0.7:
-                        new_patterns.append({
-                            "symbol": symbol,
-                            "confidence": recommendations["confidence"],
-                            "recommendations": recommendations["recommendations"]
-                        })
+                        new_patterns.append(
+                            {
+                                "symbol": symbol,
+                                "confidence": recommendations["confidence"],
+                                "recommendations": recommendations["recommendations"],
+                            }
+                        )
 
                 except (RuntimeError, OSError) as e:
                     logger.error("❌ Ошибка анализа %s: %s", symbol, e)
@@ -277,18 +300,18 @@ class AIMonitor:
 
             report = f"""
 🔍 ОТЧЕТ АВТОМАТИЧЕСКОГО МОНИТОРИНГА ИИ
-{'='*60}
+{"=" * 60}
 
 ⏰ ВРЕМЯ РАБОТЫ:
-• Запущен: {self.stats['start_time'].strftime('%Y-%m-%d %H:%M:%S')}
+• Запущен: {self.stats["start_time"].strftime("%Y-%m-%d %H:%M:%S")}
 • Время работы: {uptime}
-• Проверок выполнено: {self.stats['checks_performed']}
-• Ошибок найдено: {self.stats['errors_found']}
+• Проверок выполнено: {self.stats["checks_performed"]}
+• Ошибок найдено: {self.stats["errors_found"]}
 
 🧠 ОБУЧЕНИЕ:
-• Паттернов изучено: {self.stats['patterns_learned']}
-• Оптимизаций применено: {self.stats['optimizations_applied']}
-• Статус: {'🟢 Активно' if self.monitoring_active else '🔴 Отключено'}
+• Паттернов изучено: {self.stats["patterns_learned"]}
+• Оптимизаций применено: {self.stats["optimizations_applied"]}
+• Статус: {"🟢 Активно" if self.monitoring_active else "🔴 Отключено"}
 
 📊 СТАТИСТИКА СИСТЕМЫ:
 • Всего паттернов: {len(self.ai_learning.patterns)}
@@ -320,16 +343,19 @@ class AIMonitor:
             **self.stats,
             "monitoring_active": self.monitoring_active,
             "ai_patterns": len(self.ai_learning.patterns),
-            "ai_accuracy": self.ai_learning.metrics.accuracy
+            "ai_accuracy": self.ai_learning.metrics.accuracy,
         }
+
 
 # Глобальный экземпляр мониторинга
 ai_monitor = AIMonitor()
+
 
 async def start_ai_monitoring():
     """Запускает автоматический мониторинг ИИ"""
     logger.info("🚀 Запуск автоматического мониторинга ИИ...")
     await ai_monitor.start_monitoring()
+
 
 async def get_ai_status():
     """Получает статус ИИ системы"""
@@ -338,6 +364,7 @@ async def get_ai_status():
         return report
     except (RuntimeError, OSError) as e:
         return f"❌ Ошибка получения статуса: {e}"
+
 
 if __name__ == "__main__":
     # Тестирование мониторинга

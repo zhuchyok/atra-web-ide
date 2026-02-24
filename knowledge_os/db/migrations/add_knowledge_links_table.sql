@@ -12,10 +12,10 @@ CREATE TABLE IF NOT EXISTS knowledge_links (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Уникальность: одна связь одного типа между двумя узлами
     UNIQUE(source_node_id, target_node_id, link_type),
-    
+
     -- Проверка: узел не может быть связан сам с собой
     CHECK (source_node_id != target_node_id)
 );
@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_links_strength ON knowledge_links (stre
 CREATE INDEX IF NOT EXISTS idx_knowledge_links_metadata ON knowledge_links USING GIN (metadata);
 
 -- Композитный индекс для быстрого поиска связей
-CREATE INDEX IF NOT EXISTS idx_knowledge_links_source_type 
+CREATE INDEX IF NOT EXISTS idx_knowledge_links_source_type
     ON knowledge_links (source_node_id, link_type);
 
 -- Триггер для обновления updated_at
@@ -40,7 +40,7 @@ CREATE TRIGGER update_knowledge_links_updated_at
 
 -- Представление для удобного доступа к связям с информацией об узлах
 CREATE OR REPLACE VIEW knowledge_graph_view AS
-SELECT 
+SELECT
     kl.id as link_id,
     kl.source_node_id,
     kl.target_node_id,
@@ -103,7 +103,7 @@ BEGIN
     RETURN QUERY
     WITH RECURSIVE knowledge_path AS (
         -- Базовый случай: начальный узел
-        SELECT 
+        SELECT
             kl.target_node_id as node_id,
             kl.link_type,
             1 as depth,
@@ -112,11 +112,11 @@ BEGIN
         WHERE kl.source_node_id = p_node_id
           AND kl.link_type = ANY(link_types)
           AND kl.strength >= min_strength
-        
+
         UNION ALL
-        
+
         -- Рекурсивный случай: связанные узлы
-        SELECT 
+        SELECT
             kl.target_node_id as node_id,
             kl.link_type,
             kp.depth + 1,
@@ -148,4 +148,3 @@ COMMENT ON COLUMN knowledge_links.link_type IS 'Тип связи: depends_on, c
 COMMENT ON COLUMN knowledge_links.strength IS 'Сила связи от 0.0 до 1.0, где 1.0 - максимальная связь';
 COMMENT ON VIEW knowledge_graph_view IS 'Представление для удобного доступа к графу знаний с информацией об узлах';
 COMMENT ON FUNCTION get_related_nodes IS 'Рекурсивная функция для поиска связанных узлов с ограничением глубины';
-

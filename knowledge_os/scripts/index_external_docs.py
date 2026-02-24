@@ -3,13 +3,14 @@
 Скрипт для индексации внешних документов (промптов, документации) в Knowledge OS.
 Выкачивает репозитории и индексирует содержимое в таблицу knowledge_nodes.
 """
-import os
-import sys
+
 import asyncio
-import logging
 import hashlib
-import subprocess
 import json
+import logging
+import os
+import subprocess
+import sys
 from typing import List, Optional
 
 # Настройка путей для импорта из knowledge_os
@@ -30,12 +31,11 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-REPOS = [
-    "https://github.com/asgeirtj/system_prompts_leaks.git"
-]
+REPOS = ["https://github.com/asgeirtj/system_prompts_leaks.git"]
 
 TARGET_DIR = os.path.join(repo_root, "knowledge_base", "ai_research")
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 async def get_or_create_domain(conn, domain_name: str) -> int:
     """Получает ID домена или создает новый."""
@@ -43,9 +43,11 @@ async def get_or_create_domain(conn, domain_name: str) -> int:
     if not domain_id:
         domain_id = await conn.fetchval(
             "INSERT INTO domains (name, description) VALUES ($1, $2) RETURNING id",
-            domain_name, f"Домен для {domain_name}"
+            domain_name,
+            f"Домен для {domain_name}",
         )
     return domain_id
+
 
 def chunk_text(text: str, chunk_size: int = 3000, overlap: int = 200) -> List[str]:
     """Разбивает текст на чанки."""
@@ -57,10 +59,11 @@ def chunk_text(text: str, chunk_size: int = 3000, overlap: int = 200) -> List[st
         start += chunk_size - overlap
     return chunks
 
+
 async def index_file(conn, file_path: str, domain_id: int):
     """Индексирует один файл."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
     except Exception as e:
         logger.error(f"Ошибка чтения файла {file_path}: {e}")
@@ -68,11 +71,10 @@ async def index_file(conn, file_path: str, domain_id: int):
 
     file_rel_path = os.path.relpath(file_path, TARGET_DIR)
     file_hash = hashlib.sha256(content.encode()).hexdigest()
-    
+
     # Проверка на дубликаты
     exists = await conn.fetchval(
-        "SELECT id FROM knowledge_nodes WHERE metadata->>'file_hash' = $1", 
-        file_hash
+        "SELECT id FROM knowledge_nodes WHERE metadata->>'file_hash' = $1", file_hash
     )
     if exists:
         logger.debug(f"Файл {file_rel_path} уже проиндексирован.")
@@ -88,18 +90,23 @@ async def index_file(conn, file_path: str, domain_id: int):
             "file_path": file_rel_path,
             "file_hash": file_hash,
             "chunk_index": i,
-            "total_chunks": len(chunks)
+            "total_chunks": len(chunks),
         }
-        
+
         await conn.execute(
             """
             INSERT INTO knowledge_nodes (content, embedding, domain_id, metadata, confidence_score, is_verified, source_ref)
             VALUES ($1, $2::vector, $3, $4, $5, $6, $7)
             """,
-            chunk, str(embedding) if embedding else None, domain_id, 
-            json.dumps(metadata), 
-            0.8, True, f"github:system_prompts_leaks/{file_rel_path}"
+            chunk,
+            str(embedding) if embedding else None,
+            domain_id,
+            json.dumps(metadata),
+            0.8,
+            True,
+            f"github:system_prompts_leaks/{file_rel_path}",
         )
+
 
 async def run_indexing():
     """Основной цикл индексации."""
@@ -110,7 +117,7 @@ async def run_indexing():
     # 1. Выкачивание репозиториев
     os.makedirs(TARGET_DIR, exist_ok=True)
     for repo_url in REPOS:
-        repo_name = repo_url.split('/')[-1].replace('.git', '')
+        repo_name = repo_url.split("/")[-1].replace(".git", "")
         repo_path = os.path.join(TARGET_DIR, repo_name)
         if not os.path.exists(repo_path):
             logger.info(f"Клонирование {repo_url}...")
@@ -125,10 +132,11 @@ async def run_indexing():
         domain_id = await get_or_create_domain(conn, "AI Research")
         for root, _, files in os.walk(TARGET_DIR):
             for file in files:
-                if file.endswith(('.md', '.txt', '.json')):
+                if file.endswith((".md", ".txt", ".json")):
                     await index_file(conn, os.path.join(root, file), domain_id)
     finally:
         await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(run_indexing())

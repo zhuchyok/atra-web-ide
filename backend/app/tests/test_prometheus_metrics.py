@@ -1,15 +1,18 @@
 """
 Тесты Prometheus метрик (День 5).
 """
+
 import asyncio
+
 import pytest
+
 from app.metrics.prometheus_metrics import (
-    metrics,
-    USER_REQUESTS,
     RAG_REQUESTS,
+    USER_REQUESTS,
+    get_metrics,
+    metrics,
     record_cache_hit,
     update_cache_size,
-    get_metrics,
 )
 
 
@@ -34,6 +37,7 @@ def test_get_metrics_returns_bytes():
 @pytest.mark.asyncio
 async def test_metrics_track_request_decorator():
     """Декоратор track_request не ломает async функцию."""
+
     @metrics.track_request(mode="ask", endpoint="test")
     async def test_function():
         return "success"
@@ -45,6 +49,7 @@ async def test_metrics_track_request_decorator():
 @pytest.mark.asyncio
 async def test_metrics_track_rag_decorator():
     """Декоратор track_rag не ломает async функцию."""
+
     @metrics.track_rag(mode="ask", rag_type="rag_light")
     async def test_rag():
         return "answer"

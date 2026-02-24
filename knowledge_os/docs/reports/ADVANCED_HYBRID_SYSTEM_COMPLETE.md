@@ -7,9 +7,11 @@
 ## 📦 **ЧТО СОЗДАНО:**
 
 ### **1. MarketRegimeDetector** ✅
+
 **Файл:** `market_regime_detector.py`
 
 **Функционал:**
+
 - ✅ Определение 5 рыночных режимов:
   - `BULL_TREND` - бычий тренд
   - `BEAR_TREND` - медвежий тренд
@@ -25,17 +27,18 @@
   - `quality_threshold`: 0.90-1.50x
 
 **Примеры множителей:**
+
 ```python
 BULL_TREND:
   position_size: 1.4 (+40%)
   sl_multiplier: 0.8 (-20% стопы)
   tp_multiplier: 1.5 (+50% цели)
-  
+
 BEAR_TREND:
   position_size: 0.6 (-40%)
   sl_multiplier: 1.3 (+30% стопы)
   tp_multiplier: 1.2 (+20% цели)
-  
+
 CRASH:
   position_size: 0.3 (-70% ЗАЩИТА!)
   sl_multiplier: 2.0 (+100% широкие стопы)
@@ -45,9 +48,11 @@ CRASH:
 ---
 
 ### **2. Correlation Penalty Multiplier** ✅
+
 **Файл:** `correlation_risk_manager.py` (метод `calculate_position_multiplier`)
 
 **Функционал:**
+
 - ✅ Расчет корреляции с открытыми позициями
 - ✅ НЕЛИНЕЙНЫЙ штраф:
   - Корреляция > 0.85 → размер x0.3 (-70%)
@@ -57,6 +62,7 @@ CRASH:
   - Корреляция < 0.55 → размер x1.0 (без штрафа)
 
 **Пример:**
+
 ```
 Открыта позиция: ETHUSDT
 Новый сигнал: LINKUSDT (корреляция к ETH: 0.78)
@@ -68,9 +74,11 @@ CRASH:
 ---
 
 ### **3. CompositeSignalEngine** ✅
+
 **Файл:** `composite_signal_engine.py`
 
 **Функционал:**
+
 - ✅ 4 торговые стратегии:
   1. **Trend Following** (40% вес) - EMA кроссовер, ADX, направление
   2. **Mean Reversion** (30% вес) - RSI, BB, отклонение от MA
@@ -84,6 +92,7 @@ CRASH:
 - ✅ Расчет уверенности (согласованность стратегий)
 
 **Пример работы:**
+
 ```
 BULL_TREND + BTC_HIGH актив:
   Trend Following: 0.85 × 0.56 (40% × 1.4) = 0.48
@@ -101,12 +110,14 @@ BULL_TREND + BTC_HIGH актив:
 **Добавлено:**
 
 #### **4.1. Импорты:**
+
 ```python
 from market_regime_detector import get_regime_detector
 from composite_signal_engine import get_composite_engine
 ```
 
 #### **4.2. В начале цикла (run_hybrid_signal_system_fixed):**
+
 ```python
 # Определяем рыночный режим
 btc_data = await get_ohlc_with_fallback("BTCUSDT", "1h", limit=250)
@@ -115,6 +126,7 @@ regime_multipliers = regime_detector.get_regime_multipliers(...)
 ```
 
 #### **4.3. В generate_signal:**
+
 ```python
 # Composite signal bonus
 composite_result = composite_engine.calculate_composite_score(df, asset_group, regime)
@@ -123,6 +135,7 @@ if composite_result['confidence'] > 0.7:
 ```
 
 #### **4.4. В send_signal:**
+
 ```python
 # Применяем режимные множители
 entry_amount_usdt *= regime_multipliers['position_size']
@@ -135,9 +148,11 @@ entry_amount_usdt *= penalty_data['multiplier']
 ---
 
 ### **5. Обновлен AdaptiveParameterController** ✅
+
 **Файл:** `adaptive_parameter_controller.py`
 
 **Добавлено:**
+
 - ✅ Метод `apply_regime_adjustments()` - коррекция порогов по режиму
 - ✅ Множители для каждого режима
 - ✅ Учет confidence при применении коррекций
@@ -151,21 +166,21 @@ entry_amount_usdt *= penalty_data['multiplier']
 
 1. ОПРЕДЕЛЕНИЕ РЕЖИМА
    └─> BTC анализ → BULL_TREND (confidence: 0.85)
-   
+
 2. РАСЧЕТ МНОЖИТЕЛЕЙ РЕЖИМА
    └─> position: 1.4, sl: 0.8, tp: 1.5
-   
+
 3. ГЕНЕРАЦИЯ СИГНАЛА
    └─> AI Score: 45.0
    └─> Composite Score → +2.5 бонус
    └─> Final Score: 47.5 ✅
-   
+
 4. РАСЧЕТ ПАРАМЕТРОВ
    └─> Базовая сумма: 100 USDT
    └─> × Режим (1.4) = 140 USDT
    └─> × Correlation Penalty (0.7) = 98 USDT
    └─> ФИНАЛ: 98 USDT
-   
+
 5. ОТПРАВКА СИГНАЛА
    └─> С учетом всех коррекций
 ```
@@ -175,6 +190,7 @@ entry_amount_usdt *= penalty_data['multiplier']
 ## 🎯 **ПРЕИМУЩЕСТВА СИСТЕМЫ:**
 
 ### **1. Адаптация к рынку:**
+
 ```
 BULL_TREND:
   ✅ Больше позиции (+40%)
@@ -195,6 +211,7 @@ CRASH:
 ```
 
 ### **2. Диверсификация портфеля:**
+
 ```
 Открыты: ETHUSDT, LINKUSDT (корр к ETH: 0.78)
 Новый сигнал: AAVEUSDT (корр к ETH: 0.82)
@@ -207,6 +224,7 @@ Penalty: x0.4 (-60%)
 ```
 
 ### **3. Мультистратегия:**
+
 ```
 Trend + Mean Reversion + Breakout + Volume
 → Взвешенная оценка
@@ -218,31 +236,34 @@ Trend + Mean Reversion + Breakout + Volume
 
 ## 📈 **ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ:**
 
-| Метрика | До внедрения | После | Улучшение |
-|---------|--------------|-------|-----------|
-| **Sharpe Ratio** | 1.2-1.5 | 1.7-2.2 | **+40%** |
-| **Win Rate** | 63-65% | 68-72% | **+5-7%** |
-| **Max Drawdown** | 18-22% | 12-16% | **-30%** |
-| **Profit Factor** | 1.3-1.5 | 1.6-2.0 | **+30%** |
-| **Диверсификация** | Средняя | Высокая | **+50%** |
-| **Адаптивность** | Нет | Да | **100%** |
+| Метрика            | До внедрения | После   | Улучшение |
+| ------------------ | ------------ | ------- | --------- |
+| **Sharpe Ratio**   | 1.2-1.5      | 1.7-2.2 | **+40%**  |
+| **Win Rate**       | 63-65%       | 68-72%  | **+5-7%** |
+| **Max Drawdown**   | 18-22%       | 12-16%  | **-30%**  |
+| **Profit Factor**  | 1.3-1.5      | 1.6-2.0 | **+30%**  |
+| **Диверсификация** | Средняя      | Высокая | **+50%**  |
+| **Адаптивность**   | Нет          | Да      | **100%**  |
 
 ---
 
 ## 🛡️ **ЗАЩИТНЫЕ МЕХАНИЗМЫ:**
 
 ### **1. Режим CRASH:**
+
 - Позиции сокращены на 70%
 - Стопы расширены на 100%
 - Фильтры ужесточены на 50%
 - Практически не входим в рынок
 
 ### **2. Correlation Protection:**
+
 - Автоматическое сокращение размера
 - Нелинейный штраф
 - Защита от кластеризации рисков
 
 ### **3. Multi-Strategy Validation:**
+
 - Согласованность 4 стратегий
 - Бонус только при высокой уверенности
 - Дополнительная фильтрация
@@ -252,7 +273,9 @@ Trend + Mean Reversion + Breakout + Volume
 ## 🎮 **КАК ПОЛЬЗОВАТЬСЯ:**
 
 ### **Мониторинг режима:**
+
 Смотрите в логах:
+
 ```
 📊 Рыночный режим: BULL_TREND (уверенность: 85%)
 🎛️ [ETHUSDT] Режим BULL_TREND: базовая сумма 100.00 → 140.00 USDT (x1.40)
@@ -261,6 +284,7 @@ Trend + Mean Reversion + Breakout + Volume
 ```
 
 ### **Статистика режимов:**
+
 ```python
 regime_detector.get_regime_statistics()
 # Вернет распределение режимов за последние 24 часа
@@ -271,12 +295,14 @@ regime_detector.get_regime_statistics()
 ## ✅ **СТАТУС: ГОТОВО К ЗАПУСКУ!**
 
 **Все компоненты:**
+
 - ✅ Созданы
 - ✅ Интегрированы
 - ✅ Протестированы на импорты
 - ✅ Обработка ошибок добавлена
 
 **Система теперь:**
+
 - 🧠 Определяет рыночный режим
 - 🎯 Адаптирует параметры под режим
 - 📉 Контролирует корреляцию портфеля
@@ -286,11 +312,13 @@ regime_detector.get_regime_statistics()
 **ЗАПУСКАЕМ!** 🚀
 
 **Команда:**
+
 ```bash
 python3 main.py
 ```
 
 **Ожидайте в логах:**
+
 ```
 ✅ MarketRegimeDetector доступен
 ✅ CompositeSignalEngine доступен
@@ -301,4 +329,3 @@ python3 main.py
 ```
 
 **Система уровня хедж-фондов готова!** 💎
-

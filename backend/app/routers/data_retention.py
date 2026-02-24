@@ -1,8 +1,10 @@
 """
 API Data Retention — ручной запуск очистки (DRY-RUN по умолчанию).
 """
-from fastapi import APIRouter, Request
+
 from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/data-retention", tags=["data-retention"])
 
@@ -22,8 +24,9 @@ async def run_cleanup(
     if not pool:
         return {"error": "Database pool not available", "status": "unavailable"}
 
-    from app.services.data_retention import DataRetentionManager
     from app.config import get_settings
+    from app.services.data_retention import DataRetentionManager
+
     settings = get_settings()
     retention = int(getattr(settings, "data_retention_days", 90))
 

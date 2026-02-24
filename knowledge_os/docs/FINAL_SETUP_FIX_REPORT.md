@@ -7,6 +7,7 @@
 **У пользователя 556251171 отсутствовали критические поля в данных!**
 
 ### Диагностика показала:
+
 - ❌ `deposit` отсутствует или равен 0
 - ❌ `free_deposit` отсутствует или равен 0
 - ❌ `trade_mode` отсутствует
@@ -18,6 +19,7 @@
 ### 1. Исправлена функция `recalculate_balance_and_risks`
 
 **Удалена строка перезаписи:**
+
 ```python
 # БЫЛО:
 user_data["deposit"] = updated_deposit
@@ -27,6 +29,7 @@ user_data["deposit"] = updated_deposit
 ```
 
 **Улучшена обработка ошибок:**
+
 ```python
 # БЫЛО:
 if not isinstance(deposit, (int, float)) or deposit < 0:
@@ -40,12 +43,14 @@ if not isinstance(deposit, (int, float)) or deposit < 0:
 ### 2. Добавлено автоматическое сохранение
 
 **В команде `/balance`:**
+
 ```python
 # После пересчета баланса:
 save_user_data_to_file(user_id, user_data)
 ```
 
 **В callback функциях настройки:**
+
 ```python
 # В setup_trade_mode_spot, setup_trade_mode_futures, setup_filter_mode_balanced, setup_filter_mode_soft:
 save_user_data_to_file(user_id, user_data)
@@ -56,6 +61,7 @@ save_user_data_to_file(user_id, user_data)
 **Файл:** `debug_setup_issue.py`
 
 **Функциональность:**
+
 - Диагностирует проблемы с данными пользователей
 - Симулирует процесс настройки
 - Исправляет недостающие поля
@@ -64,6 +70,7 @@ save_user_data_to_file(user_id, user_data)
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### До исправления:
+
 - **Пользователь 556251171:**
   - `deposit`: отсутствует
   - `free_deposit`: 0
@@ -71,6 +78,7 @@ save_user_data_to_file(user_id, user_data)
   - `filter_mode`: soft ✅
 
 ### После исправления:
+
 - **Пользователь 556251171:**
   - `deposit`: 10000 USDT ✅
   - `free_deposit`: 10000 USDT ✅
@@ -88,11 +96,13 @@ save_user_data_to_file(user_id, user_data)
 ## 🧪 ТЕСТИРОВАНИЕ
 
 ### Тест функции `save_user_data_to_file`:
+
 - ✅ Данные успешно сохраняются
 - ✅ Данные корректно записываются в файл
 - ✅ Функция работает без ошибок
 
 ### Симуляция процесса настройки:
+
 - ✅ Шаг 1: Ввод депозита - работает
 - ✅ Шаг 2: Выбор режима торговли - работает
 - ✅ Шаг 3: Выбор режима фильтров - работает
@@ -129,6 +139,7 @@ save_user_data_to_file(user_id, user_data)
 4. **`test_deposit_fix.py`** - создан скрипт тестирования
 
 ---
-*Отчет создан: 30.07.2025*
-*Статус: ЗАВЕРШЕНО*
-*Все проблемы решены*
+
+_Отчет создан: 30.07.2025_
+_Статус: ЗАВЕРШЕНО_
+_Все проблемы решены_

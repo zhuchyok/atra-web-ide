@@ -11,30 +11,48 @@
         "title": "Success Rate Comparison",
         "type": "timeseries",
         "targets": [
-          {"expr": "orchestration_v2_success_rate * 100", "legendFormat": "V2"},
-          {"expr": "orchestration_existing_success_rate * 100", "legendFormat": "Existing"}
+          {
+            "expr": "orchestration_v2_success_rate * 100",
+            "legendFormat": "V2"
+          },
+          {
+            "expr": "orchestration_existing_success_rate * 100",
+            "legendFormat": "Existing"
+          }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
       },
       {
         "id": 2,
         "title": "Average Duration (seconds)",
         "type": "timeseries",
         "targets": [
-          {"expr": "orchestration_v2_avg_duration_seconds", "legendFormat": "V2"},
-          {"expr": "orchestration_existing_avg_duration_seconds", "legendFormat": "Existing"}
+          {
+            "expr": "orchestration_v2_avg_duration_seconds",
+            "legendFormat": "V2"
+          },
+          {
+            "expr": "orchestration_existing_avg_duration_seconds",
+            "legendFormat": "Existing"
+          }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
       },
       {
         "id": 3,
         "title": "Task Distribution (V2 vs Existing)",
         "type": "timeseries",
         "targets": [
-          {"expr": "orchestration_v2_tasks_total", "legendFormat": "V2 Tasks"},
-          {"expr": "orchestration_existing_tasks_total", "legendFormat": "Existing Tasks"}
+          {
+            "expr": "orchestration_v2_tasks_total",
+            "legendFormat": "V2 Tasks"
+          },
+          {
+            "expr": "orchestration_existing_tasks_total",
+            "legendFormat": "Existing Tasks"
+          }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
       },
       {
         "id": 4,
@@ -46,7 +64,7 @@
             "legendFormat": "V2 %"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
       },
       {
         "id": 5,
@@ -58,7 +76,7 @@
             "legendFormat": "Δ Success %"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 }
       },
       {
         "id": 6,
@@ -70,7 +88,7 @@
             "legendFormat": "Δ Duration (s)"
           }
         ],
-        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
       }
     ],
     "schemaVersion": 16,

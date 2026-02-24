@@ -22,19 +22,19 @@ BEGIN
     IF TG_OP = 'INSERT' THEN
         INSERT INTO experts_changelog (event_type, expert_id, expert_name, expert_role, new_data)
         VALUES ('INSERT', NEW.id, NEW.name, NEW.role, row_to_json(NEW)::jsonb);
-        
+
     ELSIF TG_OP = 'UPDATE' THEN
         -- Логируем только если изменились важные поля
         IF (OLD.name != NEW.name OR OLD.role != NEW.role OR OLD.department != NEW.department) THEN
             INSERT INTO experts_changelog (event_type, expert_id, expert_name, expert_role, old_data, new_data)
             VALUES ('UPDATE', NEW.id, NEW.name, NEW.role, row_to_json(OLD)::jsonb, row_to_json(NEW)::jsonb);
         END IF;
-        
+
     ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO experts_changelog (event_type, expert_id, expert_name, expert_role, old_data)
         VALUES ('DELETE', OLD.id, OLD.name, OLD.role, row_to_json(OLD)::jsonb);
     END IF;
-    
+
     -- Возвращаем NEW для INSERT/UPDATE, OLD для DELETE
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
@@ -62,7 +62,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         c.id,
         c.event_type,
         c.expert_name,
@@ -87,7 +87,7 @@ $$ LANGUAGE plpgsql;
 
 -- Представление для удобного просмотра изменений
 CREATE OR REPLACE VIEW expert_changes_summary AS
-SELECT 
+SELECT
     event_type,
     COUNT(*) as count,
     MAX(changed_at) as last_change

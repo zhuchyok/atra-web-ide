@@ -4,25 +4,24 @@ ImprovedPositionManager - Улучшенный менеджер позиций �
 
 import asyncio
 import logging
-from decimal import Decimal
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+
+from src.core.exceptions import DatabaseError, FinancialError, ValidationError
+from src.data.price_api import get_current_price_robust
 from src.database.acceptance import AcceptanceDatabase
 from src.execution.audit_log import get_audit_log
-from src.data.price_api import get_current_price_robust
 from src.shared.utils.datetime_utils import get_utc_now
-from src.core.exceptions import (
-    DatabaseError,
-    ValidationError,
-    FinancialError
-)
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PositionData:
     """Данные позиции"""
+
     symbol: str
     direction: str  # LONG/SHORT
     entry_price: Decimal
@@ -39,10 +38,13 @@ class PositionData:
     take_profit: Optional[Decimal] = None
     signal_key: Optional[str] = None
 
+
 class ImprovedPositionManager:
     """Улучшенный менеджер позиций с интеграцией в БД и Аудит."""
 
-    def __init__(self, acceptance_db: Optional[AcceptanceDatabase] = None, telegram_updater: Any = None):
+    def __init__(
+        self, acceptance_db: Optional[AcceptanceDatabase] = None, telegram_updater: Any = None
+    ):
         self.acceptance_db = acceptance_db or AcceptanceDatabase()
         self.audit_log = get_audit_log()
         self.telegram_updater = telegram_updater
@@ -67,10 +69,10 @@ class ImprovedPositionManager:
                 entry_time=now,
                 current_price=entry_price,
                 user_id=user_id,
-                message_id=getattr(signal_data, 'message_id', None),
-                chat_id=getattr(signal_data, 'chat_id', None),
+                message_id=getattr(signal_data, "message_id", None),
+                chat_id=getattr(signal_data, "chat_id", None),
                 expires_at=now + timedelta(hours=self.position_timeout_hours),
-                signal_key=getattr(signal_data, 'signal_key', position_key)
+                signal_key=getattr(signal_data, "signal_key", position_key),
             )
 
             # Рассчитываем уровни SL/TP
@@ -90,7 +92,7 @@ class ImprovedPositionManager:
                 price=float(position.entry_price),
                 order_id=position.signal_key,
                 status="OPENED",
-                exchange="bitget"
+                exchange="bitget",
             )
 
             logger.info("✅ Позиция создана: %s %s", position.symbol, position.direction)
@@ -118,7 +120,9 @@ class ImprovedPositionManager:
 
             logger.debug(
                 "SL/TP рассчитаны для %s: SL=%.4f, TP=%.4f",
-                position.symbol, float(position.stop_loss), float(position.take_profit)
+                position.symbol,
+                float(position.stop_loss),
+                float(position.take_profit),
             )
 
         except Exception as e:
@@ -157,13 +161,24 @@ class ImprovedPositionManager:
         """Рассчитывает PnL позиции"""
         try:
             if position.direction.upper() in ["LONG", "BUY"]:
-                position.pnl_percent = ((position.current_price - position.entry_price) / position.entry_price) * Decimal("100")
+                position.pnl_percent = (
+                    (position.current_price - position.entry_price) / position.entry_price
+                ) * Decimal("100")
             else:
-                position.pnl_percent = ((position.entry_price - position.current_price) / position.entry_price) * Decimal("100")
+                position.pnl_percent = (
+                    (position.entry_price - position.current_price) / position.entry_price
+                ) * Decimal("100")
 
-            position.pnl_usd = (position.pnl_percent / Decimal("100")) * Decimal("100")  # На базе 100 USDT
+            position.pnl_usd = (position.pnl_percent / Decimal("100")) * Decimal(
+                "100"
+            )  # На базе 100 USDT
 
-            logger.debug("PnL %s: %.2f%% (%.2f USDT)", position.symbol, float(position.pnl_percent), float(position.pnl_usd))
+            logger.debug(
+                "PnL %s: %.2f%% (%.2f USDT)",
+                position.symbol,
+                float(position.pnl_percent),
+                float(position.pnl_usd),
+            )
 
         except Exception as e:
             logger.error("❌ Ошибка расчета PnL: %s", e)
@@ -231,8 +246,7 @@ class ImprovedPositionManager:
             # Обновляем в БД
             try:
                 await self.acceptance_db.close_active_position_by_symbol(
-                    user_id=int(position.user_id) if position.user_id else 0,
-                    symbol=position.symbol
+                    user_id=int(position.user_id) if position.user_id else 0, symbol=position.symbol
                 )
             except Exception as e:
                 logger.error("⚠️ Не удалось закрыть позицию в БД: %s", e)
@@ -248,7 +262,7 @@ class ImprovedPositionManager:
                 price=float(position.current_price),
                 order_id=position.signal_key,
                 status="CLOSED",
-                error_msg=f"Reason: {reason}"
+                error_msg=f"Reason: {reason}",
             )
 
             # Уведомление
@@ -277,13 +291,9 @@ class ImprovedPositionManager:
 💵 **Цена закрытия:** {float(position.current_price):.4f}
 📊 **PnL:** {float(position.pnl_percent):+.2f}% ({float(position.pnl_usd):+.2f} USDT)
 🔚 **Причина:** {reason}
-⏰ **Время:** {get_utc_now().strftime('%d.%m.%Y %H:%M')}"""
+⏰ **Время:** {get_utc_now().strftime("%d.%m.%Y %H:%M")}"""
 
-            await self.telegram_updater.send_notification(
-                position.chat_id,
-                message,
-                "success"
-            )
+            await self.telegram_updater.send_notification(position.chat_id, message, "success")
 
         except Exception as e:
             logger.error("❌ Ошибка отправки уведомления о закрытии: %s", e)
@@ -299,8 +309,11 @@ class ImprovedPositionManager:
     async def get_user_positions(self, user_id: str) -> List[PositionData]:
         """Получает позиции пользователя"""
         try:
-            return [pos for pos in self.active_positions.values()
-                   if pos.user_id == user_id and pos.status == "open"]
+            return [
+                pos
+                for pos in self.active_positions.values()
+                if pos.user_id == user_id and pos.status == "open"
+            ]
         except Exception as e:
             logger.error("❌ Ошибка получения позиций пользователя: %s", e)
             return []
@@ -315,7 +328,7 @@ class ImprovedPositionManager:
                 user_id=int(position.user_id) if position.user_id else 0,
                 chat_id=int(position.chat_id) if position.chat_id else 0,
                 message_id=int(position.message_id) if position.message_id else 0,
-                signal_key=position.signal_key or position.symbol
+                signal_key=position.signal_key or position.symbol,
             )
         except Exception as e:
             logger.error("❌ Ошибка сохранения позиции в БД: %s", e)
@@ -328,7 +341,11 @@ class ImprovedPositionManager:
         try:
             while True:
                 # Обновляем цены для всех активных позиций
-                symbols = list(set(pos.symbol for pos in self.active_positions.values() if pos.status == "open"))
+                symbols = list(
+                    set(
+                        pos.symbol for pos in self.active_positions.values() if pos.status == "open"
+                    )
+                )
 
                 if not symbols:
                     await asyncio.sleep(self.update_interval)
@@ -370,7 +387,7 @@ class ImprovedPositionManager:
                     "losing_positions": 0,
                     "total_pnl_percent": Decimal("0"),
                     "avg_pnl_percent": Decimal("0"),
-                    "win_rate": 0
+                    "win_rate": 0,
                 }
 
             profitable_positions = len([p for p in active_positions if p.pnl_percent > 0])
@@ -385,7 +402,7 @@ class ImprovedPositionManager:
                 "losing_positions": losing_positions,
                 "total_pnl_percent": total_pnl,
                 "avg_pnl_percent": avg_pnl,
-                "win_rate": (profitable_positions / total_positions * 100)
+                "win_rate": (profitable_positions / total_positions * 100),
             }
 
         except Exception as e:

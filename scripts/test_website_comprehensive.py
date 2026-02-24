@@ -41,25 +41,25 @@ try:
         json={"goal": goal, "max_steps": 500},
         timeout=300  # Увеличили timeout
     )
-    
+
     duration = time.time() - start_time
-    
+
     if response.status_code == 200:
         result = response.json()
         status = result.get("status", "N/A")
         output = result.get("output", "")
         knowledge = result.get("knowledge", {})
-        
+
         print(f"✅ Статус: {status}")
         print(f"⏱️ Время выполнения: {duration:.2f}с")
         print()
-        
+
         print("📊 Ответ Victoria:")
         print("=" * 80)
         print(output)
         print("=" * 80)
         print()
-        
+
         if knowledge:
             method = knowledge.get('method', 'N/A')
             print(f"🎯 Метод: {method}")
@@ -68,11 +68,11 @@ try:
             if metadata:
                 print(f"📋 Метаданные: {json.dumps(metadata, indent=2, ensure_ascii=False)}")
             print()
-        
+
         # Расширенный поиск файла
         print("🔍 Расширенный поиск созданного файла...")
         print("-" * 80)
-        
+
         search_paths = [
             Path("webpage.html"),
             Path("index.html"),
@@ -81,24 +81,24 @@ try:
             Path("./webpage.html"),
             Path("./index.html"),
         ]
-        
+
         # Ищем все HTML файлы в текущей директории
         for html_file in Path(".").glob("*.html"):
             if html_file.is_file() and html_file.name not in ["index.html"]:  # Исключаем frontend/index.html
                 search_paths.append(html_file)
-        
+
         found = False
         for path in search_paths:
             if path.exists() and path.is_file():
                 print(f"✅ НАЙДЕН ФАЙЛ: {path.resolve()}")
                 print(f"   Размер: {path.stat().st_size} байт")
                 print(f"   Модифицирован: {time.ctime(path.stat().st_mtime)}")
-                
+
                 try:
                     content = path.read_text(encoding='utf-8')
                     print(f"   Длина: {len(content)} символов")
                     print()
-                    
+
                     # Проверки содержимого
                     checks = {
                         "HTML структура": "<html" in content.lower() or "<!doctype" in content.lower(),
@@ -108,20 +108,20 @@ try:
                         "Адаптивность": "viewport" in content.lower() or "media" in content.lower(),
                         "Семантические теги": any(tag in content.lower() for tag in ["<header", "<section", "<footer", "<nav", "<article"]),
                     }
-                    
+
                     print("📋 ПРОВЕРКА СОДЕРЖИМОГО:")
                     for check_name, passed in checks.items():
                         status = "✅" if passed else "❌"
                         print(f"   {status} {check_name}")
                     print()
-                    
+
                     print("📄 ПРЕВЬЮ ФАЙЛА (первые 2000 символов):")
                     print("-" * 80)
                     print(content[:2000])
                     if len(content) > 2000:
                         print(f"\n... (еще {len(content) - 2000} символов)")
                     print("-" * 80)
-                    
+
                     # Сохраняем копию
                     logs_dir = Path("logs")
                     logs_dir.mkdir(exist_ok=True)
@@ -129,12 +129,12 @@ try:
                     copy_path = logs_dir / f"webpage_{timestamp}.html"
                     copy_path.write_text(content, encoding='utf-8')
                     print(f"\n💾 Копия сохранена: {copy_path}")
-                    
+
                     found = True
                     break
                 except Exception as e:
                     print(f"   ⚠️ Ошибка чтения: {e}")
-        
+
         if not found:
             print("⚠️ Файл не найден в локальной файловой системе")
             print()
@@ -169,11 +169,11 @@ try:
                     print("   ⚠️ Файлы не найдены в контейнере")
             except Exception as e:
                 print(f"   ⚠️ Ошибка проверки контейнера: {e}")
-        
+
     else:
         print(f"❌ Ошибка HTTP {response.status_code}")
         print(response.text[:500])
-        
+
 except requests.exceptions.Timeout:
     print("⏱️ Таймаут - Victoria не ответила за 5 минут")
 except Exception as e:

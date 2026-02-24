@@ -31,29 +31,37 @@ class OrchestrationOptimizer:
         # 1. Рекомендация по проценту трафика V2
         success_diff = (comparison.get("success_rate_difference") or 0) * 100
         if success_diff > 20 and (v2.get("total_tasks") or 0) >= 5:
-            self._suggestions.append({
-                "type": "increase_v2_percentage",
-                "reason": f"V2 success rate +{success_diff:.1f}% vs existing",
-                "current": float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")),
-                "suggested": min(100, float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")) + 20),
-            })
+            self._suggestions.append(
+                {
+                    "type": "increase_v2_percentage",
+                    "reason": f"V2 success rate +{success_diff:.1f}% vs existing",
+                    "current": float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")),
+                    "suggested": min(
+                        100, float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")) + 20
+                    ),
+                }
+            )
         elif success_diff < -10 and (v2.get("total_tasks") or 0) >= 5:
-            self._suggestions.append({
-                "type": "decrease_v2_percentage",
-                "reason": f"V2 success rate {success_diff:.1f}% below existing",
-                "current": float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")),
-                "suggested": max(0, float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")) - 10),
-            })
+            self._suggestions.append(
+                {
+                    "type": "decrease_v2_percentage",
+                    "reason": f"V2 success rate {success_diff:.1f}% below existing",
+                    "current": float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")),
+                    "suggested": max(0, float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10")) - 10),
+                }
+            )
 
         # 2. Порог декомпозиции (если простые задачи в V2 выполняются долго)
         v2_by_complexity = (v2.get("by_complexity") or {}).get("simple", {})
         simple_avg = v2_by_complexity.get("avg_duration", 0)
         if simple_avg > 30 and (v2.get("total_tasks") or 0) >= 3:
-            self._suggestions.append({
-                "type": "raise_decomposition_threshold",
-                "reason": f"V2 simple tasks avg duration {simple_avg:.0f}s > 30s",
-                "suggested_threshold": 0.7,
-            })
+            self._suggestions.append(
+                {
+                    "type": "raise_decomposition_threshold",
+                    "reason": f"V2 simple tasks avg duration {simple_avg:.0f}s > 30s",
+                    "suggested_threshold": 0.7,
+                }
+            )
 
         return {"suggestions": self._suggestions, "applied": []}
 

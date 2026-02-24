@@ -11,58 +11,69 @@
 ## 🔍 ДИАГНОСТИКА
 
 ### 1. Версия python-telegram-bot:
+
 - **Было:** 13.15 (использует Updater)
 - **Стало:** 22.3 (использует Application)
 - **Проблема:** Код был написан для версии 20.x, но установлена 13.15
 
 ### 2. Проблемы с APScheduler:
+
 ```
 TypeError: Only timezones from the pytz library are supported
 ```
 
 ### 3. Проблемы с запуском:
+
 - Бот зависает при запуске
 - Не удается запустить даже простой тестовый бот
 
 ## 🛠️ ВЫПОЛНЕННЫЕ ДЕЙСТВИЯ
 
 ### 1. Обновление версии библиотеки:
+
 ```bash
 pip install --upgrade python-telegram-bot
 # Результат: обновлено до версии 22.3
 ```
 
 ### 2. Восстановление из резервной копии:
+
 ```bash
 cp telegram_bot_backup_before_callback_fix.py telegram_bot.py
 ```
 
 ### 3. Минимальные изменения:
+
 - Добавлена настройка `allowed_updates` для callback_query
 - Сохранена вся оригинальная функциональность
 
 ### 4. Создание тестового бота:
+
 - Создан `test_buttons_simple.py` для изоляции проблемы
 - Добавлена настройка `allowed_updates`
 
 ## ❌ ТЕКУЩИЕ ПРОБЛЕМЫ
 
 ### 1. APScheduler + pytz:
+
 ```
 TypeError: Only timezones from the pytz library are supported
 ```
 
 ### 2. Зависание при запуске:
+
 - Бот запускается, но зависает
 - Не выводит сообщения о готовности
 
 ### 3. Проблемы с зависимостями:
+
 - Конфликт между версиями библиотек
 - Проблемы с timezone
 
 ## 💡 РЕКОМЕНДАЦИИ
 
 ### 1. Немедленные действия:
+
 ```bash
 # Остановить все процессы бота
 pkill -f telegram_bot
@@ -77,6 +88,7 @@ pip install python-telegram-bot==20.7 pytz apscheduler
 ```
 
 ### 2. Восстановление рабочего состояния:
+
 ```bash
 # Восстановить из последней рабочей резервной копии
 cp telegram_bot_backup_before_callback_fix.py telegram_bot.py
@@ -88,6 +100,7 @@ await app.bot.delete_webhook()
 ```
 
 ### 3. Тестирование:
+
 ```bash
 # Запустить простой тест
 python3 test_buttons_simple.py
@@ -112,6 +125,7 @@ python3 telegram_bot.py
 5. **Запустить основной бот**
 
 ---
+
 **Дата:** 2025-08-14
 **Статус:** ⚠️ ТРЕБУЕТ ВОССТАНОВЛЕНИЯ
 **Приоритет:** 🔴 ВЫСОКИЙ

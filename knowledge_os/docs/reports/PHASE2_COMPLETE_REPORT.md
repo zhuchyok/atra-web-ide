@@ -12,11 +12,13 @@
 **Создан:** `entry_timing_optimizer.py`
 
 **Стратегии входа:**
+
 - ✅ IMMEDIATE - немедленный вход (сильный сигнал)
 - ✅ RETRACEMENT - вход на откате 0.3% (лучшая цена)
 - ✅ BREAKOUT_CONFIRMATION - ждем подтверждения (слабый сигнал)
 
 **Факторы анализа:**
+
 - Composite confidence (уверенность сигнала)
 - Momentum (сила движения)
 - Market regime (режим рынка)
@@ -24,11 +26,13 @@
 - RSI (перекупленность/перепроданность)
 
 **Интеграция:**
+
 - ✅ Импорт в `signal_live.py` (строка 128-137)
 - ✅ Использование в `send_signal()` (строка 1968-1992)
 - ✅ Оптимизирует цену входа перед расчетом TP/SL
 
 **Преимущества:**
+
 ```
 Immediate: быстрый вход в сильный тренд
 Retracement: лучшая цена (-0.3% от текущей)
@@ -44,6 +48,7 @@ Confirmation: защита от ложных пробоев
 **Модифицирован:** `composite_signal_engine.py`
 
 **Добавлено:**
+
 ```python
 # Статистика производительности стратегий
 self.strategy_performance = {
@@ -55,11 +60,13 @@ self.strategy_performance = {
 ```
 
 **Методы:**
+
 - ✅ `update_strategy_performance()` - обновляет статистику
 - ✅ `recalculate_adaptive_weights()` - пересчитывает веса (каждый час)
 - ✅ `get_adaptive_weights_stats()` - возвращает статистику
 
 **Логика:**
+
 ```python
 # Рассчитываем score на основе winrate и avg_pnl
 winrate = successful / total
@@ -71,6 +78,7 @@ max_change = current_weight * 0.2
 ```
 
 **Преимущества:**
+
 - ✅ Автоматическая адаптация к рынку
 - ✅ Плавное изменение весов (макс 20% за раз)
 - ✅ Требует минимум 10 сделок для обновления
@@ -95,11 +103,13 @@ Composite Performance    baseline  +10%      +10% ✅
 ### **Детальная оценка:**
 
 **Entry Timing Optimizer:**
+
 - Лучший timing входа: +2-4% per trade
 - Меньше проскальзывания: дополнительно -0.3%
 - Защита от ложных пробоев: входит после подтверждения
 
 **Adaptive Composite Weights:**
+
 - Автоматическая оптимизация стратегий
 - Адаптация к изменениям рынка
 - Фокус на наиболее прибыльных стратегиях
@@ -109,6 +119,7 @@ Composite Performance    baseline  +10%      +10% ✅
 ## 🛡️ **ЗАЩИТНЫЕ МЕХАНИЗМЫ**
 
 ### **1. Entry Timing:**
+
 ```
 Если недоступен → используется текущая цена
 Если ошибка → fallback к immediate entry
@@ -116,6 +127,7 @@ Composite Performance    baseline  +10%      +10% ✅
 ```
 
 ### **2. Adaptive Weights:**
+
 ```
 Минимум 10 сделок → иначе используются текущие веса
 Плавное изменение → макс 20% за раз
@@ -127,6 +139,7 @@ Composite Performance    baseline  +10%      +10% ✅
 ## 📈 **МЕТРИКИ ДЛЯ МОНИТОРИНГА**
 
 ### **Entry Timing:**
+
 ```python
 Логи:
 📍 [ENTRY TIMING] BTCUSDT: IMMEDIATE (conf: 0.85, цена: 43650.12)
@@ -135,6 +148,7 @@ Composite Performance    baseline  +10%      +10% ✅
 ```
 
 ### **Adaptive Weights:**
+
 ```python
 Логи:
 ✅ [ADAPTIVE WEIGHTS] Веса обновлены: trend=0.40, mean_rev=0.22, breakout=0.25, volume=0.13
@@ -155,11 +169,13 @@ composite_engine.get_adaptive_weights_stats()
 ### **Чек-лист:**
 
 1. **Запуск системы:**
+
    ```bash
    python main.py
    ```
 
 2. **Проверка логов:**
+
    ```
    ✅ EntryTimingOptimizer доступен
    ✅ CompositeSignalEngine инициализирован
@@ -182,10 +198,12 @@ composite_engine.get_adaptive_weights_stats()
 ## ✅ **ФАЙЛЫ ИЗМЕНЕНЫ**
 
 ### **Созданы:**
+
 1. `entry_timing_optimizer.py` (340 строк) - оптимизатор timing
 2. `PHASE2_COMPLETE_REPORT.md` - итоговый отчет
 
 ### **Изменены:**
+
 1. `signal_live.py`:
    - Импорт EntryTimingOptimizer (строка 128-137)
    - Использование в send_signal() (строка 1968-1992)
@@ -201,11 +219,13 @@ composite_engine.get_adaptive_weights_stats()
 ## 🚀 **СЛЕДУЮЩИЕ ШАГИ**
 
 ### **Фаза 2: ✅ ЗАВЕРШЕНА**
+
 - [x] Entry Timing Optimizer
 - [x] Adaptive Composite Weights
 - [x] Интеграция в систему
 
 ### **Фаза 3: Планируется**
+
 - [ ] Portfolio Drawdown Limit
 - [ ] Trailing Stop Optimization
 - [ ] Advanced Risk Management
@@ -215,6 +235,7 @@ composite_engine.get_adaptive_weights_stats()
 ## 💡 **РЕКОМЕНДАЦИИ**
 
 ### **При тестировании:**
+
 1. Наблюдайте Entry Timing стратегии
 2. Проверяйте adaptive weights каждый час
 3. Сравнивайте прибыльность до/после
@@ -222,14 +243,17 @@ composite_engine.get_adaptive_weights_stats()
 ### **Ожидаемое поведение:**
 
 **Первые 24 часа:**
+
 - Entry Timing работает сразу
 - Adaptive Weights собирают статистику
 
 **После 10+ сделок:**
+
 - Веса начинают адаптироваться
 - Более прибыльные стратегии получают больший вес
 
 **После недели:**
+
 - Веса оптимизированы под текущий рынок
 - Система адаптировалась к условиям
 
@@ -240,19 +264,22 @@ composite_engine.get_adaptive_weights_stats()
 **Фаза 2 успешно завершена!**
 
 ### **Достигнуто:**
+
 ✅ Оптимальный timing входа (3 стратегии)  
 ✅ Самообучающиеся веса стратегий  
 ✅ Автоматическая адаптация к рынку  
 ✅ Безопасная интеграция (fallback)  
-✅ Не ломает существующую логику  
+✅ Не ломает существующую логику
 
 ### **Риски минимизированы:**
+
 ✅ Fallback для всех компонентов  
 ✅ Плавное изменение весов (макс 20%)  
 ✅ Требуется минимум данных (10 сделок)  
-✅ Graceful degradation  
+✅ Graceful degradation
 
 ### **Ожидаемый эффект:**
+
 ```
 Entry Timing: +3% прибыльность
 Adaptive Weights: +10% производительность
@@ -268,4 +295,3 @@ Adaptive Weights: +10% производительность
 **Версия:** v1.0 Phase 2 Complete
 
 **Система значительно улучшена!** 🚀
-

@@ -9,10 +9,10 @@
 
 ### **Финальный прогресс:**
 
-| № | Имя | Роль | Прогресс | Статус |
-|---|-----|------|----------|--------|
+| №    | Имя            | Роль     | Прогресс   | Статус           |
+| ---- | -------------- | -------- | ---------- | ---------------- |
 | 1-20 | Все сотрудники | Все роли | **140.0%** | 🌟 Мировой класс |
-| 21 | Елена | Monitor | **135.0%** | 🌟 Мировой класс |
+| 21   | Елена          | Monitor  | **135.0%** | 🌟 Мировой класс |
 
 ### **Статистика:**
 
@@ -28,11 +28,13 @@
 ### **1. Продвинутые материалы (15%)**
 
 Для каждой роли добавлено:
+
 - ✅ **Продвинутые книги** - углубленные материалы мирового уровня
 - ✅ **Экспертные практики** - передовые техники и методы
 - ✅ **Сертификации** - профессиональные сертификации
 
 **Примеры:**
+
 - ML Engineer: Deep Learning для финансов, AutoML, Explainable AI
 - Backend Developer: Event-driven architecture, CQRS, Distributed systems
 - Data Analyst: High-frequency trading, Market microstructure, Portfolio optimization
@@ -40,6 +42,7 @@
 ### **2. Реальные кейсы из проекта ATRA (10%)**
 
 Добавлены успешно реализованные проекты:
+
 - ✅ Исправление Sharpe Ratio для крипто (sqrt(365))
 - ✅ Добавление sample weights в LightGBM
 - ✅ Внедрение stateless architecture
@@ -49,6 +52,7 @@
 ### **3. Экспертный уровень в программах (10%)**
 
 Добавлены:
+
 - ✅ Недели 7-12: Продвинутые техники и мастерство
 - ✅ Достижения и сертификации
 - ✅ Метрики экспертного уровня
@@ -114,18 +118,21 @@
 ## 🌟 ПРИМЕРЫ ЭКСПЕРТНЫХ МАТЕРИАЛОВ
 
 ### **ML Engineer:**
+
 - Deep Learning для финансовых временных рядов
 - Ensemble methods и stacking
 - AutoML и neural architecture search
 - Explainable AI для trading
 
 ### **Backend Developer:**
+
 - Event-driven architecture
 - CQRS и Event Sourcing
 - Distributed systems patterns
 - High-performance async systems
 
 ### **Data Analyst:**
+
 - High-frequency trading analysis
 - Market microstructure analysis
 - Portfolio optimization
@@ -222,4 +229,3 @@
 **Автор:** Команда ATRA из 21 эксперта мирового уровня  
 **Дата:** 2025-12-13  
 **Статус:** ✅ **МИРОВОЙ УРОВЕНЬ ДОСТИГНУТ**
-

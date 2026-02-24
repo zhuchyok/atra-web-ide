@@ -9,11 +9,13 @@
 ### **ШАГ 1: Сохраните ключ шифрования**
 
 Из ваших логов:
+
 ```
 ATRA_ENCRYPTION_KEY=ogGkH4RhoZCtAPTRrrwBZI_5o0K1VmxJSoV1IGUQzUA=
 ```
 
 Создайте файл `.env`:
+
 ```bash
 echo "ATRA_ENCRYPTION_KEY=ogGkH4RhoZCtAPTRrrwBZI_5o0K1VmxJSoV1IGUQzUA=" > .env
 ```
@@ -21,6 +23,7 @@ echo "ATRA_ENCRYPTION_KEY=ogGkH4RhoZCtAPTRrrwBZI_5o0K1VmxJSoV1IGUQzUA=" > .env
 ### **ШАГ 2: Переподключите ключи Bitget**
 
 В Telegram боте:
+
 ```
 /disconnect_bitget
 /connect_bitget <api_key> <secret> <passphrase>
@@ -39,11 +42,13 @@ python main.py
 ## 🔍 ПРОВЕРКА
 
 **После перезапуска логи должны показывать:**
+
 ```
 ✅ Ключи bitget для user <id> сохранены (зашифрованы)
 ```
 
 **БЕЗ ошибок:**
+
 ```
 ❌ Ошибка расшифрования  ← НЕ ДОЛЖНО БЫТЬ!
 ```
@@ -69,4 +74,3 @@ python main.py
 4. Перезапустите бот
 
 **Ошибки расшифрования исчезнут!** ✅
-

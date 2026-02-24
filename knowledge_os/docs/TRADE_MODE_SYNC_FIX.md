@@ -8,6 +8,7 @@
 Пользователь получал алерты о закрытии позиций для **обоих режимов** (spot и futures), а не только для выбранного режима пользователя.
 
 ### Причина:
+
 - Система синхронизировала позиции с биржей для **всех пользователей** без проверки режима торговли
 - `fetch_positions()` возвращает только **futures позиции** (так как Bitget - фьючерсная биржа)
 - Для **spot пользователей** синхронизация не нужна (spot - это баланс, а не позиции)
@@ -22,6 +23,7 @@
 #### 1. Перед получением позиций с биржи (строки 448-468):
 
 **Было:**
+
 ```python
 for uid in user_ids:
     keys = await adb_local.get_active_exchange_keys(uid, 'bitget')
@@ -30,6 +32,7 @@ for uid in user_ids:
 ```
 
 **Стало:**
+
 ```python
 for uid in user_ids:
     # Получаем режим торговли пользователя (spot/futures)
@@ -42,7 +45,7 @@ for uid in user_ids:
         user_trade_mode = user_data_temp.get('trade_mode', 'spot')
     except Exception:
         user_trade_mode = 'spot'
-    
+
     # Для spot пользователей пропускаем синхронизацию позиций
     if user_trade_mode == 'spot':
         logger.debug(
@@ -51,7 +54,7 @@ for uid in user_ids:
             uid
         )
         continue
-    
+
     keys = await adb_local.get_active_exchange_keys(uid, 'bitget')
     adapter = ExchangeAdapter('bitget', keys=keys or {}, sandbox=False)
     positions = await adapter.fetch_positions()
@@ -60,16 +63,18 @@ for uid in user_ids:
 #### 2. Перед закрытием позиций (строки 1261-1282):
 
 **Было:**
+
 ```python
 try:
     local_open = set(await adb_local.get_user_active_symbols(uid))
     to_close = local_open - open_symbols_remote
-    
+
     # Проверяем режим пользователя
     user_mode = await adb_local.get_user_mode(uid)
 ```
 
 **Стало:**
+
 ```python
 try:
     # Получаем режим торговли пользователя (spot/futures)
@@ -80,7 +85,7 @@ try:
         user_trade_mode = user_data_temp.get('trade_mode', 'spot')
     except Exception:
         user_trade_mode = 'spot'
-    
+
     # Для spot пользователей пропускаем синхронизацию
     if user_trade_mode == 'spot':
         logger.debug(
@@ -89,10 +94,10 @@ try:
             uid
         )
         continue
-    
+
     local_open = set(await adb_local.get_user_active_symbols(uid))
     to_close = local_open - open_symbols_remote
-    
+
     # Проверяем режим пользователя (manual/auto)
     user_mode = await adb_local.get_user_mode(uid)
 ```
@@ -100,11 +105,13 @@ try:
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### Для SPOT пользователей:
+
 - ✅ **НЕ синхронизируются** позиции с биржей
 - ✅ **НЕ отправляются** алерты о закрытии позиций
 - ✅ Spot - это баланс на спотовом счете, а не позиции на бирже
 
 ### Для FUTURES пользователей:
+
 - ✅ **Синхронизируются** только futures позиции
 - ✅ **Отправляются** алерты только для futures позиций
 - ✅ Работает как раньше (синхронизация с биржей)
@@ -112,11 +119,13 @@ try:
 ## 🔍 ТЕХНИЧЕСКИЕ ДЕТАЛИ
 
 ### Почему для spot не нужна синхронизация:
+
 1. **Spot позиции** - это баланс на спотовом счете, а не позиции на бирже
 2. **`fetch_positions()`** на Bitget возвращает только futures позиции
 3. **Spot пользователи** не открывают позиции на бирже (они покупают/продают активы)
 
 ### Почему для futures нужна синхронизация:
+
 1. **Futures позиции** - это реальные позиции на фьючерсной бирже
 2. **Нужна синхронизация** для отслеживания закрытия позиций (SL/TP, вручную)
 3. **Алерты** нужны для уведомления о закрытии позиций
@@ -130,4 +139,3 @@ try:
 ---
 
 **Следующий шаг:** Перезапустить бота для применения изменений
-

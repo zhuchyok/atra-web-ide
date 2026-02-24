@@ -16,6 +16,7 @@
 ## 🔍 ПРОВЕРКА
 
 После перезапуска бота проверьте логи на наличие ошибок:
+
 ```bash
 tail -f signal_live.log | grep -E '(connection_pool|get_connection|ERROR)'
 ```
@@ -26,4 +27,3 @@ tail -f signal_live.log | grep -E '(connection_pool|get_connection|ERROR)'
 
 **Дата:** 2025-01-XX  
 **Исполнитель:** Команда из 21 сотрудник
-

@@ -30,4 +30,3 @@ python3 "$SEND_REPORT" \
   --bot-log "$ROOT_DIR/bot.log" \
   --lock-file "$ROOT_DIR/atra.lock" \
   >> "$LOG_DIR/risk_status_send.log" 2>&1
-

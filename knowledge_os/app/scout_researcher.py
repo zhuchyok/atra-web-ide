@@ -5,10 +5,10 @@
 """
 
 import asyncio
-import os
 import json
-import sys
 import logging
+import os
+import sys
 from datetime import datetime, timezone
 from typing import List
 
@@ -17,7 +17,7 @@ import httpx
 from duckduckgo_search import DDGS  # type: ignore # pylint: disable=import-error
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
@@ -28,7 +28,9 @@ async def get_embedding(text: str) -> List[float]:
     """Получает векторное представление текста через VectorCore."""
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(f"{VECTOR_CORE_URL}/encode", json={"text": text}, timeout=30.0)
+            response = await client.post(
+                f"{VECTOR_CORE_URL}/encode", json={"text": text}, timeout=30.0
+            )
             response.raise_for_status()
             return response.json()["embedding"]
         except (httpx.HTTPError, KeyError, ValueError) as e:
@@ -43,8 +45,11 @@ async def get_pool():
 
 async def perform_scout_research(business_name: str, locations: str):
     """Выполняет поиск данных по конкурентам и сохраняет их в базу знаний."""
-    logger.info("🕵️ Глеб (Разведчик): Начинаю сбор данных по конкурентам для '%s' в %s...",
-                business_name, locations)
+    logger.info(
+        "🕵️ Глеб (Разведчик): Начинаю сбор данных по конкурентам для '%s' в %s...",
+        business_name,
+        locations,
+    )
     pool = await get_pool()
 
     queries = [
@@ -57,7 +62,7 @@ async def perform_scout_research(business_name: str, locations: str):
         "дилеры оконных профилей Rehau Veka KBE в Чувашии",
         f"Яндекс Карты пластиковые окна {locations} список",
         f"2ГИС оконные фирмы {locations} все организации",
-        f"Пульс Цен {locations} окна ПВХ список поставщиков"
+        f"Пульс Цен {locations} окна ПВХ список поставщиков",
     ]
 
     # Добавляем конкретных конкурентов, если они переданы через аргументы
@@ -77,7 +82,9 @@ async def perform_scout_research(business_name: str, locations: str):
             await pool.close()
             return
 
-        domain_id = await conn.fetchval("SELECT id FROM domains WHERE name = 'Competitive Intelligence'")
+        domain_id = await conn.fetchval(
+            "SELECT id FROM domains WHERE name = 'Competitive Intelligence'"
+        )
         if not domain_id:
             domain_id = await conn.fetchval(
                 "INSERT INTO domains (name) VALUES ('Competitive Intelligence') RETURNING id"
@@ -91,26 +98,34 @@ async def perform_scout_research(business_name: str, locations: str):
                     results = list(ddgs.text(query, max_results=10))
 
                 for res in results:
-                    content = (f"Конкурентная разведка: {res['title']}\n"
-                               f"Источник: {res['href']}\n"
-                               f"Описание: {res['body']}")
+                    content = (
+                        f"Конкурентная разведка: {res['title']}\n"
+                        f"Источник: {res['href']}\n"
+                        f"Описание: {res['body']}"
+                    )
                     embedding = await get_embedding(content)
 
                     metadata = {
                         "source": "scout_research",
                         "query": query,
-                        "expert_id": str(expert['id']),
-                        "expert_name": expert['name'],
-                        "url": res['href'],
+                        "expert_id": str(expert["id"]),
+                        "expert_name": expert["name"],
+                        "url": res["href"],
                         "business_target": business_name,
                         "location": locations,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
 
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
                         VALUES ($1, $2, $3, 0.90, $4, FALSE)
-                    """, domain_id, content, str(embedding), json.dumps(metadata))
+                    """,
+                        domain_id,
+                        content,
+                        str(embedding),
+                        json.dumps(metadata),
+                    )
                     total_insights += 1
 
             except Exception as e:
@@ -118,17 +133,26 @@ async def perform_scout_research(business_name: str, locations: str):
 
         # Создаем задачу для Глеба: Проанализировать собранные данные
         victoria_id = await conn.fetchval("SELECT id FROM experts WHERE name = 'Виктория'")
-        task_desc = (f"Глеб, я собрала {total_insights} записей о рынке в {locations}. "
-                     f"Проведи анализ конкурентов и подготовь SWOT для '{business_name}'.")
+        task_desc = (
+            f"Глеб, я собрала {total_insights} записей о рынке в {locations}. "
+            f"Проведи анализ конкурентов и подготовь SWOT для '{business_name}'."
+        )
 
-        await conn.execute("""
+        await conn.execute(
+            """
             INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
             VALUES ($1, $2, 'pending', $3, $4, $5)
-        """, f"🕵️ Анализ конкурентов: {business_name}",
-           task_desc, expert['id'], victoria_id,
-           json.dumps({"source": "scout_orchestrator", "business": business_name}))
+        """,
+            f"🕵️ Анализ конкурентов: {business_name}",
+            task_desc,
+            expert["id"],
+            victoria_id,
+            json.dumps({"source": "scout_orchestrator", "business": business_name}),
+        )
 
-        logger.info("✅ Глеб завершил сбор данных. Добавлено %d зацепок. Задача создана.", total_insights)
+        logger.info(
+            "✅ Глеб завершил сбор данных. Добавлено %d зацепок. Задача создана.", total_insights
+        )
 
     await pool.close()
 

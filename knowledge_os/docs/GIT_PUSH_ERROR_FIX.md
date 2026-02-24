@@ -3,6 +3,7 @@
 ## 🔍 ОБНАРУЖЕНА ПРОБЛЕМА
 
 **Ошибка:**
+
 ```
 remote: Internal Server Error
 fatal: «https://github.com/nikondrat/atra.git/» недоступно: The requested URL returned error: 500
@@ -100,4 +101,3 @@ rm lightgbm_changes.tar.gz
 
 **Статус**: ⏸️ Ожидает решения проблемы с GitHub
 **Дата**: 2025-01-XX
-

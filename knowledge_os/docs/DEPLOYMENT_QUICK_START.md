@@ -4,7 +4,6 @@
 
 1. ✅ **Оптимальный портфель** обновлен в `config.py`:
    - AVAXUSDT, LINKUSDT, SOLUSDT, SUIUSDT, DOGEUSDT
-   
 2. ✅ **Динамическое плечо** интегрировано и работает
 
 3. ✅ **Индивидуальные параметры** настроены для всех монет
@@ -19,22 +18,26 @@
 ## 🔧 КОМАНДЫ ДЛЯ РУЧНОГО ДЕПЛОЯ:
 
 ### 1. Подключение к серверу:
+
 ```bash
 ssh root@185.177.216.15
 # Пароль: u44Ww9NmtQj,XG
 ```
 
 ### 2. Переход в директорию проекта:
+
 ```bash
 cd /root/atra  # или ваш путь к проекту
 ```
 
 ### 3. Создание бэкапа:
+
 ```bash
 cp -r /root/atra /root/atra.backup.$(date +%Y%m%d_%H%M%S)
 ```
 
 ### 4. Остановка текущего процесса:
+
 ```bash
 # Найти PID
 ps aux | grep "python.*main.py" | grep -v grep
@@ -52,11 +55,13 @@ kill -9 <PID> 2>/dev/null || true
 ### 5. Обновление файлов (выберите один способ):
 
 #### Способ A: Через git (если используется)
+
 ```bash
 git pull origin main
 ```
 
 #### Способ B: Через rsync с локальной машины
+
 ```bash
 # На ЛОКАЛЬНОЙ машине выполните:
 rsync -avz --progress \
@@ -68,6 +73,7 @@ rsync -avz --progress \
 ```
 
 #### Способ C: Вручную скопировать ключевые файлы
+
 ```bash
 # На сервере обновите:
 # - config.py (COINS обновлен)
@@ -75,6 +81,7 @@ rsync -avz --progress \
 ```
 
 ### 6. Проверка конфигурации:
+
 ```bash
 # Проверить env файл
 cat env | grep -E "ATRA_ENV|TELEGRAM_TOKEN"
@@ -88,6 +95,7 @@ python3 -c "from config import COINS; print('COINS:', COINS)"
 ```
 
 ### 7. Запуск системы:
+
 ```bash
 # Активировать виртуальное окружение (если используется)
 source venv/bin/activate  # если есть venv
@@ -103,6 +111,7 @@ ps aux | grep "python.*main.py" | grep -v grep
 ```
 
 ### 8. Проверка работы:
+
 ```bash
 # Смотреть логи в реальном времени
 tail -f logs/atra.log
@@ -122,16 +131,19 @@ tail -100 logs/atra.log | grep -E "✅|🚀|запущен|started|COINS"
 ## 📊 ЧТО ПРОВЕРИТЬ ПОСЛЕ ЗАПУСКА:
 
 ### 1. Система запущена:
+
 ```bash
 ps aux | grep "python.*main.py" | grep -v grep
 # Должен быть процесс
 ```
 
 ### 2. Telegram бот работает:
+
 - Отправьте команду `/start` боту
 - Проверьте ответ
 
 ### 3. Генерация сигналов:
+
 ```bash
 # Проверить последние сигналы
 tail -200 logs/atra.log | grep -E "сигнал|signal|SIGNAL"
@@ -141,11 +153,13 @@ tail -200 logs/atra.log | grep -E "AVAXUSDT|LINKUSDT|SOLUSDT|SUIUSDT|DOGEUSDT"
 ```
 
 ### 4. Динамическое плечо:
+
 ```bash
 tail -200 logs/atra.log | grep -E "DYNAMIC_LEVERAGE|динамическое плечо|leverage"
 ```
 
 ### 5. База данных:
+
 ```bash
 # Проверить последние сигналы в БД
 sqlite3 trading.db "SELECT symbol, side, created_at FROM signals ORDER BY created_at DESC LIMIT 10;"
@@ -156,6 +170,7 @@ sqlite3 trading.db "SELECT symbol, side, created_at FROM signals ORDER BY create
 ## ⚠️ ВОЗМОЖНЫЕ ПРОБЛЕМЫ:
 
 ### Проблема: Процесс не запускается
+
 ```bash
 # Запустить вручную для диагностики
 python3 main.py
@@ -163,6 +178,7 @@ python3 main.py
 ```
 
 ### Проблема: Нет сигналов
+
 ```bash
 # Проверить конфигурацию монет
 python3 -c "from config import COINS; print(COINS)"
@@ -172,6 +188,7 @@ tail -200 logs/atra.log | grep -E "фильтр|filter|блок|block"
 ```
 
 ### Проблема: Ошибки в Telegram
+
 ```bash
 # Проверить токен
 cat env | grep TELEGRAM_TOKEN
@@ -194,6 +211,7 @@ tail -100 logs/atra.log | grep -E "Telegram|telegram|error"
 ## 🎯 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ:
 
 На основе бэктестов:
+
 - **Win Rate:** ~57%
 - **Profit Factor:** ~1.37
 - **Среднее плечо:** ~2.24x
@@ -202,4 +220,3 @@ tail -100 logs/atra.log | grep -E "Telegram|telegram|error"
 ---
 
 **Готово к запуску!** 🚀
-

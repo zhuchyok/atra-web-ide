@@ -122,38 +122,40 @@
 
 ## 📋 ИТОГОВАЯ ТАБЛИЦА ВСЕХ ФИЛЬТРОВ
 
-| Фильтр | В core.py | В signal_live.py | Статус |
-|--------|-----------|------------------|--------|
-| **Volume Profile** | ✅ | ❌ | Только в core.py |
-| **VWAP** | ✅ | ❌ | Только в core.py |
-| **Market Profile** | ✅ | ❌ | Только в core.py |
-| **Order Flow** | ✅ | ❌ | Только в core.py |
-| **Microstructure** | ✅ | ❌ | Только в core.py |
-| **Momentum** | ✅ | ❌ | Только в core.py |
-| **Trend Strength** | ✅ | ❌ | Только в core.py |
-| **AMT** | ✅ | ❌ | Только в core.py |
-| **Institutional Patterns** | ✅ | ✅ | В обоих местах |
-| **BTC Trend** | ❌ | ✅ | Только в signal_live.py |
-| **ETH Trend** | ❌ | ✅ | Только в signal_live.py |
-| **SOL Trend** | ❌ | ✅ | Только в signal_live.py |
-| **Dominance Trend** | ❌ | ✅ | Только в signal_live.py |
-| **Interest Zone** | ❌ | ✅ | Только в signal_live.py |
-| **Fibonacci Zone** | ❌ | ✅ | Только в signal_live.py |
-| **Volume Imbalance** | ❌ | ✅ | Только в signal_live.py |
-| **News** | ❌ | ✅ | Только в signal_live.py |
-| **Whale** | ❌ | ✅ | Только в signal_live.py |
-| **Exhaustion** | ❌ | ⚠️ | Только для выхода |
+| Фильтр                     | В core.py | В signal_live.py | Статус                  |
+| -------------------------- | --------- | ---------------- | ----------------------- |
+| **Volume Profile**         | ✅        | ❌               | Только в core.py        |
+| **VWAP**                   | ✅        | ❌               | Только в core.py        |
+| **Market Profile**         | ✅        | ❌               | Только в core.py        |
+| **Order Flow**             | ✅        | ❌               | Только в core.py        |
+| **Microstructure**         | ✅        | ❌               | Только в core.py        |
+| **Momentum**               | ✅        | ❌               | Только в core.py        |
+| **Trend Strength**         | ✅        | ❌               | Только в core.py        |
+| **AMT**                    | ✅        | ❌               | Только в core.py        |
+| **Institutional Patterns** | ✅        | ✅               | В обоих местах          |
+| **BTC Trend**              | ❌        | ✅               | Только в signal_live.py |
+| **ETH Trend**              | ❌        | ✅               | Только в signal_live.py |
+| **SOL Trend**              | ❌        | ✅               | Только в signal_live.py |
+| **Dominance Trend**        | ❌        | ✅               | Только в signal_live.py |
+| **Interest Zone**          | ❌        | ✅               | Только в signal_live.py |
+| **Fibonacci Zone**         | ❌        | ✅               | Только в signal_live.py |
+| **Volume Imbalance**       | ❌        | ✅               | Только в signal_live.py |
+| **News**                   | ❌        | ✅               | Только в signal_live.py |
+| **Whale**                  | ❌        | ✅               | Только в signal_live.py |
+| **Exhaustion**             | ❌        | ⚠️               | Только для выхода       |
 
 ---
 
 ## 🔍 ВЫВОДЫ
 
 ### **1. Фильтры в core.py (9 фильтров):**
+
 - ✅ Все 9 фильтров используются для генерации сигналов входа
 - ✅ Все оптимизированы и применены в рабочем боте
 - ✅ Структура обновлена на прибыльную (VP/VWAP перед baseline)
 
 ### **2. Фильтры в signal_live.py (9+ фильтров):**
+
 - ✅ BTC Trend Filter - **АКТИВНО ИСПОЛЬЗУЕТСЯ**
 - ✅ ETH Trend Filter - **АКТИВНО ИСПОЛЬЗУЕТСЯ** (вычисляется напрямую)
 - ✅ SOL Trend Filter - **АКТИВНО ИСПОЛЬЗУЕТСЯ** (вычисляется напрямую)
@@ -165,11 +167,13 @@
 - ✅ Whale Filter - **АКТИВНО ИСПОЛЬЗУЕТСЯ**
 
 ### **3. Разделение фильтров:**
+
 - **core.py**: Технические фильтры для генерации сигналов (9 фильтров)
 - **signal_live.py**: Дополнительные фильтры для финальной проверки (9+ фильтров)
 - **Общий фильтр**: Institutional Patterns (используется в обоих местах)
 
 ### **4. ETH и SOL фильтры:**
+
 - ✅ **ЕСТЬ** в `signal_live.py`
 - ✅ Вычисляются напрямую (не через отдельные модули)
 - ✅ Используются для проверки тренда ETH и SOL перед генерацией сигналов
@@ -184,4 +188,3 @@
 - ✅ 9+ фильтров в `signal_live.py` (активно используются)
 - ✅ ETH и SOL фильтры найдены в `signal_live.py`
 - ✅ Все фильтры работают в рабочем боте
-

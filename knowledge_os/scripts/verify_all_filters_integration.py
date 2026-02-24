@@ -8,28 +8,30 @@
 - Что все флаги конфигурации используются
 """
 
-import sys
 import os
 import re
+import sys
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
 def check_file_for_patterns(filepath, patterns, description):
     """Проверяет наличие паттернов в файле"""
     try:
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, encoding="utf-8") as f:
             content = f.read()
-        
+
         results = {}
         for pattern_name, pattern in patterns.items():
             matches = re.findall(pattern, content, re.MULTILINE)
             results[pattern_name] = len(matches) > 0
-        
+
         return results
     except Exception as e:
         print(f"❌ Ошибка чтения {filepath}: {e}")
         return {}
+
 
 print("=" * 80)
 print("🔍 ПРОВЕРКА ИНТЕГРАЦИИ ВСЕХ ФИЛЬТРОВ")
@@ -114,7 +116,9 @@ prometheus_patterns = {
     "record_filter_check": r"def record_filter_check",
     "record_indicator_processing_time": r"def record_indicator_processing_time",
 }
-prometheus_results = check_file_for_patterns("src/monitoring/prometheus.py", prometheus_patterns, "Prometheus метрики")
+prometheus_results = check_file_for_patterns(
+    "src/monitoring/prometheus.py", prometheus_patterns, "Prometheus метрики"
+)
 for pattern, found in prometheus_results.items():
     status = "✅" if found else "❌"
     print(f"   {status} {pattern}")
@@ -129,7 +133,9 @@ amt_metrics = {
     "record_filter_check": r"record_filter_check\(",
     "record_indicator_processing_time": r"record_indicator_processing_time\(",
 }
-amt_metrics_results = check_file_for_patterns("src/filters/amt_filter.py", amt_metrics, "AMT метрики")
+amt_metrics_results = check_file_for_patterns(
+    "src/filters/amt_filter.py", amt_metrics, "AMT метрики"
+)
 for pattern, found in amt_metrics_results.items():
     status = "✅" if found else "❌"
     print(f"   {status} {pattern} (AMT)")
@@ -140,7 +146,9 @@ mp_metrics = {
     "record_filter_check": r"record_filter_check\(",
     "record_indicator_processing_time": r"record_indicator_processing_time\(",
 }
-mp_metrics_results = check_file_for_patterns("src/filters/market_profile_filter.py", mp_metrics, "Market Profile метрики")
+mp_metrics_results = check_file_for_patterns(
+    "src/filters/market_profile_filter.py", mp_metrics, "Market Profile метрики"
+)
 for pattern, found in mp_metrics_results.items():
     status = "✅" if found else "❌"
     print(f"   {status} {pattern} (Market Profile)")
@@ -151,7 +159,9 @@ ip_metrics = {
     "record_filter_check": r"record_filter_check\(",
     "record_indicator_processing_time": r"record_indicator_processing_time\(",
 }
-ip_metrics_results = check_file_for_patterns("src/filters/institutional_patterns_filter.py", ip_metrics, "Institutional Patterns метрики")
+ip_metrics_results = check_file_for_patterns(
+    "src/filters/institutional_patterns_filter.py", ip_metrics, "Institutional Patterns метрики"
+)
 for pattern, found in ip_metrics_results.items():
     status = "✅" if found else "❌"
     print(f"   {status} {pattern} (Institutional Patterns)")
@@ -192,4 +202,3 @@ if passed == total:
 else:
     print()
     print("⚠️  Обнаружены проблемы. Проверьте детали выше.")
-

@@ -5,10 +5,10 @@ This use case handles signal acceptance business logic.
 """
 
 from typing import Protocol
-from src.shared.utils.datetime_utils import get_utc_now
 
 from src.domain.entities.signal import Signal
 from src.domain.repositories.signal_repository import SignalRepository
+from src.shared.utils.datetime_utils import get_utc_now
 
 
 class NotificationService(Protocol):
@@ -63,4 +63,3 @@ class AcceptSignalUseCase:
         await self._notification_service.notify_signal_accepted(saved_signal)
 
         return saved_signal
-

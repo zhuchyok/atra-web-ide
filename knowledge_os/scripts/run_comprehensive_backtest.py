@@ -109,7 +109,11 @@ class ComprehensiveBacktest:
         """Проверяет BTC тренд (упрощённая версия)."""
         try:
             # Находим ближайшую свечу BTC
-            btc_row = btc_df.loc[btc_df.index <= current_time].iloc[-1] if len(btc_df.loc[btc_df.index <= current_time]) > 0 else None
+            btc_row = (
+                btc_df.loc[btc_df.index <= current_time].iloc[-1]
+                if len(btc_df.loc[btc_df.index <= current_time]) > 0
+                else None
+            )
             if btc_row is None:
                 return None
 
@@ -118,7 +122,9 @@ class ComprehensiveBacktest:
                 return None
 
             ema_50 = btc_row.get("ema_50", btc_row["close"])
-            ema_200 = btc_row["close"].rolling(200).mean().iloc[-1] if len(btc_df) >= 200 else ema_50
+            ema_200 = (
+                btc_row["close"].rolling(200).mean().iloc[-1] if len(btc_df) >= 200 else ema_50
+            )
 
             return ema_50 > ema_200 if not pd.isna(ema_200) else None
         except Exception as e:
@@ -295,7 +301,9 @@ class ComprehensiveBacktest:
                             # TP1 достигнут
                             pos["tp1_hit"] = True
                             # Частичное закрытие 50%
-                            partial_pnl = self.close_partial_position(pos, pos["tp1_price"], "tp1", 0.5, idx)
+                            partial_pnl = self.close_partial_position(
+                                pos, pos["tp1_price"], "tp1", 0.5, idx
+                            )
                         elif current_price <= pos["sl_price"]:
                             # SL достигнут
                             self.close_position(pos, current_price, "sl", idx)
@@ -307,7 +315,9 @@ class ComprehensiveBacktest:
                             # TP1 достигнут
                             pos["tp1_hit"] = True
                             # Частичное закрытие 50%
-                            partial_pnl = self.close_partial_position(pos, pos["tp1_price"], "tp1", 0.5, idx)
+                            partial_pnl = self.close_partial_position(
+                                pos, pos["tp1_price"], "tp1", 0.5, idx
+                            )
                         elif current_price >= pos["sl_price"]:
                             # SL достигнут
                             self.close_position(pos, current_price, "sl", idx)
@@ -342,15 +352,15 @@ class ComprehensiveBacktest:
         # Расчёт размера позиции
         risk_amount = self.current_balance * (self.risk_per_trade / 100)
         sl_distance_pct = abs(entry_price - signal["sl_price"]) / entry_price
-        
+
         # Размер позиции в базовой валюте (например, BTC)
         # risk_amount = position_size * sl_distance_pct * entry_price
         # position_size = risk_amount / (sl_distance_pct * entry_price)
         position_size_base = risk_amount / (sl_distance_pct * entry_price)
-        
+
         # Применяем плечо
         position_size = position_size_base * self.leverage
-        
+
         # Ограничиваем размер позиции (максимум 50% баланса)
         max_position_value = self.current_balance * 0.5
         max_position_size = max_position_value / entry_price
@@ -517,8 +527,12 @@ class ComprehensiveBacktest:
             sortino_ratio = 0.0
 
         # Profit Factor
-        gross_profit = df_trades[df_trades["pnl"] > 0]["pnl"].sum() if self.winning_trades > 0 else 0
-        gross_loss = abs(df_trades[df_trades["pnl"] < 0]["pnl"].sum()) if self.losing_trades > 0 else 1
+        gross_profit = (
+            df_trades[df_trades["pnl"] > 0]["pnl"].sum() if self.winning_trades > 0 else 0
+        )
+        gross_loss = (
+            abs(df_trades[df_trades["pnl"] < 0]["pnl"].sum()) if self.losing_trades > 0 else 1
+        )
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0
 
         # Максимальные серии
@@ -571,7 +585,9 @@ async def main():
     parser.add_argument("--initial-balance", type=float, default=10000.0, help="Начальный баланс")
     parser.add_argument("--risk", type=float, default=2.0, help="Риск на сделку (%)")
     parser.add_argument("--leverage", type=float, default=2.0, help="Плечо")
-    parser.add_argument("--output", default="data/backtest_report.json", help="Путь для сохранения отчета")
+    parser.add_argument(
+        "--output", default="data/backtest_report.json", help="Путь для сохранения отчета"
+    )
     args = parser.parse_args()
 
     logger.info("🚀 Запуск комплексного бектеста...")
@@ -650,4 +666,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

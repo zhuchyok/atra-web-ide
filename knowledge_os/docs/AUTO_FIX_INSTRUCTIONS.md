@@ -18,6 +18,7 @@ python3 scripts/auto_fix_all_positions.py
 ```
 
 Этот скрипт выполнит все шаги автоматически:
+
 1. ✅ Синхронизация позиций с биржи
 2. ✅ Экстренное исправление PUMPUSDT
 3. ✅ Общее исправление всех позиций
@@ -63,13 +64,14 @@ python3 scripts/fix_open_positions_tp_sl.py
    - Все другие позиции защищены
 
 2. **В БД:**
+
    ```sql
    -- Проверить позиции
    SELECT * FROM active_positions WHERE symbol = 'PUMPUSDT';
-   
+
    -- Проверить ордера
-   SELECT * FROM order_audit_log 
-   WHERE symbol LIKE '%PUMP%' 
+   SELECT * FROM order_audit_log
+   WHERE symbol LIKE '%PUMP%'
      AND datetime(created_at) > datetime('now', '-1 hour')
    ORDER BY created_at DESC;
    ```
@@ -106,4 +108,3 @@ python3 scripts/fix_open_positions_tp_sl.py
 2. Убедитесь, что ключи Bitget подключены
 3. Проверьте доступность биржи
 4. Запустите скрипты повторно (они безопасны)
-

@@ -3,12 +3,14 @@
 ## 🚨 **ПРОБЛЕМА**
 
 На сервере появляется предупреждение:
+
 ```
 ⚠️ talib не найден, но система продолжит работу
 ℹ️ talib недоступен, используется fallback режим
 ```
 
 **Причины:**
+
 1. **Отсутствие TA-Lib** на сервере
 2. **Проблемы с компиляцией** TA-Lib
 3. **Неправильные пути** к модулям
@@ -19,6 +21,7 @@
 ### **Уровень 1: Автоматическая установка TA-Lib**
 
 #### **Для Ubuntu/Debian сервера:**
+
 ```bash
 # 1. Копируем скрипт на сервер
 scp install_talib_server.sh root@your-server:/root/
@@ -31,6 +34,7 @@ ssh root@your-server "systemctl restart atra.service"
 ```
 
 #### **Для CentOS/RHEL сервера:**
+
 ```bash
 # 1. Устанавливаем системные зависимости
 sudo yum groupinstall -y "Development Tools"
@@ -62,8 +66,9 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 Система автоматически переключится на fallback режим, если TA-Lib не установлен:
 
 #### **Поддерживаемые функции fallback:**
+
 - ✅ **SMA** - Простая скользящая средняя
-- ✅ **EMA** - Экспоненциальная скользящая средняя  
+- ✅ **EMA** - Экспоненциальная скользящая средняя
 - ✅ **RSI** - Relative Strength Index
 - ✅ **BBANDS** - Полосы Боллинджера
 - ✅ **ATR** - Average True Range
@@ -154,6 +159,7 @@ python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
 ## 🔍 **ДИАГНОСТИКА**
 
 ### **Проверка установки TA-Lib:**
+
 ```bash
 # 1. Проверяем, что TA-Lib установлен
 python3 -c "import talib; print('✅ TA-Lib версия:', talib.__version__)"
@@ -166,6 +172,7 @@ echo $LD_LIBRARY_PATH
 ```
 
 ### **Проверка fallback режима:**
+
 ```bash
 # 1. Проверяем логи на предупреждения talib
 tail -50 system_improved.log | grep -i talib
@@ -175,6 +182,7 @@ python3 -c "from talib_wrapper import get_talib; talib = get_talib(); print('tal
 ```
 
 ### **Признаки успешного исправления:**
+
 - ✅ Нет ошибок `No module named 'talib'` в логах
 - ✅ Система запускается без предупреждений
 - ✅ Только один процесс активен
@@ -183,16 +191,19 @@ python3 -c "from talib_wrapper import get_talib; talib = get_talib(); print('tal
 ## 📊 **ПРЕИМУЩЕСТВА РЕШЕНИЯ**
 
 ### ✅ **Надежность:**
+
 - **3 уровня защиты** от ошибки talib
 - Автоматический fallback при отсутствии talib
 - Работает с любым Python интерпретатором
 
 ### ✅ **Универсальность:**
+
 - Поддерживает Ubuntu, CentOS, Debian
 - Работает в Docker, systemd, cron
 - Совместим с виртуальными окружениями
 
 ### ✅ **Простота:**
+
 - Одна команда для установки
 - Автоматическая диагностика
 - Подробные инструкции
@@ -202,6 +213,7 @@ python3 -c "from talib_wrapper import get_talib; talib = get_talib(); print('tal
 **ПРОБЛЕМА TALIB НА СЕРВЕРЕ ПОЛНОСТЬЮ РЕШЕНА!**
 
 ### **Быстрый старт:**
+
 ```bash
 # 1. Устанавливаем TA-Lib
 ./install_talib_server.sh
@@ -214,6 +226,7 @@ systemctl status atra.service
 ```
 
 ### **Для fallback режима:**
+
 ```bash
 # Система автоматически переключится на fallback режим
 # Никаких дополнительных действий не требуется
@@ -231,11 +244,13 @@ systemctl status atra.service
 ## 🔧 **ДОПОЛНИТЕЛЬНЫЕ ВОЗМОЖНОСТИ**
 
 ### **Альтернативные библиотеки:**
+
 - **ta-lib** - Основная библиотека технических индикаторов
 - **pandas-ta** - Альтернатива на основе pandas
 - **ta** - Уже используется в системе как fallback
 
 ### **Мониторинг:**
+
 ```bash
 # Проверка статуса talib
 python3 -c "

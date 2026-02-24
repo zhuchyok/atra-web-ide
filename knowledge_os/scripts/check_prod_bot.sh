@@ -85,4 +85,3 @@ run_remote "cd $SERVER_PATH && ps aux | grep main.py | grep -v grep"
 echo ""
 echo "📋 Последние строки server.log:"
 run_remote "cd $SERVER_PATH && tail -15 server.log 2>/dev/null || tail -15 system_improved.log"
-

@@ -9,7 +9,7 @@ spawn ssh ${user}@${server}
 
 expect {
     "password:" { send "${password}\r" }
-    "yes/no" { 
+    "yes/no" {
         send "yes\r"
         expect "password:"
         send "${password}\r"
@@ -68,4 +68,3 @@ expect "# "
 
 send "exit\r"
 expect eof
-

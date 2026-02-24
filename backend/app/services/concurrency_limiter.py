@@ -2,9 +2,11 @@
 Ограничение одновременных запросов к Victoria (снижение 500 при нагрузке).
 При перегрузке возвращаем 503 вместо обрушения бэкенда.
 """
+
 import asyncio
 import logging
-from typing import AsyncGenerator, TypeVar
+from collections.abc import AsyncGenerator
+from typing import TypeVar
 
 from app.config import get_settings
 
@@ -21,7 +23,9 @@ def _ensure_semaphore() -> asyncio.Semaphore:
         limit = getattr(s, "max_concurrent_victoria", 25)
         _wait_sec = getattr(s, "victoria_concurrent_wait_sec", 45.0)
         _semaphore = asyncio.Semaphore(limit)
-        logger.info("Concurrency limiter: max_concurrent_victoria=%s, wait_sec=%s", limit, _wait_sec)
+        logger.info(
+            "Concurrency limiter: max_concurrent_victoria=%s, wait_sec=%s", limit, _wait_sec
+        )
     return _semaphore
 
 

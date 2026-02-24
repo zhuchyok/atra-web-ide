@@ -4,7 +4,7 @@ description: Self-Learning Agents - автоматическое обучени�
 category: learning
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🎓"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🎓" } }
 ---
 
 # Self-Learning Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎓"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Автоматического улучшения на основе опыта
 - Адаптации к новым задачам
 - Обучения на ошибках
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🎓"}}
 ## Методология
 
 Self-Learning работает через:
+
 1. **Experience Collection** - Сбор опыта выполнения задач
 2. **Pattern Recognition** - Распознавание паттернов успеха/неудачи
 3. **Knowledge Update** - Обновление базы знаний

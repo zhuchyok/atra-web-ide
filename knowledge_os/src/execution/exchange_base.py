@@ -1,7 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Base exchange API classes and common functionality
 """
+
 import functools
 import logging
 import time
@@ -34,6 +34,7 @@ class ExchangeAPI(ABC):
 
 def cache_prices(exchange_name):
     """Decorator for caching price data"""
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(symbols):
@@ -41,7 +42,9 @@ def cache_prices(exchange_name):
             # Using exchange_name for cache key generation
             logging.debug("Caching prices for %s exchange: %s", exchange_name, symbols)
             return await func(symbols)
+
         return wrapper
+
     return decorator
 
 
@@ -53,22 +56,25 @@ async def get_ohlc_with_fallback(symbol, interval="1h", limit=100, max_retries=1
     from exchanges.binance_api import BinanceAPI
     from exchanges.bybit_api import BybitAPI
     from exchanges.mexc_api import MEXCAPI
-    
+
     # Попытка импорта дополнительных бирж
     try:
         from exchanges.okx_api import OKXAPI
+
         okx_available = True
     except ImportError:
         okx_available = False
-    
+
     try:
         from exchanges.kucoin_api import KuCoinAPI
+
         kucoin_available = True
     except ImportError:
         kucoin_available = False
-    
+
     try:
         from exchanges.gateio_api import GateIOAPI
+
         gateio_available = True
     except ImportError:
         gateio_available = False
@@ -76,9 +82,9 @@ async def get_ohlc_with_fallback(symbol, interval="1h", limit=100, max_retries=1
     exchanges = [
         ("Binance", BinanceAPI.get_ohlc),
         ("Bybit", BybitAPI.get_ohlc),
-        ("MEXC", MEXCAPI.get_ohlc)
+        ("MEXC", MEXCAPI.get_ohlc),
     ]
-    
+
     # Добавляем дополнительные биржи если доступны
     if okx_available:
         exchanges.append(("OKX", OKXAPI.get_ohlc))
@@ -93,7 +99,12 @@ async def get_ohlc_with_fallback(symbol, interval="1h", limit=100, max_retries=1
             ohlc = await exchange_func(symbol, interval, limit, max_retries)
 
             if ohlc and len(ohlc) > 0:
-                logging.info("✅ Успешно получены данные для %s с %s: %d свечей", symbol, exchange_name, len(ohlc))
+                logging.info(
+                    "✅ Успешно получены данные для %s с %s: %d свечей",
+                    symbol,
+                    exchange_name,
+                    len(ohlc),
+                )
                 return ohlc
             else:
                 logging.warning("❌ %s вернул пустой результат для %s", exchange_name, symbol)

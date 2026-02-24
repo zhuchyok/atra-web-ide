@@ -13,6 +13,7 @@
 **Файл:** `knowledge_os/app/enhanced_monitor.py`
 
 **Функции:**
+
 - ✅ Мониторинг системных ресурсов (CPU, RAM, Disk)
 - ✅ Мониторинг базы данных (connections, size, activity)
 - ✅ Мониторинг API (health, response time)
@@ -21,6 +22,7 @@
 - ✅ Проверка пороговых значений
 
 **Метрики:**
+
 - CPU использование (%)
 - RAM использование (GB, %)
 - Disk использование (GB, %)
@@ -32,6 +34,7 @@
 - API health status
 
 **Пороги для алертов:**
+
 - CPU > 85%
 - RAM > 85%
 - Disk > 90%
@@ -43,10 +46,12 @@
 ### **2. Автоматизация бэкапов**
 
 **Файлы:**
+
 - `knowledge_os/scripts/backup_db.sh` (улучшен)
 - `knowledge_os/scripts/setup_automated_backups.sh` (новый)
 
 **Функции:**
+
 - ✅ Автоматические ежедневные бэкапы (3:00)
 - ✅ Сжатие бэкапов (gzip)
 - ✅ Отправка в Telegram
@@ -60,6 +65,7 @@
 **Файл:** `knowledge_os/scripts/restore_from_backup.sh` (новый)
 
 **Функции:**
+
 - ✅ Интерактивный выбор бэкапа
 - ✅ Автоматическая распаковка (gzip)
 - ✅ Безопасное восстановление (с подтверждением)
@@ -70,11 +76,13 @@
 ### **4. Скрипты настройки**
 
 **Файлы:**
+
 - `knowledge_os/scripts/setup_automated_backups.sh`
 - `knowledge_os/scripts/setup_monitoring.sh`
 - `knowledge_os/scripts/setup_all_monitoring.sh` (главный)
 
 **Функции:**
+
 - ✅ Автоматическая настройка crontab
 - ✅ Проверка зависимостей
 - ✅ Тестовый запуск
@@ -133,9 +141,9 @@ CREATE TABLE system_metrics (
 ```json
 {
   "system": {
-    "cpu": {"percent": 45.2, "count": 4},
-    "ram": {"total_gb": 8.0, "used_gb": 3.2, "percent": 40.0},
-    "disk": {"total_gb": 50.0, "used_gb": 25.0, "percent": 50.0}
+    "cpu": { "percent": 45.2, "count": 4 },
+    "ram": { "total_gb": 8.0, "used_gb": 3.2, "percent": 40.0 },
+    "disk": { "total_gb": 50.0, "used_gb": 25.0, "percent": 50.0 }
   },
   "database": {
     "active_connections": 5,
@@ -188,6 +196,7 @@ crontab -l | grep -E "(backup|monitor)"
 ```
 
 **Ожидаемый результат:**
+
 ```
 0 3 * * * /root/knowledge_os/scripts/backup_db.sh >> /root/knowledge_os/logs/cron_backup.log 2>&1
 */5 * * * * cd /root/knowledge_os && python3 app/enhanced_monitor.py >> /root/knowledge_os/logs/cron_monitor.log 2>&1
@@ -206,7 +215,7 @@ tail -f /root/knowledge_os/logs/cron_backup.log
 ### **3. Проверка метрик в БД:**
 
 ```sql
-SELECT 
+SELECT
     timestamp,
     metrics->'system'->'cpu'->>'percent' as cpu_percent,
     metrics->'system'->'ram'->>'percent' as ram_percent,
@@ -227,12 +236,14 @@ ls -lh /root/knowledge_os/backups/
 ## 🎯 РЕЗУЛЬТАТЫ
 
 ### **До улучшения:**
+
 - ❌ Нет автоматических бэкапов
 - ❌ Нет мониторинга ресурсов
 - ❌ Нет алертов при проблемах
 - ❌ Нет истории метрик
 
 ### **После улучшения:**
+
 - ✅ Автоматические ежедневные бэкапы
 - ✅ Мониторинг всех ресурсов (каждые 5 минут)
 - ✅ Автоматические алерты в Telegram
@@ -240,6 +251,7 @@ ls -lh /root/knowledge_os/backups/
 - ✅ Восстановление из бэкапа
 
 ### **Ожидаемый эффект:**
+
 - **Надежность:** +50%
 - **Время восстановления:** -80% (с часов до минут)
 - **Видимость системы:** +100%
@@ -257,4 +269,3 @@ ls -lh /root/knowledge_os/backups/
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14  
 **Версия:** Singularity 3.1
-

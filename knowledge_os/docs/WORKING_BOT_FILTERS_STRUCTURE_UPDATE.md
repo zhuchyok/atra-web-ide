@@ -11,6 +11,7 @@
 ### ✅ **1. Структура soft_entry_signal изменена на прибыльную:**
 
 **БЫЛО (старая структура):**
+
 ```
 1. Baseline проверяется первым (100% условий)
 2. Если baseline прошел → проверяются VP/VWAP
@@ -18,13 +19,14 @@
 ```
 
 **СТАЛО (прибыльная структура):**
+
 ```
 1. VP/VWAP проверяются ПЕРЕД baseline (обязательные фильтры)
    - Если VP/VWAP НЕ прошли → сигнал сразу отклоняется
-   
+
 2. Если VP/VWAP прошли → применяется ОСЛАБЛЕННЫЙ baseline (70% условий)
    - Нужно выполнить 70% условий вместо 100%
-   
+
 3. Если baseline прошел → проверяются остальные фильтры ПОСЛЕ baseline
    - Order Flow, Microstructure, Momentum, Trend Strength, AMT, Market Profile, Institutional Patterns
 ```
@@ -32,9 +34,11 @@
 ### ✅ **2. Добавлен Institutional Patterns фильтр:**
 
 **БЫЛО:**
+
 - Institutional Patterns фильтр отсутствовал в рабочем боте
 
 **СТАЛО:**
+
 - Institutional Patterns фильтр добавлен в оба режима (strict и soft)
 - Проверяется ПОСЛЕ baseline вместе с остальными фильтрами
 - Использует оптимальные параметры: `min_quality_score = 0.6`
@@ -102,12 +106,14 @@
 ### **src/signals/core.py:**
 
 1. **Добавлен импорт Institutional Patterns фильтра:**
+
 ```python
 from src.filters.institutional_patterns_filter import check_institutional_patterns_filter
 INSTITUTIONAL_PATTERNS_FILTER_AVAILABLE = True
 ```
 
 2. **Добавлен флаг USE_INSTITUTIONAL_PATTERNS_FILTER в импорт:**
+
 ```python
 from config import (
     ...,
@@ -129,6 +135,7 @@ from config import (
 ## 📈 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **Метрики из оптимизации (30 дней, 5 монет):**
+
 - Сигналов: 76
 - Сделок: 76
 - Win Rate: **100.0%** ✅
@@ -137,6 +144,7 @@ from config import (
 - Общий return: **2,477.88%** ✅
 
 ### **Преимущества новой структуры:**
+
 - ✅ VP/VWAP отсекают плохие сигналы ДО проверки baseline
 - ✅ Ослабленный baseline (70%) добавляет качественные сигналы
 - ✅ Все фильтры работают вместе для максимального качества
@@ -154,4 +162,3 @@ from config import (
 - ✅ Код проверен на ошибки (linter: OK)
 
 **Система готова к использованию с прибыльной структурой фильтров!** 🚀
-

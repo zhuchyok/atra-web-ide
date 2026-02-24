@@ -23,4 +23,3 @@ else
     echo "[$(date)] ❌ Ошибка запуска worker, проверьте логи: /tmp/task_worker.log"
     exit 1
 fi
-

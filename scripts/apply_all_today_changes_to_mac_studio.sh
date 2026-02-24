@@ -33,7 +33,7 @@ echo ""
 echo "[2/5] Применение изменений в chat.py..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     echo "   🔧 Проверка и применение изменений в chat.py..."
     python3 << 'PYEOF'
 import re
@@ -43,7 +43,7 @@ file_path = 'backend/app/routers/chat.py'
 try:
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     # Проверяем, применено ли изменение
     if 'use_ollama_direct = not message.use_victoria' in content:
         print("      ✅ Изменение уже применено")
@@ -51,10 +51,10 @@ try:
         # Применяем изменение
         old_pattern = r'use_ollama_direct = is_simple_message\(message\.content\) or not message\.use_victoria'
         new_line = '        use_ollama_direct = not message.use_victoria'
-        
+
         if re.search(old_pattern, content):
             content = re.sub(old_pattern, new_line, content)
-            
+
             # Добавляем комментарий, если его нет
             if '# Victoria Enhanced: всегда используем Victoria Enhanced' not in content:
                 # Находим строку с use_ollama_direct
@@ -65,13 +65,13 @@ try:
                             lines.insert(i, '        # Victoria Enhanced: всегда используем Victoria Enhanced, если use_victoria=True')
                         break
                 content = '\n'.join(lines)
-            
+
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             print("      ✅ Изменение применено")
         else:
             print("      ⚠️  Паттерн не найден, возможно уже изменен")
-            
+
 except Exception as e:
     print(f"      ❌ Ошибка: {e}")
 PYEOF
@@ -82,30 +82,30 @@ echo ""
 echo "[3/5] Проверка всех примененных изменений..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     echo "   Проверка изменений:"
-    
+
     # 1. chat.py
     if grep -q 'use_ollama_direct = not message.use_victoria' backend/app/routers/chat.py 2>/dev/null; then
         echo "      ✅ chat.py: Victoria Enhanced применен"
     else
         echo "      ❌ chat.py: НЕ применен"
     fi
-    
+
     # 2. victoria_mcp_server.py
     if grep -q 'localhost:8010' src/agents/bridge/victoria_mcp_server.py 2>/dev/null; then
         echo "      ✅ victoria_mcp_server.py: автоопределение URL"
     else
         echo "      ❌ victoria_mcp_server.py: НЕ применен"
     fi
-    
+
     # 3. victoria_enhanced.py
     if grep -q 'self.observability = None' knowledge_os/app/victoria_enhanced.py 2>/dev/null; then
         echo "      ✅ victoria_enhanced.py: observability инициализирован"
     else
         echo "      ❌ victoria_enhanced.py: НЕ применен"
     fi
-    
+
     # 4. Victoria system prompts
     count=0
     for file in src/agents/core/executor.py src/agents/bridge/victoria_server.py scripts/local/start_victoria_local.py knowledge_os/scripts/commander.py knowledge_os/src/agents/core/executor.py; do
@@ -114,7 +114,7 @@ ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
         fi
     done
     echo "      ✅ Victoria Enhanced Awareness: $count/5 файлов"
-    
+
     # 5. Veronica system prompts
     count=0
     for file in src/agents/bridge/server.py configs/agents/veronica.yaml; do
@@ -135,7 +135,7 @@ ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     else
         echo "      ❌ Не работает"
     fi
-    
+
     echo "   Veronica:"
     if curl -s -f http://localhost:8011/health >/dev/null 2>&1; then
         echo "      ✅ Работает"
@@ -149,7 +149,7 @@ echo ""
 echo "[5/5] Итоговый отчет..."
 ssh ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} << 'EOF'
     cd ~/Documents/atra-web-ide
-    
+
     echo "   📊 Статистика:"
     echo "      - Файлов Victoria: 7"
     echo "      - Файлов Veronica: 2"

@@ -17,11 +17,11 @@ from src.domain.value_objects.symbol import Symbol
 class PositionModel:
     """
     ORM Model for Position
-    
+
     This is an infrastructure concern for database persistence.
     It converts between database representation and domain entities.
     """
-    
+
     def __init__(
         self,
         id: str,
@@ -55,7 +55,7 @@ class PositionModel:
         self.closed_price = closed_price
         self.pnl = pnl
         self.pnl_percentage = pnl_percentage
-    
+
     @classmethod
     def from_entity(cls, position: Position) -> 'PositionModel':
         """Create model from domain entity"""
@@ -76,12 +76,12 @@ class PositionModel:
             pnl=position.pnl,
             pnl_percentage=position.pnl_percentage,
         )
-    
+
     def to_entity(self) -> Position:
         """Convert model to domain entity"""
         symbol = Symbol(base=self.symbol_base, quote=self.symbol_quote)
         entry_price = Price(self.entry_price, "USDT")
-        
+
         return Position(
             id=self.id,
             symbol=symbol,
@@ -98,4 +98,3 @@ class PositionModel:
             pnl=self.pnl,
             pnl_percentage=self.pnl_percentage,
         )
-

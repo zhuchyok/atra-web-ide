@@ -3,9 +3,11 @@
 """
 
 import logging
-from typing import Optional, Tuple, Dict, Any
+from typing import Any, Dict, Optional, Tuple
+
 import pandas as pd
 import ta
+
 from .base import BaseFilter, FilterResult
 
 logger = logging.getLogger(__name__)
@@ -20,8 +22,8 @@ class BTCTrendFilter(BaseFilter):
     async def filter_signal(self, signal_data: Dict[str, Any]) -> FilterResult:
         """Фильтрация сигнала на основе тренда BTC"""
         try:
-            symbol = signal_data.get('symbol', '')
-            direction = signal_data.get('direction', 'BUY')
+            symbol = signal_data.get("symbol", "")
+            direction = signal_data.get("direction", "BUY")
 
             # Используем существующую логику из src.signals.filters
             from src.signals.filters import check_btc_alignment
@@ -41,7 +43,7 @@ class BTCTrendFilter(BaseFilter):
 def get_btc_trend_status() -> bool:
     """
     Получение статуса BTC тренда
-    
+
     Returns:
         bool: True если тренд благоприятный для торговли
     """
@@ -76,19 +78,13 @@ def bollinger_direction_filter(
             else 0.11  # BB_DIR_NEAR_MID_EPSILON_SOFT
         )
         k = int(
-            slope_lookback
-            if slope_lookback is not None
-            else 4  # BB_DIR_SLOPE_LOOKBACK
+            slope_lookback if slope_lookback is not None else 4  # BB_DIR_SLOPE_LOOKBACK
         )
         adx_thr = float(
-            adx_threshold
-            if adx_threshold is not None
-            else 20.0  # BB_DIR_ADX_THRESHOLD_SOFT
+            adx_threshold if adx_threshold is not None else 20.0  # BB_DIR_ADX_THRESHOLD_SOFT
         )
         use_e50 = bool(
-            use_ema50_slope
-            if use_ema50_slope is not None
-            else True  # BB_DIR_USE_EMA50_SLOPE
+            use_ema50_slope if use_ema50_slope is not None else True  # BB_DIR_USE_EMA50_SLOPE
         )
 
         if i < max(2, k):

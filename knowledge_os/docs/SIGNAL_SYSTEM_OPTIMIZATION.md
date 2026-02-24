@@ -3,6 +3,7 @@
 ## 📋 РЕЗЮМЕ ИЗМЕНЕНИЙ
 
 ### ✅ **ЧТО УДАЛЕНО**
+
 - ❌ Модуль `manual_trading.py` - не нужен
 - ❌ Команды ручной торговли (`/trade_open`, `/trade_close`, `/my_trades`)
 - ❌ Статистика ручной торговли (`/daily_stats`, `/weekly_stats`)
@@ -10,6 +11,7 @@
 - ❌ Документация ручной торговли
 
 ### ✅ **ЧТО ОСТАВЛЕНО И УЛУЧШЕНО**
+
 - ✅ **Улучшенные сигналы** с техническим анализом
 - ✅ **Система принятия сигналов** через кнопки и команду `/accept`
 - ✅ **Существующие команды** управления позициями
@@ -18,6 +20,7 @@
 ## 🎯 **СУЩЕСТВУЮЩАЯ СИСТЕМА ПРИНЯТИЯ СИГНАЛОВ**
 
 ### **1. Кнопки в сигналах** (10 сек ограничение)
+
 ```python
 # В signal_live.py
 keyboard = InlineKeyboardMarkup([
@@ -26,6 +29,7 @@ keyboard = InlineKeyboardMarkup([
 ```
 
 ### **2. Команда `/accept`** (без ограничений времени!)
+
 ```python
 # В telegram_bot.py
 async def accept_signal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,12 +42,14 @@ async def accept_signal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 📊 **НОВАЯ КОМАНДА СТАТИСТИКИ**
 
 ### **`/signal_stats`** - Статистика сигналов
+
 ```python
 async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Команда для просмотра статистики сигналов"""
 ```
 
 **Показывает:**
+
 - 📈 Всего принятых сигналов
 - 🟢 Открытых позиций
 - 📋 Закрытых сделок
@@ -56,21 +62,25 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🔧 **ДОСТУПНЫЕ КОМАНДЫ**
 
 ### **Принятие сигналов:**
+
 - `/accept SYMBOL TIME` - принять сигнал
 - `/accept SYMBOL TIME PRICE QTY SIDE RISK` - с параметрами
 
 ### **Управление позициями:**
+
 - `/positions` - открытые позиции с P&L
 - `/active_signals` - доступные сигналы
 - `/close SYMBOL` - закрыть позицию
 - `/close all` - закрыть все позиции
 
 ### **Статистика и отчеты:**
+
 - `/signal_stats` - статистика сигналов
 - `/trade_history` - история сделок
 - `/myreport` - персональный отчёт
 
 ### **Настройки:**
+
 - `/set_balance` - установить депозит
 - `/set_trade_mode` - режим торговли
 - `/set_filter_mode` - режим фильтров
@@ -78,16 +88,19 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 🎯 **ПРЕИМУЩЕСТВА ОПТИМИЗАЦИИ**
 
 ### **1. Упрощение системы**
+
 - Убраны дублирующие функции
 - Один способ принятия сигналов
 - Единая система статистики
 
 ### **2. Сохранение функциональности**
+
 - Все существующие возможности работают
 - Улучшенные сигналы с техническим анализом
 - Динамические параметры (риск, плечи, TP/SL)
 
 ### **3. Лучший UX**
+
 - Четкие команды без путаницы
 - Статистика на основе реальных данных
 - Интеграция с существующей системой
@@ -95,6 +108,7 @@ async def signal_stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ## 📈 **РЕЗУЛЬТАТ**
 
 Система теперь **оптимизирована** для вашего workflow:
+
 - ✅ Получаете сигналы в Telegram
 - ✅ Принимаете через кнопки или команду `/accept`
 - ✅ Торгуете вручную в других приложениях

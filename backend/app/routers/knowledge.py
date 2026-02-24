@@ -1,10 +1,12 @@
 """
 Knowledge Router - Поиск по знаниям Knowledge OS
 """
+
+import logging
+from typing import Any, List, Optional
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from typing import List, Optional, Any
-import logging
 
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 
@@ -14,6 +16,7 @@ router = APIRouter()
 
 class KnowledgeItem(BaseModel):
     """Элемент знания"""
+
     id: str
     content: str
     metadata: Optional[Any] = None

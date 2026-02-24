@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import sqlite3
 import logging
+import sqlite3
 from datetime import datetime
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("db_reconcile")
@@ -155,5 +155,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

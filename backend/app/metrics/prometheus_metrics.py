@@ -2,10 +2,12 @@
 Prometheus метрики для мониторинга ATRA Web IDE (День 5).
 RAG, Plan Cache, LLM, запросы, ошибки.
 """
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY
-import time
+
 import logging
+import time
 from functools import wraps
+
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +271,7 @@ metrics = MetricsCollector()
 
 
 # === Утилиты ===
+
 
 def record_cache_hit(cache_type: str) -> None:
     """Запись попадания в кэш."""

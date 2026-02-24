@@ -5,16 +5,18 @@ Autonomous multi-agent debate system with persistence in strategy_sessions.
 """
 
 import asyncio
-import os
 import json
 import logging
-import asyncpg
+import os
 from datetime import datetime
+
+import asyncpg
 from ai_core import run_smart_agent_async
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+
 
 class ExpertCouncil:
     def __init__(self, session_id=None):
@@ -23,91 +25,115 @@ class ExpertCouncil:
             {"name": "Игорь", "role": "backend_developer", "focus": "Architecture & Docker"},
             {"name": "Роман", "role": "database_engineer", "focus": "SQL & Migrations"},
             {"name": "Дмитрий", "role": "ml_engineer", "focus": "Ollama & MLX Performance"},
-            {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"}
+            {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"},
         ]
 
     async def start_debate(self, topic: str, initial_proposal: str) -> str:
         """Starts a multi-agent debate on a specific topic."""
         logger.info(f"🏛️ [COUNCIL] Starting debate on: {topic[:50]}...")
-        
+
         try:
             conn = await asyncpg.connect(DB_URL)
-            
+
             # 1. Create session if not exists
             if not self.session_id:
-                self.session_id = await conn.fetchval("""
+                self.session_id = await conn.fetchval(
+                    """
                     INSERT INTO strategy_sessions (title, metadata)
                     VALUES ($1, $2) RETURNING id
-                """, f"Дебаты: {topic[:50]}", json.dumps({"topic": topic, "initial_proposal": initial_proposal}))
-            
-            debate_history = f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}\n\n--- ХОД ДЕБАТОВ ---\n"
-            
+                """,
+                    f"Дебаты: {topic[:50]}",
+                    json.dumps({"topic": topic, "initial_proposal": initial_proposal}),
+                )
+
+            debate_history = (
+                f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}\n\n--- ХОД ДЕБАТОВ ---\n"
+            )
+
             # 2. Sequential expert opinions
             for expert in self.experts:
                 logger.info(f"🗣️ [COUNCIL] Calling expert: {expert['name']} ({expert['role']})")
-                
+
                 prompt = f"""
-                ТЫ - {expert['name']}, эксперт в области {expert['focus']}.
+                ТЫ - {expert["name"]}, эксперт в области {expert["focus"]}.
                 ИДЕТ СОВЕТ ЭКСПЕРТОВ КОРПОРАЦИИ.
-                
+
                 ТЕМА: {topic}
                 ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ: {initial_proposal}
                 ИСТОРИЯ ДЕБАТОВ:
                 {debate_history}
-                
-                ЗАДАЧА: Проанализируй предложение со своей колокольни. 
+
+                ЗАДАЧА: Проанализируй предложение со своей колокольни.
                 Найди слабые места, предложи улучшения или подтверди надежность.
                 Будь краток, профессионален и конструктивен.
                 """
-                
-                opinion = await run_smart_agent_async(prompt, expert_name=expert['name'], category="reasoning")
-                
+
+                opinion = await run_smart_agent_async(
+                    prompt, expert_name=expert["name"], category="reasoning"
+                )
+
                 # Save to DB
                 # Находим ID эксперта по имени
-                expert_id_row = await conn.fetchrow("SELECT id FROM experts WHERE name = $1 LIMIT 1", expert['name'])
+                expert_id_row = await conn.fetchrow(
+                    "SELECT id FROM experts WHERE name = $1 LIMIT 1", expert["name"]
+                )
                 if expert_id_row:
-                    # ВАЖНО: В БД expert_ids это UUID[], а не INTEGER[]. 
-                    # Но в таблице experts поле id это INTEGER. 
+                    # ВАЖНО: В БД expert_ids это UUID[], а не INTEGER[].
+                    # Но в таблице experts поле id это INTEGER.
                     # Проверим тип поля expert_ids в expert_discussions.
                     # Судя по ошибке, там ожидается UUID[], но мы передаем INTEGER[].
-                    # Однако в таблице experts id это INTEGER. 
+                    # Однако в таблице experts id это INTEGER.
                     # Скорее всего, в expert_discussions expert_ids должен хранить UUID экспертов, если они есть.
                     # Но в нашей схеме эксперты имеют INTEGER id.
                     # Исправим запрос, чтобы он соответствовал схеме: используем явное приведение или проверим UUID.
-                    
+
                     # Попробуем найти UUID эксперта, если он есть в метаданных или другой колонке
-                    # Если нет, просто приведем INTEGER к TEXT и потом к UUID (если это возможно) 
+                    # Если нет, просто приведем INTEGER к TEXT и потом к UUID (если это возможно)
                     # или исправим саму вставку.
-                    
-                    await conn.execute("""
+
+                    await conn.execute(
+                        """
                         INSERT INTO expert_discussions (session_id, topic, consensus_summary, status, metadata)
                         VALUES ($1, $2, $3, 'completed', $4::jsonb)
-                    """, self.session_id, topic, opinion, json.dumps({"expert_name": expert['name'], "expert_id": expert_id_row['id']}))
-                
+                    """,
+                        self.session_id,
+                        topic,
+                        opinion,
+                        json.dumps(
+                            {"expert_name": expert["name"], "expert_id": str(expert_id_row["id"])}
+                        ),
+                    )
+
                 debate_history += f"\n[{expert['name']}]: {opinion}\n"
 
             # 3. Final Synthesis by Victoria
             logger.info("👑 [COUNCIL] Victoria is synthesizing final decision...")
             synthesis_prompt = f"""
-            ТЫ - ВИКТОРИЯ, Team Lead. 
+            ТЫ - ВИКТОРИЯ, Team Lead.
             ПРОАНАЛИЗИРУЙ итоги дебатов экспертов и вынеси ФИНАЛЬНОЕ РЕШЕНИЕ.
-            
+
             ТЕМА: {topic}
             ИТОГИ ДЕБАТОВ:
             {debate_history}
-            
+
             ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
             """
-            final_decision = await run_smart_agent_async(synthesis_prompt, expert_name="Виктория", category="reasoning")
-            
+            final_decision = await run_smart_agent_async(
+                synthesis_prompt, expert_name="Виктория", category="reasoning"
+            )
+
             # Update session status
-            await conn.execute("""
-                UPDATE strategy_sessions 
-                SET status = 'completed', 
+            await conn.execute(
+                """
+                UPDATE strategy_sessions
+                SET status = 'completed',
                     metadata = metadata || jsonb_build_object('final_decision', $1)
                 WHERE id = $2
-            """, final_decision, self.session_id)
-            
+            """,
+                final_decision,
+                self.session_id,
+            )
+
             await conn.close()
             return final_decision
 
@@ -115,14 +141,16 @@ class ExpertCouncil:
             logger.error(f"❌ [COUNCIL] Error in debate: {e}")
             return f"Ошибка при проведении дебатов: {e}"
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+
     async def test():
         council = ExpertCouncil()
         decision = await council.start_debate(
-            "Внедрение Hierarchy of Reasoning", 
-            "Использовать phi3.5 для простых задач и qwen2.5 для сложных через LocalRouter."
+            "Внедрение Hierarchy of Reasoning",
+            "Использовать phi3.5 для простых задач и qwen2.5 для сложных через LocalRouter.",
         )
         print(f"\n--- ФИНАЛЬНОЕ РЕШЕНИЕ ---\n{decision}")
-    
+
     asyncio.run(test())

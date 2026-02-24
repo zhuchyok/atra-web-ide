@@ -15,6 +15,7 @@ RSI (Relative Strength Index) фильтр проверяет, не находи
 ### **Параметры:**
 
 #### **Базовые параметры (из `src/core/config.py`):**
+
 ```python
 INDICATOR_SETTINGS = {
     "rsi": {
@@ -29,6 +30,7 @@ INDICATOR_SETTINGS = {
 ```
 
 #### **Параметры в enhanced_filters.py:**
+
 ```python
 rsi_period = kwargs.get('rsi_period', 14)                    # Период RSI (по умолчанию 14)
 rsi_oversold = kwargs.get('rsi_oversold', 28)               # 🆕 Оптимизировано: было 30
@@ -43,16 +45,19 @@ use_adaptive_rsi = kwargs.get('use_adaptive_rsi', True)      # 🆕 Исполь
 Система автоматически подстраивает уровни RSI под волатильность каждого символа:
 
 **Для BTC/ETH (менее волатильны):**
+
 - Высокая волатильность (>8%): 75/25, период 12
 - Средняя волатильность (4-8%): 72/28, период 14
 - Низкая волатильность (<4%): 70/30, период 16
 
 **Для альткоинов (более волатильны):**
+
 - Высокая волатильность (>10%): 75/25, период 12
 - Средняя волатильность (5-10%): 72/28, период 14
 - Низкая волатильность (<5%): 70/30, период 16
 
 **Включение/отключение (из `config.py`):**
+
 ```python
 USE_ADAPTIVE_RSI_LEVELS = True  # Использовать адаптивные уровни для разных символов
 ```
@@ -60,24 +65,28 @@ USE_ADAPTIVE_RSI_LEVELS = True  # Использовать адаптивные 
 #### **Параметры для разных режимов (из `config.py`):**
 
 **Строгий режим (ENHANCED_BLOCKS_CONFIG):**
-- `rsi_overbought_max`: 78  # 🆕 Оптимизировано для крипто (было 80)
-- `rsi_oversold_min`: 22    # 🆕 Оптимизировано для крипто (было 20)
+
+- `rsi_overbought_max`: 78 # 🆕 Оптимизировано для крипто (было 80)
+- `rsi_oversold_min`: 22 # 🆕 Оптимизировано для крипто (было 20)
 
 **Мягкий режим (ENHANCED_STRATEGY_CONFIG):**
+
 - `rsi_window`: 14
-- `rsi_overbought`: 90       # УЛЬТРА-МЯГКИЙ (оптимизировано по результатам бэктестов)
-- `rsi_oversold`: 10         # УЛЬТРА-МЯГКИЙ (оптимизировано по результатам бэктестов)
-- `rsi_neutral_high`: 85     # Для строгого режима
-- `rsi_neutral_low`: 15      # Для строгого режима
+- `rsi_overbought`: 90 # УЛЬТРА-МЯГКИЙ (оптимизировано по результатам бэктестов)
+- `rsi_oversold`: 10 # УЛЬТРА-МЯГКИЙ (оптимизировано по результатам бэктестов)
+- `rsi_neutral_high`: 85 # Для строгого режима
+- `rsi_neutral_low`: 15 # Для строгого режима
 
 ### **🆕 Адаптивные уровни:**
 
 Система автоматически подстраивает уровни RSI под волатильность каждого символа. Это позволяет:
+
 - ✅ Использовать более строгие уровни для BTC/ETH (менее волатильны)
 - ✅ Использовать более мягкие уровни для волатильных альткоинов
 - ✅ Адаптироваться к текущей рыночной волатильности
 
 **Пример работы:**
+
 - BTC с волатильностью 3% → уровни 70/30, период 16 (строгие)
 - Альткоин с волатильностью 12% → уровни 75/25, период 12 (мягкие)
 
@@ -88,12 +97,12 @@ USE_ADAPTIVE_RSI_LEVELS = True  # Использовать адаптивные 
 def enhanced_rsi_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
     """
     Улучшенный фильтр RSI с метриками
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         **kwargs: Дополнительные параметры
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
@@ -101,55 +110,55 @@ def enhanced_rsi_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
         # Проверка наличия необходимых данных
         if i < 14 or i >= len(df):
             return False, "Недостаточно данных для RSI фильтра"
-        
+
         # Получение параметров
         rsi_period = kwargs.get('rsi_period', 14)
         rsi_oversold = kwargs.get('rsi_oversold', 30)
         rsi_overbought = kwargs.get('rsi_overbought', 70)
-        
+
         # Проверка наличия колонки RSI
         if 'rsi' not in df.columns:
             return False, "Отсутствует колонка RSI"
-        
+
         # Получение текущего значения RSI
         current_rsi = df.iloc[i]['rsi']
-        
+
         # Проверка на NaN
         if pd.isna(current_rsi):
             return False, "NaN значение в RSI"
-        
+
         # Логика фильтра
         # Проверка экстремальных значений
         if current_rsi < rsi_oversold:
             return False, f"RSI в зоне перепроданности: {current_rsi:.2f}"
-        
+
         if current_rsi > rsi_overbought:
             return False, f"RSI в зоне перекупленности: {current_rsi:.2f}"
-        
+
         # Проверка на дивергенцию
         divergence_lookback = kwargs.get('divergence_lookback', 8)  # 🆕 Оптимизировано для крипто (было 5)
         if i > divergence_lookback:
             # Простая проверка на дивергенцию
             recent_rsi = df.iloc[i-divergence_lookback:i+1]['rsi'].values
             recent_close = df.iloc[i-divergence_lookback:i+1]['close'].values
-            
+
             # Проверка на восходящую дивергенцию
             if (recent_close[-1] < recent_close[0] and recent_rsi[-1] > recent_rsi[0]):
                 return False, "Восходящая дивергенция RSI"
-            
+
             # Проверка на нисходящую дивергенцию
             if (recent_close[-1] > recent_close[0] and recent_rsi[-1] < recent_rsi[0]):
                 return False, "Нисходящая дивергенция RSI"
-        
+
         # Проверка на стабильность RSI
         volatility_threshold = kwargs.get('volatility_threshold', 8)  # 🆕 Оптимизировано для крипто (было 10)
         if i > 3:
             rsi_std = df.iloc[i-3:i+1]['rsi'].std()
             if rsi_std > volatility_threshold:  # Слишком волатильный RSI
                 return False, f"Слишком волатильный RSI: std={rsi_std:.2f}"
-        
+
         return True, None
-        
+
     except Exception as e:
         logger.error(f"Ошибка в RSI фильтре: {e}")
         return False, f"Exception: {str(e)}"
@@ -171,6 +180,7 @@ def enhanced_rsi_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **Использование в бэктестах:**
 
 В `scripts/run_advanced_backtest.py`:
+
 - **LONG:** Требуется вход в зону перепроданности (RSI < 30 и предыдущий RSI >= 30)
 - **SHORT:** Требуется вход в зону перекупленности (RSI > 70 и предыдущий RSI <= 70)
 
@@ -185,6 +195,7 @@ MACD фильтр проверяет направление тренда и си
 ### **Параметры:**
 
 #### **Базовые параметры (из `src/core/config.py`):**
+
 ```python
 INDICATOR_SETTINGS = {
     "macd": {
@@ -204,12 +215,12 @@ INDICATOR_SETTINGS = {
 def enhanced_macd_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
     """
     ОПТИМИЗИРОВАННЫЙ MACD фильтр для интрадей крипто
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         **kwargs: Дополнительные параметры
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
@@ -221,28 +232,28 @@ def enhanced_macd_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
         min_strength = kwargs.get('macd_min_strength', 0.003)  # 🆕 Оптимизировано: было 0.005
         histogram_min = kwargs.get('macd_histogram_min', 0.001)  # Минимальное значение гистограммы
         trend_confirmation = kwargs.get('macd_trend_confirmation', 2)  # Требовать подтверждение тренда
-        
+
         # 🆕 ОПТИМИЗИРОВАННЫЕ ПРОВЕРКИ:
-        
+
         # 1. Проверка минимальной силы гистограммы
         if abs(current_hist) < histogram_min:
             return False, f"Слабая гистограмма MACD: {current_hist:.4f}"
-        
+
         # 2. Оптимизированный расчет силы расхождения
         macd_strength = abs(current_hist) / (abs(current_macd) + 1e-9)
         if macd_strength < min_strength:
             return False, f"Слабое расхождение MACD: {macd_strength:.4f}"
-        
+
         # 3. Проверка направления с подтверждением
         if i >= trend_confirmation:
             # Требуем подтверждение направления (2 свечи)
             prev_macd = df.iloc[i-1]['macd']
             prev_signal = df.iloc[i-1]['macd_signal']
-            
+
             if (current_macd > current_signal and prev_macd <= prev_signal) or \
                (current_macd < current_signal and prev_macd >= prev_signal):
                 return False, "MACD только что пересек сигнал - нестабильно"
-        
+
         # 4. Проверка на дивергенцию (расширенная)
         if i > 7:
             # Обнаружение дивергенций для защиты от ложных сигналов
@@ -252,6 +263,7 @@ def enhanced_macd_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **🆕 Оптимизированные условия прохождения:**
 
 **Для LONG (бычий сигнал):**
+
 - `macd > macd_signal` (MACD выше сигнальной линии)
 - `macd_hist > 0` (положительная гистограмма)
 - `macd_strength > 0.003` (🆕 Оптимизировано: было 0.005) - сила расхождения > 0.3%
@@ -259,6 +271,7 @@ def enhanced_macd_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 - Подтверждение направления (🆕 2 свечи без пересечения)
 
 **Для SHORT (медвежий сигнал):**
+
 - `macd < macd_signal` (MACD ниже сигнальной линии)
 - `macd_hist < 0` (отрицательная гистограмма)
 - `macd_strength > 0.003` (🆕 Оптимизировано: было 0.005) - сила расхождения > 0.3%
@@ -272,6 +285,7 @@ macd_strength = abs(current_hist) / (abs(current_macd) + 1e-9)
 ```
 
 **Изменения:**
+
 - Порог снижен с 0.005 до 0.003 (меньше требований для крипто)
 - Добавлена проверка минимальной силы гистограммы
 - Добавлено подтверждение направления (2 свечи)
@@ -287,6 +301,7 @@ Volume фильтр проверяет достаточность объема �
 ### **Параметры:**
 
 #### **Базовые параметры (из `src/core/config.py`):**
+
 ```python
 INDICATOR_SETTINGS = {
     "volume_ratio": {
@@ -301,6 +316,7 @@ INDICATOR_SETTINGS = {
 ```
 
 #### **Параметры в enhanced_filters.py:**
+
 ```python
 volume_ratio_threshold = kwargs.get('volume_ratio_threshold', 1.2)  # 🆕 Оптимизировано: было 1.5
 min_volume = kwargs.get('min_volume', 500)  # 🆕 Оптимизировано: было 1000
@@ -316,12 +332,12 @@ min_volume_usd = kwargs.get('min_volume_usd', 10000)  # 🆕 Минимальн�
 def enhanced_volume_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
     """
     Улучшенный фильтр объема с метриками
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         **kwargs: Дополнительные параметры
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
@@ -329,50 +345,50 @@ def enhanced_volume_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
         # Проверка наличия необходимых данных
         if i < 20 or i >= len(df):
             return False, "Недостаточно данных для Volume фильтра"
-        
+
         # Получение параметров
         volume_ratio_threshold = kwargs.get('volume_ratio_threshold', 1.5)
         min_volume = kwargs.get('min_volume', 1000)
-        
+
         # Проверка наличия колонок объема
         if 'volume' not in df.columns:
             return False, "Отсутствует колонка volume"
-        
+
         if 'volume_ratio' not in df.columns:
             return False, "Отсутствует колонка volume_ratio"
-        
+
         # Получение текущих значений
         current_volume = df.iloc[i]['volume']
         volume_ratio = df.iloc[i]['volume_ratio']
-        
+
         # Проверка на NaN
         if pd.isna(current_volume) or pd.isna(volume_ratio):
             return False, "NaN значения в Volume данных"
-        
+
         # Логика фильтра
         # Проверка минимального объема
         if current_volume < min_volume:
             return False, f"Слишком низкий объем: {current_volume:.0f}"
-        
+
         # Проверка соотношения объема
         if volume_ratio < volume_ratio_threshold:
             return False, f"Низкое соотношение объема: {volume_ratio:.2f}"
-        
+
         # Проверка на аномально высокий объем
         if volume_ratio > 10:  # Слишком высокий объем
             return False, f"Аномально высокий объем: {volume_ratio:.2f}"
-        
+
         # Проверка на стабильность объема
         if i > 5:
             recent_volumes = df.iloc[i-5:i+1]['volume'].values
             volume_std = np.std(recent_volumes)
             volume_mean = np.mean(recent_volumes)
-            
+
             if volume_std > volume_mean * 2:  # Слишком волатильный объем
                 return False, f"Слишком волатильный объем: std={volume_std:.0f}"
-        
+
         return True, None
-        
+
     except Exception as e:
         logger.error(f"Ошибка в Volume фильтре: {e}")
         return False, f"Exception: {str(e)}"
@@ -395,6 +411,7 @@ def enhanced_volume_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **Использование в бэктестах:**
 
 В `scripts/run_advanced_backtest.py`:
+
 - Минимальный `volume_ratio`: 1.5 (жесткий режим)
 - Если `volume_ratio < 0.8` → полная блокировка
 - Если `0.8 <= volume_ratio < 1.5` → снижение уверенности
@@ -410,6 +427,7 @@ BTC Trend фильтр проверяет соответствие сигнал�
 ### **Параметры:**
 
 #### **Из `config.py`:**
+
 ```python
 # BTC trend filter tuning
 BTC_TREND_EMA_SOFT = 50        # EMA для мягкого фильтра
@@ -424,6 +442,7 @@ BTC_TREND_FILTER_SOFT = True   # Мягкий или строгий режим
 ### **Логика работы:**
 
 #### **Мягкий фильтр (BTC_TREND_FILTER_SOFT = True):**
+
 ```python
 def btc_trend_filter_soft(df_btc):
     """Мягкий фильтр тренда биткоина: только цена > EMA200"""
@@ -433,6 +452,7 @@ def btc_trend_filter_soft(df_btc):
 ```
 
 #### **Строгий фильтр (BTC_TREND_FILTER_SOFT = False):**
+
 ```python
 def btc_trend_filter(df_btc):
     """Строгий фильтр тренда биткоина: цена > EMA200 И EMA25 растёт"""
@@ -448,11 +468,11 @@ def btc_trend_filter(df_btc):
 async def check_btc_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду BTC
-    
+
     Args:
         symbol: Торговый символ
         signal_type: Тип сигнала (BUY/SELL)
-        
+
     Returns:
         True если сигнал соответствует тренду BTC, False если нет
     """
@@ -542,6 +562,7 @@ EMA фильтр проверяет направление тренда по э�
 ### **Параметры:**
 
 #### **Базовые параметры (из `src/core/config.py`):**
+
 ```python
 INDICATOR_SETTINGS = {
     "ema": {
@@ -556,6 +577,7 @@ INDICATOR_SETTINGS = {
 ```
 
 #### **Параметры в enhanced_filters.py:**
+
 ```python
 ema_fast = kwargs.get('ema_fast', 6)  # 🆕 Оптимизировано: было 7
 ema_medium = kwargs.get('ema_medium', 14)  # 🆕 Новая средняя EMA
@@ -571,12 +593,12 @@ trend_strength = kwargs.get('ema_trend_strength', 0.003)  # Минимальна
 def enhanced_ema_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
     """
     Улучшенный фильтр EMA с метриками
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         **kwargs: Дополнительные параметры
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
@@ -584,40 +606,40 @@ def enhanced_ema_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
         # Проверка наличия необходимых данных
         if i < 25 or i >= len(df):
             return False, "Недостаточно данных для EMA фильтра"
-        
+
         # Получение параметров
         ema_short = kwargs.get('ema_short', 7)
         ema_long = kwargs.get('ema_long', 25)
-        
+
         # Проверка наличия колонок EMA
         required_columns = ['ema7', 'ema25']
         if not all(col in df.columns for col in required_columns):
             return False, "Отсутствуют колонки EMA"
-        
+
         # Получение текущих значений
         current_close = df.iloc[i]['close']
         ema7 = df.iloc[i]['ema7']
         ema25 = df.iloc[i]['ema25']
-        
+
         # Проверка на NaN
         if pd.isna(current_close) or pd.isna(ema7) or pd.isna(ema25):
             return False, "NaN значения в EMA данных"
-        
+
         # Логика фильтра
         # Проверка пересечения EMA
         if i > 0:
             prev_ema7 = df.iloc[i-1]['ema7']
             prev_ema25 = df.iloc[i-1]['ema25']
-            
+
             # Проверка на пересечение
             if (ema7 > ema25 and prev_ema7 <= prev_ema25) or (ema7 < ema25 and prev_ema7 >= prev_ema25):
                 return False, "Пересечение EMA - нестабильный сигнал"
-        
+
         # Проверка расстояния между EMA
         ema_distance = abs(ema7 - ema25) / ema25
         if ema_distance < 0.01:  # Слишком близко
             return False, "EMA слишком близко друг к другу"
-        
+
         # Проверка тренда
         if ema7 > ema25:
             # Восходящий тренд
@@ -627,9 +649,9 @@ def enhanced_ema_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
             # Нисходящий тренд
             if current_close > ema7 * 1.02:  # Цена слишком далеко от EMA7
                 return False, "Цена слишком далеко от EMA7 в нисходящем тренде"
-        
+
         return True, None
-        
+
     except Exception as e:
         logger.error(f"Ошибка в EMA фильтре: {e}")
         return False, f"Exception: {str(e)}"
@@ -650,6 +672,7 @@ def enhanced_ema_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **Использование в бэктестах:**
 
 В `scripts/run_advanced_backtest.py`:
+
 - **LONG:** `ema_fast > ema_slow` → уверенность +15
 - **SHORT:** `ema_fast < ema_slow` → уверенность +15
 
@@ -664,6 +687,7 @@ Bollinger Bands фильтр проверяет позицию цены отно
 ### **Параметры:**
 
 #### **Базовые параметры (из `src/core/config.py`):**
+
 ```python
 INDICATOR_SETTINGS = {
     "bollinger_bands": {
@@ -674,6 +698,7 @@ INDICATOR_SETTINGS = {
 ```
 
 #### **Параметры в enhanced_filters.py:**
+
 ```python
 bb_window = kwargs.get('bb_window', 20)      # Период BB
 bb_std = kwargs.get('bb_std', 2.0)          # Стандартное отклонение
@@ -687,12 +712,12 @@ bb_epsilon = kwargs.get('bb_epsilon', 0.02)  # Допуск для границ 
 def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
     """
     Улучшенный фильтр Bollinger Bands с метриками
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
         **kwargs: Дополнительные параметры
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
@@ -700,49 +725,49 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
         # Проверка наличия необходимых данных
         if i < 20 or i >= len(df):
             return False, "Недостаточно данных для BB фильтра"
-        
+
         # Получение параметров
         bb_window = kwargs.get('bb_window', 20)
         bb_std = kwargs.get('bb_std', 2.0)
         bb_epsilon = kwargs.get('bb_epsilon', 0.02)
-        
+
         # Проверка наличия колонок BB
         required_columns = ['bb_upper', 'bb_lower', 'bb_mid']
         if not all(col in df.columns for col in required_columns):
             return False, "Отсутствуют колонки Bollinger Bands"
-        
+
         # Получение текущих значений
         current_close = df.iloc[i]['close']
         bb_upper = df.iloc[i]['bb_upper']
         bb_lower = df.iloc[i]['bb_lower']
         bb_mid = df.iloc[i]['bb_mid']
-        
+
         # Проверка на NaN
         if pd.isna(current_close) or pd.isna(bb_upper) or pd.isna(bb_lower) or pd.isna(bb_mid):
             return False, "NaN значения в BB данных"
-        
+
         # Логика фильтра
         bb_width = (bb_upper - bb_lower) / bb_mid
-        
+
         # Проверка ширины полос
         if bb_width < 0.02:  # Слишком узкие полосы
             return False, "Слишком узкие полосы Боллинджера"
-        
+
         # Проверка позиции цены относительно полос
         if current_close > bb_upper * (1 + bb_epsilon):
             return False, "Цена выше верхней полосы BB"
-        
+
         if current_close < bb_lower * (1 - bb_epsilon):
             return False, "Цена ниже нижней полосы BB"
-        
+
         # Проверка тренда
         if i > 0:
             prev_close = df.iloc[i-1]['close']
             if abs(current_close - prev_close) / prev_close > 0.05:  # Слишком резкое движение
                 return False, "Слишком резкое движение цены"
-        
+
         return True, None
-        
+
     except Exception as e:
         logger.error(f"Ошибка в BB фильтре: {e}")
         return False, f"Exception: {str(e)}"
@@ -768,12 +793,12 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
             # 6. 🆕 УЛУЧШЕННЫЙ Bollinger Bands фильтр (блокирующий, как в реальной системе)
             bb_position = (row["close"] - row["bb_lower"]) / (row["bb_upper"] - row["bb_lower"])
             bb_width = (row["bb_upper"] - row["bb_lower"]) / row.get("bb_middle", row["close"])
-            
+
             # Проверка ширины полос (слишком узкие = плохо)
             if bb_width < 0.02:
                 logger.debug("🚫 [BB] %s: слишком узкие полосы (%.4f%%), блокируем", symbol, bb_width * 100)
                 return None
-            
+
             # Блокирующий фильтр для LONG: цена должна быть в нижних 20% BB
             if direction == "LONG":
                 if bb_position > 0.2:  # Не в нижних 20%
@@ -781,7 +806,7 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
                     return None
                 confidence += 15  # Увеличено с 10
                 filters_passed.append("bb_oversold")
-            
+
             # Блокирующий фильтр для SHORT: цена должна быть в верхних 20% BB
             elif direction == "SHORT":
                 if bb_position < 0.8:  # Не в верхних 20%
@@ -792,6 +817,7 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ```
 
 **Блокирующие условия:**
+
 - **LONG:** Цена должна быть в нижних 20% диапазона BB (`bb_position <= 0.2`)
 - **SHORT:** Цена должна быть в верхних 20% диапазона BB (`bb_position >= 0.8`)
 
@@ -799,49 +825,49 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 
 ## 📋 СВОДНАЯ ТАБЛИЦА ПАРАМЕТРОВ
 
-| Фильтр | Параметр | Значение по умолчанию | Диапазон |
-|--------|----------|----------------------|----------|
-| **RSI** | period | 14 | 10-20 |
-| | oversold | 28 | 10-30 |
-| | overbought | 72 | 70-90 |
-| | divergence_lookback | 8 | 5-12 |
-| | volatility_threshold | 8 | 5-12 |
-| | use_adaptive_levels | True | - |
-| **MACD** | fast_period | 8 | 8-15 |
-| | slow_period | 21 | 20-30 |
-| | signal_period | 5 | 5-12 |
-| | min_strength | 0.003 (0.3%) | 0.002-0.01 |
-| | histogram_min | 0.001 | 0.0005-0.002 |
-| | trend_confirmation | 2 | 1-3 |
-| **Volume** | ratio_threshold | 1.2 | 1.0-2.0 |
-| | min_volume | 500 | 500-5000 |
-| | max_ratio | 8 | 5-20 |
-| | lookback | 15 | 10-25 |
-| | spike_threshold | 5.0 | 3.0-10.0 |
-| | min_volume_usd | 10000 | 5000-50000 |
-| **BTC Trend** | ema_fast | 10 | 8-15 |
-| | ema_slow | 22 | 20-30 |
-| | min_trend_strength | 0.002 | 0.001-0.005 |
-| | enabled | True | - |
-| **ETH Trend** | ema_fast | 10 | 8-15 |
-| | ema_slow | 22 | 20-30 |
-| | min_trend_strength | 0.002 | 0.001-0.005 |
-| | enabled | True | - |
-| **SOL Trend** | ema_fast | 10 | 8-15 |
-| | ema_slow | 22 | 20-30 |
-| | min_trend_strength | 0.002 | 0.001-0.005 |
-| | enabled | True | - |
-| **EMA** | fast | 6 | 5-10 |
-| | medium | 14 | 10-20 |
-| | slow | 22 | 20-30 |
-| | min_distance | 0.008 (0.8%) | 0.005-0.02 |
-| | trend_strength | 0.003 | 0.001-0.005 |
-| **BB** | period | 18 | 15-25 |
-| | std_dev | 1.8 | 1.5-2.5 |
-| | min_width | 0.015 (1.5%) | 0.01-0.05 |
-| | position_long | ≤ 0.15 (15%) | 0.1-0.3 |
-| | position_short | ≥ 0.85 (85%) | 0.7-0.9 |
-| | squeeze_threshold | 0.012 | 0.01-0.02 |
+| Фильтр        | Параметр             | Значение по умолчанию | Диапазон     |
+| ------------- | -------------------- | --------------------- | ------------ |
+| **RSI**       | period               | 14                    | 10-20        |
+|               | oversold             | 28                    | 10-30        |
+|               | overbought           | 72                    | 70-90        |
+|               | divergence_lookback  | 8                     | 5-12         |
+|               | volatility_threshold | 8                     | 5-12         |
+|               | use_adaptive_levels  | True                  | -            |
+| **MACD**      | fast_period          | 8                     | 8-15         |
+|               | slow_period          | 21                    | 20-30        |
+|               | signal_period        | 5                     | 5-12         |
+|               | min_strength         | 0.003 (0.3%)          | 0.002-0.01   |
+|               | histogram_min        | 0.001                 | 0.0005-0.002 |
+|               | trend_confirmation   | 2                     | 1-3          |
+| **Volume**    | ratio_threshold      | 1.2                   | 1.0-2.0      |
+|               | min_volume           | 500                   | 500-5000     |
+|               | max_ratio            | 8                     | 5-20         |
+|               | lookback             | 15                    | 10-25        |
+|               | spike_threshold      | 5.0                   | 3.0-10.0     |
+|               | min_volume_usd       | 10000                 | 5000-50000   |
+| **BTC Trend** | ema_fast             | 10                    | 8-15         |
+|               | ema_slow             | 22                    | 20-30        |
+|               | min_trend_strength   | 0.002                 | 0.001-0.005  |
+|               | enabled              | True                  | -            |
+| **ETH Trend** | ema_fast             | 10                    | 8-15         |
+|               | ema_slow             | 22                    | 20-30        |
+|               | min_trend_strength   | 0.002                 | 0.001-0.005  |
+|               | enabled              | True                  | -            |
+| **SOL Trend** | ema_fast             | 10                    | 8-15         |
+|               | ema_slow             | 22                    | 20-30        |
+|               | min_trend_strength   | 0.002                 | 0.001-0.005  |
+|               | enabled              | True                  | -            |
+| **EMA**       | fast                 | 6                     | 5-10         |
+|               | medium               | 14                    | 10-20        |
+|               | slow                 | 22                    | 20-30        |
+|               | min_distance         | 0.008 (0.8%)          | 0.005-0.02   |
+|               | trend_strength       | 0.003                 | 0.001-0.005  |
+| **BB**        | period               | 18                    | 15-25        |
+|               | std_dev              | 1.8                   | 1.5-2.5      |
+|               | min_width            | 0.015 (1.5%)          | 0.01-0.05    |
+|               | position_long        | ≤ 0.15 (15%)          | 0.1-0.3      |
+|               | position_short       | ≥ 0.85 (85%)          | 0.7-0.9      |
+|               | squeeze_threshold    | 0.012                 | 0.01-0.02    |
 
 ---
 
@@ -861,6 +887,7 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **Минимальные требования:**
 
 В `scripts/run_advanced_backtest.py` требуется минимум **3 из 6 основных фильтров:**
+
 - RSI (oversold/overbought)
 - MACD (bullish/bearish)
 - Volume (high_volume)
@@ -879,6 +906,7 @@ def enhanced_bb_filter(df, i: int, **kwargs) -> Tuple[bool, Optional[str]]:
 ### **Параметры:**
 
 #### **Из `config.py`:**
+
 ```python
 # ETH trend filter tuning
 USE_ETH_TREND_FILTER = True    # Всегда True (фильтр всегда активен)
@@ -903,11 +931,11 @@ SOL_TREND_EMA_STRICT = 200     # EMA для строгого фильтра
 async def check_eth_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду ETH
-    
+
     Args:
         symbol: Торговый символ
         signal_type: Тип сигнала (BUY/SELL)
-        
+
     Returns:
         True если сигнал соответствует тренду ETH, False если нет
     """
@@ -972,11 +1000,11 @@ async def check_eth_alignment(symbol: str, signal_type: str) -> bool:
 async def check_sol_alignment(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала тренду SOL
-    
+
     Args:
         symbol: Торговый символ
         signal_type: Тип сигнала (BUY/SELL)
-        
+
     Returns:
         True если сигнал соответствует тренду SOL, False если нет
     """
@@ -1045,32 +1073,33 @@ async def check_sol_alignment(symbol: str, signal_type: str) -> bool:
 async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
     """
     Проверяет соответствие сигнала трендам BTC, ETH и SOL
-    
+
     Args:
         symbol: Торговый символ
         signal_type: Тип сигнала (BUY/SELL)
-        
+
     Returns:
         True если сигнал соответствует всем трендам, False если нет
     """
     # Проверка BTC (всегда активна)
     if not await check_btc_alignment(symbol, signal_type):
         return False
-    
+
     # Проверка ETH (всегда активна)
     if not await check_eth_alignment(symbol, signal_type):
         return False
-    
+
     # Проверка SOL (всегда активна)
     if not await check_sol_alignment(symbol, signal_type):
         return False
-    
+
     return True
 ```
 
 ### **Условия блокировки:**
 
 **Для ETH:**
+
 1. **LONG сигнал:**
    - Если ETH в медвежьем тренде (`eth_trend == "SELL"`) → блокировка
 
@@ -1078,6 +1107,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
    - Если ETH в бычьем тренде (`eth_trend == "BUY"`) → блокировка
 
 **Для SOL:**
+
 1. **LONG сигнал:**
    - Если SOL в медвежьем тренде (`sol_trend == "SELL"`) → блокировка
 
@@ -1111,7 +1141,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
                     else:
                         # Блокируем сигналы против тренда ETH
                         return None
-            
+
             # 🆕 4.2. SOL тренд фильтр (если данные доступны)
             sol_df = getattr(self, 'sol_df', None)
             if sol_df is not None and not sol_df.empty:
@@ -1158,6 +1188,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
 ## 📝 ИСТОРИЯ ИЗМЕНЕНИЙ
 
 ### Версия 2.4 (2025-01-XX)
+
 - ✅ Оптимизированы все фильтры для внутридневной крипто-торговли
 - ✅ MACD фильтр: параметры 12/26/9 → 8/21/5, min_strength 0.005 → 0.003
 - ✅ Создан `enhanced_macd_filter` с расширенной логикой (гистограмма, дивергенции, подтверждение)
@@ -1168,6 +1199,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
 - ✅ Блокировка только сильных противотрендов (strength > 1%), разрешение в боковике
 
 ### Версия 2.3 (2025-01-XX)
+
 - ✅ Внедрены адаптивные RSI уровни по волатильности символов
 - ✅ Создан модуль `src/filters/adaptive_rsi.py` для расчета адаптивных уровней
 - ✅ Интегрированы адаптивные уровни в `enhanced_rsi_filter`
@@ -1175,6 +1207,7 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
 - ✅ Добавлена настройка `USE_ADAPTIVE_RSI_LEVELS` в `config.py`
 
 ### Версия 2.2 (2025-01-XX)
+
 - ✅ Оптимизированы параметры RSI для крипторынка
 - ✅ Дивергенции lookback: 5 → 8 (лучшее обнаружение дивергенций)
 - ✅ Volatility threshold: 10 → 8 (меньше ложных блокировок)
@@ -1182,11 +1215,13 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
 - ✅ Добавлены новые параметры в `INDICATOR_SETTINGS`
 
 ### Версия 2.1 (2025-01-XX)
+
 - ✅ Фильтры ETH и SOL теперь всегда активны (как BTC фильтр)
 - ✅ Убраны условные проверки `USE_ETH_TREND_FILTER` и `USE_SOL_TREND_FILTER` из логики
 - ✅ Обновлена функция `check_all_trend_alignments()` - все три фильтра проверяются всегда
 
 ### Версия 2.0 (2025-01-XX)
+
 - ✅ Добавлены фильтры ETH и SOL трендов
 - ✅ Реализованы функции `check_eth_alignment()` и `check_sol_alignment()`
 - ✅ Интегрированы в `signal_live.py` через `check_all_trend_alignments()`
@@ -1194,8 +1229,9 @@ async def check_all_trend_alignments(symbol: str, signal_type: str) -> bool:
 - ✅ Обновлена документация
 
 ### Версия 1.1 (2025-01-XX)
+
 - 📝 Добавлен раздел о ETH и SOL трендах (информационный статус)
 
 ### Версия 1.0 (2025-01-XX)
-- 📝 Первоначальная версия документации
 
+- 📝 Первоначальная версия документации

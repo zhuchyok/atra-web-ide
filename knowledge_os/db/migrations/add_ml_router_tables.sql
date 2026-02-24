@@ -46,4 +46,3 @@ CREATE INDEX IF NOT EXISTS idx_ml_router_pred_correct ON ml_router_predictions(w
 -- Комментарии
 COMMENT ON TABLE ml_router_training_data IS 'Данные для обучения ML-модели роутинга';
 COMMENT ON TABLE ml_router_predictions IS 'Предсказания ML-модели роутинга для анализа';
-

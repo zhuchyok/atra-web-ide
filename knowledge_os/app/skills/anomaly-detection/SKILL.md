@@ -4,7 +4,7 @@ description: Anomaly Detection - обнаружение аномалий и ат
 category: security
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🚨"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🚨" } }
 ---
 
 # Anomaly Detection Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🚨"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Обнаружения аномалий в поведении
 - Защиты от атак
 - Обнаружения подозрительной активности
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🚨"}}
 ## Методология
 
 Anomaly Detection работает через:
+
 1. **Baseline** - Установление базовой линии поведения
 2. **Monitoring** - Мониторинг активности
 3. **Pattern Analysis** - Анализ паттернов

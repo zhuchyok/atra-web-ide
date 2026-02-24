@@ -19,7 +19,7 @@ echo "   ✅ Veronica доступна"
 echo ""
 
 # Формируем задачу
-TASK='Изучи весь контекст миграции Docker контейнеров с MacBook на Mac Studio. 
+TASK='Изучи весь контекст миграции Docker контейнеров с MacBook на Mac Studio.
 
 КЛЮЧЕВЫЕ МОМЕНТЫ:
 - Mac Studio IP: 192.168.1.64, пользователь: bikos

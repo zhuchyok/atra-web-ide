@@ -4,25 +4,29 @@ from typing import Tuple
 
 import pandas as pd
 
+
 def get_msk_now() -> datetime:
     """
     Получение текущего московского времени (MSK, UTC+3)
-    
+
     Returns:
         datetime: Текущее время в МСК (timezone-aware)
     """
     try:
         import pytz
+
         # Получаем системную зону
         try:
             from tzlocal import get_localzone
+
             local_tz = get_localzone()
             now_local = datetime.now(timezone.utc).astimezone(local_tz)
         except ImportError:
             # Fallback если tzlocal не установлен
             from src.shared.utils.datetime_utils import get_utc_now
+
             now_local = get_utc_now()
-        
+
         # Московское время (UTC+3)
         msk_tz = pytz.timezone("Europe/Moscow")
         now_msk = now_local.astimezone(msk_tz)
@@ -31,41 +35,43 @@ def get_msk_now() -> datetime:
         # Fallback к UTC+3 (без timezone)
         # Просто добавляем 3 часа к UTC
         from datetime import timedelta, timezone
+
         from src.shared.utils.datetime_utils import get_utc_now
+
         utc_now = get_utc_now()
         msk_offset = timedelta(hours=3)
         return utc_now + msk_offset
 
 
-def normalize_symbol_for_db(symbol: str, user_trade_mode: str = 'spot') -> str:
+def normalize_symbol_for_db(symbol: str, user_trade_mode: str = "spot") -> str:
     """
     Нормализует символ для сохранения в базу данных.
     Приводит символ к единому формату XPLUSDT независимо от режима торговли.
-    
+
     Args:
         symbol: Символ в любом формате (XPL/USDT, XPLUSDT, XPL/USDT:USDT)
         user_trade_mode: Режим торговли пользователя ('spot' или 'futures')
-    
+
     Returns:
         Нормализованный символ в формате XPLUSDT
     """
     if not symbol:
         return symbol
-    
+
     # Убираем пробелы и приводим к верхнему регистру
     symbol = symbol.strip().upper()
-    
-    if user_trade_mode == 'futures':
+
+    if user_trade_mode == "futures":
         # Futures: убираем суффиксы типа /USDT:USDT, /USDT
-        if '/USDT:USDT' in symbol:
-            symbol = symbol.replace('/USDT:USDT', 'USDT')
-        elif '/USDT' in symbol and not symbol.endswith('USDT'):
-            symbol = symbol.replace('/USDT', 'USDT')
+        if "/USDT:USDT" in symbol:
+            symbol = symbol.replace("/USDT:USDT", "USDT")
+        elif "/USDT" in symbol and not symbol.endswith("USDT"):
+            symbol = symbol.replace("/USDT", "USDT")
     else:  # spot
         # Spot: убираем /USDT (если не заканчивается на USDT)
-        if '/USDT' in symbol and not symbol.endswith('USDT'):
-            symbol = symbol.replace('/USDT', 'USDT')
-    
+        if "/USDT" in symbol and not symbol.endswith("USDT"):
+            symbol = symbol.replace("/USDT", "USDT")
+
     return symbol
 
 
@@ -74,20 +80,20 @@ def normalize_symbol_for_db(symbol: str, user_trade_mode: str = 'spot') -> str:
 logger = logging.getLogger(__name__)
 
 _FEE_BUFFERS = {
-    'spot': {
-        'entry_fee': 0.10,
-        'exit_fee': 0.10,
-        'buffer': 0.02,  # доп. запас на проскальзывание/округления
+    "spot": {
+        "entry_fee": 0.10,
+        "exit_fee": 0.10,
+        "buffer": 0.02,  # доп. запас на проскальзывание/округления
     },
-    'futures': {
-        'entry_fee': 0.04,
-        'exit_fee': 0.04,
-        'buffer': 0.01,
+    "futures": {
+        "entry_fee": 0.04,
+        "exit_fee": 0.04,
+        "buffer": 0.01,
     },
 }
 
 
-def adjust_tp_for_fees(tp_pct: float, trade_mode: str = 'spot') -> float:
+def adjust_tp_for_fees(tp_pct: float, trade_mode: str = "spot") -> float:
     """
     Корректирует цель по прибыли с учётом комиссий и небольшого запаса.
 
@@ -101,10 +107,10 @@ def adjust_tp_for_fees(tp_pct: float, trade_mode: str = 'spot') -> float:
     if tp_pct is None:
         return tp_pct
 
-    mode = (trade_mode or 'spot').lower()
-    fees_cfg = _FEE_BUFFERS.get(mode, _FEE_BUFFERS['spot'])
+    mode = (trade_mode or "spot").lower()
+    fees_cfg = _FEE_BUFFERS.get(mode, _FEE_BUFFERS["spot"])
 
-    total_fees = fees_cfg['entry_fee'] + fees_cfg['exit_fee'] + fees_cfg['buffer']
+    total_fees = fees_cfg["entry_fee"] + fees_cfg["exit_fee"] + fees_cfg["buffer"]
     adjusted = tp_pct + total_fees
 
     # Минимальный TP должен быть чуть больше совокупных комиссий
@@ -114,13 +120,21 @@ def adjust_tp_for_fees(tp_pct: float, trade_mode: str = 'spot') -> float:
 
     logger.debug(
         "💰 Коррекция TP: base=%.3f%%, mode=%s, total_fees=%.3f%%, result=%.3f%%",
-        tp_pct, mode, total_fees, adjusted
+        tp_pct,
+        mode,
+        total_fees,
+        adjusted,
     )
     return adjusted
 
 
-def get_dynamic_tp_levels(df: pd.DataFrame, i: int, side: str = "long",
-                          trade_mode: str = "spot", adjust_for_fees: bool = True) -> Tuple[float, float]:
+def get_dynamic_tp_levels(
+    df: pd.DataFrame,
+    i: int,
+    side: str = "long",
+    trade_mode: str = "spot",
+    adjust_for_fees: bool = True,
+) -> Tuple[float, float]:
     """
     Обёртка над основной реализацией динамических TP.
 
@@ -129,6 +143,7 @@ def get_dynamic_tp_levels(df: pd.DataFrame, i: int, side: str = "long",
     """
     try:
         from src.signals.risk import get_dynamic_tp_levels as _core_get_dynamic_tp_levels
+
         return _core_get_dynamic_tp_levels(
             df, i, side=side, trade_mode=trade_mode, adjust_for_fees=adjust_for_fees
         )
@@ -147,8 +162,11 @@ def _extract_positions_from_user(user_data: dict, symbol: str) -> list:
         return []
 
     possible_keys = (
-        "positions", "open_positions", "portfolio_positions",
-        "active_positions", "tracked_positions"
+        "positions",
+        "open_positions",
+        "portfolio_positions",
+        "active_positions",
+        "tracked_positions",
     )
     positions = []
     for key in possible_keys:
@@ -173,8 +191,9 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
-def calculate_unified_tp_for_symbol(user_data: dict, symbol: str, entry_price: float,
-                                    df: pd.DataFrame, index: int) -> Tuple[float, float]:
+def calculate_unified_tp_for_symbol(
+    user_data: dict, symbol: str, entry_price: float, df: pd.DataFrame, index: int
+) -> Tuple[float, float]:
     """
     Расчитывает «унифицированные» TP уровни для символа, учитывая уже открытые позиции пользователя.
 
@@ -242,9 +261,15 @@ def calculate_unified_tp_for_symbol(user_data: dict, symbol: str, entry_price: f
 
         logger.debug(
             "📊 Unified TP for %s: entry=%.4f, base=(%.2f, %.2f), penalties=(pos=%.3f, exp=%.3f, risk=%.3f) → (%.2f, %.2f)",
-            symbol, unified_entry, base_tp1, base_tp2,
-            position_penalty, exposure_penalty, risk_penalty,
-            unified_tp1, unified_tp2
+            symbol,
+            unified_entry,
+            base_tp1,
+            base_tp2,
+            position_penalty,
+            exposure_penalty,
+            risk_penalty,
+            unified_tp1,
+            unified_tp2,
         )
 
         return round(unified_tp1, 2), round(unified_tp2, 2)
@@ -252,14 +277,18 @@ def calculate_unified_tp_for_symbol(user_data: dict, symbol: str, entry_price: f
     except Exception as exc:
         logger.warning("⚠️ calculate_unified_tp_for_symbol fallback: %s", exc)
         trade_mode = (user_data or {}).get("trade_mode", "spot")
-        tp1, tp2 = get_dynamic_tp_levels(df, index, "long", trade_mode=trade_mode, adjust_for_fees=True)
+        tp1, tp2 = get_dynamic_tp_levels(
+            df, index, "long", trade_mode=trade_mode, adjust_for_fees=True
+        )
         return round(tp1, 2), round(tp2, 2)
 
 
 # --- Управление риском ------------------------------------------------------
 
-def clamp_new_risk(deposit: float, user_data: dict, symbol: str,
-                   proposed_risk_usd: float, trade_mode: str = "spot") -> float:
+
+def clamp_new_risk(
+    deposit: float, user_data: dict, symbol: str, proposed_risk_usd: float, trade_mode: str = "spot"
+) -> float:
     """
     Ограничивает риск для новой позиции с учётом депозита, существующих позиций и профиля риска.
 
@@ -284,6 +313,7 @@ def clamp_new_risk(deposit: float, user_data: dict, symbol: str,
 
         try:
             from risk_profile import get_risk_profile  # type: ignore
+
             profile = get_risk_profile(deposit, trade_mode)
             hard_cap_pct = _safe_float(profile.get("max_risk_pct_per_position"), max_risk_pct)
         except Exception:
@@ -294,8 +324,7 @@ def clamp_new_risk(deposit: float, user_data: dict, symbol: str,
 
         positions = _extract_positions_from_user(user_data or {}, symbol)
         total_existing_risk = sum(
-            _safe_float(pos.get("risk_amount") or pos.get("allocated_risk"))
-            for pos in positions
+            _safe_float(pos.get("risk_amount") or pos.get("allocated_risk")) for pos in positions
         )
 
         total_risk_cap_pct = min(20.0, base_risk_pct * 4)
@@ -313,8 +342,13 @@ def clamp_new_risk(deposit: float, user_data: dict, symbol: str,
         logger.debug(
             "🛡️ clamp_new_risk: deposit=%.2f, proposed=%.2f, hard_cap=%.2f, existing=%.2f, "
             "remaining=%.2f, final=%.2f (mode=%s)",
-            deposit, proposed_risk_usd, hard_cap_usd, total_existing_risk,
-            remaining_cap, final_risk, trade_mode
+            deposit,
+            proposed_risk_usd,
+            hard_cap_usd,
+            total_existing_risk,
+            remaining_cap,
+            final_risk,
+            trade_mode,
         )
 
         return max(0.0, final_risk)

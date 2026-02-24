@@ -12,8 +12,8 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -30,34 +30,38 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 
 # Приоритет для OLLAMA (порт 11434) - по мощности
 OLLAMA_BEST_FIRST: List[str] = [
-    "qwen3-coder:30b",          # 30B Main Engineer (New Gen)
-    "deepseek-r1:32b",          # 32B Reasoning (Board/VIP)
-    "qwen2.5-coder:32b",        # 32B Previous Gen Engineer
-    "qwq:32b",                  # 32B Logic
-    "deepseek-r1:14b",          # 14B Fast Reasoning
-    "glm-4.7-flash:q8_0",       # 31B Fast Reasoning
-    "llava:7b",                 # Vision 7B
-    "moondream:latest",         # Vision small
-    "tinyllama:1.1b-chat",      # Tiny fallback
+    "victoria-wisdom-30b",  # 30B Wisdom Era (Fine-tuned) - ПРИОРИТЕТ №1
+    "tinyllama:1.1b-chat",  # Tiny fallback (всегда в памяти)
+    "lfm2.5-thinking:1.2b",  # Logic check (всегда в памяти)
+    "moondream:latest",  # Vision small (всегда в памяти)
+    "qwen3-coder:30b",  # 30B Main Engineer (Base) - РЕЗЕРВ
+    "deepseek-r1:14b",  # 14B Fast Reasoning (Medium) - РЕЗЕРВ
+    "minicpm-v:latest",  # Vision medium - РЕЗЕРВ
+    "deepseek-r1:32b",  # РЕЗЕРВ
+    "qwq:32b",  # РЕЗЕРВ
+    "glm-4.7-flash:latest",  # РЕЗЕРВ
 ]
 
 # Приоритет для MLX (порт 11435)
 MLX_BEST_FIRST: List[str] = [
-    "qwen2.5:3b",                    # 3B light
-    "phi3:mini-4k",                  # Mini
-    "tinyllama:1.1b-chat",           # Tiny fallback
+    "victoria-wisdom-30b",  # Local exported model - ПРИОРИТЕТ №1
+    "phi3.5:3.8b",  # 3.8B light
+    "qwen2.5:3b",  # 3B light
+    "phi3:mini-4k",  # Mini
+    "tinyllama:1.1b-chat",  # Tiny fallback
 ]
 
 # Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
-    "fast": ["deepseek-r1:14b", "qwen3-coder:30b", "tinyllama:1.1b-chat"],
-    "default": ["qwen3-coder:30b", "deepseek-r1:32b", "qwq:32b"],
-    "general": ["qwen3-coder:30b", "glm-4.7-flash:q8_0", "deepseek-r1:14b"],
-    "coding": ["qwen3-coder:30b", "qwq:32b", "qwen2.5-coder:32b"],
-    "reasoning": ["deepseek-r1:32b", "qwen3-coder:30b", "qwq:32b"],
-    "complex": ["deepseek-r1:32b", "qwen3-coder:30b", "qwq:32b"],
-    "vision": ["moondream:latest", "llava:7b"],
-    "vip": ["deepseek-r1:32b", "qwen3-coder:30b"],
+    "fast": ["tinyllama:1.1b-chat", "lfm2.5-thinking:1.2b", "victoria-wisdom-30b"],
+    "default": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
+    "general": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
+    "coding": ["victoria-wisdom-30b", "qwen3-coder:30b"],
+    "reasoning": ["victoria-wisdom-30b", "deepseek-r1:14b", "deepseek-r1:32b"],
+    "complex": ["victoria-wisdom-30b", "deepseek-r1:32b", "qwq:32b"],
+    "vision": ["moondream:latest", "minicpm-v:latest"],
+    "vip": ["victoria-wisdom-30b"],
+    "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest"],
 }
 
 # Приоритеты моделей MLX — только лёгкие (32b убран: ~35 ГБ процесс, Metal/память)
@@ -74,12 +78,13 @@ MLX_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
 @dataclass
 class ModelSelection:
     """Результат выбора моделей - Ollama и MLX раздельно"""
+
     ollama_best: Optional[str] = None
     ollama_models: List[str] = None
     mlx_best: Optional[str] = None
     mlx_models: List[str] = None
     ollama_sizes: Dict[str, int] = None  # В байтах
-    
+
     def __post_init__(self):
         if self.ollama_models is None:
             self.ollama_models = []
@@ -96,7 +101,11 @@ def _mlx_scan_timeout() -> float:
 
 def _ollama_scan_timeout() -> float:
     """Таймаут сканирования Ollama (сек). Из Docker до host.docker.internal:11434 часто дольше — по умолчанию 15 в Docker."""
-    default = 15.0 if (os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() == "true") else 5.0
+    default = (
+        15.0
+        if (os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() == "true")
+        else 5.0
+    )
     return float(os.getenv("OLLAMA_SCAN_TIMEOUT", str(int(default))))
 
 
@@ -108,6 +117,7 @@ async def _fetch_mlx_models(mlx_url: str, timeout: Optional[float] = None) -> Li
         timeout = _mlx_scan_timeout()
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=timeout) as client:
             # MLX API Server: /api/tags возвращает {"models": [{"name": "fast", ...}, ...]}
             r = await client.get(f"{mlx_url}/api/tags")
@@ -128,12 +138,15 @@ async def _fetch_mlx_models(mlx_url: str, timeout: Optional[float] = None) -> Li
         return []
 
 
-async def _fetch_ollama_models_with_details(ollama_url: str, timeout: Optional[float] = None) -> Tuple[List[str], Dict[str, int]]:
+async def _fetch_ollama_models_with_details(
+    ollama_url: str, timeout: Optional[float] = None
+) -> Tuple[List[str], Dict[str, int]]:
     """Сканирует Ollama /api/tags, возвращает список имён моделей и их размеры в байтах."""
     if timeout is None:
         timeout = _ollama_scan_timeout()
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=timeout) as client:
             r = await client.get(f"{ollama_url}/api/tags")
             if r.status_code != 200:
@@ -150,14 +163,17 @@ async def _fetch_ollama_models_with_details(ollama_url: str, timeout: Optional[f
 
 async def _check_model_health(model_name: str, ollama_url: str) -> bool:
     """Проверяет здоровье модели через /api/show (Singularity 10.0)."""
-    if not model_name or "embedding" in model_name: return True
+    if not model_name or "embedding" in model_name:
+        return True
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.post(f"{ollama_url}/api/show", json={"name": model_name})
             return r.status_code == 200
     except Exception:
         return False
+
 
 async def get_available_models(
     mlx_url: str,
@@ -172,13 +188,17 @@ async def get_available_models(
     """
     global _scan_cache
     now = time.time()
-    if not force_refresh and _scan_cache is not None and (now - _scan_cache.get("scanned_at", 0)) < ttl_sec:
+    if (
+        not force_refresh
+        and _scan_cache is not None
+        and (now - _scan_cache.get("scanned_at", 0)) < ttl_sec
+    ):
         return (_scan_cache.get("mlx") or [], _scan_cache.get("ollama") or [])
 
     # Сканируем MLX и Ollama (теперь с размерами)
     mlx_task = asyncio.create_task(_fetch_mlx_models(mlx_url))
     ollama_task = asyncio.create_task(_fetch_ollama_models_with_details(ollama_url))
-    
+
     mlx_list = await mlx_task
     ollama_list, ollama_sizes = await ollama_task
 
@@ -190,8 +210,10 @@ async def get_available_models(
             working_ollama.append(m)
             working_sizes[m] = ollama_sizes.get(m, 0)
         else:
-            logger.error(f"🚨 [CORRUPTION] Модель {m} повреждена или недоступна. Исключаем из роутинга.")
-    
+            logger.error(
+                f"🚨 [CORRUPTION] Модель {m} повреждена или недоступна. Исключаем из роутинга."
+            )
+
     ollama_list = working_ollama
 
     _scan_cache = {
@@ -208,6 +230,7 @@ async def get_available_models(
         """Проверяет, не повреждена ли модель (Ollama Tensor Check)."""
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # Пытаемся получить информацию о модели
                 r = await client.post(f"{ollama_url}/api/show", json={"name": model_name})
@@ -222,6 +245,7 @@ async def get_available_models(
     if _PROBE_NEW_MODELS and ollama_list:
         try:
             from app.model_performance_probe import probe_new_models_if_needed
+
             asyncio.create_task(
                 probe_new_models_if_needed(
                     ollama_models=ollama_list,
@@ -236,6 +260,7 @@ async def get_available_models(
     # Подгрузить метрики из БД в кэш (для get_model_metrics)
     try:
         from app.model_performance_probe import get_metrics_for_models
+
         ollama_metrics = await get_metrics_for_models(ollama_list, "ollama")
         mlx_metrics = await get_metrics_for_models(mlx_list or [], "mlx")
         _scan_cache["metrics"] = {"ollama": ollama_metrics, "mlx": mlx_metrics}
@@ -254,6 +279,7 @@ async def get_available_models(
 # ==============================================================================
 # ФУНКЦИИ ВЫБОРА МОДЕЛЕЙ (Ollama и MLX РАЗДЕЛЬНО!)
 # ==============================================================================
+
 
 def pick_best_ollama(ollama_models: List[str]) -> Optional[str]:
     """
@@ -319,22 +345,30 @@ def pick_mlx_for_category(category: str, mlx_models: List[str]) -> Optional[str]
 
 def _default_ollama_url() -> str:
     import os
+
     if os.getenv("OLLAMA_API_URL"):
         return os.getenv("OLLAMA_API_URL", "").rstrip("/")
     if os.getenv("OLLAMA_BASE_URL"):
         return os.getenv("OLLAMA_BASE_URL", "").rstrip("/")
-    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in ("true", "1")
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in (
+        "true",
+        "1",
+    )
     return "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
 
 
 def _default_mlx_url() -> str:
     import os
+
     raw = os.getenv("MLX_API_URL", "").strip()
     if raw.lower() in ("none", "disabled", "off", "false"):
         return ""
     if raw:
         return raw.rstrip("/")
-    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in ("true", "1")
+    is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() in (
+        "true",
+        "1",
+    )
     return "http://host.docker.internal:11435" if is_docker else "http://localhost:11435"
 
 
@@ -345,14 +379,16 @@ async def scan_and_select_models(
 ) -> ModelSelection:
     """
     Сканирует модели и выбирает лучшие из каждого источника РАЗДЕЛЬНО.
-    
+
     Returns:
         ModelSelection с раздельными списками и лучшими моделями для Ollama и MLX
     """
     mlx_url = mlx_url or _default_mlx_url()
     ollama_url = ollama_url or _default_ollama_url()
-    mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url, force_refresh=force_refresh)
-    
+    mlx_models, ollama_models = await get_available_models(
+        mlx_url, ollama_url, force_refresh=force_refresh
+    )
+
     # Фильтруем только рабочие модели (Singularity 10.0: Anti-Corruption)
     working_ollama = []
     for m in ollama_models:
@@ -361,26 +397,29 @@ async def scan_and_select_models(
         try:
             # Небольшой хак: если мы внутри асинхронной функции, можем использовать await
             import httpx
+
             async def check_inner(name):
-                if not name or "embedding" in name: return True
+                if not name or "embedding" in name:
+                    return True
                 try:
                     async with httpx.AsyncClient(timeout=5.0) as client:
                         r = await client.post(f"{ollama_url}/api/show", json={"name": name})
                         return r.status_code == 200
-                except Exception: return False
-            
+                except Exception:
+                    return False
+
             # Для скорости проверяем только топ-5 моделей
             is_ok = True
             if m in OLLAMA_BEST_FIRST[:5]:
                 is_ok = await check_inner(m)
-            
+
             if is_ok:
                 working_ollama.append(m)
             else:
                 logger.error(f"🚨 [CORRUPTION] Модель {m} повреждена. Исключаем.")
         except Exception:
             working_ollama.append(m)
-    
+
     ollama_models = working_ollama
 
     result = ModelSelection(
@@ -388,9 +427,9 @@ async def scan_and_select_models(
         ollama_best=pick_best_ollama(ollama_models),
         mlx_models=mlx_models,
         mlx_best=pick_best_mlx(mlx_models),
-        ollama_sizes=_scan_cache.get("ollama_sizes", {})
+        ollama_sizes=_scan_cache.get("ollama_sizes", {}),
     )
-    
+
     logger.info("=" * 60)
     logger.info("📊 СКАНИРОВАНИЕ МОДЕЛЕЙ (Ollama и MLX РАЗДЕЛЬНО)")
     logger.info("=" * 60)
@@ -404,7 +443,7 @@ async def scan_and_select_models(
     logger.info("   Модели: %s", mlx_models[:10] if mlx_models else [])
     logger.info("   ✅ Лучшая: %s", result.mlx_best or "(нет)")
     logger.info("=" * 60)
-    
+
     return result
 
 
@@ -415,7 +454,7 @@ def pick_best_available_victoria(
 ) -> Optional[str]:
     """
     DEPRECATED: Используйте pick_best_ollama() или pick_best_mlx() отдельно.
-    
+
     Оставлено для обратной совместимости.
     Теперь возвращает лучшую модель ТОЛЬКО из Ollama (executor/planner ходят в Ollama API).
     """
@@ -441,11 +480,11 @@ def get_model_metrics(
     """
     Возвращает метрики модели (время загрузки, выгрузки, развёртывания, обработки с запасом)
     из кэша сканера. Кэш заполняется при get_available_models() из БД model_performance_metrics.
-    
+
     Args:
         model_name: Имя модели (например phi3.5:3.8b)
         source: 'ollama' | 'mlx'
-    
+
     Returns:
         Dict с ключами: load_time_sec, unload_time_sec, deploy_time_sec, processing_sec_per_1k_tokens,
         load_time_sec_with_margin, unload_time_sec_with_margin, deploy_time_sec_with_margin,
@@ -484,7 +523,9 @@ async def get_available_models_with_metrics(
     Каждая запись содержит load_time_sec, unload_time_sec, deploy_time_sec, processing_sec_per_1k_tokens
     и варианты с запасом (_with_margin).
     """
-    mlx_list, ollama_list = await get_available_models(mlx_url, ollama_url, ttl_sec=ttl_sec, force_refresh=force_refresh)
+    mlx_list, ollama_list = await get_available_models(
+        mlx_url, ollama_url, ttl_sec=ttl_sec, force_refresh=force_refresh
+    )
     metrics = (_scan_cache or {}).get("metrics") or {"ollama": {}, "mlx": {}}
     # Преобразуем ModelMetrics в dict
     out_metrics: Dict[str, Dict[str, Dict[str, Any]]] = {"ollama": {}, "mlx": {}}

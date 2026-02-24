@@ -230,4 +230,3 @@ if command -v code &> /dev/null; then
         code "$PROJECT_PATH/.cursorrules"
     fi
 fi
-

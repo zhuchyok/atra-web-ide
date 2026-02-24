@@ -35,6 +35,7 @@ priority: 2
 - Рекомендовать таймауты и лимиты параллелизма с учётом Metal OOM и InvalidStateError при таймауте (проверка result_future.done() перед set_result/set_exception).
 - Участвовать в решениях по эмбеддингам (768, semantic_cache, knowledge_nodes) и RAG (RAG_SNIPPET_CHARS, RAG_TOP1_FULL_MAX_CHARS).
 - При изменениях в local_router/ai_core/mlx_api_server — сверяться с VERIFICATION_CHECKLIST §3 (причины сбоев) и §5 (при следующих изменениях).
+- **Проактивное восстановление:** Если MLX API Server (порт 11435) недоступен более 2-х минут, Дмитрий обязан инициировать процедуру восстановления через `scripts/host_recovery_listener.py` (отправка POST на http://host.docker.internal:9099/recover).
 
 ## Artifacts
 

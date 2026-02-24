@@ -701,26 +701,26 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
     if not kb_path.exists():
         print(f"⚠️ База знаний не найдена: {kb_path}")
         return False
-    
-    content = kb_path.read_text(encoding='utf-8')
-    
+
+    content = kb_path.read_text(encoding="utf-8")
+
     # Получаем материалы для роли
     materials = LEARNING_MATERIALS.get(role, {})
     knowledge = BASIC_KNOWLEDGE.get(role, {})
-    
+
     # Заменяем изученные материалы
     if "## 📖 ИЗУЧЕННЫЕ МАТЕРИАЛЫ" in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         in_materials = False
         materials_added = False
-        
+
         for i, line in enumerate(lines):
             if "## 📖 ИЗУЧЕННЫЕ МАТЕРИАЛЫ" in line:
                 in_materials = True
                 updated_lines.append(line)
                 continue
-            
+
             if in_materials:
                 if line.startswith("### Книги и ресурсы:"):
                     updated_lines.append(line)
@@ -729,7 +729,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                         updated_lines.append(f"- {book}")
                     materials_added = True
                     continue
-                
+
                 if line.startswith("### Инструменты:"):
                     updated_lines.append(line)
                     updated_lines.append("")
@@ -737,7 +737,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                         updated_lines.append(f"- {tool}")
                     materials_added = True
                     continue
-                
+
                 if line.startswith("### Практики:"):
                     updated_lines.append(line)
                     updated_lines.append("")
@@ -745,37 +745,37 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                         updated_lines.append(f"- {practice}")
                     materials_added = True
                     continue
-                
+
                 if line.startswith("## ") and "ИЗУЧЕННЫЕ МАТЕРИАЛЫ" not in line:
                     in_materials = False
                     updated_lines.append(line)
                     continue
-                
+
                 # Пропускаем строки с "[Будет добавлено"
                 if "[Будет добавлено" in line:
                     continue
-                
+
                 if not materials_added:
                     updated_lines.append(line)
                     continue
-            
+
             updated_lines.append(line)
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Заменяем накопленные знания
     if "## 🧠 НАКОПЛЕННЫЕ ЗНАНИЯ" in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         in_knowledge = False
         knowledge_added = False
-        
+
         for i, line in enumerate(lines):
             if "## 🧠 НАКОПЛЕННЫЕ ЗНАНИЯ" in line:
                 in_knowledge = True
                 updated_lines.append(line)
                 continue
-            
+
             if in_knowledge:
                 if line.startswith("### ✅ Что уже знаю:"):
                     updated_lines.append(line)
@@ -784,7 +784,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                         updated_lines.append(f"- {item}")
                     knowledge_added = True
                     continue
-                
+
                 if line.startswith("### 🆕 Новые знания:"):
                     updated_lines.append(line)
                     updated_lines.append("")
@@ -792,35 +792,35 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                         updated_lines.append(f"- {item}")
                     knowledge_added = True
                     continue
-                
+
                 if line.startswith("## ") and "НАКОПЛЕННЫЕ ЗНАНИЯ" not in line:
                     in_knowledge = False
                     updated_lines.append(line)
                     continue
-                
+
                 # Пропускаем строки с "[Будет добавлено"
                 if "[Будет добавлено" in line:
                     continue
-                
+
                 if not knowledge_added:
                     updated_lines.append(line)
                     continue
-            
+
             updated_lines.append(line)
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Сохраняем обновленную базу знаний
-    kb_path.write_text(content, encoding='utf-8')
+    kb_path.write_text(content, encoding="utf-8")
     return True
 
 
 def main():
     """Главная функция"""
     print("🚀 Обновление баз знаний до 50%...")
-    
+
     scripts_dir = Path(__file__).parent
-    
+
     TEAM_MEMBERS = [
         ("Виктория", "Team Lead"),
         ("Дмитрий", "ML Engineer"),
@@ -844,24 +844,23 @@ def main():
         ("Юлия", "Legal Counsel"),
         ("Артем", "Code Reviewer"),
     ]
-    
+
     updated = 0
     for name, role in TEAM_MEMBERS:
         file_name = NAME_MAPPING.get(name, name.lower())
         kb_path = scripts_dir / f"{file_name}_knowledge.md"
-        
+
         if update_knowledge_base(name, role, kb_path):
             print(f"✅ Обновлена база знаний: {name} ({role})")
             updated += 1
         else:
             print(f"⚠️ Не удалось обновить: {name}")
-    
+
     print(f"\n✅ Обновлено баз знаний: {updated}/{len(TEAM_MEMBERS)}")
     print("📊 Теперь запустите: python3 scripts/check_learning_progress.py")
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

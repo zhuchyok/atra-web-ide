@@ -3,8 +3,9 @@
 """
 
 import logging
+from typing import Optional, Tuple
+
 import pandas as pd
-from typing import Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ def check_btc_trend_filter(
 ) -> Tuple[bool, Optional[str]]:
     """
     Проверяет тренд BTC для фильтрации сигналов
-    
+
     Args:
         df: DataFrame с данными (должен содержать данные BTC)
         i: Индекс текущей свечи
@@ -29,14 +30,14 @@ def check_btc_trend_filter(
         ema_soft: Период EMA для мягкого режима
         ema_strict: Период EMA для строгого режима
         lookback: Период для расчета тренда
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
     try:
         if i < lookback:
             return True, None
-        
+
         # В мягком режиме: цена > EMA(soft)
         # В строгом режиме: цена > EMA(strict) И EMA(short) растет
         if strict_mode:
@@ -62,7 +63,7 @@ def check_eth_trend_filter(
 ) -> Tuple[bool, Optional[str]]:
     """
     Проверяет тренд ETH для фильтрации сигналов
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
@@ -70,14 +71,14 @@ def check_eth_trend_filter(
         strict_mode: Строгий режим
         ema_soft: Период EMA для мягкого режима
         ema_strict: Период EMA для строгого режима
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
     try:
         if i < ema_soft:
             return True, None
-        
+
         # Вычисляем EMA для ETH
         # Пока упрощенная версия - всегда True
         return True, None
@@ -96,7 +97,7 @@ def check_sol_trend_filter(
 ) -> Tuple[bool, Optional[str]]:
     """
     Проверяет тренд SOL для фильтрации сигналов
-    
+
     Args:
         df: DataFrame с данными
         i: Индекс текущей свечи
@@ -104,18 +105,17 @@ def check_sol_trend_filter(
         strict_mode: Строгий режим
         ema_soft: Период EMA для мягкого режима
         ema_strict: Период EMA для строгого режима
-    
+
     Returns:
         Tuple[bool, Optional[str]]: (прошел_фильтр, причина_отклонения)
     """
     try:
         if i < ema_soft:
             return True, None
-        
+
         # Вычисляем EMA для SOL
         # Пока упрощенная версия - всегда True
         return True, None
     except Exception as e:
         logger.debug("Ошибка в check_sol_trend_filter: %s", e)
         return True, None
-

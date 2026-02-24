@@ -21,6 +21,7 @@ bash scripts/quick_start_4_5.sh
 ```
 
 **Скрипт автоматически:**
+
 1. ✅ Применит все миграции БД
 2. ✅ Запустит тесты
 3. ✅ Сгенерирует документацию
@@ -64,6 +65,7 @@ bash tests/run_tests.sh
 ```
 
 **Ожидаемый результат:**
+
 ```
 test_knowledge_graph.py::test_create_link PASSED
 test_security.py::test_jwt_auth PASSED
@@ -80,6 +82,7 @@ python3 app/doc_generator.py
 ```
 
 **Результат:**
+
 - `docs/auto_generated/code_documentation.md`
 - `docs/auto_generated/api_documentation.md`
 - `docs/auto_generated/usage_examples.md`
@@ -136,21 +139,21 @@ import asyncio
 
 async def setup():
     manager = WebhookManager()
-    
+
     # Slack
     await manager.register_webhook(
         'slack',
         'https://hooks.slack.com/services/YOUR/WEBHOOK/URL',
         events=['knowledge_created', 'expert_hired', 'task_completed']
     )
-    
+
     # Telegram
     await manager.register_webhook(
         'telegram',
         'https://api.telegram.org/botYOUR_TOKEN/sendMessage',
         events=['knowledge_created', 'expert_hired']
     )
-    
+
     print('✅ Webhooks настроены')
 
 asyncio.run(setup())
@@ -203,6 +206,7 @@ psql -U admin -d knowledge_os -c "\dt"
 ```
 
 **Должны быть созданы:**
+
 - `tasks`
 - `knowledge_links`
 - `user_preferences`
@@ -250,4 +254,3 @@ bash tests/run_tests.sh
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

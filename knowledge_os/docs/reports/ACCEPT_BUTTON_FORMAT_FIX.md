@@ -1,6 +1,7 @@
 # 🔧 ИСПРАВЛЕНИЕ ПРОБЛЕМЫ С КНОПКОЙ "ПРИНЯТЬ"
 
 ## 🎯 **ПРОБЛЕМА**
+
 **При нажатии кнопки "ПРИНЯТЬ" возникает ошибка: "❌ Неверный формат данных сигнала"**
 
 ---
@@ -10,6 +11,7 @@
 ### **Проблема в формате callback_data**
 
 **В новой системе (`signal_live_hybrid_fixed.py`):**
+
 ```python
 # Формат: accept|symbol|timestamp|price|side|risk (6 полей)
 cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|"
@@ -17,18 +19,20 @@ cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|"
 ```
 
 **В рабочей версии от 19 октября:**
+
 ```python
 # Формат: accept|symbol|timestamp|price|qty|side|risk|lev (8 полей)
 callback_data = f"accept|{symbol}|{_ts}|{_price}|{_qty}|{side}|{_risk}|{_lev}"
 ```
 
 ### **Обработчик в `telegram_handlers.py` ожидает 8 полей:**
+
 ```python
 def _parse_accept_payload(raw: str):
     # Поддерживаем форматы: 5..8 полей
     if len(parts) < 5:
         return False, {}, 'len'
-    
+
     # 8 полей: accept|sym|ts|price|qty|side|risk|lev (полный DCA)
     # 7 полей: accept|sym|ts|price|qty|side|risk (DCA без lev)
     # 6 полей: accept|sym|ts|price|side|risk
@@ -44,6 +48,7 @@ def _parse_accept_payload(raw: str):
 ### **Обновлен формат callback_data в `signal_live_hybrid_fixed.py`:**
 
 **Было:**
+
 ```python
 # Формат: accept|symbol|timestamp|price|side|risk (6 полей)
 cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|"
@@ -51,6 +56,7 @@ cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|"
 ```
 
 **Стало:**
+
 ```python
 # Формат: accept|symbol|timestamp|price|qty|side|risk|lev (8 полей как в рабочей версии от 19 октября)
 cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|{qty_str}|"
@@ -58,6 +64,7 @@ cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|{qty_str}|"
 ```
 
 ### **Добавлены недостающие параметры:**
+
 - ✅ `qty_str = "1.0"` - количество (заглушка, будет рассчитано на стороне бота)
 - ✅ `lev_str = str(user_data.get("leverage", 1.0))` - плечо из настроек пользователя
 
@@ -68,11 +75,13 @@ cb_data = (f"accept|{symbol}|{timestamp}|{price_str}|{qty_str}|"
 ### **✅ ПРОБЛЕМА РЕШЕНА!**
 
 **Теперь callback_data соответствует ожидаемому формату:**
+
 ```
 accept|BTCUSDT|12191230|50000.0|1.0|long|2.0|1.0
 ```
 
 **Разбор полей:**
+
 1. `accept` - префикс действия
 2. `BTCUSDT` - символ
 3. `12191230` - timestamp (месяц/день/час/минута)
@@ -83,6 +92,7 @@ accept|BTCUSDT|12191230|50000.0|1.0|long|2.0|1.0
 8. `1.0` - плечо
 
 ### **Обработчик теперь корректно парсит данные:**
+
 - ✅ Определяет формат как "полный DCA" (8 полей)
 - ✅ Извлекает все необходимые параметры
 - ✅ Рассчитывает количество на основе депозита и риска
@@ -93,6 +103,7 @@ accept|BTCUSDT|12191230|50000.0|1.0|long|2.0|1.0
 ## 📊 **ТЕСТИРОВАНИЕ**
 
 ### **Проверка формата:**
+
 ```python
 # Тестовый callback_data
 test_data = "accept|BTCUSDT|12191230|50000.0|1.0|long|2.0|1.0"
@@ -101,6 +112,7 @@ print(f"Количество полей: {len(parts)}")  # Должно быть
 ```
 
 ### **Ожидаемый результат:**
+
 - ✅ Кнопка "ПРИНЯТЬ" работает корректно
 - ✅ Сигнал принимается без ошибок
 - ✅ Позиция создается в системе
@@ -113,6 +125,7 @@ print(f"Количество полей: {len(parts)}")  # Должно быть
 **Проблема с форматом callback_data кнопки "ПРИНЯТЬ" успешно решена!**
 
 **Теперь система:**
+
 - ✅ Создает callback_data в правильном формате (8 полей)
 - ✅ Совместима с обработчиком из рабочей версии от 19 октября
 - ✅ Корректно обрабатывает нажатия кнопки "ПРИНЯТЬ"

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль валидации цен на аномалии
 """
@@ -16,7 +15,7 @@ def validate_price(
     entry_price: float,
     max_deviation_pct: float = 50.0,
     min_price: Optional[float] = None,
-    max_price: Optional[float] = None
+    max_price: Optional[float] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Валидация цены на аномалии
@@ -65,10 +64,7 @@ def validate_price(
 
 
 def validate_spread(
-    bid_price: float,
-    ask_price: float,
-    symbol: str,
-    max_spread_pct: float = 1.0
+    bid_price: float, ask_price: float, symbol: str, max_spread_pct: float = 1.0
 ) -> Tuple[bool, Optional[str]]:
     """
     Валидация спреда bid/ask
@@ -108,10 +104,7 @@ def validate_spread(
 
 
 async def get_validated_price(
-    symbol: str,
-    entry_price: float,
-    price_func,
-    max_deviation_pct: float = 50.0
+    symbol: str, entry_price: float, price_func, max_deviation_pct: float = 50.0
 ) -> Optional[float]:
     """
     Получает и валидирует цену

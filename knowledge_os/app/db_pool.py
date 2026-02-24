@@ -4,10 +4,12 @@
 Используется в rest_api, collective_memory и др. При будущем переводе на Rust
 здесь можно заменить asyncpg на обёртку над Rust-пулом (тот же контракт: get_pool() -> pool, pool.acquire()).
 """
+
 import os
+
 import asyncpg
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 
 _pool = None
 

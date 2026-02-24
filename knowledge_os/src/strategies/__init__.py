@@ -4,17 +4,16 @@ Trading strategies modules
 
 from src.strategies.adaptive_strategy import (
     AdaptiveStrategySelector,
-    TrendFollowingStrategy,
-    RangeTradingStrategy,
     BreakoutStrategy,
+    RangeTradingStrategy,
     ReversalStrategy,
+    TrendFollowingStrategy,
 )
 
 __all__ = [
-    'AdaptiveStrategySelector',
-    'TrendFollowingStrategy',
-    'RangeTradingStrategy',
-    'BreakoutStrategy',
-    'ReversalStrategy',
+    "AdaptiveStrategySelector",
+    "TrendFollowingStrategy",
+    "RangeTradingStrategy",
+    "BreakoutStrategy",
+    "ReversalStrategy",
 ]
-

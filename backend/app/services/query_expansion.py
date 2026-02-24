@@ -2,6 +2,7 @@
 Query expansion: расширение запроса синонимами и ключевыми терминами
 для улучшения retrieval (Фаза 4).
 """
+
 import re
 from typing import List, Optional
 

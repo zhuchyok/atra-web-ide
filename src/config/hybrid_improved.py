@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 ⚙️ УЛУЧШЕННАЯ КОНФИГУРАЦИЯ ГИБРИДНОЙ СИСТЕМЫ
 Более мягкие настройки rate limiting для стабильной работы
@@ -12,33 +11,33 @@
 # Более мягкие лимиты для стабильной работы
 IMPROVED_API_RATE_LIMITS = {
     "binance": {
-        "max_per_minute": 30,      # Увеличиваем до 30 запросов в минуту
-        "min_interval": 2.0,        # Уменьшаем до 2 секунд между запросами
-        "timeout": 10,              # Таймаут запроса
-        "retry_attempts": 3,        # Количество повторных попыток
-        "backoff_factor": 1.5      # Фактор увеличения задержки
+        "max_per_minute": 30,  # Увеличиваем до 30 запросов в минуту
+        "min_interval": 2.0,  # Уменьшаем до 2 секунд между запросами
+        "timeout": 10,  # Таймаут запроса
+        "retry_attempts": 3,  # Количество повторных попыток
+        "backoff_factor": 1.5,  # Фактор увеличения задержки
     },
     "coingecko": {
-        "max_per_minute": 5,        # Увеличиваем до 5 запросов в минуту
-        "min_interval": 12.0,       # Уменьшаем до 12 секунд между запросами
+        "max_per_minute": 5,  # Увеличиваем до 5 запросов в минуту
+        "min_interval": 12.0,  # Уменьшаем до 12 секунд между запросами
         "timeout": 15,
         "retry_attempts": 2,
-        "backoff_factor": 2.0
+        "backoff_factor": 2.0,
     },
     "bybit": {
-        "max_per_minute": 20,       # Увеличиваем до 20 запросов в минуту
-        "min_interval": 3.0,        # Уменьшаем до 3 секунд между запросами
+        "max_per_minute": 20,  # Увеличиваем до 20 запросов в минуту
+        "min_interval": 3.0,  # Уменьшаем до 3 секунд между запросами
         "timeout": 10,
         "retry_attempts": 3,
-        "backoff_factor": 1.5
+        "backoff_factor": 1.5,
     },
     "okx": {
-        "max_per_minute": 20,       # Увеличиваем до 20 запросов в минуту
-        "min_interval": 3.0,        # Уменьшаем до 3 секунд между запросами
+        "max_per_minute": 20,  # Увеличиваем до 20 запросов в минуту
+        "min_interval": 3.0,  # Уменьшаем до 3 секунд между запросами
         "timeout": 10,
         "retry_attempts": 3,
-        "backoff_factor": 1.5
-    }
+        "backoff_factor": 1.5,
+    },
 }
 
 # =============================================================================
@@ -47,19 +46,19 @@ IMPROVED_API_RATE_LIMITS = {
 
 # Более короткие TTL для более свежих данных
 IMPROVED_CACHE_TTL = {
-    "ohlc": 180,        # 3 минуты для OHLC данных (было 5)
-    "price": 30,         # 30 секунд для цен (было 1 минута)
-    "volume": 180,       # 3 минуты для объемов (было 5)
-    "anomaly": 300,      # 5 минут для аномалий (было 10)
-    "news": 1800         # 30 минут для новостей (было 1 час)
+    "ohlc": 180,  # 3 минуты для OHLC данных (было 5)
+    "price": 30,  # 30 секунд для цен (было 1 минута)
+    "volume": 180,  # 3 минуты для объемов (было 5)
+    "anomaly": 300,  # 5 минут для аномалий (было 10)
+    "news": 1800,  # 30 минут для новостей (было 1 час)
 }
 
 # Более короткие TTL по приоритетам
 IMPROVED_PRIORITY_TTL = {
-    "critical": 15,      # 15 секунд для критических (было 30)
-    "high": 30,          # 30 секунд для высоких (было 60)
-    "medium": 60,        # 1 минута для средних (было 120)
-    "low": 180           # 3 минуты для низких (было 300)
+    "critical": 15,  # 15 секунд для критических (было 30)
+    "high": 30,  # 30 секунд для высоких (было 60)
+    "medium": 60,  # 1 минута для средних (было 120)
+    "low": 180,  # 3 минуты для низких (было 300)
 }
 
 # =============================================================================
@@ -68,18 +67,18 @@ IMPROVED_PRIORITY_TTL = {
 
 # Более частые обновления для свежести данных
 IMPROVED_UPDATE_INTERVALS = {
-    "critical": 15,      # 15 секунд для критических (было 30)
-    "high": 30,          # 30 секунд для высоких (было 60)
-    "medium": 60,        # 1 минута для средних (было 120)
-    "low": 120           # 2 минуты для низких (было 300)
+    "critical": 15,  # 15 секунд для критических (было 30)
+    "high": 30,  # 30 секунд для высоких (было 60)
+    "medium": 60,  # 1 минута для средних (было 120)
+    "low": 120,  # 2 минуты для низких (было 300)
 }
 
 # Максимальный возраст данных перед принудительным обновлением
 IMPROVED_MAX_DATA_AGE = {
-    "critical": 15,      # 15 секунд (было 30)
-    "high": 30,          # 30 секунд (было 60)
-    "medium": 60,        # 1 минута (было 120)
-    "low": 120           # 2 минуты (было 300)
+    "critical": 15,  # 15 секунд (было 30)
+    "high": 30,  # 30 секунд (было 60)
+    "medium": 60,  # 1 минута (было 120)
+    "low": 120,  # 2 минуты (было 300)
 }
 
 # =============================================================================
@@ -132,42 +131,44 @@ IMPROVED_BATCH_SIZE = 8  # 8 символов (было 5)
 
 # Более мягкие настройки circuit breaker
 IMPROVED_MAX_CONSECUTIVE_ERRORS = 15  # 15 ошибок (было 10)
-IMPROVED_ERROR_RECOVERY_TIME = 30     # 30 секунд (было 60)
+IMPROVED_ERROR_RECOVERY_TIME = 30  # 30 секунд (было 60)
 IMPROVED_CIRCUIT_BREAKER_THRESHOLD = 8  # 8 сбоев (было 5)
 
 # =============================================================================
 # ФУНКЦИЯ ПРИМЕНЕНИЯ УЛУЧШЕННЫХ НАСТРОЕК
 # =============================================================================
 
+
 def apply_improved_settings():
     """Применяет улучшенные настройки к системе"""
     try:
         # Обновляем настройки rate limiter
         from smart_rate_limiter import smart_rate_limiter
-        
+
         # Обновляем лимиты
         for api_name, limits in IMPROVED_API_RATE_LIMITS.items():
             if api_name in smart_rate_limiter.api_limits:
                 smart_rate_limiter.api_limits[api_name].max_per_minute = limits["max_per_minute"]
                 smart_rate_limiter.api_limits[api_name].min_interval = limits["min_interval"]
-        
+
         # Обновляем настройки кэша
         from adaptive_cache import adaptive_cache
-        
+
         # Обновляем TTL правила
         adaptive_cache.ttl_rules = {
             adaptive_cache.SymbolPriority.CRITICAL: IMPROVED_PRIORITY_TTL["critical"],
             adaptive_cache.SymbolPriority.HIGH: IMPROVED_PRIORITY_TTL["high"],
             adaptive_cache.SymbolPriority.MEDIUM: IMPROVED_PRIORITY_TTL["medium"],
-            adaptive_cache.SymbolPriority.LOW: IMPROVED_PRIORITY_TTL["low"]
+            adaptive_cache.SymbolPriority.LOW: IMPROVED_PRIORITY_TTL["low"],
         }
-        
+
         print("✅ Улучшенные настройки применены успешно")
         return True
-        
+
     except Exception as e:
         print(f"❌ Ошибка применения улучшенных настроек: {e}")
         return False
+
 
 if __name__ == "__main__":
     apply_improved_settings()

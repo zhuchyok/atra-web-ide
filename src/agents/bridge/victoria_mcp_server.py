@@ -2,13 +2,14 @@
 Victoria MCP Server — подключение Victoria к Cursor через MCP.
 Запуск: python -m src.agents.bridge.victoria_mcp_server
 """
+
 import json
 import logging
 import os
+from typing import Optional
 
 import httpx
 from mcp.server.fastmcp import FastMCP
-from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("victoria_mcp")
@@ -21,12 +22,7 @@ VICTORIA_URL = os.getenv(
 # Таймаут для victoria_run (сек). Задачи на код (оркестратор → эксперты) часто > 5 мин. По умолчанию 10 мин.
 VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "600"))
 
-mcp = FastMCP(
-    "VictoriaATRA",
-    host="0.0.0.0",
-    port=8012,
-    sse_path="/sse"
-)
+mcp = FastMCP("VictoriaATRA", host="0.0.0.0", port=8012, sse_path="/sse")
 
 
 def _parse_run_result(result: dict) -> str:
@@ -41,11 +37,11 @@ def _parse_run_result(result: dict) -> str:
 @mcp.tool()
 async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
     """Запустить задачу через Victoria Agent (Team Lead ATRA).
-    
+
     Args:
         goal: Цель/задача для выполнения
         max_steps: Максимальное количество шагов (по умолчанию 500)
-    
+
     Returns:
         Результат выполнения задачи от Victoria
     """
@@ -54,15 +50,11 @@ async def victoria_run(goal: str, max_steps: Optional[int] = 500) -> str:
         async with httpx.AsyncClient(timeout=timeout_sec) as client:
             # 1) Стандартный API (goal + max_steps)
             resp = await client.post(
-                f"{VICTORIA_URL}/run",
-                json={"goal": goal, "max_steps": max_steps}
+                f"{VICTORIA_URL}/run", json={"goal": goal, "max_steps": max_steps}
             )
             # 2) При 422 пробуем API с prompt (Mac Studio / иные деплои)
             if resp.status_code == 422:
-                resp = await client.post(
-                    f"{VICTORIA_URL}/run",
-                    json={"prompt": goal}
-                )
+                resp = await client.post(f"{VICTORIA_URL}/run", json={"prompt": goal})
             resp.raise_for_status()
             data = resp.json()
             return _parse_run_result(data)
@@ -82,12 +74,12 @@ async def victoria_chat(
     project_context: Optional[str] = "atra-web-ide",
 ) -> str:
     """Написать сообщение Виктории и получить ответ (для диалога).
-    
+
     Args:
         message: Сообщение/вопрос для Виктории
         history_json: Опционально — JSON история диалога [{"user":"...","assistant":"..."}]
         project_context: Контекст проекта (по умолчанию atra-web-ide)
-    
+
     Returns:
         Ответ Виктории
     """
@@ -128,7 +120,7 @@ async def victoria_chat(
 @mcp.tool()
 async def victoria_status() -> str:
     """Проверить статус Victoria Agent.
-    
+
     Returns:
         Статус Victoria (online/offline, knowledge size)
     """
@@ -150,7 +142,7 @@ async def victoria_status() -> str:
 @mcp.tool()
 async def victoria_health() -> str:
     """Проверить здоровье Victoria Agent.
-    
+
     Returns:
         Health check результат
     """
@@ -165,9 +157,9 @@ async def victoria_health() -> str:
 
 
 if __name__ == "__main__":
-    logger.info(f"🚀 Victoria MCP Server запущен на http://0.0.0.0:8012")
-    logger.info(f"   SSE: http://localhost:8012/sse")
+    logger.info("🚀 Victoria MCP Server запущен на http://0.0.0.0:8012")
+    logger.info("   SSE: http://localhost:8012/sse")
     logger.info(f"   Victoria API: {VICTORIA_URL}")
-    
+
     # Запуск в режиме SSE для Cursor
     mcp.run(transport="sse")

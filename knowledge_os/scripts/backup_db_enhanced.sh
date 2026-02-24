@@ -38,7 +38,7 @@ CAPTION="🚀 <b>KNOWLEDGE OS: RECOVERY BUNDLE</b>
 👥 Experts: <b>$EXPERT_COUNT</b>
 🧠 Knowledge: <b>$KNOWLEDGE_COUNT nodes</b>
 📂 Bundle: <code>$(basename $BUNDLE_FILE)</code>
-🛠 Restore command: 
+🛠 Restore command:
 <code>python3 scripts/restore_brain.py backups/$(basename $BUNDLE_FILE)</code>
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📅 <i>$(date '+%Y-%m-%d %H:%M:%S')</i>"
@@ -53,4 +53,3 @@ rm -rf $TEMP_DIR
 find $BACKUP_DIR -name "brain_recovery_*.tar.gz" -mtime +14 -delete
 
 echo "--- Enhanced Backup Finished ---"
-

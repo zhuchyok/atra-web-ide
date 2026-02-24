@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Экспорт датасета для backtest replay (baseline vs adaptive).
 
@@ -12,13 +11,12 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-
-import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -58,8 +56,12 @@ def _load_events(conn: sqlite3.Connection, hours: int) -> pd.DataFrame:
     df = pd.read_sql_query(query, conn, params=[f"-{hours} hours"])
     if df.empty:
         return df
-    df["event_entry_dt"] = pd.to_datetime(df["event_entry_time"], errors="coerce", utc=True).dt.tz_convert(None)
-    df["event_created_dt"] = pd.to_datetime(df["event_created_at"], errors="coerce", utc=True).dt.tz_convert(None)
+    df["event_entry_dt"] = pd.to_datetime(
+        df["event_entry_time"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
+    df["event_created_dt"] = pd.to_datetime(
+        df["event_created_at"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
     df = df.dropna(subset=["event_entry_dt"])
     return df.sort_values(["symbol", "event_entry_dt"]).reset_index(drop=True)
 
@@ -90,8 +92,12 @@ def _load_signals(conn: sqlite3.Connection, hours: int, tolerance_minutes: int) 
     df = pd.read_sql_query(query, conn, params=[f"-{extra_hours} hours"])
     if df.empty:
         return df
-    df["signal_entry_dt"] = pd.to_datetime(df["signal_entry_time"], errors="coerce", utc=True).dt.tz_convert(None)
-    df["signal_created_dt"] = pd.to_datetime(df["signal_created_at"], errors="coerce", utc=True).dt.tz_convert(None)
+    df["signal_entry_dt"] = pd.to_datetime(
+        df["signal_entry_time"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
+    df["signal_created_dt"] = pd.to_datetime(
+        df["signal_created_at"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
     df = df.dropna(subset=["signal_entry_dt"])
     return df.sort_values(["symbol", "signal_entry_dt"]).reset_index(drop=True)
 
@@ -120,8 +126,12 @@ def _load_trades(conn: sqlite3.Connection, hours: int, tolerance_minutes: int) -
     df = pd.read_sql_query(query, conn, params=[f"-{extra_hours} hours"])
     if df.empty:
         return df
-    df["trade_entry_dt"] = pd.to_datetime(df["trade_entry_time"], errors="coerce", utc=True).dt.tz_convert(None)
-    df["trade_exit_dt"] = pd.to_datetime(df["trade_exit_time"], errors="coerce", utc=True).dt.tz_convert(None)
+    df["trade_entry_dt"] = pd.to_datetime(
+        df["trade_entry_time"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
+    df["trade_exit_dt"] = pd.to_datetime(
+        df["trade_exit_time"], errors="coerce", utc=True
+    ).dt.tz_convert(None)
     df = df.dropna(subset=["trade_entry_dt"])
     return df.sort_values(["symbol", "trade_entry_dt"]).reset_index(drop=True)
 
@@ -158,12 +168,18 @@ def _compute_metrics(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df
 
-    df["final_vs_baseline"] = df["final_amount_usd"] / df["baseline_amount_usd"].replace({0.0: pd.NA})
+    df["final_vs_baseline"] = df["final_amount_usd"] / df["baseline_amount_usd"].replace(
+        {0.0: pd.NA}
+    )
     df["ai_vs_baseline"] = df["ai_amount_usd"] / df["baseline_amount_usd"].replace({0.0: pd.NA})
 
     df["trade_return_pct"] = pd.NA
-    mask_trade = df["net_pnl_usd"].notna() & df["final_amount_usd"].notna() & (df["final_amount_usd"] != 0)
-    df.loc[mask_trade, "trade_return_pct"] = df.loc[mask_trade, "net_pnl_usd"] / df.loc[mask_trade, "final_amount_usd"] * 100.0
+    mask_trade = (
+        df["net_pnl_usd"].notna() & df["final_amount_usd"].notna() & (df["final_amount_usd"] != 0)
+    )
+    df.loc[mask_trade, "trade_return_pct"] = (
+        df.loc[mask_trade, "net_pnl_usd"] / df.loc[mask_trade, "final_amount_usd"] * 100.0
+    )
 
     df["baseline_pnl_usd"] = pd.NA
     df.loc[mask_trade, "baseline_pnl_usd"] = (
@@ -221,8 +237,12 @@ def export_dataset(hours: int, tolerance_minutes: int, output_dir: Path) -> Opti
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Экспорт датасета для backtest replay baseline/adaptive")
-    parser.add_argument("--hours", type=int, default=168, help="Период выборки в часах (по умолчанию 168)")
+    parser = argparse.ArgumentParser(
+        description="Экспорт датасета для backtest replay baseline/adaptive"
+    )
+    parser.add_argument(
+        "--hours", type=int, default=168, help="Период выборки в часах (по умолчанию 168)"
+    )
     parser.add_argument(
         "--tolerance-minutes",
         type=int,
@@ -243,4 +263,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

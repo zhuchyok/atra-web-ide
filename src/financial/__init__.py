@@ -17,4 +17,3 @@ __all__ = [
     "get_financial_validator",
     "get_financial_auditor",
 ]
-

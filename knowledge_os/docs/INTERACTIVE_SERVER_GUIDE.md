@@ -9,21 +9,25 @@
 ## 🚀 СПОСОБЫ ЗАПУСКА
 
 ### 1. Быстрый запуск (рекомендуется)
+
 ```bash
 ./start_interactive.sh
 ```
 
 ### 2. Прямой запуск интерактивного сервера
+
 ```bash
 python3 interactive_server.py
 ```
 
 ### 3. Запуск с интерактивным управлением
+
 ```bash
 python3 server_with_interactive.py
 ```
 
 ### 4. Тестовый режим
+
 ```bash
 python3 test_interactive.py
 ```
@@ -31,17 +35,20 @@ python3 test_interactive.py
 ## 📋 ДОСТУПНЫЕ КОМАНДЫ
 
 ### 🎮 Основные команды
+
 - `help` - Показать справку по командам
 - `status` - Статус сервера и системы
 - `clear` - Очистить экран
 - `exit` - Выйти из программы
 
 ### 🔧 Управление сервером
+
 - `restart` - Перезапустить сервер
 - `stop` - Остановить сервер
 - `resume` - Вернуться к обычному режиму (для server_with_interactive.py)
 
 ### 📊 Мониторинг
+
 - `logs` - Показать последние логи
 - `health` - Проверить здоровье системы
 - `users` - Список пользователей бота
@@ -52,17 +59,20 @@ python3 test_interactive.py
 ## 🎯 КАК ИСПОЛЬЗОВАТЬ
 
 ### Способ 1: Интерактивный сервер (рекомендуется)
+
 1. Запустите: `python3 interactive_server.py`
 2. Сервер запустится автоматически
 3. Используйте команды для управления
 
 ### Способ 2: Сервер с переключением режимов
+
 1. Запустите: `python3 server_with_interactive.py`
 2. Нажмите **Ctrl+C** для переключения в интерактивный режим
 3. Введите команды для управления
 4. Введите `resume` для возврата к обычному режиму
 
 ### Способ 3: Тестовый режим
+
 1. Запустите: `python3 test_interactive.py`
 2. Нажмите **Ctrl+C** для переключения в интерактивный режим
 3. Протестируйте команды
@@ -70,6 +80,7 @@ python3 test_interactive.py
 ## 🔧 ПРИМЕРЫ ИСПОЛЬЗОВАНИЯ
 
 ### Запуск и управление
+
 ```bash
 # Запуск интерактивного сервера
 python3 interactive_server.py
@@ -83,6 +94,7 @@ ATRA [running]> exit
 ```
 
 ### Переключение режимов
+
 ```bash
 # Запуск сервера с переключением
 python3 server_with_interactive.py
@@ -97,12 +109,14 @@ TEST [interactive]> resume
 ## 🛠️ НАСТРОЙКА
 
 ### Переменные окружения
+
 ```bash
 export ATRA_ENV=dev  # или prod
 export TELEGRAM_TOKEN=your_token
 ```
 
 ### Файлы конфигурации
+
 - `config.py` - основная конфигурация
 - `atra.lock` - файл блокировки
 - `system_improved.log` - основной лог
@@ -110,6 +124,7 @@ export TELEGRAM_TOKEN=your_token
 ## 🔍 ДИАГНОСТИКА
 
 ### Проверка статуса
+
 ```bash
 # В интерактивном режиме
 ATRA [running]> status
@@ -119,6 +134,7 @@ ps aux | grep python3
 ```
 
 ### Просмотр логов
+
 ```bash
 # В интерактивном режиме
 ATRA [running]> logs
@@ -128,6 +144,7 @@ tail -f system_improved.log
 ```
 
 ### Проверка здоровья
+
 ```bash
 # В интерактивном режиме
 ATRA [running]> health
@@ -136,6 +153,7 @@ ATRA [running]> health
 ## 🚨 УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Проблема: Сервер не запускается
+
 ```bash
 # Проверьте блокировку
 rm -f atra.lock
@@ -148,6 +166,7 @@ python3 interactive_server.py
 ```
 
 ### Проблема: Команды не работают
+
 ```bash
 # Проверьте режим
 ATRA [interactive]> status
@@ -157,6 +176,7 @@ ATRA [running]> restart
 ```
 
 ### Проблема: Нет доступа к базе данных
+
 ```bash
 # Проверьте конфигурацию
 ATRA [running]> config
@@ -168,16 +188,19 @@ ATRA [running]> health
 ## 📚 ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ
 
 ### Файлы системы
+
 - `interactive_server.py` - основной интерактивный сервер
 - `server_with_interactive.py` - сервер с переключением режимов
 - `test_interactive.py` - тестовый сервер
 - `start_interactive.sh` - скрипт запуска
 
 ### Логи
+
 - `system_improved.log` - основной лог системы
 - `bot.log` - лог бота (если используется nohup)
 
 ### Блокировки
+
 - `atra.lock` - файл блокировки для предотвращения множественного запуска
 
 ## ✅ ПРЕИМУЩЕСТВА НОВОЙ СИСТЕМЫ

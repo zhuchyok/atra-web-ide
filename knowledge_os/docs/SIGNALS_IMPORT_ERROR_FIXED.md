@@ -3,11 +3,13 @@
 ## 🎯 ПРОБЛЕМА
 
 **Ошибка импорта:**
+
 ```
 ModuleNotFoundError: No module named 'src.utils.user_utils'
 ```
 
 **Причина:**
+
 - Файл `user_utils.py` находится в корне проекта (`./user_utils.py`)
 - Импорт ищет файл в `src/utils/user_utils.py`
 - Из-за ошибки импорта модуль не загружается полностью
@@ -23,6 +25,7 @@ ModuleNotFoundError: No module named 'src.utils.user_utils'
 ## 📋 РЕЗУЛЬТАТ
 
 После исправления:
+
 - ✅ Импорт работает
 - ✅ Модуль загружается полностью
 - ✅ Функция `_run_hybrid_signal_system_fixed_impl()` должна быть доступна
@@ -32,4 +35,3 @@ ModuleNotFoundError: No module named 'src.utils.user_utils'
 
 **Дата:** 2025-01-XX  
 **Исполнитель:** Команда экспертов ATRA (21 сотрудник)
-

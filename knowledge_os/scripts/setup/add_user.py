@@ -23,7 +23,7 @@ user_2_data = {
     "accepted_signals": [],
     "trade_history": [],
     "news_filter_mode": "aggressive",
-    "positions": []
+    "positions": [],
 }
 
 # Проверяем, существует ли уже
@@ -52,4 +52,3 @@ for uid in all_users:
         mode = user_data.get("trade_mode", "unknown")
         leverage = user_data.get("leverage", 1)
         print(f"  ✅ {uid}: deposit={deposit}, mode={mode}, leverage={leverage}x")
-

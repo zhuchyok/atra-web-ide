@@ -11,7 +11,7 @@ while true; do
     echo "📥 Статус загрузки glm-4.7-flash"
     echo "════════════════════════════════════════"
     echo ""
-    
+
     # Проверяем, установлена ли модель
     if ollama list | grep -q "glm-4.7-flash"; then
         echo "✅ МОДЕЛЬ УСТАНОВЛЕНА!"
@@ -26,7 +26,7 @@ while true; do
         echo "  - MODEL_MAP['reasoning'] = 'glm-4.7-flash'"
         exit 0
     fi
-    
+
     # Проверяем процесс загрузки
     if ps aux | grep -q "[o]llama pull glm-4.7-flash"; then
         echo "⏳ Загрузка в процессе..."
@@ -46,7 +46,7 @@ while true; do
         echo "Для запуска загрузки:"
         echo "  ollama pull glm-4.7-flash"
     fi
-    
+
     echo ""
     echo "════════════════════════════════════════"
     echo "Обновление через 10 секунд..."

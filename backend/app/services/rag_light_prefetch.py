@@ -1,12 +1,13 @@
 """
 Предзагрузка эмбеддингов для частых запросов RAG-light (Фаза 3, день 3–4).
 """
+
 import asyncio
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Set
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,7 @@ class RAGLightPrefetch:
         batch_size = 20
         for i in range(0, len(queries), batch_size):
             batch = queries[i : i + batch_size]
-            tasks = [
-                self.embedding_batch_processor.get_embedding(q) for q in batch
-            ]
+            tasks = [self.embedding_batch_processor.get_embedding(q) for q in batch]
             try:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for q, r in zip(batch, results):
@@ -59,7 +58,7 @@ class RAGLightPrefetch:
         queries: List[str] = []
         if self.prefetch_file and Path(self.prefetch_file).exists():
             try:
-                with open(self.prefetch_file, "r", encoding="utf-8") as f:
+                with open(self.prefetch_file, encoding="utf-8") as f:
                     data = json.load(f)
                     if isinstance(data, list):
                         queries = data[:max_queries]

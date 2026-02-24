@@ -1,8 +1,10 @@
 """
 Эндпоинты управления кэшем планов (Фаза 3).
 """
-from fastapi import APIRouter, Depends
+
 from typing import Optional
+
+from fastapi import APIRouter, Depends
 
 from app.services.plan_cache import PlanCacheService, get_plan_cache_service
 

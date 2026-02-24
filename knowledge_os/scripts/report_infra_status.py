@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Инфраструктурный health-check.
 
@@ -17,7 +16,6 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = PROJECT_ROOT / "trading.db"
@@ -311,9 +309,7 @@ def format_infra_status(status: Dict[str, Any]) -> str:
         lines.append(
             f"  run_daily_quality_report.sh: {_yes_no(cron.get('contains_quality', False))}"
         )
-        lines.append(
-            f"  run_risk_status_report.sh: {_yes_no(cron.get('contains_risk', False))}"
-        )
+        lines.append(f"  run_risk_status_report.sh: {_yes_no(cron.get('contains_risk', False))}")
     else:
         lines.append(f"Cron: {cron.get('error', 'нет данных')}")
 
@@ -348,4 +344,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

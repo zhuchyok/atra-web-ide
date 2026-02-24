@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Детальная диагностика генерации сигналов
 
@@ -14,13 +13,13 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.signals.indicators import add_technical_indicators
 import src.signals.core as core_module
+from src.signals.indicators import add_technical_indicators
 
 # Загружаем данные
 script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
-data_file = os.path.join(project_root, 'data', 'backtest_data_yearly', 'BTCUSDT.csv')
+data_file = os.path.join(project_root, "data", "backtest_data_yearly", "BTCUSDT.csv")
 
 if not os.path.exists(data_file):
     print(f"❌ ОШИБКА: Файл данных не найден: {data_file}")
@@ -28,24 +27,24 @@ if not os.path.exists(data_file):
 
 try:
     df = pd.read_csv(data_file)
-    if 'timestamp' in df.columns:
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
-        df.set_index('timestamp', inplace=True)
+    if "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df.set_index("timestamp", inplace=True)
     df = add_technical_indicators(df)
 except Exception as e:
     print(f"❌ ОШИБКА при загрузке данных: {e}")
     sys.exit(1)
 
 print("🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ГЕНЕРАЦИИ СИГНАЛОВ")
-print("="*80)
+print("=" * 80)
 
 # Отключаем все новые фильтры для теста
-os.environ['USE_ORDER_FLOW_FILTER'] = 'false'
-os.environ['USE_MICROSTRUCTURE_FILTER'] = 'false'
-os.environ['USE_MOMENTUM_FILTER'] = 'false'
-os.environ['USE_TREND_STRENGTH_FILTER'] = 'false'
-os.environ['USE_VP_FILTER'] = 'false'
-os.environ['USE_VWAP_FILTER'] = 'false'
+os.environ["USE_ORDER_FLOW_FILTER"] = "false"
+os.environ["USE_MICROSTRUCTURE_FILTER"] = "false"
+os.environ["USE_MOMENTUM_FILTER"] = "false"
+os.environ["USE_TREND_STRENGTH_FILTER"] = "false"
+os.environ["USE_VP_FILTER"] = "false"
+os.environ["USE_VWAP_FILTER"] = "false"
 
 # Перезагружаем модуль
 importlib.reload(core_module)
@@ -73,7 +72,13 @@ for i in range(200, max_index):
         momentum = df["momentum"].iloc[i] if "momentum" in df.columns else None
         trend_strength = df["trend_strength"].iloc[i] if "trend_strength" in df.columns else None
 
-        if pd.isna(current_price) or pd.isna(bb_lower) or pd.isna(bb_upper) or pd.isna(ema7) or pd.isna(ema25):
+        if (
+            pd.isna(current_price)
+            or pd.isna(bb_lower)
+            or pd.isna(bb_upper)
+            or pd.isna(ema7)
+            or pd.isna(ema25)
+        ):
             continue
 
         rsi = rsi if not pd.isna(rsi) else 50
@@ -126,7 +131,7 @@ for i in range(200, max_index):
 
             if found_candidates >= 5:
                 break
-        
+
     except Exception as e:
         if i % 500 == 0:
             print(f"⚠️ Ошибка на свече {i}: {type(e).__name__}: {e}")

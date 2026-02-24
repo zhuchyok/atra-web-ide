@@ -10,6 +10,7 @@ from datetime import datetime
 # Константы
 USER_DATA_FILE = "user_data.json"
 
+
 def simulate_telegram_context():
     """Симулирует контекст Telegram бота"""
     print("🤖 Симуляция контекста Telegram бота")
@@ -36,7 +37,7 @@ def simulate_telegram_context():
     print("📝 Шаг 1: Инициализация пользователя")
     context.application.user_data[user_id] = {}
     user_data = context.application.user_data[user_id]
-    print(f"   ✅ Пользователь инициализирован")
+    print("   ✅ Пользователь инициализирован")
     print()
 
     # Шаг 2: Установка депозита
@@ -85,11 +86,12 @@ def simulate_telegram_context():
     if "setup_step" in user_data:
         del user_data["setup_step"]
 
-    print(f"   ✅ Настройка завершена")
+    print("   ✅ Настройка завершена")
     print(f"   📊 Финальные данные: {user_data}")
     print()
 
     return context
+
 
 def test_save_user_data(context):
     """Тестирует функцию save_user_data"""
@@ -98,7 +100,8 @@ def test_save_user_data(context):
 
     # Импортируем функцию из telegram_bot.py
     import sys
-    sys.path.append('.')
+
+    sys.path.append(".")
 
     try:
         # Создаем временный файл для тестирования
@@ -109,11 +112,13 @@ def test_save_user_data(context):
         if os.path.exists(original_file):
             backup_file = f"backup_{int(datetime.now().timestamp())}.json"
             import shutil
+
             shutil.copy(original_file, backup_file)
             print(f"💾 Создана резервная копия: {backup_file}")
 
         # Временно заменяем файл
         import telegram_bot
+
         original_user_data_file = telegram_bot.USER_DATA_FILE
         telegram_bot.USER_DATA_FILE = test_file
 
@@ -122,7 +127,7 @@ def test_save_user_data(context):
 
         # Проверяем результат
         if os.path.exists(test_file):
-            with open(test_file, 'r') as f:
+            with open(test_file) as f:
                 saved_data = json.load(f)
 
             print(f"✅ Данные сохранены в {test_file}")
@@ -134,10 +139,10 @@ def test_save_user_data(context):
                 print(f"    📈 Режим торговли: {user_data.get('trade_mode', 'НЕТ')}")
                 print(f"    🎯 Режим фильтров: {user_data.get('filter_mode', 'НЕТ')}")
                 print(f"    📰 Новостные фильтры: {user_data.get('news_filter_mode', 'НЕТ')}")
-                if 'setup_step' in user_data:
+                if "setup_step" in user_data:
                     print(f"    ⚠️ setup_step: {user_data['setup_step']}")
                 else:
-                    print(f"    ✅ setup_step удален")
+                    print("    ✅ setup_step удален")
         else:
             print(f"❌ Файл {test_file} не создан")
 
@@ -147,12 +152,14 @@ def test_save_user_data(context):
         # Удаляем тестовый файл
         if os.path.exists(test_file):
             os.remove(test_file)
-            print(f"🗑️ Тестовый файл удален")
+            print("🗑️ Тестовый файл удален")
 
     except Exception as e:
         print(f"❌ Ошибка тестирования: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 def main():
     """Основная функция"""
@@ -169,10 +176,10 @@ def main():
         print(f"    📈 Режим торговли: {user_data.get('trade_mode', 'НЕТ')}")
         print(f"    🎯 Режим фильтров: {user_data.get('filter_mode', 'НЕТ')}")
         print(f"    📰 Новостные фильтры: {user_data.get('news_filter_mode', 'НЕТ')}")
-        if 'setup_step' in user_data:
+        if "setup_step" in user_data:
             print(f"    ⚠️ setup_step: {user_data['setup_step']}")
         else:
-            print(f"    ✅ setup_step удален")
+            print("    ✅ setup_step удален")
 
     print()
 
@@ -180,6 +187,7 @@ def main():
     test_save_user_data(context)
 
     print("\n🎉 Симуляция завершена!")
+
 
 if __name__ == "__main__":
     main()

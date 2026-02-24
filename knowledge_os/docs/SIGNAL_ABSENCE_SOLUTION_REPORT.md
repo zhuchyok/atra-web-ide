@@ -17,8 +17,8 @@
 ```json
 {
   "556251171": {
-    "trade_mode": null,        // ❌ ПРОБЛЕМА!
-    "filter_mode": null,       // ❌ ПРОБЛЕМА!
+    "trade_mode": null, // ❌ ПРОБЛЕМА!
+    "filter_mode": null, // ❌ ПРОБЛЕМА!
     "deposit": 10000,
     "leverage": 1
   }
@@ -45,8 +45,8 @@
 ```json
 {
   "556251171": {
-    "trade_mode": "spot",      // ✅ ИСПРАВЛЕНО!
-    "filter_mode": "soft",     // ✅ ИСПРАВЛЕНО!
+    "trade_mode": "spot", // ✅ ИСПРАВЛЕНО!
+    "filter_mode": "soft", // ✅ ИСПРАВЛЕНО!
     "deposit": 10000,
     "leverage": 1
   }
@@ -72,6 +72,7 @@
 ### ✅ **Тестирование генерации сигналов**
 
 **Результаты тестирования:**
+
 - **📈 LONG сигналов**: 8 (STRICT: 4, SOFT: 4)
 - **📉 SHORT сигналов**: 8 (STRICT: 4, SOFT: 4)
 - **✅ Всего сигналов**: 16

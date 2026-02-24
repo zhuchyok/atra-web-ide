@@ -3,6 +3,7 @@ Type definitions for ATRA trading system
 Типизация для торговой системы ATRA
 """
 
+import typing
 from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime
 import pandas as pd

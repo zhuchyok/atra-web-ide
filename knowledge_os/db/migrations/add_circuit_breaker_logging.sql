@@ -28,4 +28,3 @@ COMMENT ON COLUMN circuit_breaker_events.event_type IS 'Тип события: s
 COMMENT ON COLUMN circuit_breaker_events.old_state IS 'Предыдущее состояние (closed, open, half_open)';
 COMMENT ON COLUMN circuit_breaker_events.new_state IS 'Новое состояние (closed, open, half_open)';
 COMMENT ON COLUMN circuit_breaker_events.metadata IS 'Дополнительные данные события в формате JSON';
-

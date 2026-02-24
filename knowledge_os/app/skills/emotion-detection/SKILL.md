@@ -4,7 +4,7 @@ description: Emotional Response Modulation - адаптация под наст�
 category: personalization
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "😊"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "😊" } }
 ---
 
 # Emotion Detection Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "😊"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Адаптации тона ответов
 - Улучшения user experience
 - Понимания эмоционального состояния
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "😊"}}
 ## Методология
 
 Emotion Detection работает через:
+
 1. **Text Analysis** - Анализ текста пользователя
 2. **Emotion Recognition** - Распознавание эмоций
 3. **Tone Adaptation** - Адаптация тона ответа

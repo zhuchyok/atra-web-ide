@@ -3,11 +3,13 @@
 ## 🔍 НАЙДЕННЫЕ ПАРАМЕТРЫ
 
 ### **1. В коде (`src/ai/intelligent_filter_system.py`):**
+
 - ✅ Функция `get_symbol_specific_parameters(symbol)` содержит параметры для **100+ монет**
 - ✅ Параметры: `volume_ratio`, `rsi_oversold`, `rsi_overbought`, `trend_strength`, `quality_score`, `momentum_threshold`
 - ✅ Результаты оптимизации указаны в комментариях
 
 ### **2. В JSON файлах (`backtests/optimize_intelligent_params_*.json`):**
+
 - ✅ 15 файлов с результатами оптимизации
 - ✅ Последний: `optimize_intelligent_params_20251201_182711.json`
 - ✅ Содержат `best_params` для каждой монеты
@@ -17,12 +19,14 @@
 ## ❌ ПРОБЛЕМА: ПАРАМЕТРЫ НЕ ИСПОЛЬЗУЮТСЯ!
 
 ### **Что найдено:**
+
 1. ❌ `get_symbol_specific_parameters()` **НЕ импортируется** в `signal_live.py`
 2. ❌ `get_symbol_specific_parameters()` **НЕ вызывается** в `src/signals/core.py`
 3. ❌ JSON файлы **НЕ загружаются** автоматически
 4. ❌ Параметры из `intelligent_filter_system.py` **НЕ применяются** при генерации сигналов
 
 ### **Что используется вместо этого:**
+
 1. ✅ `SYMBOL_SPECIFIC_CONFIG` из `src/core/config.py` (26 монет) - **ИСПОЛЬЗУЕТСЯ**
 2. ✅ `get_ai_optimized_parameters(symbol)` - загружает из `ai_learning_data/filter_parameters.json` (но файл не найден)
 3. ✅ `AI_TP_OPTIMIZER` и `AI_SL_OPTIMIZER` - используют паттерны из `trading_patterns.json` (39,968 паттернов) - **ИСПОЛЬЗУЕТСЯ**
@@ -67,11 +71,13 @@ def load_optimized_params_from_json(symbol: str) -> Dict[str, Any]:
 ## 📊 ТЕКУЩЕЕ СОСТОЯНИЕ
 
 ### **Используются:**
+
 - ✅ `SYMBOL_SPECIFIC_CONFIG` (26 монет) - для RSI, AI Score, Confidence
 - ✅ `AI_TP_OPTIMIZER` - для TP уровней (на основе паттернов)
 - ✅ `AI_SL_OPTIMIZER` - для SL уровней (на основе паттернов)
 
 ### **НЕ используются:**
+
 - ❌ `get_symbol_specific_parameters()` из `intelligent_filter_system.py` (100+ монет)
 - ❌ JSON файлы `optimize_intelligent_params_*.json`
 - ❌ Параметры `volume_ratio`, `quality_score` из оптимизации
@@ -86,4 +92,3 @@ def load_optimized_params_from_json(symbol: str) -> Dict[str, Any]:
 
 **Дата:** 2025-12-02  
 **Статус:** ❌ Параметры НЕ используются, требуется интеграция
-

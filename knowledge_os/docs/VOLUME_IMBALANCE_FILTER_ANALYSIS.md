@@ -20,10 +20,12 @@ if volume_ratio < self.min_volume_ratio:
 ```
 
 **Где:**
+
 - `volume_ratio = current_volume / avg_volume` (строка 124)
 - `min_volume_ratio = 1.0` (из config.py)
 
 **Это означает:**
+
 - Если текущий объем < среднего объема → `volume_ratio < 1.0`
 - Фильтр блокирует сигнал
 
@@ -41,16 +43,19 @@ VOLUME_IMBALANCE_FILTER_CONFIG = {
 ## 💡 РЕШЕНИЯ:
 
 ### Вариант 1: Снизить min_volume_ratio
+
 ```python
 'min_volume_ratio': 0.8,  # Разрешить если объем >= 80% от среднего
 ```
 
 ### Вариант 2: Отключить require_volume_confirmation
+
 ```python
 'require_volume_confirmation': False,  # Не требовать подтверждение объемом
 ```
 
 ### Вариант 3: Временно отключить фильтр
+
 ```python
 USE_VOLUME_IMBALANCE_FILTER = False
 ```
@@ -58,4 +63,3 @@ USE_VOLUME_IMBALANCE_FILTER = False
 ## 🔧 РЕКОМЕНДАЦИЯ:
 
 **Снизить `min_volume_ratio` до 0.8** - это позволит пропускать сигналы даже если текущий объем немного ниже среднего, но не слишком низкий.
-

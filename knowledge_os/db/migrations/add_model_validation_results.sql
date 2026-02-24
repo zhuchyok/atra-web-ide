@@ -31,4 +31,3 @@ COMMENT ON COLUMN model_validation_results.quality_score IS 'Общий пока
 COMMENT ON COLUMN model_validation_results.tokens_used IS 'Количество использованных токенов';
 COMMENT ON COLUMN model_validation_results.errors IS 'Список ошибок при валидации в формате JSON';
 COMMENT ON COLUMN model_validation_results.passed IS 'Прошла ли модель валидацию (accuracy >= 0.8)';
-

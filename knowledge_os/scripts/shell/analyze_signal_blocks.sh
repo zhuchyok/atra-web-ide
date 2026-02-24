@@ -84,4 +84,3 @@ tail -10000 "$LOG_FILE" | grep "QUALITY BLOCK" | grep -oE "Quality score [0-9.]+
 echo ""
 echo "========================================================"
 echo "✅ Анализ завершен!"
-

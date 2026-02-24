@@ -12,7 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from observability.evolution_engine import get_evolution_engine, evolve_agent_prompts  # noqa: E402
+from observability.evolution_engine import evolve_agent_prompts, get_evolution_engine  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -40,25 +40,25 @@ def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("evolve_prompts")
-    
+
     engine = get_evolution_engine()
     engine.min_performance_gain = args.min_gain
-    
+
     logger.info("🔬 Запуск эволюции промптов...")
-    
+
     if args.agent:
         logger.info("📝 Эволюция для агента: %s", args.agent)
         results = evolve_agent_prompts(agent=args.agent)
     else:
         logger.info("📝 Эволюция для всех агентов")
         results = evolve_agent_prompts()
-    
+
     if not results:
         logger.info("ℹ️ Нет результатов эволюции")
         return
-    
+
     logger.info("📊 Получено %d результатов эволюции", len(results))
-    
+
     for result in results:
         logger.info(
             "📈 %s: v%s → v%s (gain=%.2f%%, apply=%s)",
@@ -69,7 +69,7 @@ def main() -> None:
             result.should_apply,
         )
         logger.info("   Улучшения: %s", ", ".join(result.improvements[:3]))
-        
+
         if args.apply and result.should_apply:
             logger.info("✅ Применение эволюции для %s...", result.agent)
             success = engine.apply_evolution(result)
@@ -83,4 +83,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

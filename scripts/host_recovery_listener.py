@@ -1,74 +1,65 @@
-#!/usr/bin/env python3
-"""
-Слушатель на хосте для «живого организма»: оркестратор в Docker при недоступности
-Ollama/MLX шлёт POST сюда — хост запускает восстановление (Ollama, MLX, контейнеры).
-
-Запуск на хосте (Mac Studio):
-  python3 scripts/host_recovery_listener.py
-  # или в фоне: nohup python3 scripts/host_recovery_listener.py >> /tmp/host_recovery_listener.log 2>&1 &
-
-Оркестратору в docker-compose задать:
-  RECOVERY_WEBHOOK_URL: http://host.docker.internal:9099/recover
-
-Порт по умолчанию 9099 (можно RECOVERY_LISTENER_PORT=9100).
-"""
-import json
 import os
+import time
 import subprocess
-import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import requests
+import logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-PORT = int(os.getenv("RECOVERY_LISTENER_PORT", "9099"))
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s: %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.expanduser("~/Library/Logs/atra-recovery-listener.log")),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
+PORT = 9099
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class RecoveryHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-        if self.path != "/recover" and not self.path.rstrip("/").endswith("recover"):
+        if self.path == '/recover':
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            logger.info(f"📥 Получен сигнал на восстановление: {post_data}")
+
+            try:
+                # Запуск скрипта самовосстановления
+                script_path = os.path.join(ROOT_DIR, "scripts", "system_auto_recovery.sh")
+                logger.info(f"🚀 Запуск дефибриллятора: {script_path}")
+
+                # Запускаем в фоне, чтобы не блокировать HTTP ответ
+                subprocess.Popen(["bash", script_path], start_new_session=True)
+
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(b'{"status": "recovery_initiated"}')
+            except Exception as e:
+                logger.error(f"❌ Ошибка при запуске восстановления: {e}")
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+        else:
             self.send_response(404)
             self.end_headers()
-            return
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        body = self.rfile.read(length).decode("utf-8", errors="ignore") if length else "{}"
-        try:
-            data = json.loads(body) if body else {}
-        except json.JSONDecodeError:
-            data = {}
-        ollama_ok = data.get("ollama", True)
-        mlx_ok = data.get("mlx", True)
-        # Запускаем полное самовосстановление (Ollama, MLX, контейнеры)
-        script = os.path.join(ROOT, "scripts", "system_auto_recovery.sh")
-        ran = False
-        if os.path.isfile(script) and os.access(script, os.X_OK):
-            try:
-                subprocess.Popen(
-                    ["/bin/bash", script],
-                    cwd=ROOT,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                )
-                ran = True
-            except Exception:
-                pass
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(
-            json.dumps(
-                {"ok": True, "recovery_triggered": ran, "ollama": ollama_ok, "mlx": mlx_ok}
-            ).encode("utf-8")
-        )
 
     def log_message(self, format, *args):
-        print("[host_recovery_listener]", format % args, file=sys.stderr)
+        # Подавляем стандартные логи HTTP сервера в консоль
+        return
 
-
-def main():
-    server = HTTPServer(("0.0.0.0", PORT), RecoveryHandler)
-    print(f"Host recovery listener on 0.0.0.0:{PORT} (POST /recover)", file=sys.stderr)
-    server.serve_forever()
-
+def run_server():
+    server_address = ('', PORT)
+    httpd = HTTPServer(server_address, RecoveryHandler)
+    logger.info(f"📡 Recovery Listener запущен на порту {PORT}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        logger.info("🛑 Recovery Listener остановлен")
+        httpd.server_close()
 
 if __name__ == "__main__":
-    main()
+    run_server()

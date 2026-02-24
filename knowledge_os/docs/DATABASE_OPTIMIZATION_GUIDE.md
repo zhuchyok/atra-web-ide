@@ -42,14 +42,17 @@ python3 scripts/apply_all_optimizations.py --metrics
 **Модуль:** `src/database/db.py` (метод `_add_validation_triggers`)
 
 **Что делает:**
+
 - Добавляет триггеры валидации для таблиц `quotes`, `signals_log`, `trades`
 - Предотвращает вставку некорректных данных (отрицательные цены, неверные диапазоны)
 
 **Эффект:**
+
 - Предотвращение ошибок: 100%
 - Защита целостности данных
 
 **Использование:**
+
 ```python
 # Автоматически применяется при инициализации БД
 db = Database()
@@ -62,15 +65,18 @@ db = Database()
 **Модуль:** `src/database/db.py` (метод `_add_surrogate_time_keys`)
 
 **Что делает:**
+
 - Добавляет INTEGER колонки для временных меток
 - Создает индексы на INTEGER вместо TEXT
 - Автоматически заполняет через триггеры
 
 **Эффект:**
+
 - Ускорение запросов: 20-40%
 - Уменьшение размера индексов
 
 **Использование:**
+
 ```python
 # Автоматически применяется при инициализации БД
 # Используйте INTEGER колонки в запросах:
@@ -84,15 +90,18 @@ db = Database()
 **Модуль:** `src/database/db.py` (метод `_create_partial_indexes`)
 
 **Что делает:**
+
 - Создает индексы только для приоритетных символов (BTCUSDT, ETHUSDT и др.)
 - Уменьшает размер индексов
 - Ускоряет запросы для популярных символов
 
 **Эффект:**
+
 - Ускорение запросов: 30-50% для приоритетных символов
 - Снижение размера БД: 10-20%
 
 **Использование:**
+
 ```python
 # Автоматически применяется при инициализации БД
 # Запросы к приоритетным символам автоматически используют частичные индексы
@@ -105,15 +114,18 @@ db = Database()
 **Модуль:** `src/database/archive_manager.py`
 
 **Что делает:**
+
 - Перемещает старые данные в архивные таблицы
 - Удаляет данные старше указанного периода
 - Поддерживает настраиваемые политики хранения
 
 **Эффект:**
+
 - Снижение размера БД: 30-80%
 - Ускорение запросов к активным данным
 
 **Использование:**
+
 ```python
 from src.database.archive_manager import ArchiveManager
 
@@ -137,15 +149,18 @@ manager.archive_table(
 **Модуль:** `src/database/query_profiler.py`
 
 **Что делает:**
+
 - Автоматически профилирует медленные запросы (> 1 сек)
 - Логирует планы выполнения
 - Предоставляет рекомендации по оптимизации
 
 **Эффект:**
+
 - Выявление узких мест
 - Автоматический мониторинг производительности
 
 **Использование:**
+
 ```python
 from src.database.query_profiler import get_query_profiler
 
@@ -162,15 +177,18 @@ profiler = get_query_profiler()
 **Модуль:** `src/database/fetch_optimizer.py`
 
 **Что делает:**
+
 - Использует `fetchmany()` вместо `fetchall()` для больших результатов
 - Динамически определяет оптимальный размер батча
 - Учитывает доступную память
 
 **Эффект:**
+
 - Снижение потребления памяти: 30-50%
 - Предотвращение OOM ошибок
 
 **Использование:**
+
 ```python
 from src.database.fetch_optimizer import fetch_all_optimized
 
@@ -185,15 +203,18 @@ results = fetch_all_optimized(cursor, estimated_rows=10000)
 **Модуль:** `src/database/index_auditor.py`
 
 **Что делает:**
+
 - Выявляет неиспользуемые индексы
 - Предоставляет рекомендации по удалению
 - Анализирует использование индексов
 
 **Эффект:**
+
 - Освобождение места: 10-30%
 - Ускорение операций записи
 
 **Использование:**
+
 ```python
 from src.database.index_auditor import IndexAuditor
 
@@ -213,14 +234,17 @@ unused = auditor.get_unused_indexes()
 **Модуль:** `src/database/query_optimizer.py`
 
 **Что делает:**
+
 - Преобразует подзапросы в JOIN
 - Оптимизирует сложные запросы
 - Предоставляет рекомендации
 
 **Эффект:**
+
 - Ускорение запросов: 10-30%
 
 **Использование:**
+
 ```python
 from src.database.query_optimizer import QueryOptimizer
 
@@ -240,15 +264,18 @@ complexity = optimizer.analyze_query_complexity(query)
 **Модуль:** `src/database/table_maintenance.py`
 
 **Что делает:**
+
 - Мониторит размер таблиц
 - Выявляет необходимость VACUUM
 - Предоставляет рекомендации
 
 **Эффект:**
+
 - Поддержание производительности
 - Предотвращение деградации
 
 **Использование:**
+
 ```python
 from src.database.table_maintenance import TableMaintenance
 
@@ -268,14 +295,17 @@ bloat_info = maintenance.check_table_bloat('signals_log')
 **Модуль:** `src/database/materialized_views.py`
 
 **Что делает:**
+
 - Кэширует результаты агрегированных запросов
 - Автоматически обновляет по расписанию
 - Ускоряет сложные аналитические запросы
 
 **Эффект:**
+
 - Ускорение аналитических запросов: 50-90%
 
 **Использование:**
+
 ```python
 from src.database.materialized_views import MaterializedViewManager
 
@@ -299,15 +329,18 @@ manager.refresh_all_views()
 **Модуль:** `src/database/column_order_optimizer.py`
 
 **Что делает:**
+
 - Анализирует порядок колонок в таблицах
 - Предлагает оптимизированный порядок (фиксированные перед переменными)
 - Улучшает выравнивание данных
 
 **Эффект:**
+
 - Уменьшение размера строк: 5-15%
 - Улучшение кэширования
 
 **Использование:**
+
 ```python
 from src.database.column_order_optimizer import ColumnOrderOptimizer
 
@@ -325,14 +358,17 @@ if analysis['needs_reorder']:
 **Модуль:** `src/database/temp_tables_optimizer.py`
 
 **Что делает:**
+
 - Разбивает сложные запросы на простые части
 - Использует временные таблицы для промежуточных результатов
 - Ускоряет выполнение сложных аналитических запросов
 
 **Эффект:**
+
 - Ускорение сложных запросов: 20-50%
 
 **Использование:**
+
 ```python
 from src.database.temp_tables_optimizer import TempTablesOptimizer
 
@@ -354,11 +390,13 @@ with TempTablesOptimizer(db) as optimizer:
 **Модуль:** `src/database/optimization_manager.py`
 
 **Что делает:**
+
 - Объединяет все оптимизации в единую систему
 - Автоматически применяет все оптимизации
 - Мониторит статус и метрики
 
 **Использование:**
+
 ```python
 from src.database.optimization_manager import DatabaseOptimizationManager
 
@@ -428,6 +466,7 @@ if hasattr(db, 'materialized_views'):
 ### Алерты
 
 Настройте мониторинг для:
+
 - Размер БД > 100 MB (рассмотреть архивацию)
 - Медленные запросы > 5 сек (проверить через Query Profiler)
 - Неиспользуемые индексы > 5 (рассмотреть удаление)
@@ -457,6 +496,7 @@ if hasattr(db, 'materialized_views'):
 ### Проблема: БД растет слишком быстро
 
 **Решение:**
+
 ```bash
 # Проверить размер таблиц
 python3 scripts/optimize_database.py --check-bloat
@@ -468,6 +508,7 @@ python3 scripts/archive_old_data.py --table signals_log --retention-days 365
 ### Проблема: Медленные запросы
 
 **Решение:**
+
 ```python
 # Проверить логи Query Profiler
 # Медленные запросы автоматически логируются
@@ -481,6 +522,7 @@ optimized = optimizer.optimize_query(slow_query)
 ### Проблема: Высокое потребление памяти
 
 **Решение:**
+
 ```python
 # Использовать адаптивный chunking
 from src.database.fetch_optimizer import fetch_all_optimized
@@ -500,4 +542,3 @@ results = fetch_all_optimized(cursor, estimated_rows=10000)
 ## ✅ Заключение
 
 Все 13 модулей оптимизации работают вместе для обеспечения максимальной производительности БД. Регулярное использование инструментов обслуживания гарантирует стабильную работу системы.
-

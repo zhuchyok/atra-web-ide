@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Импорт исторических данных из ai_learning_data/trading_patterns.json
 в таблицы signals_log и trades.
@@ -34,14 +33,18 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for CLI invocation
 def parse_args() -> argparse.Namespace:
     """Разбирает аргументы командной строки."""
     parser = argparse.ArgumentParser(description="Backfill signals_log/trades из паттернов ИИ")
-    parser.add_argument("--days", type=int, default=90, help="Глубина истории в днях (по умолчанию 90)")
+    parser.add_argument(
+        "--days", type=int, default=90, help="Глубина истории в днях (по умолчанию 90)"
+    )
     parser.add_argument(
         "--amount",
         type=float,
         default=1000.0,
         help="Базовый размер позиции в USDT (по умолчанию 1000)",
     )
-    parser.add_argument("--limit", type=int, default=5000, help="Максимальное число записей для импорта")
+    parser.add_argument(
+        "--limit", type=int, default=5000, help="Максимальное число записей для импорта"
+    )
     parser.add_argument(
         "--file",
         type=Path,
@@ -130,7 +133,9 @@ def main() -> None:
                 continue
 
             direction = map_direction(pattern.get("signal_type"))
-            result_label, exit_reason, tp1_hit, tp2_hit, sl_hit = map_result(pattern.get("result"), profit_pct)
+            result_label, exit_reason, tp1_hit, tp2_hit, sl_hit = map_result(
+                pattern.get("result"), profit_pct
+            )
 
             entry_amount = float(args.amount)
             quantity = entry_amount / entry_price if entry_price else 0.0

@@ -1,5 +1,6 @@
+from typing import Dict, Optional, Tuple
+
 import pandas as pd
-from typing import Optional, Tuple, Dict
 import ta
 
 # Reuse existing async OHLC fetcher
@@ -9,7 +10,9 @@ except ImportError:
     try:
         from ohlc_utils import get_ohlc_binance_sync_async
     except ImportError:
-        async def get_ohlc_binance_sync_async(*args, **kwargs): return None
+
+        async def get_ohlc_binance_sync_async(*args, **kwargs):
+            return None
 
 
 async def _fetch_tf_last_row(symbol: str, interval: str, min_len: int = 40) -> Optional[pd.Series]:
@@ -24,11 +27,12 @@ async def _fetch_tf_last_row(symbol: str, interval: str, min_len: int = 40) -> O
     df = pd.DataFrame(ohlc)
     df["open_time"] = pd.to_datetime(df["timestamp"], unit="ms")
     df = df.set_index("open_time")
-    
+
     # Использование централизованного модуля индикаторов
     from src.signals.indicators import add_technical_indicators
+
     df = add_technical_indicators(df)
-    
+
     return df.iloc[-1]
 
 
@@ -62,32 +66,37 @@ def build_mtf_accumulation_line(symbol: str, *args, **kwargs) -> str:
     try:
         # Простая реализация MTF анализа
         # В реальной системе здесь был бы более сложный анализ
-        
+
         # Получаем данные для разных таймфреймов
         import asyncio
-        
+
         async def _get_mtf_data():
             try:
                 # Получаем данные для 1h и 4h таймфреймов
                 ohlc_1h = await get_ohlc_binance_sync_async(symbol, "1h", limit=50)
                 ohlc_4h = await get_ohlc_binance_sync_async(symbol, "4h", limit=50)
-                
+
                 if not ohlc_1h or not ohlc_4h:
                     return "📊 MTF: Данные недоступны"
-                
+
                 # Простой анализ тренда
                 df_1h = pd.DataFrame(ohlc_1h)
                 df_4h = pd.DataFrame(ohlc_4h)
-                
+
                 # Рассчитываем индикаторы через централизованный модуль
                 from src.signals.indicators import add_technical_indicators
+
                 df_1h = add_technical_indicators(df_1h)
                 df_4h = add_technical_indicators(df_4h)
-                
+
                 # Анализ тренда
-                trend_1h = "BULLISH" if df_1h["ema7"].iloc[-1] > df_1h["ema25"].iloc[-1] else "BEARISH"
-                trend_4h = "BULLISH" if df_4h["ema7"].iloc[-1] > df_4h["ema25"].iloc[-1] else "BEARISH"
-                
+                trend_1h = (
+                    "BULLISH" if df_1h["ema7"].iloc[-1] > df_1h["ema25"].iloc[-1] else "BEARISH"
+                )
+                trend_4h = (
+                    "BULLISH" if df_4h["ema7"].iloc[-1] > df_4h["ema25"].iloc[-1] else "BEARISH"
+                )
+
                 # Определяем общий тренд
                 if trend_1h == "BULLISH" and trend_4h == "BULLISH":
                     return "📈 MTF: Сильный бычий тренд"
@@ -99,16 +108,17 @@ def build_mtf_accumulation_line(symbol: str, *args, **kwargs) -> str:
                     return "🔄 MTF: Коррекция вниз"
                 else:
                     return "📊 MTF: Нейтральный тренд"
-                    
+
             except Exception as e:
                 return f"📊 MTF: Ошибка расчета ({str(e)[:50]})"
-        
+
         # Запускаем асинхронную функцию
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Если loop уже запущен, создаем задачу
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, _get_mtf_data())
                     return future.result()
@@ -116,6 +126,6 @@ def build_mtf_accumulation_line(symbol: str, *args, **kwargs) -> str:
                 return loop.run_until_complete(_get_mtf_data())
         except Exception:
             return "📊 MTF: Данные недоступны"
-            
+
     except Exception as e:
         return f"📊 MTF: Ошибка ({str(e)[:50]})"

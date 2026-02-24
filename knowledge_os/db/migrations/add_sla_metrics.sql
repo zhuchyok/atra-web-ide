@@ -17,4 +17,3 @@ CREATE INDEX IF NOT EXISTS idx_sla_metrics_compliant ON sla_metrics(compliant);
 COMMENT ON TABLE sla_metrics IS 'Метрики SLA для мониторинга соответствия Service Level Agreements';
 COMMENT ON COLUMN sla_metrics.metric_name IS 'Название метрики (p95_latency, availability, cache_hit_rate)';
 COMMENT ON COLUMN sla_metrics.compliant IS 'Соответствует ли метрика SLA';
-

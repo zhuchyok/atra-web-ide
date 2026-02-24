@@ -33,7 +33,7 @@ async def get_quality_history(days: int = 7) -> Dict[str, Any]:
 
     for result_file in sorted(results_dir.glob("validation_*.json")):
         try:
-            with open(result_file, "r", encoding="utf-8") as f:
+            with open(result_file, encoding="utf-8") as f:
                 data = json.load(f)
             ts = data.get("timestamp", "")
             if not ts:
@@ -44,11 +44,13 @@ async def get_quality_history(days: int = 7) -> Dict[str, Any]:
                 file_date = datetime.fromisoformat(ts.split(".")[0])
             if file_date.replace(tzinfo=None) >= cutoff_date.replace(tzinfo=None):
                 summary = data.get("summary", {})
-                history.append({
-                    "date": ts,
-                    "metrics": data.get("avg_metrics", {}),
-                    "total_queries": summary.get("total_queries", 0),
-                })
+                history.append(
+                    {
+                        "date": ts,
+                        "metrics": data.get("avg_metrics", {}),
+                        "total_queries": summary.get("total_queries", 0),
+                    }
+                )
         except Exception:
             continue
 
@@ -64,9 +66,9 @@ async def get_quality_summary(
 ) -> Dict[str, Any]:
     """Сводка текущего состояния качества (быстрая валидация на 10 запросах)."""
     try:
-        from app.services.validation_pipeline import ValidationPipeline
-        from app.services.rag_light import get_rag_light_service
         from app.evaluation.rag_evaluator import RAGEvaluator
+        from app.services.rag_light import get_rag_light_service
+        from app.services.validation_pipeline import ValidationPipeline
     except ImportError as e:
         return {
             "status": "error",

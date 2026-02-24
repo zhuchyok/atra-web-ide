@@ -48,4 +48,3 @@ fi
 echo ""
 echo "🎉 Rust acceleration module ready!"
 echo "   Use: from src.infrastructure.performance.rust_accelerator import get_rust_accelerator"
-

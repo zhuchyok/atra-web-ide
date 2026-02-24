@@ -3,6 +3,7 @@
 ## 🚀 Команды для копирования на сервер:
 
 ### 1. **Проверка статуса бота:**
+
 ```bash
 # Проверить процессы
 ps aux | grep main.py
@@ -15,6 +16,7 @@ top -bn1 | head -20
 ```
 
 ### 2. **Мониторинг логов в реальном времени:**
+
 ```bash
 # Основные логи
 tail -f system_improved.log
@@ -27,6 +29,7 @@ tail -f system_improved.log | grep -E "(ERROR|WARNING|INFO)"
 ```
 
 ### 3. **Простой мониторинг (скопировать и запустить):**
+
 ```bash
 # Создать файл мониторинга
 cat > monitor.sh << 'EOF'
@@ -55,6 +58,7 @@ chmod +x monitor.sh
 ```
 
 ### 4. **Запуск бота (если не запущен):**
+
 ```bash
 # Остановить старые процессы
 pkill -f main.py
@@ -67,6 +71,7 @@ ps aux | grep main.py
 ```
 
 ### 5. **Перезапуск бота:**
+
 ```bash
 # Остановить
 pkill -f main.py
@@ -82,6 +87,7 @@ ps aux | grep main.py
 ```
 
 ### 6. **Мониторинг через tmux:**
+
 ```bash
 # Создать сессию
 tmux new-session -d -s monitoring
@@ -97,6 +103,7 @@ tail -f system_improved.log
 ```
 
 ### 7. **Быстрая проверка системы:**
+
 ```bash
 echo "=== СТАТУС СИСТЕМЫ ==="
 echo "Процессы:"
@@ -110,6 +117,7 @@ top -bn1 | head -5
 ```
 
 ### 8. **Мониторинг в фоне:**
+
 ```bash
 # Запустить мониторинг в фоне
 nohup bash -c 'while true; do echo "$(date): $(ps aux | grep main.py | grep -v grep | wc -l) процессов"; sleep 30; done' > monitor.log 2>&1 &
@@ -121,22 +129,26 @@ tail -f monitor.log
 ## 🎯 **Рекомендуемая последовательность:**
 
 1. **Подключиться к серверу:**
+
    ```bash
    ssh root@server_ip
    cd ~/atra
    ```
 
 2. **Проверить статус:**
+
    ```bash
    ps aux | grep main.py
    ```
 
 3. **Если бот не запущен:**
+
    ```bash
    nohup python3 main.py > main.log 2>&1 &
    ```
 
 4. **Запустить мониторинг:**
+
    ```bash
    tail -f system_improved.log
    ```

@@ -11,6 +11,7 @@
 ### **Автогенерация документации**
 
 Система автоматической генерации документации:
+
 - ✅ **Документация из кода** - извлечение docstrings и структуры
 - ✅ **API документация** - автогенерация из OpenAPI спецификации
 - ✅ **Примеры использования** - Python и curl примеры
@@ -82,6 +83,7 @@ python3 knowledge_os/app/doc_generator.py
 ```
 
 **Результат:**
+
 ```
 ✅ Documentation generated in 5 files:
   - code_docs: docs/auto_generated/code_documentation.md
@@ -139,6 +141,7 @@ jobs:
 - Docstrings из кода
 
 **Пример:**
+
 ```markdown
 ## knowledge_graph.py
 
@@ -149,6 +152,7 @@ jobs:
 Класс для работы с графом знаний
 
 **Методы:**
+
 - `create_link(source_id, target_id, link_type, strength)`
   - Создание связи между узлами знаний
 - `get_links(node_id, link_type, direction)`
@@ -163,22 +167,27 @@ jobs:
 - Коды ответов
 
 **Пример:**
-```markdown
+
+````markdown
 ### POST /auth/login
 
 **Описание:** User authentication
 
 **Request Body:**
+
 ```json
 {
   "username": "string",
   "password": "string"
 }
 ```
+````
 
 **Responses:**
+
 - `200`: Authentication successful
 - `401`: Invalid credentials
+
 ```
 
 ### **3. Примеры использования:**
@@ -232,6 +241,6 @@ jobs:
 
 Автогенерация документации успешно интегрирована в Singularity 4.3!
 
-**Автор:** Виктория (Team Lead)  
+**Автор:** Виктория (Team Lead)
 **Дата:** 2025-12-14
-
+```

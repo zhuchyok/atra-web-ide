@@ -18,22 +18,22 @@ from mlx_server_supervisor import get_mlx_supervisor
 async def main():
     """Запуск supervisor"""
     supervisor = get_mlx_supervisor()
-    
+
     print("🚀 Запуск MLX API Server с Supervisor...")
     print("   - Автоматический перезапуск при падении")
     print("   - Health monitoring каждые 10 секунд")
     print("   - Exponential backoff при перезапусках")
     print("   - Circuit Breaker для защиты от каскадных сбоев")
     print()
-    
+
     try:
         success = await supervisor.start()
-        
+
         if success:
             print("✅ Supervisor запущен успешно")
             print("   Нажмите Ctrl+C для остановки")
             print()
-            
+
             # Ждем сигнала завершения
             try:
                 while True:
@@ -46,7 +46,7 @@ async def main():
         else:
             print("❌ Не удалось запустить supervisor")
             sys.exit(1)
-    
+
     finally:
         await supervisor.stop()
         print("✅ Supervisor остановлен")

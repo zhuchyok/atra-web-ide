@@ -5,8 +5,8 @@ Entry Quality Scorer - оценка качества точки входа
 import logging
 from typing import Dict, Optional, Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import talib  # type: ignore # noqa: E1101
 
 from src.analysis.market_structure import MarketStructureAnalyzer
@@ -54,9 +54,9 @@ class EntryQualityScorer:
             if len(df) < self.atr_period:
                 return 0.0
 
-            high = df['high'].values
-            low = df['low'].values
-            close = df['close'].values
+            high = df["high"].values
+            low = df["low"].values
+            close = df["close"].values
 
             atr = talib.ATR(high, low, close, timeperiod=self.atr_period)  # type: ignore[no-member]  # pylint: disable=no-member
             return float(atr[-1]) if not np.isnan(atr[-1]) else 0.0
@@ -81,7 +81,7 @@ class EntryQualityScorer:
             if len(df) < self.lookback_periods:
                 return 0.5  # Нейтральная оценка
 
-            current_price = df['close'].iloc[-1]
+            current_price = df["close"].iloc[-1]
             atr = self.calculate_atr(df)
 
             if atr == 0:
@@ -89,7 +89,7 @@ class EntryQualityScorer:
 
             if direction.upper() == "LONG":
                 # Ищем локальный минимум
-                recent_lows = df['low'].tail(self.lookback_periods).values
+                recent_lows = df["low"].tail(self.lookback_periods).values
                 local_min = np.min(recent_lows)
 
                 # Расстояние от минимума в ATR
@@ -107,7 +107,7 @@ class EntryQualityScorer:
 
             elif direction.upper() == "SHORT":
                 # Ищем локальный максимум
-                recent_highs = df['high'].tail(self.lookback_periods).values
+                recent_highs = df["high"].tail(self.lookback_periods).values
                 local_max = np.max(recent_highs)
 
                 # Расстояние от максимума в ATR
@@ -156,8 +156,8 @@ class EntryQualityScorer:
             if len(df) < 20:
                 return 0.5
 
-            current_volume = df['volume'].iloc[-1]
-            avg_volume = df['volume'].tail(20).mean()
+            current_volume = df["volume"].iloc[-1]
+            avg_volume = df["volume"].tail(20).mean()
 
             if avg_volume == 0:
                 return 0.5
@@ -167,7 +167,7 @@ class EntryQualityScorer:
             # Для LONG: высокий объем на росте = хорошо
             # Для SHORT: высокий объем на падении = хорошо
             if direction.upper() == "LONG":
-                price_change = df['close'].iloc[-1] - df['open'].iloc[-1]
+                price_change = df["close"].iloc[-1] - df["open"].iloc[-1]
                 if price_change > 0 and volume_ratio > 1.2:
                     return 1.0
                 elif price_change > 0 and volume_ratio > 1.0:
@@ -176,7 +176,7 @@ class EntryQualityScorer:
                     return 0.3
 
             elif direction.upper() == "SHORT":
-                price_change = df['open'].iloc[-1] - df['close'].iloc[-1]
+                price_change = df["open"].iloc[-1] - df["close"].iloc[-1]
                 if price_change > 0 and volume_ratio > 1.2:
                     return 1.0
                 elif price_change > 0 and volume_ratio > 1.0:
@@ -212,8 +212,8 @@ class EntryQualityScorer:
                 return 0.5
 
             # Ищем уровни поддержки/сопротивления
-            recent_highs = df['high'].tail(50).values
-            recent_lows = df['low'].tail(50).values
+            recent_highs = df["high"].tail(50).values
+            recent_lows = df["low"].tail(50).values
 
             # Рассчитываем ATR для определения близости
             atr = self.calculate_atr(df)
@@ -226,7 +226,7 @@ class EntryQualityScorer:
                 # Ищем уровень поддержки (локальные минимумы)
                 support_levels = []
                 for i in range(1, len(recent_lows) - 1):
-                    if recent_lows[i] < recent_lows[i-1] and recent_lows[i] < recent_lows[i+1]:
+                    if recent_lows[i] < recent_lows[i - 1] and recent_lows[i] < recent_lows[i + 1]:
                         support_levels.append(recent_lows[i])
 
                 if support_levels:
@@ -243,7 +243,10 @@ class EntryQualityScorer:
                 # Ищем уровень сопротивления (локальные максимумы)
                 resistance_levels = []
                 for i in range(1, len(recent_highs) - 1):
-                    if recent_highs[i] > recent_highs[i-1] and recent_highs[i] > recent_highs[i+1]:
+                    if (
+                        recent_highs[i] > recent_highs[i - 1]
+                        and recent_highs[i] > recent_highs[i + 1]
+                    ):
                         resistance_levels.append(recent_highs[i])
 
                 if resistance_levels:
@@ -286,9 +289,9 @@ class EntryQualityScorer:
                 # Оптимизированные веса: больше внимания к паттернам и уровням
                 weights = {
                     "distance": 0.20,  # Уменьшено с 0.25
-                    "pattern": 0.35,   # Увеличено с 0.25 (свечные паттерны важнее)
-                    "volume": 0.20,   # Уменьшено с 0.25
-                    "level": 0.25,    # Без изменений (уровни критичны)
+                    "pattern": 0.35,  # Увеличено с 0.25 (свечные паттерны важнее)
+                    "volume": 0.20,  # Уменьшено с 0.25
+                    "level": 0.25,  # Без изменений (уровни критичны)
                 }
 
             # Рассчитываем компоненты
@@ -326,18 +329,18 @@ class EntryQualityScorer:
             # Взвешенная сумма
             if include_momentum:
                 total_score = (
-                    distance_score * adjusted_weights.get("distance", 0.16) +
-                    pattern_score * adjusted_weights.get("pattern", 0.16) +
-                    volume_score * adjusted_weights.get("volume", 0.16) +
-                    level_score * adjusted_weights.get("level", 0.16) +
-                    momentum_score * adjusted_weights.get("momentum", 0.20)
+                    distance_score * adjusted_weights.get("distance", 0.16)
+                    + pattern_score * adjusted_weights.get("pattern", 0.16)
+                    + volume_score * adjusted_weights.get("volume", 0.16)
+                    + level_score * adjusted_weights.get("level", 0.16)
+                    + momentum_score * adjusted_weights.get("momentum", 0.20)
                 )
             else:
                 total_score = (
-                    distance_score * weights.get("distance", 0.25) +
-                    pattern_score * weights.get("pattern", 0.25) +
-                    volume_score * weights.get("volume", 0.25) +
-                    level_score * weights.get("level", 0.25)
+                    distance_score * weights.get("distance", 0.25)
+                    + pattern_score * weights.get("pattern", 0.25)
+                    + volume_score * weights.get("volume", 0.25)
+                    + level_score * weights.get("level", 0.25)
                 )
 
             details = {
@@ -362,11 +365,7 @@ class EntryQualityScorer:
             }
 
     def is_entry_quality_acceptable(
-        self,
-        df: pd.DataFrame,
-        direction: str,
-        entry_price: float,
-        min_score: float = 0.6
+        self, df: pd.DataFrame, direction: str, entry_price: float, min_score: float = 0.6
     ) -> Tuple[bool, float, Dict[str, float]]:
         """
         Проверяет, является ли качество входа приемлемым

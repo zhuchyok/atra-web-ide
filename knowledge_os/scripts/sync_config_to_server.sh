@@ -32,4 +32,3 @@ echo "✅ Конфигурация синхронизирована!"
 echo ""
 echo "🔄 Перезапустите бота:"
 echo "./restart_bot_on_server.sh"
-

@@ -1,13 +1,17 @@
 # ОТЧЕТ: ИСПРАВЛЕНИЕ ОШИБКИ ДОСТУПА К ЗАЩИЩЕННЫМ ЧЛЕНАМ КЛАССА
 
 ## Проблема
+
 **Ошибка в telegram_bot.py:**
-- **Строка 4366:** Access to a protected member _cache_ts of a client class
+
+- **Строка 4366:** Access to a protected member \_cache_ts of a client class
 - **Серьезность:** Warning
 - **Код:** [object Object]
 
 ## Анализ проблемы
+
 Ошибка возникала из-за использования защищенных атрибутов `_cache_ts` и `_cache_data` в функциях:
+
 1. `recalculate_balance_and_risks()` в `telegram_bot.py`
 2. `get_top_usdt_pairs_by_volume()` в `exchange_api.py`
 
@@ -16,6 +20,7 @@
 ## Решение
 
 ### 1. Создан модуль кэширования `cache_utils.py`
+
 ```python
 class CacheManager:
     """Менеджер кэша для безопасного хранения данных"""
@@ -44,7 +49,9 @@ balance_cache = CacheManager()
 ```
 
 ### 2. Исправлена функция `recalculate_balance_and_risks()` в `telegram_bot.py`
+
 **Было:**
+
 ```python
 cache_ts = getattr(recalculate_balance_and_risks, '_cache_ts', {})
 cache_data = getattr(recalculate_balance_and_risks, '_cache_data', {})
@@ -60,6 +67,7 @@ recalculate_balance_and_risks._cache_ts[cache_key] = time.time()
 ```
 
 **Стало:**
+
 ```python
 # Импортируем кэш-менеджер
 try:
@@ -78,7 +86,9 @@ else:
 ```
 
 ### 3. Исправлена функция `get_top_usdt_pairs_by_volume()` в `exchange_api.py`
+
 **Было:**
+
 ```python
 cache_ts = getattr(get_top_usdt_pairs_by_volume, '_cache_ts', 0)
 cache_data = getattr(get_top_usdt_pairs_by_volume, '_cache_data', None)
@@ -89,6 +99,7 @@ if cache_data and (time.time() - cache_ts) < 300:  # 5 минут
 ```
 
 **Стало:**
+
 ```python
 # Импортируем кэш-менеджер
 try:
@@ -114,26 +125,32 @@ if cached_result is not None:
 ## Преимущества нового решения
 
 ### 1. Безопасность
+
 - Устранен доступ к защищенным атрибутам
 - Используется правильная инкапсуляция данных
 
 ### 2. Гибкость
+
 - Поддержка fallback на простой кэш при недоступности модуля
 - Возможность легко изменить логику кэширования
 
 ### 3. Читаемость
+
 - Код стал более понятным и структурированным
 - Явное разделение ответственности
 
 ### 4. Расширяемость
+
 - Легко добавить новые методы кэширования
 - Возможность использовать разные стратегии кэширования
 
 ## Проверка исправлений
+
 - ✅ Удалены все обращения к `_cache_ts` и `_cache_data` в основном коде
 - ✅ Создан безопасный модуль кэширования
 - ✅ Добавлена поддержка fallback для совместимости
 - ✅ Сохранена вся функциональность кэширования
 
 ## Результат
-Ошибка "Access to a protected member _cache_ts of a client class" полностью устранена. Код теперь соответствует лучшим практикам Python и не вызывает предупреждений линтера.
+
+Ошибка "Access to a protected member \_cache_ts of a client class" полностью устранена. Код теперь соответствует лучшим практикам Python и не вызывает предупреждений линтера.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import asyncio
 import logging
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("sync_positions")
@@ -63,12 +63,12 @@ async def sync_user(user_id: int) -> Dict[str, Any]:
             side = (p.get("side") or "").lower()
             size = float(p.get("contracts") or p.get("size") or 0.0)
             entry_price = float(p.get("entryPrice") or p.get("openPriceAvg") or 0.0)
-            
+
             if size > 0 and sym and entry_price > 0:
                 if (sym, side) not in db_map:
                     # 🛡️ ПРОВЕРКА: Определяем источник позиции
                     direction = "BUY" if side == "long" else "SELL"
-                    
+
                     # Проверяем наличие сигнала в accepted_signals
                     has_signal = False
                     try:
@@ -77,16 +77,17 @@ async def sync_user(user_id: int) -> Dict[str, Any]:
                             has_signal = True
                     except Exception:
                         pass
-                    
+
                     # 🆕 БЛОКИРУЕМ: Если сигнала нет - это ручная позиция, НЕ добавляем в БД
                     if not has_signal:
                         logger.warning(
                             "🚫 [SYNC_BLOCK] %s %s: Позиция найдена на бирже БЕЗ сигнала в системе. "
                             "Позиция НЕ будет добавлена в БД (открыта вручную или через другой процесс).",
-                            sym, direction
+                            sym,
+                            direction,
                         )
                         continue  # 🆕 БЛОКИРУЕМ: не добавляем ручные позиции
-                    
+
                     # Добавляем позицию в БД только если есть соответствующий сигнал
                     ok = await adb.create_active_position(
                         symbol=sym,
@@ -95,11 +96,13 @@ async def sync_user(user_id: int) -> Dict[str, Any]:
                         user_id=user_id,
                         message_id=None,
                         chat_id=None,
-                        signal_key=None
+                        signal_key=None,
                     )
                     if ok:
                         upserted += 1
-                        logger.info("✅ Синхронизирована позиция: %s %s @ %.8f", sym, direction, entry_price)
+                        logger.info(
+                            "✅ Синхронизирована позиция: %s %s @ %.8f", sym, direction, entry_price
+                        )
         except Exception as e:
             logger.debug("Ошибка добавления позиции %s: %s", p.get("symbol"), e)
 
@@ -134,5 +137,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

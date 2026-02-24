@@ -3,6 +3,7 @@
 ## 📊 ПРОБЛЕМА
 
 **Сигналы блокируются Volume Imbalance фильтром**, даже после:
+
 1. Снижения `min_volume_ratio`: 1.0 → 0.8 → 0.6 → 0.5
 2. Отключения `require_volume_confirmation`: True → False
 3. Отключения фильтра в config: `USE_VOLUME_IMBALANCE_FILTER = False`
@@ -17,6 +18,7 @@
 ## ⚠️ ТЕКУЩАЯ СИТУАЦИЯ
 
 **Сигналы все еще блокируются** Volume Imbalance фильтром в логах:
+
 ```
 🚫 [SHORT Alt-2] PENGUUSDT: Новые фильтры заблокировали: VolumeImbalanceFilter: LOW_VOLUME
 ```
@@ -34,4 +36,3 @@
 - Фильтр инициализируется где-то еще
 - Проверка флага не работает правильно
 - Бот не перезагрузил config после изменения
-

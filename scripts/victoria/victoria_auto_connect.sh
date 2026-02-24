@@ -42,7 +42,7 @@ if ! curl -sf --connect-timeout 2 http://localhost:8012/sse >/dev/null 2>&1; the
   if ! python3 -c "import fastmcp" 2>/dev/null; then
     pip3 install --user fastmcp >/dev/null 2>&1 || pip3 install fastmcp >/dev/null 2>&1 || true
   fi
-  
+
   # Запуск MCP сервера
   export PYTHONPATH="$ROOT:$PYTHONPATH"
   nohup python3 -m src.agents.bridge.victoria_mcp_server > /tmp/victoria_mcp.log 2>&1 &

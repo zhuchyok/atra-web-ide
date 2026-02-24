@@ -38,11 +38,13 @@
 ## 🔧 Переменные окружения
 
 ### Обязательные для работы:
+
 - `ATRA_ENV` - окружение (dev/prod)
 - `TELEGRAM_TOKEN` / `TELEGRAM_TOKEN_DEV` - токены бота
 - `TELEGRAM_CHAT_IDS` - ID чатов для уведомлений
 
 ### API ключи (опциональные):
+
 - `CRYPTOPANIC_API_KEY` - для новостей CryptoPanic
 - `TRADINGVIEW_API_KEY` - для TradingView
 - `NEWSDATA_API_KEY` - для NewsData
@@ -52,29 +54,34 @@
 - `ARBISCAN_API_KEY` - для Arbitrum Explorer
 
 ### Системные настройки:
+
 - `DATABASE` - путь к базе данных
 - `AUTO_FETCH_COINS` - автоматический подбор монет
 - `MIN_DIFF_PERCENT` - минимальная разница в процентах
 
 ### Настройки производительности:
+
 - `DYNAMIC_CALC_INTERVAL` - интервал пересчета
 - `CYCLE_ALERT_SEC` - интервал цикла алертов
 - `API_ALERT_MS` - время ответа API
 - `ALERT_COOLDOWN_MIN` - кулдаун алертов
 
 ### Настройки хранения данных:
+
 - `RETENTION_QUOTES_DAYS` - хранение котировок
 - `RETENTION_SIGNALS_DAYS` - хранение сигналов
 - `RETENTION_SIGNALS_LOG_DAYS` - хранение логов
 - `RETENTION_APP_CACHE_DAYS` - хранение кеша
 
 ### Настройки AI/ML:
+
 - `ML_SCORING_ENABLED` - включить ML скоринг
 - `ML_MODEL_RETRAIN_HOURS` - интервал переобучения
 - `ML_PREDICTION_THRESHOLD` - порог предсказания
 - `ML_QUALITY_BOOST` - усиление качества
 
 ### Настройки Multi-Timeframe:
+
 - `MTF_ENABLED` - включить MTF анализ
 - `MTF_WEIGHT_1H_BULL/BEAR/NEUTRAL` - веса для разных рынков
 - `MTF_WEIGHT_4H_BULL/BEAR/NEUTRAL` - веса для 4h
@@ -83,6 +90,7 @@
 ## 🚀 Использование
 
 ### Быстрый старт:
+
 ```bash
 # Автоматическая настройка
 ./setup_env.sh
@@ -93,11 +101,13 @@ cp env.prod .env   # для продакшена
 ```
 
 ### Редактирование:
+
 ```bash
 nano .env
 ```
 
 ### Запуск:
+
 ```bash
 python main.py
 ```

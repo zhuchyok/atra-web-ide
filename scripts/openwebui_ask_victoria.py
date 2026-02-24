@@ -23,8 +23,8 @@ except ImportError:
     print("Victoria is temporarily unavailable; try again later. (httpx not installed)", file=sys.stderr)
     sys.exit(1)
 
-# Единый default: в Docker — victoria-agent:8000; с хоста задать VICTORIA_URL=http://localhost:8010
-DEFAULT_URL = os.getenv("VICTORIA_URL") or "http://victoria-agent:8000"
+# Единый default: в Docker — localhost:8081 (Rust Gateway); с хоста задать VICTORIA_URL
+DEFAULT_URL = os.getenv("VICTORIA_URL") or "http://localhost:8081/v1/chat/completions"
 TIMEOUT = int(os.getenv("ASK_VICTORIA_TIMEOUT", "600"))
 UNAVAILABLE_MSG = "Victoria is temporarily unavailable; try again later."
 
@@ -39,57 +39,21 @@ def ask_victoria(
     base_url: str = DEFAULT_URL,
 ) -> str:
     """
-    Отправить задачу в Victoria /run и вернуть текстовый результат.
-    При недоступности Victoria возвращает понятное сообщение для пользователя.
+    Отправить задачу в Rust Gateway и вернуть текстовый результат.
     """
-    url = f"{base_url.rstrip('/')}/run"
     payload = {
-        "goal": goal,
-        "project_context": project_context,
-        "use_enhanced": use_enhanced,
+        "model": "victoria-wisdom-30b:latest",
+        "messages": [{"role": "user", "content": goal}],
+        "use_rag": True,
+        "stream": false
     }
-    if user_key:
-        payload["session_id"] = user_key
-    elif session_id:
-        payload["session_id"] = session_id
 
     try:
         with httpx.Client(timeout=timeout) as client:
-            r = client.post(url, json=payload)
+            r = client.post(base_url, json=payload)
             r.raise_for_status()
             data = r.json()
-    except httpx.ConnectError:
-        return UNAVAILABLE_MSG
-    except httpx.TimeoutException:
-        return "Victoria took too long to respond; try again or simplify the request."
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 503:
-            return UNAVAILABLE_MSG
-        return f"Victoria returned an error (HTTP {e.response.status_code}). Try again later."
-    except Exception as e:
-        return f"{UNAVAILABLE_MSG} ({type(e).__name__})"
-
-    status = data.get("status", "")
-    output = data.get("output") or data.get("result") or ""
-    if isinstance(output, dict):
-        output = output.get("result", str(output))
-    if not isinstance(output, str):
-        output = str(output)
-
-    if status != "success" and not output:
-        return data.get("error") or UNAVAILABLE_MSG
-
-    # Уточняющие вопросы — отдаём как читаемый текст
-    clarification = data.get("clarification_questions") or data.get("knowledge", {}).get("clarification_questions")
-    if clarification:
-        if isinstance(clarification, list):
-            lines = [f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q) for q in clarification]
-            clarification_text = "\n".join(lines)
-        else:
-            clarification_text = str(clarification)
-        return clarification_text + ("\n\n" + output if output else "")
-
-    return output
+            return data["choices"][0]["message"]["content"]
 
 
 def main():

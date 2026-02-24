@@ -35,7 +35,7 @@ echo "   Используем контейнер: $ORCH_CONTAINER"
 # Функция запуска одного цикла
 run_orchestrator_cycle() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] Запуск Enhanced Orchestrator..."
-    
+
     # knowledge_os_api и victoria-agent в atra-network видят только knowledge_redis (не atra-redis)
     if [ "$ORCH_CONTAINER" = "knowledge_os_api" ] || [ "$ORCH_CONTAINER" = "victoria-agent" ]; then
         REDIS_CONTAINER="knowledge_redis"
@@ -49,7 +49,7 @@ run_orchestrator_cycle() {
     else
         REDIS_URL="redis://${REDIS_CONTAINER}:6379"
     fi
-    
+
     if [ "$ORCH_CONTAINER" = "victoria-agent" ]; then
         docker exec -e DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os \
             -e REDIS_URL="$REDIS_URL" \
@@ -61,15 +61,15 @@ run_orchestrator_cycle() {
             knowledge_os_api \
             python3 /app/enhanced_orchestrator.py 2>&1 | tee -a /tmp/enhanced_orchestrator.log
     fi
-    
+
     local exit_code=${PIPESTATUS[0]}
-    
+
     if [ $exit_code -eq 0 ]; then
         echo "[$(date +'%Y-%m-%d %H:%M:%S')] ✅ Orchestrator завершен успешно"
     else
         echo "[$(date +'%Y-%m-%d %H:%M:%S')] ⚠️ Orchestrator завершен с кодом $exit_code"
     fi
-    
+
     return $exit_code
 }
 
@@ -112,7 +112,7 @@ echo ""
 
 while true; do
     run_orchestrator_cycle
-    
+
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] Ожидание 5 минут до следующего запуска..."
     sleep 300  # 5 минут
 done

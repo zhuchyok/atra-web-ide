@@ -17,7 +17,7 @@ check_service() {
     local name="$1"
     local url="$2"
     local timeout="${3:-3}"
-    
+
     if curl -s --connect-timeout $timeout "$url" > /dev/null 2>&1; then
         echo -e "${GREEN}✅${NC} $name: $url"
         return 0

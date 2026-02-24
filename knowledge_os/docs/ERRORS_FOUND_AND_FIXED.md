@@ -10,17 +10,21 @@
 ### **ОШИБКА #1: MACD не добавляется в DataFrame** ✅ ИСПРАВЛЕНО
 
 **Проблема:**
+
 - В `signal_live.py` функция `add_technical_indicators()` была исправлена
 - Но есть ДРУГАЯ функция `add_technical_indicators()` в `signal_utils.py`
 - Если используется `signal_utils.add_technical_indicators()`, MACD не добавляется!
 
 **Из логов:**
+
 ```
 🔍 DataFrame для WIFUSDT содержит колонки: ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'rsi', 'volume_ratio', 'atr', 'volatility', 'adx', 'trend_strength', 'bb_upper', 'bb_lower', 'bb_mavg', 'ema_fast', 'ema_slow']
 ```
+
 **MACD отсутствует!**
 
 **Исправление:**
+
 1. Добавлен MACD в `signal_utils.py` → `add_technical_indicators()`
 2. Теперь MACD будет добавляться в обеих функциях
 
@@ -29,10 +33,12 @@
 ### **ОШИБКА #2: Детальное логирование не применилось** ✅ ИСПРАВЛЕНО
 
 **Проблема:**
+
 - В `calculate_direction_confidence()` детальное логирование не было применено
 - Замена строки не сработала из-за различий в коде
 
 **Исправление:**
+
 - Добавлено детальное логирование отсутствующих проверок
 - Теперь будет видно, какие именно проверки не проходят
 
@@ -41,16 +47,19 @@
 ### **ОШИБКА #3: Telegram Conflict** ⚠️ ТРЕБУЕТ ВНИМАНИЯ
 
 **Проблема:**
+
 ```
-telegram.error.Conflict: Conflict: terminated by other getUpdates request; 
+telegram.error.Conflict: Conflict: terminated by other getUpdates request;
 make sure that only one bot instance is running
 ```
 
 **Причина:**
+
 - Запущено несколько экземпляров бота одновременно
 - Используется один и тот же Telegram токен
 
 **Решение:**
+
 - Остановлены все процессы бота через `kill_all.sh`
 - Нужно убедиться, что только один экземпляр запущен
 
@@ -59,15 +68,18 @@ make sure that only one bot instance is running
 ### **ОШИБКА #4: Circuit Breaker открыт** ⚠️ МОНИТОРИНГ
 
 **Проблема:**
+
 ```
 Circuit breaker OPEN: 13 failures
 ```
 
 **Причина:**
+
 - Множественные ошибки при запросах к API
 - Возможно, проблема с сетью или API биржи
 
 **Решение:**
+
 - Мониторить логи на наличие ошибок API
 - Проверить стабильность подключения
 
@@ -76,11 +88,13 @@ Circuit breaker OPEN: 13 failures
 ## 📊 ТЕКУЩАЯ СИТУАЦИЯ
 
 ### **LONG сигналы:**
+
 - ❌ **0 сигналов сгенерировано**
 - ❌ **DIRECTION CHECK: только 1/4 подтверждений** (MACD отсутствует)
 - ⏳ **Ожидается:** после исправления MACD → 3-4/4 подтверждений
 
 ### **SHORT сигналы:**
+
 - ❌ **0 сигналов сгенерировано**
 - ❌ **Блокируются BTC фильтром** (BTC в бычьем тренде - правильно)
 
@@ -112,4 +126,3 @@ Circuit breaker OPEN: 13 failures
 3. 📊 Мониторить логи на наличие MACD в колонках
 4. 🔍 Проверить, что DIRECTION CHECK показывает 3-4/4 подтверждений
 5. 📈 Отслеживать генерацию сигналов
-

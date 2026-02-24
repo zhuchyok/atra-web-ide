@@ -47,4 +47,3 @@ RUN python -m pip install --upgrade pip && \
 # По умолчанию контейнер перейдёт в shell. Тесты запускаются через
 #   docker run --rm -it atratest bash ./scripts/run_openssl_smoke_tests.sh
 ENTRYPOINT ["/bin/bash"]
-

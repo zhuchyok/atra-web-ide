@@ -83,15 +83,15 @@ MODELS = [
 def install_model(model_config):
     """Устанавливает одну модель"""
     mlx_path = os.path.expanduser(model_config['mlx_path'])
-    
+
     if os.path.exists(mlx_path) and os.listdir(mlx_path):
         print(f"✅ {model_config['name']} уже установлена")
         return True
-    
+
     print(f"\n🔄 Установка: {model_config['name']}")
     print(f"   HuggingFace: {model_config['hf_id']}")
     print(f"   Размер: ~{model_config['size_gb']}GB")
-    
+
     cmd = [
         sys.executable, "-m", "mlx_lm.convert",
         "--hf-path", model_config['hf_id'],
@@ -99,7 +99,7 @@ def install_model(model_config):
         "-q",
         "--mlx-path", mlx_path
     ]
-    
+
     try:
         subprocess.run(cmd, check=True)
         print(f"✅ {model_config['name']} установлена успешно")
@@ -122,4 +122,3 @@ PYTHON_SCRIPT
 echo ""
 echo "✅ Модели установлены!"
 echo "📁 Расположение: ~/.mlx_models"
-

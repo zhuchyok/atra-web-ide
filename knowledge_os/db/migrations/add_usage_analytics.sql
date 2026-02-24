@@ -43,4 +43,3 @@ CREATE INDEX IF NOT EXISTS idx_model_analytics_created_at ON model_analytics(cre
 COMMENT ON TABLE user_analytics IS 'Аналитика использования по пользователям';
 COMMENT ON TABLE expert_analytics IS 'Аналитика использования по экспертам';
 COMMENT ON TABLE model_analytics IS 'Аналитика использования по моделям';
-

@@ -2,27 +2,28 @@
 Модуль команд Telegram-бота для управления торговыми режимами и просмотра статистики.
 """
 
-import logging
 import asyncio
 import csv
+import logging
 import os
 from datetime import datetime, timedelta
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-
-from src.shared.utils.datetime_utils import get_utc_now
-from src.database.db import Database
 from src.core.state import signals_log_path
+from src.database.db import Database
+from src.shared.utils.datetime_utils import get_utc_now
 from src.telegram.handlers import start_accept_button_countdown
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
 
 # Импорты из наших модулей
 try:
     from src.telegram.utils import calculate_user_leverage
 except ImportError:
+
     def calculate_user_leverage(*args, **kwargs):
         """Фолбэк для расчета плеча"""
         return 1.0
+
 
 # Инициализация базы данных
 db = Database()
@@ -39,7 +40,7 @@ async def set_trade_mode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
 
         mode = context.args[0].lower()
-        if mode not in ['spot', 'futures']:
+        if mode not in ["spot", "futures"]:
             await update.message.reply_text("Режим должен быть 'spot' или 'futures'")
             return
 
@@ -51,19 +52,21 @@ async def set_trade_mode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE)
             user_data = {}
 
         # Обновляем режим торговли
-        user_data['trade_mode'] = mode
+        user_data["trade_mode"] = mode
 
         # Обновляем плечо в зависимости от режима
-        if mode == 'spot':
-            user_data['leverage'] = 1
-        elif mode == 'futures':
+        if mode == "spot":
+            user_data["leverage"] = 1
+        elif mode == "futures":
             # Используем расчетное плечо если доступно
-            if all(key in user_data for key in ['deposit', 'filter_mode']):
-                user_data['leverage'] = calculate_user_leverage(
-                    user_data['deposit'], mode, user_data['filter_mode']
+            if all(key in user_data for key in ["deposit", "filter_mode"]):
+                user_data["leverage"] = calculate_user_leverage(
+                    user_data["deposit"], mode, user_data["filter_mode"]
                 )
             else:
-                user_data['leverage'] = user_data.get('leverage', 10)  # По умолчанию 10x для futures
+                user_data["leverage"] = user_data.get(
+                    "leverage", 10
+                )  # По умолчанию 10x для futures
 
         # Сохраняем в базу данных
         db.save_user_data(str(user_id), user_data)
@@ -90,8 +93,8 @@ async def set_trade_mode_spot_cmd(update: Update, context: ContextTypes.DEFAULT_
     try:
         user_data = context.user_data
 
-        user_data['trade_mode'] = 'spot'
-        user_data['leverage'] = 1
+        user_data["trade_mode"] = "spot"
+        user_data["leverage"] = 1
 
         await update.message.reply_text("✅ Режим торговли установлен: spot")
 
@@ -105,12 +108,12 @@ async def set_trade_mode_futures_cmd(update: Update, context: ContextTypes.DEFAU
     try:
         user_data = context.user_data
 
-        user_data['trade_mode'] = 'futures'
+        user_data["trade_mode"] = "futures"
 
         # Пересчитываем плечо
-        if all(key in user_data for key in ['deposit', 'filter_mode']):
-            user_data['leverage'] = calculate_user_leverage(
-                user_data['deposit'], 'futures', user_data['filter_mode']
+        if all(key in user_data for key in ["deposit", "filter_mode"]):
+            user_data["leverage"] = calculate_user_leverage(
+                user_data["deposit"], "futures", user_data["filter_mode"]
             )
 
         await update.message.reply_text("✅ Режим торговли установлен: futures")
@@ -128,18 +131,18 @@ async def set_filter_mode_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE
             return
 
         mode = context.args[0].lower()
-        if mode not in ['soft', 'strict']:
+        if mode not in ["soft", "strict"]:
             await update.message.reply_text("Режим должен быть 'soft' или 'strict'")
             return
 
         user_data = context.user_data
 
-        user_data['filter_mode'] = mode
+        user_data["filter_mode"] = mode
 
         # Пересчитываем плечо
-        if all(key in user_data for key in ['deposit', 'trade_mode']):
-            user_data['leverage'] = calculate_user_leverage(
-                user_data['deposit'], user_data['trade_mode'], mode
+        if all(key in user_data for key in ["deposit", "trade_mode"]):
+            user_data["leverage"] = calculate_user_leverage(
+                user_data["deposit"], user_data["trade_mode"], mode
             )
 
         await update.message.reply_text(f"✅ Режим фильтров установлен: {mode}")
@@ -153,12 +156,12 @@ async def set_filter_strict_cmd(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         user_data = context.user_data
 
-        user_data['filter_mode'] = 'strict'
+        user_data["filter_mode"] = "strict"
 
         # Пересчитываем плечо
-        if all(key in user_data for key in ['deposit', 'trade_mode']):
-            user_data['leverage'] = calculate_user_leverage(
-                user_data['deposit'], user_data['trade_mode'], 'strict'
+        if all(key in user_data for key in ["deposit", "trade_mode"]):
+            user_data["leverage"] = calculate_user_leverage(
+                user_data["deposit"], user_data["trade_mode"], "strict"
             )
 
         await update.message.reply_text("✅ Режим фильтров установлен: strict")
@@ -173,12 +176,12 @@ async def set_filter_soft_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         user_data = context.user_data
 
-        user_data['filter_mode'] = 'soft'
+        user_data["filter_mode"] = "soft"
 
         # Пересчитываем плечо
-        if all(key in user_data for key in ['deposit', 'trade_mode']):
-            user_data['leverage'] = calculate_user_leverage(
-                user_data['deposit'], user_data['trade_mode'], 'soft'
+        if all(key in user_data for key in ["deposit", "trade_mode"]):
+            user_data["leverage"] = calculate_user_leverage(
+                user_data["deposit"], user_data["trade_mode"], "soft"
             )
 
         await update.message.reply_text("✅ Режим фильтров установлен: soft")
@@ -194,11 +197,11 @@ async def test_signal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data = context.user_data
 
         # Тестовые параметры
-        symbol = 'BTCUSDT'
-        side = 'long'
+        symbol = "BTCUSDT"
+        side = "long"
         entry_price = 50000.0
-        risk_pct = float(user_data.get('risk_pct', 2.0) or 2.0)
-        leverage = float(user_data.get('leverage', 1) or 1)
+        risk_pct = float(user_data.get("risk_pct", 2.0) or 2.0)
+        leverage = float(user_data.get("leverage", 1) or 1)
 
         # Сообщение
         signal_text = (
@@ -211,29 +214,29 @@ async def test_signal_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Callback data в рабочем формате: accept|symbol|time|price|side|risk|leverage
-        short_time = get_utc_now().strftime('%m%d%H%M')
-        cb = (
-            f"accept|{symbol}|{short_time}|{entry_price:.2f}|"
-            f"{side}|{risk_pct:.1f}|{leverage:.1f}"
-        )
+        short_time = get_utc_now().strftime("%m%d%H%M")
+        cb = f"accept|{symbol}|{short_time}|{entry_price:.2f}|{side}|{risk_pct:.1f}|{leverage:.1f}"
 
         # Стартовая метка таймера на кнопке (1 час)
         initial_label = "Принять (60:00)"
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(initial_label, callback_data=cb)]])
 
         # Отправляем сообщение
-        msg = await update.message.reply_text(signal_text, parse_mode='HTML', reply_markup=keyboard)
+        msg = await update.message.reply_text(signal_text, parse_mode="HTML", reply_markup=keyboard)
 
         # Фиксируем активный сигнал с TTL в БД
         chat_id = update.effective_chat.id
         try:
             expiry_iso = (get_utc_now() + timedelta(hours=1.0)).isoformat()
-            entry_time_iso = get_utc_now().strftime('%Y-%m-%dT%H:%M')
+            entry_time_iso = get_utc_now().strftime("%Y-%m-%dT%H:%M")
             signal_key = f"{symbol}|{short_time}|{side}"
             db.add_active_signal_with_expiry(
-                signal_key, 'active', expiry_iso,
-                entry_time=entry_time_iso, chat_id=chat_id,
-                message_id=msg.message_id
+                signal_key,
+                "active",
+                expiry_iso,
+                entry_time=entry_time_iso,
+                chat_id=chat_id,
+                message_id=msg.message_id,
             )
         except Exception:
             expiry_iso = (get_utc_now() + timedelta(hours=1.0)).isoformat()
@@ -267,7 +270,7 @@ async def btc_filter_cmd(update: Update, *_):
    💡 Фильтр проверяет направление тренда BTC перед отправкой сигналов.
    """
 
-        await update.message.reply_text(status_text, parse_mode='HTML')
+        await update.message.reply_text(status_text, parse_mode="HTML")
 
     except Exception as e:
         logging.error("Ошибка в btc_filter_cmd: %s", e)
@@ -329,7 +332,7 @@ async def signal_stats_cmd(update: Update, _context: ContextTypes.DEFAULT_TYPE):
         # 2) Фолбэк на CSV
         if (total is None or last_time is None) and os.path.exists(signals_log_path):
             try:
-                with open(signals_log_path, 'r', encoding='utf-8') as f:
+                with open(signals_log_path, encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     rows = list(reader)
                 if total is None:
@@ -338,7 +341,7 @@ async def signal_stats_cmd(update: Update, _context: ContextTypes.DEFAULT_TYPE):
                     accepted = len(rows)
                 if declined is None:
                     declined = sum(
-                        1 for r in rows if (r.get('result') or '').upper() in ('SL', 'LOSS')
+                        1 for r in rows if (r.get("result") or "").upper() in ("SL", "LOSS")
                     )
                 if last_time is None and rows:
                     # Берём время из последней по entry_time записи
@@ -347,17 +350,18 @@ async def signal_stats_cmd(update: Update, _context: ContextTypes.DEFAULT_TYPE):
                             return datetime.fromisoformat(s)
                         except Exception:
                             return None
-                    rows_valid = [r for r in rows if r.get('entry_time')]
+
+                    rows_valid = [r for r in rows if r.get("entry_time")]
                     if rows_valid:
                         rows_valid.sort(
-                            key=lambda r: _parse_dt(str(r.get('entry_time')) or '') or datetime.min
+                            key=lambda r: _parse_dt(str(r.get("entry_time")) or "") or datetime.min
                         )
-                        last_time = rows_valid[-1].get('entry_time')
+                        last_time = rows_valid[-1].get("entry_time")
             except Exception:
                 pass
 
         def fmt(v):
-            return str(v) if v is not None else 'N/A'
+            return str(v) if v is not None else "N/A"
 
         stats_text = (
             "📊 <b>Статистика сигналов</b>\n\n"
@@ -367,8 +371,7 @@ async def signal_stats_cmd(update: Update, _context: ContextTypes.DEFAULT_TYPE):
             f"🔸 Время последнего: {fmt(last_time)}\n"
         )
 
-        await update.message.reply_text(stats_text, parse_mode='HTML')
+        await update.message.reply_text(stats_text, parse_mode="HTML")
     except Exception as e:
         logging.error("Ошибка в signal_stats_cmd: %s", e)
         await update.message.reply_text("❌ Ошибка при получении статистики")
-

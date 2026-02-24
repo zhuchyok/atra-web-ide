@@ -41,4 +41,3 @@ CREATE INDEX IF NOT EXISTS idx_adaptive_logs_cycle_type ON adaptive_learning_log
 -- Комментарии
 COMMENT ON TABLE feedback_data IS 'Feedback от пользователей и системы для адаптивного обучения';
 COMMENT ON TABLE adaptive_learning_logs IS 'Логи циклов адаптивного обучения';
-

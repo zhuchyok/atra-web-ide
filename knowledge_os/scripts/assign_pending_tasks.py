@@ -8,12 +8,14 @@
 
 Требуется: DATABASE_URL (или по умолчанию postgresql://admin:secret@localhost:5432/knowledge_os).
 """
+
 import asyncio
 import os
 import sys
 
 # app в пути для импорта knowledge_os.app
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 
 async def main():
     from app.db_pool import get_pool
@@ -27,7 +29,7 @@ async def main():
                 "SELECT COUNT(*) FROM tasks WHERE status = 'pending'"
             )
             unassigned = await conn.fetchval(
-                """SELECT COUNT(*) FROM tasks 
+                """SELECT COUNT(*) FROM tasks
                    WHERE assignee_expert_id IS NULL AND status = 'pending'"""
             )
             assigned_pending = (total_pending or 0) - (unassigned or 0)
@@ -61,6 +63,7 @@ async def main():
                     meta = task.get("metadata")
                     if isinstance(meta, str):
                         import json
+
                         meta = json.loads(meta) if meta else {}
                     elif meta is None:
                         meta = {}
@@ -75,6 +78,7 @@ async def main():
     finally:
         await pool.close()
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main()))

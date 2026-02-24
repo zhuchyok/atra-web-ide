@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # pylint: disable=too-many-lines
 """
 🤖 СКРИПТ ОПТИМИЗАЦИИ ПАРАМЕТРОВ TP/SL ДЛЯ КАЖДОЙ МОНЕТЫ С ИСПОЛЬЗОВАНИЕМ ИИ
@@ -9,13 +8,13 @@
 """
 
 import json
+import multiprocessing as mp
 import os
 import sys
 import warnings
-from datetime import datetime
-from typing import Dict, List, Any, Optional
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-import multiprocessing as mp
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -23,9 +22,11 @@ import pandas as pd
 # Прогресс-бар
 try:
     from tqdm import tqdm  # pylint: disable=unused-import
+
     TQDM_AVAILABLE = True
 except ImportError:
     TQDM_AVAILABLE = False
+
     # Заглушка для tqdm, если не установлен
     def tqdm(iterable=None, **kwargs):  # pylint: disable=unused-argument
         """
@@ -42,30 +43,32 @@ except ImportError:
             return iterable
         return iterable
 
+
 warnings.filterwarnings("ignore")
 
 # ВРЕМЕННО отключаем дополнительные фильтры для оптимизации
 # ВАЖНО: устанавливаем ДО импорта config, чтобы фильтры не загрузились
-os.environ['USE_VP_FILTER'] = 'false'
-os.environ['USE_VWAP_FILTER'] = 'false'
-os.environ['USE_ORDER_FLOW_FILTER'] = 'false'
-os.environ['USE_MICROSTRUCTURE_FILTER'] = 'false'
-os.environ['USE_MOMENTUM_FILTER'] = 'false'
-os.environ['USE_TREND_STRENGTH_FILTER'] = 'false'
+os.environ["USE_VP_FILTER"] = "false"
+os.environ["USE_VWAP_FILTER"] = "false"
+os.environ["USE_ORDER_FLOW_FILTER"] = "false"
+os.environ["USE_MICROSTRUCTURE_FILTER"] = "false"
+os.environ["USE_MOMENTUM_FILTER"] = "false"
+os.environ["USE_TREND_STRENGTH_FILTER"] = "false"
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Импорты системы (после установки переменных окружения)
 # pylint: disable=wrong-import-position
+from src.ai.sl_optimizer import AIStopLossOptimizer
+from src.ai.tp_optimizer import AITakeProfitOptimizer
 from src.signals.core import soft_entry_signal
 from src.signals.indicators import add_technical_indicators
-from src.ai.tp_optimizer import AITakeProfitOptimizer
-from src.ai.sl_optimizer import AIStopLossOptimizer
 
 # Пробуем импортировать Rust ускорение
 try:
-    from src.infrastructure.performance.rust_accelerator import RustAccelerator, RUST_AVAILABLE
+    from src.infrastructure.performance.rust_accelerator import RUST_AVAILABLE, RustAccelerator
+
     if RUST_AVAILABLE:
         rust_accelerator = RustAccelerator()  # pylint: disable=invalid-name
         print("✅ Rust ускорение доступно")
@@ -89,14 +92,28 @@ RISK_PER_TRADE = 0.02  # 2% риск на сделку
 # Диапазоны для оптимизации TP/SL multipliers
 # Оптимизировано для ускорения: более крупный шаг
 TP_MULT_RANGE = np.arange(1.5, 4.5, 0.3)  # От 1.5x до 4.5x ATR (шаг 0.3 для ускорения)
-SL_MULT_RANGE = np.arange(0.8, 2.5, 0.25)   # От 0.8x до 2.5x ATR (шаг 0.25 для ускорения)
+SL_MULT_RANGE = np.arange(0.8, 2.5, 0.25)  # От 0.8x до 2.5x ATR (шаг 0.25 для ускорения)
 
 # Список стейблкоинов для исключения
 STABLECOIN_SYMBOLS = [
-    "USDTUSDT", "USDCUSDT", "BUSDUSDT", "FDUSDUSDT", "TUSDUSDT",
-    "USDDUSDT", "USDEUSDT", "DAIUSDT", "FRAXUSDT", "LUSDUSDT",
-    "USTCUSDT", "USTUSDT", "MIMUSDT", "ALGUSDT", "EURSUSDT", "USD1USDT"
+    "USDTUSDT",
+    "USDCUSDT",
+    "BUSDUSDT",
+    "FDUSDUSDT",
+    "TUSDUSDT",
+    "USDDUSDT",
+    "USDEUSDT",
+    "DAIUSDT",
+    "FRAXUSDT",
+    "LUSDUSDT",
+    "USTCUSDT",
+    "USTUSDT",
+    "MIMUSDT",
+    "ALGUSDT",
+    "EURSUSDT",
+    "USD1USDT",
 ]
+
 
 # Автоматически находим все доступные символы
 def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = True) -> List[str]:
@@ -115,14 +132,14 @@ def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = Tr
             pattern_paths = [
                 "ai_learning_data/trading_patterns.json",
                 "../ai_learning_data/trading_patterns.json",
-                "trading_patterns.json"
+                "trading_patterns.json",
             ]
 
             patterns_data = None
             for path in pattern_paths:
                 if os.path.exists(path):
                     try:
-                        with open(path, 'r', encoding='utf-8') as f:
+                        with open(path, encoding="utf-8") as f:
                             patterns_data = json.load(f)
                             print(f"✅ Загружены паттерны из {path}")
                             break
@@ -133,8 +150,8 @@ def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = Tr
             if patterns_data and isinstance(patterns_data, list):
                 pattern_symbols = set()
                 for pattern in patterns_data:
-                    symbol = pattern.get('symbol', '')
-                    if symbol and symbol.endswith('USDT') and symbol not in STABLECOIN_SYMBOLS:
+                    symbol = pattern.get("symbol", "")
+                    if symbol and symbol.endswith("USDT") and symbol not in STABLECOIN_SYMBOLS:
                         pattern_symbols.add(symbol)
 
                 symbols.extend(list(pattern_symbols))
@@ -149,11 +166,12 @@ def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = Tr
     if use_config_coins:
         try:
             # pylint: disable=import-outside-toplevel
-            from config import COINS, STABLECOIN_SYMBOLS as CONFIG_STABLES
+            from config import COINS
+            from config import STABLECOIN_SYMBOLS as CONFIG_STABLES
+
             if COINS and len(COINS) > 0:
                 config_symbols = [
-                    s for s in COINS
-                    if s not in CONFIG_STABLES and s.endswith('USDT')
+                    s for s in COINS if s not in CONFIG_STABLES and s.endswith("USDT")
                 ]
                 symbols.extend(config_symbols)
                 print(f"✅ Добавлено {len(config_symbols)} символов из config.py")
@@ -164,9 +182,14 @@ def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = Tr
     if os.path.exists(DATA_DIR):
         data_symbols = []
         for filename in os.listdir(DATA_DIR):
-            if filename.endswith('.csv'):
-                symbol = filename.replace('.csv', '').replace('_1h', '').replace('_4h', '').replace('_1d', '')
-                if symbol not in STABLECOIN_SYMBOLS and symbol.endswith('USDT'):
+            if filename.endswith(".csv"):
+                symbol = (
+                    filename.replace(".csv", "")
+                    .replace("_1h", "")
+                    .replace("_4h", "")
+                    .replace("_1d", "")
+                )
+                if symbol not in STABLECOIN_SYMBOLS and symbol.endswith("USDT"):
                     data_symbols.append(symbol)
 
         symbols.extend(data_symbols)
@@ -175,6 +198,7 @@ def get_available_symbols(use_patterns: bool = True, use_config_coins: bool = Tr
     # Убираем дубликаты и сортируем
     symbols = sorted(list(set(symbols)))
     return symbols
+
 
 # Получаем список символов автоматически (с приоритетом на паттерны)
 ALL_SYMBOLS = get_available_symbols(use_patterns=True, use_config_coins=True)
@@ -188,49 +212,49 @@ TOP_SYMBOLS = [
     "BNBUSDT",  # Binance Coin
     "ADAUSDT",  # Cardano
     "XRPUSDT",  # Ripple
-    "DOGEUSDT", # Dogecoin
-    "AVAXUSDT", # Avalanche
-    "LINKUSDT", # Chainlink
+    "DOGEUSDT",  # Dogecoin
+    "AVAXUSDT",  # Avalanche
+    "LINKUSDT",  # Chainlink
     "DOTUSDT",  # Polkadot
     # Дополнительные топ-монеты (для ~7 часов)
-    "MATICUSDT", # Polygon
-    "LTCUSDT",   # Litecoin
-    "UNIUSDT",   # Uniswap
+    "MATICUSDT",  # Polygon
+    "LTCUSDT",  # Litecoin
+    "UNIUSDT",  # Uniswap
     "ATOMUSDT",  # Cosmos
-    "ETCUSDT",   # Ethereum Classic
-    "XLMUSDT",   # Stellar
+    "ETCUSDT",  # Ethereum Classic
+    "XLMUSDT",  # Stellar
     "ALGOUSDT",  # Algorand
-    "FILUSDT",   # Filecoin
-    "TRXUSDT",   # Tron
-    "EOSUSDT",   # EOS
+    "FILUSDT",  # Filecoin
+    "TRXUSDT",  # Tron
+    "EOSUSDT",  # EOS
     "AAVEUSDT",  # Aave
-    "MKRUSDT",   # Maker
+    "MKRUSDT",  # Maker
     "COMPUSDT",  # Compound
-    "YFIUSDT",   # Yearn Finance
-    "SUSHIUSDT", # SushiSwap
-    "SNXUSDT",   # Synthetix
-    "CRVUSDT",   # Curve
-    "1INCHUSDT", # 1inch
-    "ENJUSDT",   # Enjin
+    "YFIUSDT",  # Yearn Finance
+    "SUSHIUSDT",  # SushiSwap
+    "SNXUSDT",  # Synthetix
+    "CRVUSDT",  # Curve
+    "1INCHUSDT",  # 1inch
+    "ENJUSDT",  # Enjin
     "MANAUSDT",  # Decentraland
     "SANDUSDT",  # The Sandbox
-    "AXSUSDT",   # Axie Infinity
+    "AXSUSDT",  # Axie Infinity
     "GALAUSDT",  # Gala
-    "CHZUSDT",   # Chiliz
+    "CHZUSDT",  # Chiliz
     "FLOWUSDT",  # Flow
-    "ICPUSDT",   # Internet Computer
+    "ICPUSDT",  # Internet Computer
     "NEARUSDT",  # NEAR Protocol
-    "APTUSDT",   # Aptos
-    "SUIUSDT",   # Sui
-    "ARBUSDT",   # Arbitrum
-    "OPUSDT",    # Optimism
-    "INJUSDT",   # Injective
-    "FETUSDT",   # Fetch.ai
-    "RENDERUSDT", # Render
-    "TAOUSDT",   # Bittensor
+    "APTUSDT",  # Aptos
+    "SUIUSDT",  # Sui
+    "ARBUSDT",  # Arbitrum
+    "OPUSDT",  # Optimism
+    "INJUSDT",  # Injective
+    "FETUSDT",  # Fetch.ai
+    "RENDERUSDT",  # Render
+    "TAOUSDT",  # Bittensor
     "HBARUSDT",  # Hedera
-    "THETAUSDT", # Theta Network
-    "ZECUSDT",   # Zcash
+    "THETAUSDT",  # Theta Network
+    "ZECUSDT",  # Zcash
 ]
 
 # ТЕСТОВЫЙ РЕЖИМ: только 1 символ для проверки
@@ -242,7 +266,9 @@ TOP_4_SYMBOLS = ["ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT"]
 
 if TEST_MODE:
     # Тестовый режим: только 1 символ
-    TEST_SYMBOLS = [TEST_SYMBOL] if TEST_SYMBOL in ALL_SYMBOLS else [ALL_SYMBOLS[0] if ALL_SYMBOLS else []]
+    TEST_SYMBOLS = (
+        [TEST_SYMBOL] if TEST_SYMBOL in ALL_SYMBOLS else [ALL_SYMBOLS[0] if ALL_SYMBOLS else []]
+    )
     print(f"🧪 ТЕСТОВЫЙ РЕЖИМ: оптимизация только для {TEST_SYMBOLS[0]}")
 else:
     # Оптимизация топ-4 монет (BTCUSDT уже оптимизирован)
@@ -256,6 +282,7 @@ else:
 # ============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================================
+
 
 def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -281,7 +308,7 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
                 return add_technical_indicators(df)
 
             # Проверяем, что все необходимые колонки есть и не пустые
-            required_cols = ['close', 'high', 'low', 'volume']
+            required_cols = ["close", "high", "low", "volume"]
             if not all(col in df.columns for col in required_cols):
                 return add_technical_indicators(df)
 
@@ -294,9 +321,9 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
             # Конвертируем в списки для Rust (сохраняем исходную длину, заменяем NaN на предыдущее значение)
             # ВАЖНО: Rust требует списки одинаковой длины без пропусков
             # Заполняем NaN forward fill, затем backward fill
-            df_clean = df[['close', 'high', 'low']].ffill().bfill()
+            df_clean = df[["close", "high", "low"]].ffill().bfill()
 
-            close_prices = [float(x) for x in df_clean['close'].tolist()]
+            close_prices = [float(x) for x in df_clean["close"].tolist()]
 
             # КРИТИЧЕСКАЯ ПРОВЕРКА: Rust требует минимум period+1 элементов для расчета индикаторов
             # Максимальный period = 50 (для EMA), поэтому нужно минимум 51 элемент
@@ -306,6 +333,7 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
 
             # Проверяем, что все значения валидны (не NaN, не Inf)
             import math  # pylint: disable=import-outside-toplevel
+
             if any(not (pd.notna(x) and math.isfinite(x)) for x in close_prices[:min_required]):
                 return add_technical_indicators(df)
 
@@ -315,7 +343,7 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
                 # RSI через Rust (10-50x быстрее)
                 rsi_values = local_rust_accelerator.calculate_rsi(close_prices, period=14)
                 if rsi_values and len(rsi_values) == len(df):
-                    df['rsi'] = pd.Series(rsi_values, index=df.index)
+                    df["rsi"] = pd.Series(rsi_values, index=df.index)
                 else:
                     raise ValueError("RSI length mismatch")
             except Exception:
@@ -325,13 +353,14 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
             # Используем Python версию для надежности
             try:
                 import ta.volatility as ta_vol  # pylint: disable=import-outside-toplevel
+
                 atr_indicator = ta_vol.AverageTrueRange(
-                    df_clean['high'], df_clean['low'], df_clean['close'], window=14
+                    df_clean["high"], df_clean["low"], df_clean["close"], window=14
                 )
                 atr_values = atr_indicator.average_true_range()
                 if atr_values is not None and len(atr_values) == len(df):
-                    df['atr'] = pd.Series(atr_values.values, index=df.index)
-                    df['volatility'] = (df['atr'] / df['close']) * 100
+                    df["atr"] = pd.Series(atr_values.values, index=df.index)
+                    df["volatility"] = (df["atr"] / df["close"]) * 100
                 else:
                     raise ValueError("ATR calculation failed")
             except Exception:
@@ -341,17 +370,21 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
                 # EMA через Rust
                 ema7_values = local_rust_accelerator.calculate_ema(close_prices, period=7)
                 ema25_values = local_rust_accelerator.calculate_ema(close_prices, period=25)
-                if (ema7_values and ema25_values and
-                        len(ema7_values) == len(df) and len(ema25_values) == len(df)):
-                    df['ema7'] = pd.Series(ema7_values, index=df.index)
-                    df['ema25'] = pd.Series(ema25_values, index=df.index)
-                    df['ema_fast'] = pd.Series(
+                if (
+                    ema7_values
+                    and ema25_values
+                    and len(ema7_values) == len(df)
+                    and len(ema25_values) == len(df)
+                ):
+                    df["ema7"] = pd.Series(ema7_values, index=df.index)
+                    df["ema25"] = pd.Series(ema25_values, index=df.index)
+                    df["ema_fast"] = pd.Series(
                         local_rust_accelerator.calculate_ema(close_prices, period=20),
-                        index=df.index
+                        index=df.index,
                     )
-                    df['ema_slow'] = pd.Series(
+                    df["ema_slow"] = pd.Series(
                         local_rust_accelerator.calculate_ema(close_prices, period=50),
-                        index=df.index
+                        index=df.index,
                     )
                 else:
                     raise ValueError("EMA length mismatch")
@@ -360,11 +393,13 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
 
             try:
                 # MACD через Rust
-                macd_line, macd_signal, macd_hist = local_rust_accelerator.calculate_macd(close_prices, 12, 26, 9)
+                macd_line, macd_signal, macd_hist = local_rust_accelerator.calculate_macd(
+                    close_prices, 12, 26, 9
+                )
                 if macd_line and len(macd_line) == len(df):
-                    df['macd'] = pd.Series(macd_line, index=df.index)
-                    df['macd_signal'] = pd.Series(macd_signal, index=df.index)
-                    df['macd_histogram'] = pd.Series(macd_hist, index=df.index)
+                    df["macd"] = pd.Series(macd_line, index=df.index)
+                    df["macd_signal"] = pd.Series(macd_signal, index=df.index)
+                    df["macd_histogram"] = pd.Series(macd_hist, index=df.index)
                 else:
                     raise ValueError("MACD length mismatch")
             except Exception:
@@ -376,25 +411,26 @@ def add_technical_indicators_with_rust(df: pd.DataFrame) -> pd.DataFrame:
                     close_prices, period=20, std_dev=2.0
                 )
                 if bb_upper and len(bb_upper) == len(df):
-                    df['bb_upper'] = pd.Series(bb_upper, index=df.index)
-                    df['bb_mavg'] = pd.Series(bb_middle, index=df.index)
-                    df['bb_lower'] = pd.Series(bb_lower, index=df.index)
+                    df["bb_upper"] = pd.Series(bb_upper, index=df.index)
+                    df["bb_mavg"] = pd.Series(bb_middle, index=df.index)
+                    df["bb_lower"] = pd.Series(bb_lower, index=df.index)
                 else:
                     raise ValueError("BB length mismatch")
             except Exception:
                 return add_technical_indicators(df)
 
             # Остальные индикаторы через pandas
-            df['volume_ratio'] = df['volume'] / df['volume'].rolling(window=20).mean()
+            df["volume_ratio"] = df["volume"] / df["volume"].rolling(window=20).mean()
 
             # ADX через ta
             import ta.trend as ta_trend  # pylint: disable=import-outside-toplevel
-            adx_indicator = ta_trend.ADXIndicator(df['high'], df['low'], df['close'], window=14)
-            df['adx'] = adx_indicator.adx()
-            df['trend_strength'] = df['adx']
+
+            adx_indicator = ta_trend.ADXIndicator(df["high"], df["low"], df["close"], window=14)
+            df["adx"] = adx_indicator.adx()
+            df["trend_strength"] = df["adx"]
 
             # Momentum
-            df['momentum'] = (df['close'] - df['close'].shift(5)) / df['close'].shift(5) * 100
+            df["momentum"] = (df["close"] - df["close"].shift(5)) / df["close"].shift(5) * 100
 
             return df
         except Exception:
@@ -434,40 +470,40 @@ def load_historical_data(symbol: str, limit_days: Optional[int] = None) -> Optio
         df = pd.read_csv(file_path)
 
         # Преобразуем timestamp в datetime (с обработкой разных форматов)
-        if 'timestamp' in df.columns:
+        if "timestamp" in df.columns:
             # Проверяем тип данных
-            if df['timestamp'].dtype in ['int64', 'float64', 'int32', 'float32']:
+            if df["timestamp"].dtype in ["int64", "float64", "int32", "float32"]:
                 # Если это число, пробуем как миллисекунды
                 try:
-                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', errors='coerce')
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", errors="coerce")
                 except Exception:
-                    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
             else:
                 # Если это строка, пробуем как обычную дату
-                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            df = df.set_index('timestamp')
-        elif 'open_time' in df.columns:
+                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+            df = df.set_index("timestamp")
+        elif "open_time" in df.columns:
             # Проверяем тип данных
-            if df['open_time'].dtype in ['int64', 'float64', 'int32', 'float32']:
+            if df["open_time"].dtype in ["int64", "float64", "int32", "float32"]:
                 # Если это число, пробуем как миллисекунды
                 try:
-                    df['open_time'] = pd.to_datetime(df['open_time'], unit='ms', errors='coerce')
+                    df["open_time"] = pd.to_datetime(df["open_time"], unit="ms", errors="coerce")
                 except Exception:
-                    df['open_time'] = pd.to_datetime(df['open_time'], errors='coerce')
+                    df["open_time"] = pd.to_datetime(df["open_time"], errors="coerce")
             else:
                 # Если это строка, пробуем как обычную дату
-                df['open_time'] = pd.to_datetime(df['open_time'], errors='coerce')
-            df = df.set_index('open_time')
+                df["open_time"] = pd.to_datetime(df["open_time"], errors="coerce")
+            df = df.set_index("open_time")
 
         # Убеждаемся, что есть нужные колонки
-        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        required_cols = ["open", "high", "low", "close", "volume"]
         if not all(col in df.columns for col in required_cols):
             print(f"⚠️ Отсутствуют необходимые колонки в {symbol}")
             return None
 
         # Преобразуем в float
         for col in required_cols:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # Удаляем строки с NaN
         df = df.dropna(subset=required_cols)
@@ -501,7 +537,7 @@ def run_backtest_with_params(
     use_ai: bool = False,
     tp_optimizer: Optional[AITakeProfitOptimizer] = None,
     sl_optimizer: Optional[AIStopLossOptimizer] = None,
-    symbol: str = "UNKNOWN"
+    symbol: str = "UNKNOWN",
 ) -> Dict[str, Any]:
     """Запускает бэктест с заданными параметрами TP/SL"""
 
@@ -525,19 +561,19 @@ def run_backtest_with_params(
     )
 
     for i in range(start_idx, len(df)):
-        current_price = df['close'].iloc[i]
+        current_price = df["close"].iloc[i]
         current_time = df.index[i]
 
         # Проверяем выход из позиции
         if position is not None:
-            entry_price = position['entry_price']
-            tp1 = position.get('tp1', position.get('tp'))
-            tp2 = position.get('tp2')
-            sl = position['sl']
-            side = position['side']
+            entry_price = position["entry_price"]
+            tp1 = position.get("tp1", position.get("tp"))
+            tp2 = position.get("tp2")
+            sl = position["sl"]
+            side = position["side"]
 
             # Проверяем условия выхода
-            if side == 'LONG':
+            if side == "LONG":
                 tp1_reached = current_price >= tp1
                 tp2_reached = tp2 and current_price >= tp2
                 sl_hit = current_price <= sl
@@ -549,19 +585,19 @@ def run_backtest_with_params(
             partial_close = False  # Инициализируем по умолчанию
             exit_price = None
 
-            if tp1_reached and not position.get('tp1_executed', False):
+            if tp1_reached and not position.get("tp1_executed", False):
                 # Частичный выход на TP1 (50%)
-                position['tp1_executed'] = True
+                position["tp1_executed"] = True
                 exit_price = tp1
                 partial_close = True
 
                 # Перемещаем SL в безубыток
-                if side == 'LONG':
+                if side == "LONG":
                     sl = entry_price * 1.003
                 else:
                     sl = entry_price * 0.997
-                position['sl'] = sl
-            elif tp2_reached and position.get('tp1_executed', False):
+                position["sl"] = sl
+            elif tp2_reached and position.get("tp1_executed", False):
                 # Полный выход на TP2
                 exit_price = tp2
                 partial_close = False
@@ -574,7 +610,7 @@ def run_backtest_with_params(
 
             if exit_price is not None:
                 # Рассчитываем прибыль
-                if side == 'LONG':
+                if side == "LONG":
                     profit_pct = ((exit_price - entry_price) / entry_price) * 100
                 else:
                     profit_pct = ((entry_price - exit_price) / entry_price) * 100
@@ -585,19 +621,21 @@ def run_backtest_with_params(
                 if partial_close:
                     profit = position_size * (profit_pct / 100) * 0.5
                 else:
-                    if position.get('tp1_executed', False):
+                    if position.get("tp1_executed", False):
                         profit = position_size * (profit_pct / 100) * 0.5
                     else:
                         profit = position_size * (profit_pct / 100)
 
                 balance += profit
-                trades.append({
-                    'entry_price': entry_price,
-                    'exit_price': exit_price,
-                    'side': side,
-                    'profit': profit,
-                    'profit_pct': profit_pct
-                })
+                trades.append(
+                    {
+                        "entry_price": entry_price,
+                        "exit_price": exit_price,
+                        "side": side,
+                        "profit": profit,
+                        "profit_pct": profit_pct,
+                    }
+                )
 
                 if not partial_close:
                     position = None
@@ -616,8 +654,11 @@ def run_backtest_with_params(
                             f"info={signal_info}"
                         )
                     # Рассчитываем TP/SL
-                    atr = (df['atr'].iloc[i] if 'atr' in df.columns and
-                           not pd.isna(df['atr'].iloc[i]) else current_price * 0.02)
+                    atr = (
+                        df["atr"].iloc[i]
+                        if "atr" in df.columns and not pd.isna(df["atr"].iloc[i])
+                        else current_price * 0.02
+                    )
 
                     if use_ai and tp_optimizer and sl_optimizer:
                         try:
@@ -631,21 +672,21 @@ def run_backtest_with_params(
                                 df=df,
                                 current_index=i,
                                 base_tp1=2.0,
-                                base_tp2=4.0
+                                base_tp2=4.0,
                             )
 
                             # ИИ-оптимизированный SL
                             sl_pct = sl_optimizer.calculate_ai_optimized_sl(
-                                symbol=symbol,
-                                side=side,
-                                df=df,
-                                current_index=i,
-                                base_sl_pct=2.0
+                                symbol=symbol, side=side, df=df, current_index=i, base_sl_pct=2.0
                             )
 
                             # Конвертируем проценты в multipliers (приблизительно)
-                            tp_mult_ai = (tp1_pct / 100.0) / (atr / current_price) if atr > 0 else tp_mult
-                            sl_mult_ai = (sl_pct / 100.0) / (atr / current_price) if atr > 0 else sl_mult
+                            tp_mult_ai = (
+                                (tp1_pct / 100.0) / (atr / current_price) if atr > 0 else tp_mult
+                            )
+                            sl_mult_ai = (
+                                (sl_pct / 100.0) / (atr / current_price) if atr > 0 else sl_mult
+                            )
 
                             # Используем среднее между ИИ и базовыми параметрами
                             tp_mult_used = (tp_mult_ai + tp_mult) / 2
@@ -659,7 +700,7 @@ def run_backtest_with_params(
                         sl_mult_used = sl_mult
 
                     # Рассчитываем цены TP/SL
-                    if signal == 'LONG':
+                    if signal == "LONG":
                         sl = current_price - (atr * sl_mult_used)
                         tp1 = current_price + (atr * tp_mult_used)
                         tp2 = current_price + (atr * tp_mult_used * 2)
@@ -669,13 +710,13 @@ def run_backtest_with_params(
                         tp2 = current_price - (atr * tp_mult_used * 2)
 
                     position = {
-                        'side': signal,
-                        'entry_price': current_price,
-                        'entry_time': current_time,
-                        'sl': sl,
-                        'tp1': tp1,
-                        'tp2': tp2,
-                        'tp1_executed': False,
+                        "side": signal,
+                        "entry_price": current_price,
+                        "entry_time": current_time,
+                        "sl": sl,
+                        "tp1": tp1,
+                        "tp2": tp2,
+                        "tp1_executed": False,
                     }
             except Exception:
                 continue
@@ -683,19 +724,19 @@ def run_backtest_with_params(
     # Рассчитываем метрики
     if len(trades) == 0:
         return {
-            'total_trades': 0,
-            'win_rate': 0,
-            'profit_factor': 0,
-            'total_return': 0,
-            'sharpe_ratio': 0,
-            'max_drawdown': 0,
+            "total_trades": 0,
+            "win_rate": 0,
+            "profit_factor": 0,
+            "total_return": 0,
+            "sharpe_ratio": 0,
+            "max_drawdown": 0,
         }
 
-    winning_trades = [t for t in trades if t['profit'] > 0]
-    losing_trades = [t for t in trades if t['profit'] <= 0]
+    winning_trades = [t for t in trades if t["profit"] > 0]
+    losing_trades = [t for t in trades if t["profit"] <= 0]
 
-    total_profit = sum(t['profit'] for t in winning_trades) if winning_trades else 0
-    total_loss = abs(sum(t['profit'] for t in losing_trades)) if losing_trades else 0
+    total_profit = sum(t["profit"] for t in winning_trades) if winning_trades else 0
+    total_loss = abs(sum(t["profit"] for t in losing_trades)) if losing_trades else 0
 
     win_rate = (len(winning_trades) / len(trades)) * 100 if trades else 0
     profit_factor = total_profit / total_loss if total_loss > 0 else 0
@@ -703,15 +744,17 @@ def run_backtest_with_params(
 
     # Sharpe Ratio (упрощенный)
     if len(trades) > 1:
-        returns = [t['profit_pct'] for t in trades]
-        sharpe_ratio = np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+        returns = [t["profit_pct"] for t in trades]
+        sharpe_ratio = (
+            np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0
+        )
     else:
         sharpe_ratio = 0
 
     # Max Drawdown
     equity_curve = [START_BALANCE]
     for trade in trades:
-        equity_curve.append(equity_curve[-1] + trade['profit'])
+        equity_curve.append(equity_curve[-1] + trade["profit"])
 
     max_drawdown = 0
     peak = START_BALANCE
@@ -723,26 +766,23 @@ def run_backtest_with_params(
             max_drawdown = drawdown
 
     return {
-        'total_trades': len(trades),
-        'signals_count': signals_count,  # Добавляем счетчик сигналов
-        'win_rate': win_rate,
-        'profit_factor': profit_factor,
-        'total_return': total_return,
-        'sharpe_ratio': sharpe_ratio,
-        'max_drawdown': max_drawdown,
-        'final_balance': balance,
+        "total_trades": len(trades),
+        "signals_count": signals_count,  # Добавляем счетчик сигналов
+        "win_rate": win_rate,
+        "profit_factor": profit_factor,
+        "total_return": total_return,
+        "sharpe_ratio": sharpe_ratio,
+        "max_drawdown": max_drawdown,
+        "final_balance": balance,
     }
 
 
-def optimize_symbol_params(
-    symbol: str,
-    use_ai: bool = True
-) -> Dict[str, Any]:
+def optimize_symbol_params(symbol: str, use_ai: bool = True) -> Dict[str, Any]:
     """Оптимизирует параметры TP/SL для символа"""
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"🤖 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ ДЛЯ {symbol}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     # Загружаем данные (годовые данные для полной оптимизации)
     df = load_historical_data(symbol, limit_days=None)  # Все данные (год)
@@ -791,7 +831,7 @@ def optimize_symbol_params(
                 use_ai=use_ai,
                 tp_optimizer=tp_optimizer,
                 sl_optimizer=sl_optimizer,
-                symbol=symbol
+                symbol=symbol,
             )
 
             # Логируем статистику для первых нескольких комбинаций
@@ -803,24 +843,21 @@ def optimize_symbol_params(
                 )
 
             # Рассчитываем score
-            if metrics['total_trades'] >= 5:
+            if metrics["total_trades"] >= 5:
                 score = (
-                    metrics['profit_factor'] * 0.4 +
-                    (metrics['win_rate'] / 100) * 0.3 +
-                    (metrics['sharpe_ratio'] / 10) * 0.2 +
-                    (metrics['total_return'] / 100) * 0.1
+                    metrics["profit_factor"] * 0.4
+                    + (metrics["win_rate"] / 100) * 0.3
+                    + (metrics["sharpe_ratio"] / 10) * 0.2
+                    + (metrics["total_return"] / 100) * 0.1
                 )
                 return {
-                    'tp_mult': float(tp_mult),
-
-                    'sl_mult': float(sl_mult),
-                    'score': score,
-                    'metrics': metrics
+                    "tp_mult": float(tp_mult),
+                    "sl_mult": float(sl_mult),
+                    "score": score,
+                    "metrics": metrics,
                 }
         except Exception as e:
-            print(
-                f"⚠️ Ошибка при TP_MULT={tp_mult:.2f}, SL_MULT={sl_mult:.2f}: {e}"
-            )
+            print(f"⚠️ Ошибка при TP_MULT={tp_mult:.2f}, SL_MULT={sl_mult:.2f}: {e}")
         return None
 
     # Многопоточная оптимизация комбинаций
@@ -841,10 +878,17 @@ def optimize_symbol_params(
             # leave=True - оставить прогресс-бар после завершения
             # dynamic_ncols=True - адаптировать ширину к терминалу
             pbar = tqdm(
-                total=len(combinations), desc=f"  [{symbol}]", unit="комб",
-                ncols=120, mininterval=0.5, disable=False, leave=True,
-                file=sys.stdout, dynamic_ncols=True, ascii=False,
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+                total=len(combinations),
+                desc=f"  [{symbol}]",
+                unit="комб",
+                ncols=120,
+                mininterval=0.5,
+                disable=False,
+                leave=True,
+                file=sys.stdout,
+                dynamic_ncols=True,
+                ascii=False,
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
             )
             completed_count = 0
             for future in as_completed(futures):
@@ -857,7 +901,7 @@ def optimize_symbol_params(
                     progress_pct = (completed_count / len(combinations)) * 100
                     bar_length = 40
                     filled = int(bar_length * completed_count / len(combinations))
-                    progress_bar = '█' * filled + '░' * (bar_length - filled)  # pylint: disable=invalid-name
+                    progress_bar = "█" * filled + "░" * (bar_length - filled)  # pylint: disable=invalid-name
                     progress_msg = (
                         f"[{symbol}] Прогресс: [{progress_bar}] "
                         f"{completed_count}/{len(combinations)} ({progress_pct:.1f}%)"
@@ -880,17 +924,17 @@ def optimize_symbol_params(
     for result in results_list:
         if result:
             valid_combinations += 1
-            if 'metrics' in result:
-                total_signals += result['metrics'].get('signals_count', 0)
-                total_trades_all += result['metrics'].get('total_trades', 0)
+            if "metrics" in result:
+                total_signals += result["metrics"].get("signals_count", 0)
+                total_trades_all += result["metrics"].get("total_trades", 0)
 
-            if result['score'] > best_score:
-                best_score = result['score']
+            if result["score"] > best_score:
+                best_score = result["score"]
                 best_params = {
-                    'tp_mult': result['tp_mult'],
-                    'sl_mult': result['sl_mult'],
+                    "tp_mult": result["tp_mult"],
+                    "sl_mult": result["sl_mult"],
                 }
-                best_metrics = result['metrics']
+                best_metrics = result["metrics"]
 
     # Выводим статистику
     print("\n📊 СТАТИСТИКА ОПТИМИЗАЦИИ:")
@@ -917,11 +961,11 @@ def optimize_symbol_params(
         print(f"     - Max Drawdown: {best_metrics['max_drawdown']:.2f}%")
 
         return {
-            'symbol': symbol,
-            'tp_mult': best_params['tp_mult'],
-            'sl_mult': best_params['sl_mult'],
-            'metrics': best_metrics,
-            'score': best_score,
+            "symbol": symbol,
+            "tp_mult": best_params["tp_mult"],
+            "sl_mult": best_params["sl_mult"],
+            "metrics": best_metrics,
+            "score": best_score,
         }
     else:
         print(f"⚠️ Не найдено оптимальных параметров для {symbol}")
@@ -936,7 +980,7 @@ def save_optimized_params(results: List[Dict[str, Any]]):
     for result in results:
         if result:
             # Преобразуем метрики в обычные Python типы (для JSON сериализации)
-            metrics = result.get('metrics', {})
+            metrics = result.get("metrics", {})
             if metrics:
                 # Конвертируем numpy типы в Python типы
                 clean_metrics = {}
@@ -944,7 +988,7 @@ def save_optimized_params(results: List[Dict[str, Any]]):
                     try:
                         if value is None:
                             clean_metrics[key] = None
-                        elif hasattr(value, 'item'):  # numpy scalar
+                        elif hasattr(value, "item"):  # numpy scalar
                             clean_metrics[key] = float(value.item())
                         elif isinstance(value, (np.integer, np.floating)):
                             clean_metrics[key] = float(value)
@@ -960,21 +1004,23 @@ def save_optimized_params(results: List[Dict[str, Any]]):
             else:
                 metrics = {}
 
-            optimized_params[result['symbol']] = {
-                'tp_mult': float(result['tp_mult']),
-                'sl_mult': float(result['sl_mult']),
-                'metrics': metrics,  # Сохраняем метрики
-                'score': float(result.get('score', 0)),  # Сохраняем score
+            optimized_params[result["symbol"]] = {
+                "tp_mult": float(result["tp_mult"]),
+                "sl_mult": float(result["sl_mult"]),
+                "metrics": metrics,  # Сохраняем метрики
+                "score": float(result.get("score", 0)),  # Сохраняем score
             }
 
             # Отладочный вывод
-            print(f"💾 Сохраняем для {result['symbol']}: metrics={bool(metrics)}, score={result.get('score', 0)}")
+            print(
+                f"💾 Сохраняем для {result['symbol']}: metrics={bool(metrics)}, score={result.get('score', 0)}"
+            )
 
     # Сохраняем в optimized_config.py
     output_file = "archive/experimental/optimized_config.py"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write("# Оптимизированные параметры стратегии\n")
         f.write("# Автоматически сгенерировано системой оптимизации с ИИ\n")
         f.write(f"# Дата: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
@@ -985,8 +1031,8 @@ def save_optimized_params(results: List[Dict[str, Any]]):
             f.write(f"        'tp_mult': {params['tp_mult']:.2f},\n")
             f.write(f"        'sl_mult': {params['sl_mult']:.2f},\n")
             # Всегда сохраняем метрики, если они есть
-            m = params.get('metrics', {})
-            score_val = params.get('score', 0)
+            m = params.get("metrics", {})
+            score_val = params.get("score", 0)
             if m or score_val:
                 f.write("        # Метрики:\n")
                 f.write(f"        # Score: {float(score_val):.4f}\n")
@@ -1010,20 +1056,20 @@ def save_optimized_params(results: List[Dict[str, Any]]):
         json_safe_params = {}
         for symbol, params in optimized_params.items():
             json_safe_params[symbol] = {
-                'tp_mult': float(params['tp_mult']),
-                'sl_mult': float(params['sl_mult']),
-                'score': float(params.get('score', 0)),
+                "tp_mult": float(params["tp_mult"]),
+                "sl_mult": float(params["sl_mult"]),
+                "score": float(params.get("score", 0)),
             }
             # Добавляем метрики, если они есть
-            if params.get('metrics'):
-                json_safe_params[symbol]['metrics'] = params['metrics']
+            if params.get("metrics"):
+                json_safe_params[symbol]["metrics"] = params["metrics"]
 
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(json_safe_params, f, indent=2, ensure_ascii=False, default=str)
         print(f"✅ JSON версия сохранена в {json_file}")
         print(f"   Сохранено символов: {len(json_safe_params)}")
         for symbol, params in json_safe_params.items():
-            has_metrics = bool(params.get('metrics'))
+            has_metrics = bool(params.get("metrics"))
             print(
                 f"   {symbol}: metrics={'✅' if has_metrics else '❌'}, "
                 f"score={params.get('score', 0):.4f}"
@@ -1031,16 +1077,14 @@ def save_optimized_params(results: List[Dict[str, Any]]):
     except Exception as e:
         print(f"⚠️ Ошибка сохранения JSON: {e}")
         import traceback  # pylint: disable=import-outside-toplevel
+
         traceback.print_exc()
         # Пробуем сохранить без метрик
         simple_params = {
-            symbol: {
-                'tp_mult': float(params['tp_mult']),
-                'sl_mult': float(params['sl_mult'])
-            }
+            symbol: {"tp_mult": float(params["tp_mult"]), "sl_mult": float(params["sl_mult"])}
             for symbol, params in optimized_params.items()
         }
-        with open(json_file, 'w', encoding='utf-8') as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(simple_params, f, indent=2, ensure_ascii=False)
         print(f"✅ JSON версия сохранена (без метрик) в {json_file}")
 
@@ -1048,6 +1092,7 @@ def save_optimized_params(results: List[Dict[str, Any]]):
 # ============================================================================
 # ГЛАВНАЯ ФУНКЦИЯ
 # ============================================================================
+
 
 def optimize_symbol_worker(args):
     """Worker функция для многопоточности"""
@@ -1062,7 +1107,7 @@ def optimize_symbol_worker(args):
 def main():
     """Главная функция"""
     print("🤖 ОПТИМИЗАЦИЯ ПАРАМЕТРОВ TP/SL С ИСПОЛЬЗОВАНИЕМ ИИ")
-    print("="*80)
+    print("=" * 80)
     print(f"📅 Дата запуска: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"📊 Найдено символов для оптимизации: {len(TEST_SYMBOLS)}")
     if len(TEST_SYMBOLS) <= 20:
@@ -1088,7 +1133,7 @@ def main():
         print("⚡ Rust ускорение: ВКЛЮЧЕНО (ThreadPoolExecutor)")
     else:
         print("⚡ Rust ускорение: ОТКЛЮЧЕНО (ProcessPoolExecutor для параллельности)")
-    print("="*80)
+    print("=" * 80)
 
     if len(TEST_SYMBOLS) == 0:
         print("❌ Не найдено символов для оптимизации!")
@@ -1113,10 +1158,17 @@ def main():
             print(f"\n📊 Оптимизация {len(TEST_SYMBOLS)} символов...")
             sys.stdout.flush()
             pbar = tqdm(
-                total=len(TEST_SYMBOLS), desc="📊 Символы", unit="симв",
-                ncols=120, mininterval=0.5, disable=False, leave=True,
-                file=sys.stdout, dynamic_ncols=True, ascii=False,
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+                total=len(TEST_SYMBOLS),
+                desc="📊 Символы",
+                unit="симв",
+                ncols=120,
+                mininterval=0.5,
+                disable=False,
+                leave=True,
+                file=sys.stdout,
+                dynamic_ncols=True,
+                ascii=False,
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
             )
             completed_symbols = 0
             for future in as_completed(future_to_symbol):
@@ -1129,7 +1181,7 @@ def main():
                         progress_pct = (completed_symbols / len(TEST_SYMBOLS)) * 100
                         bar_length = 40
                         filled = int(bar_length * completed_symbols / len(TEST_SYMBOLS))
-                        progress_bar = '█' * filled + '░' * (bar_length - filled)  # pylint: disable=invalid-name
+                        progress_bar = "█" * filled + "░" * (bar_length - filled)  # pylint: disable=invalid-name
                         progress_msg = (
                             f"✅ {symbol} завершен [{progress_bar}] "
                             f"{completed_symbols}/{len(TEST_SYMBOLS)} ({progress_pct:.1f}%)"
@@ -1168,9 +1220,9 @@ def main():
     if results:
         save_optimized_params(results)
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print("📊 ИТОГОВЫЕ РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
         for result in results:
             print(f"\n{result['symbol']}:")
             print(f"  TP_MULT: {result['tp_mult']:.2f}x")

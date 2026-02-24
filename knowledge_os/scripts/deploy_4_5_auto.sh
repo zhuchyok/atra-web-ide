@@ -242,4 +242,3 @@ echo "   # Auto-Translation (каждые 24 часа)"
 echo "   0 2 * * * cd /root/knowledge_os && python3 -c 'from app.translator import run_auto_translation_cycle; import asyncio; asyncio.run(run_auto_translation_cycle())'"
 echo ""
 echo "======================================================================"
-

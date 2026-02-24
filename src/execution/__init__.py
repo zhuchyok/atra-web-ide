@@ -9,9 +9,8 @@
 """
 
 __all__ = [
-    'OrderManager',
-    'ExchangeAdapter',
-    'PositionManager',
-    'AutoExecution',
+    "OrderManager",
+    "ExchangeAdapter",
+    "PositionManager",
+    "AutoExecution",
 ]
-

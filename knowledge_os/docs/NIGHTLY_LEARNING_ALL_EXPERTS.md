@@ -27,8 +27,8 @@
 SELECT id, name, role, department, system_prompt, last_learned_at
 FROM experts
 WHERE is_active = TRUE OR is_active IS NULL
-ORDER BY 
-    CASE 
+ORDER BY
+    CASE
         WHEN last_learned_at IS NULL THEN 0        -- Приоритет 0: никогда не обучались
         WHEN last_learned_at < NOW() - INTERVAL '24 hours' THEN 1  -- Приоритет 1: обучались > 24ч назад
         ELSE 2                                     -- Приоритет 2: обучались < 24ч назад (пропускаются)
@@ -189,4 +189,3 @@ tail -f /root/knowledge_os/logs/nightly_learner.log
 
 **Автор:** Виктория (Team Lead)  
 **Дата:** 2025-12-14
-

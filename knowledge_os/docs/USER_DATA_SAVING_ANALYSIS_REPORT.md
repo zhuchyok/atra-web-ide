@@ -3,11 +3,16 @@
 ## 🎯 **ТЕКУЩЕЕ СОСТОЯНИЕ:**
 
 ### **✅ Сохраняется:**
+
 ```json
-{"556251171": {"filter_mode": "soft", "news_filter_mode": "aggressive"}, "958930260": {"filter_mode": "soft", "news_filter_mode": "aggressive"}}
+{
+  "556251171": { "filter_mode": "soft", "news_filter_mode": "aggressive" },
+  "958930260": { "filter_mode": "soft", "news_filter_mode": "aggressive" }
+}
 ```
 
 ### **❌ НЕ сохраняется:**
+
 - `deposit` - депозит
 - `trade_mode` - режим торговли (spot/futures)
 
@@ -18,15 +23,18 @@
 ### **✅ РЕЖИМ ФИЛЬТРОВ - СОХРАНЯЕТСЯ:**
 
 #### **Команды:**
+
 - `/set_filter_mode balanced|soft` - основная команда
 - `/set_filter_balanced` - быстрая установка строгого режима
 - `/set_filter_soft` - быстрая установка мягкого режима
 
 #### **Кнопки:**
+
 - `filter_mode_balanced` - устанавливает `"filter_mode": "balanced"` + `"news_filter_mode": "conservative"`
 - `filter_mode_soft` - устанавливает `"filter_mode": "soft"` + `"news_filter_mode": "aggressive"`
 
 #### **Код сохранения:**
+
 ```python
 user_data["filter_mode"] = mode
 user_data["news_filter_mode"] = "conservative"  # для balanced
@@ -37,44 +45,53 @@ save_user_data(context)
 ### **✅ НОВОСТНОЙ РЕЖИМ - СОХРАНЯЕТСЯ:**
 
 #### **Автоматическая привязка:**
+
 - `balanced` → `"news_filter_mode": "conservative"`
 - `soft` → `"news_filter_mode": "aggressive"`
 
 #### **Результат:**
+
 - Оба пользователя имеют `"news_filter_mode": "aggressive"` (так как у них `"filter_mode": "soft"`)
 
 ### **❌ ДЕПОЗИТ - НЕ СОХРАНЯЕТСЯ:**
 
 #### **Команда:**
+
 - `/set_balance сумма` - должна сохранять `user_data["deposit"]`
 
 #### **Код сохранения:**
+
 ```python
 user_data["deposit"] = value
 save_user_data(context)
 ```
 
 #### **Проблема:**
+
 - Команда работает, но данные не сохраняются в файл
 
 ### **❌ РЕЖИМ ТОРГОВЛИ - НЕ СОХРАНЯЕТСЯ:**
 
 #### **Команды:**
+
 - `/set_trade_mode spot|futures` - основная команда
 - `/set_trade_mode_spot` - быстрая установка SPOT
 - `/set_trade_mode_futures` - быстрая установка FUTURES
 
 #### **Кнопки:**
+
 - `trade_mode_spot` - устанавливает `"trade_mode": "spot"`
 - `trade_mode_futures` - устанавливает `"trade_mode": "futures"`
 
 #### **Код сохранения:**
+
 ```python
 user_data["trade_mode"] = mode
 save_user_data(context)
 ```
 
 #### **Проблема:**
+
 - Команды и кнопки работают, но данные не сохраняются в файл
 
 ---
@@ -82,18 +99,22 @@ save_user_data(context)
 ## 🔍 **ВОЗМОЖНЫЕ ПРИЧИНЫ:**
 
 ### **1. 🔄 Проблема с функцией save_user_data():**
+
 - Функция может не работать корректно
 - Могут быть ошибки при записи в файл
 
 ### **2. 🔄 Проблема с правами доступа:**
+
 - Файл `user_data.json` может быть защищен от записи
 - Могут быть проблемы с правами пользователя
 
 ### **3. 🔄 Проблема с загрузкой данных:**
+
 - `load_user_data()` может перезаписывать сохраненные данные
 - Данные могут сбрасываться при перезапуске бота
 
 ### **4. 🔄 Проблема с инициализацией:**
+
 - Пользователи могут не использовать команды настройки
 - Данные могут сбрасываться при ошибках
 
@@ -104,6 +125,7 @@ save_user_data(context)
 ### **📋 Шаги для диагностики:**
 
 1. **Проверить команды настройки:**
+
    ```
    /set_balance 1000
    /set_trade_mode spot
@@ -128,6 +150,7 @@ save_user_data(context)
 ## 🚀 **РЕКОМЕНДАЦИИ:**
 
 ### **📋 Для пользователей:**
+
 1. Использовать команды настройки:
    - `/set_balance сумма` - установить депозит
    - `/set_trade_mode spot|futures` - выбрать режим торговли
@@ -138,6 +161,7 @@ save_user_data(context)
    - `/status` - статус бота
 
 ### **📋 Для диагностики:**
+
 1. Проверить логи бота на ошибки сохранения
 2. Проверить права доступа к файлу `user_data.json`
 3. Проверить, не перезаписывается ли файл другими процессами

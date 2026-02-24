@@ -109,7 +109,7 @@ while true; do
     HOUR=$(date +%H)
     LAST_RUN=$(cat "$LAST_RUN_FILE" 2>/dev/null || echo "0")
     CURRENT_DATE=$(date +%Y-%m-%d)
-    
+
     # Запуск если:
     # 1. Наступило время (6:00 MSK = 3:00 UTC)
     # 2. Или прошло больше 24 часов с последнего запуска

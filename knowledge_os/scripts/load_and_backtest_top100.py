@@ -9,6 +9,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,9 @@ async def main():
 
         # Фильтруем символы с достаточным количеством данных
         valid_data = {k: v for k, v in data_dict.items() if not v.empty and len(v) >= 100}
-        logger.info("✅ Загружено данных для %d символов (из %d)", len(valid_data), len(top_symbols))
+        logger.info(
+            "✅ Загружено данных для %d символов (из %d)", len(valid_data), len(top_symbols)
+        )
 
         # Сохраняем данные в CSV (опционально)
         data_dir = Path("data/backtest_data")
@@ -86,7 +89,9 @@ async def main():
     print("\n💰 ФИНАНСОВЫЕ ПОКАЗАТЕЛИ:")
     print(f"  Начальный баланс: {backtest.initial_balance:.2f} USDT")
     print(f"  Финальный баланс: {results.get('final_balance', backtest.current_balance):.2f} USDT")
-    print(f"  Общий PnL: {results.get('total_pnl', 0):.2f} USDT ({results.get('total_return', 0):.2f}%)")
+    print(
+        f"  Общий PnL: {results.get('total_pnl', 0):.2f} USDT ({results.get('total_return', 0):.2f}%)"
+    )
     print(f"  Максимальная прибыль: {results.get('max_profit', 0):.2f} USDT")
     print(f"  Максимальный убыток: {results.get('max_loss', 0):.2f} USDT")
     print(f"  Максимальная просадка: {results.get('max_drawdown', 0):.2f}%")

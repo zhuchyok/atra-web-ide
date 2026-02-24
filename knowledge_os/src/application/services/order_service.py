@@ -4,25 +4,24 @@ Order Service - Application Service
 Orchestrates order-related use cases.
 """
 
-from typing import List
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 
+from src.application.use_cases.orders.place_order import PlaceOrderUseCase
 from src.domain.entities.order import Order, OrderSide, OrderType
 from src.domain.repositories.order_repository import OrderRepository
 from src.domain.value_objects.price import Price
 from src.domain.value_objects.symbol import Symbol
-from src.application.use_cases.orders.place_order import PlaceOrderUseCase
 
 
 class OrderService:
     """
     Application Service for order operations
-    
+
     This service orchestrates multiple use cases and provides
     a higher-level interface for order management.
     """
-    
+
     def __init__(
         self,
         order_repository: OrderRepository,
@@ -30,7 +29,7 @@ class OrderService:
     ):
         self._order_repository = order_repository
         self._place_order = place_order_use_case
-    
+
     async def place_limit_order(
         self,
         symbol: Symbol,
@@ -40,7 +39,7 @@ class OrderService:
     ) -> Order:
         """
         Place a limit order
-        
+
         Returns:
             Created Order entity
         """
@@ -51,7 +50,7 @@ class OrderService:
             quantity=quantity,
             price=price,
         )
-    
+
     async def place_market_order(
         self,
         symbol: Symbol,
@@ -60,7 +59,7 @@ class OrderService:
     ) -> Order:
         """
         Place a market order
-        
+
         Returns:
             Created Order entity
         """
@@ -71,12 +70,11 @@ class OrderService:
             quantity=quantity,
             price=None,
         )
-    
+
     async def get_pending_orders(self) -> List[Order]:
         """Get all pending orders"""
         return await self._order_repository.get_pending_orders()
-    
+
     async def get_order_by_id(self, order_id: str) -> Optional[Order]:
         """Get order by ID"""
         return await self._order_repository.get_by_id(order_id)
-

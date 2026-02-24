@@ -9,6 +9,7 @@
 ## 🔍 ЛОГИКА ОПРЕДЕЛЕНИЯ ТОКЕНА
 
 В `config.py` (строки 166-173):
+
 ```python
 ATRA_ENV = os.getenv("ATRA_ENV", "dev").lower().strip()
 TOKEN = (
@@ -25,11 +26,13 @@ TOKEN = (
 ### 1. Неправильный ATRA_ENV на сервере для PROD бота
 
 **Проблема**: Если на сервере для PROD бота установлен `ATRA_ENV=dev`, то:
+
 - Будет использоваться DEV токен (`8141444679`)
 - Сигналы пойдут в DEV бот (@piu_piu_dev_bot)
 - PROD бот не получит сигналы
 
 **Проверка на сервере**:
+
 ```bash
 cd /root/atra
 echo "=== ПРОВЕРКА PROD БОТА ==="
@@ -45,6 +48,7 @@ ps aux | grep "python.*main" | grep -v grep
 ```
 
 **Исправление**:
+
 ```bash
 cd /root/atra
 # Создаем резервную копию
@@ -60,6 +64,7 @@ grep "^ATRA_ENV" env
 ### 2. PROD бот не запущен на сервере
 
 **Проверка**:
+
 ```bash
 # Проверяем процессы
 ps aux | grep "python.*main" | grep -v grep
@@ -69,6 +74,7 @@ tail -50 logs/*.log | grep -i "telegram\|bot\|start"
 ```
 
 **Запуск PROD бота**:
+
 ```bash
 cd /root/atra
 # Убедитесь, что ATRA_ENV=prod в env файле
@@ -78,6 +84,7 @@ nohup python3 main.py > logs/prod_bot.log 2>&1 &
 ### 3. Сигналы генерируются, но отправляются в DEV бот
 
 **Проверка логов**:
+
 ```bash
 # Проверяем, какие сигналы генерируются
 tail -100 logs/*.log | grep -E "сигнал|SIGNAL|notify_user" | tail -20
@@ -87,6 +94,7 @@ grep -E "TOKEN|ATRA_ENV" logs/*.log | tail -10
 ```
 
 **Диагностика**:
+
 ```bash
 cd /root/atra
 python3 -c "
@@ -110,6 +118,7 @@ print(f'ATRA_ENV из config: {ATRA_ENV}')
 ### 4. Сигналы не генерируются вообще (фильтры блокируют)
 
 **Проверка генерации сигналов**:
+
 ```bash
 # Проверяем логи генерации
 tail -200 logs/*.log | grep -E "сигнал|SIGNAL|generate|блок|block" | tail -30
@@ -197,12 +206,14 @@ grep "TOKEN\|ATRA_ENV" logs/prod_bot.log | head -10
 После исправления:
 
 1. **Проверить логи** - должно быть:
+
    ```
    ATRA_ENV: prod
    Используемый TOKEN: 8156844481...
    ```
 
 2. **Дождаться сигнала** или проверить историю:
+
    ```bash
    tail -100 logs/prod_bot.log | grep "сигнал\|SIGNAL"
    ```
@@ -220,11 +231,13 @@ grep "TOKEN\|ATRA_ENV" logs/prod_bot.log | head -10
 Если проблема сохраняется:
 
 1. **Проверить, генерируются ли сигналы**:
+
    ```bash
    tail -500 logs/*.log | grep -E "check_and_send|_generate_signal" | tail -50
    ```
 
 2. **Проверить фильтры**:
+
    ```bash
    tail -500 logs/*.log | grep -E "блок|block|фильтр|filter" | tail -50
    ```
@@ -233,4 +246,3 @@ grep "TOKEN\|ATRA_ENV" logs/prod_bot.log | head -10
    ```bash
    tail -100 logs/*.log | grep -E "Telegram\|API\|error\|Error" | tail -20
    ```
-

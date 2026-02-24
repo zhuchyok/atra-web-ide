@@ -6,8 +6,9 @@
 форматтером, чтобы сохранять точность котировок конкретного символа.
 """
 
-from typing import Optional, Dict, Any, List
 import re
+from typing import Any, Dict, List, Optional
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 
@@ -153,25 +154,27 @@ def build_accept_message(
         f"🔸 Цена входа: <code>{entry_str}</code>\n",
     ]
     # Убираем вывод "Объём входа" — ниже уже показывается "Количество"
-    parts.extend([
-        (
-            f"🔸 TP1: <code>{tp1_str}</code> "
-            f"(<code>{tp1_clean:+.2f}%</code> / <code>{tp1_lev:+.2f}%</code> с плечом)\n"
-        ),
-        (
-            f"🔸 TP2: <code>{tp2_str}</code> "
-            f"(<code>{tp2_clean:+.2f}%</code> / <code>{tp2_lev:+.2f}%</code> с плечом)\n"
-        ),
-        f"🔸 Количество: <code>{qty:.6f}</code>\n",
-        f"🔸 Плечо: <code>{int(round(float(lev_used)))}x</code>\n",
-        f"🔸 Риск: <code>{float(risk_amount or 0.0):.2f}</code>\n",
-        f"🔸 Сумма входа: <code>{int(round(float(notional_usd or 0.0)))}</code>\n\n",
-        (
-            "⚠️ <b>Внимание:</b> на <b>TP1</b> фиксируем "
-            "<b>50%</b> позиции, остаток держим до <b>TP2</b>\n\n"
-        ),
-        f"⏰ Время принятия: <code>{get_utc_now().strftime('%H:%M:%S')}</code>",
-    ])
+    parts.extend(
+        [
+            (
+                f"🔸 TP1: <code>{tp1_str}</code> "
+                f"(<code>{tp1_clean:+.2f}%</code> / <code>{tp1_lev:+.2f}%</code> с плечом)\n"
+            ),
+            (
+                f"🔸 TP2: <code>{tp2_str}</code> "
+                f"(<code>{tp2_clean:+.2f}%</code> / <code>{tp2_lev:+.2f}%</code> с плечом)\n"
+            ),
+            f"🔸 Количество: <code>{qty:.6f}</code>\n",
+            f"🔸 Плечо: <code>{int(round(float(lev_used)))}x</code>\n",
+            f"🔸 Риск: <code>{float(risk_amount or 0.0):.2f}</code>\n",
+            f"🔸 Сумма входа: <code>{int(round(float(notional_usd or 0.0)))}</code>\n\n",
+            (
+                "⚠️ <b>Внимание:</b> на <b>TP1</b> фиксируем "
+                "<b>50%</b> позиции, остаток держим до <b>TP2</b>\n\n"
+            ),
+            f"⏰ Время принятия: <code>{get_utc_now().strftime('%H:%M:%S')}</code>",
+        ]
+    )
     return "".join(parts)
 
 
@@ -219,9 +222,7 @@ def build_dca_accept_message(
     tp1_str = price_formatter(tp1_price)
     tp2_str = price_formatter(tp2_price)
     avg_str = price_formatter(avg_price_new)
-    entry_sum_usd = int(
-        round(float(qty or 0.0) * float(entry_price or 0.0))
-    )
+    entry_sum_usd = int(round(float(qty or 0.0) * float(entry_price or 0.0)))
 
     parts = [
         "📈 <b>DCA позиция добавлена!</b>\n\n",
@@ -230,26 +231,28 @@ def build_dca_accept_message(
         f"🔸 Цена входа: <code>{entry_str}</code>\n",
     ]
     # Убираем вывод "Объём входа" — ниже уже показывается "Количество"
-    parts.extend([
-        f"🔸 Количество: <code>{qty:.6f}</code>\n",
-        f"🔸 Плечо: <code>{int(round(float(lev_used)))}x</code>\n",
-        f"🔸 Риск: <code>{float(risk_amount or 0.0):.2f}</code>\n",
-        f"🔸 Сумма входа: <code>{entry_sum_usd}</code>\n",
-        f"🔸 Средняя цена: <code>{avg_str}</code>\n",
-        (
-            f"🔸 TP1: <code>{tp1_str}</code> "
-            f"(<code>{tp1_clean:+.2f}%</code> / "
-            f"<code>{tp1_lev:+.2f}%</code> с плечом)\n"
-        ),
-        (
-            f"🔸 TP2: <code>{tp2_str}</code> "
-            f"(<code>{tp2_clean:+.2f}%</code> / "
-            f"<code>{tp2_lev:+.2f}%</code> с плечом)\n\n"
-        ),
-        "⚠️ <b>Внимание:</b> на <b>TP1</b> фиксируем <b>50%</b> позиции, "
-        "остаток держим до <b>TP2</b>\n\n",
-        f"⏰ Время: <code>{get_utc_now().strftime('%H:%M:%S')}</code>",
-    ])
+    parts.extend(
+        [
+            f"🔸 Количество: <code>{qty:.6f}</code>\n",
+            f"🔸 Плечо: <code>{int(round(float(lev_used)))}x</code>\n",
+            f"🔸 Риск: <code>{float(risk_amount or 0.0):.2f}</code>\n",
+            f"🔸 Сумма входа: <code>{entry_sum_usd}</code>\n",
+            f"🔸 Средняя цена: <code>{avg_str}</code>\n",
+            (
+                f"🔸 TP1: <code>{tp1_str}</code> "
+                f"(<code>{tp1_clean:+.2f}%</code> / "
+                f"<code>{tp1_lev:+.2f}%</code> с плечом)\n"
+            ),
+            (
+                f"🔸 TP2: <code>{tp2_str}</code> "
+                f"(<code>{tp2_clean:+.2f}%</code> / "
+                f"<code>{tp2_lev:+.2f}%</code> с плечом)\n\n"
+            ),
+            "⚠️ <b>Внимание:</b> на <b>TP1</b> фиксируем <b>50%</b> позиции, "
+            "остаток держим до <b>TP2</b>\n\n",
+            f"⏰ Время: <code>{get_utc_now().strftime('%H:%M:%S')}</code>",
+        ]
+    )
     return "".join(parts)
 
 
@@ -285,7 +288,7 @@ def build_dca_proposal_block(
         f"({percent_tp1_clean:+.2f}% / {percent_tp1_lev:+.2f}% с плечом)\n"
         f"• TP2: {price_formatter(tp2)} "
         f"({percent_tp2_clean:+.2f}% / {percent_tp2_lev:+.2f}% с плечом)\n"
-        f"• Усреднений: {dca_count+1} (лимит: ?)\n"
+        f"• Усреднений: {dca_count + 1} (лимит: ?)\n"
         f"• Общий объём: {total_qty:.4f}\n"
         f"• Все входы: {entry_prices_str}\n"
         f"• Все объёмы: {qtys_str}\n"
@@ -366,18 +369,18 @@ def build_full_close_message(
 
 
 def generate_signal_recommendation(
-    symbol: str,
-    side: str,
-    score: int,
-    technical_data: Optional[Dict[str, Any]],
-    btc_trend: bool
+    symbol: str, side: str, score: int, technical_data: Optional[Dict[str, Any]], btc_trend: bool
 ) -> str:
     """Генерирует рекомендацию для торгового сигнала"""
     try:
         # Анализируем технические данные
-        rsi = technical_data.get('rsi', 50) if technical_data else 50
-        macd_status = technical_data.get('macd_status', 'Нейтральный') if technical_data else 'Нейтральный'
-        volume_status = technical_data.get('volume_status', 'Средний') if technical_data else 'Средний'
+        rsi = technical_data.get("rsi", 50) if technical_data else 50
+        macd_status = (
+            technical_data.get("macd_status", "Нейтральный") if technical_data else "Нейтральный"
+        )
+        volume_status = (
+            technical_data.get("volume_status", "Средний") if technical_data else "Средний"
+        )
 
         # Определяем плюсы
         pluses = []
@@ -591,7 +594,9 @@ def build_new_signal_message(
 
         macd_status = technical_data.get("macd_status", "")
         if macd_status:
-            macd_emoji = "🟢" if macd_status == "Бычий" else ("🔴" if macd_status == "Медвежий" else "")
+            macd_emoji = (
+                "🟢" if macd_status == "Бычий" else ("🔴" if macd_status == "Медвежий" else "")
+            )
             if macd_emoji:
                 tech_parts.append(f"MACD:{macd_emoji}")
 
@@ -607,7 +612,7 @@ def build_new_signal_message(
     if confidence is not None:
         parts.append(f"\n⏰ Уверенность: <code>{confidence:.0f}%</code>")
     elif recommendation and "Уверенность:" in recommendation:
-        confidence_match = re.search(r'Уверенность:\s*(\d+)%', recommendation)
+        confidence_match = re.search(r"Уверенность:\s*(\d+)%", recommendation)
         if confidence_match:
             confidence_val = confidence_match.group(1)
             parts.append(f"\n⏰ Уверенность: <code>{confidence_val}%</code>")
@@ -645,8 +650,8 @@ def build_new_signal_message(
         # Улучшенное форматирование факторов для читаемости
         formatted_factors = []
         for factor in ai_factors:
-            if '(' in factor:
-                name, pct = factor.split('(', 1)
+            if "(" in factor:
+                name, pct = factor.split("(", 1)
                 formatted_factors.append(f"• {name.strip()} — <b>{pct.rstrip(')')}</b>")
             else:
                 formatted_factors.append(f"• {factor}")
@@ -662,7 +667,7 @@ def build_new_signal_message(
         # Обрезаем до безопасной длины
         message = message[:max_telegram_length]
         # Обрезаем по последней строке, чтобы не обрывать посередине
-        last_newline = message.rfind('\n')
+        last_newline = message.rfind("\n")
         if last_newline > 0:
             message = message[:last_newline]
         message += "\n\n⚠️ Сообщение обрезано из-за ограничения длины"
@@ -757,6 +762,7 @@ def build_analysis_message(
     # Блок мнения ИИ отключён
 
     return "".join(parts)
+
 
 def build_dca_queue_message(
     symbol: str,

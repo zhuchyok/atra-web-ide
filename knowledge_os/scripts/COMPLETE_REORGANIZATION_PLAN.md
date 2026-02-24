@@ -78,6 +78,7 @@ atra/
 ## 📋 ПЛАН ГРУППИРОВКИ
 
 ### 1. AI/ML модули → `src/ai/`
+
 - `lightgbm_predictor.py`
 - `ai_integration.py`
 - `ai_learning_system.py`
@@ -95,6 +96,7 @@ atra/
 - `ai_tp_optimizer.py`
 
 ### 2. Утилиты → `src/utils/`
+
 - `cache_manager.py`
 - `cache_utils.py`
 - `exchange_utils.py`
@@ -107,6 +109,7 @@ atra/
 - `shared_utils.py`
 
 ### 3. Telegram → `src/telegram/` (расширить)
+
 - `telegram_bot.py`
 - `telegram_bot_admin.py`
 - `telegram_bot_trading.py`
@@ -119,41 +122,49 @@ atra/
 - `messaging_service.py`
 
 ### 4. Скрипты анализа → `scripts/analysis/`
+
 - `analyze_signal_blocks.py`
 - `analyze_signal_rejection.py`
 - `generate_*.py`
 - `export_*.py`
 
 ### 5. Скрипты деплоя → `scripts/deployment/`
+
 - `deploy_*.py`
 - `deploy_*.sh`
 
 ### 6. Скрипты обслуживания → `scripts/maintenance/`
+
 - `check_*.py`
 - `diagnostics_*.py`
 
 ### 7. Скрипты настройки → `scripts/setup/`
+
 - `add_user*.py`
 - `database_initialization.py` (уже в src/database/)
 
 ### 8. Тесты → `tests/`
+
 - `test_*.py` → `tests/unit/`
 - `check_*.py` → `tests/debug/`
 - `debug_*.py` → `tests/debug/`
 
 ### 9. Backtest → `tools/backtest/`
+
 - `backtest_cli.py`
 - `backtrader_adapter.py`
 - `backtrader_integration.py`
 - `forward_tester.py`
 
 ### 10. Мониторинг → `src/monitoring/` (расширить)
+
 - `data_quality_monitor.py`
 - `price_monitor_system.py`
 - `advanced_performance_monitor.py`
 - `performance_tracker.py`
 
 ### 11. Данные → `src/data/` (расширить)
+
 - `improved_price_api.py`
 - `price_validation.py`
 - `market_cap.py`
@@ -163,6 +174,7 @@ atra/
 - `background_data_updater.py`
 
 ### 12. Стратегии → `src/strategies/` (расширить)
+
 - `filter_optimizer.py`
 - `auto_optimizer.py`
 - `pattern_effectiveness_analyzer.py`
@@ -172,6 +184,7 @@ atra/
 - `fallback_strategy.py`
 
 ### 13. Конфигурация → `src/config/`
+
 - `patterns_config.py`
 - `monitoring_config.py`
 - `hybrid_config.py`
@@ -182,17 +195,14 @@ atra/
 ## 🚀 ПРИОРИТЕТЫ
 
 **Priority 1 (Критично):**
+
 1. AI/ML модули → `src/ai/`
 2. Утилиты → `src/utils/`
 3. Telegram → `src/telegram/`
 
-**Priority 2 (Важно):**
-4. Скрипты → `scripts/`
-5. Тесты → `tests/`
+**Priority 2 (Важно):** 4. Скрипты → `scripts/` 5. Тесты → `tests/`
 
-**Priority 3 (Желательно):**
-6. Backtest → `tools/backtest/`
-7. Остальные модули
+**Priority 3 (Желательно):** 6. Backtest → `tools/backtest/` 7. Остальные модули
 
 ---
 
@@ -210,4 +220,3 @@ atra/
 - [ ] Все модули логически сгруппированы
 - [ ] Все импорты работают
 - [ ] Все тесты проходят
-

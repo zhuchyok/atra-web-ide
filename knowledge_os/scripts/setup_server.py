@@ -1,36 +1,32 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 🚀 СКРИПТ НАСТРОЙКИ СЕРВЕРА ATRA
 Быстрая настройка и инициализация торгового бота на новом сервере
 """
 
-import os
-import sys
 import asyncio
 import logging
+import os
+import sys
 from pathlib import Path
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 def create_directories():
     """Создает необходимые директории"""
     directories = [
-        'backups',
-        'logs',
-        'cache',
-        'ai_learning_data',
-        'ai_position_data',
-        'ai_tp_data',
-        'ai_reports',
-        'locales'
+        "backups",
+        "logs",
+        "cache",
+        "ai_learning_data",
+        "ai_position_data",
+        "ai_tp_data",
+        "ai_reports",
+        "locales",
     ]
 
     for directory in directories:
@@ -43,7 +39,7 @@ def create_directories():
 
 def create_env_file():
     """Создает файл .env если его нет"""
-    env_file = Path('.env')
+    env_file = Path(".env")
 
     if env_file.exists():
         logger.info("✅ Файл .env уже существует")
@@ -68,34 +64,34 @@ USE_BTC_TREND_FILTER=true
 """
 
     try:
-        with open(env_file, 'w', encoding='utf-8') as f:
+        with open(env_file, "w", encoding="utf-8") as f:
             f.write(env_template)
         logger.info("✅ Создан файл .env (заполните своими данными)")
-    except IOError as e:
+    except OSError as e:
         logger.error(f"❌ Ошибка создания файла .env: {e}")
 
 
 def check_python_dependencies():
     """Проверяет наличие необходимых Python пакетов"""
     required_packages = [
-        'telegram',
-        'pandas',
-        'numpy',
-        'requests',
-        'aiohttp',
-        'python-dotenv',
-        'sqlite3'
+        "telegram",
+        "pandas",
+        "numpy",
+        "requests",
+        "aiohttp",
+        "python-dotenv",
+        "sqlite3",
     ]
 
     missing_packages = []
 
     for package in required_packages:
         try:
-            if package == 'python-dotenv':
+            if package == "python-dotenv":
                 import dotenv
-            elif package == 'telegram':
+            elif package == "telegram":
                 import telegram
-            elif package == 'sqlite3':
+            elif package == "sqlite3":
                 import sqlite3
             else:
                 __import__(package)
@@ -106,7 +102,7 @@ def check_python_dependencies():
 
     if missing_packages:
         logger.error(f"❌ Отсутствуют пакеты: {', '.join(missing_packages)}")
-        logger.info("💡 Установите их командой: pip install " + ' '.join(missing_packages))
+        logger.info("💡 Установите их командой: pip install " + " ".join(missing_packages))
         return False
 
     return True
@@ -138,6 +134,7 @@ async def initialize_database():
         logger.warning("⚠️ Модуль db_init недоступен, используем стандартную инициализацию...")
         try:
             from db import Database
+
             db = Database()
             logger.info("✅ База данных инициализирована через стандартный механизм")
             return True
@@ -151,7 +148,7 @@ async def initialize_database():
 
 def create_user_data_file():
     """Создает файл user_data.json если его нет"""
-    user_data_file = Path('user_data.json')
+    user_data_file = Path("user_data.json")
 
     if user_data_file.exists():
         logger.info("✅ Файл user_data.json уже существует")
@@ -163,22 +160,23 @@ def create_user_data_file():
             "default_filter_mode": "strict",
             "default_trade_mode": "spot",
             "default_risk_pct": 2.0,
-            "default_leverage": 1.0
-        }
+            "default_leverage": 1.0,
+        },
     }
 
     try:
         import json
-        with open(user_data_file, 'w', encoding='utf-8') as f:
+
+        with open(user_data_file, "w", encoding="utf-8") as f:
             json.dump(default_user_data, f, ensure_ascii=False, indent=2)
         logger.info("✅ Создан файл user_data.json")
-    except IOError as e:
+    except OSError as e:
         logger.error(f"❌ Ошибка создания файла user_data.json: {e}")
 
 
 def create_locale_files():
     """Создает файлы локализации"""
-    locales_dir = Path('locales')
+    locales_dir = Path("locales")
     locales_dir.mkdir(exist_ok=True)
 
     # Русская локализация
@@ -187,7 +185,7 @@ def create_locale_files():
         "help": "Помощь",
         "balance": "Баланс",
         "positions": "Позиции",
-        "settings": "Настройки"
+        "settings": "Настройки",
     }
 
     # Английская локализация
@@ -196,18 +194,19 @@ def create_locale_files():
         "help": "Help",
         "balance": "Balance",
         "positions": "Positions",
-        "settings": "Settings"
+        "settings": "Settings",
     }
 
-    for lang, content in [('ru', ru_locale), ('en', en_locale)]:
-        locale_file = locales_dir / f'{lang}.json'
+    for lang, content in [("ru", ru_locale), ("en", en_locale)]:
+        locale_file = locales_dir / f"{lang}.json"
         if not locale_file.exists():
             try:
                 import json
-                with open(locale_file, 'w', encoding='utf-8') as f:
+
+                with open(locale_file, "w", encoding="utf-8") as f:
                     json.dump(content, f, ensure_ascii=False, indent=2)
                 logger.info(f"✅ Создан файл локализации: {locale_file}")
-            except IOError as e:
+            except OSError as e:
                 logger.error(f"❌ Ошибка создания файла локализации {lang}: {e}")
 
 

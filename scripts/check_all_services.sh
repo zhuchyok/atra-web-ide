@@ -54,4 +54,3 @@ for service in mlx-api-server knowledge-os-api victoria-agent veronica-agent; do
     docker-compose logs --tail=10 $service 2>/dev/null || echo "  (нет логов)"
     echo ""
 done
-

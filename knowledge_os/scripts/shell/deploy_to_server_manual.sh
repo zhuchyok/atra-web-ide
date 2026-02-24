@@ -63,4 +63,3 @@ ps aux | grep -E "(python.*signal_live|python.*main\.py)" | grep -v grep || echo
 echo ""
 echo "✅ ОБНОВЛЕНИЕ ЗАВЕРШЕНО"
 echo "Проверьте логи: tail -f main.log"
-

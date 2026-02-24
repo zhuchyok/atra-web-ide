@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 # Third-party imports with fallback
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -25,16 +26,17 @@ logger = logging.getLogger(__name__)
 
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
-if USER_NAME == 'zhuchyok':
-    DEFAULT_DB_URL = f'postgresql://{USER_NAME}@localhost:5432/knowledge_os'
+if USER_NAME == "zhuchyok":
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
 else:
-    DEFAULT_DB_URL = 'postgresql://admin:secret@localhost:5432/knowledge_os'
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
-DB_URL = os.getenv('DATABASE_URL', DEFAULT_DB_URL)
+DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 
 
 class LinkType(Enum):
     """Типы связей между узлами знаний"""
+
     DEPENDS_ON = "depends_on"  # Зависит от
     CONTRADICTS = "contradicts"  # Противоречит
     ENHANCES = "enhances"  # Улучшает/расширяет
@@ -46,6 +48,7 @@ class LinkType(Enum):
 @dataclass
 class KnowledgeLink:
     """Связь между узлами знаний"""
+
     source_id: str
     target_id: str
     link_type: LinkType
@@ -69,7 +72,7 @@ class KnowledgeGraph:
         target_id: str,
         link_type: LinkType,
         strength: float = 1.0,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> Optional[str]:
         """Создание связи между узлами знаний"""
         if source_id == target_id:
@@ -83,7 +86,8 @@ class KnowledgeGraph:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                link_id = await conn.fetchval("""
+                link_id = await conn.fetchval(
+                    """
                     INSERT INTO knowledge_links
                     (source_node_id, target_node_id, link_type, strength, metadata)
                     VALUES ($1, $2, $3, $4, $5)
@@ -93,10 +97,17 @@ class KnowledgeGraph:
                         metadata = EXCLUDED.metadata,
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING id
-                """, source_id, target_id, link_type.value, strength, json.dumps(metadata or {}))
+                """,
+                    source_id,
+                    target_id,
+                    link_type.value,
+                    strength,
+                    json.dumps(metadata or {}),
+                )
 
-                logger.info("✅ Created link: %s --[%s]--> %s",
-                            source_id, link_type.value, target_id)
+                logger.info(
+                    "✅ Created link: %s --[%s]--> %s", source_id, link_type.value, target_id
+                )
                 return str(link_id)
             finally:
                 await conn.close()
@@ -108,7 +119,7 @@ class KnowledgeGraph:
         self,
         node_id: str,
         link_type: Optional[LinkType] = None,
-        direction: str = "both"  # "outgoing", "incoming", "both"
+        direction: str = "both",  # "outgoing", "incoming", "both"
     ) -> List[Dict]:
         """Получение всех связей узла"""
         if not ASYNCPG_AVAILABLE:
@@ -153,7 +164,7 @@ class KnowledgeGraph:
         node_id: str,
         link_types: Optional[List[LinkType]] = None,
         max_depth: int = 2,
-        min_strength: float = 0.5
+        min_strength: float = 0.5,
     ) -> List[Dict]:
         """Получение связанных узлов (рекурсивно)"""
         if not ASYNCPG_AVAILABLE:
@@ -168,7 +179,7 @@ class KnowledgeGraph:
                     link_types_str = [
                         LinkType.DEPENDS_ON.value,
                         LinkType.ENHANCES.value,
-                        LinkType.RELATED_TO.value
+                        LinkType.RELATED_TO.value,
                     ]
 
                 rows = await conn.fetch(
@@ -176,7 +187,7 @@ class KnowledgeGraph:
                     node_id,
                     link_types_str,
                     max_depth,
-                    min_strength
+                    min_strength,
                 )
                 return [dict(row) for row in rows]
             finally:
@@ -185,12 +196,7 @@ class KnowledgeGraph:
             logger.error("Error getting related nodes: %s", exc)
             return []
 
-    async def delete_link(
-        self,
-        source_id: str,
-        target_id: str,
-        link_type: LinkType
-    ) -> bool:
+    async def delete_link(self, source_id: str, target_id: str, link_type: LinkType) -> bool:
         """Удаление связи"""
         if not ASYNCPG_AVAILABLE:
             return False
@@ -198,12 +204,17 @@ class KnowledgeGraph:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
-                result = await conn.execute("""
+                result = await conn.execute(
+                    """
                     DELETE FROM knowledge_links
                     WHERE source_node_id = $1
                       AND target_node_id = $2
                       AND link_type = $3
-                """, source_id, target_id, link_type.value)
+                """,
+                    source_id,
+                    target_id,
+                    link_type.value,
+                )
 
                 return result == "DELETE 1"
             finally:
@@ -238,15 +249,18 @@ class KnowledgeGraph:
                 """)
 
                 # Средняя сила связей
-                avg_strength = await conn.fetchval("""
+                avg_strength = (
+                    await conn.fetchval("""
                     SELECT AVG(strength) FROM knowledge_links
-                """) or 0.0
+                """)
+                    or 0.0
+                )
 
                 return {
                     "total_links": total_links,
                     "links_by_type": {row["link_type"]: row["count"] for row in links_by_type},
                     "nodes_with_links": nodes_with_links,
-                    "avg_strength": float(avg_strength)
+                    "avg_strength": float(avg_strength),
                 }
             finally:
                 await conn.close()
@@ -254,11 +268,7 @@ class KnowledgeGraph:
             logger.error("Error getting graph stats: %s", exc)
             return {}
 
-    async def auto_detect_links(
-        self,
-        node_id: str,
-        similarity_threshold: float = 0.8
-    ) -> List[str]:
+    async def auto_detect_links(self, node_id: str, similarity_threshold: float = 0.8) -> List[str]:
         """Автоматическое обнаружение связей на основе семантического сходства"""
         if not ASYNCPG_AVAILABLE:
             return []
@@ -267,17 +277,21 @@ class KnowledgeGraph:
             conn = await asyncpg.connect(self.db_url)
             try:
                 # Получаем embedding текущего узла
-                node = await conn.fetchrow("""
+                node = await conn.fetchrow(
+                    """
                     SELECT id, content, embedding, domain_id
                     FROM knowledge_nodes
                     WHERE id = $1
-                """, node_id)
+                """,
+                    node_id,
+                )
 
                 if not node or not node["embedding"]:
                     return []
 
                 # Ищем похожие узлы
-                similar_nodes = await conn.fetch("""
+                similar_nodes = await conn.fetch(
+                    """
                     SELECT
                         id,
                         content,
@@ -289,7 +303,11 @@ class KnowledgeGraph:
                       AND (1 - (embedding <=> $1::vector)) >= $3
                     ORDER BY similarity DESC
                     LIMIT 10
-                """, node["embedding"], node_id, similarity_threshold)
+                """,
+                    node["embedding"],
+                    node_id,
+                    similarity_threshold,
+                )
 
                 created_links = []
                 for similar in similar_nodes:
@@ -302,17 +320,13 @@ class KnowledgeGraph:
                     strength = float(similar["similarity"])
 
                     link_id = await self.create_link(
-                        node_id,
-                        str(similar["id"]),
-                        link_type,
-                        strength
+                        node_id, str(similar["id"]), link_type, strength
                     )
 
                     if link_id:
                         created_links.append(link_id)
 
-                logger.info("✅ Auto-detected %d links for node %s",
-                            len(created_links), node_id)
+                logger.info("✅ Auto-detected %d links for node %s", len(created_links), node_id)
                 return created_links
             finally:
                 await conn.close()

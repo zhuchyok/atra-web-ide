@@ -39,4 +39,3 @@ python3 "$PERF_SCRIPT" \
 
 # Рассылаем отчёт в Telegram администратору (ID берётся из user_data.json)
 python3 "$ROOT_DIR/scripts/send_daily_quality_report.py"
-

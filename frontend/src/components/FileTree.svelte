@@ -1,17 +1,17 @@
 <script>
   import { onMount } from 'svelte'
   import { fileTree, loadFileTree, loadFile, createFile, deleteFile } from '../stores/files.js'
-  
+
   let expandedDirs = new Set()
   let contextMenu = null
   let showNewFileInput = false
   let newFileName = ''
   let newFileType = 'file'
-  
+
   onMount(() => {
     loadFileTree()
   })
-  
+
   async function toggleDir(path) {
     if (expandedDirs.has(path)) {
       expandedDirs.delete(path)
@@ -37,7 +37,7 @@
     }
     expandedDirs = expandedDirs // Trigger reactivity
   }
-  
+
   async function handleFileClick(file) {
     if (file.type === 'directory') {
       toggleDir(file.path)
@@ -45,7 +45,7 @@
       await loadFile(file.path)
     }
   }
-  
+
   function handleContextMenu(event, file) {
     event.preventDefault()
     contextMenu = {
@@ -54,43 +54,43 @@
       file
     }
   }
-  
+
   function closeContextMenu() {
     contextMenu = null
   }
-  
+
   async function handleDelete(file) {
     if (confirm(`Delete ${file.name}?`)) {
       await deleteFile(file.path)
     }
     closeContextMenu()
   }
-  
+
   function handleNewFile(type) {
     newFileType = type
     showNewFileInput = true
     closeContextMenu()
   }
-  
+
   async function createNewFile() {
     if (!newFileName.trim()) return
-    
+
     const path = newFileName.trim()
     const success = await createFile(path, newFileType, newFileType === 'file' ? '' : null)
-    
+
     if (success) {
       showNewFileInput = false
       newFileName = ''
     }
   }
-  
+
   function getFileIcon(file) {
     if (file.type === 'directory') {
       return expandedDirs.has(file.path) ? '📂' : '📁'
     }
-    
+
     const ext = file.name.split('.').pop()?.toLowerCase()
-    
+
     switch (ext) {
       case 'js':
       case 'jsx':
@@ -133,24 +133,24 @@
       />
     </div>
   {/if}
-  
+
   <!-- Toolbar -->
   <div class="px-2 py-2 flex items-center gap-1 border-b border-atra-accent">
-    <button 
+    <button
       class="p-1 hover:bg-atra-accent rounded transition-colors text-xs"
       title="New File"
       on:click={() => handleNewFile('file')}
     >
       📄+
     </button>
-    <button 
+    <button
       class="p-1 hover:bg-atra-accent rounded transition-colors text-xs"
       title="New Folder"
       on:click={() => handleNewFile('directory')}
     >
       📁+
     </button>
-    <button 
+    <button
       class="p-1 hover:bg-atra-accent rounded transition-colors text-xs"
       title="Refresh"
       on:click={() => loadFileTree()}
@@ -158,7 +158,7 @@
       🔄
     </button>
   </div>
-  
+
   <!-- File tree -->
   <div class="py-1">
     {#each $fileTree as file}
@@ -176,7 +176,7 @@
             </span>
           {/if}
         </button>
-        
+
         {#if file.type === 'directory' && expandedDirs.has(file.path) && file.children}
           <div class="ml-4 border-l border-atra-accent/30">
             {#each file.children as child}
@@ -194,7 +194,7 @@
                     </span>
                   {/if}
                 </button>
-                
+
                 {#if child.type === 'directory' && expandedDirs.has(child.path) && child.children}
                   <div class="ml-4 border-l border-atra-accent/30">
                     {#each child.children as grandchild}
@@ -215,7 +215,7 @@
         {/if}
       </div>
     {/each}
-    
+
     {#if $fileTree.length === 0}
       <div class="px-4 py-8 text-center text-gray-500">
         <p>No files yet</p>
@@ -227,24 +227,24 @@
 
 <!-- Context menu -->
 {#if contextMenu}
-  <div 
+  <div
     class="fixed bg-atra-darker border border-atra-accent rounded-lg shadow-xl py-1 z-50"
     style="left: {contextMenu.x}px; top: {contextMenu.y}px"
   >
-    <button 
+    <button
       class="w-full text-left px-4 py-1.5 hover:bg-atra-accent/50 text-sm"
       on:click={() => handleNewFile('file')}
     >
       New File
     </button>
-    <button 
+    <button
       class="w-full text-left px-4 py-1.5 hover:bg-atra-accent/50 text-sm"
       on:click={() => handleNewFile('directory')}
     >
       New Folder
     </button>
     <div class="border-t border-atra-accent my-1"></div>
-    <button 
+    <button
       class="w-full text-left px-4 py-1.5 hover:bg-red-900/50 text-red-400 text-sm"
       on:click={() => handleDelete(contextMenu.file)}
     >

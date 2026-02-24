@@ -9,13 +9,16 @@
 ## 🔥 КРИТИЧНЫЕ ЗАДАЧИ (Приоритет 1)
 
 ### **1. ДМИТРИЙ: Lag Features в ML Pipeline** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** +5-10% метрик
 
 #### **Задача:**
+
 Добавить lag features в ML pipeline для улучшения предсказаний.
 
 #### **Реализация:**
+
 ```python
 # В scripts/retrain_lightgbm.py добавить:
 def add_lag_features(df: pd.DataFrame, lags: List[int] = [1, 2, 3, 5, 10]) -> pd.DataFrame:
@@ -32,13 +35,16 @@ def add_lag_features(df: pd.DataFrame, lags: List[int] = [1, 2, 3, 5, 10]) -> pd
 ---
 
 ### **2. МАКСИМ: Walk-Forward Optimization** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Предотвращение overfitting
 
 #### **Задача:**
+
 Реализовать walk-forward optimization для бэктестов.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: backtests/walk_forward_optimization.py
 def walk_forward_optimization(
@@ -57,13 +63,16 @@ def walk_forward_optimization(
 ---
 
 ### **3. ИГОРЬ: Circuit Breaker для API** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Защита от каскадных сбоев
 
 #### **Задача:**
+
 Реализовать circuit breaker pattern для API запросов.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: circuit_breaker.py
 class CircuitBreaker:
@@ -81,13 +90,16 @@ class CircuitBreaker:
 ---
 
 ### **4. СЕРГЕЙ: Distributed Tracing** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Полная observability
 
 #### **Задача:**
+
 Внедрить distributed tracing с OpenTelemetry.
 
 #### **Реализация:**
+
 ```python
 # Создать новый файл: observability/tracing.py
 from opentelemetry import trace
@@ -104,13 +116,16 @@ def setup_tracing():
 ---
 
 ### **5. АННА: Property-Based Testing** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Нахождение edge cases
 
 #### **Задача:**
+
 Внедрить property-based testing с Hypothesis.
 
 #### **Реализация:**
+
 ```python
 # В tests/unit/test_risk_manager.py добавить:
 from hypothesis import given, strategies as st
@@ -132,27 +147,35 @@ def test_position_sizing_properties(balance, risk_pct):
 ## ⚡ ВАЖНЫЕ ЗАДАЧИ (Приоритет 2)
 
 ### **6. ЕЛЕНА: OpenTelemetry Integration** 🟡
+
 **Задача:** Интегрировать OpenTelemetry в систему
 
 ### **7. ОЛЕГ: Self-Healing Tests** 🟡
+
 **Задача:** Внедрить self-healing механизм для тестов
 
 ### **8. ПАВЕЛ: Database Query Optimization** 🟡
+
 **Задача:** Оптимизировать медленные SQL запросы
 
 ### **9. МАРИЯ: Interactive Documentation** 🟡
+
 **Задача:** Создать interactive API documentation
 
 ### **10. АЛЕКСЕЙ: Memory Profiling** 🟡
+
 **Задача:** Провести memory profiling и оптимизацию
 
 ### **11. РОМАН: Alternative Data Research** 🟡
+
 **Задача:** Исследовать использование alternative data
 
 ### **12. ДАРЬЯ: Penetration Testing** 🟡
+
 **Задача:** Провести penetration testing системы
 
 ### **13. ВИКТОР: Team Processes Optimization** 🟡
+
 **Задача:** Оптимизировать процессы команды
 
 ---
@@ -160,16 +183,19 @@ def test_position_sizing_properties(balance, risk_pct):
 ## 📊 ПЛАН ВЫПОЛНЕНИЯ
 
 ### **День 1-2: Критичные задачи**
+
 - ✅ Дмитрий: Lag features
 - ✅ Максим: Walk-forward optimization
 - ✅ Игорь: Circuit breaker
 
 ### **День 3-4: Важные задачи**
+
 - ✅ Сергей: Distributed tracing
 - ✅ Анна: Property-based testing
 - ✅ Елена: OpenTelemetry
 
 ### **День 5-7: Остальные задачи**
+
 - ✅ Олег, Павел, Мария, Алексей, Роман, Дарья, Виктор
 
 ---
@@ -178,5 +204,4 @@ def test_position_sizing_properties(balance, risk_pct):
 
 **Задачи готовы к выполнению!** 🚀
 
-*Задачи созданы: Виктор (Team Lead)*
-
+_Задачи созданы: Виктор (Team Lead)_

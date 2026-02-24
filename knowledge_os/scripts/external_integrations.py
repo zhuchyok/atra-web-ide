@@ -41,7 +41,7 @@ class TradingSystemIntegrations:
         payload = {
             "chat_id": self.telegram_chat,
             "text": f"\ud83d\udea8 {message}",
-            "parse_mode": "Markdown"
+            "parse_mode": "Markdown",
         }
 
         async with aiohttp.ClientSession() as session:

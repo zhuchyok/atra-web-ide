@@ -4,7 +4,7 @@ description: Context Compression - сжатие контекста для эко
 category: optimization
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🗜️"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🗜️" } }
 ---
 
 # Context Compression Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🗜️"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Длинных контекстов
 - Экономии токенов
 - Оптимизации стоимости
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🗜️"}}
 ## Методология
 
 Context Compression работает через:
+
 1. **Analysis** - Анализ контекста
 2. **Extraction** - Извлечение ключевой информации
 3. **Compression** - Сжатие избыточной информации

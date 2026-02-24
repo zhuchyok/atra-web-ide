@@ -1,6 +1,7 @@
 # 🚀 БЫСТРОЕ РЕШЕНИЕ: Отсутствует user_data.json
 
 ## ❌ Проблема
+
 ```
 ⚠️ Найдены ошибки: ['❌ Файл user_data.json не найден', "❌ Ошибка чтения user_data.json: [Errno 2] No such file or directory: 'user_data.json'"]
 ```
@@ -8,6 +9,7 @@
 ## ✅ Решение (выберите один способ)
 
 ### Способ 1: Автоматическое создание (рекомендуется)
+
 ```bash
 # Перейдите в директорию проекта
 cd /path/to/atra
@@ -17,18 +19,21 @@ python3 create_user_data.py
 ```
 
 ### Способ 2: Через систему инициализации БД
+
 ```bash
 # Создание только структуры БД и user_data.json
 python3 db_init.py --structure-only
 ```
 
 ### Способ 3: Полная настройка сервера
+
 ```bash
 # Создание всех файлов включая user_data.json
 python3 setup_server.py
 ```
 
 ### Способ 4: Ручное создание файла
+
 ```bash
 # Создайте файл вручную
 cat > user_data.json << 'EOF'
@@ -47,6 +52,7 @@ EOF
 ```
 
 ## 🔍 Проверка решения
+
 ```bash
 # Проверьте, что файл создан
 ls -la user_data.json
@@ -59,7 +65,9 @@ ls -la user_data.json
 ```
 
 ## 🚀 Запуск бота
+
 После создания файла `user_data.json`:
+
 ```bash
 # Запустите бота
 python3 main.py
@@ -69,6 +77,7 @@ nohup python3 main.py > bot.log 2>&1 &
 ```
 
 ## 📋 Что дальше?
+
 1. ✅ Файл `user_data.json` создан
 2. 🔧 Настройте пользователей через Telegram бота
 3. 📊 Проверьте логи: `tail -f system_improved.log`

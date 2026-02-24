@@ -8,6 +8,7 @@
 ## 🎯 КОНЦЕПЦИЯ
 
 **Виктор (Team Lead):**
+
 > "Теперь система автоматически ищет лучшие практики из интернета для всех сотрудников! Каждый сотрудник получает актуальные практики для своей роли, которые автоматически добавляются в базу знаний."
 
 ---
@@ -17,6 +18,7 @@
 ### **1. Автоматический поиск лучших практик**
 
 Система автоматически:
+
 - ✅ Ищет лучшие практики для каждой роли
 - ✅ Использует специализированные поисковые запросы
 - ✅ Интегрирует найденные практики в базы знаний
@@ -27,6 +29,7 @@
 ### **2. Интеграция в систему обучения**
 
 Система автоматически:
+
 - ✅ Запускается при каждом цикле обучения
 - ✅ Ищет практики для всех 21 сотрудника
 - ✅ Добавляет найденные практики в базы знаний
@@ -37,6 +40,7 @@
 ### **3. Ручной запуск поиска**
 
 Можно запустить вручную:
+
 ```bash
 python3 scripts/search_best_practices.py
 ```
@@ -52,16 +56,19 @@ python3 scripts/search_best_practices.py
 #### **Примеры запросов:**
 
 **ML Engineer:**
+
 - "machine learning best practices 2024"
 - "ML model optimization techniques"
 - "feature engineering best practices"
 
 **Backend Developer:**
+
 - "Python backend best practices 2024"
 - "async Python performance optimization"
 - "API design best practices"
 
 **Data Analyst:**
+
 - "data analysis best practices 2024"
 - "trading strategy backtesting"
 - "financial data analysis techniques"
@@ -80,11 +87,13 @@ python3 scripts/search_best_practices.py
 **Дата поиска:** 2025-01-XX 12:00:00 UTC
 
 #### Feature Engineering Best Practices
+
 - **Описание:** Использование walk-forward analysis, triple-barrier labeling, meta-labeling
 - **Источник:** Advances in Financial Machine Learning
 - **Категория:** ML Techniques
 
 #### Model Validation
+
 - **Описание:** Использование sample weights для борьбы с class imbalance
 - **Источник:** ML Best Practices
 - **Категория:** ML Optimization
@@ -129,6 +138,7 @@ python3 scripts/search_best_practices.py --no-web-search
 ```
 
 **Результат:**
+
 ```
 📊 РЕЗУЛЬТАТЫ ПОИСКА ЛУЧШИХ ПРАКТИК
 ======================================================================
@@ -147,6 +157,7 @@ python3 scripts/search_best_practices.py --no-web-search
 ## 📊 МЕТРИКИ ПОИСКА
 
 Система отслеживает:
+
 - ✅ Количество найденных практик для каждой роли
 - ✅ Источники практик
 - ✅ Категории практик
@@ -226,6 +237,7 @@ ROLE_SEARCH_QUERIES = {
 ## ✅ ИТОГИ
 
 **Система поиска лучших практик:**
+
 - ✅ Автоматически ищет практики для всех 21 сотрудника
 - ✅ Интегрирует найденные практики в базы знаний
 - ✅ Обновляется каждые 24 часа
@@ -240,4 +252,3 @@ ROLE_SEARCH_QUERIES = {
 **Автор:** Команда ATRA из 21 эксперта  
 **Дата:** 2025-01-XX  
 **Статус:** ✅ **ВНЕДРЕНО**
-

@@ -1,22 +1,27 @@
 # 🔄 ПЕРЕКЛЮЧЕНИЕ НА ИСПРАВЛЕННУЮ ВЕРСИЮ
 
 ## 🚨 ПРОБЛЕМА
+
 Система продолжает использовать старую версию `signal_live_hybrid.py` с ошибками:
+
 - ❌ `cannot import name 'create_indicators'`
 - ❌ `'list' object has no attribute 'attrs'`
 - ❌ Множественные ошибки обработки данных
 
 ## ✅ РЕШЕНИЕ
+
 Переключиться на исправленную версию `signal_live_hybrid_fixed.py`
 
 ## 🚀 БЫСТРОЕ ПЕРЕКЛЮЧЕНИЕ
 
 ### Вариант 1: Автоматическое переключение
+
 ```bash
 python quick_switch.py
 ```
 
 ### Вариант 2: Ручное переключение
+
 ```bash
 # 1. Создаем резервную копию
 cp signal_live_hybrid.py signal_live_hybrid_old.py
@@ -29,6 +34,7 @@ python main.py
 ```
 
 ### Вариант 3: Полное переключение
+
 ```bash
 python force_switch_to_fixed.py
 ```
@@ -36,12 +42,14 @@ python force_switch_to_fixed.py
 ## 📊 ПРОВЕРКА ПЕРЕКЛЮЧЕНИЯ
 
 После переключения в логах должно появиться:
+
 ```
 ✅ Используется ИСПРАВЛЕННАЯ гибридная система сигналов
 ✅ ИСПРАВЛЕННАЯ гибридная система сигналов запущена
 ```
 
 Вместо ошибок:
+
 ```
 ❌ cannot import name 'create_indicators'
 ❌ 'list' object has no attribute 'attrs'
@@ -50,6 +58,7 @@ python force_switch_to_fixed.py
 ## 🔧 ОТКАТ К СТАРОЙ ВЕРСИИ
 
 Если нужно вернуться к старой версии:
+
 ```bash
 cp signal_live_hybrid_old.py signal_live_hybrid.py
 ```
@@ -57,6 +66,7 @@ cp signal_live_hybrid_old.py signal_live_hybrid.py
 ## 📈 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 После переключения:
+
 - ✅ Нет ошибок импорта функций
 - ✅ Нет ошибок с атрибутами объектов
 - ✅ Корректная обработка данных

@@ -79,8 +79,18 @@ echo "[5/7] Orchestrator и Nightly Learner..."
 echo "  ✅ Запущены в Docker (knowledge_os docker-compose)"
 
 # 6. Резерв: если контейнеры не поднялись — перезапуск
-echo "[6/7] Проверка контейнеров..."
+echo "[6/7] Проверка контейнеров и запуск Rust Gateway..."
 docker-compose -f knowledge_os/docker-compose.yml up -d knowledge_os_orchestrator knowledge_nightly 2>/dev/null || true
+
+# Запуск Rust Gateway
+if [ -f "$ROOT/target/release/gateway" ]; then
+    echo "🚀 Запуск Rust Gateway..."
+    ps aux | grep gateway | grep -v grep | awk '{print $2}' | xargs kill -9 2>/dev/null || true
+    RUST_LOG=info WORKSPACE_ROOT="$ROOT" "$ROOT/target/release/gateway" > "$ROOT/gateway_new.log" 2>&1 &
+    echo "  ✅ Rust Gateway запущен в фоне (порт 8081)"
+else
+    echo "⚠️  Rust Gateway не найден в target/release. Соберите его: cd rust_core/gateway && cargo build --release"
+fi
 
 # 7. Проверка всех сервисов
 echo "[7/7] Проверка всех сервисов..."
@@ -102,6 +112,13 @@ if curl -sf http://localhost:8011/health >/dev/null 2>&1; then
     echo "✅ Veronica Agent: работает"
 else
     echo "❌ Veronica Agent: не работает"
+fi
+
+# Проверка Rust Gateway
+if curl -sf http://localhost:8081/health >/dev/null 2>&1; then
+    echo "✅ Rust Gateway: работает (порт 8081)"
+else
+    echo "❌ Rust Gateway: не работает"
 fi
 
 # Проверка БД
@@ -128,6 +145,7 @@ echo "✅ КОРПОРАЦИЯ ЗАПУЩЕНА!"
 echo "=============================================="
 echo ""
 echo "📋 Что работает:"
+echo "  - Rust Gateway (Core API, порт 8081)"
 echo "  - Victoria Agent (Team Lead)"
 echo "  - Veronica Agent (Web Researcher)"
 echo "  - Knowledge OS Database (PostgreSQL)"

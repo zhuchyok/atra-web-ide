@@ -4,7 +4,7 @@ description: Disaster Recovery - автоматическое восстанов
 category: reliability
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🔄"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "🔄" } }
 ---
 
 # Disaster Recovery Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🔄"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Автоматического восстановления после сбоев
 - Сохранения состояния
 - Восстановления из checkpoint
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🔄"}}
 ## Методология
 
 Disaster Recovery работает через:
+
 1. **Checkpointing** - Регулярное сохранение состояния
 2. **State Backup** - Резервное копирование состояния
 3. **Failure Detection** - Обнаружение сбоев

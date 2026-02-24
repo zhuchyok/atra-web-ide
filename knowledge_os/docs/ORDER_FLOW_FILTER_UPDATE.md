@@ -5,6 +5,7 @@
 ## ✅ ПРИМЕНЕНЫ ОПТИМИЗИРОВАННЫЕ ПАРАМЕТРЫ
 
 ### 📊 Новые параметры:
+
 - **`required_confirmations: 0`** (в мягком режиме)
 - **`pr_threshold: 0.6`**
 
@@ -13,6 +14,7 @@
 **Файл:** `src/filters/order_flow_filter.py`
 
 #### Для LONG сигналов:
+
 ```python
 # Мягкий режим (strict_mode=False):
 # - Проверяет ТОЛЬКО Pressure Ratio
@@ -25,6 +27,7 @@ if not strict_mode:
 ```
 
 #### Для SHORT сигналов:
+
 ```python
 # Мягкий режим (strict_mode=False):
 # - Проверяет ТОЛЬКО Pressure Ratio
@@ -38,10 +41,12 @@ if not strict_mode:
 ### 📈 Результаты оптимизации:
 
 **Старые параметры** (`required_confirmations: 1, pr_threshold: 0.7`):
+
 - Сигналов: 203
 - Return: 40,295.24%
 
 **Новые параметры** (`required_confirmations: 0, pr_threshold: 0.6`):
+
 - Сигналов: 133
 - Return: 6,421.30%
 
@@ -62,4 +67,3 @@ if not strict_mode:
 - Параметры оптимизированы на основе тестирования на 7 днях данных для 5 монет
 - Результаты сохранены в `backtests/order_flow_optimal_params.json`
 - Фильтр применяется **ПОСЛЕ baseline** (как показала оптимизация)
-

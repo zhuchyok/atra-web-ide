@@ -16,10 +16,10 @@
    # Клонирование репозитория
    git clone https://github.com/your-repo/atra.git
    cd atra
-   
+
    # Установка зависимостей
    pip install -r requirements.txt
-   
+
    # Установка зависимостей для разработки
    pip install -r requirements-dev.txt
 
@@ -33,14 +33,14 @@
    # Telegram Bot
    TELEGRAM_BOT_TOKEN=your_bot_token
    TELEGRAM_CHAT_ID=your_chat_id
-   
+
    # Database
    DATABASE_URL=sqlite:///atra.db
-   
+
    # API Keys
    BINANCE_API_KEY=your_binance_api_key
    BINANCE_SECRET_KEY=your_binance_secret_key
-   
+
    # Trading Settings
    DEFAULT_RISK_PCT=2.0
    DEFAULT_LEVERAGE=1.0
@@ -61,9 +61,9 @@
 
    # Unit тесты
    python -m pytest tests/unit/ -v
-   
+
    # Integration тесты
    python -m pytest tests/integration/ -v
-   
+
    # Performance тесты
    python -m pytest tests/performance/ -v

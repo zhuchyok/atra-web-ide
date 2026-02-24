@@ -35,7 +35,7 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "🧪 Проверка подключения..."
     ssh -o ConnectTimeout=5 ${MAC_STUDIO_USER}@${MAC_STUDIO_IP} "echo '✅ Подключение успешно!' && hostname && whoami"
-    
+
     if [ $? -eq 0 ]; then
         echo ""
         echo "✅✅✅ ВСЁ ГОТОВО! Теперь можно подключаться без пароля:"

@@ -46,4 +46,3 @@ CREATE TRIGGER update_webhooks_updated_at
 -- Комментарии
 COMMENT ON TABLE webhooks IS 'Webhooks для интеграции с внешними системами (Slack, Discord, Telegram, Custom)';
 COMMENT ON TABLE webhook_logs IS 'Логи отправки webhooks для отладки и мониторинга';
-

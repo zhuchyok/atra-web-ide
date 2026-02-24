@@ -3,6 +3,7 @@
 ## Обзор
 
 После реализации базовых оптимизаций (SQLite, Rust PGO, Python uvloop) можно дополнительно ускорить систему на 5-100x через:
+
 - Векторизацию вычислений
 - JIT компиляцию
 - Оптимизацию сериализации
@@ -16,6 +17,7 @@
 **Файл:** `src/data/technical.py`
 
 **Текущий код (строки 39-50):**
+
 ```python
 gains = []
 losses = []
@@ -36,6 +38,7 @@ for i in range(1, len(prices)):
 ### Решение: Векторизация с NumPy
 
 **Оптимизированный код:**
+
 ```python
 import numpy as np
 
@@ -45,27 +48,27 @@ def calculate_rsi_vectorized(prices: List[float], period: int = 14) -> Optional[
     try:
         if len(prices) < period + 1:
             return None
-        
+
         # Конвертируем в numpy array
         prices_arr = np.array(prices, dtype=np.float64)
-        
+
         # Векторизованный расчет изменений
         deltas = np.diff(prices_arr)
-        
+
         # Векторизованное разделение на gains и losses
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
-        
+
         # Расчет средних за период (векторизованно)
         avg_gain = np.mean(gains[-period:])
         avg_loss = np.mean(losses[-period:])
-        
+
         if avg_loss == 0:
             return 100.0
-        
+
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        
+
         return round(float(rsi), 2)
     except Exception as e:
         logger.error(f"Ошибка расчета RSI: {e}")
@@ -81,6 +84,7 @@ def calculate_rsi_vectorized(prices: List[float], period: int = 14) -> Optional[
 **Файл:** `src/data/technical.py`
 
 **Оптимизированный код:**
+
 ```python
 try:
     from numba import jit
@@ -98,17 +102,17 @@ def _calculate_rsi_numba(prices_arr: np.ndarray, period: int) -> float:
     n = len(prices_arr)
     if n < period + 1:
         return np.nan
-    
+
     deltas = np.diff(prices_arr)
     gains = np.where(deltas > 0, deltas, 0.0)
     losses = np.where(deltas < 0, -deltas, 0.0)
-    
+
     avg_gain = np.mean(gains[-period:])
     avg_loss = np.mean(losses[-period:])
-    
+
     if avg_loss == 0:
         return 100.0
-    
+
     rs = avg_gain / avg_loss
     return 100.0 - (100.0 / (1.0 + rs))
 
@@ -117,7 +121,7 @@ def calculate_rsi_numba(prices: List[float], period: int = 14) -> Optional[float
     """RSI с JIT компиляцией"""
     if not NUMBA_AVAILABLE:
         return TechnicalIndicators.calculate_rsi_vectorized(prices, period)
-    
+
     try:
         prices_arr = np.array(prices, dtype=np.float64)
         rsi = _calculate_rsi_numba(prices_arr, period)
@@ -153,32 +157,32 @@ def pandas_to_polars(df: pd.DataFrame) -> 'pl.DataFrame':
     """Конвертация Pandas DataFrame в Polars"""
     if not POLARS_AVAILABLE:
         return df
-    
+
     return pl.from_pandas(df)
 
 def polars_to_pandas(df: 'pl.DataFrame') -> pd.DataFrame:
     """Конвертация Polars DataFrame в Pandas"""
     if not POLARS_AVAILABLE:
         return df
-    
+
     return df.to_pandas()
 
 def calculate_indicators_polars(df: 'pl.DataFrame') -> 'pl.DataFrame':
     """Расчет индикаторов с Polars (5-30x быстрее Pandas)"""
     if not POLARS_AVAILABLE:
         raise ImportError("Polars not available")
-    
+
     return df.with_columns([
         # EMA
         pl.col("close").ewm_mean(span=7).alias("ema7"),
         pl.col("close").ewm_mean(span=25).alias("ema25"),
-        
+
         # RSI
         (100 - (100 / (1 + pl.col("close").pct_change().rolling_mean(14)))).alias("rsi"),
-        
+
         # Volume ratio
         (pl.col("volume") / pl.col("volume").rolling_mean(20)).alias("volume_ratio"),
-        
+
         # Volatility
         (pl.col("close").pct_change().rolling_std(20) * 100).alias("volatility"),
     ])
@@ -191,6 +195,7 @@ def calculate_indicators_polars(df: 'pl.DataFrame') -> 'pl.DataFrame':
 ### MessagePack вместо JSON
 
 **Применение:**
+
 ```python
 try:
     import msgpack
@@ -218,6 +223,7 @@ def deserialize_fast(data: bytes) -> Any:
 ### Parquet для DataFrame
 
 **Применение:**
+
 ```python
 def save_dataframe_fast(df: pd.DataFrame, path: str):
     """Сохранение DataFrame в Parquet (10-100x быстрее pickle)"""
@@ -252,49 +258,49 @@ except ImportError:
 
 class RedisCache:
     """Распределенный кэш через Redis"""
-    
+
     def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0):
         if not REDIS_AVAILABLE:
             raise ImportError("Redis not available")
-        
+
         self.redis_client = redis.Redis(host=host, port=port, db=db, decode_responses=True)
         self.async_client = None
-    
+
     async def get_async_client(self):
         """Получить async клиент Redis"""
         if self.async_client is None:
             self.async_client = await aioredis.from_url(f"redis://localhost:6379/{0}")
         return self.async_client
-    
+
     def set(self, key: str, value: Any, ttl: int = 3600):
         """Установить значение в кэш"""
         import msgpack
         serialized = msgpack.packb(value, use_bin_type=True)
         self.redis_client.setex(key, ttl, serialized)
-    
+
     def get(self, key: str) -> Optional[Any]:
         """Получить значение из кэша"""
         data = self.redis_client.get(key)
         if data is None:
             return None
-        
+
         import msgpack
         return msgpack.unpackb(data, raw=False)
-    
+
     async def set_async(self, key: str, value: Any, ttl: int = 3600):
         """Асинхронная установка значения"""
         client = await self.get_async_client()
         import msgpack
         serialized = msgpack.packb(value, use_bin_type=True)
         await client.setex(key, ttl, serialized)
-    
+
     async def get_async(self, key: str) -> Optional[Any]:
         """Асинхронное получение значения"""
         client = await self.get_async_client()
         data = await client.get(key)
         if data is None:
             return None
-        
+
         import msgpack
         return msgpack.unpackb(data, raw=False)
 ```
@@ -328,18 +334,18 @@ def process_symbol_remote(symbol: str, data: pd.DataFrame) -> Dict[str, Any]:
 
 class RayOptimizer:
     """Оптимизатор с использованием Ray"""
-    
+
     def __init__(self):
         if RAY_AVAILABLE:
             if not ray.is_initialized():
                 ray.init(num_cpus=4)
-    
+
     def process_symbols_parallel(self, symbols: List[str], data_dict: Dict[str, pd.DataFrame]) -> List[Dict]:
         """Параллельная обработка символов"""
         if not RAY_AVAILABLE:
             # Fallback на последовательную обработку
             return [process_symbol(s, data_dict[s]) for s in symbols]
-        
+
         # Распределенная обработка
         futures = [process_symbol_remote.remote(s, data_dict[s]) for s in symbols]
         results = ray.get(futures)
@@ -397,10 +403,10 @@ def executemany_optimized(self, query: str, params_list: List[tuple]):
             # Отключаем индексы для массовой вставки
             self.conn.execute("PRAGMA synchronous=OFF")
             self.conn.execute("BEGIN TRANSACTION")
-            
+
             self.cursor.executemany(query, params_list)
             self.conn.commit()
-            
+
             # Включаем обратно
             self.conn.execute("PRAGMA synchronous=NORMAL")
             return True
@@ -431,12 +437,12 @@ from typing import Dict, Any
 
 class AgentSharedMemory:
     """Shared memory для координации агентов"""
-    
+
     def __init__(self, size_mb: int = 100):
         self.size = size_mb * 1024 * 1024
         self.mmap_file = None
         self.lock = threading.Lock()
-    
+
     def write_data(self, key: str, data: Any):
         """Запись данных в shared memory"""
         with self.lock:
@@ -444,7 +450,7 @@ class AgentSharedMemory:
             serialized = json.dumps(data).encode('utf-8')
             # Запись в mmap
             # ...
-    
+
     def read_data(self, key: str) -> Optional[Any]:
         """Чтение данных из shared memory"""
         with self.lock:
@@ -466,14 +472,14 @@ def optimize_dataframe_types(df: pd.DataFrame) -> pd.DataFrame:
     for col in df.select_dtypes(include=['object']).columns:
         if df[col].nunique() < len(df) * 0.5:  # Если уникальных значений < 50%
             df[col] = df[col].astype('category')
-    
+
     # Оптимизация численных типов
     for col in df.select_dtypes(include=['int64']).columns:
         df[col] = pd.to_numeric(df[col], downcast='integer')
-    
+
     for col in df.select_dtypes(include=['float64']).columns:
         df[col] = pd.to_numeric(df[col], downcast='float')
-    
+
     return df
 ```
 
@@ -482,18 +488,21 @@ def optimize_dataframe_types(df: pd.DataFrame) -> pd.DataFrame:
 ## План реализации
 
 ### Этап 1: Быстрые победы (1 неделя)
+
 1. Векторизация технических индикаторов с NumPy
 2. JIT компиляция с Numba
 3. MessagePack для сериализации
 4. Batch processing в Database
 
 ### Этап 2: Средние оптимизации (2 недели)
+
 5. Polars для больших DataFrame
 6. Parquet для сохранения данных
 7. Prepared statements в Database
 8. Оптимизация типов DataFrame
 
 ### Этап 3: Продвинутые оптимизации (2-3 недели)
+
 9. Redis кэширование
 10. Ray для распределенной обработки
 11. Shared memory для агентов
@@ -502,6 +511,7 @@ def optimize_dataframe_types(df: pd.DataFrame) -> pd.DataFrame:
 ## Ожидаемые итоговые результаты
 
 ### Производительность:
+
 - **Расчеты индикаторов:** 10-100x быстрее (Numba + векторизация)
 - **Обработка данных:** 5-30x быстрее (Polars)
 - **Сериализация:** 2-100x быстрее (MessagePack/Parquet)
@@ -509,16 +519,19 @@ def optimize_dataframe_types(df: pd.DataFrame) -> pd.DataFrame:
 - **Обмен данными агентов:** 90-99% снижение латентности (Shared memory)
 
 ### Память:
+
 - **Потребление памяти:** 30-80% снижение (Polars, оптимизация типов)
 - **Кэширование:** 50-90% снижение нагрузки на БД (Redis)
 
 ### Масштабируемость:
+
 - **Распределенная обработка:** 4-20x ускорение (Ray)
 - **Параллелизм агентов:** через shared memory
 
 ## Зависимости
 
 ### Новые зависимости:
+
 ```txt
 # Быстрые вычисления
 numba>=0.58.0  # JIT компиляция
@@ -543,12 +556,14 @@ ray>=2.8.0  # Распределенная обработка (опционал�
 ## Критерии успеха
 
 ### Метрики производительности:
+
 - Расчет RSI для 1000 свечей: < 1ms (сейчас ~10-50ms)
 - Обработка DataFrame 1M строк: < 1 сек (сейчас ~5-30 сек)
 - Сериализация 1MB данных: < 10ms (сейчас ~50-200ms)
 - Batch insert 10K записей: < 100ms (сейчас ~1-5 сек)
 
 ### Метрики памяти:
+
 - Потребление памяти для 1M строк: < 100MB (сейчас ~300-500MB)
 - Кэш hit rate: > 80%
 
@@ -556,4 +571,3 @@ ray>=2.8.0  # Распределенная обработка (опционал�
 
 **Дата создания:** 2025-01-09  
 **Статус:** Готов к реализации
-

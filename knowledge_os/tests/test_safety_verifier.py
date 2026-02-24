@@ -1,7 +1,10 @@
-import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from knowledge_os.app.safety_verifier import SafetyVerifier
+
 
 @pytest.mark.asyncio
 async def test_safety_verifier_impact_analysis():
@@ -16,14 +19,16 @@ async def test_safety_verifier_impact_analysis():
 def test_function(a, b, c=None):
     return a + b
 """
-    
+
     mock_dependencies = [
         {"name": "caller_a", "file_path": "caller_a.py", "content": "test_function(1, 2)"},
-        {"name": "caller_b", "file_path": "caller_b.py", "content": "test_function(x, y)"}
+        {"name": "caller_b", "file_path": "caller_b.py", "content": "test_function(x, y)"},
     ]
 
     # Mocking _get_downstream_dependencies
-    with patch.object(SafetyVerifier, '_get_downstream_dependencies', return_value=mock_dependencies):
+    with patch.object(
+        SafetyVerifier, "_get_downstream_dependencies", return_value=mock_dependencies
+    ):
         # Mocking run_smart_agent_async
         mock_audit_json = """
 ```json
@@ -34,12 +39,15 @@ def test_function(a, b, c=None):
 }
 ```
 """
-        with patch('knowledge_os.app.safety_verifier.run_smart_agent_async', return_value=mock_audit_json):
+        with patch(
+            "knowledge_os.app.safety_verifier.run_smart_agent_async", return_value=mock_audit_json
+        ):
             report = await verifier.verify_mutation(module_name, function_name, mutated_code)
-            
-            assert report['safety_score'] == 90
-            assert report['recommendation'] == "proceed"
-            assert len(report['risks']) == 0
+
+            assert report["safety_score"] == 90
+            assert report["recommendation"] == "proceed"
+            assert len(report["risks"]) == 0
+
 
 @pytest.mark.asyncio
 async def test_safety_verifier_risk_detection():
@@ -52,12 +60,14 @@ async def test_safety_verifier_risk_detection():
 def test_function(a):
     return a
 """
-    
+
     mock_dependencies = [
         {"name": "caller_a", "file_path": "caller_a.py", "content": "test_function(1, 2)"}
     ]
 
-    with patch.object(SafetyVerifier, '_get_downstream_dependencies', return_value=mock_dependencies):
+    with patch.object(
+        SafetyVerifier, "_get_downstream_dependencies", return_value=mock_dependencies
+    ):
         mock_audit_json = """
 {
     "safety_score": 20,
@@ -65,12 +75,15 @@ def test_function(a):
     "recommendation": "abort"
 }
 """
-        with patch('knowledge_os.app.safety_verifier.run_smart_agent_async', return_value=mock_audit_json):
+        with patch(
+            "knowledge_os.app.safety_verifier.run_smart_agent_async", return_value=mock_audit_json
+        ):
             report = await verifier.verify_mutation(module_name, function_name, mutated_code)
-            
-            assert report['safety_score'] == 20
-            assert report['recommendation'] == "abort"
-            assert "Signature change" in report['risks'][0]
+
+            assert report["safety_score"] == 20
+            assert report["recommendation"] == "abort"
+            assert "Signature change" in report["risks"][0]
+
 
 def test_extract_function_args():
     verifier = SafetyVerifier()

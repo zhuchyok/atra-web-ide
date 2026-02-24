@@ -16,8 +16,8 @@
 ## 2. Как тестировать
 
 - **Полный обзор тестов:** [docs/TESTING_FULL_SYSTEM.md](docs/TESTING_FULL_SYSTEM.md) — backend, knowledge_os, один скрипт `./scripts/run_all_system_tests.sh`.
-- **Unit-тесты:**  
-  - Backend: `pytest backend/app/tests/ -q`  
+- **Unit-тесты:**
+  - Backend: `pytest backend/app/tests/ -q`
   - Knowledge OS: `pytest knowledge_os/tests/ -q` (без БД по умолчанию; с БД — см. TESTING_FULL_SYSTEM).
 - **E2E (Playwright):** чат и health. Запуск после поднятия сервисов:
   ```bash
@@ -68,4 +68,4 @@
 
 ---
 
-*При вопросах «как что сделать» — сначала [HOW_TO_INDEX.md](docs/HOW_TO_INDEX.md); при изменении архитектуры или контура — MASTER_REFERENCE и CHANGES.*
+_При вопросах «как что сделать» — сначала [HOW_TO_INDEX.md](docs/HOW_TO_INDEX.md); при изменении архитектуры или контура — MASTER_REFERENCE и CHANGES._

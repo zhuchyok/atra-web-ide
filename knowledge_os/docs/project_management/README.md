@@ -54,21 +54,27 @@ crontab infrastructure/cron/pm_daily.cron
 ## Компоненты
 
 ### PM Coordinator
+
 Главный координатор, который:
+
 - Запускает ежедневные проверки
 - Анализирует производительность
 - Оптимизирует параметры
 - Генерирует отчёты
 
 ### Daily Check
+
 Ежедневная проверка:
+
 - Финансовые метрики (PnL, win rate, profit factor)
 - Операционные метрики (fill rate, timeout rate)
 - Качество кода (линтер, тесты)
 - Риски и проблемы
 
 ### Auto Optimizer
+
 Автоматическая оптимизация:
+
 - Анализ производительности за 7 дней
 - Оптимизация параметров сигналов
 - Оптимизация параметров исполнения
@@ -77,6 +83,7 @@ crontab infrastructure/cron/pm_daily.cron
 ## Метрики
 
 ### Финансовые
+
 - **Win Rate:** Цель > 55%
 - **Average Profit per Trade:** Цель > 1.5%
 - **Sharpe Ratio:** Цель > 2.0
@@ -84,6 +91,7 @@ crontab infrastructure/cron/pm_daily.cron
 - **Max Drawdown:** Цель < 10%
 
 ### Операционные
+
 - **Limit Fill Rate:** Цель > 90%
 - **Timeout Rate:** Цель < 10%
 - **Market Fallback Rate:** Цель < 5%
@@ -92,9 +100,11 @@ crontab infrastructure/cron/pm_daily.cron
 ## Отчёты
 
 ### Ежедневные отчёты
+
 Сохраняются в: `docs/project_management/daily_reports/daily_report_YYYYMMDD.json`
 
 ### Оптимизации
+
 Сохраняются в: `docs/project_management/optimizations/optimization_YYYYMMDD.json`
 
 ## Процесс работы
@@ -118,6 +128,7 @@ crontab infrastructure/cron/pm_daily.cron
 ## Автоматизация
 
 PM работает полностью автоматически:
+
 - ✅ Ежедневные проверки
 - ✅ Автоматическая оптимизация
 - ✅ Генерация отчётов
@@ -126,6 +137,7 @@ PM работает полностью автоматически:
 ## Мониторинг
 
 Логи PM сохраняются в:
+
 - `logs/pm_coordinator.log`
 - `logs/pm_daily_check.log`
 - `logs/pm_auto_optimize.log`
@@ -139,4 +151,3 @@ PM работает полностью автоматически:
 ---
 
 **Последнее обновление:** 2025-11-12
-

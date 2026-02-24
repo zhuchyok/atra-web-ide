@@ -3,6 +3,7 @@
 ## 📊 **ПРОБЛЕМА**
 
 ### **❌ Ошибка в логах:**
+
 ```
 [DEBUG] Динамическое плечо для XRPUSDT: 1.3 (базовое: 1)
 ERROR:root:[main_loop] Ошибка: local variable 'leverage_for_callback' referenced before assignment
@@ -19,6 +20,7 @@ UnboundLocalError: local variable 'leverage_for_callback' referenced before assi
 **Проблема:** Переменная `leverage_for_callback` использовалась в строке 2982 до её определения в строке 2987.
 
 **Логика ошибки:**
+
 1. В строке 2982 формируется сообщение с использованием `leverage_for_callback`
 2. Но переменная `leverage_for_callback` определяется только в строке 2987
 3. Это приводит к ошибке `UnboundLocalError`
@@ -30,6 +32,7 @@ UnboundLocalError: local variable 'leverage_for_callback' referenced before assi
 ### **✅ Что было исправлено:**
 
 #### **Было (неправильно):**
+
 ```python
 msg = (
     f"⚠️ Риск: <code>{risk_pct:.2f}%</code>"
@@ -51,6 +54,7 @@ leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_
 ```
 
 #### **Стало (правильно):**
+
 ```python
 msg = (
     f"⚠️ Риск: <code>{risk_pct:.2f}%</code>"
@@ -102,16 +106,19 @@ leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_
 ### **🎯 Что теперь работает:**
 
 #### **1. Правильное формирование сообщений:**
+
 - ✅ Переменная `leverage_for_callback` определяется до использования
 - ✅ Нет ошибок `UnboundLocalError`
 - ✅ Сообщения формируются корректно
 
 #### **2. Корректная передача плеча:**
+
 - ✅ В быстрых командах `/accept` передается правильное плечо
 - ✅ В callback_data передается корректное значение
 - ✅ Для фьючерсов - динамическое плечо, для спота - 1
 
 #### **3. Стабильная работа системы:**
+
 - ✅ Нет прерываний в main_loop
 - ✅ Сигналы отправляются без ошибок
 - ✅ Плечо отображается правильно
@@ -119,6 +126,7 @@ leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_
 ### **📊 Примеры работы:**
 
 #### **Для фьючерсов:**
+
 ```
 ⚡ Плечо: x1.3
 💡 БЫСТРЫЕ КОМАНДЫ:
@@ -127,6 +135,7 @@ leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_
 ```
 
 #### **Для спота:**
+
 ```
 💡 БЫСТРЫЕ КОМАНДЫ:
 • Принятие сигнала:
@@ -170,4 +179,5 @@ leverage_for_callback = dynamic_leverage if trade_mode == 'futures' and dynamic_
 4. **✅ Сообщения формируются корректно** - все данные отображаются
 
 ### **🎯 Результат:**
+
 Система генерации сигналов теперь работает **стабильно и без ошибок**, правильно передавая динамическое плечо в команды и callback_data.

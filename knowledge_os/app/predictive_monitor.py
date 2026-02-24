@@ -25,21 +25,31 @@ PENDING_HOURS = int(os.getenv("PREDICTIVE_PENDING_HOURS", "1"))
 PENDING_COUNT_THRESHOLD = int(os.getenv("PREDICTIVE_PENDING_COUNT_THRESHOLD", "30"))
 
 
-async def _create_predictive_task(conn, title: str, description: str, assignee_hint: str = "SRE") -> bool:
+async def _create_predictive_task(
+    conn, title: str, description: str, assignee_hint: str = "SRE"
+) -> bool:
     """Создаёт задачу от Predictive Monitor. Избегает дублирования за 24ч."""
     try:
-        existing = await conn.fetchval("""
+        existing = await conn.fetchval(
+            """
             SELECT 1 FROM tasks
             WHERE title = $1 AND created_at > NOW() - INTERVAL '24 hours'
             LIMIT 1
-        """, title)
+        """,
+            title,
+        )
         if existing:
             return False
         metadata = json.dumps({"source": "predictive_monitor", "assignee_hint": assignee_hint})
-        await conn.execute("""
+        await conn.execute(
+            """
             INSERT INTO tasks (title, description, status, priority, metadata)
             VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-        """, title, description, metadata)
+        """,
+            title,
+            description,
+            metadata,
+        )
         logger.info("📋 [PREDICTIVE] Создана задача: %s", title)
         return True
     except Exception as e:
@@ -72,11 +82,14 @@ async def run_predictive_check() -> Dict[str, Any]:
         conn = await asyncpg.connect(_DB_URL)
         try:
             # 1) Зависшие in_progress (без обновления > N минут)
-            stuck_count = await conn.fetchval("""
+            stuck_count = await conn.fetchval(
+                """
                 SELECT COUNT(*) FROM tasks
                 WHERE status = 'in_progress'
                   AND updated_at < NOW() - INTERVAL '1 minute' * $1
-            """, STUCK_MINUTES)
+            """,
+                STUCK_MINUTES,
+            )
             result["stuck_count"] = stuck_count or 0
 
             if (stuck_count or 0) >= STUCK_COUNT_THRESHOLD:
@@ -87,11 +100,14 @@ async def run_predictive_check() -> Dict[str, Any]:
                     result["alerts"].append("stuck_tasks")
 
             # 2) Старые pending (не назначены, в очереди > N часов)
-            old_pending = await conn.fetchval("""
+            old_pending = await conn.fetchval(
+                """
                 SELECT COUNT(*) FROM tasks
                 WHERE status = 'pending'
                   AND created_at < NOW() - INTERVAL '1 hour' * $1
-            """, PENDING_HOURS)
+            """,
+                PENDING_HOURS,
+            )
             result["old_pending_count"] = old_pending or 0
 
             if (old_pending or 0) >= PENDING_COUNT_THRESHOLD:

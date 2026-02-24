@@ -16,6 +16,7 @@ python scripts/quick_validate_experts.py
 ```
 
 **Ожидаемый результат:**
+
 - ✅ ВАЛИДАЦИЯ ПРОЙДЕНА — все хардкоды актуальны
 - ❌ ВАЛИДАЦИЯ НЕ ПРОЙДЕНА — требуется исправление
 
@@ -26,6 +27,7 @@ python scripts/check_experts_count.py --verbose --no-confirm
 ```
 
 **Вывод включает:**
+
 - SQL результаты (`SELECT COUNT(*)`, `SELECT name`)
 - Сканирование кодовой базы
 - Детальный отчёт о расхождениях
@@ -58,7 +60,7 @@ VALUES ('Новый Эксперт', 'Role Title', 'Department', 'System prompt.
 # Добавить в EXTENDED_FALLBACK_EXPERTS (если необходимо)
 EXTENDED_FALLBACK_EXPERTS: List[str] = [
     "Дмитрий",
-    "Мария", 
+    "Мария",
     "Максим",
     "Сергей",
     "Елена",
@@ -97,33 +99,38 @@ python /root/knowledge_os/app/telegram_gateway.py &
 ## 🔍 SQL Запросы для ручной проверки
 
 ### Количество экспертов
+
 ```sql
 SELECT COUNT(*) FROM experts;
 ```
 
 ### Список всех экспертов
+
 ```sql
 SELECT name, role, department FROM experts ORDER BY name;
 ```
 
 ### Проверка конкретного эксперта
+
 ```sql
 SELECT * FROM experts WHERE name = 'Виктория';
 ```
 
 ### Эксперты, добавленные за последний месяц
+
 ```sql
-SELECT name, role, created_at 
-FROM experts 
+SELECT name, role, created_at
+FROM experts
 WHERE created_at > NOW() - INTERVAL '30 days'
 ORDER BY created_at DESC;
 ```
 
 ### Эксперты с определёнными ролями (для distillation)
+
 ```sql
-SELECT name, role FROM experts 
-WHERE role ILIKE '%Lead%' 
-   OR role ILIKE '%Director%' 
+SELECT name, role FROM experts
+WHERE role ILIKE '%Lead%'
+   OR role ILIKE '%Director%'
    OR role ILIKE '%Senior%';
 ```
 
@@ -136,6 +143,7 @@ WHERE role ILIKE '%Lead%'
 **Диагноз:** Telegram gateway не сможет маршрутизировать запросы к этому эксперту.
 
 **Решение:**
+
 1. Если используется `expert_aliases.py` — кэш обновится автоматически
 2. Если используется старый код — добавить в соответствующий блок if/elif
 3. Рекомендация: провести рефакторинг на динамическую загрузку
@@ -145,6 +153,7 @@ WHERE role ILIKE '%Lead%'
 **Диагноз:** Критическая ошибка! Код ссылается на несуществующего эксперта.
 
 **Решение:**
+
 1. Добавить эксперта в БД
 2. ИЛИ удалить из хардкода (если эксперт больше не нужен)
 
@@ -162,6 +171,7 @@ SELECT * FROM experts WHERE name = 'ИмяЭксперта';
 **Диагноз:** При недоступности БД система будет работать с ограниченным набором экспертов.
 
 **Решение:**
+
 1. Обновить `EXTENDED_FALLBACK_EXPERTS` в `expert_validator.py`
 2. Добавить комментарий с датой обновления
 
@@ -169,34 +179,34 @@ SELECT * FROM experts WHERE name = 'ИмяЭксперта';
 
 ## 📊 Метрики для мониторинга
 
-| Метрика | Целевое значение | Как проверить |
-|---------|------------------|---------------|
-| Экспертов в БД | >= кол-во в fallback | `SELECT COUNT(*) FROM experts` |
-| Хардкодов в коде | Минимум | `grep -r "FALLBACK_EXPERTS" app/` |
-| Время последней валидации | < 30 дней | `cat scripts/reports/quick_validation.txt` |
+| Метрика                   | Целевое значение     | Как проверить                              |
+| ------------------------- | -------------------- | ------------------------------------------ |
+| Экспертов в БД            | >= кол-во в fallback | `SELECT COUNT(*) FROM experts`             |
+| Хардкодов в коде          | Минимум              | `grep -r "FALLBACK_EXPERTS" app/`          |
+| Время последней валидации | < 30 дней            | `cat scripts/reports/quick_validation.txt` |
 
 ---
 
 ## 🔗 Связанные файлы
 
-| Файл | Назначение |
-|------|------------|
-| `scripts/check_experts_count.py` | Полный аудит |
-| `scripts/quick_validate_experts.py` | Быстрая проверка |
-| `app/expert_validator.py` | Централизованные fallback-списки |
-| `app/expert_aliases.py` | Динамический менеджер алиасов |
-| `scripts/reports/` | Отчёты проверок |
-| `scripts/patches/` | Патчи для рефакторинга |
+| Файл                                | Назначение                       |
+| ----------------------------------- | -------------------------------- |
+| `scripts/check_experts_count.py`    | Полный аудит                     |
+| `scripts/quick_validate_experts.py` | Быстрая проверка                 |
+| `app/expert_validator.py`           | Централизованные fallback-списки |
+| `app/expert_aliases.py`             | Динамический менеджер алиасов    |
+| `scripts/reports/`                  | Отчёты проверок                  |
+| `scripts/patches/`                  | Патчи для рефакторинга           |
 
 ---
 
 ## ⏰ Рекомендуемое расписание
 
-| Действие | Частота | Команда |
-|----------|---------|---------|
-| Быстрая валидация | Еженедельно | `python scripts/quick_validate_experts.py` |
-| Полный аудит | Ежемесячно | `python scripts/check_experts_count.py --verbose` |
-| Проверка после деплоя | После каждого деплоя | `python scripts/quick_validate_experts.py` |
+| Действие              | Частота              | Команда                                           |
+| --------------------- | -------------------- | ------------------------------------------------- |
+| Быстрая валидация     | Еженедельно          | `python scripts/quick_validate_experts.py`        |
+| Полный аудит          | Ежемесячно           | `python scripts/check_experts_count.py --verbose` |
+| Проверка после деплоя | После каждого деплоя | `python scripts/quick_validate_experts.py`        |
 
 ---
 

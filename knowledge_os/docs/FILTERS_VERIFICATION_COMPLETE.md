@@ -5,6 +5,7 @@
 ### ✅ В `strict_entry_signal` (src/signals/core.py):
 
 **ПРАВИЛЬНЫЙ ПОРЯДОК (из успешного бэктеста +2,477%):**
+
 1. ✅ Volume Profile
 2. ✅ VWAP
 3. ✅ **AMT** (перемещен с 8-го места)
@@ -18,6 +19,7 @@
 ### ✅ В `soft_entry_signal` (src/signals/core.py):
 
 **ПРАВИЛЬНАЯ СТРУКТУРА:**
+
 1. ✅ Volume Profile (ПЕРЕД baseline)
 2. ✅ VWAP (ПЕРЕД baseline)
 3. ✅ Baseline (ослабленный, 70% условий)
@@ -32,6 +34,7 @@
 ## 📋 ВСЕ ФИЛЬТРЫ ВКЛЮЧЕНЫ
 
 ### ✅ Основные фильтры (17):
+
 1. ✅ VP_FILTER
 2. ✅ VWAP_FILTER
 3. ✅ ORDER_FLOW_FILTER
@@ -51,17 +54,20 @@
 17. ✅ EXHAUSTION_FILTER
 
 ### ✅ Дополнительные фильтры (2):
+
 18. ✅ NEWS_FILTER_ACTIVE
 19. ✅ WHALE_TRACKING_ENABLED
 
 ## 🔍 ИНТЕГРАЦИЯ
 
 ### ✅ В src/signals/core.py:
+
 - ✅ Все основные фильтры интегрированы
 - ✅ Порядок исправлен согласно успешному бэктесту
 - ✅ News и Whale фильтры интегрированы
 
 ### ✅ В signal_live.py:
+
 - ✅ Dominance Trend (через check_new_filters)
 - ✅ Interest Zone (через check_new_filters)
 - ✅ Fibonacci Zone (через check_new_filters)

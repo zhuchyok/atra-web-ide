@@ -4,7 +4,7 @@ description: Parallel Request Processor - параллельная обрабо�
 category: performance
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "⚡" } }
 ---
 
 # Parallel Processing Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Параллельной обработки независимых задач
 - Улучшения throughput
 - Снижения latency
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "⚡"}}
 ## Методология
 
 Parallel Processing работает через:
+
 1. **Task Analysis** - Анализ зависимостей задач
 2. **Dependency Graph** - Построение графа зависимостей
 3. **Parallel Execution** - Параллельное выполнение независимых задач

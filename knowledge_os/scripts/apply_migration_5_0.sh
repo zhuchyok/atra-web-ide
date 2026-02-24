@@ -10,43 +10,43 @@ echo "🚀 Применение миграции Singularity 5.0 на серве
 
 # Создаем временный SQL файл
 SQL_CONTENT="-- Миграция для расширения semantic_ai_cache с метриками роутинга
-ALTER TABLE semantic_ai_cache 
+ALTER TABLE semantic_ai_cache
 ADD COLUMN IF NOT EXISTS routing_source TEXT DEFAULT NULL,
 ADD COLUMN IF NOT EXISTS performance_score FLOAT DEFAULT NULL,
 ADD COLUMN IF NOT EXISTS tokens_saved INTEGER DEFAULT 0;
 
-CREATE INDEX IF NOT EXISTS idx_semantic_cache_routing_source 
-ON semantic_ai_cache(routing_source) 
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_routing_source
+ON semantic_ai_cache(routing_source)
 WHERE routing_source IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_semantic_cache_performance 
-ON semantic_ai_cache(performance_score) 
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_performance
+ON semantic_ai_cache(performance_score)
 WHERE performance_score IS NOT NULL;
 "
 
 # Применяем миграцию через SSH
 sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no root@$SERVER bash << EOF
     cd /root/knowledge_os 2>/dev/null || cd /root/atra/knowledge_os 2>/dev/null || cd /root 2>/dev/null || true
-    
+
     # Создаем временный SQL файл
     cat > /tmp/migration_5_0.sql << 'SQLFILE'
 -- Миграция для расширения semantic_ai_cache с метриками роутинга
-ALTER TABLE semantic_ai_cache 
+ALTER TABLE semantic_ai_cache
 ADD COLUMN IF NOT EXISTS routing_source TEXT DEFAULT NULL,
 ADD COLUMN IF NOT EXISTS performance_score FLOAT DEFAULT NULL,
 ADD COLUMN IF NOT EXISTS tokens_saved INTEGER DEFAULT 0;
 
-CREATE INDEX IF NOT EXISTS idx_semantic_cache_routing_source 
-ON semantic_ai_cache(routing_source) 
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_routing_source
+ON semantic_ai_cache(routing_source)
 WHERE routing_source IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_semantic_cache_performance 
-ON semantic_ai_cache(performance_score) 
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_performance
+ON semantic_ai_cache(performance_score)
 WHERE performance_score IS NOT NULL;
 SQLFILE
-    
+
     echo "📦 Применяю миграцию..."
-    
+
     # Пробуем разные варианты подключения
     if sudo -u postgres psql -d knowledge_os -f /tmp/migration_5_0.sql 2>/dev/null; then
         echo "✅ Миграция применена (postgres user)"
@@ -58,7 +58,7 @@ SQLFILE
         echo "⚠️ Не удалось применить миграцию автоматически"
         echo "Выполните вручную: psql -d knowledge_os -f /tmp/migration_5_0.sql"
     fi
-    
+
     # Проверяем результат
     echo "🔍 Проверка применения миграции..."
     if sudo -u postgres psql -d knowledge_os -c "\\d semantic_ai_cache" 2>/dev/null | grep -E "(routing_source|performance_score|tokens_saved)" > /dev/null; then
@@ -68,7 +68,7 @@ SQLFILE
     else
         echo "⚠️ Не удалось проверить (возможно, миграция применена)"
     fi
-    
+
     rm -f /tmp/migration_5_0.sql
 EOF
 

@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
@@ -50,8 +51,7 @@ class SystemMonitor:
 
     def _log_status(self) -> None:
         LOGGER.info(
-            "\n" +
-            "🔄 CONTINUOUS SYSTEM STATUS - %s\n\n"
+            "\n" + "🔄 CONTINUOUS SYSTEM STATUS - %s\n\n"
             "📈 Trading Metrics:\n"
             "   • Active Strategies: %d\n"
             "   • Total Trades: %d\n"

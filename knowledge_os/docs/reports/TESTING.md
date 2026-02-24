@@ -3,6 +3,7 @@
 ## Quick Start
 
 ### Run All Tests
+
 ```bash
 # Simple run
 pytest tests/unit/ -v
@@ -15,6 +16,7 @@ pytest tests/unit/ -q
 ```
 
 ### Run Specific Tests
+
 ```bash
 # Single module
 pytest tests/unit/test_config.py -v
@@ -27,6 +29,7 @@ pytest tests/unit/ -k "test_config" -v
 ```
 
 ### Using Helper Script
+
 ```bash
 # Run with coverage report
 ./scripts/run_tests.sh
@@ -62,13 +65,14 @@ tests/unit/
 ## Current Coverage
 
 ### Core Modules
-| Module | Coverage | Status |
-|--------|----------|--------|
-| config.py | 84% | ⭐⭐⭐⭐⭐ Excellent |
-| risk_manager.py | 45% | ⭐⭐⭐⭐ Good |
-| lightgbm_predictor.py | 38% | ⭐⭐⭐⭐ Good |
-| exchange_adapter.py | 39% | ⭐⭐⭐⭐ Good |
-| signal_live.py | 15% | ⭐⭐⭐ Good (490 lines!) |
+
+| Module                | Coverage | Status                   |
+| --------------------- | -------- | ------------------------ |
+| config.py             | 84%      | ⭐⭐⭐⭐⭐ Excellent     |
+| risk_manager.py       | 45%      | ⭐⭐⭐⭐ Good            |
+| lightgbm_predictor.py | 38%      | ⭐⭐⭐⭐ Good            |
+| exchange_adapter.py   | 39%      | ⭐⭐⭐⭐ Good            |
+| signal_live.py        | 15%      | ⭐⭐⭐ Good (490 lines!) |
 
 **Overall:** 24% (Smart focused testing on critical paths)  
 **Critical Paths:** ~65% ✅
@@ -78,7 +82,9 @@ tests/unit/
 ## CI/CD Integration
 
 ### GitHub Actions
+
 Tests run automatically on:
+
 - Push to main/master/insight/develop
 - Pull requests to main/master/insight/develop
 - Python versions: 3.9, 3.10, 3.11
@@ -86,13 +92,16 @@ Tests run automatically on:
 View results: [GitHub Actions](https://github.com/nikondrat/atra/actions)
 
 ### Pre-commit Hooks
+
 Install:
+
 ```bash
 pip install pre-commit
 pre-commit install
 ```
 
 Hooks run automatically before commit:
+
 - Code formatting (black, isort)
 - Linting (flake8)
 - Unit tests (fast check)
@@ -102,6 +111,7 @@ Hooks run automatically before commit:
 ## Writing Tests
 
 ### Test Template
+
 ```python
 import pytest
 import sys
@@ -114,23 +124,23 @@ from my_module import MyClass
 
 class TestMyClass:
     """Tests for MyClass"""
-    
+
     def test_initialization(self):
         """Test basic initialization"""
         obj = MyClass()
         assert obj is not None
-    
+
     def test_with_params(self):
         """Test with parameters"""
         obj = MyClass(param=123)
         assert obj.param == 123
-    
+
     def test_edge_case_empty(self):
         """Test edge case: empty input"""
         obj = MyClass()
         result = obj.process([])
         assert result == []
-    
+
     def test_edge_case_none(self):
         """Test edge case: None input"""
         obj = MyClass()
@@ -141,23 +151,25 @@ class TestMyClass:
 ### Best Practices
 
 1. **Clear Test Names**
+
    ```python
    # ✅ Good
    def test_rsi_calculation_with_valid_data():
-   
+
    # ❌ Bad
    def test_1():
    ```
 
 2. **AAA Pattern** (Arrange, Act, Assert)
+
    ```python
    def test_example():
        # Arrange: Setup
        df = pd.DataFrame({'close': [100, 101, 102]})
-       
+
        # Act: Execute
        result = calculate_rsi(df)
-       
+
        # Assert: Verify
        assert isinstance(result, pd.Series)
        assert len(result) == len(df)
@@ -170,9 +182,10 @@ class TestMyClass:
    - Type mismatches
 
 4. **Mocking**
+
    ```python
    from unittest.mock import MagicMock, patch
-   
+
    @patch('my_module.external_api')
    def test_with_mock(mock_api):
        mock_api.return_value = {'data': 123}
@@ -185,6 +198,7 @@ class TestMyClass:
 ## Debugging Failed Tests
 
 ### Verbose Output
+
 ```bash
 # Show full traceback
 pytest tests/unit/test_config.py -v --tb=long
@@ -197,6 +211,7 @@ pytest tests/unit/ -x
 ```
 
 ### Debug with pdb
+
 ```python
 def test_something():
     result = my_function()
@@ -205,6 +220,7 @@ def test_something():
 ```
 
 ### Check Coverage for Specific Module
+
 ```bash
 pytest tests/unit/ --cov=config --cov-report=term-missing
 ```
@@ -214,12 +230,14 @@ pytest tests/unit/ --cov=config --cov-report=term-missing
 ## Performance
 
 ### Current Stats
+
 - **Total Tests:** 334
 - **Execution Time:** 6.71 seconds
 - **Average per Test:** 0.02 seconds
 - **Quality:** ⭐⭐⭐⭐⭐ Blazing fast!
 
 ### Tips for Fast Tests
+
 - Mock external dependencies (API, DB)
 - Use fixtures for shared setup
 - Avoid sleep() calls
@@ -230,12 +248,14 @@ pytest tests/unit/ --cov=config --cov-report=term-missing
 ## Continuous Improvement
 
 ### Adding New Tests
+
 1. Create test file: `tests/unit/test_my_module.py`
 2. Follow naming convention: `test_*`
 3. Run tests: `pytest tests/unit/test_my_module.py -v`
 4. Check coverage: `pytest tests/unit/ --cov=my_module`
 
 ### Target Coverage
+
 - **Critical modules:** 60-80%
 - **Core modules:** 80%+
 - **Utility modules:** 40-60%
@@ -246,6 +266,7 @@ pytest tests/unit/ --cov=config --cov-report=term-missing
 ## Troubleshooting
 
 ### Import Errors
+
 ```python
 # Add to top of test file
 import sys
@@ -254,12 +275,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 ```
 
 ### Module Not Found
+
 ```bash
 # Install missing dependencies
 pip install pytest pytest-cov pytest-asyncio
 ```
 
 ### Slow Tests
+
 ```bash
 # Show slowest tests
 pytest tests/unit/ --durations=10
@@ -270,11 +293,13 @@ pytest tests/unit/ --durations=10
 ## Resources
 
 ### Documentation
+
 - [README_COVERAGE.md](README_COVERAGE.md) - Complete coverage guide
 - [FINAL_EXECUTIVE_REPORT.md](scripts/FINAL_EXECUTIVE_REPORT.md) - Full analysis
 - [ULTIMATE_FINAL_REPORT.md](scripts/ULTIMATE_FINAL_REPORT.md) - Project perfection
 
 ### Quick References
+
 - [Pytest Documentation](https://docs.pytest.org/)
 - [Coverage.py](https://coverage.readthedocs.io/)
 - [Project Test Roadmap](scripts/TEST_COVERAGE_REPORT_AND_PLAN.md)
@@ -296,7 +321,6 @@ pytest tests/unit/ --durations=10
 
 ---
 
-*Last Updated: November 22, 2025*  
-*Team: ATRA World Class Squad*  
-*Quality: ⭐⭐⭐⭐⭐*
-
+_Last Updated: November 22, 2025_  
+_Team: ATRA World Class Squad_  
+_Quality: ⭐⭐⭐⭐⭐_

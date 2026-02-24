@@ -8,6 +8,7 @@
   TELEGRAM_BOT_TOKEN или TG_TOKEN — токен бота
   TELEGRAM_USER_ID или CHAT_ID — chat_id получателя (для личного чата = user id)
 """
+
 import asyncio
 import logging
 import os
@@ -27,7 +28,9 @@ logger = logging.getLogger("telegram_notifications")
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("CHAT_ID", "")
-NOTIFICATION_INTERVAL_SEC = int(os.getenv("TELEGRAM_NOTIFICATION_INTERVAL_SEC", "3600"))  # по умолчанию раз в час
+NOTIFICATION_INTERVAL_SEC = int(
+    os.getenv("TELEGRAM_NOTIFICATION_INTERVAL_SEC", "3600")
+)  # по умолчанию раз в час
 REPORTS_ENABLED = os.getenv("TELEGRAM_REPORTS_ENABLED", "true").lower() in ("1", "true", "yes")
 
 
@@ -116,7 +119,11 @@ async def main():
             "Задайте их в .env или в docker-compose для сервиса telegram-notifications."
         )
     else:
-        logger.info("Telegram notifications worker started (chat_id=%s, interval=%ss)", CHAT_ID, NOTIFICATION_INTERVAL_SEC)
+        logger.info(
+            "Telegram notifications worker started (chat_id=%s, interval=%ss)",
+            CHAT_ID,
+            NOTIFICATION_INTERVAL_SEC,
+        )
 
     tasks = [asyncio.create_task(notification_loop())]
     if REPORTS_ENABLED and TG_TOKEN and CHAT_ID:

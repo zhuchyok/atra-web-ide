@@ -8,6 +8,7 @@
 ## 📥 ОБНОВЛЕНИЕ С GIT
 
 ### Шаг 1: Обновление кода
+
 ```bash
 cd /root/atra
 git stash
@@ -21,11 +22,13 @@ git pull origin main
 ## 🚀 ПЕРЕЗАПУСК БОТА
 
 ### Шаг 2: Остановка старого процесса
+
 ```bash
 pkill -f 'signal_live.py'
 ```
 
 ### Шаг 3: Запуск нового процесса
+
 ```bash
 nohup python3 signal_live.py > signal_live.log 2>&1 &
 ```
@@ -67,16 +70,19 @@ nohup python3 signal_live.py > signal_live.log 2>&1 &
 ## 🔍 КОМАНДЫ ДЛЯ МОНИТОРИНГА
 
 ### Проверка статуса процесса:
+
 ```bash
 ps aux | grep 'signal_live.py' | grep -v grep
 ```
 
 ### Просмотр логов:
+
 ```bash
 tail -f signal_live.log
 ```
 
 ### Проверка сигналов в БД:
+
 ```bash
 python3 -c "
 import sqlite3
@@ -89,6 +95,7 @@ conn.close()
 ```
 
 ### Проверка ошибок:
+
 ```bash
 tail -100 signal_live.log | grep -E 'ERROR|WARNING'
 ```
@@ -102,4 +109,3 @@ tail -100 signal_live.log | grep -E 'ERROR|WARNING'
 3. 🔄 Мониторить работу (в процессе)
 4. 📊 Анализировать результаты
 5. 🔧 Корректировать при необходимости
-

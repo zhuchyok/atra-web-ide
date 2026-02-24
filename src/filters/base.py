@@ -4,8 +4,9 @@ Base classes for signal filters
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple, List
 from datetime import datetime
+from typing import Any, Dict, List, Tuple
+
 from src.shared.utils.datetime_utils import get_utc_now
 
 
@@ -32,12 +33,7 @@ class BaseFilter(ABC):
         self.name = name
         self.enabled = enabled
         self.priority = priority
-        self.filter_stats = {
-            'total_checked': 0,
-            'passed': 0,
-            'blocked': 0,
-            'errors': 0
-        }
+        self.filter_stats = {"total_checked": 0, "passed": 0, "blocked": 0, "errors": 0}
 
     @abstractmethod
     async def filter_signal(self, signal_data: Dict[str, Any]) -> FilterResult:
@@ -53,26 +49,23 @@ class BaseFilter(ABC):
 
     def update_stats(self, result: FilterResult):
         """Обновить статистику фильтра"""
-        self.filter_stats['total_checked'] += 1
+        self.filter_stats["total_checked"] += 1
         if result.passed:
-            self.filter_stats['passed'] += 1
+            self.filter_stats["passed"] += 1
         else:
-            self.filter_stats['blocked'] += 1
+            self.filter_stats["blocked"] += 1
 
     def get_stats(self) -> Dict[str, int]:
         """Получить статистику фильтра"""
         stats = self.filter_stats.copy()
-        stats['pass_rate'] = (stats['passed'] / stats['total_checked']) * 100 if stats['total_checked'] > 0 else 0
+        stats["pass_rate"] = (
+            (stats["passed"] / stats["total_checked"]) * 100 if stats["total_checked"] > 0 else 0
+        )
         return stats
 
     def reset_stats(self):
         """Сбросить статистику"""
-        self.filter_stats = {
-            'total_checked': 0,
-            'passed': 0,
-            'blocked': 0,
-            'errors': 0
-        }
+        self.filter_stats = {"total_checked": 0, "passed": 0, "blocked": 0, "errors": 0}
 
 
 class FilterManager:
@@ -114,7 +107,10 @@ class FilterManager:
 
         # Импортируем утилиту логирования
         try:
-            from src.utils.filter_logger import log_filter_check_async  # pylint: disable=import-outside-toplevel
+            from src.utils.filter_logger import (
+                log_filter_check_async,  # pylint: disable=import-outside-toplevel
+            )
+
             logging_available = True
         except ImportError:
             logging_available = False
@@ -129,24 +125,26 @@ class FilterManager:
                 filter_instance.update_stats(result)
 
                 # Логирование результата в память
-                self.filter_history.append({
-                    'timestamp': get_utc_now(),
-                    'filter_name': filter_instance.name,
-                    'signal_symbol': signal_data.get('symbol', 'unknown'),
-                    'passed': result.passed,
-                    'reason': result.reason
-                })
+                self.filter_history.append(
+                    {
+                        "timestamp": get_utc_now(),
+                        "filter_name": filter_instance.name,
+                        "signal_symbol": signal_data.get("symbol", "unknown"),
+                        "passed": result.passed,
+                        "reason": result.reason,
+                    }
+                )
 
                 # Логирование в БД
                 if logging_available:
-                    symbol = signal_data.get('symbol', 'unknown')
+                    symbol = signal_data.get("symbol", "unknown")
                     filter_name = filter_instance.name
                     try:
                         log_filter_check_async(
                             symbol=symbol,
                             filter_type=filter_name,
                             passed=result.passed,
-                            reason=result.reason if not result.passed else None
+                            reason=result.reason if not result.passed else None,
                         )
                     except Exception:
                         # Игнорируем ошибки логирования, чтобы не прерывать работу фильтров
@@ -157,7 +155,7 @@ class FilterManager:
                     block_reasons.append(f"{filter_instance.name}: {result.reason}")
 
             except Exception as e:
-                filter_instance.filter_stats['errors'] += 1
+                filter_instance.filter_stats["errors"] += 1
                 block_reasons.append(f"{filter_instance.name}: Ошибка - {str(e)}")
                 all_passed = False
 

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Тестовый скрипт для проверки всех институциональных индикаторов
 
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def create_test_data(n=100):
     """Создает тестовые данные OHLCV"""
-    dates = pd.date_range(start='2024-01-01', periods=n, freq='1h')
+    dates = pd.date_range(start="2024-01-01", periods=n, freq="1h")
 
     # Генерируем случайные данные
     np.random.seed(42)
@@ -40,13 +39,16 @@ def create_test_data(n=100):
         prices.append(price)
         volumes.append(np.random.uniform(1000000, 5000000))
 
-    df = pd.DataFrame({
-        'open': prices,
-        'high': [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
-        'low': [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
-        'close': prices,
-        'volume': volumes,
-    }, index=dates)
+    df = pd.DataFrame(
+        {
+            "open": prices,
+            "high": [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
+            "low": [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
+            "close": prices,
+            "volume": volumes,
+        },
+        index=dates,
+    )
 
     return df
 
@@ -59,8 +61,8 @@ def test_order_flow():
         # Прямой импорт модулей, избегая __init__.py который может импортировать другие модули
         # pylint: disable=import-outside-toplevel
         from src.analysis.order_flow.cumulative_delta import CumulativeDeltaVolume
-        from src.analysis.order_flow.volume_delta import VolumeDelta
         from src.analysis.order_flow.pressure_ratio import PressureRatio
+        from src.analysis.order_flow.volume_delta import VolumeDelta
 
         df = create_test_data(100)
 
@@ -95,9 +97,9 @@ def test_exhaustion():
     try:
         # Прямой импорт модулей
         # pylint: disable=import-outside-toplevel
-        from src.analysis.exhaustion.volume_exhaustion import VolumeExhaustion
-        from src.analysis.exhaustion.price_patterns import PriceExhaustionPatterns
         from src.analysis.exhaustion.liquidity_exhaustion import LiquidityExhaustion
+        from src.analysis.exhaustion.price_patterns import PriceExhaustionPatterns
+        from src.analysis.exhaustion.volume_exhaustion import VolumeExhaustion
 
         df = create_test_data(100)
 
@@ -132,8 +134,8 @@ def test_microstructure():
 
     try:
         # pylint: disable=import-outside-toplevel
-        from src.analysis.volume_profile import VolumeProfileAnalyzer
         from src.analysis.microstructure.absorption import AbsorptionLevels
+        from src.analysis.volume_profile import VolumeProfileAnalyzer
 
         df = create_test_data(100)
 
@@ -145,7 +147,7 @@ def test_microstructure():
 
         # Absorption Levels
         al = AbsorptionLevels()
-        al_values = al.detect_absorption_levels(df, i=len(df)-1)
+        al_values = al.detect_absorption_levels(df, i=len(df) - 1)
         assert isinstance(al_values, list), "Absorption Levels: должен быть list"
         logger.info("  ✅ Absorption Levels работает")
 
@@ -175,7 +177,7 @@ def test_momentum():
         # Stochastic RSI
         stoch_rsi = StochasticRSI()
         stoch_rsi_values = stoch_rsi.calculate(df)
-        assert 'stoch_rsi' in stoch_rsi_values, "Stoch RSI: отсутствует ключ"
+        assert "stoch_rsi" in stoch_rsi_values, "Stoch RSI: отсутствует ключ"
         logger.info("  ✅ Stochastic RSI работает")
 
         return True
@@ -225,6 +227,7 @@ def test_filters():
         try:
             # pylint: disable=import-outside-toplevel
             from src.filters.order_flow_filter import check_order_flow_filter
+
             ok, _ = check_order_flow_filter(df, i, "long", strict_mode=True)
             assert isinstance(ok, bool), "Order Flow фильтр: должен возвращать bool"
             logger.info("  ✅ Order Flow фильтр работает")
@@ -235,6 +238,7 @@ def test_filters():
         try:
             # pylint: disable=import-outside-toplevel
             from src.filters.microstructure_filter import check_microstructure_filter
+
             ok, _ = check_microstructure_filter(df, i, "long", strict_mode=True)
             assert isinstance(ok, bool), "Microstructure фильтр: должен возвращать bool"
             logger.info("  ✅ Microstructure фильтр работает")
@@ -245,6 +249,7 @@ def test_filters():
         try:
             # pylint: disable=import-outside-toplevel
             from src.filters.momentum_filter import check_momentum_filter
+
             ok, _ = check_momentum_filter(df, i, "long", strict_mode=True)
             assert isinstance(ok, bool), "Momentum фильтр: должен возвращать bool"
             logger.info("  ✅ Momentum фильтр работает")
@@ -255,6 +260,7 @@ def test_filters():
         try:
             # pylint: disable=import-outside-toplevel
             from src.filters.trend_strength_filter import check_trend_strength_filter
+
             ok, _ = check_trend_strength_filter(df, i, "long", strict_mode=True)
             assert isinstance(ok, bool), "Trend Strength фильтр: должен возвращать bool"
             logger.info("  ✅ Trend Strength фильтр работает")
@@ -272,17 +278,17 @@ def main():
     logger.info("🚀 Начало тестирования всех институциональных индикаторов\n")
 
     results = {
-        'Order Flow': test_order_flow(),
-        'Exhaustion': test_exhaustion(),
-        'Microstructure': test_microstructure(),
-        'Momentum': test_momentum(),
-        'Trend Strength': test_trend(),
-        'Filters': test_filters(),
+        "Order Flow": test_order_flow(),
+        "Exhaustion": test_exhaustion(),
+        "Microstructure": test_microstructure(),
+        "Momentum": test_momentum(),
+        "Trend Strength": test_trend(),
+        "Filters": test_filters(),
     }
 
-    logger.info("\n%s", "="*50)
+    logger.info("\n%s", "=" * 50)
     logger.info("📊 РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ:")
-    logger.info("%s", "="*50)
+    logger.info("%s", "=" * 50)
 
     for name, result in results.items():
         status = "✅ ПРОЙДЕН" if result else "❌ ПРОВАЛЕН"
@@ -291,7 +297,7 @@ def main():
     total = len(results)
     passed = sum(1 for r in results.values() if r)
 
-    logger.info("%s", "="*50)
+    logger.info("%s", "=" * 50)
     logger.info("Итого: %s/%s тестов пройдено", passed, total)
 
     if passed == total:

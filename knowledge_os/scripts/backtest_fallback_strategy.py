@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Бэктест fallback стратегии momentum + liquidity (15m).
 """
@@ -8,8 +7,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,10 +21,16 @@ if TYPE_CHECKING:
 
 def parse_args() -> argparse.Namespace:
     """Парсит аргументы командной строки для запуска бэктеста fallback-стратегии."""
-    parser = argparse.ArgumentParser(description="Бэктест fallback стратегии Momentum+Liquidity (15m)")
-    parser.add_argument("--symbols", nargs="*", default=["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"])
+    parser = argparse.ArgumentParser(
+        description="Бэктест fallback стратегии Momentum+Liquidity (15m)"
+    )
+    parser.add_argument(
+        "--symbols", nargs="*", default=["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"]
+    )
     parser.add_argument("--days", type=int, default=30)
-    parser.add_argument("--horizon", type=int, default=16, help="Количество свечей 15m для оценки исхода сделки")
+    parser.add_argument(
+        "--horizon", type=int, default=16, help="Количество свечей 15m для оценки исхода сделки"
+    )
     parser.add_argument("--entry-amount-usd", type=float, default=100.0)
     parser.add_argument("--json", action="store_true", help="Выводить отчёт в формате JSON")
     return parser.parse_args()
@@ -33,7 +38,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Запускает бэктест fallback-стратегии и выводит агрегированный отчёт."""
-    from fallback_strategy import FallbackConfig, FallbackMomentumStrategy  # pylint: disable=import-outside-toplevel
+    from fallback_strategy import (  # pylint: disable=import-outside-toplevel
+        FallbackConfig,
+        FallbackMomentumStrategy,
+    )
 
     args = parse_args()
     config = FallbackConfig(symbols=[s.upper() for s in args.symbols], days=args.days)
@@ -65,7 +73,7 @@ def main() -> None:
         for symbol, stats in report["symbols"].items():
             print(
                 f"• {symbol}: sig={stats['signals']}, PnL={stats['pnl_usd']:+.2f} USDT, "
-                f"WinRate={stats['win_rate']:.1f}%, AvgRet={stats['avg_return_pct']*100:.2f}%"
+                f"WinRate={stats['win_rate']:.1f}%, AvgRet={stats['avg_return_pct'] * 100:.2f}%"
             )
 
 

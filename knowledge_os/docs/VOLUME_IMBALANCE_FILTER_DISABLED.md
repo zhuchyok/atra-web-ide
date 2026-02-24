@@ -19,6 +19,7 @@
 ## 💡 РЕШЕНИЕ
 
 **Временно отключен фильтр** (`USE_VOLUME_IMBALANCE_FILTER = False`) для:
+
 - Восстановления генерации сигналов
 - Диагностики других возможных проблем
 - Проверки работы остальных фильтров
@@ -34,4 +35,3 @@
 
 - `config.py`: `USE_VOLUME_IMBALANCE_FILTER = False`
 - `src/filters/volume_imbalance.py`: Добавлена защита от ML перезаписи `require_volume_confirmation`
-

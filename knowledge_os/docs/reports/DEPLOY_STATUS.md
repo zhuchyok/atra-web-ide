@@ -72,11 +72,13 @@ tail -30 main.log
 После выполнения команд на сервере проверьте:
 
 1. **Процесс запущен:**
+
    ```bash
    ps aux | grep "python.*main.py" | grep -v grep
    ```
 
 2. **Логи без ошибок:**
+
    ```bash
    tail -50 main.log | grep -i "error\|exception" | tail -5
    ```
@@ -110,4 +112,3 @@ tail -30 main.log
 ---
 
 **Готово к развертыванию! Выполните команды на сервере.**
-

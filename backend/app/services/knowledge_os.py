@@ -2,11 +2,13 @@
 Knowledge OS Client
 Интеграция с базой знаний Singularity
 """
-import asyncpg
-from typing import Optional, List
-import logging
 
+import logging
+from typing import List, Optional
+
+import asyncpg
 from fastapi import Request
+
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -45,15 +47,15 @@ class KnowledgeOSClient:
         if self._pool and self._own_pool:
             await self._pool.close()
         self._pool = None
-    
+
     async def get_experts(self) -> List[dict]:
         """Получить список всех экспертов"""
         if self._pool is None:
             await self.connect()
-        
+
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT 
+                SELECT
                     id,
                     name,
                     role,
@@ -63,15 +65,16 @@ class KnowledgeOSClient:
                 ORDER BY name
             """)
             return [dict(row) for row in rows]
-    
+
     async def get_expert(self, expert_id: str) -> Optional[dict]:
         """Получить эксперта по ID"""
         if self._pool is None:
             await self.connect()
-        
+
         async with self._pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT 
+            row = await conn.fetchrow(
+                """
+                SELECT
                     id,
                     name,
                     role,
@@ -79,13 +82,19 @@ class KnowledgeOSClient:
                     created_at
                 FROM experts
                 WHERE id = $1
-            """, expert_id)
+            """,
+                expert_id,
+            )
             return dict(row) if row else None
-    
+
     # Veronica/Victoria: Latin в коде → Cyrillic в БД (все регистры)
     _EXPERT_NAME_TO_DB = {
-        "Veronica": "Вероника", "veronica": "Вероника", "VERONICA": "Вероника",
-        "Victoria": "Виктория", "victoria": "Виктория", "VICTORIA": "Виктория",
+        "Veronica": "Вероника",
+        "veronica": "Вероника",
+        "VERONICA": "Вероника",
+        "Victoria": "Виктория",
+        "victoria": "Виктория",
+        "VICTORIA": "Виктория",
     }
 
     async def get_expert_by_name(self, name: str) -> Optional[dict]:
@@ -98,22 +107,25 @@ class KnowledgeOSClient:
             for candidate in [resolved, name]:
                 if not candidate:
                     continue
-                row = await conn.fetchrow("""
+                row = await conn.fetchrow(
+                    """
                     SELECT id, name, role, system_prompt, created_at
                     FROM experts WHERE name = $1
-                """, candidate)
+                """,
+                    candidate,
+                )
                 if row:
                     return dict(row)
             return None
-    
+
     async def get_domains(self) -> List[dict]:
         """Получить список доменов"""
         if self._pool is None:
             await self.connect()
-        
+
         async with self._pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT 
+                SELECT
                     id,
                     name,
                     description,
@@ -122,7 +134,7 @@ class KnowledgeOSClient:
                 ORDER BY name
             """)
             return [dict(row) for row in rows]
-    
+
     async def search_knowledge_by_vector(
         self,
         embedding: List[float],
@@ -157,19 +169,17 @@ class KnowledgeOSClient:
             return []
 
     async def search_knowledge(
-        self, 
-        query: str, 
-        limit: int = 10,
-        domain_id: Optional[str] = None
+        self, query: str, limit: int = 10, domain_id: Optional[str] = None
     ) -> List[dict]:
         """Поиск по знаниям"""
         if self._pool is None:
             await self.connect()
-        
+
         async with self._pool.acquire() as conn:
             if domain_id:
-                rows = await conn.fetch("""
-                    SELECT 
+                rows = await conn.fetch(
+                    """
+                    SELECT
                         id,
                         content,
                         metadata,
@@ -181,10 +191,15 @@ class KnowledgeOSClient:
                     AND domain_id = $2
                     ORDER BY confidence_score DESC
                     LIMIT $3
-                """, f"%{query}%", domain_id, limit)
+                """,
+                    f"%{query}%",
+                    domain_id,
+                    limit,
+                )
             else:
-                rows = await conn.fetch("""
-                    SELECT 
+                rows = await conn.fetch(
+                    """
+                    SELECT
                         id,
                         content,
                         metadata,
@@ -195,19 +210,22 @@ class KnowledgeOSClient:
                     WHERE content ILIKE $1
                     ORDER BY confidence_score DESC
                     LIMIT $2
-                """, f"%{query}%", limit)
+                """,
+                    f"%{query}%",
+                    limit,
+                )
             return [dict(row) for row in rows]
-    
+
     async def get_stats(self) -> dict:
         """Статистика Knowledge OS"""
         if self._pool is None:
             await self.connect()
-        
+
         async with self._pool.acquire() as conn:
             experts_count = await conn.fetchval("SELECT COUNT(*) FROM experts")
             knowledge_count = await conn.fetchval("SELECT COUNT(*) FROM knowledge_nodes")
             domains_count = await conn.fetchval("SELECT COUNT(*) FROM domains")
-            
+
             return {
                 "experts": experts_count or 0,
                 "knowledge_nodes": knowledge_count or 0,

@@ -1,9 +1,11 @@
 # Отчет об исправлении отображения динамического плеча в сигнале "принят"
 
 ## Проблема
+
 В сигнале "принят" для фьючерсов отображалось статическое плечо (x1) вместо динамического плеча из торгового сигнала. Для спота плечо не должно отображаться вообще.
 
 ## Причина проблемы
+
 1. В `signal_live.py` динамическое плечо рассчитывалось и отображалось в торговом сигнале, но не передавалось в `callback_data`
 2. В `telegram_bot.py` использовалось статическое плечо из `user_data` вместо динамического из сигнала
 3. Отсутствовала логика для скрытия плеча для спот режима
@@ -15,6 +17,7 @@
 **Добавлено динамическое плечо в callback_data для всех типов сигналов:**
 
 **Новые торговые сигналы (строка 2978):**
+
 ```python
 # Было:
 callback_data=f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{side.lower()}|{risk_pct}'
@@ -24,6 +27,7 @@ callback_data=f'accept|{symbol}|{now.strftime("%Y-%m-%dT%H:%M")}|{price}|1.0|{si
 ```
 
 **DCA LONG сигналы (строка 2512):**
+
 ```python
 # Было:
 callback_data=f'accept|{symbol}|{df.index[-1]}|{last["close"]}|{new_qty}|long|{risk_pct}'
@@ -33,6 +37,7 @@ callback_data=f'accept|{symbol}|{df.index[-1]}|{last["close"]}|{new_qty}|long|{r
 ```
 
 **DCA SHORT сигналы (строка 2636):**
+
 ```python
 # Было:
 callback_data=f'accept|{symbol}|{df.index[-1]}|{last["close"]}|{new_qty}|short|{risk_pct}'
@@ -44,6 +49,7 @@ callback_data=f'accept|{symbol}|{df.index[-1]}|{last["close"]}|{new_qty}|short|{
 ### 2. Обновлена обработка callback_data в telegram_bot.py
 
 **Добавлена поддержка динамического плеча в функции button (строки 770-780):**
+
 ```python
 # Если есть dynamic_leverage в data, используем его
 if len(data) > 7:
@@ -57,6 +63,7 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ### 3. Обновлена команда /accept в telegram_bot.py
 
 **Добавлена поддержка динамического плеча в accept_signal_cmd (строки 3980-3990):**
+
 ```python
 # Добавлен параметр dynamic_leverage
 dynamic_leverage = float(args[6]) if len(args) > 6 else None
@@ -68,10 +75,12 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ## Результат
 
 ### Для SPOT режима:
+
 - Плечо не отображается в сигнале "принят"
 - Показывается только сумма входа в сделку
 
 ### Для FUTURES режима:
+
 - Отображается динамическое плечо из торгового сигнала (например, x1.5, x2.0)
 - Показывается сумма входа с учетом плеча
 - Плечо рассчитывается автоматически на основе волатильности и тренда
@@ -79,6 +88,7 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ### Пример отображения:
 
 **SPOT режим:**
+
 ```
 ✅ Сигнал принят!
 Ваш текущий депозит: 1000.00 USDT.
@@ -89,6 +99,7 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ```
 
 **FUTURES режим:**
+
 ```
 ✅ Сигнал принят!
 Ваш текущий депозит: 1000.00 USDT.
@@ -102,6 +113,7 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ## Совместимость
 
 Все изменения обратно совместимы:
+
 - Старые сигналы без динамического плеча будут работать с плечом x1
 - Команда `/accept` поддерживает как старый, так и новый формат
 - DCA сигналы используют существующее плечо из позиции
@@ -109,6 +121,7 @@ leverage = dynamic_leverage if dynamic_leverage is not None else (user_data.get(
 ## Тестирование
 
 Рекомендуется протестировать:
+
 1. Принятие новых торговых сигналов для SPOT и FUTURES режимов
 2. Принятие DCA сигналов
 3. Использование команды `/accept` с новым параметром плеча

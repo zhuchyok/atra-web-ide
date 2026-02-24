@@ -2,15 +2,16 @@
 AcceptanceDatabase - База данных для хранения принятых сигналов, позиций и API ключей биржи
 """
 
+import asyncio
 import json
 import logging
-import sqlite3
 import os
-import asyncio
-import time
+import sqlite3
 import threading
-from datetime import datetime, timezone, timedelta
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+
 from src.database.fetch_optimizer import fetch_all_optimized
 
 logger = logging.getLogger(__name__)
@@ -30,33 +31,33 @@ class AcceptanceDatabase:
             return cls._instance
 
     def __init__(self, db_path: Optional[str] = None):
-        if getattr(self, '_initialized', False):
+        if getattr(self, "_initialized", False):
             return
-        
+
         # Интеллектуальный выбор пути к базе данных
         if db_path is None:
             # 1. Проверяем переменную окружения
             db_path = os.getenv("ATRA_DB_PATH")
-            
+
             if db_path is None:
                 # 2. Проверяем стандартные пути
                 paths_to_check = [
                     "/root/atra/trading.db",  # Сервер
                     os.path.join(os.getcwd(), "trading.db"),  # Локально (корень проекта)
-                    "trading.db"  # Текущая папка
+                    "trading.db",  # Текущая папка
                 ]
-                
+
                 for path in paths_to_check:
                     # Проверяем, можем ли мы использовать этот путь
                     abs_path = os.path.abspath(path)
                     dir_name = os.path.dirname(abs_path)
-                    
+
                     # Если папка существует и мы можем в нее писать, или если файл уже существует и мы можем в него писать
                     if os.path.exists(dir_name) and os.access(dir_name, os.W_OK):
                         if not os.path.exists(abs_path) or os.access(abs_path, os.W_OK):
                             db_path = abs_path
                             break
-                
+
                 if db_path is None:
                     db_path = "trading.db"
 
@@ -140,23 +141,23 @@ class AcceptanceDatabase:
                 # Проверка наличия новых колонок (миграция)
                 cursor.execute("PRAGMA table_info(active_positions)")
                 columns = [col[1] for col in cursor.fetchall()]
-                if 'ars_last_action' not in columns:
+                if "ars_last_action" not in columns:
                     cursor.execute("ALTER TABLE active_positions ADD COLUMN ars_last_action TEXT")
-                if 'ars_last_time' not in columns:
+                if "ars_last_time" not in columns:
                     cursor.execute("ALTER TABLE active_positions ADD COLUMN ars_last_time DATETIME")
-                if 'user_id' not in columns:
+                if "user_id" not in columns:
                     cursor.execute("ALTER TABLE active_positions ADD COLUMN user_id INTEGER")
 
                 # Миграция для accepted_signals
                 cursor.execute("PRAGMA table_info(accepted_signals)")
                 columns_accepted = [col[1] for col in cursor.fetchall()]
-                if 'tp1_price' not in columns_accepted:
+                if "tp1_price" not in columns_accepted:
                     cursor.execute("ALTER TABLE accepted_signals ADD COLUMN tp1_price REAL")
-                if 'tp2_price' not in columns_accepted:
+                if "tp2_price" not in columns_accepted:
                     cursor.execute("ALTER TABLE accepted_signals ADD COLUMN tp2_price REAL")
-                if 'sl_price' not in columns_accepted:
+                if "sl_price" not in columns_accepted:
                     cursor.execute("ALTER TABLE accepted_signals ADD COLUMN sl_price REAL")
-                if 'accepted_by' not in columns_accepted:
+                if "accepted_by" not in columns_accepted:
                     cursor.execute("ALTER TABLE accepted_signals ADD COLUMN accepted_by TEXT")
 
                 # Таблица статистики
@@ -195,16 +196,18 @@ class AcceptanceDatabase:
                         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                
+
                 conn.commit()
         except Exception as e:
             logger.error("❌ Ошибка инициализации AcceptanceDatabase: %s", e)
 
-    async def _execute_with_retry(self, query: str, params: tuple = (), is_write: bool = True) -> Any:
+    async def _execute_with_retry(
+        self, query: str, params: tuple = (), is_write: bool = True
+    ) -> Any:
         """Выполняет SQL запрос с повторными попытками при блокировке БД"""
         max_retries = 10
         retry_delay = 0.5
-        
+
         for attempt in range(max_retries):
             try:
                 conn = self._get_conn()
@@ -218,74 +221,99 @@ class AcceptanceDatabase:
                         return fetch_all_optimized(cursor)
             except sqlite3.OperationalError as e:
                 if "locked" in str(e).lower() and attempt < max_retries - 1:
-                    logger.warning("⚠️ БД занята (попытка %d/%d), ждем %.1f сек...", attempt + 1, max_retries, retry_delay)
+                    logger.warning(
+                        "⚠️ БД занята (попытка %d/%d), ждем %.1f сек...",
+                        attempt + 1,
+                        max_retries,
+                        retry_delay,
+                    )
                     await asyncio.sleep(retry_delay)
                     retry_delay = min(retry_delay * 1.5, 5.0)
                     continue
                 logger.error("❌ Ошибка БД после %d попыток: %s", attempt + 1, e)
-                if not is_write: return []
+                if not is_write:
+                    return []
                 return False
             except Exception as e:
                 logger.error("❌ Критическая ошибка БД: %s", e)
-                if not is_write: return []
+                if not is_write:
+                    return []
                 return False
         return False if is_write else []
 
-    async def execute_with_retry(self, query: str, params: tuple = (), is_write: bool = True) -> Any:
+    async def execute_with_retry(
+        self, query: str, params: tuple = (), is_write: bool = True
+    ) -> Any:
         """Публичный алиас для обратной совместимости"""
         return await self._execute_with_retry(query, params, is_write)
 
-    async def save_exchange_keys(self, user_id: int, exchange_name: str, api_key: str, secret_key: str, passphrase: Optional[str] = None) -> bool:
+    async def save_exchange_keys(
+        self,
+        user_id: int,
+        exchange_name: str,
+        api_key: str,
+        secret_key: str,
+        passphrase: Optional[str] = None,
+    ) -> bool:
         """Сохраняет или обновляет API ключи биржи для пользователя (с ретраями)"""
         try:
             from src.utils.encryption import get_key_encryption
+
             encryption = get_key_encryption()
-            
+
             # Шифруем ключи перед сохранением
             enc_api = encryption.encrypt(api_key)
             enc_secret = encryption.encrypt(secret_key)
             enc_passphrase = encryption.encrypt(passphrase) if passphrase else None
-            
+
             query = """
                 INSERT OR REPLACE INTO user_exchange_keys (
                     user_id, exchange_name, api_key, secret_key, passphrase, is_active, updated_at
                 ) VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
             """
             params = (user_id, exchange_name, enc_api, enc_secret, enc_passphrase)
-            
+
             return await self._execute_with_retry(query, params, is_write=True)
-            
+
         except Exception as e:
             logger.error("❌ Ошибка при сохранении ключей в БД: %s", e)
             return False
 
-    async def get_active_exchange_keys(self, user_id: int, exchange_name: str = 'bitget') -> Optional[Dict[str, str]]:
+    async def get_active_exchange_keys(
+        self, user_id: int, exchange_name: str = "bitget"
+    ) -> Optional[Dict[str, str]]:
         """Получает расшифрованные API ключи пользователя"""
         query = "SELECT api_key, secret_key, passphrase FROM user_exchange_keys WHERE user_id = ? AND exchange_name = ? AND is_active = 1"
         rows = await self._execute_with_retry(query, (user_id, exchange_name), is_write=False)
-        
+
         if not rows:
             return None
-            
+
         try:
             from src.utils.encryption import get_key_encryption
+
             encryption = get_key_encryption()
-            
+
             row = rows[0]
             api_key = encryption.decrypt(row[0])
             secret_key = encryption.decrypt(row[1])
             passphrase = encryption.decrypt(row[2]) if row[2] else None
-            
-            return {
-                'api_key': api_key,
-                'secret_key': secret_key,
-                'passphrase': passphrase
-            }
+
+            return {"api_key": api_key, "secret_key": secret_key, "passphrase": passphrase}
         except Exception as e:
             logger.error("❌ Ошибка расшифрования ключей: %s", e)
             return None
 
-    async def create_active_position(self, symbol: str, direction: str, entry_price: float, user_id: int, chat_id: int, message_id: int, signal_key: str):
+    async def create_active_position(
+        self,
+        symbol: str,
+        direction: str,
+        entry_price: float,
+        user_id: int,
+        chat_id: int,
+        message_id: int,
+        signal_key: str,
+    ):
         """Создает запись об активной позиции"""
         query = """
             INSERT INTO active_positions (symbol, direction, entry_price, entry_time, user_id, accepted_by, chat_id, message_id, signal_key, status)
@@ -294,30 +322,47 @@ class AcceptanceDatabase:
                 status = 'open',
                 entry_price = EXCLUDED.entry_price
         """
-        params = (symbol, direction, entry_price, user_id, str(user_id), chat_id, message_id, signal_key)
+        params = (
+            symbol,
+            direction,
+            entry_price,
+            user_id,
+            str(user_id),
+            chat_id,
+            message_id,
+            signal_key,
+        )
         return await self._execute_with_retry(query, params, is_write=True)
 
-    async def upsert_active_position(self, user_id: int, symbol: str, direction: str, entry_price: float, status: str = 'open'):
+    async def upsert_active_position(
+        self, user_id: int, symbol: str, direction: str, entry_price: float, status: str = "open"
+    ):
         """Обновляет или создает активную позицию (используется при синхронизации с биржей)"""
         # Сначала проверяем существование
-        query_check = "SELECT id FROM active_positions WHERE user_id = ? AND symbol = ? AND status = 'open'"
+        query_check = (
+            "SELECT id FROM active_positions WHERE user_id = ? AND symbol = ? AND status = 'open'"
+        )
         rows = await self._execute_with_retry(query_check, (user_id, symbol), is_write=False)
-        
+
         if rows:
             # Обновляем
             query_update = """
-                UPDATE active_positions 
+                UPDATE active_positions
                 SET entry_price = ?, direction = ?, status = ?
                 WHERE user_id = ? AND symbol = ? AND status = 'open'
             """
-            return await self._execute_with_retry(query_update, (entry_price, direction, status, user_id, symbol), is_write=True)
+            return await self._execute_with_retry(
+                query_update, (entry_price, direction, status, user_id, symbol), is_write=True
+            )
         else:
             # Создаем новую (без signal_key, так как это внешняя позиция)
             query_insert = """
                 INSERT INTO active_positions (user_id, symbol, direction, entry_price, status, entry_time)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """
-            return await self._execute_with_retry(query_insert, (user_id, symbol, direction, entry_price, status), is_write=True)
+            return await self._execute_with_retry(
+                query_insert, (user_id, symbol, direction, entry_price, status), is_write=True
+            )
 
     async def close_active_position_by_symbol(self, user_id: int, symbol: str) -> bool:
         """Помечает позицию как закрытую в БД"""
@@ -332,19 +377,21 @@ class AcceptanceDatabase:
         """Возвращает список активных позиций пользователя"""
         query = "SELECT * FROM active_positions WHERE user_id = ? AND status = 'open'"
         rows = await self._execute_with_retry(query, (user_id,), is_write=False)
-        
+
         positions = []
         if rows:
             for row in rows:
-                positions.append({
-                    'id': row[0],
-                    'symbol': row[1],
-                    'direction': row[2],
-                    'entry_price': row[3],
-                    'entry_time': row[4],
-                    'user_id': row[9], # user_id column index is 9
-                    'signal_key': row[12] # signal_key column index is 12
-                })
+                positions.append(
+                    {
+                        "id": row[0],
+                        "symbol": row[1],
+                        "direction": row[2],
+                        "entry_price": row[3],
+                        "entry_time": row[4],
+                        "user_id": row[9],  # user_id column index is 9
+                        "signal_key": row[12],  # signal_key column index is 12
+                    }
+                )
         return positions
 
     async def get_user_mode(self, user_id: int) -> str:
@@ -353,7 +400,7 @@ class AcceptanceDatabase:
         rows = await self._execute_with_retry(query, (user_id,), is_write=False)
         if rows and rows[0]:
             return rows[0][0]
-        return 'manual'
+        return "manual"
 
     async def set_user_mode(self, user_id: int, trade_mode: str) -> bool:
         """Устанавливает режим торговли для пользователя"""
@@ -372,22 +419,24 @@ class AcceptanceDatabase:
         # Для простоты используем SQL с LIKE или загружаем всех и фильтруем
         query = "SELECT user_id, data FROM users_data"
         rows = await self._execute_with_retry(query, (), is_write=False)
-        
+
         user_ids = []
         if rows:
             for row in rows:
                 try:
                     data = json.loads(row[1])
-                    if data.get('trade_mode') == trade_mode:
+                    if data.get("trade_mode") == trade_mode:
                         user_ids.append(row[0])
                 except:
                     continue
         return user_ids
 
-    async def update_signals_log_result(self, symbol: str, user_id: int, result: str, profit_pct: float = 0.0):
+    async def update_signals_log_result(
+        self, symbol: str, user_id: int, result: str, profit_pct: float = 0.0
+    ):
         """Обновляет результат сигнала в signals_log"""
         query = """
-            UPDATE signals_log 
+            UPDATE signals_log
             SET result = ?, profit_pct = ?, closed_at = CURRENT_TIMESTAMP
             WHERE symbol = ? AND user_id = ? AND result IS NULL
             ORDER BY created_at DESC LIMIT 1
@@ -395,7 +444,9 @@ class AcceptanceDatabase:
         params = (result, profit_pct, symbol, user_id)
         return await self._execute_with_retry(query, params, is_write=True)
 
-    async def get_signal_data(self, signal_key: str = None, user_symbol: tuple = None) -> Optional[Dict[str, Any]]:
+    async def get_signal_data(
+        self, signal_key: str = None, user_symbol: tuple = None
+    ) -> Optional[Dict[str, Any]]:
         """Получает данные сигнала из accepted_signals"""
         if signal_key:
             query = "SELECT * FROM accepted_signals WHERE signal_key = ?"
@@ -405,20 +456,21 @@ class AcceptanceDatabase:
             params = user_symbol
         else:
             return None
-            
+
         rows = await self._execute_with_retry(query, params, is_write=False)
-        if not rows: return None
-        
+        if not rows:
+            return None
+
         row = rows[0]
         return {
-            'signal_key': row[0],
-            'symbol': row[1],
-            'direction': row[2],
-            'entry_price': row[3],
-            'tp1_price': row[15],
-            'tp2_price': row[16],
-            'sl_price': row[17],
-            'status': row[7]
+            "signal_key": row[0],
+            "symbol": row[1],
+            "direction": row[2],
+            "entry_price": row[3],
+            "tp1_price": row[15],
+            "tp2_price": row[16],
+            "sl_price": row[17],
+            "status": row[7],
         }
 
     async def save_accepted_signal(self, signal_data: Dict[str, Any]) -> bool:
@@ -431,18 +483,18 @@ class AcceptanceDatabase:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?)
         """
         params = (
-            signal_data.get('signal_key'),
-            signal_data.get('symbol'),
-            signal_data.get('direction'),
-            signal_data.get('entry_price'),
-            signal_data.get('signal_time', datetime.now(timezone.utc).isoformat()),
-            signal_data.get('user_id'),
-            signal_data.get('chat_id', 0),
-            signal_data.get('message_id'),
-            signal_data.get('status', 'accepted'),
-            str(signal_data.get('user_id')),
-            signal_data.get('tp1_price'),
-            signal_data.get('tp2_price'),
-            signal_data.get('sl_price')
+            signal_data.get("signal_key"),
+            signal_data.get("symbol"),
+            signal_data.get("direction"),
+            signal_data.get("entry_price"),
+            signal_data.get("signal_time", datetime.now(timezone.utc).isoformat()),
+            signal_data.get("user_id"),
+            signal_data.get("chat_id", 0),
+            signal_data.get("message_id"),
+            signal_data.get("status", "accepted"),
+            str(signal_data.get("user_id")),
+            signal_data.get("tp1_price"),
+            signal_data.get("tp2_price"),
+            signal_data.get("sl_price"),
         )
         return await self._execute_with_retry(query, params, is_write=True)

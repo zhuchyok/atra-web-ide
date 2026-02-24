@@ -1,13 +1,15 @@
-# -*- coding: utf-8 -*-
 """
 Market capitalization filtering and management
 """
+
+import asyncio
 import logging
 import sqlite3
-import asyncio
+
 import requests
 
 from src.data.sources_hub import SourcesHub
+
 
 async def get_market_cap_data(symbols):
     """
@@ -29,8 +31,8 @@ async def get_market_cap_data(symbols):
         async with semaphore:
             try:
                 mc_data = await hub.get_market_cap_data(symbol)
-                if mc_data and mc_data.get('market_cap', 0) > 0:
-                    return symbol, mc_data['market_cap']
+                if mc_data and mc_data.get("market_cap", 0) > 0:
+                    return symbol, mc_data["market_cap"]
             except Exception as e:
                 logging.debug("Ошибка получения капы для %s через Hub: %s", symbol, e)
             return symbol, 0
@@ -42,9 +44,12 @@ async def get_market_cap_data(symbols):
         if mc > 0:
             market_caps[symbol] = mc
 
-    logging.info("Получены данные капитализации для %d/%d монет через SourcesHub", len(market_caps), len(symbols))
+    logging.info(
+        "Получены данные капитализации для %d/%d монет через SourcesHub",
+        len(market_caps),
+        len(symbols),
+    )
     return market_caps
-
 
 
 def get_whitelisted_symbols():
@@ -52,7 +57,7 @@ def get_whitelisted_symbols():
     Gets whitelist of coins from special whitelist table
     """
     try:
-        conn = sqlite3.connect('trading.db')
+        conn = sqlite3.connect("trading.db")
         cursor = conn.cursor()
 
         # Get symbols from whitelist
@@ -62,7 +67,9 @@ def get_whitelisted_symbols():
         conn.close()
 
         if whitelisted:
-            logging.info("✅ Белый список содержит %d монет: %s", len(whitelisted), whitelisted[:10])
+            logging.info(
+                "✅ Белый список содержит %d монет: %s", len(whitelisted), whitelisted[:10]
+            )
 
         return set(whitelisted)
     except (sqlite3.Error, ValueError, TypeError, KeyError) as e:
@@ -75,7 +82,7 @@ def get_blacklisted_symbols():
     Gets blacklist of coins from special blacklist table
     """
     try:
-        conn = sqlite3.connect('trading.db')
+        conn = sqlite3.connect("trading.db")
         cursor = conn.cursor()
 
         # Get symbols from blacklist
@@ -85,7 +92,9 @@ def get_blacklisted_symbols():
         conn.close()
 
         if blacklisted:
-            logging.info("🚫 Черный список содержит %d монет: %s", len(blacklisted), blacklisted[:10])
+            logging.info(
+                "🚫 Черный список содержит %d монет: %s", len(blacklisted), blacklisted[:10]
+            )
 
         return set(blacklisted)
     except (sqlite3.Error, ValueError, TypeError, KeyError) as e:
@@ -124,13 +133,13 @@ async def initialize_market_cap_filtering():
                 logging.debug("⏳ %s: данные не получены -> список на проверке", symbol)
             elif market_cap >= min_market_cap:
                 whitelist.append(symbol)
-                logging.debug("✅ %s: %.1fM USD -> белый список", symbol, market_cap/1_000_000)
+                logging.debug("✅ %s: %.1fM USD -> белый список", symbol, market_cap / 1_000_000)
             else:
                 blacklist.append(symbol)
-                logging.debug("❌ %s: %.1fM USD -> черный список", symbol, market_cap/1_000_000)
+                logging.debug("❌ %s: %.1fM USD -> черный список", symbol, market_cap / 1_000_000)
 
         # Save to database
-        conn = sqlite3.connect('trading.db')
+        conn = sqlite3.connect("trading.db")
         cursor = conn.cursor()
 
         # Create tables if they don't exist
@@ -169,26 +178,39 @@ async def initialize_market_cap_filtering():
         # Add new data
         for symbol in whitelist:
             market_cap = market_caps.get(symbol, 0)
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO whitelist (symbol, market_cap) VALUES (?, ?)
-            """, (symbol, market_cap))
+            """,
+                (symbol, market_cap),
+            )
 
         for symbol in blacklist:
             market_cap = market_caps.get(symbol, 0)
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO blacklist (symbol, market_cap) VALUES (?, ?)
-            """, (symbol, market_cap))
+            """,
+                (symbol, market_cap),
+            )
 
         for symbol in pending_check:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO pending_check (symbol) VALUES (?)
-            """, (symbol,))
+            """,
+                (symbol,),
+            )
 
         conn.commit()
         conn.close()
 
-        logging.info("✅ Инициализация завершена: %d в белом списке, %d в черном списке, %d на проверке",
-                   len(whitelist), len(blacklist), len(pending_check))
+        logging.info(
+            "✅ Инициализация завершена: %d в белом списке, %d в черном списке, %d на проверке",
+            len(whitelist),
+            len(blacklist),
+            len(pending_check),
+        )
 
     except (sqlite3.Error, ValueError, TypeError, KeyError) as e:
         logging.error("Ошибка инициализации фильтрации: %s", e)
@@ -208,8 +230,8 @@ async def get_all_available_symbols():
             volume_data = {}
 
             for ticker in tickers:
-                if ticker['symbol'].endswith('USDT'):
-                    volume_data[ticker['symbol']] = float(ticker['quoteVolume'])
+                if ticker["symbol"].endswith("USDT"):
+                    volume_data[ticker["symbol"]] = float(ticker["quoteVolume"])
 
             # Sort by volume and take top 300
             sorted_pairs = sorted(volume_data.items(), key=lambda x: x[1], reverse=True)

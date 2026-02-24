@@ -33,4 +33,3 @@ echo "📊 Проверьте результаты:"
 echo "   - Позиции на бирже должны иметь TP1/TP2/SL"
 echo "   - Логи в order_audit_log"
 echo "   - Позиции в active_positions"
-

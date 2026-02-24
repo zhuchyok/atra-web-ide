@@ -1,0 +1,120 @@
+# Dependabot configuration for ATRA Web IDE
+# Based on FastAPI and Element Plus best practices
+# Automatically creates PRs for dependency updates
+
+version: 2
+updates:
+  # Python (backend)
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "python"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    ignore:
+      # Ignore patch updates for stable dependencies
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # Python (knowledge_os)
+  - package-ecosystem: "pip"
+    directory: "/knowledge_os"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "python"
+      - "knowledge-os"
+    commit-message:
+      prefix: "deps(knowledge-os)"
+      include: "scope"
+
+  # Rust (Cargo workspace)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "03:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "deps(rust)"
+      include: "scope"
+    ignore:
+      # Ignore patch updates for stable dependencies
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # JavaScript/npm (frontend)
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "03:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "frontend"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    ignore:
+      # Ignore patch updates for stable dependencies
+      - dependency-name: "*"
+        update-types: ["version-update:semver-patch"]
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/knowledge_os"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+      time: "03:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "bikos"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker)"
+      include: "scope"

@@ -33,8 +33,12 @@ def main():
     parser = argparse.ArgumentParser(description="Автоматический анализ сделок и обновление уроков")
     parser.add_argument("--db", default="trading.db", help="Путь к БД SQLite")
     parser.add_argument("--lookback-days", type=int, default=30, help="Период анализа (дни)")
-    parser.add_argument("--apply-guidance", action="store_true", help="Применить уроки как guidance")
-    parser.add_argument("--output", default="observability/lessons.json", help="Путь для сохранения уроков")
+    parser.add_argument(
+        "--apply-guidance", action="store_true", help="Применить уроки как guidance"
+    )
+    parser.add_argument(
+        "--output", default="observability/lessons.json", help="Путь для сохранения уроков"
+    )
     args = parser.parse_args()
 
     logger.info("🔍 Запуск автоматического анализа сделок...")
@@ -67,10 +71,14 @@ def main():
         guidance_store = GuidanceStore()
         for lesson in all_lessons:
             agent_name = lesson.agent
-            lessons_list = [lesson.to_dict() for lesson in all_lessons if lesson.agent == agent_name]
+            lessons_list = [
+                lesson.to_dict() for lesson in all_lessons if lesson.agent == agent_name
+            ]
             if lessons_list:
                 # Берем топ-5 уроков для каждого агента
-                top_lessons = sorted(lessons_list, key=lambda x: x.get("count", 0), reverse=True)[:5]
+                top_lessons = sorted(lessons_list, key=lambda x: x.get("count", 0), reverse=True)[
+                    :5
+                ]
                 guidance_store.update_guidance(agent_name, top_lessons)
         logger.info("✅ Guidance применён для всех агентов")
 
@@ -79,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

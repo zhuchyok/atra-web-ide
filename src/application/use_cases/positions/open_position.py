@@ -4,9 +4,8 @@ Open Position Use Case
 This use case handles opening a new trading position.
 """
 
-from typing import Protocol
 from decimal import Decimal
-from src.shared.utils.datetime_utils import get_utc_now
+from typing import Protocol
 
 from src.domain.entities.position import Position, PositionSide, PositionStatus
 from src.domain.entities.signal import Signal
@@ -14,6 +13,7 @@ from src.domain.repositories.position_repository import PositionRepository
 from src.domain.services.risk_calculator import RiskCalculator
 from src.domain.value_objects.price import Price
 from src.domain.value_objects.symbol import Symbol
+from src.shared.utils.datetime_utils import get_utc_now
 
 
 class ExchangeAdapter(Protocol):
@@ -54,11 +54,11 @@ class OpenPositionUseCase:
     ) -> Position:
         """
         Open a new position based on signal
-        
+
         Args:
             signal: Trading signal
             risk_percentage: Risk percentage for position sizing
-            
+
         Returns:
             Created Position entity
         """

@@ -40,10 +40,10 @@ class KnowledgeService:
                 ORDER BY embedding <=> $1::vector
                 LIMIT $2
             """, embedding_str, limit)
-            
+
             if not rows:
                 return ""
-                
+
             context = "\n### ЗНАНИЯ ИЗ БАЗЫ:\n"
             for row in rows:
                 context += f"- {row['content']}\n"

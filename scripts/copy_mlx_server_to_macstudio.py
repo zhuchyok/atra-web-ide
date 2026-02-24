@@ -76,17 +76,17 @@ def get_model(model_key: str):
     """Получает или загружает модель"""
     if model_key in _models_cache:
         return _models_cache[model_key]
-    
+
     model_path = MODEL_PATHS.get(model_key)
     if not model_path:
         model_path = os.path.join(MLX_MODELS_DIR, model_key)
-    
+
     if not model_path or not os.path.exists(model_path):
         raise ValueError(f"Model {model_key} not found at {model_path}")
-    
+
     logger.info(f"🔄 Загрузка модели: {model_key} из {model_path}")
     model, tokenizer = load(model_path)
-    
+
     _models_cache[model_key] = {"model": model, "tokenizer": tokenizer}
     logger.info(f"✅ Модель загружена: {model_key}")
     return _models_cache[model_key]

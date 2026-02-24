@@ -4,7 +4,15 @@ description: Swarm Intelligence - коллективное решение чер
 category: collaboration
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🐝", "homepage": "https://en.wikipedia.org/wiki/Swarm_intelligence"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🐝",
+        "homepage": "https://en.wikipedia.org/wiki/Swarm_intelligence",
+      },
+  }
 ---
 
 # Swarm Intelligence Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🐝", "homepage": "https://en
 ## Когда использовать
 
 Используй этот навык для:
+
 - Очень сложных задач, требующих экспертизы из разных областей
 - Задач без однозначного решения
 - Задач, где нужен консенсус экспертов
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🐝", "homepage": "https://en
 ## Методология
 
 Swarm Intelligence работает через:
+
 1. **Decomposition** - Разбиение задачи на подзадачи
 2. **Expert Assignment** - Назначение экспертов на каждую подзадачу
 3. **Parallel Execution** - Параллельное выполнение

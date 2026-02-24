@@ -3,6 +3,7 @@
 ## 📋 БЫСТРЫЙ ЗАПУСК
 
 ### Вариант 1: Автоматический скрипт (рекомендуется)
+
 ```bash
 # На сервере выполните:
 ssh root@185.177.216.15
@@ -11,6 +12,7 @@ bash scripts/start_production.sh
 ```
 
 ### Вариант 2: Ручной запуск
+
 ```bash
 # 1. Подключиться к серверу
 ssh root@185.177.216.15
@@ -49,12 +51,14 @@ tail -50 logs/atra.log
 ## ✅ ПРОВЕРКА РАБОТЫ
 
 ### 1. Проверить, что процесс запущен:
+
 ```bash
 ps aux | grep "python.*main.py" | grep -v grep
 # Должен показать процесс
 ```
 
 ### 2. Проверить логи:
+
 ```bash
 # Последние 50 строк
 tail -50 logs/atra.log
@@ -67,10 +71,12 @@ tail -200 logs/atra.log | grep -i error
 ```
 
 ### 3. Проверить Telegram бота:
+
 - Отправьте `/start` боту
 - Проверьте ответ
 
 ### 4. Проверить генерацию сигналов:
+
 ```bash
 # Проверить использование оптимального портфеля
 tail -200 logs/atra.log | grep -E "AVAXUSDT|LINKUSDT|SOLUSDT|SUIUSDT|DOGEUSDT"
@@ -80,6 +86,7 @@ tail -200 logs/atra.log | grep "DYNAMIC_LEVERAGE"
 ```
 
 ### 5. Проверить базу данных:
+
 ```bash
 sqlite3 trading.db "SELECT symbol, side, created_at FROM signals ORDER BY created_at DESC LIMIT 10;"
 ```
@@ -89,6 +96,7 @@ sqlite3 trading.db "SELECT symbol, side, created_at FROM signals ORDER BY create
 ## ⚠️ ВОЗМОЖНЫЕ ПРОБЛЕМЫ
 
 ### Проблема: Процесс не запускается
+
 ```bash
 # Запустить вручную для диагностики
 python3 main.py
@@ -96,6 +104,7 @@ python3 main.py
 ```
 
 ### Проблема: Нет сигналов
+
 ```bash
 # Проверить конфигурацию монет
 python3 -c "from config import COINS; print(COINS)"
@@ -105,6 +114,7 @@ tail -200 logs/atra.log | grep -E "фильтр|filter|блок|block"
 ```
 
 ### Проблема: Ошибки в Telegram
+
 ```bash
 # Проверить токен
 cat env | grep TELEGRAM_TOKEN
@@ -118,6 +128,7 @@ tail -100 logs/atra.log | grep -E "Telegram|telegram|error"
 ## 📊 МОНИТОРИНГ
 
 ### Первые 24 часа проверяйте:
+
 1. Количество сигналов (должно быть несколько в день)
 2. Распределение по монетам (все 5 монет портфеля)
 3. Использование динамического плеча (2.0x, 2.5x, 3.0x)
@@ -126,4 +137,3 @@ tail -100 logs/atra.log | grep -E "Telegram|telegram|error"
 ---
 
 **Готово к запуску!** 🚀
-

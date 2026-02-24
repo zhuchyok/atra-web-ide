@@ -68,7 +68,7 @@ class AutoExecutionService:
         try:
             logger.info("🟢 [EXECUTE_START] %s: запуск авто-открытия (user=%s, direction=%s, mode=%s, env=%s)",
                         symbol, user_id, direction, trade_mode, ATRA_ENV)
-            
+
             # 🛡️ ПРОВЕРКА: Если позиция по этому сигналу уже есть в БД — выходим
             if signal_key:
                 active_pos = await self.acceptance_db.get_active_positions_by_user(str(user_id))
@@ -80,14 +80,14 @@ class AutoExecutionService:
             if ATRA_ENV != "prod":
                 logger.error("🚫 [AUTO BLOCKED] %s: окружение %s (не prod)", symbol, ATRA_ENV)
                 return False
-        
+
         tracer = get_tracer()
         class DummyTrace:
             def record(self, *args, **kwargs): pass
             def finish(self, *args, **kwargs): pass
         trace = DummyTrace()
         trace.record(step="think", name="execution_start")
-        
+
         # 🆕 Загрузка системного промпта агента с умным выбором контекста
         prompt_manager = get_prompt_manager()
         agent_prompt = prompt_manager.load_prompt("auto_execution")
@@ -102,7 +102,7 @@ class AutoExecutionService:
                 "quantity_usdt": quantity_usdt,
                 "leverage": leverage,
             }
-            
+
             # 🧠 Используем ContextEngine для умного выбора контекста
             context_engine = get_context_engine()
             enriched_context = context_engine.select_context(
@@ -111,7 +111,7 @@ class AutoExecutionService:
             )
             # Объединяем базовый и обогащенный контекст
             final_context = {**base_context, **enriched_context}
-            
+
             full_prompt = agent_prompt.get_full_prompt(final_context, use_context_engine=True)
             trace.record(
                 step="think",
@@ -122,7 +122,7 @@ class AutoExecutionService:
                     "context_keys": list(final_context.keys()),
                 },
             )
-            logger.debug("📝 [PROMPT] auto_execution v%s загружен (%d символов, контекст: %s)", 
+            logger.debug("📝 [PROMPT] auto_execution v%s загружен (%d символов, контекст: %s)",
                         agent_prompt.version, len(full_prompt), ", ".join(final_context.keys()))
         authorize_agent_action(
             agent="auto_execution",
@@ -168,13 +168,13 @@ class AutoExecutionService:
                 trace.finish(status="error", metadata={"reason": "invalid_direction"})
                 trace_completed = True
                 return False
-            
+
             # Нормализуем LONG->BUY, SHORT->SELL
             if direction_normalized in ('LONG', 'BUY'):
                 direction_normalized = 'BUY'
             elif direction_normalized in ('SHORT', 'SELL'):
                 direction_normalized = 'SELL'
-            
+
             # 🚫 ПРОВЕРКА: В spot режиме SHORT недоступен
             if trade_mode == 'spot' and direction_normalized == 'SELL':
                 logger.warning("❌ [AUTO] %s: SHORT направление недоступно в spot режиме (доступен только LONG)", symbol)
@@ -187,7 +187,7 @@ class AutoExecutionService:
                 trace.finish(status="error", metadata={"reason": "spot_short_block"})
                 trace_completed = True
                 return False
-            
+
             # 1) 🛡️ ПРОВЕРКА: BTC тренд (как в сигналах)
             try:
                 from signal_live import check_btc_alignment
@@ -210,7 +210,7 @@ class AutoExecutionService:
                 trace.record(step="observe", name="btc_alignment_passed", metadata={"direction": direction_normalized})
             except Exception as btc_check_exc:
                 logger.debug("⚠️ [AUTO] %s: ошибка проверки BTC тренда: %s (пропускаем проверку)", symbol, btc_check_exc)
-            
+
             # 2) Валидация размера позиции
             validation = await self.validator.validate_order_size(quantity_usdt, user_balance, current_exposure)
             if not validation['allowed']:
@@ -224,7 +224,7 @@ class AutoExecutionService:
                 trace.finish(status="error", metadata={"reason": "validation_failed"})
                 trace_completed = True
                 return False
-            
+
             adjusted_usdt = validation['adjusted_amount']
             if adjusted_usdt != quantity_usdt:
                 logger.info("⚖️ [AUTO] %s: размер скорректирован %.2f → %.2f USDT (%s)",
@@ -239,29 +239,29 @@ class AutoExecutionService:
             )
             keys = await self.acceptance_db.get_active_exchange_keys(user_id, exchange_name='bitget')
             logger.info("🔑 [AUTO] %s: получены ключи для user %s: %s", symbol, user_id, 'есть' if keys else 'НЕТ')
-            
+
             if not keys:
                 logger.error("❌ [AUTO] %s: ключи Bitget не найдены для user %s", symbol, user_id)
                 return False
-            
+
             adapter = ExchangeAdapter('bitget', keys=keys, sandbox=False, trade_mode=trade_mode)
-            
+
             # Логируем режим торговли
             logger.info("📊 [AUTO] %s: режим торговли = %s", symbol, trade_mode)
-            
+
             if not adapter.client:
                 logger.error("❌ [AUTO] %s: ccxt клиент не создан (проверьте установку ccxt)", symbol)
                 return False
-            
+
             logger.info("✅ [AUTO] %s: Bitget адаптер готов", symbol)
-            
+
             # Устанавливаем плечо ТОЛЬКО для futures (из расчётов сигнала)
             if trade_mode == 'futures':
                 try:
                     # ИСПРАВЛЕНО: плечо теперь динамическое (float), округляем только для API биржи
-                    leverage_safe = max(1, min(125, int(round(float(leverage))))) 
+                    leverage_safe = max(1, min(125, int(round(float(leverage)))))
                     await adapter.set_leverage(symbol, leverage_safe)
-                    logger.info("✅ [AUTO] %s: плечо установлено %dx (запрошено динамическое: %.1fx)", 
+                    logger.info("✅ [AUTO] %s: плечо установлено %dx (запрошено динамическое: %.1fx)",
                                symbol, leverage_safe, leverage)
                 except Exception as e:
                     logger.warning("⚠️ [AUTO] %s: не удалось установить плечо: %s", symbol, e)
@@ -274,7 +274,7 @@ class AutoExecutionService:
                 existing_positions = [p for p in all_user_positions if p.get('symbol', '').upper() == symbol.upper()]
                 if existing_positions:
                     opposite_direction = 'SELL' if direction_normalized == 'BUY' else 'BUY'
-                    
+
                     # Проверка дубликатов (та же позиция)
                     same_direction_positions = [
                         p for p in existing_positions
@@ -299,7 +299,7 @@ class AutoExecutionService:
                         trace.finish(status="error", metadata={"reason": "duplicate_position"})
                         trace_completed = True
                         return False
-                    
+
                     # Проверка противоположных позиций
                     opposite_positions = [
                         p for p in existing_positions
@@ -381,18 +381,18 @@ class AutoExecutionService:
             if trade_mode == 'futures' and leverage > 1:
                 # Для futures: умножаем на плечо, чтобы получить номинал позиции
                 amount = max(0.0001, (float(quantity_usdt) * float(leverage)) / max(1e-9, float(entry_price)))
-                logger.info("💰 [AUTO] %s: Расчет количества для futures: %.2f USDT * %.1fx / %.8f = %.6f (номинал позиции: %.2f USDT)", 
+                logger.info("💰 [AUTO] %s: Расчет количества для futures: %.2f USDT * %.1fx / %.8f = %.6f (номинал позиции: %.2f USDT)",
                            symbol, quantity_usdt, leverage, entry_price, amount, quantity_usdt * leverage)
             else:
                 # Для spot: обычный расчет
                 amount = max(0.0001, float(quantity_usdt) / max(1e-9, float(entry_price)))
-                logger.info("💰 [AUTO] %s: Расчет количества для spot: %.2f USDT / %.8f = %.6f", 
+                logger.info("💰 [AUTO] %s: Расчет количества для spot: %.2f USDT / %.8f = %.6f",
                            symbol, quantity_usdt, entry_price, amount)
 
             # 5) Оптимизация цены лимитного ордера (динамический спред)
             side = 'buy' if direction_normalized == 'BUY' else 'sell'
             limit_price = float(entry_price)
-            
+
             try:
                 # Получаем текущий orderbook для расчёта спреда
                 ticker = await adapter.client.fetch_ticker(symbol)
@@ -413,11 +413,11 @@ class AutoExecutionService:
                         )
             except Exception as price_opt_exc:
                 logger.debug("⚠️ [AUTO] %s: ошибка оптимизации цены лимита: %s (используем цену сигнала)", symbol, price_opt_exc)
-            
+
             # Увеличиваем TTL для лимитных ордеров (снижаем fallback)
             if limit_timeout < 45:
                 limit_timeout = 45  # Минимум 45 секунд
-            
+
             logger.info("🟢 [EXECUTE_ORDER] %s: размещаем лимитный ордер amount=%.6f price=%.8f (TTL=%ds)",
                         symbol, amount, limit_price, limit_timeout)
             order = await adapter.create_limit_order(symbol, side, amount, limit_price)
@@ -429,10 +429,10 @@ class AutoExecutionService:
                 name="limit_order_created",
                 metadata={"order_id": order_id, "amount": amount, "price": entry_price},
             )
-            
+
             # Логируем лимитный ордер
             await audit.log_order(user_id, symbol, side, 'limit', amount, limit_price, order_id, 'created', 'bitget')
-            
+
             if order_id:
                 filled = await adapter.wait_for_fill(order_id, symbol, timeout_sec=limit_timeout)
                 await audit.log_order(user_id, symbol, side, 'limit', amount, limit_price, order_id, 'filled' if filled else 'timeout', 'bitget')
@@ -489,7 +489,7 @@ class AutoExecutionService:
                 chat_id=chat_id,
                 signal_key=signal_key,
             )
-            
+
             # Позиция создана хотя бы в одной таблице - продолжаем
             if not ok2:
                 logger.error("❌ [AUTO] Не удалось создать active_position для %s", symbol)
@@ -502,12 +502,12 @@ class AutoExecutionService:
                 trace.finish(status="error", metadata={"reason": "db_active_position_failed"})
                 trace_completed = True
                 return False
-            
+
             if not ok1:
                 logger.warning("⚠️ [AUTO] %s: signals_log не обновлён (не критично, продолжаем)", symbol)
-            
+
             logger.info("🟢 [EXECUTE_SUCCESS] %s %s открыт и сохранён (order_id=%s)", symbol, direction_normalized, order_id)
-            
+
             # 🆕 Публикуем событие для координации агентов
             try:
                 from observability.agent_coordinator import publish_agent_event, EventType
@@ -526,14 +526,14 @@ class AutoExecutionService:
                 logger.debug("📡 [COORD] Событие POSITION_OPENED опубликовано для %s", symbol)
             except Exception as coord_exc:
                 logger.debug("⚠️ Ошибка координации: %s", coord_exc)
-            
+
             # 5) 🆕 ВЫСТАВЛЯЕМ SL и TP ОРДЕРА НА БИРЖЕ (Partial TP логика)
             try:
                 # Используем переданные цены или рассчитываем примерные
                 sl_price_actual = sl_price if sl_price else (entry_price * 0.95 if direction_normalized == 'BUY' else entry_price * 1.05)
                 tp1_price_actual = tp1_price if tp1_price else (entry_price * 1.02 if direction_normalized == 'BUY' else entry_price * 0.98)
                 tp2_price_actual = tp2_price if tp2_price else (entry_price * 1.04 if direction_normalized == 'BUY' else entry_price * 0.96)
-                
+
                 # Выставляем SL на всю позицию
                 sl_order = await adapter.place_stop_loss_order(
                     symbol,
@@ -569,7 +569,7 @@ class AutoExecutionService:
                         status="error",
                         metadata={"price": sl_price_actual},
                     )
-                
+
                 def _normalize_amount(value: float) -> float:
                     client = getattr(adapter, "client", None)
                     if client:
@@ -656,7 +656,7 @@ class AutoExecutionService:
                         status="error",
                         metadata={"price": tp2_price_actual},
                     )
-                    
+
             except Exception as e:
                 logger.error("❌ [AUTO] %s: ошибка выставления SL/TP: %s (ПОЗИЦИЯ ОТКРЫТА БЕЗ ЗАЩИТЫ!)", symbol, e, exc_info=True)
                 trace.record(
@@ -665,7 +665,7 @@ class AutoExecutionService:
                     status="error",
                     metadata={"error": str(e)},
                 )
-            
+
             execution_verdict = lm_judge.judge_execution(
                 limit_timeout=limit_timeout,
                 guidance_entries=guidance_payload if guidance_entries else None,
@@ -695,8 +695,6 @@ class AutoExecutionService:
             # Очищаем флаг исполнения сигнала
             if signal_key and signal_key in self._executing_signals:
                 self._executing_signals.remove(signal_key)
-            
+
             if not trace_completed:
                 trace.finish(status="success")
-
-

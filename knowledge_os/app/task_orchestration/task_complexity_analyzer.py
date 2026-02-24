@@ -58,10 +58,12 @@ class TaskComplexityAnalyzer:
         simple: one step, one expert. complex: multi-step, one expert. multi_dept: multiple experts.
         """
         tc = self.estimate_complexity(prompt, category)
-        
+
         # МОНСТР-ЛОГИКА: Если файл гигантский, ВСЕГДА форсируем complex (декомпозицию)
         if any(w in prompt.lower() for w in ["app.py", "dashboard", "3000 строк"]):
-            logger.info("🐉 [MONSTER ANALYZER] Обнаружен гигантский файл. Форсируем стратегию COMPLEX.")
+            logger.info(
+                "🐉 [MONSTER ANALYZER] Обнаружен гигантский файл. Форсируем стратегию COMPLEX."
+            )
             return "complex"
 
         if tc.complexity_score >= 0.7 and (tc.requires_reasoning or tc.requires_coding):
@@ -80,6 +82,7 @@ def _fallback_complexity(prompt: str, category: Optional[str] = None):
             from app.intelligent_model_router import TaskComplexity
         except ImportError:
             from dataclasses import dataclass
+
             @dataclass
             class TaskComplexity:
                 complexity_score: float = 0.5
@@ -88,6 +91,7 @@ def _fallback_complexity(prompt: str, category: Optional[str] = None):
                 requires_creativity: bool = False
                 estimated_tokens: int = 0
                 task_type: str = "general"
+
     score = 0.3 + min(len(prompt) / 2000.0, 0.5)
     task_type = "general"
     if category:

@@ -68,4 +68,3 @@ ssh_with_password "pkill -f 'streamlit run app.py' || true"
 ssh_with_password "cd $SERVER_PATH && nohup /usr/bin/python3 -m streamlit run app.py --server.port 5002 --server.address 0.0.0.0 > dashboard.log 2>&1 &"
 
 echo "✨ Деплой завершен! Дашборд должен быть доступен по адресу http://185.177.216.15:5002/"
-

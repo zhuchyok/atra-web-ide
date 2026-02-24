@@ -4,13 +4,14 @@
 запускает оптимизацию и блокирует генерацию сигналов до завершения
 """
 
+import asyncio
+import glob
 import json
 import logging
 import os
-import glob
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
-import asyncio
+from typing import Any, Dict, Optional, Tuple
+
 from src.shared.utils.datetime_utils import get_utc_now  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ DEFAULT_PARAMS = {
     "rsi_overbought": 60,
     "trend_strength": 0.15,
     "quality_score": 0.65,
-    "momentum_threshold": -5.0
+    "momentum_threshold": -5.0,
 }
 
 # Статусы оптимизации
@@ -53,7 +54,7 @@ class SymbolParamsManager:
         """Загружает статус оптимизации"""
         if os.path.exists(OPTIMIZATION_STATUS_FILE):
             try:
-                with open(OPTIMIZATION_STATUS_FILE, 'r', encoding='utf-8') as f:
+                with open(OPTIMIZATION_STATUS_FILE, encoding="utf-8") as f:
                     self.optimization_status = json.load(f)
             except Exception as e:
                 logger.warning("⚠️ Ошибка загрузки статуса оптимизации: %s", e)
@@ -62,7 +63,7 @@ class SymbolParamsManager:
     def _save_status(self):
         """Сохраняет статус оптимизации"""
         try:
-            with open(OPTIMIZATION_STATUS_FILE, 'w', encoding='utf-8') as f:
+            with open(OPTIMIZATION_STATUS_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.optimization_status, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error("❌ Ошибка сохранения статуса оптимизации: %s", e)
@@ -81,7 +82,7 @@ class SymbolParamsManager:
             return None
 
         try:
-            with open(params_file, 'r', encoding='utf-8') as f:
+            with open(params_file, encoding="utf-8") as f:
                 data = json.load(f)
                 if symbol in data:
                     symbol_data = data[symbol]
@@ -97,11 +98,14 @@ class SymbolParamsManager:
 
         # Если файла нет, создаем новый
         if not params_file:
-            params_file = PARAMS_DIR / f"optimize_intelligent_params_{get_utc_now().strftime('%Y%m%d_%H%M%S')}.json"
+            params_file = (
+                PARAMS_DIR
+                / f"optimize_intelligent_params_{get_utc_now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
             data = {}
         else:
             try:
-                with open(params_file, 'r', encoding='utf-8') as f:
+                with open(params_file, encoding="utf-8") as f:
                     data = json.load(f)
             except Exception:
                 data = {}
@@ -113,12 +117,12 @@ class SymbolParamsManager:
             "status": STATUS_PENDING,
             "added_at": get_utc_now().isoformat(),
             "optimized_at": None,
-            "best_result": None
+            "best_result": None,
         }
 
         # Сохраняем
         try:
-            with open(params_file, 'w', encoding='utf-8') as f:
+            with open(params_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             logger.info("✅ [%s] Добавлена с базовыми параметрами", symbol)
         except Exception as e:
@@ -128,7 +132,7 @@ class SymbolParamsManager:
         self.optimization_status[symbol] = {
             "status": STATUS_PENDING,
             "added_at": get_utc_now().isoformat(),
-            "optimized_at": None
+            "optimized_at": None,
         }
         self._save_status()
 
@@ -164,9 +168,11 @@ class SymbolParamsManager:
         # Обновляем статус
         self.optimization_status[symbol] = {
             "status": STATUS_OPTIMIZING,
-            "added_at": self.optimization_status.get(symbol, {}).get("added_at", get_utc_now().isoformat()),
+            "added_at": self.optimization_status.get(symbol, {}).get(
+                "added_at", get_utc_now().isoformat()
+            ),
             "optimized_at": None,
-            "started_at": get_utc_now().isoformat()
+            "started_at": get_utc_now().isoformat(),
         }
         self._save_status()
 
@@ -184,17 +190,19 @@ class SymbolParamsManager:
             process = await asyncio.create_subprocess_exec(
                 "python3",
                 str(script_path),
-                "--symbol", symbol,
-                "--period", "30",  # 30 дней для быстрой оптимизации
+                "--symbol",
+                symbol,
+                "--period",
+                "30",  # 30 дней для быстрой оптимизации
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
 
             # Ждем завершения (с таймаутом 2 часа)
             try:
                 _, stderr = await asyncio.wait_for(
                     process.communicate(),
-                    timeout=7200  # 2 часа
+                    timeout=7200,  # 2 часа
                 )
                 return_code = process.returncode
 
@@ -202,18 +210,27 @@ class SymbolParamsManager:
                     logger.info("✅ [%s] Оптимизация завершена успешно", symbol)
                     self.optimization_status[symbol] = {
                         "status": STATUS_OPTIMIZED,
-                        "added_at": self.optimization_status.get(symbol, {}).get("added_at", get_utc_now().isoformat()),
-                        "optimized_at": get_utc_now().isoformat()
+                        "added_at": self.optimization_status.get(symbol, {}).get(
+                            "added_at", get_utc_now().isoformat()
+                        ),
+                        "optimized_at": get_utc_now().isoformat(),
                     }
                     self._save_status()
                     return True
                 else:
-                    logger.error("❌ [%s] Ошибка оптимизации (код %d): %s", symbol, return_code, stderr.decode())
+                    logger.error(
+                        "❌ [%s] Ошибка оптимизации (код %d): %s",
+                        symbol,
+                        return_code,
+                        stderr.decode(),
+                    )
                     self.optimization_status[symbol] = {
                         "status": STATUS_FAILED,
-                        "added_at": self.optimization_status.get(symbol, {}).get("added_at", get_utc_now().isoformat()),
+                        "added_at": self.optimization_status.get(symbol, {}).get(
+                            "added_at", get_utc_now().isoformat()
+                        ),
                         "optimized_at": None,
-                        "error": stderr.decode()[:200]  # Первые 200 символов ошибки
+                        "error": stderr.decode()[:200],  # Первые 200 символов ошибки
                     }
                     self._save_status()
                     return False
@@ -223,9 +240,11 @@ class SymbolParamsManager:
                 process.kill()
                 self.optimization_status[symbol] = {
                     "status": STATUS_FAILED,
-                    "added_at": self.optimization_status.get(symbol, {}).get("added_at", get_utc_now().isoformat()),
+                    "added_at": self.optimization_status.get(symbol, {}).get(
+                        "added_at", get_utc_now().isoformat()
+                    ),
                     "optimized_at": None,
-                    "error": "Timeout (2 hours)"
+                    "error": "Timeout (2 hours)",
                 }
                 self._save_status()
                 return False
@@ -234,9 +253,11 @@ class SymbolParamsManager:
             logger.error("❌ [%s] Ошибка запуска оптимизации: %s", symbol, e)
             self.optimization_status[symbol] = {
                 "status": STATUS_FAILED,
-                "added_at": self.optimization_status.get(symbol, {}).get("added_at", get_utc_now().isoformat()),
+                "added_at": self.optimization_status.get(symbol, {}).get(
+                    "added_at", get_utc_now().isoformat()
+                ),
                 "optimized_at": None,
-                "error": str(e)[:200]
+                "error": str(e)[:200],
             }
             self._save_status()
             return False
@@ -247,7 +268,7 @@ class SymbolParamsManager:
     def get_symbol_params(self, symbol: str) -> Tuple[Optional[Dict[str, Any]], bool]:
         """
         Получает параметры для монеты
-        
+
         Returns:
             Tuple[params, is_optimized]:
             - params: Параметры монеты или None
@@ -276,9 +297,9 @@ class SymbolParamsManager:
     async def ensure_symbol_optimized(self, symbol: str) -> Tuple[Dict[str, Any], bool]:
         """
         Обеспечивает наличие оптимизированных параметров для монеты
-        
+
         Если монеты нет - добавляет с базовыми параметрами и запускает оптимизацию
-        
+
         Returns:
             Tuple[params, is_ready]:
             - params: Параметры монеты (базовые или оптимизированные)
@@ -303,7 +324,9 @@ class SymbolParamsManager:
 
             if status == STATUS_FAILED:
                 # Оптимизация провалилась - используем базовые параметры
-                logger.warning("⚠️ [%s] Оптимизация провалилась, используем базовые параметры", symbol)
+                logger.warning(
+                    "⚠️ [%s] Оптимизация провалилась, используем базовые параметры", symbol
+                )
                 return params, True  # Разрешаем использовать базовые параметры
 
         # Монеты нет - добавляем с базовыми параметрами
@@ -325,7 +348,7 @@ class SymbolParamsManager:
     def is_symbol_ready(self, symbol: str) -> bool:
         """
         Проверяет, готова ли монета для генерации сигналов
-        
+
         Returns:
             True если монета оптимизирована и готова
         """
@@ -334,21 +357,17 @@ class SymbolParamsManager:
 
     def get_optimization_status(self, symbol: str) -> Dict[str, Any]:
         """Возвращает статус оптимизации монеты"""
-        status_info = self.optimization_status.get(symbol, {
-            "status": STATUS_PENDING,
-            "added_at": None,
-            "optimized_at": None
-        })
+        status_info = self.optimization_status.get(
+            symbol, {"status": STATUS_PENDING, "added_at": None, "optimized_at": None}
+        )
         return status_info
 
     def get_symbol_status(self, symbol: str) -> Dict[str, Any]:
         """Возвращает статус монеты"""
         params, is_optimized = self.get_symbol_params(symbol)
-        status_info = self.optimization_status.get(symbol, {
-            "status": STATUS_PENDING,
-            "added_at": None,
-            "optimized_at": None
-        })
+        status_info = self.optimization_status.get(
+            symbol, {"status": STATUS_PENDING, "added_at": None, "optimized_at": None}
+        )
 
         return {
             "symbol": symbol,
@@ -357,7 +376,7 @@ class SymbolParamsManager:
             "status": status_info.get("status", STATUS_PENDING),
             "added_at": status_info.get("added_at"),
             "optimized_at": status_info.get("optimized_at"),
-            "params": params if params else DEFAULT_PARAMS
+            "params": params if params else DEFAULT_PARAMS,
         }
 
 

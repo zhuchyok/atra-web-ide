@@ -7,6 +7,7 @@
 **Согласно успешному бэктесту (+2,477%):**
 
 #### В `strict_entry_signal`:
+
 1. ✅ Volume Profile
 2. ✅ VWAP
 3. ✅ **AMT** (было 8-м, стало 3-м)
@@ -18,6 +19,7 @@
 9. ✅ **Trend Strength** (было 7-м, стало 9-м)
 
 #### В `soft_entry_signal`:
+
 1. ✅ Volume Profile (ПЕРЕД baseline)
 2. ✅ VWAP (ПЕРЕД baseline)
 3. ✅ Baseline (ослабленный, 70%)
@@ -32,6 +34,7 @@
 ### ✅ 2. ВСЕ ФИЛЬТРЫ ВКЛЮЧЕНЫ
 
 **19 фильтров активны:**
+
 1. ✅ VP_FILTER
 2. ✅ VWAP_FILTER
 3. ✅ ORDER_FLOW_FILTER
@@ -55,11 +58,13 @@
 ### ✅ 3. ИНТЕГРАЦИЯ ПРОВЕРЕНА
 
 #### В `src/signals/core.py`:
+
 - ✅ Все основные фильтры интегрированы
 - ✅ Порядок соответствует успешному бэктесту
 - ✅ News и Whale фильтры интегрированы
 
 #### В `signal_live.py`:
+
 - ✅ Dominance Trend (через `check_new_filters`)
 - ✅ Interest Zone (через `check_new_filters`)
 - ✅ Fibonacci Zone (через `check_new_filters`)
@@ -81,4 +86,3 @@
 
 **Дата проверки:** 2025-01-XX
 **Статус:** ✅ ВСЕ ПРОВЕРЕНО И ИСПРАВЛЕНО
-

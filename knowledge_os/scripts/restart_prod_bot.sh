@@ -18,4 +18,3 @@ echo "tail -20 server.log"
 echo ""
 echo "Или одной командой:"
 echo "cd /root/atra && pkill -9 -f main.py && sleep 2 && rm -f *.lock && export ATRA_ENV=prod && nohup python3 main.py > server.log 2>&1 & sleep 3 && ps aux | grep main.py | grep -v grep && tail -20 server.log"
-

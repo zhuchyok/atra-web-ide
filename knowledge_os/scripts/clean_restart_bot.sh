@@ -54,4 +54,3 @@ echo ""
 echo "✅ Готово!"
 echo ""
 echo "Теперь отправьте /start боту @PiuX_Trade_bot"
-

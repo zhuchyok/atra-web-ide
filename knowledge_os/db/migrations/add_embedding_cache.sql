@@ -17,4 +17,3 @@ COMMENT ON TABLE embedding_cache IS 'Кэш эмбеддингов для уск
 COMMENT ON COLUMN embedding_cache.text_hash IS 'MD5 хэш нормализованного текста';
 COMMENT ON COLUMN embedding_cache.normalized_text IS 'Нормализованный текст (для отладки)';
 COMMENT ON COLUMN embedding_cache.embedding IS 'Векторное представление текста';
-

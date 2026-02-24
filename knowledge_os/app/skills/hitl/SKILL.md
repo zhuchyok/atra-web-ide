@@ -4,7 +4,15 @@ description: Human-in-the-Loop - контроль человека для кри
 category: safety
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "👤", "homepage": "https://langchain-ai.github.io/langgraph/"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "👤",
+        "homepage": "https://langchain-ai.github.io/langgraph/",
+      },
+  }
 ---
 
 # Human-in-the-Loop Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "👤", "homepage": "https://la
 ## Когда использовать
 
 Используй этот навык для:
+
 - Критичных операций (удаление, изменение важных файлов)
 - Операций с высоким риском
 - Решений, требующих одобрения
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "👤", "homepage": "https://la
 ## Методология
 
 HITL работает через:
+
 1. **Risk Assessment** - Оценка риска операции
 2. **Human Request** - Запрос одобрения у человека
 3. **Wait for Approval** - Ожидание одобрения

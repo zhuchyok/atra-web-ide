@@ -15,7 +15,7 @@ NC='\033[0m'
 check_system() {
     local name=$1
     local check_cmd=$2
-    
+
     echo -n "Проверка $name... "
     if eval "$check_cmd" > /dev/null 2>&1; then
         echo -e "${GREEN}✅ АКТИВНА${NC}"

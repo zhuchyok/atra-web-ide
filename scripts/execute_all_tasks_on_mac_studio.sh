@@ -68,10 +68,10 @@ echo "[5/10] Обновление PLAN.md..."
 if [ -f "PLAN.md" ]; then
     # Создаем бэкап
     cp PLAN.md PLAN.md.backup.$(date +%Y%m%d_%H%M%S)
-    
+
     # Обновляем IP адреса (где актуально)
     sed -i.bak 's/192\.168\.1\.43/192.168.1.64/g' PLAN.md 2>/dev/null || true
-    
+
     # Добавляем информацию о миграции в конец файла
     cat >> PLAN.md << 'EOF'
 

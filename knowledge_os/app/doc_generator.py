@@ -8,15 +8,15 @@ Documentation Generator: Автогенерация документации
 - Интерактивные туториалы
 """
 
-import os
 import ast
-import inspect
 import importlib
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import inspect
 import json
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,87 +24,87 @@ logger = logging.getLogger(__name__)
 
 class CodeDocumentationExtractor:
     """Извлечение документации из кода"""
-    
+
     def __init__(self, base_path: str = "knowledge_os/app"):
         self.base_path = Path(base_path)
-    
+
     def extract_module_docs(self, module_path: str) -> Dict[str, Any]:
         """Извлечение документации из модуля"""
         try:
             module_file = self.base_path / module_path
             if not module_file.exists():
                 return {}
-            
-            with open(module_file, 'r', encoding='utf-8') as f:
+
+            with open(module_file, encoding="utf-8") as f:
                 content = f.read()
-            
+
             tree = ast.parse(content)
-            
+
             module_doc = ast.get_docstring(tree) or ""
-            
+
             classes = []
             functions = []
-            
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef):
                     class_doc = {
                         "name": node.name,
                         "docstring": ast.get_docstring(node) or "",
-                        "methods": []
+                        "methods": [],
                     }
-                    
+
                     for item in node.body:
                         if isinstance(item, ast.FunctionDef):
                             method_doc = {
                                 "name": item.name,
                                 "docstring": ast.get_docstring(item) or "",
-                                "args": [arg.arg for arg in item.args.args]
+                                "args": [arg.arg for arg in item.args.args],
                             }
                             class_doc["methods"].append(method_doc)
-                    
+
                     classes.append(class_doc)
-                
+
             # Топ-уровневые функции (не внутри классов)
             for node in tree.body:
                 if isinstance(node, ast.FunctionDef):
                     func_doc = {
                         "name": node.name,
                         "docstring": ast.get_docstring(node) or "",
-                        "args": [arg.arg for arg in node.args.args]
+                        "args": [arg.arg for arg in node.args.args],
                     }
                     functions.append(func_doc)
-            
+
             return {
                 "module": module_path,
                 "module_doc": module_doc,
                 "classes": classes,
-                "functions": functions
+                "functions": functions,
             }
         except Exception as e:
             logger.error(f"Error extracting docs from {module_path}: {e}")
             return {}
-    
+
     def extract_all_modules(self) -> List[Dict[str, Any]]:
         """Извлечение документации из всех модулей"""
         modules = []
-        
+
         for py_file in self.base_path.glob("*.py"):
             if py_file.name.startswith("__"):
                 continue
-            
+
             module_docs = self.extract_module_docs(py_file.name)
             if module_docs:
                 modules.append(module_docs)
-        
+
         return modules
 
 
 class APIDocumentationGenerator:
     """Генерация API документации"""
-    
+
     def __init__(self, api_file: str = "knowledge_os/app/rest_api.py"):
         self.api_file = api_file
-    
+
     def generate_openapi_spec(self) -> Dict[str, Any]:
         """Генерация OpenAPI спецификации"""
         # FastAPI автоматически генерирует OpenAPI
@@ -114,33 +114,20 @@ class APIDocumentationGenerator:
             "info": {
                 "title": "Knowledge OS REST API",
                 "version": "1.0.0",
-                "description": "REST API для интеграции с Knowledge OS"
+                "description": "REST API для интеграции с Knowledge OS",
             },
-            "servers": [
-                {
-                    "url": "http://localhost:8002",
-                    "description": "Development server"
-                }
-            ],
+            "servers": [{"url": "http://localhost:8002", "description": "Development server"}],
             "paths": {
                 "/": {
                     "get": {
                         "summary": "Root endpoint",
-                        "responses": {
-                            "200": {
-                                "description": "API information"
-                            }
-                        }
+                        "responses": {"200": {"description": "API information"}},
                     }
                 },
                 "/health": {
                     "get": {
                         "summary": "Health check",
-                        "responses": {
-                            "200": {
-                                "description": "System health status"
-                            }
-                        }
+                        "responses": {"200": {"description": "System health status"}},
                     }
                 },
                 "/auth/login": {
@@ -154,11 +141,11 @@ class APIDocumentationGenerator:
                                         "type": "object",
                                         "properties": {
                                             "username": {"type": "string"},
-                                            "password": {"type": "string"}
-                                        }
+                                            "password": {"type": "string"},
+                                        },
                                     }
                                 }
-                            }
+                            },
                         },
                         "responses": {
                             "200": {
@@ -169,34 +156,34 @@ class APIDocumentationGenerator:
                                             "type": "object",
                                             "properties": {
                                                 "access_token": {"type": "string"},
-                                                "token_type": {"type": "string"}
-                                            }
+                                                "token_type": {"type": "string"},
+                                            },
                                         }
                                     }
-                                }
+                                },
                             }
-                        }
+                        },
                     }
-                }
-            }
+                },
+            },
         }
-    
+
     def generate_api_docs_markdown(self) -> str:
         """Генерация Markdown документации API"""
         spec = self.generate_openapi_spec()
-        
+
         md = f"""# Knowledge OS REST API Documentation
 
-**Версия:** {spec['info']['version']}  
-**Дата генерации:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+**Версия:** {spec["info"]["version"]}
+**Дата генерации:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 ## Обзор
 
-{spec['info']['description']}
+{spec["info"]["description"]}
 
 ## Базовый URL
 
-- Development: `{spec['servers'][0]['url']}`
+- Development: `{spec["servers"][0]["url"]}`
 
 ## Аутентификация
 
@@ -209,30 +196,30 @@ Authorization: Bearer <your_jwt_token>
 ## Endpoints
 
 """
-        
-        for path, methods in spec['paths'].items():
+
+        for path, methods in spec["paths"].items():
             for method, details in methods.items():
                 md += f"### {method.upper()} {path}\n\n"
                 md += f"**Описание:** {details.get('summary', 'N/A')}\n\n"
-                
-                if 'requestBody' in details:
+
+                if "requestBody" in details:
                     md += "**Request Body:**\n\n"
                     md += "```json\n"
-                    md += json.dumps(details['requestBody'], indent=2)
+                    md += json.dumps(details["requestBody"], indent=2)
                     md += "\n```\n\n"
-                
-                if 'responses' in details:
+
+                if "responses" in details:
                     md += "**Responses:**\n\n"
-                    for status, response in details['responses'].items():
+                    for status, response in details["responses"].items():
                         md += f"- `{status}`: {response.get('description', 'N/A')}\n"
                     md += "\n"
-        
+
         return md
 
 
 class UsageExamplesGenerator:
     """Генерация примеров использования"""
-    
+
     def generate_python_examples(self) -> str:
         """Генерация примеров на Python"""
         return """# Примеры использования Knowledge OS
@@ -333,7 +320,7 @@ related = await client.call_tool(
 )
 ```
 """
-    
+
     def generate_curl_examples(self) -> str:
         """Генерация примеров с curl"""
         return """# Примеры использования через curl
@@ -385,7 +372,7 @@ curl -X GET "http://localhost:8002/stats" \\
 
 class TutorialGenerator:
     """Генерация интерактивных туториалов"""
-    
+
     def generate_tutorials(self) -> str:
         """Генерация туториалов"""
         return """# Интерактивные туториалы Knowledge OS
@@ -532,113 +519,113 @@ predictions = await client.call_tool(
 
 class DocumentationGenerator:
     """Главный класс для генерации документации"""
-    
+
     def __init__(self, output_dir: str = "docs/auto_generated"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.code_extractor = CodeDocumentationExtractor()
         self.api_generator = APIDocumentationGenerator()
         self.examples_generator = UsageExamplesGenerator()
         self.tutorial_generator = TutorialGenerator()
-    
+
     def generate_all_docs(self) -> Dict[str, str]:
         """Генерация всей документации"""
         generated_files = {}
-        
+
         # 1. Документация из кода
         logger.info("📝 Generating code documentation...")
         modules_docs = self.code_extractor.extract_all_modules()
         code_docs_path = self.output_dir / "code_documentation.md"
-        with open(code_docs_path, 'w', encoding='utf-8') as f:
+        with open(code_docs_path, "w", encoding="utf-8") as f:
             f.write(self._format_code_docs(modules_docs))
         generated_files["code_docs"] = str(code_docs_path)
-        
+
         # 2. API документация
         logger.info("📝 Generating API documentation...")
         api_docs_path = self.output_dir / "api_documentation.md"
-        with open(api_docs_path, 'w', encoding='utf-8') as f:
+        with open(api_docs_path, "w", encoding="utf-8") as f:
             f.write(self.api_generator.generate_api_docs_markdown())
         generated_files["api_docs"] = str(api_docs_path)
-        
+
         # 3. Примеры использования
         logger.info("📝 Generating usage examples...")
         examples_path = self.output_dir / "usage_examples.md"
-        with open(examples_path, 'w', encoding='utf-8') as f:
+        with open(examples_path, "w", encoding="utf-8") as f:
             f.write(self.examples_generator.generate_python_examples())
             f.write("\n\n")
             f.write(self.examples_generator.generate_curl_examples())
         generated_files["examples"] = str(examples_path)
-        
+
         # 4. Туториалы
         logger.info("📝 Generating tutorials...")
         tutorials_path = self.output_dir / "tutorials.md"
-        with open(tutorials_path, 'w', encoding='utf-8') as f:
+        with open(tutorials_path, "w", encoding="utf-8") as f:
             f.write(self.tutorial_generator.generate_tutorials())
         generated_files["tutorials"] = str(tutorials_path)
-        
+
         # 5. Индекс документации
         index_path = self.output_dir / "README.md"
-        with open(index_path, 'w', encoding='utf-8') as f:
+        with open(index_path, "w", encoding="utf-8") as f:
             f.write(self._generate_index(generated_files))
         generated_files["index"] = str(index_path)
-        
+
         logger.info(f"✅ Generated {len(generated_files)} documentation files")
         return generated_files
-    
+
     def _format_code_docs(self, modules: List[Dict[str, Any]]) -> str:
         """Форматирование документации кода"""
         md = "# Документация кода Knowledge OS\n\n"
         md += f"**Дата генерации:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
+
         for module in modules:
             md += f"## {module['module']}\n\n"
-            
-            if module['module_doc']:
+
+            if module["module_doc"]:
                 md += f"{module['module_doc']}\n\n"
-            
-            if module['classes']:
+
+            if module["classes"]:
                 md += "### Классы\n\n"
-                for cls in module['classes']:
+                for cls in module["classes"]:
                     md += f"#### {cls['name']}\n\n"
-                    if cls['docstring']:
+                    if cls["docstring"]:
                         md += f"{cls['docstring']}\n\n"
-                    
-                    if cls['methods']:
+
+                    if cls["methods"]:
                         md += "**Методы:**\n\n"
-                        for method in cls['methods']:
+                        for method in cls["methods"]:
                             md += f"- `{method['name']}({', '.join(method['args'])})`\n"
-                            if method['docstring']:
+                            if method["docstring"]:
                                 md += f"  - {method['docstring'][:100]}...\n"
                         md += "\n"
-            
-            if module['functions']:
+
+            if module["functions"]:
                 md += "### Функции\n\n"
-                for func in module['functions']:
+                for func in module["functions"]:
                     md += f"#### {func['name']}\n\n"
-                    if func['docstring']:
+                    if func["docstring"]:
                         md += f"{func['docstring']}\n\n"
                     md += f"**Параметры:** `{', '.join(func['args'])}`\n\n"
-        
+
         return md
-    
+
     def _generate_index(self, files: Dict[str, str]) -> str:
         """Генерация индекса документации"""
         md = "# Knowledge OS - Автогенерированная документация\n\n"
         md += f"**Дата генерации:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         md += "## Содержание\n\n"
-        
+
         md += "- [Документация кода](code_documentation.md)\n"
         md += "- [API документация](api_documentation.md)\n"
         md += "- [Примеры использования](usage_examples.md)\n"
         md += "- [Туториалы](tutorials.md)\n"
-        
+
         md += "\n## Быстрый старт\n\n"
         md += "1. Прочитайте [Туториалы](tutorials.md) для начала работы\n"
         md += "2. Изучите [Примеры использования](usage_examples.md)\n"
         md += "3. Ознакомьтесь с [API документацией](api_documentation.md)\n"
         md += "4. Изучите [Документацию кода](code_documentation.md) для деталей реализации\n"
-        
+
         return md
 
 
@@ -648,4 +635,3 @@ if __name__ == "__main__":
     print(f"✅ Documentation generated in {len(files)} files:")
     for name, path in files.items():
         print(f"  - {name}: {path}")
-

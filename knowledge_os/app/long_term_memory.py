@@ -6,7 +6,7 @@
 
 import logging
 import os
-from typing import Optional, List
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ class LongTermMemoryManager:
             return
         try:
             import asyncpg
+
             conn = await asyncpg.connect(self.db_url)
             try:
                 table_exists = await conn.fetchval("""
@@ -60,26 +61,45 @@ class LongTermMemoryManager:
                 if not table_exists:
                     logger.debug("long_term_memory: таблица не найдена, пропуск сохранения")
                     return
-                
+
                 if embedding:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO long_term_memory (user_key, project_context, goal_summary, outcome_summary, embedding)
                         VALUES ($1, $2, $3, $4, $5)
-                    """, user_key, project_context or "default", goal_summary, outcome_summary, embedding)
+                    """,
+                        user_key,
+                        project_context or "default",
+                        goal_summary,
+                        outcome_summary,
+                        embedding,
+                    )
                 else:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO long_term_memory (user_key, project_context, goal_summary, outcome_summary)
                         VALUES ($1, $2, $3, $4)
-                    """, user_key, project_context or "default", goal_summary, outcome_summary)
-                
+                    """,
+                        user_key,
+                        project_context or "default",
+                        goal_summary,
+                        outcome_summary,
+                    )
+
                 # Удалить старые по TTL
-                await conn.execute("""
+                await conn.execute(
+                    """
                     DELETE FROM long_term_memory
                     WHERE (user_key, project_context) = ($1, $2)
                     AND created_at < NOW() - ($3 || ' days')::INTERVAL
-                """, user_key, project_context or "default", self.ttl_days)
+                """,
+                    user_key,
+                    project_context or "default",
+                    self.ttl_days,
+                )
                 # Оставить только последние max_threads_per_key
-                await conn.execute("""
+                await conn.execute(
+                    """
                     DELETE FROM long_term_memory
                     WHERE (user_key, project_context) = ($1, $2)
                     AND id NOT IN (
@@ -88,7 +108,11 @@ class LongTermMemoryManager:
                         ORDER BY created_at DESC
                         LIMIT $3
                     )
-                """, user_key, project_context or "default", self.max_threads_per_key)
+                """,
+                    user_key,
+                    project_context or "default",
+                    self.max_threads_per_key,
+                )
             finally:
                 await conn.close()
         except Exception as e:
@@ -111,12 +135,14 @@ class LongTermMemoryManager:
             return ""
         try:
             import asyncpg
+
             conn = await asyncpg.connect(self.db_url)
             try:
                 # Поиск по косинусному расстоянию (<=>)
                 # similarity = 1 - distance
                 if user_key:
-                    rows = await conn.fetch("""
+                    rows = await conn.fetch(
+                        """
                         SELECT goal_summary, outcome_summary, (1 - (embedding <=> $1)) as similarity
                         FROM long_term_memory
                         WHERE project_context = $2 AND user_key = $3
@@ -124,9 +150,16 @@ class LongTermMemoryManager:
                         AND (1 - (embedding <=> $1)) >= $4
                         ORDER BY embedding <=> $1
                         LIMIT $5
-                    """, query_embedding, project_context, user_key, min_similarity, limit)
+                    """,
+                        query_embedding,
+                        project_context,
+                        user_key,
+                        min_similarity,
+                        limit,
+                    )
                 else:
-                    rows = await conn.fetch("""
+                    rows = await conn.fetch(
+                        """
                         SELECT goal_summary, outcome_summary, (1 - (embedding <=> $1)) as similarity
                         FROM long_term_memory
                         WHERE project_context = $2
@@ -134,18 +167,23 @@ class LongTermMemoryManager:
                         AND (1 - (embedding <=> $1)) >= $3
                         ORDER BY embedding <=> $1
                         LIMIT $4
-                    """, query_embedding, project_context, min_similarity, limit)
-                
+                    """,
+                        query_embedding,
+                        project_context,
+                        min_similarity,
+                        limit,
+                    )
+
                 if not rows:
                     return ""
-                
+
                 parts: List[str] = []
                 for r in rows:
                     g = (r["goal_summary"] or "").replace("\n", " ").strip()
                     o = (r["outcome_summary"] or "").replace("\n", " ").strip()
                     sim = r["similarity"]
                     parts.append(f"• [sim={sim:.2f}] {g} → {o}")
-                
+
                 out = "\n".join(parts)
                 return out[:max_chars] if len(out) > max_chars else out
             finally:
@@ -169,6 +207,7 @@ class LongTermMemoryManager:
             return ""
         try:
             import asyncpg
+
             conn = await asyncpg.connect(self.db_url)
             try:
                 table_exists = await conn.fetchval("""
@@ -181,23 +220,34 @@ class LongTermMemoryManager:
                     return ""
                 # Выборка по user_key + project_context (если оба заданы) или по project_context только
                 if user_key and project_context:
-                    rows = await conn.fetch("""
+                    rows = await conn.fetch(
+                        """
                         SELECT goal_summary, outcome_summary, created_at
                         FROM long_term_memory
                         WHERE user_key = $1 AND project_context = $2
                         AND created_at > NOW() - ($4 || ' days')::INTERVAL
                         ORDER BY created_at DESC
                         LIMIT $3
-                    """, user_key, project_context or "default", limit, self.ttl_days)
+                    """,
+                        user_key,
+                        project_context or "default",
+                        limit,
+                        self.ttl_days,
+                    )
                 elif project_context:
-                    rows = await conn.fetch("""
+                    rows = await conn.fetch(
+                        """
                         SELECT goal_summary, outcome_summary, created_at
                         FROM long_term_memory
                         WHERE project_context = $1
                         AND created_at > NOW() - ($3 || ' days')::INTERVAL
                         ORDER BY created_at DESC
                         LIMIT $2
-                    """, project_context or "default", limit, self.ttl_days)
+                    """,
+                        project_context or "default",
+                        limit,
+                        self.ttl_days,
+                    )
                 else:
                     return ""
                 if not rows:

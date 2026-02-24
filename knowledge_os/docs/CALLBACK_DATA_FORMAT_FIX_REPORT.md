@@ -9,11 +9,13 @@
 ### **1. Неправильный формат callback_data в test_signal_cmd**
 
 **Было (неправильно):**
+
 ```python
 callback_data=f"accept|{symbol}|test|{entry_price}|1|long|{risk_pct}"
 ```
 
 **Пример:**
+
 ```
 accept|TESTLONG|test|100.0|1|long|3.5
 ```
@@ -23,6 +25,7 @@ accept|TESTLONG|test|100.0|1|long|3.5
 ### **2. Ожидаемый формат в функции button**
 
 **Функция button ожидает:**
+
 ```python
 # accept|symbol|entry_time|entry_price|side|risk_pct|dynamic_leverage
 data = query.data.split("|")
@@ -41,6 +44,7 @@ risk_pct = float(data[5])     # 3.5
 ### **1. Исправлен формат callback_data в test_signal_cmd**
 
 **Было:**
+
 ```python
 # LONG сигнал
 callback_data=f"accept|{symbol}|test|{entry_price}|1|long|{risk_pct}"
@@ -50,6 +54,7 @@ callback_data=f"accept|{symbol}|test|{entry_price}|1|short|{risk_pct}"
 ```
 
 **Стало:**
+
 ```python
 # LONG сигнал
 callback_data=f"accept|{symbol}|test|{entry_price}|long|{risk_pct}"
@@ -67,11 +72,13 @@ callback_data=f"accept|{symbol}|test|{entry_price}|short|{risk_pct}"
 ### **✅ Тест пройден успешно:**
 
 **Исправленный callback_data:**
+
 ```
 accept|TESTLONG|test|100.0|long|3.5
 ```
 
 **Разбор параметров:**
+
 - ✅ action: accept
 - ✅ symbol: TESTLONG
 - ✅ entry_time: test
@@ -80,6 +87,7 @@ accept|TESTLONG|test|100.0|long|3.5
 - ✅ risk_pct: 3.5 (float)
 
 **Расчеты:**
+
 - ✅ deposit: 10,000 USDT
 - ✅ trade_mode: spot
 - ✅ leverage: 1
@@ -87,6 +95,7 @@ accept|TESTLONG|test|100.0|long|3.5
 - ✅ qty: 3.5
 
 **Сформированное сообщение:**
+
 ```
 ✅ Сигнал принят!
 📅 Принят: 18.08.2025 00:25
@@ -101,12 +110,14 @@ accept|TESTLONG|test|100.0|long|3.5
 ## 🚀 **ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ**
 
 ### **✅ При успешном исправлении:**
+
 1. **Кнопка "Принять" работает** - callback_data разбирается корректно
 2. **Сообщение "✅ Сигнал принят!"** отображается
 3. **Позиция добавляется** в open_positions
 4. **Данные сохраняются** в user_data.json
 
 ### **📱 Инструкции для тестирования:**
+
 1. **Отправьте команду:** `/test_signal`
 2. **Нажмите кнопку:** `Принять LONG` или `Принять SHORT`
 3. **Проверьте сообщение:** `✅ Сигнал принят!`
@@ -115,19 +126,23 @@ accept|TESTLONG|test|100.0|long|3.5
 ## 🔧 **ТЕХНИЧЕСКИЕ ДЕТАЛИ**
 
 ### **Файлы изменены:**
+
 - `telegram_bot.py` - исправлен формат callback_data в test_signal_cmd
 
 ### **Ключевые изменения:**
+
 1. **Убран лишний параметр** `1` из callback_data
 2. **Исправлен порядок параметров** для соответствия функции button
 3. **Проверена совместимость** с функцией button
 
 ### **Формат callback_data:**
+
 ```
 accept|symbol|entry_time|entry_price|side|risk_pct
 ```
 
 **Параметры:**
+
 - `accept` - действие
 - `symbol` - торговый символ
 - `entry_time` - время входа

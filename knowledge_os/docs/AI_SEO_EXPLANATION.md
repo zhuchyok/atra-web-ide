@@ -11,13 +11,13 @@
 
 ### **Классический SEO vs AI SEO:**
 
-| Аспект | Классический SEO | AI SEO |
-|--------|------------------|--------|
-| **Цель** | Видимость в Google/Yandex | Видимость в ChatGPT/Perplexity |
-| **Аудитория** | Люди через поисковики | Люди через AI-ассистентов |
-| **Формат** | Список ссылок | Прямые ответы AI |
-| **Оптимизация** | Keywords, backlinks | Structured data, semantic content |
-| **Метрики** | Позиции в поиске | Упоминания в AI-ответах |
+| Аспект          | Классический SEO          | AI SEO                            |
+| --------------- | ------------------------- | --------------------------------- |
+| **Цель**        | Видимость в Google/Yandex | Видимость в ChatGPT/Perplexity    |
+| **Аудитория**   | Люди через поисковики     | Люди через AI-ассистентов         |
+| **Формат**      | Список ссылок             | Прямые ответы AI                  |
+| **Оптимизация** | Keywords, backlinks       | Structured data, semantic content |
+| **Метрики**     | Позиции в поиске          | Упоминания в AI-ответах           |
 
 ---
 
@@ -94,14 +94,12 @@
   "name": "ATRA Trading",
   "description": "Algorithmic trading system",
   "url": "https://atra.com",
-  "sameAs": [
-    "https://twitter.com/atra",
-    "https://linkedin.com/company/atra"
-  ]
+  "sameAs": ["https://twitter.com/atra", "https://linkedin.com/company/atra"]
 }
 ```
 
 **Зачем:**
+
 - AI понимает структуру контента
 - Легче извлекать информацию
 - Больше шансов быть источником ответа
@@ -109,11 +107,13 @@
 ### **2. Semantic Content**
 
 **❌ Плохо (keyword stuffing):**
+
 ```
 Trading system trading platform trading bot trading algorithm trading strategy
 ```
 
 **✅ Хорошо (semantic content):**
+
 ```
 Our algorithmic trading system uses machine learning to analyze market patterns
 and execute trades automatically. The platform supports multiple exchanges and
@@ -121,6 +121,7 @@ provides real-time risk management.
 ```
 
 **Зачем:**
+
 - AI понимает контекст
 - Качественный контент важнее keywords
 - Семантическая связность
@@ -131,18 +132,21 @@ provides real-time risk management.
 {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  "mainEntity": [{
-    "@type": "Question",
-    "name": "How does ATRA work?",
-    "acceptedAnswer": {
-      "@type": "Answer",
-      "text": "ATRA uses ML models to analyze market data..."
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How does ATRA work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "ATRA uses ML models to analyze market data..."
+      }
     }
-  }]
+  ]
 }
 ```
 
 **Зачем:**
+
 - AI использует FAQ для ответов
 - Прямые ответы на вопросы
 - Больше видимости в AI-ответах
@@ -164,6 +168,7 @@ provides real-time risk management.
 ```
 
 **Зачем:**
+
 - AI понимает структуру статьи
 - Легче извлекать ключевую информацию
 - Больше шансов быть источником
@@ -282,4 +287,3 @@ provides real-time risk management.
 
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX
-

@@ -7,6 +7,7 @@
 ## 📊 ПРОГРЕСС ИСПРАВЛЕНИЙ:
 
 ### **Начальное состояние:**
+
 ```
 ❌ telegram_handlers.py: 11 ошибок
 ❌ main.py: 1 ошибка
@@ -16,6 +17,7 @@
 ```
 
 ### **Этап 1: Критические ошибки**
+
 ```
 ✅ AI запись: entry_price → _entry_price
 ✅ AI запись: exit_price → _exit_price
@@ -28,6 +30,7 @@
 ```
 
 ### **Этап 2: Global statement**
+
 ```
 ✅ global _last_api_call удален
 ✅ Переход на атрибуты функции
@@ -42,6 +45,7 @@
 ## 🔧 ФИНАЛЬНОЕ РЕШЕНИЕ: Rate Limiter без Global
 
 ### **❌ БЫЛО (с global):**
+
 ```python
 # Глобальный rate limiter
 _last_api_call = 0
@@ -57,6 +61,7 @@ async def rate_limit_api_call():
 ```
 
 ### **✅ СТАЛО (с атрибутами функции):**
+
 ```python
 # Rate limiter без global statement
 async def rate_limit_api_call():
@@ -64,18 +69,19 @@ async def rate_limit_api_call():
     if not hasattr(rate_limit_api_call, 'last_call'):
         rate_limit_api_call.last_call = 0  # type: ignore
         rate_limit_api_call.min_interval = 0.1  # type: ignore # 100ms
-    
+
     current_time = time.time()
     time_since_last_call = current_time - rate_limit_api_call.last_call  # type: ignore
     min_interval = rate_limit_api_call.min_interval  # type: ignore
-    
+
     if time_since_last_call < min_interval:
         await asyncio.sleep(min_interval - time_since_last_call)
-    
+
     rate_limit_api_call.last_call = time.time()  # type: ignore
 ```
 
 ### **Преимущества нового подхода:**
+
 - ✅ Нет global statement
 - ✅ Состояние изолировано внутри функции
 - ✅ Более "pythonic" код
@@ -88,25 +94,25 @@ async def rate_limit_api_call():
 
 ### **1. telegram_handlers.py (11 → 0)**
 
-| # | Проблема | Строка | Решение |
-|---|----------|--------|---------|
-| 1 | ❌ Критическая: entry_price → _entry_price | 1872 | ✅ Исправлено |
-| 2 | ❌ Критическая: exit_price → _exit_price | 1872 | ✅ Исправлено |
-| 3 | ⚠️ Catching general Exception | 671 | ✅ → asyncio.TimeoutError, ... |
-| 4 | ⚠️ Unused argument step_seconds | 692 | ✅ → _step_seconds |
-| 5 | ⚠️ Catching general Exception | 1596 | ✅ → RuntimeError, ... |
-| 6 | ⚠️ Catching general Exception | 1859 | ✅ → RuntimeError, ... |
-| 7 | ⚠️ Catching general Exception | 1882 | ✅ → RuntimeError, ... |
-| 8 | ⚠️ Lazy % formatting | 2030 | ✅ → logging.info(..., %s, var) |
-| 9 | ⚠️ Global statement | 25 | ✅ → атрибуты функции |
-| 10 | ⚠️ Protected member _last_call | 23-33 | ✅ → last_call |
-| 11 | ⚠️ Protected member _min_interval | 24-28 | ✅ → min_interval |
+| #   | Проблема                                    | Строка | Решение                         |
+| --- | ------------------------------------------- | ------ | ------------------------------- |
+| 1   | ❌ Критическая: entry_price → \_entry_price | 1872   | ✅ Исправлено                   |
+| 2   | ❌ Критическая: exit_price → \_exit_price   | 1872   | ✅ Исправлено                   |
+| 3   | ⚠️ Catching general Exception               | 671    | ✅ → asyncio.TimeoutError, ...  |
+| 4   | ⚠️ Unused argument step_seconds             | 692    | ✅ → \_step_seconds             |
+| 5   | ⚠️ Catching general Exception               | 1596   | ✅ → RuntimeError, ...          |
+| 6   | ⚠️ Catching general Exception               | 1859   | ✅ → RuntimeError, ...          |
+| 7   | ⚠️ Catching general Exception               | 1882   | ✅ → RuntimeError, ...          |
+| 8   | ⚠️ Lazy % formatting                        | 2030   | ✅ → logging.info(..., %s, var) |
+| 9   | ⚠️ Global statement                         | 25     | ✅ → атрибуты функции           |
+| 10  | ⚠️ Protected member \_last_call             | 23-33  | ✅ → last_call                  |
+| 11  | ⚠️ Protected member \_min_interval          | 24-28  | ✅ → min_interval               |
 
 ### **2. main.py (1 → 0)**
 
-| # | Проблема | Строка | Решение |
-|---|----------|--------|---------|
-| 1 | ⚠️ Unused import threading | 132 | ✅ Закомментирован |
+| #   | Проблема                   | Строка | Решение            |
+| --- | -------------------------- | ------ | ------------------ |
+| 1   | ⚠️ Unused import threading | 132    | ✅ Закомментирован |
 
 ### **3. web/dashboard.py (0 → 0)**
 
@@ -119,6 +125,7 @@ async def rate_limit_api_call():
 ## 🎉 ИТОГОВАЯ СТАТИСТИКА:
 
 ### **ДО ИСПРАВЛЕНИЙ:**
+
 ```
 ❌ Критические ошибки: 4
 ⚠️ Предупреждения: 8
@@ -128,6 +135,7 @@ async def rate_limit_api_call():
 ```
 
 ### **ПОСЛЕ ИСПРАВЛЕНИЙ:**
+
 ```
 ✅ Критические ошибки: 0
 ✅ Предупреждения: 0
@@ -143,6 +151,7 @@ async def rate_limit_api_call():
 ## 📄 GIT COMMITS:
 
 ### **Commit 1: Критические ошибки**
+
 ```bash
 commit d05d4bc
 🔧 FIX: Исправлены все linter ошибки в telegram_handlers.py и main.py
@@ -158,6 +167,7 @@ commit d05d4bc
 ```
 
 ### **Commit 2: Global statement**
+
 ```bash
 commit 65e368c
 ✨ FIX: Удалено последнее предупреждение - global statement
@@ -170,6 +180,7 @@ commit 65e368c
 ```
 
 ### **Commit 3: Protected members**
+
 ```bash
 commit 9f7e536
 🔧 FIX: Убраны подчеркивания из атрибутов функции
@@ -195,6 +206,7 @@ commit 9f7e536
 ```
 
 ### **Что исправлено:**
+
 - ✅ Критические ошибки AI интеграции
 - ✅ Exception handling улучшен
 - ✅ Неиспользуемые параметры убраны
@@ -204,6 +216,7 @@ commit 9f7e536
 - ✅ Импорты очищены
 
 ### **Преимущества:**
+
 - ✅ Код легче поддерживать
 - ✅ Меньше потенциальных багов
 - ✅ Лучшая читаемость
@@ -229,4 +242,3 @@ commit 9f7e536
 - ✅ `web/dashboard.py` - 0 ошибок
 
 **ВСЁ ИДЕАЛЬНО!** ✨
-

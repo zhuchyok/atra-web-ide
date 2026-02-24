@@ -12,12 +12,14 @@
 **Файл:** `src/signals/filters.py`
 
 **Изменения:**
+
 - Добавлено логирование блокировок при LONG против сильного ETH тренда (строка 179)
 - Добавлено логирование блокировок при SHORT против сильного ETH тренда (строка 187)
 - Используется `log_filter_check_async` из `src.utils.filter_logger`
 - Логируется тип фильтра `eth_trend`, символ, результат (passed=False) и причина блокировки
 
 **Пример логирования:**
+
 ```python
 log_filter_check_async(
     symbol=symbol,
@@ -34,12 +36,14 @@ log_filter_check_async(
 **Файл:** `src/signals/filters.py`
 
 **Изменения:**
+
 - Добавлено логирование блокировок при LONG против сильного SOL тренда (строка 267)
 - Добавлено логирование блокировок при SHORT против сильного SOL тренда (строка 275)
 - Используется `log_filter_check_async` из `src.utils.filter_logger`
 - Логируется тип фильтра `sol_trend`, символ, результат (passed=False) и причина блокировки
 
 **Пример логирования:**
+
 ```python
 log_filter_check_async(
     symbol=symbol,
@@ -56,12 +60,14 @@ log_filter_check_async(
 **Файл:** `src/signals/filters.py`
 
 **Изменения:**
+
 - Добавлено логирование блокировок при LONG против сильного BTC тренда (строка 91)
 - Добавлено логирование блокировок при SHORT против сильного BTC тренда (строка 99)
 - Используется `log_filter_check_async` из `src.utils.filter_logger`
 - Логируется тип фильтра `btc_trend`, символ, результат (passed=False) и причина блокировки
 
 **Пример логирования:**
+
 ```python
 log_filter_check_async(
     symbol=symbol,
@@ -78,6 +84,7 @@ log_filter_check_async(
 **Файл:** `signal_live.py`
 
 **Изменения:**
+
 - Добавлено логирование блокировок BTC фильтра в функции `check_btc_trend_alignment` (строки с логированием блокировок)
 - Используется `log_filter_check_async` из `src.utils.filter_logger`
 - Логируется тип фильтра `btc_trend`, символ, результат (passed=False) и причина блокировки
@@ -103,6 +110,7 @@ log_filter_check_async(
 ### Структура записей в БД:
 
 Все записи сохраняются в таблицу `filter_checks` со следующими полями:
+
 - `symbol`: Торговый символ (например, 'BTCUSDT')
 - `filter_type`: Тип фильтра ('btc_trend', 'eth_trend', 'sol_trend')
 - `passed`: 0 (не прошел) или 1 (прошел)
@@ -114,10 +122,12 @@ log_filter_check_async(
 ## 🔍 ПРОВЕРКА
 
 ### Линтер:
+
 - ✅ Нет ошибок линтера в `src/signals/filters.py`
 - ✅ Нет ошибок линтера в `signal_live.py`
 
 ### Импорты:
+
 - ✅ Используется безопасный импорт `from src.utils.filter_logger import log_filter_check_async`
 - ✅ Обработка ошибок импорта через `try/except`
 
@@ -166,5 +176,4 @@ log_filter_check_async(
 
 ---
 
-*Отчет создан автоматически системой ATRA.*
-
+_Отчет создан автоматически системой ATRA._

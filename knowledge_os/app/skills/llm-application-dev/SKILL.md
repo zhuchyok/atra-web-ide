@@ -10,6 +10,7 @@ license: MIT
 ## Prompt Engineering
 
 ### Structured Prompts
+
 ```typescript
 const systemPrompt = `You are a helpful assistant that answers questions about our product.
 
@@ -26,6 +27,7 @@ const userPrompt = `Question: {question}`;
 ```
 
 ### Few-Shot Examples
+
 ```typescript
 const prompt = `Classify the sentiment of customer feedback.
 
@@ -44,6 +46,7 @@ Output:`;
 ```
 
 ### Chain of Thought
+
 ```typescript
 const prompt = `Solve this step by step:
 
@@ -60,48 +63,49 @@ Step-by-step solution:`;
 ## API Integration
 
 ### OpenAI Pattern
+
 ```typescript
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function chat(messages: Message[]): Promise<string> {
   const response = await openai.chat.completions.create({
-    model: 'gpt-4',
+    model: "gpt-4",
     messages,
     temperature: 0.7,
     max_tokens: 500,
   });
 
-  return response.choices[0].message.content ?? '';
+  return response.choices[0].message.content ?? "";
 }
 ```
 
 ### Anthropic Pattern
+
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function chat(prompt: string): Promise<string> {
   const response = await anthropic.messages.create({
-    model: 'claude-3-opus-20240229',
+    model: "claude-3-opus-20240229",
     max_tokens: 1024,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: "user", content: prompt }],
   });
 
-  return response.content[0].type === 'text'
-    ? response.content[0].text
-    : '';
+  return response.content[0].type === "text" ? response.content[0].text : "";
 }
 ```
 
 ### Streaming Responses
+
 ```typescript
 async function* streamChat(prompt: string) {
   const stream = await openai.chat.completions.create({
-    model: 'gpt-4',
-    messages: [{ role: 'user', content: prompt }],
+    model: "gpt-4",
+    messages: [{ role: "user", content: prompt }],
     stream: true,
   });
 
@@ -115,6 +119,7 @@ async function* streamChat(prompt: string) {
 ## RAG (Retrieval-Augmented Generation)
 
 ### Basic RAG Pipeline
+
 ```typescript
 async function ragQuery(question: string): Promise<string> {
   // 1. Embed the question
@@ -124,7 +129,7 @@ async function ragQuery(question: string): Promise<string> {
   const relevantDocs = await vectorDb.search(questionEmbedding, { limit: 5 });
 
   // 3. Build context
-  const context = relevantDocs.map(d => d.content).join('\n\n');
+  const context = relevantDocs.map((d) => d.content).join("\n\n");
 
   // 4. Generate answer
   const prompt = `Answer based on this context:\n${context}\n\nQuestion: ${question}`;
@@ -133,6 +138,7 @@ async function ragQuery(question: string): Promise<string> {
 ```
 
 ### Document Chunking
+
 ```typescript
 function chunkDocument(text: string, options: ChunkOptions): string[] {
   const { chunkSize = 1000, overlap = 200 } = options;
@@ -150,16 +156,17 @@ function chunkDocument(text: string, options: ChunkOptions): string[] {
 ```
 
 ### Embedding Storage
+
 ```typescript
 // Using Supabase with pgvector
 async function storeEmbeddings(docs: Document[]) {
   for (const doc of docs) {
     const embedding = await embedText(doc.content);
 
-    await supabase.from('documents').insert({
+    await supabase.from("documents").insert({
       content: doc.content,
       metadata: doc.metadata,
-      embedding: embedding,  // vector column
+      embedding: embedding, // vector column
     });
   }
 }
@@ -167,7 +174,7 @@ async function storeEmbeddings(docs: Document[]) {
 async function searchSimilar(query: string, limit = 5) {
   const embedding = await embedText(query);
 
-  const { data } = await supabase.rpc('match_documents', {
+  const { data } = await supabase.rpc("match_documents", {
     query_embedding: embedding,
     match_count: limit,
   });
@@ -181,7 +188,7 @@ async function searchSimilar(query: string, limit = 5) {
 ```typescript
 async function safeLLMCall<T>(
   fn: () => Promise<T>,
-  options: { retries?: number; fallback?: T }
+  options: { retries?: number; fallback?: T },
 ): Promise<T> {
   const { retries = 3, fallback } = options;
 
@@ -200,7 +207,7 @@ async function safeLLMCall<T>(
       }
     }
   }
-  throw new Error('Max retries exceeded');
+  throw new Error("Max retries exceeded");
 }
 ```
 

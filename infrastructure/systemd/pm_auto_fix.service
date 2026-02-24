@@ -15,4 +15,3 @@ StandardError=append:/root/atra/logs/pm_auto_fix.log
 
 [Install]
 WantedBy=multi-user.target
-

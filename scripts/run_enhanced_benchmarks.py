@@ -19,7 +19,7 @@ from app.victoria_enhanced import VictoriaEnhanced
 
 class EnhancedBenchmark:
     """Benchmark для сравнения Enhanced vs Standard"""
-    
+
     def __init__(self):
         self.enhanced = None
         self.benchmark_tasks = [
@@ -48,7 +48,7 @@ class EnhancedBenchmark:
                 "expected_method": "react"
             },
         ]
-    
+
     async def setup(self):
         """Инициализация"""
         print("🔧 Инициализация benchmark...")
@@ -59,12 +59,12 @@ class EnhancedBenchmark:
         except Exception as e:
             print(f"❌ Ошибка: {e}")
             return False
-    
+
     async def benchmark_task(self, task: Dict, use_enhanced: bool, iterations: int = 3) -> Dict[str, Any]:
         """Benchmark одной задачи"""
         times = []
         results = []
-        
+
         for i in range(iterations):
             start_time = time.time()
             try:
@@ -89,7 +89,7 @@ class EnhancedBenchmark:
                     "error": str(e),
                     "success": False
                 })
-        
+
         return {
             "task_id": task["id"],
             "category": task["category"],
@@ -102,48 +102,48 @@ class EnhancedBenchmark:
             "success_rate": sum(1 for r in results if r.get("success", False)) / iterations,
             "results": results
         }
-    
+
     async def run_benchmarks(self):
         """Запуск всех benchmark тестов"""
         print("=" * 60)
         print("📊 BENCHMARK TESTS - Enhanced vs Standard")
         print("=" * 60)
-        
+
         if not await self.setup():
             return
-        
+
         all_results = []
-        
+
         for task in self.benchmark_tasks:
             print(f"\n🧪 Тестирование: {task['id']} ({task['category']})")
-            
+
             # Standard режим
             print("  ⏳ Standard режим...")
             standard_result = await self.benchmark_task(task, use_enhanced=False)
             all_results.append(standard_result)
-            
+
             # Enhanced режим
             print("  ⏳ Enhanced режим...")
             enhanced_result = await self.benchmark_task(task, use_enhanced=True)
             all_results.append(enhanced_result)
-            
+
             # Сравнение
             improvement = ((standard_result["avg_time"] - enhanced_result["avg_time"]) / standard_result["avg_time"]) * 100
             print(f"  📈 Улучшение времени: {improvement:.1f}%")
             print(f"  ✅ Success rate: Standard={standard_result['success_rate']*100:.1f}%, Enhanced={enhanced_result['success_rate']*100:.1f}%")
-        
+
         # Вывод сводки
         self.print_summary(all_results)
-        
+
         # Сохранение результатов
         self.save_results(all_results)
-    
+
     def print_summary(self, results: List[Dict]):
         """Вывод сводки"""
         print("\n" + "=" * 60)
         print("📊 СВОДКА BENCHMARK")
         print("=" * 60)
-        
+
         # Группировка по задачам
         tasks = {}
         for result in results:
@@ -152,20 +152,20 @@ class EnhancedBenchmark:
                 tasks[task_id] = {}
             mode = "enhanced" if result["use_enhanced"] else "standard"
             tasks[task_id][mode] = result
-        
+
         for task_id, modes in tasks.items():
             standard = modes.get("standard", {})
             enhanced = modes.get("enhanced", {})
-            
+
             if standard and enhanced:
                 time_improvement = ((standard["avg_time"] - enhanced["avg_time"]) / standard["avg_time"]) * 100
                 success_improvement = (enhanced["success_rate"] - standard["success_rate"]) * 100
-                
+
                 print(f"\n📋 {task_id}:")
                 print(f"  Время: {standard['avg_time']:.2f}s → {enhanced['avg_time']:.2f}s ({time_improvement:+.1f}%)")
                 print(f"  Success rate: {standard['success_rate']*100:.1f}% → {enhanced['success_rate']*100:.1f}% ({success_improvement:+.1f}%)")
                 print(f"  Метод: {enhanced.get('results', [{}])[0].get('method', 'unknown')}")
-    
+
     def save_results(self, results: List[Dict]):
         """Сохранение результатов"""
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -174,26 +174,26 @@ class EnhancedBenchmark:
             "benchmark_results": results,
             "summary": self._calculate_summary(results)
         }
-        
+
         os.makedirs("docs/mac-studio/test_results", exist_ok=True)
         filename = f"docs/mac-studio/test_results/benchmark_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        
+
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(output, f, indent=2, ensure_ascii=False)
-        
+
         print(f"\n💾 Результаты сохранены: {filename}")
-    
+
     def _calculate_summary(self, results: List[Dict]) -> Dict:
         """Расчет сводной статистики"""
         standard_results = [r for r in results if not r["use_enhanced"]]
         enhanced_results = [r for r in results if r["use_enhanced"]]
-        
+
         avg_time_standard = statistics.mean([r["avg_time"] for r in standard_results]) if standard_results else 0
         avg_time_enhanced = statistics.mean([r["avg_time"] for r in enhanced_results]) if enhanced_results else 0
-        
+
         avg_success_standard = statistics.mean([r["success_rate"] for r in standard_results]) if standard_results else 0
         avg_success_enhanced = statistics.mean([r["success_rate"] for r in enhanced_results]) if enhanced_results else 0
-        
+
         return {
             "avg_time_improvement": ((avg_time_standard - avg_time_enhanced) / avg_time_standard * 100) if avg_time_standard > 0 else 0,
             "avg_success_improvement": (avg_success_enhanced - avg_success_standard) * 100,

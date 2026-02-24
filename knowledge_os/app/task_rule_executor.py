@@ -44,19 +44,19 @@ def _match_template(title: str) -> Optional[str]:
 async def execute_fallback(task: Dict[str, Any]) -> Optional[str]:
     """
     Выполняет задачу без LLM по rule-based шаблону.
-    
+
     Returns:
         Строка результата или None, если подходящего шаблона нет.
     """
     source = (task.get("metadata") or {}).get("source", "")
     title = task.get("title", "")
-    
+
     if source == "dashboard_daily_improver":
         template_result = _match_template(title)
         if template_result:
             header = "Rule-based выполнение (AI недоступен):\n\n"
             return header + template_result
-    
+
     # Общий шаблон для задач «Проверить X»
     if title and "проверить" in title.lower() and "дашборд" in title.lower():
         return (
@@ -66,7 +66,7 @@ async def execute_fallback(task: Dict[str, Any]) -> Optional[str]:
             "- Проверить соответствующий код в dashboard/\n"
             "- Убедиться в отсутствии ошибок при пустых данных"
         )
-    
+
     return None
 
 

@@ -3,6 +3,7 @@
 ## 🎯 **КАК РАБОТАЮТ ДИНАМИЧЕСКИЕ ПАРАМЕТРЫ:**
 
 ### **📊 Динамический риск (`get_dynamic_risk_pct`):**
+
 ```python
 def get_dynamic_risk_pct(df, i):
     """
@@ -24,6 +25,7 @@ def get_dynamic_risk_pct(df, i):
 ```
 
 ### **📈 Динамическое плечо (`get_dynamic_leverage`):**
+
 ```python
 def get_dynamic_leverage(df, i, base_leverage=1):
     """
@@ -54,6 +56,7 @@ def get_dynamic_leverage(df, i, base_leverage=1):
 ## ✅ **ПРАВИЛЬНАЯ ЛОГИКА РАБОТЫ:**
 
 ### **📊 В генерации сигналов:**
+
 ```python
 # В signal_live.py строка 2328
 risk_pct = get_dynamic_risk_pct(df, current_index)
@@ -64,6 +67,7 @@ leverage = get_dynamic_leverage(df, current_index, base_leverage)
 ```
 
 ### **📊 В принятии сигналов:**
+
 ```python
 # В telegram_bot.py строка 3940
 risk_pct = float(args[5]) if len(args) > 5 else user_data.get("risk_pct", 2.0)
@@ -75,9 +79,11 @@ leverage = user_data.get("leverage", 1) if trade_mode == "futures" else 1
 ## ❌ **ПРОБЛЕМА В МОЕМ ПРЕДЫДУЩЕМ ОТЧЕТЕ:**
 
 ### **🚨 Неправильное утверждение:**
+
 Я сказал, что отсутствие `risk_pct` и `leverage` в `user_data.json` критично для получения сигналов.
 
 ### **✅ Правильная реальность:**
+
 **Эти параметры НЕ критичны для получения сигналов, потому что:**
 
 1. **`risk_pct`** - рассчитывается динамически функцией `get_dynamic_risk_pct()`
@@ -89,6 +95,7 @@ leverage = user_data.get("leverage", 1) if trade_mode == "futures" else 1
 ## 🔧 **КАК РАБОТАЕТ СИСТЕМА:**
 
 ### **📊 Генерация сигналов:**
+
 ```python
 # 1. Получаем базовые значения из user_data (если есть)
 base_risk = user_data.get('risk_pct', 2.0)  # По умолчанию 2%
@@ -103,6 +110,7 @@ base_qty = deposit * risk_pct / 100 * leverage / price
 ```
 
 ### **📊 Принятие сигналов:**
+
 ```python
 # 1. Получаем риск из команды или user_data
 risk_pct = float(args[5]) if len(args) > 5 else user_data.get("risk_pct", 2.0)
@@ -121,25 +129,27 @@ new_qty, avg_price_new, tp1, tp2, limit_reached = dca_calculate_next_qty_and_tp(
 ## 🎯 **ЧТО ДЕЙСТВИТЕЛЬНО КРИТИЧНО:**
 
 ### **✅ Обязательные параметры:**
+
 ```json
 {
-  "deposit": 1000.0,           // ✅ КРИТИЧНО - для расчета размера позиции
-  "trade_mode": "spot",        // ✅ КРИТИЧНО - для блокировки SHORT сигналов
-  "filter_mode": "balanced",   // ✅ КРИТИЧНО - для логики фильтров
+  "deposit": 1000.0, // ✅ КРИТИЧНО - для расчета размера позиции
+  "trade_mode": "spot", // ✅ КРИТИЧНО - для блокировки SHORT сигналов
+  "filter_mode": "balanced", // ✅ КРИТИЧНО - для логики фильтров
   "news_filter_mode": "conservative" // ✅ КРИТИЧНО - для обработки новостей
 }
 ```
 
 ### **⚠️ НЕ критичные параметры:**
+
 ```json
 {
-  "risk_pct": 2.0,            // ⚠️ НЕ критично - рассчитывается динамически
-  "leverage": 1,               // ⚠️ НЕ критично - рассчитывается динамически
-  "open_positions": [],        // ⚠️ НЕ критично - инициализируется пустым
-  "accepted_signals": [],      // ⚠️ НЕ критично - инициализируется пустым
-  "total_risk_amount": 0,      // ⚠️ НЕ критично - рассчитывается автоматически
-  "free_deposit": 1000.0,      // ⚠️ НЕ критично - рассчитывается автоматически
-  "total_profit": 0            // ⚠️ НЕ критично - рассчитывается автоматически
+  "risk_pct": 2.0, // ⚠️ НЕ критично - рассчитывается динамически
+  "leverage": 1, // ⚠️ НЕ критично - рассчитывается динамически
+  "open_positions": [], // ⚠️ НЕ критично - инициализируется пустым
+  "accepted_signals": [], // ⚠️ НЕ критично - инициализируется пустым
+  "total_risk_amount": 0, // ⚠️ НЕ критично - рассчитывается автоматически
+  "free_deposit": 1000.0, // ⚠️ НЕ критично - рассчитывается автоматически
+  "total_profit": 0 // ⚠️ НЕ критично - рассчитывается автоматически
 }
 ```
 
@@ -148,6 +158,7 @@ new_qty, avg_price_new, tp1, tp2, limit_reached = dca_calculate_next_qty_and_tp(
 ## 🔧 **ИСПРАВЛЕНИЕ ЛОГИКИ:**
 
 ### **✅ Правильная проверка полноты данных:**
+
 ```python
 def ensure_user_data_completeness(user_data):
     """Обеспечивает полноту критически важных данных пользователя"""
@@ -178,6 +189,7 @@ def ensure_user_data_completeness(user_data):
 ## 📊 **ПРАКТИЧЕСКИЕ ПРИМЕРЫ:**
 
 ### **Пример 1: Пользователь без `risk_pct` и `leverage`**
+
 ```json
 // user_data.json
 "958930260": {
@@ -194,6 +206,7 @@ leverage = get_dynamic_leverage(df, current_index, 1)  // Например: 1.5x
 ```
 
 ### **Пример 2: Пользователь с `risk_pct` и `leverage`**
+
 ```json
 // user_data.json
 "556251171": {
@@ -216,15 +229,18 @@ leverage = get_dynamic_leverage(df, current_index, 1)  // Например: 1.0x
 ## 🎯 **ИТОГ:**
 
 ### **🔑 Ключевые принципы:**
+
 1. **`risk_pct` и `leverage`** рассчитываются динамически и НЕ критичны для получения сигналов
 2. **Критичны только:** `deposit`, `trade_mode`, `filter_mode`, `news_filter_mode`
 3. **Динамические параметры** адаптируются к рыночным условиям автоматически
 4. **Система работает корректно** даже с минимальными данными пользователя
 
 ### **📊 Текущий статус:**
+
 - ✅ **Пользователь 556251171** - данные полные
 - ✅ **Пользователь 958930260** - данные исправлены и полные
 - ✅ **Динамические параметры** работают автоматически
 
 ### **🎯 Результат:**
+
 **Система динамических параметров работает корректно и автоматически адаптируется к рыночным условиям!** 🚀

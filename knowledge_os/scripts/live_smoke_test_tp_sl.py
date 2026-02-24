@@ -3,7 +3,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("live_smoke_test")
@@ -53,7 +53,11 @@ async def run_test(
         trade_mode=trade_mode,
     )
     if not ok:
-        return {"ok": False, "reason": "open_failed", "details": "Не удалось открыть позицию через авто-исполнение"}
+        return {
+            "ok": False,
+            "reason": "open_failed",
+            "details": "Не удалось открыть позицию через авто-исполнение",
+        }
 
     # Проверим наличие план-ордеров TP/SL
     try:
@@ -61,7 +65,9 @@ async def run_test(
         await asyncio.sleep(2)
         # Попробуем получить план-ордера через raw API
         plan_rows = await adapter.fetch_plan_orders(symbol=symbol)
-        found_tp1 = any("pos_profit" in str(r).lower() and ("tp1" in str(r).lower() or True) for r in plan_rows)
+        found_tp1 = any(
+            "pos_profit" in str(r).lower() and ("tp1" in str(r).lower() or True) for r in plan_rows
+        )
         found_tp2 = any("pos_profit" in str(r).lower() for r in plan_rows)
         found_sl = any("pos_loss" in str(r).lower() for r in plan_rows)
         plans_count = len(plan_rows)
@@ -71,14 +77,23 @@ async def run_test(
                 open_orders = adapter.client.fetch_open_orders(symbol)
             except Exception:
                 open_orders = []
+
             def _is_plan(o: Dict[str, Any]) -> bool:
                 t = (o.get("type") or "").lower()
                 info = str(o.get("info") or "").lower()
                 return ("plan" in info) or ("takeprofit" in t) or ("stop" in t)
+
             plans = [o for o in (open_orders or []) if _is_plan(o)]
-            found_tp1 = found_tp1 or any("tp1" in str(o).lower() or "takeprofit" in (o.get("type") or "").lower() for o in plans)
-            found_tp2 = found_tp2 or any("takeprofit" in (o.get("type") or "").lower() for o in plans)
-            found_sl = found_sl or any("stop" in (o.get("type") or "").lower() or "loss" in str(o).lower() for o in plans)
+            found_tp1 = found_tp1 or any(
+                "tp1" in str(o).lower() or "takeprofit" in (o.get("type") or "").lower()
+                for o in plans
+            )
+            found_tp2 = found_tp2 or any(
+                "takeprofit" in (o.get("type") or "").lower() for o in plans
+            )
+            found_sl = found_sl or any(
+                "stop" in (o.get("type") or "").lower() or "loss" in str(o).lower() for o in plans
+            )
             plans_count = plans_count or len(plans)
         return {
             "ok": True,
@@ -89,7 +104,14 @@ async def run_test(
             "plans_count": plans_count,
         }
     except Exception as e:
-        return {"ok": True, "symbol": symbol, "found_tp1": None, "found_tp2": None, "found_sl": None, "error": str(e)}
+        return {
+            "ok": True,
+            "symbol": symbol,
+            "found_tp1": None,
+            "found_tp2": None,
+            "found_sl": None,
+            "error": str(e),
+        }
 
 
 def write_report(result: Dict[str, Any]) -> str:
@@ -136,5 +158,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

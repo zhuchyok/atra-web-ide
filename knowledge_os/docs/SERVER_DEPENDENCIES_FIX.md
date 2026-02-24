@@ -3,6 +3,7 @@
 ## 🚨 Проблема
 
 На сервере отсутствуют необходимые Python пакеты:
+
 ```
 ModuleNotFoundError: No module named 'flask'
 ModuleNotFoundError: No module named 'pandas'
@@ -46,6 +47,7 @@ pip install TA-Lib
 TA-Lib может потребовать системные зависимости:
 
 ### **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get update
 sudo apt-get install build-essential
@@ -59,6 +61,7 @@ pip install TA-Lib
 ```
 
 ### **CentOS/RHEL:**
+
 ```bash
 sudo yum groupinstall "Development Tools"
 sudo yum install wget
@@ -108,11 +111,13 @@ python3 main.py
 ## ⚡ БЫСТРЫЕ КОМАНДЫ
 
 ### **Установка только критических пакетов:**
+
 ```bash
 pip install flask pandas numpy requests python-dotenv
 ```
 
 ### **Полная установка одной командой:**
+
 ```bash
 python3 install_dependencies.py && python3 quick_fix_server.py && pkill -f "python.*main.py" && python3 main.py
 ```
@@ -122,22 +127,26 @@ python3 install_dependencies.py && python3 quick_fix_server.py && pkill -f "pyth
 ## 🚨 ЕСЛИ НЕ ПОМОГЛО
 
 ### **Проверьте версию Python:**
+
 ```bash
 python3 --version
 # Должно быть Python 3.7 или выше
 ```
 
 ### **Обновите pip:**
+
 ```bash
 python3 -m pip install --upgrade pip
 ```
 
 ### **Попробуйте установку с --user:**
+
 ```bash
 pip install --user flask pandas numpy requests
 ```
 
 ### **Проверьте права доступа:**
+
 ```bash
 # Если ошибки прав доступа
 sudo pip install flask pandas numpy requests
@@ -162,5 +171,6 @@ sudo pip install flask pandas numpy requests
 **Результат:** Dashboard работает в полноценном режиме
 
 ---
+
 **Дата:** 2025-10-05  
 **Статус:** ✅ Готово к применению

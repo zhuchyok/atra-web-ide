@@ -1,7 +1,7 @@
 ATRA Trading Bot Documentation
 ==============================
 
-Добро пожаловать в документацию торгового бота ATRA! 
+Добро пожаловать в документацию торгового бота ATRA!
 
 ATRA - это продвинутая система автоматической генерации торговых сигналов с использованием AI/ML технологий, комплексной валидации данных и современной модульной архитектуры.
 
@@ -34,10 +34,10 @@ ATRA - это продвинутая система автоматической
 
    from src.signals.core import strict_entry_signal
    from src.signals.validation import validate_signal_data
-   
+
    # Генерация сигнала
    side, price = strict_entry_signal(df, i)
-   
+
    # Валидация сигнала
    signal_data = {
        'symbol': 'BTCUSDT',
@@ -45,7 +45,7 @@ ATRA - это продвинутая система автоматической
        'price': price,
        'user_id': '123456789'
    }
-   
+
    is_valid = validate_signal_data(signal_data)
 
 Архитектура

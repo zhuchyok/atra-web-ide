@@ -35,11 +35,11 @@ conn = sqlite3.connect('trading.db')
 cursor = conn.cursor()
 since = (datetime.now() - timedelta(hours=24)).strftime('%Y-%m-%d %H:%M:%S')
 cursor.execute('''
-    SELECT 
+    SELECT
         COUNT(*) as total,
         COUNT(CASE WHEN quality_score > 0 THEN 1 END) as with_score,
         AVG(quality_score) as avg_score
-    FROM signals_log 
+    FROM signals_log
     WHERE created_at >= ? AND quality_score IS NOT NULL
 ''', (since,))
 row = cursor.fetchone()
@@ -76,4 +76,3 @@ fi
 
 echo ""
 echo "✅ Проверка завершена"
-

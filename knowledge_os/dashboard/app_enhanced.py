@@ -4,22 +4,22 @@ Enhanced Dashboard with Advanced Analytics
 """
 
 from datetime import timedelta
+
 import numpy as np
-import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
 from enhanced_analytics import EnhancedAnalytics
 
 # Настройка страницы
 st.set_page_config(
-    page_title="Knowledge OS Analytics | Enhanced Dashboard",
-    page_icon="📊",
-    layout="wide"
+    page_title="Knowledge OS Analytics | Enhanced Dashboard", page_icon="📊", layout="wide"
 )
 
 # Стили (используем те же, что в оригинале)
-st.markdown("""
+st.markdown(
+    """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
@@ -48,7 +48,10 @@ st.markdown("""
         text-transform: uppercase;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
+
 
 def main():
     """
@@ -70,9 +73,9 @@ def main():
         with col1:
             st.metric("Узлов знаний", f"{overview.get('total_nodes', 0):,}")
         with col2:
-            st.metric("Экспертов", overview.get('total_experts', 0))
+            st.metric("Экспертов", overview.get("total_experts", 0))
         with col3:
-            st.metric("Доменов", overview.get('total_domains', 0))
+            st.metric("Доменов", overview.get("total_domains", 0))
         with col4:
             st.metric("Средний confidence", f"{overview.get('avg_confidence', 0):.2f}")
         with col5:
@@ -81,16 +84,18 @@ def main():
     st.markdown("---")
 
     # --- ВКЛАДКИ ---
-    tabs = st.tabs([
-        "📈 Рост и тренды",
-        "🏢 Распределение по доменам",
-        "👥 Производительность экспертов",
-        "🔍 Эффективность поиска",
-        "⭐ Качество знаний",
-        "✅ Аналитика задач",
-        "🔮 Прогнозы",
-        "🕸️ Граф знаний"
-    ])
+    tabs = st.tabs(
+        [
+            "📈 Рост и тренды",
+            "🏢 Распределение по доменам",
+            "👥 Производительность экспертов",
+            "🔍 Эффективность поиска",
+            "⭐ Качество знаний",
+            "✅ Аналитика задач",
+            "🔮 Прогнозы",
+            "🕸️ Граф знаний",
+        ]
+    )
 
     # 📈 РОСТ И ТРЕНДЫ
     with tabs[0]:
@@ -107,39 +112,39 @@ def main():
                 # График роста
                 fig = px.line(
                     growth_data,
-                    x='date',
-                    y='new_nodes',
+                    x="date",
+                    y="new_nodes",
                     title="Новые узлы знаний",
                     template="plotly_dark",
-                    labels={'new_nodes': 'Новых узлов', 'date': 'Дата'}
+                    labels={"new_nodes": "Новых узлов", "date": "Дата"},
                 )
-                fig.update_traces(line_color='#58a6ff', line_width=3)
+                fig.update_traces(line_color="#58a6ff", line_width=3)
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
                 # График использования
                 fig = px.bar(
                     growth_data,
-                    x='date',
-                    y='total_usage',
+                    x="date",
+                    y="total_usage",
                     title="Использование знаний",
                     template="plotly_dark",
-                    labels={'total_usage': 'Использований', 'date': 'Дата'}
+                    labels={"total_usage": "Использований", "date": "Дата"},
                 )
-                fig.update_traces(marker_color='#238636')
+                fig.update_traces(marker_color="#238636")
                 st.plotly_chart(fig, use_container_width=True)
 
             # Средний confidence по времени
-            if 'avg_confidence' in growth_data.columns:
+            if "avg_confidence" in growth_data.columns:
                 fig = px.line(
                     growth_data,
-                    x='date',
-                    y='avg_confidence',
+                    x="date",
+                    y="avg_confidence",
                     title="Средний confidence score",
                     template="plotly_dark",
-                    labels={'avg_confidence': 'Confidence', 'date': 'Дата'}
+                    labels={"avg_confidence": "Confidence", "date": "Дата"},
                 )
-                fig.update_traces(line_color='#f38ba8', line_width=2)
+                fig.update_traces(line_color="#f38ba8", line_width=2)
                 st.plotly_chart(fig, use_container_width=True)
 
     # 🏢 РАСПРЕДЕЛЕНИЕ ПО ДОМЕНАМ
@@ -155,33 +160,33 @@ def main():
                 # Круговая диаграмма
                 fig = px.pie(
                     domain_data,
-                    values='node_count',
-                    names='domain',
+                    values="node_count",
+                    names="domain",
                     title="Распределение узлов по доменам",
                     template="plotly_dark",
-                    hole=0.4
+                    hole=0.4,
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
                 # Столбчатая диаграмма использования
                 fig = px.bar(
-                    domain_data.sort_values('total_usage', ascending=False).head(10),
-                    x='domain',
-                    y='total_usage',
+                    domain_data.sort_values("total_usage", ascending=False).head(10),
+                    x="domain",
+                    y="total_usage",
                     title="Топ-10 доменов по использованию",
                     template="plotly_dark",
-                    labels={'total_usage': 'Использований', 'domain': 'Домен'}
+                    labels={"total_usage": "Использований", "domain": "Домен"},
                 )
-                fig.update_traces(marker_color='#58a6ff')
+                fig.update_traces(marker_color="#58a6ff")
                 st.plotly_chart(fig, use_container_width=True)
 
             # Таблица с деталями
             st.subheader("Детальная статистика по доменам")
             st.dataframe(
-                domain_data.sort_values('node_count', ascending=False),
+                domain_data.sort_values("node_count", ascending=False),
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
             )
 
     # 👥 ПРОИЗВОДИТЕЛЬНОСТЬ ЭКСПЕРТОВ
@@ -195,48 +200,52 @@ def main():
 
             with col1:
                 # Топ экспертов по использованию
-                top_experts = expert_data.nlargest(10, 'total_usage')
+                top_experts = expert_data.nlargest(10, "total_usage")
                 fig = px.bar(
                     top_experts,
-                    x='name',
-                    y='total_usage',
-                    color='department',
+                    x="name",
+                    y="total_usage",
+                    color="department",
                     title="Топ-10 экспертов по использованию знаний",
                     template="plotly_dark",
-                    labels={'total_usage': 'Использований', 'name': 'Эксперт'}
+                    labels={"total_usage": "Использований", "name": "Эксперт"},
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
                 # Задачи экспертов
                 fig = go.Figure()
-                fig.add_trace(go.Bar(
-                    x=expert_data['name'],
-                    y=expert_data['tasks_completed'],
-                    name='Завершено',
-                    marker_color='#238636'
-                ))
-                fig.add_trace(go.Bar(
-                    x=expert_data['name'],
-                    y=expert_data['tasks_pending'],
-                    name='В ожидании',
-                    marker_color='#f38ba8'
-                ))
+                fig.add_trace(
+                    go.Bar(
+                        x=expert_data["name"],
+                        y=expert_data["tasks_completed"],
+                        name="Завершено",
+                        marker_color="#238636",
+                    )
+                )
+                fig.add_trace(
+                    go.Bar(
+                        x=expert_data["name"],
+                        y=expert_data["tasks_pending"],
+                        name="В ожидании",
+                        marker_color="#f38ba8",
+                    )
+                )
                 fig.update_layout(
                     title="Задачи экспертов",
                     template="plotly_dark",
-                    barmode='stack',
+                    barmode="stack",
                     xaxis_title="Эксперт",
-                    yaxis_title="Количество задач"
+                    yaxis_title="Количество задач",
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
             # Таблица производительности
             st.subheader("Детальная статистика экспертов")
             st.dataframe(
-                expert_data.sort_values('total_usage', ascending=False),
+                expert_data.sort_values("total_usage", ascending=False),
                 use_container_width=True,
-                hide_index=True
+                hide_index=True,
             )
 
     # 🔍 ЭФФЕКТИВНОСТЬ ПОИСКА
@@ -249,25 +258,13 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                st.metric(
-                    "Всего узлов",
-                    f"{search_metrics.get('total_searchable_nodes', 0):,}"
-                )
+                st.metric("Всего узлов", f"{search_metrics.get('total_searchable_nodes', 0):,}")
             with col2:
-                st.metric(
-                    "Используемых",
-                    f"{search_metrics.get('used_nodes', 0):,}"
-                )
+                st.metric("Используемых", f"{search_metrics.get('used_nodes', 0):,}")
             with col3:
-                st.metric(
-                    "Процент использования",
-                    f"{search_metrics.get('usage_rate', 0):.1f}%"
-                )
+                st.metric("Процент использования", f"{search_metrics.get('usage_rate', 0):.1f}%")
             with col4:
-                st.metric(
-                    "Популярных (>10)",
-                    search_metrics.get('popular_nodes', 0)
-                )
+                st.metric("Популярных (>10)", search_metrics.get("popular_nodes", 0))
 
             # График распределения использования
             usage_data = analytics.fetch_data("""
@@ -296,13 +293,13 @@ def main():
                 df = pd.DataFrame(usage_data)
                 fig = px.bar(
                     df,
-                    x='usage_range',
-                    y='count',
+                    x="usage_range",
+                    y="count",
                     title="Распределение узлов по использованию",
                     template="plotly_dark",
-                    labels={'count': 'Количество узлов', 'usage_range': 'Диапазон использований'}
+                    labels={"count": "Количество узлов", "usage_range": "Диапазон использований"},
                 )
-                fig.update_traces(marker_color='#58a6ff')
+                fig.update_traces(marker_color="#58a6ff")
                 st.plotly_chart(fig, use_container_width=True)
 
     # ⭐ КАЧЕСТВО ЗНАНИЙ
@@ -318,58 +315,55 @@ def main():
                 st.metric(
                     "Высокое качество (≥0.8)",
                     f"{quality_metrics.get('high_quality', 0):,}",
-                    f"{quality_metrics.get('high_quality_pct', 0):.1f}%"
+                    f"{quality_metrics.get('high_quality_pct', 0):.1f}%",
                 )
             with col2:
                 st.metric(
                     "Среднее качество (0.5-0.8)",
                     f"{quality_metrics.get('medium_quality', 0):,}",
-                    f"{quality_metrics.get('medium_quality_pct', 0):.1f}%"
+                    f"{quality_metrics.get('medium_quality_pct', 0):.1f}%",
                 )
             with col3:
                 st.metric(
                     "Низкое качество (<0.5)",
                     f"{quality_metrics.get('low_quality', 0):,}",
-                    f"{quality_metrics.get('low_quality_pct', 0):.1f}%"
+                    f"{quality_metrics.get('low_quality_pct', 0):.1f}%",
                 )
             with col4:
-                st.metric(
-                    "Верифицировано",
-                    quality_metrics.get('verified', 0)
-                )
+                st.metric("Верифицировано", quality_metrics.get("verified", 0))
 
             # График качества
             quality_data = {
-                'Качество': ['Высокое', 'Среднее', 'Низкое'],
-                'Количество': [
-                    quality_metrics.get('high_quality', 0),
-                    quality_metrics.get('medium_quality', 0),
-                    quality_metrics.get('low_quality', 0)
-                ]
+                "Качество": ["Высокое", "Среднее", "Низкое"],
+                "Количество": [
+                    quality_metrics.get("high_quality", 0),
+                    quality_metrics.get("medium_quality", 0),
+                    quality_metrics.get("low_quality", 0),
+                ],
             }
             df = pd.DataFrame(quality_data)
             fig = px.pie(
                 df,
-                values='Количество',
-                names='Качество',
+                values="Количество",
+                names="Качество",
                 title="Распределение по качеству",
                 template="plotly_dark",
                 hole=0.4,
-                color='Качество',
+                color="Качество",
                 color_discrete_map={
-                    'Высокое': '#238636',
-                    'Среднее': '#fab387',
-                    'Низкое': '#f38ba8'
-                }
+                    "Высокое": "#238636",
+                    "Среднее": "#fab387",
+                    "Низкое": "#f38ba8",
+                },
             )
             st.plotly_chart(fig, use_container_width=True)
 
             # Статистика тестирования
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Протестировано", quality_metrics.get('tested', 0))
+                st.metric("Протестировано", quality_metrics.get("tested", 0))
             with col2:
-                st.metric("Автоисправлено", quality_metrics.get('auto_fixed', 0))
+                st.metric("Автоисправлено", quality_metrics.get("auto_fixed", 0))
 
     # ✅ АНАЛИТИКА ЗАДАЧ
     with tabs[5]:
@@ -381,49 +375,45 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                st.metric("В ожидании", task_metrics.get('pending', 0))
+                st.metric("В ожидании", task_metrics.get("pending", 0))
             with col2:
-                st.metric("В работе", task_metrics.get('in_progress', 0))
+                st.metric("В работе", task_metrics.get("in_progress", 0))
             with col3:
-                st.metric("Завершено", task_metrics.get('completed', 0))
+                st.metric("Завершено", task_metrics.get("completed", 0))
             with col4:
-                st.metric(
-                    "Процент завершения",
-                    f"{task_metrics.get('completion_rate', 0):.1f}%"
-                )
+                st.metric("Процент завершения", f"{task_metrics.get('completion_rate', 0):.1f}%")
 
             # Распределение по приоритетам
             priority_data = {
-                'Приоритет': ['Urgent', 'High', 'Medium', 'Low'],
-                'Количество': [
-                    task_metrics.get('urgent', 0),
-                    task_metrics.get('high_priority', 0),
-                    task_metrics.get('medium_priority', 0),
-                    task_metrics.get('low_priority', 0)
-                ]
+                "Приоритет": ["Urgent", "High", "Medium", "Low"],
+                "Количество": [
+                    task_metrics.get("urgent", 0),
+                    task_metrics.get("high_priority", 0),
+                    task_metrics.get("medium_priority", 0),
+                    task_metrics.get("low_priority", 0),
+                ],
             }
             df = pd.DataFrame(priority_data)
             fig = px.bar(
                 df,
-                x='Приоритет',
-                y='Количество',
+                x="Приоритет",
+                y="Количество",
                 title="Распределение задач по приоритетам",
                 template="plotly_dark",
-                color='Приоритет',
+                color="Приоритет",
                 color_discrete_map={
-                    'Urgent': '#f38ba8',
-                    'High': '#fab387',
-                    'Medium': '#f9e2af',
-                    'Low': '#94e2d5'
-                }
+                    "Urgent": "#f38ba8",
+                    "High": "#fab387",
+                    "Medium": "#f9e2af",
+                    "Low": "#94e2d5",
+                },
             )
             st.plotly_chart(fig, use_container_width=True)
 
             # Среднее время выполнения
-            if task_metrics.get('avg_completion_hours'):
+            if task_metrics.get("avg_completion_hours"):
                 st.metric(
-                    "Среднее время выполнения",
-                    f"{task_metrics['avg_completion_hours']:.1f} часов"
+                    "Среднее время выполнения", f"{task_metrics['avg_completion_hours']:.1f} часов"
                 )
 
     # 🔮 ПРОГНОЗЫ
@@ -437,50 +427,45 @@ def main():
 
             with col1:
                 st.metric(
-                    "Текущий рост (день)",
-                    f"{forecast.get('current_daily_growth', 0):.1f} узлов"
+                    "Текущий рост (день)", f"{forecast.get('current_daily_growth', 0):.1f} узлов"
                 )
             with col2:
-                st.metric(
-                    "Прогноз на 7 дней",
-                    f"{forecast.get('forecast_7_days', 0):.0f} узлов"
-                )
+                st.metric("Прогноз на 7 дней", f"{forecast.get('forecast_7_days', 0):.0f} узлов")
             with col3:
-                st.metric(
-                    "Прогноз на 30 дней",
-                    f"{forecast.get('forecast_30_days', 0):.0f} узлов"
-                )
+                st.metric("Прогноз на 30 дней", f"{forecast.get('forecast_30_days', 0):.0f} узлов")
 
             # График прогноза
             growth_data = analytics.get_knowledge_growth_trend(30)
             if not growth_data.empty:
                 # Добавляем прогноз
-                last_date = growth_data['date'].max()
+                last_date = growth_data["date"].max()
                 forecast_dates = pd.date_range(
-                    start=last_date + timedelta(days=1),
-                    periods=7,
-                    freq='D'
+                    start=last_date + timedelta(days=1), periods=7, freq="D"
                 )
-                forecast_values = [forecast.get('current_daily_growth', 0)] * 7
+                forecast_values = [forecast.get("current_daily_growth", 0)] * 7
 
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=growth_data['date'],
-                    y=growth_data['new_nodes'],
-                    name='Факт',
-                    line=dict(color='#58a6ff', width=3)
-                ))
-                fig.add_trace(go.Scatter(
-                    x=forecast_dates,
-                    y=forecast_values,
-                    name='Прогноз',
-                    line=dict(color='#f38ba8', width=2, dash='dash')
-                ))
+                fig.add_trace(
+                    go.Scatter(
+                        x=growth_data["date"],
+                        y=growth_data["new_nodes"],
+                        name="Факт",
+                        line=dict(color="#58a6ff", width=3),
+                    )
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=forecast_dates,
+                        y=forecast_values,
+                        name="Прогноз",
+                        line=dict(color="#f38ba8", width=2, dash="dash"),
+                    )
+                )
                 fig.update_layout(
                     title="Рост базы знаний: факт и прогноз",
                     template="plotly_dark",
                     xaxis_title="Дата",
-                    yaxis_title="Новых узлов"
+                    yaxis_title="Новых узлов",
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -492,7 +477,7 @@ def main():
 
         graph_data = analytics.get_knowledge_graph_data(limit)
 
-        if graph_data['nodes']:
+        if graph_data["nodes"]:
             # Создаем граф с помощью plotly
             node_x = []
             node_y = []
@@ -501,49 +486,55 @@ def main():
             node_color = []
 
             # Простая визуализация (можно улучшить с networkx)
-            n_nodes = len(graph_data['nodes'])
-            angles = np.linspace(0, 2*np.pi, n_nodes, endpoint=False)
+            n_nodes = len(graph_data["nodes"])
+            angles = np.linspace(0, 2 * np.pi, n_nodes, endpoint=False)
 
-            for i, node in enumerate(graph_data['nodes']):
+            for i, node in enumerate(graph_data["nodes"]):
                 node_x.append(np.cos(angles[i]))
                 node_y.append(np.sin(angles[i]))
-                node_text.append(node['label'])
-                node_size.append(10 + node.get('usage', 0) * 0.5)
-                node_color.append(node.get('confidence', 0.5))
+                node_text.append(node["label"])
+                node_size.append(10 + node.get("usage", 0) * 0.5)
+                node_color.append(node.get("confidence", 0.5))
 
             # Рисуем узлы
             node_trace = go.Scatter(
                 x=node_x,
                 y=node_y,
-                mode='markers+text',
+                mode="markers+text",
                 text=node_text,
                 textposition="top center",
-                hoverinfo='text',
+                hoverinfo="text",
                 marker=dict(
                     size=node_size,
                     color=node_color,
-                    colorscale='Viridis',
+                    colorscale="Viridis",
                     showscale=True,
-                    line=dict(width=1, color='white'),
-                    colorbar=dict(title="Confidence")
+                    line=dict(width=1, color="white"),
+                    colorbar=dict(title="Confidence"),
                 ),
-                name='Узлы знаний'
+                name="Узлы знаний",
             )
 
             # Рисуем связи
             edge_traces = []
-            for edge in graph_data['edges']:
-                source_idx = next((i for i, n in enumerate(graph_data['nodes']) if n['id'] == edge['source']), None)
-                target_idx = next((i for i, n in enumerate(graph_data['nodes']) if n['id'] == edge['target']), None)
+            for edge in graph_data["edges"]:
+                source_idx = next(
+                    (i for i, n in enumerate(graph_data["nodes"]) if n["id"] == edge["source"]),
+                    None,
+                )
+                target_idx = next(
+                    (i for i, n in enumerate(graph_data["nodes"]) if n["id"] == edge["target"]),
+                    None,
+                )
 
                 if source_idx is not None and target_idx is not None:
                     edge_trace = go.Scatter(
                         x=[node_x[source_idx], node_x[target_idx]],
                         y=[node_y[source_idx], node_y[target_idx]],
-                        mode='lines',
-                        line=dict(width=1, color='#58a6ff', opacity=0.3),
+                        mode="lines",
+                        line=dict(width=1, color="#58a6ff", opacity=0.3),
                         showlegend=False,
-                        hoverinfo='none'
+                        hoverinfo="none",
                     )
                     edge_traces.append(edge_trace)
 
@@ -552,25 +543,26 @@ def main():
                 title="Граф знаний",
                 template="plotly_dark",
                 showlegend=True,
-                hovermode='closest',
+                hovermode="closest",
                 margin=dict(b=20, l=5, r=5, t=40),
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                height=600
+                height=600,
             )
             st.plotly_chart(fig, use_container_width=True)
 
             # Статистика графа
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Узлов", len(graph_data['nodes']))
+                st.metric("Узлов", len(graph_data["nodes"]))
             with col2:
-                st.metric("Связей", len(graph_data['edges']))
+                st.metric("Связей", len(graph_data["edges"]))
             with col3:
                 avg_degree = 0
-                if graph_data['nodes']:
-                    avg_degree = len(graph_data['edges']) / len(graph_data['nodes'])
+                if graph_data["nodes"]:
+                    avg_degree = len(graph_data["edges"]) / len(graph_data["nodes"])
                 st.metric("Средняя степень", f"{avg_degree:.2f}")
+
 
 if __name__ == "__main__":
     main()

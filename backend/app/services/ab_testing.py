@@ -2,6 +2,7 @@
 A/B тестирование оптимизаций (День 6–7, Фаза 3).
 Сравнение вариантов параметров: RAG threshold, agent suggestion, batch size.
 """
+
 import hashlib
 import json
 import logging
@@ -109,9 +110,7 @@ class ABTestingService:
 
         return "control"
 
-    def get_experiment_parameter(
-        self, user_id: str, experiment_name: str, param_name: str
-    ) -> Any:
+    def get_experiment_parameter(self, user_id: str, experiment_name: str, param_name: str) -> Any:
         """Получение значения параметра для пользователя в эксперименте."""
         variant = self.get_variant(user_id, experiment_name)
         if not variant:
@@ -172,11 +171,7 @@ class ABTestingService:
                     event_name = key[len(prefix) :]
                     variant_stats["events"][event_name] = {
                         "count": metric["count"],
-                        "avg": (
-                            metric["total"] / metric["count"]
-                            if metric["count"] > 0
-                            else 0
-                        ),
+                        "avg": (metric["total"] / metric["count"] if metric["count"] > 0 else 0),
                         "min": metric["min"] if metric["min"] != float("inf") else None,
                         "max": metric["max"] if metric["max"] != float("-inf") else None,
                     }
@@ -187,7 +182,7 @@ class ABTestingService:
     def load_experiments(self, filepath: str) -> None:
         """Загрузка экспериментов из JSON файла."""
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
             for exp_data in data:
                 name = exp_data.get("name")
@@ -201,7 +196,22 @@ class ABTestingService:
                             )
                         except Exception:
                             exp_data[key] = None
-                exp = ExperimentConfig(**{k: v for k, v in exp_data.items() if k in ("name", "description", "enabled", "variants", "parameters", "start_date", "end_date")})
+                exp = ExperimentConfig(
+                    **{
+                        k: v
+                        for k, v in exp_data.items()
+                        if k
+                        in (
+                            "name",
+                            "description",
+                            "enabled",
+                            "variants",
+                            "parameters",
+                            "start_date",
+                            "end_date",
+                        )
+                    }
+                )
                 self.experiments[exp.name] = exp
             logger.info("Loaded %d experiments from %s", len(data), filepath)
         except Exception as e:
@@ -210,10 +220,7 @@ class ABTestingService:
     def save_experiments(self, filepath: str) -> None:
         """Сохранение экспериментов в файл."""
         try:
-            data = [
-                asdict(exp)
-                for exp in self.experiments.values()
-            ]
+            data = [asdict(exp) for exp in self.experiments.values()]
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, default=str, indent=2, ensure_ascii=False)
             logger.info("Saved %d experiments to %s", len(data), filepath)

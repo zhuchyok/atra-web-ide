@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Запуск fallback 15m стратегии и вывод сигналов в консоль.
 """
@@ -8,9 +7,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -20,14 +19,24 @@ from fallback_strategy import FallbackConfig, FallbackMomentumStrategy  # noqa: 
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Запуск fallback стратегии Momentum+Liquidity (15m)")
-    parser.add_argument("--symbols", nargs="*", default=["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"])
+    parser = argparse.ArgumentParser(
+        description="Запуск fallback стратегии Momentum+Liquidity (15m)"
+    )
+    parser.add_argument(
+        "--symbols", nargs="*", default=["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "AVAXUSDT"]
+    )
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--json", action="store_true", help="Выводить результаты в формате JSON")
     parser.add_argument("--save", action="store_true", help="Сохранить сигналы в БД (signals_log)")
     parser.add_argument("--user-id", type=int, default=0, help="ID пользователя (по умолчанию 0)")
-    parser.add_argument("--entry-amount-usd", type=float, default=100.0, help="Размер позиции для записи в БД (USD)")
-    parser.add_argument("--trade-mode", default="backfill", help="Режим торговли для записи в БД (spot/futures/backfill)")
+    parser.add_argument(
+        "--entry-amount-usd", type=float, default=100.0, help="Размер позиции для записи в БД (USD)"
+    )
+    parser.add_argument(
+        "--trade-mode",
+        default="backfill",
+        help="Режим торговли для записи в БД (spot/futures/backfill)",
+    )
     return parser.parse_args()
 
 
@@ -72,4 +81,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

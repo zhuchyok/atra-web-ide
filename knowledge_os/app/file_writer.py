@@ -2,6 +2,7 @@
 SafeFileWriter — безопасная запись файлов с бэкапами.
 Интеграция с ReActAgent (create_file, write_file).
 """
+
 import hashlib
 import logging
 import os
@@ -33,9 +34,17 @@ class SafeFileWriter:
     def __init__(self, workspace_root: Optional[str] = None):
         self.workspace_root = Path(workspace_root or str(_default_workspace_root())).resolve()
         self.backup_dir = self.workspace_root / ".agent_backups"
-        self.backup_enabled = os.getenv("AGENT_BACKUP_ENABLED", "true").lower() in ("true", "1", "yes")
+        self.backup_enabled = os.getenv("AGENT_BACKUP_ENABLED", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        logger.debug("SafeFileWriter: workspace=%s, backup_enabled=%s", self.workspace_root, self.backup_enabled)
+        logger.debug(
+            "SafeFileWriter: workspace=%s, backup_enabled=%s",
+            self.workspace_root,
+            self.backup_enabled,
+        )
 
     def write_file(
         self,
@@ -68,7 +77,7 @@ class SafeFileWriter:
                         "error": error_msg,
                         "validation_failed": True,
                         "type": validation.get("type"),
-                        "line": validation.get("line")
+                        "line": validation.get("line"),
                     }
 
             backup_info = None

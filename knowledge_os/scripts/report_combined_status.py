@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Комбинированный отчёт качества и рисков.
 
@@ -91,9 +90,7 @@ def format_quality_summary(summary: Dict[str, Any]) -> str:
     lines.append(f"  - Events: {sizing['events_total']}")
     lines.append(f"  - Matched trades: {sizing['matched_events']}")
     uplift = sizing["uplift_vs_baseline"]
-    lines.append(
-        f"  - Uplift: {uplift:+.2f} USDT" if uplift is not None else "  - Uplift: —"
-    )
+    lines.append(f"  - Uplift: {uplift:+.2f} USDT" if uplift is not None else "  - Uplift: —")
     return "\n".join(lines)
 
 
@@ -170,4 +167,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -3,6 +3,7 @@
 ## 📋 **Обзор проблемы**
 
 Система получала постоянные ошибки 400 от Bitget API, что приводило к:
+
 - Ненужным попыткам подключения
 - Замедлению работы системы
 - Засорению логов ошибками
@@ -10,6 +11,7 @@
 ## 🔧 **Выполненные изменения**
 
 ### 1. **Удален импорт Bitget функций**
+
 ```python
 # БЫЛО:
 from ohlc_utils import get_ohlc_binance_sync_async, get_ohlc_bybit_sync_async, get_ohlc_bitget_sync_async, get_ohlc_coingecko_sync_async
@@ -19,7 +21,9 @@ from ohlc_utils import get_ohlc_binance_sync_async, get_ohlc_bybit_sync_async, g
 ```
 
 ### 2. **Удален блок получения данных с Bitget**
+
 Удален весь блок кода в функции `fetch_ohlc()`:
+
 ```python
 # УДАЛЕНО:
 # 3. Если Bybit не сработал, пробуем Bitget
@@ -33,6 +37,7 @@ if not ohlc or len(ohlc) < BB_WINDOW * 2:
 ```
 
 ### 3. **Обновлено сообщение об ошибке**
+
 ```python
 # БЫЛО:
 print(f"[LiveSignal] Не удалось получить данные для {symbol} ни с одной биржи (Binance, Bybit, Bitget, CoinGecko)")
@@ -42,12 +47,14 @@ print(f"[LiveSignal] Не удалось получить данные для {s
 ```
 
 ### 4. **Обновлены тестовые скрипты**
+
 - Удален Bitget из списка тестируемых бирж в `debug_price_issue.py`
 - Удален импорт Bitget функций
 
 ## 📊 **Результаты тестирования**
 
 ### **До удаления Bitget:**
+
 ```
 📊 Тестируем Bitget...
 [DEBUG] BTCUSDT: Bitget попытка 1
@@ -63,6 +70,7 @@ print(f"[LiveSignal] Не удалось получить данные для {s
 ```
 
 ### **После удаления Bitget:**
+
 ```
 📊 Тестируем Binance... ✅
 📊 Тестируем Bybit... ✅

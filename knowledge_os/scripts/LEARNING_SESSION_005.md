@@ -10,6 +10,7 @@
 ## 🎯 ЦЕЛЬ СЕССИИ
 
 Продвинутое обучение всех сотрудников на +30%:
+
 - Master-level техники
 - Production-ready решения
 - Advanced оптимизации
@@ -36,6 +37,7 @@
 ### **1. ДМИТРИЙ (ML Engineer) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Model Ensembling Advanced**
   - Stacking с meta-learner
   - Blending strategies
@@ -55,6 +57,7 @@
   - Feature selection with SHAP
 
 #### **Задачи:**
+
 1. ✅ Реализовать model ensembling (stacking)
 2. ✅ Добавить SHAP для интерпретации
 3. ✅ Исследовать LSTM для временных рядов
@@ -65,6 +68,7 @@
 ### **2. МАКСИМ (Data Analyst) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Advanced Risk Metrics**
   - Conditional Value at Risk (CVaR)
   - Maximum Adverse Excursion (MAE)
@@ -84,6 +88,7 @@
   - VaR/CVaR calculation
 
 #### **Задачи:**
+
 1. ✅ Реализовать CVaR и MAE метрики
 2. ✅ Оптимизировать portfolio allocation
 3. ✅ Добавить Monte Carlo simulation
@@ -94,6 +99,7 @@
 ### **3. ИГОРЬ (Backend Developer) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Microservices Architecture**
   - Service decomposition
   - API Gateway pattern
@@ -113,6 +119,7 @@
   - CPU optimization
 
 #### **Задачи:**
+
 1. ✅ Оптимизировать async код (еще +30%)
 2. ✅ Внедрить event-driven компоненты
 3. ✅ Оптимизировать memory usage
@@ -123,6 +130,7 @@
 ### **4. СЕРГЕЙ (DevOps Engineer) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Kubernetes Advanced**
   - Operators
   - Service mesh (Istio)
@@ -141,6 +149,7 @@
   - GitOps (ArgoCD)
 
 #### **Задачи:**
+
 1. ✅ Настроить Kubernetes (если нужно)
 2. ✅ Внедрить distributed tracing
 3. ✅ Настроить APM
@@ -151,6 +160,7 @@
 ### **5. АННА (QA Engineer) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Advanced Testing**
   - Property-based testing (Hypothesis)
   - Mutation testing
@@ -170,6 +180,7 @@
   - Technical debt tracking
 
 #### **Задачи:**
+
 1. ✅ Внедрить property-based testing
 2. ✅ Автоматизировать обнаружение flaky тестов
 3. ✅ Улучшить coverage до 90%+
@@ -180,6 +191,7 @@
 ### **6. ЕЛЕНА (Monitor) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Observability Advanced**
   - OpenTelemetry integration
   - Distributed tracing
@@ -199,6 +211,7 @@
   - Capacity planning
 
 #### **Задачи:**
+
 1. ✅ Внедрить OpenTelemetry
 2. ✅ Настроить distributed tracing
 3. ✅ Создать predictive dashboards
@@ -209,6 +222,7 @@
 ### **7. ВИКТОР (Team Lead) - +30%**
 
 #### **Изучаем:**
+
 - ✅ **Advanced Leadership**
   - Technical leadership
   - Team dynamics
@@ -222,6 +236,7 @@
   - Innovation management
 
 #### **Задачи:**
+
 1. ✅ Оптимизировать процессы команды
 2. ✅ Создать roadmap на 6 месяцев
 3. ✅ Увеличить velocity на 30%
@@ -231,6 +246,7 @@
 ### **8-13. ОСТАЛЬНЫЕ ЭКСПЕРТЫ - +30%**
 
 Аналогичное продвинутое обучение для:
+
 - Олег (Automation Expert)
 - Павел (Backend Expert)
 - Мария (Documentation Expert)
@@ -243,22 +259,27 @@
 ## 🔥 КРИТИЧНЫЕ ЗАДАЧИ
 
 ### **1. ДМИТРИЙ: Model Ensembling** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** +10-15% метрик
 
 ### **2. МАКСИМ: CVaR и MAE метрики** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Улучшение risk management
 
 ### **3. ИГОРЬ: Event-Driven Architecture** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Улучшение scalability
 
 ### **4. СЕРГЕЙ: Distributed Tracing** 🔴
+
 **Критичность:** ВЫСОКАЯ  
 **Ожидаемый эффект:** Полная observability
 
 ### **5. АННА: Property-Based Testing** 🔴
+
 **Критичность:** СРЕДНЯЯ  
 **Ожидаемый эффект:** Нахождение edge cases
 
@@ -267,21 +288,25 @@
 ## 📊 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 ### **ML & Trading:**
+
 - ✅ Метрики улучшены на 10-15%
 - ✅ Model ensembling работает
 - ✅ SHAP для интерпретации
 
 ### **Performance:**
+
 - ✅ Система ускорена еще на 25-30%
 - ✅ Memory usage оптимизирован
 - ✅ Latency снижена на 25-30%
 
 ### **Observability:**
+
 - ✅ Distributed tracing работает
 - ✅ APM настроен
 - ✅ Alerting улучшен на 50%
 
 ### **Quality:**
+
 - ✅ Test coverage > 90%
 - ✅ Technical debt снижен на 40%
 - ✅ Property-based testing работает
@@ -300,6 +325,5 @@
 
 ---
 
-*Сессия создана: Виктор (Team Lead) + все эксперты*  
-*Прогресс: 80% программы*
-
+_Сессия создана: Виктор (Team Lead) + все эксперты_  
+_Прогресс: 80% программы_

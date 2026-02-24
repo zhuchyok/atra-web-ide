@@ -1,18 +1,20 @@
-import logging
-import time
-import inspect
-from functools import wraps
-import pandas as pd
-import os
 import ast
+import inspect
 import json
+import logging
+import os
+import time
 import types
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
-from src.execution.exchange_api import get_symbol_precision
-from config import TELEGRAM_CHAT_IDS
+from functools import wraps
 
+import pandas as pd
+
+from config import TELEGRAM_CHAT_IDS
+from src.execution.exchange_api import get_symbol_precision
+from src.shared.utils.datetime_utils import get_utc_now
 from telegram.error import BadRequest, TelegramError
+
 
 async def safe_edit_message_text(query, text: str, **kwargs):
     """Безопасное редактирование текста сообщения:
@@ -24,20 +26,22 @@ async def safe_edit_message_text(query, text: str, **kwargs):
         msg = getattr(query, "message", None)
         if msg is None:
             return
-        
+
         # Если есть parse_mode в kwargs, проверяем его
         parse_mode = kwargs.get("parse_mode", "HTML")
-        
-        current_text = (getattr(msg, "text", None) or getattr(msg, "caption", None) or "")
+
+        current_text = getattr(msg, "text", None) or getattr(msg, "caption", None) or ""
         new_text = text or ""
 
         # Проверяем, меняется ли текст и разметка
         same_text = current_text == new_text
         current_markup = getattr(msg, "reply_markup", None)
         new_markup = kwargs.get("reply_markup")
-        
+
         # Сравнение markup может быть сложным, используем базовое сравнение
-        same_markup = (current_markup == new_markup) or (new_markup is None and current_markup is None)
+        same_markup = (current_markup == new_markup) or (
+            new_markup is None and current_markup is None
+        )
 
         if same_text and same_markup:
             return
@@ -61,6 +65,7 @@ async def safe_edit_message_text(query, text: str, **kwargs):
     except TelegramError:
         return
 
+
 async def safe_delete_message(bot, chat_id, message_id):
     """Безопасное удаление сообщения"""
     try:
@@ -68,10 +73,13 @@ async def safe_delete_message(bot, chat_id, message_id):
     except (BadRequest, TelegramError):
         pass
 
+
 async def rate_limit_api_call(delay=0.05):
     """Rate limiting для предотвращения Flood control"""
     import asyncio
+
     await asyncio.sleep(delay)
+
 
 # --- ФУНКЦИЯ БЕЗОПАСНОГО ФОРМАТИРОВАНИЯ ЦЕН ---
 def safe_format_price(price, symbol=None):
@@ -80,7 +88,7 @@ def safe_format_price(price, symbol=None):
     🚀 ЭКСПЕРТНАЯ ОПТИМИЗАЦИЯ (Татьяна): Сохраняем полную точность согласно правилам проекта.
     """
     if price is None or pd.isna(price):
-        return 'N/A'
+        return "N/A"
 
     try:
         if symbol is None:
@@ -88,6 +96,7 @@ def safe_format_price(price, symbol=None):
 
         # Используем get_full_price_format для правильного форматирования
         from src.utils.exchange_utils import get_full_price_format
+
         fmt = get_full_price_format(symbol)
         formatted = fmt.format(float(price))
 
@@ -101,12 +110,14 @@ def safe_format_price(price, symbol=None):
         except (ValueError, TypeError):
             return f"{price:.5f}"
 
+
 def profile(func):
     """Декоратор профилирования времени выполнения.
 
     Корректно работает как с синхронными, так и с асинхронными функциями.
     """
     if inspect.iscoroutinefunction(func):
+
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             t0 = time.perf_counter()
@@ -118,6 +129,7 @@ def profile(func):
 
         return async_wrapper
     else:
+
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             t0 = time.perf_counter()
@@ -128,6 +140,7 @@ def profile(func):
                 logging.info("%s выполнена за %.3f сек", func.__name__, elapsed)
 
         return sync_wrapper
+
 
 def calculate_base_leverage(deposit):
     """Рассчитывает базовое плечо на основе депозита"""
@@ -142,6 +155,7 @@ def calculate_base_leverage(deposit):
     else:
         return 10
 
+
 def calculate_risk_based_leverage(deposit, risk_tolerance="moderate"):
     """Рассчитывает плечо на основе депозита и толерантности к риску"""
     base_leverage = calculate_base_leverage(deposit)
@@ -152,6 +166,7 @@ def calculate_risk_based_leverage(deposit, risk_tolerance="moderate"):
         return min(base_leverage * 2, 10)
     else:  # moderate
         return min(base_leverage, 10)
+
 
 def calculate_user_leverage(deposit, trade_mode, filter_mode):
     """Рассчитывает плечо для пользователя с учетом режима торговли и фильтров"""
@@ -174,6 +189,7 @@ def calculate_user_leverage(deposit, trade_mode, filter_mode):
     leverage = max(1, min(int(leverage), 10))
     return leverage
 
+
 def save_user_data_to_file(user_id, user_data):
     """Сохраняет данные пользователя: сперва в БД (источник истины), затем JSON-бэкап."""
     try:
@@ -184,11 +200,14 @@ def save_user_data_to_file(user_id, user_data):
         # Сохраняем в БД
         try:
             from db import Database
+
             db = Database()
             # Проекция open_positions из positions (для консистентности UI)
             if isinstance(user_data, dict):
                 positions = user_data.get("positions", []) or []
-                user_data["open_positions"] = [p for p in positions if p.get("status", "open") == "open"]
+                user_data["open_positions"] = [
+                    p for p in positions if p.get("status", "open") == "open"
+                ]
             db.save_user_data(user_id, user_data)
         except (ImportError, RuntimeError, OSError, ValueError, TypeError) as _e:
             logging.warning("Не удалось сохранить в БД user_id=%s: %s", user_id, _e)
@@ -200,7 +219,7 @@ def save_user_data_to_file(user_id, user_data):
         timestamp = get_utc_now().strftime("%Y%m%d_%H%M%S")
         filename = f"user_data_backups/user_{user_id}_{timestamp}.json"
 
-        with open(filename, 'w', encoding='utf-8') as f:
+        with open(filename, "w", encoding="utf-8") as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2, default=str)
 
         logging.info("Данные пользователя %s сохранены в %s", user_id, filename)
@@ -209,18 +228,25 @@ def save_user_data_to_file(user_id, user_data):
         logging.error("Ошибка сохранения данных пользователя %s: %s", user_id, e)
         return None
 
-def atomic_update_user_aggregate(user_id: int, user_data: dict, aggregate_path: str = "user_data.json") -> bool:
+
+def atomic_update_user_aggregate(
+    user_id: int, user_data: dict, aggregate_path: str = "user_data.json"
+) -> bool:
     """Атомарно обновляет данные пользователя: сперва сохраняет в БД, затем делает JSON-бэкап."""
     try:
         import tempfile
+
         # Сохранение в БД как источник истины
         try:
             from db import Database
+
             db = Database()
             # Проекция open_positions из positions (не храним отдельно)
             if isinstance(user_data, dict):
                 positions = user_data.get("positions", []) or []
-                user_data["open_positions"] = [p for p in positions if p.get("status", "open") == "open"]
+                user_data["open_positions"] = [
+                    p for p in positions if p.get("status", "open") == "open"
+                ]
             db.save_user_data(user_id, user_data)
         except (ImportError, RuntimeError, OSError, ValueError, TypeError) as _e:
             logging.warning("DB недоступна при atomic_update_user_aggregate: %s", _e)
@@ -228,7 +254,7 @@ def atomic_update_user_aggregate(user_id: int, user_data: dict, aggregate_path: 
         current = {}
         if os.path.exists(aggregate_path):
             try:
-                with open(aggregate_path, "r", encoding="utf-8") as f:
+                with open(aggregate_path, encoding="utf-8") as f:
                     content = f.read()
                     if content.strip():
                         loaded = json.loads(content)
@@ -240,7 +266,9 @@ def atomic_update_user_aggregate(user_id: int, user_data: dict, aggregate_path: 
         try:
             if isinstance(user_data, dict):
                 positions = user_data.get("positions", []) or []
-                user_data["open_positions"] = [p for p in positions if p.get("status", "open") == "open"]
+                user_data["open_positions"] = [
+                    p for p in positions if p.get("status", "open") == "open"
+                ]
         except (TypeError, ValueError, KeyError):
             pass
         # Апдейт
@@ -263,6 +291,7 @@ def atomic_update_user_aggregate(user_id: int, user_data: dict, aggregate_path: 
         logging.error("Ошибка атомарного обновления aggregate: %s", e)
         return False
 
+
 def convert_mappingproxy(obj):
     """Рекурсивно преобразует MappingProxy в обычные dict"""
     if isinstance(obj, types.MappingProxyType):
@@ -274,10 +303,11 @@ def convert_mappingproxy(obj):
     else:
         return obj
 
+
 def save_user_data(context_or_app):
     """Сохраняет данные всех пользователей"""
     try:
-        user_data = getattr(context_or_app, 'user_data', {})
+        user_data = getattr(context_or_app, "user_data", {})
         if not user_data:
             logging.warning("Нет данных пользователей для сохранения")
             return
@@ -292,7 +322,7 @@ def save_user_data(context_or_app):
         # Преобразуем данные
         converted_data = convert_mappingproxy(user_data)
 
-        with open(backup_file, 'w', encoding='utf-8') as f:
+        with open(backup_file, "w", encoding="utf-8") as f:
             json.dump(converted_data, f, ensure_ascii=False, indent=2, default=str)
 
         logging.info("Данные всех пользователей сохранены в %s", backup_file)
@@ -303,14 +333,15 @@ def save_user_data(context_or_app):
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
         logging.error("Ошибка сохранения данных пользователей: %s", e)
 
+
 def load_user_data(context_or_app):
     """Универсальный доступ к user_data"""
     try:
         # Пытаемся получить user_data из разных источников
-        if hasattr(context_or_app, 'user_data'):
+        if hasattr(context_or_app, "user_data"):
             return context_or_app.user_data
-        elif hasattr(context_or_app, 'bot_data'):
-            return context_or_app.bot_data.get('user_data', {})
+        elif hasattr(context_or_app, "bot_data"):
+            return context_or_app.bot_data.get("user_data", {})
         else:
             # Если ничего не найдено, возвращаем пустой словарь
             return {}
@@ -318,9 +349,11 @@ def load_user_data(context_or_app):
         logging.error("Ошибка загрузки user_data: %s", e)
         return {}
 
+
 def make_signal_key(symbol, buy_exchange, sell_exchange):
     """Создает уникальный ключ для сигнала"""
     return f"{symbol}_{buy_exchange}_{sell_exchange}"
+
 
 # Исправленный парсинг chat_id
 if TELEGRAM_CHAT_IDS:
@@ -335,10 +368,11 @@ else:
 FUTURES_FEE = 0.1
 USER_DATA_FILE = "user_data.json"
 
+
 def cleanup_old_backups(backup_dir, keep_count=10):
     """Очищает старые резервные копии, оставляя только последние keep_count"""
     try:
-        files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
+        files = [f for f in os.listdir(backup_dir) if f.endswith(".json")]
         files.sort(key=lambda x: os.path.getmtime(os.path.join(backup_dir, x)), reverse=True)
 
         for old_file in files[keep_count:]:
@@ -347,6 +381,7 @@ def cleanup_old_backups(backup_dir, keep_count=10):
             logging.info("Удален старый файл резервной копии: %s", file_path)
     except (OSError, PermissionError, FileNotFoundError) as e:
         logging.error("Ошибка очистки старых резервных копий: %s", e)
+
 
 def dca_calculate_next_qty_and_tp(
     entry_prices, qtys, price, dca_count, deposit, risk_pct, side="long", commission_rate=0.001
@@ -357,7 +392,7 @@ def dca_calculate_next_qty_and_tp(
         total_qty = sum(qtys)
         if total_qty == 0:
             return 0, 0, 0
-            
+
         # Правильный расчет средней цены
         total_cost = sum(entry_price * qty for entry_price, qty in zip(entry_prices, qtys))
         avg_price = total_cost / total_qty
@@ -374,7 +409,7 @@ def dca_calculate_next_qty_and_tp(
         # Рассчитываем take profit с учетом комиссии
         # Комиссия учитывается дважды: при входе и при выходе
         total_commission = commission_rate * 2  # 0.1% при входе + 0.1% при выходе
-        
+
         if side == "long":
             # Для лонга: TP должен покрыть комиссию + желаемую прибыль
             tp_price = new_avg_price * (1 + 0.02 + total_commission)  # 2% прибыли + комиссия
@@ -387,6 +422,7 @@ def dca_calculate_next_qty_and_tp(
         logging.error("Ошибка расчета DCA: %s", e)
         return 0, 0, 0, 0
 
+
 def calculate_liquidation_price(avg_price, leverage, side="long"):
     """Упрощённая формула для cross margin (без учёта комиссий и funding)"""
     try:
@@ -398,6 +434,7 @@ def calculate_liquidation_price(avg_price, leverage, side="long"):
         logging.error("Ошибка расчета цены ликвидации: %s", e)
         return 0
 
+
 def recalculate_balance_and_risks(user_data, user_id=None):
     """Пересчитывает баланс и риски для пользователя"""
     try:
@@ -405,24 +442,22 @@ def recalculate_balance_and_risks(user_data, user_id=None):
             return
 
         # Пересчитываем баланс
-        if 'positions' in user_data:
+        if "positions" in user_data:
             total_pnl = 0
-            for position in user_data['positions']:
-                if 'pnl' in position:
-                    total_pnl += position['pnl']
+            for position in user_data["positions"]:
+                if "pnl" in position:
+                    total_pnl += position["pnl"]
 
-            user_data['balance'] = user_data.get('deposit', 0) + total_pnl
+            user_data["balance"] = user_data.get("deposit", 0) + total_pnl
 
         # Пересчитываем риски
-        if 'deposit' in user_data and 'risk_pct' in user_data:
-            user_data['risk_amount'] = user_data['deposit'] * (user_data['risk_pct'] / 100)
+        if "deposit" in user_data and "risk_pct" in user_data:
+            user_data["risk_amount"] = user_data["deposit"] * (user_data["risk_pct"] / 100)
 
         # Пересчитываем плечо
-        if all(key in user_data for key in ['deposit', 'trade_mode', 'filter_mode']):
-            user_data['leverage'] = calculate_user_leverage(
-                user_data['deposit'],
-                user_data['trade_mode'],
-                user_data['filter_mode']
+        if all(key in user_data for key in ["deposit", "trade_mode", "filter_mode"]):
+            user_data["leverage"] = calculate_user_leverage(
+                user_data["deposit"], user_data["trade_mode"], user_data["filter_mode"]
             )
 
         logging.info("Пересчитаны баланс и риски для пользователя %s", user_id)

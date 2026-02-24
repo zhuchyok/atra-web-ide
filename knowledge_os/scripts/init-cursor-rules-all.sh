@@ -28,17 +28,17 @@ ERRORS=0
 # Функция для проверки, является ли директория проектом
 is_project() {
     local dir="$1"
-    
+
     # Пропускаем скрытые директории и системные
     if [[ "$(basename "$dir")" =~ ^\. ]]; then
         return 1
     fi
-    
+
     # Пропускаем node_modules, venv, .git и т.д.
     if [[ "$(basename "$dir")" =~ ^(node_modules|venv|\.git|\.venv|__pycache__|\.cache|target|dist|build)$ ]]; then
         return 1
     fi
-    
+
     # Проверяем признаки проекта
     if [ -f "$dir/.git/config" ] || \
        [ -f "$dir/package.json" ] || \
@@ -51,7 +51,7 @@ is_project() {
        [ -f "$dir/README.md" ]; then
         return 0
     fi
-    
+
     return 1
 }
 
@@ -59,9 +59,9 @@ is_project() {
 process_project() {
     local project_path="$1"
     local project_name=$(basename "$project_path")
-    
+
     TOTAL_PROJECTS=$((TOTAL_PROJECTS + 1))
-    
+
     # Проверяем, есть ли уже .cursorrules
     if [ -f "$project_path/.cursorrules" ]; then
         # Проверяем, содержит ли универсальные правила
@@ -75,7 +75,7 @@ process_project() {
     else
         echo -e "${BLUE}📝 $project_name - создаем .cursorrules...${NC}"
     fi
-    
+
     # Запускаем инициализацию (неинтерактивно)
     if "$INIT_SCRIPT" "$project_path" < /dev/null > /dev/null 2>&1; then
         echo -e "${GREEN}   ✅ Инициализирован${NC}"
@@ -93,19 +93,19 @@ find_projects() {
     local dir="$1"
     local depth="${2:-0}"
     local max_depth="${3:-3}"  # Максимальная глубина поиска
-    
+
     # Ограничиваем глубину поиска
     if [ "$depth" -ge "$max_depth" ]; then
         return
     fi
-    
+
     # Обрабатываем текущую директорию
     if is_project "$dir"; then
         process_project "$dir"
         # Если нашли проект, не идем глубже
         return
     fi
-    
+
     # Рекурсивно ищем в поддиректориях
     if [ -d "$dir" ]; then
         for subdir in "$dir"/*; do
@@ -143,4 +143,3 @@ if [ $ERRORS -gt 0 ]; then
 fi
 
 exit 0
-

@@ -2,12 +2,13 @@
 Трассировка latency по этапам (Фаза 4.1).
 Цель: P95 < 300ms для режима Ask.
 """
-import time
+
 import logging
+import time
 from contextlib import contextmanager
-from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LatencySpan:
     """Этап трассировки."""
+
     name: str
     start_time: float
     end_time: float = 0.0
@@ -80,12 +82,14 @@ class LatencyTracer:
         for s in self.spans:
             pct = (s.duration_ms / total) * 100
             if pct > 20:
-                result.append({
-                    "span": s.name,
-                    "duration_ms": s.duration_ms,
-                    "percentage": pct,
-                    "metadata": s.metadata,
-                })
+                result.append(
+                    {
+                        "span": s.name,
+                        "duration_ms": s.duration_ms,
+                        "percentage": pct,
+                        "metadata": s.metadata,
+                    }
+                )
         return sorted(result, key=lambda x: x["percentage"], reverse=True)
 
 

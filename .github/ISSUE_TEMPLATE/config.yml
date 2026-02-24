@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📖 Documentation
+    url: https://github.com/bikos/atra-web-ide/blob/main/docs/PROJECT_ARCHITECTURE_AND_GUIDE.md
+    about: Read the project documentation
+  - name: 💬 Discussions
+    url: https://github.com/bikos/atra-web-ide/discussions
+    about: Ask questions and discuss ideas

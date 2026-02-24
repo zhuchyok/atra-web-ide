@@ -39,7 +39,7 @@ echo "🔍 Поиск UPnP роутера в сети..."
 
 if [ "$USE_UPNPC" = true ]; then
     EXTERNAL_IP=$(upnpc -s 2>/dev/null | grep "ExternalIPAddress" | awk '{print $3}' || echo "")
-    
+
     if [ -z "$EXTERNAL_IP" ]; then
         echo "❌ Не удалось найти UPnP роутер"
         echo ""
@@ -58,15 +58,15 @@ if [ "$USE_UPNPC" = true ]; then
         echo "      - Протокол: TCP"
         exit 1
     fi
-    
+
     echo "✅ Роутер найден! Внешний IP: $EXTERNAL_IP"
     echo ""
     echo "🔧 Настройка проброса порта..."
-    
+
     # Удаляем старое правило (если есть)
     upnpc -d $PORT TCP 2>/dev/null || true
     sleep 1
-    
+
     # Добавляем новое правило
     if upnpc -a $LOCAL_IP $PORT $PORT TCP 2>/dev/null; then
         echo "✅ Проброс порта настроен успешно!"
@@ -89,7 +89,7 @@ if [ "$USE_UPNPC" = true ]; then
 
 elif [ "$USE_PYTHON_UPNPC" = true ]; then
     echo "📡 Использование Python miniupnpc..."
-    
+
     python3 << PYTHON_EOF
 import miniupnpc
 import sys
@@ -98,25 +98,25 @@ try:
     u = miniupnpc.UPnPC()
     u.discoverdelay = 200
     devices = u.discover()
-    
+
     if devices == 0:
         print("❌ UPnP устройства не найдены")
         sys.exit(1)
-    
+
     u.selectigd()
     external_ip = u.externalipaddress()
-    
+
     print(f"✅ Роутер найден! Внешний IP: {external_ip}")
-    
+
     # Удаляем старое правило
     try:
         u.deleteportmapping($PORT, 'TCP')
     except:
         pass
-    
+
     # Добавляем новое правило
     result = u.addportmapping($PORT, 'TCP', '$LOCAL_IP', $PORT, 'Headscale', '')
-    
+
     if result:
         print("✅ Проброс порта настроен успешно!")
         print(f"")
@@ -130,7 +130,7 @@ try:
     else:
         print("❌ Не удалось настроить проброс порта")
         sys.exit(1)
-        
+
 except Exception as e:
     print(f"❌ Ошибка: {e}")
     sys.exit(1)

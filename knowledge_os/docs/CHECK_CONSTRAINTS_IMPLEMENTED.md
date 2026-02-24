@@ -13,12 +13,14 @@
 Добавлены CHECK constraints для новых таблиц:
 
 #### Таблица `quotes`:
+
 ```sql
 bid REAL CHECK (bid > 0),
 ask REAL CHECK (ask > 0 AND ask >= bid)
 ```
 
 #### Таблица `signals_log`:
+
 ```sql
 entry REAL CHECK (entry IS NULL OR entry > 0),
 stop REAL CHECK (stop IS NULL OR stop > 0),
@@ -37,6 +39,7 @@ quality_score REAL CHECK (quality_score IS NULL OR (quality_score >= 0 AND quali
 ```
 
 #### Таблица `trades`:
+
 ```sql
 direction TEXT NOT NULL CHECK (direction IN ('LONG', 'SHORT')),
 entry_price REAL NOT NULL CHECK (entry_price > 0),
@@ -65,15 +68,18 @@ dca_count INTEGER DEFAULT 0 CHECK (dca_count >= 0)
 Поскольку SQLite не поддерживает `ALTER TABLE ADD CONSTRAINT`, добавлены триггеры валидации:
 
 #### `validate_quotes_insert` и `validate_quotes_update`:
+
 - Проверяет, что `bid > 0` и `ask > 0`
 - Проверяет, что `ask >= bid`
 
 #### `validate_signals_log_insert`:
+
 - Проверяет, что `entry`, `stop`, `tp1`, `tp2 > 0` (если не NULL)
 - Проверяет, что `qty_added`, `qty_closed >= 0` (если не NULL)
 - Проверяет, что `risk_pct_used`, `quality_score` в диапазоне 0-100 (если не NULL)
 
 #### `validate_trades_insert`:
+
 - Проверяет, что `entry_price`, `exit_price > 0`
 - Проверяет, что `quantity`, `position_size_usdt > 0`
 - Проверяет, что `leverage` в диапазоне 0-125
@@ -115,7 +121,7 @@ triggers = db.execute_with_retry(
     (),
     is_write=False
 )
-# Должно вернуть: validate_quotes_insert, validate_quotes_update, 
+# Должно вернуть: validate_quotes_insert, validate_quotes_update,
 #                  validate_signals_log_insert, validate_trades_insert
 ```
 
@@ -127,4 +133,3 @@ triggers = db.execute_with_retry(
 2. ⏳ Суррогатные ключи для временных меток
 3. ⏳ Частичные индексы
 4. ⏳ Архивация старых данных
-

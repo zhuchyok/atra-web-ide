@@ -2,12 +2,15 @@
 """
 Проверка использования данных ROI
 """
-import sys
-import os
+
 import asyncio
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 from evaluator import get_pool
+
 
 async def check_roi():
     pool = await get_pool()
@@ -23,7 +26,7 @@ async def check_roi():
             ORDER BY liquidity_score DESC
             LIMIT 5
         """)
-        
+
         print("📊 Топ-5 узлов знаний по ликвидности:")
         for i, node in enumerate(top, 1):
             print(f"\n{i}. Score: {node['liquidity_score']:.2f}")
@@ -31,18 +34,18 @@ async def check_roi():
             print(f"   Confidence: {node['confidence_score']}")
             print(f"   Эксперт: {node['expert']}")
             print(f"   Домен: {node['domain']}")
-        
+
         # Проверяем колонку liquidity_score
         has_col = await conn.fetchval("""
             SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'knowledge_nodes' 
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'knowledge_nodes'
                 AND column_name = 'liquidity_score'
             )
         """)
         print(f"\n📋 Колонка liquidity_score в БД: {has_col}")
     await pool.close()
 
-if __name__ == '__main__':
-    asyncio.run(check_roi())
 
+if __name__ == "__main__":
+    asyncio.run(check_roi())

@@ -9,9 +9,8 @@
 """
 
 __all__ = [
-    'AdaptiveCache',
-    'AdaptiveSignalSystem',
-    'AdaptiveParameterController',
-    'AdaptivePositionSizer',
+    "AdaptiveCache",
+    "AdaptiveSignalSystem",
+    "AdaptiveParameterController",
+    "AdaptivePositionSizer",
 ]
-

@@ -7,6 +7,7 @@
 ## 🧠 AI LEARNING SYSTEM - ✅ РАБОТАЕТ
 
 ### **Статистика:**
+
 ```json
 {
   "total_patterns": 132,222,       // Всего паттернов
@@ -20,6 +21,7 @@
 ```
 
 ### **Файлы AI:**
+
 ```
 📁 ai_learning_data/
 ├── trading_patterns.json    (11 MB, 484,905 строк)
@@ -29,6 +31,7 @@
 ```
 
 ### **Обучение в реальном времени:**
+
 ```log
 05:17:21 | INFO | 📊 Добавлен паттерн: HBARUSDT LONG
 05:17:21 | INFO | 📈 Метрики обновлены: Точность 18.82%
@@ -47,21 +50,35 @@ AI рассчитал и использует оптимальные парам�
 
 ```json
 {
-  "risk_pct": 2.0,              // Риск на сделку
-  "leverage": 1.0,              // Плечо
-  "tp1": 2.0,                   // Take Profit 1 (2%)
-  "tp2": 4.0,                   // Take Profit 2 (4%)
-  "stop_loss_pct": 1.0,         // Stop Loss (1%)
+  "risk_pct": 2.0, // Риск на сделку
+  "leverage": 1.0, // Плечо
+  "tp1": 2.0, // Take Profit 1 (2%)
+  "tp2": 4.0, // Take Profit 2 (4%)
+  "stop_loss_pct": 1.0, // Stop Loss (1%)
   "last_updated": "2025-10-09T05:17:00",
-  
-  "preferred_symbols": [        // 18 лучших монет по AI
-    "AVAXUSDT", "PENGUUSDT", "DOGEUSDT", "AAVEUSDT",
-    "ZECUSDT", "TUTUSDT", "BNBUSDT", "SHIBUSDT",
-    "ASTERUSDT", "WIFUSDT", "FORMUSDT", "SUIUSDT",
-    "FLOKIUSDT", "OGUSDT", "HEMIUSDT", "APTUSDT",
-    "NEARUSDT", "HBARUSDT"
+
+  "preferred_symbols": [
+    // 18 лучших монет по AI
+    "AVAXUSDT",
+    "PENGUUSDT",
+    "DOGEUSDT",
+    "AAVEUSDT",
+    "ZECUSDT",
+    "TUTUSDT",
+    "BNBUSDT",
+    "SHIBUSDT",
+    "ASTERUSDT",
+    "WIFUSDT",
+    "FORMUSDT",
+    "SUIUSDT",
+    "FLOKIUSDT",
+    "OGUSDT",
+    "HEMIUSDT",
+    "APTUSDT",
+    "NEARUSDT",
+    "HBARUSDT"
   ],
-  
+
   "trading_hours": [12, 11, 21] // Лучшие часы (MSK)
 }
 ```
@@ -160,28 +177,36 @@ INFO | ai_integration:🔄 Непрерывное обучение подгот�
 ## 📈 КАК AI ВЛИЯЕТ НА ТОРГОВЛЮ:
 
 ### **1. Выбор монет:**
+
 AI выбирает 18 лучших монет из 300+ на основе исторических данных:
+
 ```
-AVAXUSDT, PENGUUSDT, DOGEUSDT, AAVEUSDT, ZECUSDT, TUTUSDT, 
-BNBUSDT, SHIBUSDT, ASTERUSDT, WIFUSDT, FORMUSDT, SUIUSDT, 
+AVAXUSDT, PENGUUSDT, DOGEUSDT, AAVEUSDT, ZECUSDT, TUTUSDT,
+BNBUSDT, SHIBUSDT, ASTERUSDT, WIFUSDT, FORMUSDT, SUIUSDT,
 FLOKIUSDT, OGUSDT, HEMIUSDT, APTUSDT, NEARUSDT, HBARUSDT
 ```
 
 ### **2. Оптимизация TP:**
+
 AI рассчитал оптимальные Take Profit:
+
 - TP1: **2.0%** (быстрая фиксация)
 - TP2: **4.0%** (полная цель)
 
 ### **3. Оптимизация риска:**
+
 AI определил оптимальный риск на сделку: **2.0%**
 
 ### **4. Лучшее время торговли:**
+
 AI определил 3 лучших часа (MSK):
+
 - **11:00** (начало активности)
 - **12:00** (пик объемов)
 - **21:00** (вечерняя волатильность)
 
 ### **5. Постоянное обучение:**
+
 AI добавляет 50+ новых паттернов каждый час!
 
 ---
@@ -218,6 +243,7 @@ AI добавляет 50+ новых паттернов каждый час!
 ### **ВСЕ AI СИСТЕМЫ РАБОТАЮТ НА 100%!** 🎯
 
 Бот работает как **полноценный AI-трейдер**:
+
 - 🧠 Обучается на каждой сделке
 - 🎯 Оптимизирует параметры
 - 📊 Выбирает лучшие монеты
@@ -227,4 +253,3 @@ AI добавляет 50+ новых паттернов каждый час!
 **НИ ОДНА ФУНКЦИЯ НЕ ПОТЕРЯНА!** ✅
 
 Всё работает так же, как и раньше, или даже ЛУЧШЕ! 🚀
-

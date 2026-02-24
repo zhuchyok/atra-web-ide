@@ -81,6 +81,7 @@ sudo systemctl status myproject.service
 После выполнения **systemd НЕ будет** автоматически перезапускать систему!
 
 Используйте **ТОЛЬКО** новую систему управления:
+
 - `./atra_server.sh start` - запуск
 - `./atra_server.sh stop` - остановка
 - `./atra_server.sh status` - статус

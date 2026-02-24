@@ -32,11 +32,11 @@ if [ -n "$EXISTING" ]; then
     echo "   📊 Откройте Kibana: $KIBANA_URL/app/discover"
 else
     echo "   ⚠️  Index pattern не найден, создаю..."
-    
+
     # 3. Создание тестового лога если индексов нет
     echo "[3/4] Проверка индексов в Elasticsearch..."
     INDICES=$(curl -s 'http://localhost:9200/_cat/indices?v' 2>&1 | grep -c atra-logs || echo "0")
-    
+
     if [ "$INDICES" = "0" ]; then
         echo "   ⚠️  Индексов atra-logs не найдено, создаю тестовый лог..."
         curl -s -X POST 'http://localhost:9200/atra-logs-2026.01.25/_doc' \
@@ -48,7 +48,7 @@ else
         echo "   ✅ Индексы найдены ($INDICES)"
     fi
     echo ""
-    
+
     # 4. Создание index pattern
     echo "[4/4] Создание index pattern..."
     RESPONSE=$(curl -s -X POST "$KIBANA_URL/api/saved_objects/index-pattern/$PATTERN_ID" \
@@ -60,7 +60,7 @@ else
                 \"timeFieldName\": \"@timestamp\"
             }
         }" 2>&1)
-    
+
     if echo "$RESPONSE" | grep -q '"id"'; then
         PATTERN_ID_ACTUAL=$(echo "$RESPONSE" | python3 -c "import json, sys; print(json.load(sys.stdin).get('id', ''))" 2>/dev/null || echo "$PATTERN_ID")
         echo "   ✅ Index pattern успешно создан (ID: $PATTERN_ID_ACTUAL)"

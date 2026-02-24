@@ -2,12 +2,13 @@
 Интеграционный тест Фазы 2: классификатор, RAG-light, метрики рекомендаций.
 Запуск: cd backend && python -m pytest app/tests/test_phase2_integration.py -v
 """
+
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from app.services.query_classifier import classify_query, analyze_complexity
+from app.metrics.agent_suggestions import AgentSuggestionMetric, AgentSuggestionMetrics
+from app.services.query_classifier import analyze_complexity, classify_query
 from app.services.rag_light import RAGLightService
-from app.metrics.agent_suggestions import AgentSuggestionMetrics, AgentSuggestionMetric
 
 
 def test_classifier_simple_factual_complex():
@@ -48,6 +49,7 @@ def test_rag_light_extract():
 
 def test_rag_light_fast_fact_answer_mocked():
     """RAG-light fast_fact_answer с замоканным search_one_chunk."""
+
     async def _run():
         svc = RAGLightService(enabled=True, knowledge_os=None)
         with patch.object(svc, "search_one_chunk", new_callable=AsyncMock) as mock_search:

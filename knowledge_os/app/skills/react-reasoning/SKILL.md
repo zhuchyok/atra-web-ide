@@ -4,7 +4,15 @@ description: ReAct Framework - Reasoning + Acting цикл для решения
 category: reasoning
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "🧠", "homepage": "https://react-lm.github.io/"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": {},
+        "emoji": "🧠",
+        "homepage": "https://react-lm.github.io/",
+      },
+  }
 ---
 
 # ReAct Reasoning Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🧠", "homepage": "https://re
 ## Когда использовать
 
 Используй этот навык для:
+
 - Сложных многошаговых задач
 - Задач, требующих использования инструментов (файлы, команды, поиск)
 - Задач, где нужно рассуждать перед действием
@@ -22,6 +31,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "🧠", "homepage": "https://re
 ## Методология
 
 ReAct Framework работает по циклу:
+
 1. **Reasoning** - Рассуждение о текущей ситуации
 2. **Acting** - Выполнение действия через инструмент
 3. **Observing** - Наблюдение результата
@@ -32,7 +42,7 @@ ReAct Framework работает по циклу:
 ```
 Пользователь: "Создай файл test.py с функцией hello() и запусти его"
 
-Reasoning: "Мне нужно создать файл с функцией hello(), затем выполнить его. 
+Reasoning: "Мне нужно создать файл с функцией hello(), затем выполнить его.
 Использую инструмент create_file для создания, затем run_terminal_cmd для запуска."
 
 Action: create_file(file_path="test.py", content="def hello():\n    print('Hello!')\n\nif __name__ == '__main__':\n    hello()")

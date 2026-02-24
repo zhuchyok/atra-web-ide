@@ -2,21 +2,16 @@
 Расширенная система кэширования данных для ATRA
 """
 
-import time
+import hashlib
 import json
 import logging
-import hashlib
-from typing import Dict, List, Optional, Any, Union
+import time
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Union
 
-from ..core.config import (
-    CACHE_SETTINGS,
-    OHLC_CACHE_TTL,
-    NEWS_CACHE_TTL,
-    ANOMALY_CACHE_TTL
-)
+from ..core.config import ANOMALY_CACHE_TTL, CACHE_SETTINGS, NEWS_CACHE_TTL, OHLC_CACHE_TTL
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheItem:
     """Элемент кэша с метаданными"""
+
     key: str
     data: Any
     timestamp: float = field(default_factory=time.time)
@@ -35,9 +31,9 @@ class CacheItem:
     def __post_init__(self):
         """Вычисление размера данных после инициализации"""
         try:
-            self.size_bytes = len(json.dumps(self.data).encode('utf-8'))
+            self.size_bytes = len(json.dumps(self.data).encode("utf-8"))
         except (TypeError, ValueError):
-            self.size_bytes = len(str(self.data).encode('utf-8'))
+            self.size_bytes = len(str(self.data).encode("utf-8"))
 
     @property
     def is_expired(self) -> bool:
@@ -73,15 +69,14 @@ class DataCache(ABC):
         key_parts.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
         key_string = "|".join(key_parts)
 
-        return hashlib.md5(key_string.encode('utf-8')).hexdigest()
+        return hashlib.md5(key_string.encode("utf-8")).hexdigest()
 
     def _evict_oldest(self):
         """Удаление самого старого элемента"""
         if not self.cache:
             return
 
-        oldest_key = min(self.cache.keys(),
-                        key=lambda k: self.cache[k].last_access)
+        oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k].last_access)
         del self.cache[oldest_key]
         self.evictions += 1
         logger.debug(f"Evicted from {self.name} cache: {oldest_key}")
@@ -103,11 +98,7 @@ class DataCache(ABC):
 
             self._cleanup_expired()
 
-            cache_item = CacheItem(
-                key=key,
-                data=data,
-                ttl=ttl or self.default_ttl
-            )
+            cache_item = CacheItem(key=key, data=data, ttl=ttl or self.default_ttl)
 
             self.cache[key] = cache_item
             logger.debug(f"Cached in {self.name}: {key} (TTL: {cache_item.ttl}s)")
@@ -160,28 +151,30 @@ class DataCache(ABC):
     def get_stats(self) -> Dict:
         """Получение статистики кэша"""
         total_size = sum(item.size_bytes for item in self.cache.values())
-        hit_rate = (self.hits / (self.hits + self.misses)) * 100 if (self.hits + self.misses) > 0 else 0
+        hit_rate = (
+            (self.hits / (self.hits + self.misses)) * 100 if (self.hits + self.misses) > 0 else 0
+        )
 
         return {
-            'name': self.name,
-            'items_count': len(self.cache),
-            'max_size': self.max_size,
-            'total_size_bytes': total_size,
-            'hits': self.hits,
-            'misses': self.misses,
-            'evictions': self.evictions,
-            'hit_rate_percent': round(hit_rate, 2),
-            'items': [
+            "name": self.name,
+            "items_count": len(self.cache),
+            "max_size": self.max_size,
+            "total_size_bytes": total_size,
+            "hits": self.hits,
+            "misses": self.misses,
+            "evictions": self.evictions,
+            "hit_rate_percent": round(hit_rate, 2),
+            "items": [
                 {
-                    'key': item.key,
-                    'age_seconds': item.age_seconds,
-                    'ttl': item.ttl,
-                    'time_to_live': item.time_to_live,
-                    'access_count': item.access_count,
-                    'size_bytes': item.size_bytes
+                    "key": item.key,
+                    "age_seconds": item.age_seconds,
+                    "ttl": item.ttl,
+                    "time_to_live": item.time_to_live,
+                    "access_count": item.access_count,
+                    "size_bytes": item.size_bytes,
                 }
                 for item in self.cache.values()
-            ]
+            ],
         }
 
     @abstractmethod
@@ -195,13 +188,14 @@ class OHLCDataCache(DataCache):
 
     def __init__(self):
         super().__init__(
-            name='ohlc',
-            max_size=CACHE_SETTINGS.get('ohlc_max_size', 500),
-            default_ttl=OHLC_CACHE_TTL
+            name="ohlc",
+            max_size=CACHE_SETTINGS.get("ohlc_max_size", 500),
+            default_ttl=OHLC_CACHE_TTL,
         )
 
-    def get_data(self, symbol: str, timeframe: str = '1h',
-                 limit: int = 100) -> Optional[List[Dict]]:
+    def get_data(
+        self, symbol: str, timeframe: str = "1h", limit: int = 100
+    ) -> Optional[List[Dict]]:
         """Получение OHLC данных с кэшированием"""
         key = self._generate_key(symbol, timeframe, limit)
         cached = self.get(key)
@@ -220,9 +214,9 @@ class NewsDataCache(DataCache):
 
     def __init__(self):
         super().__init__(
-            name='news',
-            max_size=CACHE_SETTINGS.get('news_max_size', 200),
-            default_ttl=NEWS_CACHE_TTL
+            name="news",
+            max_size=CACHE_SETTINGS.get("news_max_size", 200),
+            default_ttl=NEWS_CACHE_TTL,
         )
 
     def get_data(self, symbol: str, limit: int = 50) -> Optional[List[Dict]]:
@@ -243,9 +237,9 @@ class AnomalyDataCache(DataCache):
 
     def __init__(self):
         super().__init__(
-            name='anomaly',
-            max_size=CACHE_SETTINGS.get('anomaly_max_size', 300),
-            default_ttl=ANOMALY_CACHE_TTL
+            name="anomaly",
+            max_size=CACHE_SETTINGS.get("anomaly_max_size", 300),
+            default_ttl=ANOMALY_CACHE_TTL,
         )
 
     def get_data(self, symbol: str, days: int = 30) -> Optional[Dict]:
@@ -266,9 +260,9 @@ class WhaleDataCache(DataCache):
 
     def __init__(self):
         super().__init__(
-            name='whale',
-            max_size=CACHE_SETTINGS.get('whale_max_size', 100),
-            default_ttl=CACHE_SETTINGS.get('whale_ttl', 1800)  # 30 минут
+            name="whale",
+            max_size=CACHE_SETTINGS.get("whale_max_size", 100),
+            default_ttl=CACHE_SETTINGS.get("whale_ttl", 1800),  # 30 минут
         )
 
     def get_data(self, symbol: str, min_volume: float = 1000000) -> Optional[List[Dict]]:
@@ -290,10 +284,12 @@ news_cache = NewsDataCache()
 anomaly_cache = AnomalyDataCache()
 whale_cache = WhaleDataCache()
 
+
 # Экспорт для обратной совместимости
 def cache_ohlc_data(key: str, data: Any, ttl: Optional[int] = None):
     """Обратная совместимость"""
     return ohlc_cache.set(key, data, ttl)
+
 
 def get_cached_ohlc(key: str) -> Optional[Any]:
     """Обратная совместимость"""

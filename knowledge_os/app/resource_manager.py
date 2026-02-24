@@ -1,9 +1,11 @@
 import asyncio
-import redis.asyncio as redis
 import os
 from contextlib import asynccontextmanager
 
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+import redis.asyncio as redis
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
 
 @asynccontextmanager
 async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
@@ -14,14 +16,14 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
     # Пробуем подключиться к Redis, если не получается - работаем без блокировок
     rd = None
     redis_urls = [
-        os.getenv('REDIS_URL'),
-        'redis://redis:6379',              # имя сервиса в knowledge_os compose
-        'redis://knowledge_os_redis:6379', # контейнер atra-web-ide
-        'redis://knowledge_redis:6379',    # контейнер atra (отдельный проект)
-        'redis://atra-redis:6379',
-        'redis://localhost:6379',
+        os.getenv("REDIS_URL"),
+        "redis://redis:6379",  # имя сервиса в knowledge_os compose
+        "redis://knowledge_os_redis:6379",  # контейнер atra-web-ide
+        "redis://knowledge_redis:6379",  # контейнер atra (отдельный проект)
+        "redis://atra-redis:6379",
+        "redis://localhost:6379",
     ]
-    
+
     for url in redis_urls:
         if url:
             try:
@@ -37,21 +39,21 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
                         pass
                 rd = None
                 continue
-    
+
     if not rd:
         # Redis недоступен - работаем без блокировок (просто yield)
         print(f"⚠️ Redis недоступен, работаем без блокировок для '{lock_name}'")
         yield True
         return
-    
+
     # Redis доступен - используем блокировки
-    lock_key = f"lock:heavy_process"
-    
+    lock_key = "lock:heavy_process"
+
     print(f"⏳ Waiting for global resource lock for '{lock_name}'...")
-    
+
     max_wait_time = 60  # Максимум 60 секунд ожидания
     wait_start = asyncio.get_event_loop().time()
-    
+
     try:
         while True:
             # Проверяем таймаут ожидания
@@ -60,7 +62,7 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
                 print(f"⏱️ Timeout waiting for lock ({max_wait_time}s), proceeding without lock...")
                 yield True
                 break
-            
+
             # Try to set the lock. NX=True only sets if it doesn't exist.
             # Expiry ensures the lock is released if the process crashes.
             if await rd.set(lock_key, lock_name, nx=True, ex=timeout):
@@ -81,4 +83,3 @@ async def acquire_resource_lock(lock_name: str, timeout: int = 3600):
                 await rd.close()
             except Exception:
                 pass
-

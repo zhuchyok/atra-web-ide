@@ -26,7 +26,7 @@ DOCKER_APP="/Applications/Docker.app"
 if [ -d "$DOCKER_APP" ]; then
     # Создаем симлинк в ~/Library/LaunchAgents для автозапуска
     # Но проще использовать встроенную настройку Docker Desktop
-    
+
     echo "   ✅ Docker Desktop найден: $DOCKER_APP"
     echo ""
     echo "   📝 Для автозапуска Docker Desktop:"
@@ -36,7 +36,7 @@ if [ -d "$DOCKER_APP" ]; then
     echo ""
     echo "   Или выполните команду:"
     echo "   defaults write com.docker.docker 'StartAtLogin' -bool true"
-    
+
     # Пытаемся установить через defaults
     defaults write com.docker.docker 'StartAtLogin' -bool true 2>/dev/null && \
         echo "   ✅ Автозапуск настроен через defaults" || \

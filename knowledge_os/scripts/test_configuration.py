@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Проверка конфигурации
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Добавляем корень проекта в путь
@@ -13,10 +12,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Импорты после sys.path.insert необходимы для корректной работы
 # pylint: disable=wrong-import-position
-from scripts.test_utils import (
-    TestResult, TestStatus, check_file_exists, measure_time, get_file_path
-)
 from scripts.test_config import TELEGRAM_TOKENS
+from scripts.test_utils import (
+    TestResult,
+    TestStatus,
+    check_file_exists,
+    get_file_path,
+    measure_time,
+)
+
 # pylint: enable=wrong-import-position
 
 
@@ -37,15 +41,12 @@ def test_environment_detection() -> TestResult:
                 details={"detected_env": env},
                 recommendations=[
                     "Установите ATRA_ENV=prod или ATRA_ENV=dev",
-                    "Проверьте файлы env.prod или env.dev"
-                ]
+                    "Проверьте файлы env.prod или env.dev",
+                ],
             )
 
         # Проверяем наличие файлов окружения
-        env_files = {
-            "prod": ["env.prod", ".env.prod"],
-            "dev": ["env.dev", ".env.dev"]
-        }
+        env_files = {"prod": ["env.prod", ".env.prod"], "dev": ["env.dev", ".env.dev"]}
 
         found_files = []
         for env_file in env_files.get(env, []):
@@ -56,23 +57,20 @@ def test_environment_detection() -> TestResult:
             name="Определение окружения",
             status=TestStatus.PASS,
             message=f"Окружение определено как: {env.upper()}",
-            details={
-                "detected_env": env,
-                "env_files_found": found_files
-            }
+            details={"detected_env": env, "env_files_found": found_files},
         )
     except ImportError as e:
         return TestResult(
             name="Определение окружения",
             status=TestStatus.FAIL,
             message=f"Не удалось импортировать config: {str(e)}",
-            recommendations=["Проверьте наличие config.py"]
+            recommendations=["Проверьте наличие config.py"],
         )
     except Exception as e:
         return TestResult(
             name="Определение окружения",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке окружения: {str(e)}"
+            message=f"Ошибка при проверке окружения: {str(e)}",
         )
 
 
@@ -81,7 +79,7 @@ def test_telegram_token() -> TestResult:
     """Проверяет корректность токена Telegram"""
     try:
         # pylint: disable=import-outside-toplevel
-        from config import ATRA_ENV, TOKEN, TELEGRAM_TOKEN_DEV
+        from config import ATRA_ENV, TELEGRAM_TOKEN_DEV, TOKEN
 
         env = ATRA_ENV.lower().strip()
 
@@ -97,8 +95,8 @@ def test_telegram_token() -> TestResult:
                 details={"environment": env},
                 recommendations=[
                     "Установите TELEGRAM_TOKEN для PROD или TELEGRAM_TOKEN_DEV для DEV",
-                    f"Проверьте файлы env.{env} или .env.{env}"
-                ]
+                    f"Проверьте файлы env.{env} или .env.{env}",
+                ],
             )
 
         # Проверяем формат токена (должен быть в формате NUMBER:STRING)
@@ -108,7 +106,7 @@ def test_telegram_token() -> TestResult:
                 status=TestStatus.FAIL,
                 message="Неверный формат токена Telegram",
                 details={"token_format": "invalid"},
-                recommendations=["Токен должен быть в формате NUMBER:STRING"]
+                recommendations=["Токен должен быть в формате NUMBER:STRING"],
             )
 
         # Проверяем соответствие ожидаемому токену (если указан)
@@ -120,35 +118,32 @@ def test_telegram_token() -> TestResult:
                 details={
                     "environment": env,
                     "expected_prefix": expected_token[:10] if expected_token else None,
-                    "actual_prefix": actual_token[:10]
+                    "actual_prefix": actual_token[:10],
                 },
                 recommendations=[
                     f"Убедитесь, что используется правильный токен для {env}",
                     f"DEV токен: {TELEGRAM_TOKENS['DEV'][:20]}...",
-                    f"PROD токен: {TELEGRAM_TOKENS['PROD'][:20]}..."
-                ]
+                    f"PROD токен: {TELEGRAM_TOKENS['PROD'][:20]}...",
+                ],
             )
 
         return TestResult(
             name="Токен Telegram",
             status=TestStatus.PASS,
             message=f"Токен Telegram корректно настроен для {env}",
-            details={
-                "environment": env,
-                "token_prefix": actual_token[:10] + "..."
-            }
+            details={"environment": env, "token_prefix": actual_token[:10] + "..."},
         )
     except ImportError as e:
         return TestResult(
             name="Токен Telegram",
             status=TestStatus.FAIL,
-            message=f"Не удалось импортировать config: {str(e)}"
+            message=f"Не удалось импортировать config: {str(e)}",
         )
     except Exception as e:
         return TestResult(
             name="Токен Telegram",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке токена: {str(e)}"
+            message=f"Ошибка при проверке токена: {str(e)}",
         )
 
 
@@ -166,7 +161,7 @@ def test_auto_execution_blocked_in_dev() -> TestResult:
                 name="Блокировка авто-исполнения в DEV",
                 status=TestStatus.SKIP,
                 message=f"Проверка не применима для окружения {env}",
-                details={"environment": env}
+                details={"environment": env},
             )
 
         # Проверяем наличие флага AUTO_EXECUTION_ENABLED
@@ -180,30 +175,25 @@ def test_auto_execution_blocked_in_dev() -> TestResult:
                     name="Блокировка авто-исполнения в DEV",
                     status=TestStatus.FAIL,
                     message="Авто-исполнение включено в DEV окружении",
-                    details={
-                        "environment": env,
-                        "auto_execution_enabled": AUTO_EXECUTION_ENABLED
-                    },
+                    details={"environment": env, "auto_execution_enabled": AUTO_EXECUTION_ENABLED},
                     recommendations=[
                         "Отключите AUTO_EXECUTION_ENABLED в DEV",
-                        "Установите AUTO_EXECUTION_ENABLED=false в env.dev"
-                    ]
+                        "Установите AUTO_EXECUTION_ENABLED=false в env.dev",
+                    ],
                 )
 
             return TestResult(
                 name="Блокировка авто-исполнения в DEV",
                 status=TestStatus.PASS,
                 message="Авто-исполнение корректно заблокировано в DEV",
-                details={
-                    "environment": env,
-                    "auto_execution_enabled": AUTO_EXECUTION_ENABLED
-                }
+                details={"environment": env, "auto_execution_enabled": AUTO_EXECUTION_ENABLED},
             )
         except ImportError:
             # Если флаг не определен, проверяем логику в auto_execution.py
             try:
                 # pylint: disable=import-outside-toplevel,unused-import
                 from src.execution import auto_execution  # noqa: F401
+
                 # Проверяем, есть ли проверка окружения в модуле
                 # Используем модуль для проверки его наличия
                 _ = auto_execution  # noqa: F841
@@ -214,27 +204,27 @@ def test_auto_execution_blocked_in_dev() -> TestResult:
                     details={"environment": env},
                     recommendations=[
                         "Убедитесь, что auto_execution.py проверяет ATRA_ENV",
-                        "Добавьте явную проверку окружения в код"
-                    ]
+                        "Добавьте явную проверку окружения в код",
+                    ],
                 )
             except ImportError:
                 return TestResult(
                     name="Блокировка авто-исполнения в DEV",
                     status=TestStatus.WARNING,
                     message="Модуль auto_execution не найден",
-                    details={"environment": env}
+                    details={"environment": env},
                 )
     except ImportError as e:
         return TestResult(
             name="Блокировка авто-исполнения в DEV",
             status=TestStatus.FAIL,
-            message=f"Не удалось импортировать config: {str(e)}"
+            message=f"Не удалось импортировать config: {str(e)}",
         )
     except Exception as e:
         return TestResult(
             name="Блокировка авто-исполнения в DEV",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке: {str(e)}"
+            message=f"Ошибка при проверке: {str(e)}",
         )
 
 
@@ -264,12 +254,12 @@ def test_exchange_api_keys() -> TestResult:
                         "api_key_set": bool(api_key),
                         "api_secret_set": bool(api_secret),
                         "api_passphrase_set": bool(api_passphrase),
-                        "note": "API ключи не обязательны для тестирования сигналов в DEV"
+                        "note": "API ключи не обязательны для тестирования сигналов в DEV",
                     },
                     recommendations=[
                         "Для тестирования исполнения ордеров установите BITGET_API_KEY и BITGET_SECRET_KEY",
-                        "В DEV окружении это не критично"
-                    ]
+                        "В DEV окружении это не критично",
+                    ],
                 )
             else:
                 # В PROD это предупреждение
@@ -281,12 +271,12 @@ def test_exchange_api_keys() -> TestResult:
                         "environment": env,
                         "api_key_set": bool(api_key),
                         "api_secret_set": bool(api_secret),
-                        "api_passphrase_set": bool(api_passphrase)
+                        "api_passphrase_set": bool(api_passphrase),
                     },
                     recommendations=[
                         "Для работы в PROD установите BITGET_API_KEY и BITGET_SECRET_KEY",
-                        "Проверьте файлы env.prod"
-                    ]
+                        "Проверьте файлы env.prod",
+                    ],
                 )
 
         return TestResult(
@@ -297,14 +287,14 @@ def test_exchange_api_keys() -> TestResult:
                 "environment": env,
                 "api_key_set": True,
                 "api_secret_set": True,
-                "api_passphrase_set": bool(api_passphrase)
-            }
+                "api_passphrase_set": bool(api_passphrase),
+            },
         )
     except Exception as e:
         return TestResult(
             name="API ключи биржи",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке API ключей: {str(e)}"
+            message=f"Ошибка при проверке API ключей: {str(e)}",
         )
 
 
@@ -313,10 +303,7 @@ def test_filter_configuration() -> TestResult:
     """Проверяет конфигурацию фильтров"""
     try:
         # Проверяем наличие конфигурационных файлов фильтров
-        config_files = [
-            "src/filters/config.py",
-            "config.py"
-        ]
+        config_files = ["src/filters/config.py", "config.py"]
 
         found_files = []
         missing_files = []
@@ -330,26 +317,19 @@ def test_filter_configuration() -> TestResult:
         # Проверяем наличие ключевых параметров
         try:
             # pylint: disable=import-outside-toplevel
-            from config import (
-                USE_ADAPTIVE_STRATEGY,
-                BTC_TREND_EMA_SOFT,
-                BTC_TREND_EMA_STRICT
-            )
+            from config import BTC_TREND_EMA_SOFT, BTC_TREND_EMA_STRICT, USE_ADAPTIVE_STRATEGY
 
             config_params = {
                 "USE_ADAPTIVE_STRATEGY": USE_ADAPTIVE_STRATEGY,
                 "BTC_TREND_EMA_SOFT": BTC_TREND_EMA_SOFT,
-                "BTC_TREND_EMA_STRICT": BTC_TREND_EMA_STRICT
+                "BTC_TREND_EMA_STRICT": BTC_TREND_EMA_STRICT,
             }
 
             return TestResult(
                 name="Конфигурация фильтров",
                 status=TestStatus.PASS,
                 message="Конфигурация фильтров доступна",
-                details={
-                    "config_files": found_files,
-                    "parameters": config_params
-                }
+                details={"config_files": found_files, "parameters": config_params},
             )
         except ImportError:
             return TestResult(
@@ -357,13 +337,13 @@ def test_filter_configuration() -> TestResult:
                 status=TestStatus.WARNING,
                 message="Некоторые параметры фильтров не найдены",
                 details={"config_files": found_files},
-                recommendations=["Проверьте наличие всех параметров в config.py"]
+                recommendations=["Проверьте наличие всех параметров в config.py"],
             )
     except Exception as e:
         return TestResult(
             name="Конфигурация фильтров",
             status=TestStatus.FAIL,
-            message=f"Ошибка при проверке конфигурации: {str(e)}"
+            message=f"Ошибка при проверке конфигурации: {str(e)}",
         )
 
 
@@ -374,7 +354,7 @@ def run_all_config_tests() -> list:
         test_telegram_token,
         test_auto_execution_blocked_in_dev,
         test_exchange_api_keys,
-        test_filter_configuration
+        test_filter_configuration,
     ]
 
     test_results = []
@@ -384,11 +364,13 @@ def run_all_config_tests() -> list:
             test_results.append(result)
             print(result)
         except Exception as e:
-            test_results.append(TestResult(
-                name=test_func.__name__,
-                status=TestStatus.FAIL,
-                message=f"Исключение при выполнении: {str(e)}"
-            ))
+            test_results.append(
+                TestResult(
+                    name=test_func.__name__,
+                    status=TestStatus.FAIL,
+                    message=f"Исключение при выполнении: {str(e)}",
+                )
+            )
 
     return test_results
 
@@ -401,4 +383,5 @@ if __name__ == "__main__":
     results = run_all_config_tests()
 
     from scripts.test_utils import print_test_summary
+
     print_test_summary(results)

@@ -36,7 +36,7 @@ async def test_mlx_queue_stats():
     """Проверка статистики очереди"""
     print("\n📊 ТЕСТ 1: Статистика очереди MLX API Server")
     print("=" * 60)
-    
+
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             # Ждем немного перед запросом чтобы избежать rate limit
@@ -64,10 +64,10 @@ async def test_priority_high(priority: str = "high"):
     """Тест запроса с приоритетом HIGH (чат)"""
     print(f"\n🎯 ТЕСТ 2: Запрос с приоритетом {priority.upper()} (чат)")
     print("=" * 60)
-    
+
     # Ждем перед запросом чтобы избежать rate limit
     await asyncio.sleep(3)
-    
+
     start_time = time.time()
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -84,9 +84,9 @@ async def test_priority_high(priority: str = "high"):
                 },
                 headers={"X-Request-Priority": priority}
             )
-            
+
             duration = time.time() - start_time
-            
+
             if response.status_code == 200:
                 data = response.json()
                 result = data.get("response", "")
@@ -115,10 +115,10 @@ async def test_priority_medium(priority: str = "medium"):
     """Тест запроса с приоритетом MEDIUM (Task Distribution)"""
     print(f"\n⚙️ ТЕСТ 3: Запрос с приоритетом {priority.upper()} (Task Distribution)")
     print("=" * 60)
-    
+
     # Ждем перед запросом чтобы избежать rate limit
     await asyncio.sleep(3)
-    
+
     start_time = time.time()
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -135,9 +135,9 @@ async def test_priority_medium(priority: str = "medium"):
                 },
                 headers={"X-Request-Priority": priority}
             )
-            
+
             duration = time.time() - start_time
-            
+
             if response.status_code == 200:
                 data = response.json()
                 result = data.get("response", "")
@@ -165,10 +165,10 @@ async def test_concurrent_requests():
     """Тест параллельных запросов с разными приоритетами"""
     print("\n🔄 ТЕСТ 4: Параллельные запросы (HIGH и MEDIUM)")
     print("=" * 60)
-    
+
     # Ждем перед параллельными запросами
     await asyncio.sleep(5)
-    
+
     # Делаем меньше запросов чтобы не превысить rate limit
     tasks = []
     for i in range(2):
@@ -178,7 +178,7 @@ async def test_concurrent_requests():
         else:
             tasks.append(test_priority_medium(priority))
         await asyncio.sleep(2)  # Пауза между запросами
-    
+
     results = await asyncio.gather(*tasks, return_exceptions=True)
     success = sum(1 for r in results if r is True)
     print(f"\n✅ Успешно: {success}/{len(tasks)}")
@@ -188,7 +188,7 @@ async def test_ollama_fallback():
     """Тест переключения на Ollama при перегрузке MLX"""
     print("\n🔄 ТЕСТ 5: Переключение на Ollama (простая задача)")
     print("=" * 60)
-    
+
     # Проверяем доступность Ollama
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -199,7 +199,7 @@ async def test_ollama_fallback():
     except Exception as e:
         print(f"⚠️ Ollama недоступен: {e}")
         return False
-    
+
     # Простая задача должна использовать Ollama при перегрузке MLX
     start_time = time.time()
     try:
@@ -217,9 +217,9 @@ async def test_ollama_fallback():
                     }
                 }
             )
-            
+
             duration = time.time() - start_time
-            
+
             if response.status_code == 200:
                 data = response.json()
                 result = data.get("response", "")
@@ -239,10 +239,10 @@ async def test_no_tinyllama_in_responses():
     """Тест что tinyllama не используется для ответов"""
     print("\n🚫 ТЕСТ 6: Проверка исключения tinyllama из ответов")
     print("=" * 60)
-    
+
     # Ждем перед запросом
     await asyncio.sleep(5)
-    
+
     # Проверяем доступные модели
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -251,12 +251,12 @@ async def test_no_tinyllama_in_responses():
             if response.status_code == 200:
                 data = response.json()
                 models = [m.get("name", "") for m in data.get("models", []) if m.get("exists", False)]
-                
+
                 # Проверяем что tinyllama не используется для ответов
                 # (она может быть в списке, но не должна выбираться для генерации)
                 print(f"✅ Доступно моделей: {len(models)}")
                 print(f"   Модели: {', '.join(models[:5])}...")
-                
+
                 # Пробуем запрос - должна использоваться phi3.5:3.8b или другая, но не tinyllama
                 await asyncio.sleep(3)
                 response = await client.post(
@@ -269,7 +269,7 @@ async def test_no_tinyllama_in_responses():
                     },
                     headers={"X-Request-Priority": "high"}
                 )
-                
+
                 if response.status_code == 200:
                     data = response.json()
                     used_model = data.get("model", "")
@@ -295,10 +295,10 @@ async def test_performance():
     """Тест производительности"""
     print("\n⚡ ТЕСТ 7: Производительность системы")
     print("=" * 60)
-    
+
     # Ждем перед тестом
     await asyncio.sleep(5)
-    
+
     # Несколько последовательных запросов (меньше чтобы не превысить rate limit)
     times = []
     for i in range(2):
@@ -324,7 +324,7 @@ async def test_performance():
                     print(f"   Запрос {i+1}: rate limit (нормально)")
         except Exception as e:
             print(f"   Запрос {i+1}: ошибка - {e}")
-    
+
     if times:
         avg_time = sum(times) / len(times)
         print(f"\n✅ Среднее время ответа: {avg_time:.2f}с")
@@ -344,7 +344,7 @@ async def test_error_handling():
     """Тест обработки ошибок"""
     print("\n🛡️ ТЕСТ 8: Обработка ошибок")
     print("=" * 60)
-    
+
     # Тест с несуществующей моделью
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -357,7 +357,7 @@ async def test_error_handling():
                 },
                 headers={"X-Request-Priority": "high"}
             )
-            
+
             if response.status_code != 200:
                 print(f"✅ Ошибка обработана корректно (статус {response.status_code})")
                 return True
@@ -373,14 +373,14 @@ def print_final_report():
     print("\n" + "=" * 60)
     print("📊 ИТОГОВЫЙ ОТЧЕТ")
     print("=" * 60)
-    
+
     print(f"\n📈 Статистика запросов:")
     print(f"   MLX HIGH (чат): {stats['mlx_requests']['high']}")
     print(f"   MLX MEDIUM (Task Distribution): {stats['mlx_requests']['medium']}")
     print(f"   MLX LOW: {stats['mlx_requests']['low']}")
     print(f"   MLX Всего: {stats['mlx_requests']['total']}")
     print(f"   Ollama: {stats['ollama_requests']}")
-    
+
     if stats['response_times']:
         avg_time = sum(stats['response_times']) / len(stats['response_times'])
         print(f"\n⚡ Производительность:")
@@ -388,19 +388,19 @@ def print_final_report():
         print(f"   Минимум: {min(stats['response_times']):.2f}с")
         print(f"   Максимум: {max(stats['response_times']):.2f}с")
         print(f"   Всего запросов: {len(stats['response_times'])}")
-    
+
     if stats['models_used']:
         print(f"\n🤖 Использованные модели:")
         for model, count in stats['models_used'].items():
             print(f"   {model}: {count}")
-    
+
     if stats['errors']:
         print(f"\n❌ Ошибки ({len(stats['errors'])}):")
         for error in stats['errors'][:5]:
             print(f"   - {error}")
     else:
         print(f"\n✅ Ошибок не обнаружено")
-    
+
     print("\n" + "=" * 60)
 
 async def main():
@@ -410,9 +410,9 @@ async def main():
     print(f"MLX API Server: {MLX_URL}")
     print(f"Ollama: {OLLAMA_URL}")
     print(f"Время начала: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     results = {}
-    
+
     # Тесты
     results["queue_stats"] = await test_mlx_queue_stats()
     results["priority_high"] = await test_priority_high()
@@ -428,16 +428,16 @@ async def main():
     results["performance"] = await test_performance()
     await asyncio.sleep(1)
     results["error_handling"] = await test_error_handling()
-    
+
     # Итоговый отчет
     print_final_report()
-    
+
     # Итог
     print("\n🎯 ИТОГИ:")
     passed = sum(1 for v in results.values() if v)
     total = len(results)
     print(f"   Пройдено: {passed}/{total}")
-    
+
     if passed == total:
         print("   ✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ!")
     else:

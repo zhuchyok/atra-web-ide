@@ -13,7 +13,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,10 @@ _DB_EXPERTS_TTL = int(os.getenv("EXPERT_SERVICES_DB_TTL", "60"))
 # Пути к employees.json: из knowledge_os/app/ → ../../configs/experts (atra-web-ide)
 # или из корня knowledge_os при запуске из контейнера
 _EMPLOYEES_PATHS = [
-    Path(__file__).resolve().parent.parent.parent / "configs" / "experts" / "employees.json",  # atra-web-ide
+    Path(__file__).resolve().parent.parent.parent
+    / "configs"
+    / "experts"
+    / "employees.json",  # atra-web-ide
     Path(__file__).resolve().parent.parent / "configs" / "experts" / "employees.json",
     Path("/app/configs/experts/employees.json"),
     Path(os.getenv("EMPLOYEES_JSON", "")),
@@ -46,12 +49,18 @@ def _load_experts_from_db() -> List[Dict[str, Any]]:
     def _fetch():
         try:
             import asyncio
+
             import asyncpg
+
             async def _run():
                 conn = await asyncpg.connect(DB_URL)
                 rows = await conn.fetch("SELECT name, role, department FROM experts")
                 await conn.close()
-                return [{"name": r["name"], "role": r["role"], "department": r["department"]} for r in rows]
+                return [
+                    {"name": r["name"], "role": r["role"], "department": r["department"]}
+                    for r in rows
+                ]
+
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(_run())
@@ -82,7 +91,7 @@ def _load_employees() -> List[Dict[str, Any]]:
     for path in _EMPLOYEES_PATHS:
         if path and str(path) and Path(path).exists():
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     data = json.load(f)
                 employees = data.get("employees", data) if isinstance(data, dict) else data
                 if isinstance(employees, list):
@@ -175,7 +184,11 @@ def get_expert_services_for_planning() -> str:
                 by_role.setdefault(label, []).append(f"{name} ({role})")
                 break
     lines = [f"- {label}: " + ", ".join(names[:3]) for label, names in sorted(by_role.items())]
-    return "Доступные эксперты по разделам плана:\n" + "\n".join(lines) if lines else get_expert_services_text(20)
+    return (
+        "Доступные эксперты по разделам плана:\n" + "\n".join(lines)
+        if lines
+        else get_expert_services_text(20)
+    )
 
 
 def get_expert_services_for_prompt() -> str:
@@ -194,15 +207,20 @@ def get_expert_system_prompt(expert_name_or_role: str) -> Optional[str]:
     Ищет по name или по role (для ролей вроде "Competitive Intelligence Director").
     Поддерживает Veronica→Вероника, Victoria→Виктория.
     """
+
     def _fetch():
         try:
             import asyncio
+
             import asyncpg
+
             try:
                 from app.expert_aliases import resolve_expert_name_for_db
+
                 resolved = resolve_expert_name_for_db(expert_name_or_role)
             except ImportError:
                 resolved = expert_name_or_role
+
             async def _run():
                 conn = await asyncpg.connect(DB_URL)
                 row = await conn.fetchrow(
@@ -216,6 +234,7 @@ def get_expert_system_prompt(expert_name_or_role: str) -> Optional[str]:
                     )
                 await conn.close()
                 return row["system_prompt"] if row and row.get("system_prompt") else None
+
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(_run())

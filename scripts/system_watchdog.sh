@@ -16,7 +16,7 @@ failure_count=0
 while true; do
     # Check Victoria
     response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 $VICTORIA_URL)
-    
+
     if [ "$response" != "200" ]; then
         ((failure_count++))
         echo "$(date) - Victoria health check failed (Code: $response). Failure $failure_count/$MAX_FAILURES" >> $LOG_FILE
@@ -29,7 +29,7 @@ while true; do
 
     if [ $failure_count -ge $MAX_FAILURES ]; then
         echo "$(date) - CRITICAL: System unresponsive. Triggering emergency restart..." >> $LOG_FILE
-        
+
         # Try to notify via Telegram if possible (using host-level bot)
         # Note: This assumes TELEGRAM_BOT_TOKEN and TELEGRAM_USER_ID are available in the environment
         if [ ! -z "$TELEGRAM_BOT_TOKEN" ] && [ ! -z "$TELEGRAM_USER_ID" ]; then
@@ -40,7 +40,7 @@ while true; do
         # Emergency Restart
         docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent
         docker-compose restart backend
-        
+
         echo "$(date) - Emergency restart completed" >> $LOG_FILE
         failure_count=0
         sleep 60 # Give it time to recover

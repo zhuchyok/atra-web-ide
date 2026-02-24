@@ -7,6 +7,7 @@
 ## 🎯 **ОСНОВНЫЕ ПРИНЦИПЫ**
 
 ### ✅ **ВКЛЮЧЕНО ПО УМОЛЧАНИЮ:**
+
 - **core** - Основная система (main.py)
 - **telegram_bot** - Telegram бот
 - **ai_system** - ИИ система
@@ -15,6 +16,7 @@
 - **signals** - Генерация сигналов
 
 ### ❌ **ОТКЛЮЧЕНО ПО УМОЛЧАНИЮ:**
+
 - **monitoring** - Мониторинг системы (конфликтует)
 - **auto_restart** - Автоперезапуск (конфликтует)
 - **rest_api** - REST API (не обязательно)
@@ -68,33 +70,40 @@ python3 server_manager.py disable auto_restart
 ## 📊 **КОМПОНЕНТЫ СИСТЕМЫ**
 
 ### **🔧 ОСНОВНЫЕ (обязательные):**
+
 - **core** - Основная система (main.py)
 - **telegram_bot** - Telegram бот
 
 ### **🤖 ИИ И АНАЛИЗ:**
+
 - **ai_system** - ИИ система обучения
 - **optimization** - Автоматическая оптимизация
 - **signals** - Генерация торговых сигналов
 
 ### **📈 МОНИТОРИНГ:**
+
 - **price_monitor** - Мониторинг цен и TP/SL
 - **monitoring** - Мониторинг системы (опционально)
 
 ### **🌐 ВЕБ-ИНТЕРФЕЙС:**
+
 - **rest_api** - REST API для внешних систем
 - **web_dashboard** - Web дашборд
 
 ### **🔄 АВТОМАТИЗАЦИЯ:**
+
 - **auto_restart** - Автоперезапуск при сбоях
 
 ## ⚠️ **ВАЖНЫЕ ПРАВИЛА**
 
 ### **❌ НЕ ЗАПУСКАЙТЕ ОДНОВРЕМЕННО:**
+
 - `monitoring` + `auto_restart` (конфликт)
 - `main.py` + `system_monitor.py` (конфликт)
 - `start_with_monitor.py` + `auto_restart_bot.py` (конфликт)
 
 ### **✅ РЕКОМЕНДУЕМАЯ КОНФИГУРАЦИЯ:**
+
 ```bash
 # Для стабильной работы
 ./atra_server.sh start
@@ -107,6 +116,7 @@ python3 server_manager.py disable auto_restart
 ## 🔧 **НАСТРОЙКА ДЛЯ СЕРВЕРА**
 
 ### **1. Минимальная конфигурация (рекомендуется):**
+
 ```bash
 ./atra_server.sh disable monitoring
 ./atra_server.sh disable auto_restart
@@ -116,6 +126,7 @@ python3 server_manager.py disable auto_restart
 ```
 
 ### **2. Полная конфигурация (для продвинутых пользователей):**
+
 ```bash
 ./atra_server.sh enable monitoring
 ./atra_server.sh enable rest_api
@@ -124,6 +135,7 @@ python3 server_manager.py disable auto_restart
 ```
 
 ### **3. Только автоперезапуск (для нестабильных серверов):**
+
 ```bash
 ./atra_server.sh disable monitoring
 ./atra_server.sh enable auto_restart
@@ -140,6 +152,7 @@ python3 server_manager.py disable auto_restart
 ## 🚨 **РЕШЕНИЕ ПРОБЛЕМ**
 
 ### **Проблема: Система постоянно перезапускается**
+
 ```bash
 # Отключить конфликтующие мониторы
 ./atra_server.sh disable monitoring
@@ -148,6 +161,7 @@ python3 server_manager.py disable auto_restart
 ```
 
 ### **Проблема: Нужен автоперезапуск**
+
 ```bash
 # Включить только автоперезапуск
 ./atra_server.sh disable monitoring
@@ -156,6 +170,7 @@ python3 server_manager.py disable auto_restart
 ```
 
 ### **Проблема: Нужен мониторинг**
+
 ```bash
 # Включить только мониторинг
 ./atra_server.sh disable auto_restart
@@ -166,20 +181,24 @@ python3 server_manager.py disable auto_restart
 ## 🎯 **РЕКОМЕНДАЦИИ ПО ИСПОЛЬЗОВАНИЮ**
 
 ### **Для продакшена:**
+
 - Используйте только `core` + `telegram_bot` + `ai_system`
 - Отключите все мониторы для стабильности
 
 ### **Для разработки:**
+
 - Включите `monitoring` для отслеживания
 - Отключите `auto_restart` для ручного управления
 
 ### **Для нестабильных серверов:**
+
 - Включите `auto_restart` для автоматического восстановления
 - Отключите `monitoring` для избежания конфликтов
 
 ## 📞 **ПОДДЕРЖКА**
 
 При возникновении проблем:
+
 1. Проверьте статус: `./atra_server.sh status`
 2. Остановите все: `./atra_server.sh stop`
 3. Запустите заново: `./atra_server.sh start`

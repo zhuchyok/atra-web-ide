@@ -9,9 +9,9 @@
 """
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
-from datetime import datetime, timezone
 
 # Маппинг имен
 NAME_MAPPING = {
@@ -342,23 +342,23 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
     if not kb_path.exists():
         print(f"⚠️ База знаний не найдена: {kb_path}")
         return False
-    
-    content = kb_path.read_text(encoding='utf-8')
-    
+
+    content = kb_path.read_text(encoding="utf-8")
+
     # Получаем лучшие практики для роли
     practices = BEST_PRACTICES.get(role, [])
-    
+
     # Добавляем лучшие практики из интернета
     if practices and "🌐 ЛУЧШИЕ ПРАКТИКИ ИЗ ИНТЕРНЕТА" not in content:
         # Находим место для вставки (после секции НАКОПЛЕННЫЕ ЗНАНИЯ)
         if "## 🧠 НАКОПЛЕННЫЕ ЗНАНИЯ" in content:
-            lines = content.split('\n')
+            lines = content.split("\n")
             updated_lines = []
             inserted = False
-            
+
             for i, line in enumerate(lines):
                 updated_lines.append(line)
-                
+
                 # Ищем конец секции НАКОПЛЕННЫЕ ЗНАНИЯ
                 if "## 🧠 НАКОПЛЕННЫЕ ЗНАНИЯ" in line:
                     # Пропускаем до следующего заголовка уровня 2
@@ -366,33 +366,35 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     while j < len(lines) and not lines[j].startswith("## "):
                         updated_lines.append(lines[j])
                         j += 1
-                    
+
                     # Вставляем секцию лучших практик
                     if not inserted:
                         updated_lines.append("")
                         updated_lines.append("## 🌐 ЛУЧШИЕ ПРАКТИКИ ИЗ ИНТЕРНЕТА")
                         updated_lines.append("")
-                        updated_lines.append(f"**Дата поиска:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                        updated_lines.append(
+                            f"**Дата поиска:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                        )
                         updated_lines.append("")
-                        
+
                         for practice in practices:
                             updated_lines.append(f"### {practice['title']}")
                             updated_lines.append(f"- **Описание:** {practice['description']}")
                             updated_lines.append(f"- **Источник:** {practice['source']}")
                             updated_lines.append(f"- **Категория:** {practice['category']}")
                             updated_lines.append("")
-                        
+
                         inserted = True
                         i = j - 1
                         continue
-            
-            content = '\n'.join(updated_lines)
-    
+
+            content = "\n".join(updated_lines)
+
     # Обновляем метрики обучения
     if "## 📊 МЕТРИКИ ОБУЧЕНИЯ" in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
-        
+
         for line in lines:
             if "**Всего задач выполнено:** 0" in line:
                 updated_lines.append("- **Всего задач выполнено:** 10+")
@@ -404,11 +406,11 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 updated_lines.append("- **Новых знаний получено:** 15+")
             else:
                 updated_lines.append(line)
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Сохраняем обновленную базу знаний
-    kb_path.write_text(content, encoding='utf-8')
+    kb_path.write_text(content, encoding="utf-8")
     return True
 
 
@@ -417,9 +419,9 @@ def update_learning_program(name: str, role: str, program_path: Path):
     if not program_path.exists():
         print(f"⚠️ Программа обучения не найдена: {program_path}")
         return False
-    
-    content = program_path.read_text(encoding='utf-8')
-    
+
+    content = program_path.read_text(encoding="utf-8")
+
     # Заполняем программу обучения детальными материалами
     if "[Будет добавлено в процессе обучения]" in content:
         # Базовые материалы для каждой роли
@@ -719,12 +721,12 @@ def update_learning_program(name: str, role: str, program_path: Path):
                 ],
             },
         }
-        
+
         materials = materials_map.get(role, {})
-        
-        lines = content.split('\n')
+
+        lines = content.split("\n")
         updated_lines = []
-        
+
         for line in lines:
             if "### Книги:" in line or "### Книги и ресурсы:" in line:
                 updated_lines.append(line)
@@ -732,37 +734,37 @@ def update_learning_program(name: str, role: str, program_path: Path):
                 for book in materials.get("books", [])[:4]:
                     updated_lines.append(f"- {book}")
                 continue
-            
+
             if "### Практика:" in line:
                 updated_lines.append(line)
                 updated_lines.append("")
                 for practice in materials.get("practices", [])[:4]:
                     updated_lines.append(f"- {practice}")
                 continue
-            
+
             if "[Будет добавлено в процессе обучения]" in line:
                 continue
-            
+
             updated_lines.append(line)
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Отмечаем выполненные задачи в плане обучения
     if "- [ ]" in content:
         content = content.replace("- [ ]", "- [x]")
-    
+
     # Сохраняем обновленную программу
-    program_path.write_text(content, encoding='utf-8')
+    program_path.write_text(content, encoding="utf-8")
     return True
 
 
 def main():
     """Главная функция"""
     print("🚀 Обновление баз знаний и программ до 100%...")
-    
+
     scripts_dir = Path(__file__).parent
     learning_programs_dir = scripts_dir / "learning_programs"
-    
+
     TEAM_MEMBERS = [
         ("Виктория", "Team Lead"),
         ("Дмитрий", "ML Engineer"),
@@ -786,28 +788,27 @@ def main():
         ("Юлия", "Legal Counsel"),
         ("Артем", "Code Reviewer"),
     ]
-    
+
     updated_kb = 0
     updated_programs = 0
-    
+
     for name, role in TEAM_MEMBERS:
         file_name = NAME_MAPPING.get(name, name.lower())
         kb_path = scripts_dir / f"{file_name}_knowledge.md"
         program_path = learning_programs_dir / f"{file_name}_program.md"
-        
+
         if update_knowledge_base(name, role, kb_path):
             updated_kb += 1
-        
+
         if update_learning_program(name, role, program_path):
             updated_programs += 1
-    
+
     print(f"\n✅ Обновлено баз знаний: {updated_kb}/{len(TEAM_MEMBERS)}")
     print(f"✅ Обновлено программ: {updated_programs}/{len(TEAM_MEMBERS)}")
     print("📊 Теперь запустите: python3 scripts/check_learning_progress.py")
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

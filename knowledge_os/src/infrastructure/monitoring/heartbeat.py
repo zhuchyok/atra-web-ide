@@ -1,17 +1,19 @@
 import asyncio
 import logging
-import time
 import os
 import sqlite3
+import time
 from datetime import datetime, timedelta
-from src.shared.utils.datetime_utils import get_utc_now
 from typing import Optional
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
+
 class SignalHeartbeat:
     """Мониторинг генерации сигналов (Signal Heartbeat) через БД"""
-    
+
     def __init__(self, db_path: str = "/root/atra/trading.db", threshold_minutes: int = 60):
         self.db_path = db_path
         self.threshold_minutes = threshold_minutes
@@ -37,7 +39,7 @@ class SignalHeartbeat:
             conn = sqlite3.connect(self.db_path)
             conn.execute(
                 "INSERT OR REPLACE INTO system_monitoring (key, last_time) VALUES (?, ?)",
-                ('heartbeat_alert', get_utc_now().isoformat())
+                ("heartbeat_alert", get_utc_now().isoformat()),
             )
             conn.commit()
             conn.close()
@@ -52,7 +54,7 @@ class SignalHeartbeat:
             cursor.execute("SELECT created_at FROM signals_log ORDER BY id DESC LIMIT 1")
             result = cursor.fetchone()
             conn.close()
-            
+
             if result:
                 dt_str = result[0]
                 try:
@@ -70,18 +72,20 @@ class SignalHeartbeat:
             # В DEV режиме алерты полностью подавлены в коде ниже
             logger.info("💓 [HEARTBEAT] Режим DEV: монитор активен в тихом режиме")
 
-        logger.info(f"💓 [HEARTBEAT] Запуск монитора сигналов (порог: {self.threshold_minutes} мин)")
+        logger.info(
+            f"💓 [HEARTBEAT] Запуск монитора сигналов (порог: {self.threshold_minutes} мин)"
+        )
         self.running = True
-        
+
         while self.running:
             try:
                 last_dt = await self.check_last_signal()
                 now = get_utc_now()
-                
+
                 if last_dt:
                     diff = (now - last_dt).total_seconds() / 60
                     logger.info(f"💓 [HEARTBEAT] Последний сигнал: {int(diff)} мин назад")
-                    
+
                     if diff > self.threshold_minutes:
                         last_alert = self._get_last_alert_time()
                         # Кулдаун 12 часов (43200 сек)
@@ -90,7 +94,7 @@ class SignalHeartbeat:
                             self._save_last_alert_time()
                         else:
                             logger.info("💓 [HEARTBEAT] Алерт подавлен (кулдаун 12ч)")
-                
+
                 await asyncio.sleep(300)
             except Exception as e:
                 await asyncio.sleep(60)
@@ -103,14 +107,16 @@ class SignalHeartbeat:
 
         try:
             from src.telegram.handlers import notify_all
+
             message = (
                 f"🚨 *SIGNAL HEARTBEAT ALERT [SERVER: 185.177.216.15]*\n\n"
                 f"⚠️ Система не генерировала сигналы более {diff_minutes} минут!\n"
                 f"🕒 Последний сигнал: {diff_minutes} мин назад."
             )
-            await notify_all(message, parse_mode='Markdown')
+            await notify_all(message, parse_mode="Markdown")
         except Exception as e:
             logger.error(f"💓 [HEARTBEAT] Ошибка алерта: {e}")
+
 
 async def start_heartbeat_monitor(db_path: str = "/root/atra/trading.db"):
     hb = SignalHeartbeat(db_path=db_path)

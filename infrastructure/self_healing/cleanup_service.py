@@ -18,7 +18,7 @@ class CleanupService:
     def __init__(self, db_path: str = "trading.db", base_dir: str = "/root/atra"):
         self.db_path = db_path
         self.base_dir = base_dir
-        
+
         # Настройки хранения (Retention Policy)
         self.RETENTION_LOGS_DAYS = 3
         self.RETENTION_DB_LOGS_DAYS = 14
@@ -29,23 +29,23 @@ class CleanupService:
         """Запуск полного цикла очистки"""
         logger.info("🧹 [JANITOR] Запуск цикла полной очистки системы...")
         start_time = time.time()
-        
+
         try:
             # 1. Очистка файлов логов
             self._cleanup_log_files()
-            
+
             # 2. Очистка базы данных
             self._cleanup_database()
-            
+
             # 3. Очистка папок с исследованиями
             self._cleanup_research_data()
-            
+
             # 4. Системная очистка (journalctl)
             self._cleanup_system_journals()
-            
+
             duration = time.time() - start_time
             logger.info(f"✅ [JANITOR] Очистка завершена за {duration:.2f} сек.")
-            
+
         except Exception as e:
             logger.error(f"❌ [JANITOR] Критическая ошибка при очистке: {e}")
 
@@ -54,7 +54,7 @@ class CleanupService:
         logger.info("🔍 [JANITOR] Проверка лог-файлов...")
         log_files = glob.glob(os.path.join(self.base_dir, "*.log"))
         log_files.extend(glob.glob(os.path.join(self.base_dir, "logs", "*.log")))
-        
+
         now = time.time()
         for f in log_files:
             try:
@@ -63,7 +63,7 @@ class CleanupService:
                     os.remove(f)
                     logger.info(f"🗑️ Удален старый лог: {os.path.basename(f)}")
                     continue
-                
+
                 # По размеру (если > MAX_LOG_SIZE_MB, обнуляем)
                 if os.path.getsize(f) > self.MAX_LOG_SIZE_MB * 1024 * 1024:
                     with open(f, 'w') as log_file:
@@ -81,29 +81,29 @@ class CleanupService:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            
+
             # Лимит времени
             limit_db = (get_utc_now() - timedelta(days=self.RETENTION_DB_LOGS_DAYS)).isoformat()
-            
+
             # Очистка signals_log (старые сигналы)
             cursor.execute("DELETE FROM signals_log WHERE created_at < ?", (limit_db,))
             deleted_signals = cursor.rowcount
-            
+
             # Очистка order_audit_log (старый аудит)
             cursor.execute("DELETE FROM order_audit_log WHERE created_at < ?", (limit_db,))
             deleted_orders = cursor.rowcount
-            
+
             # Очистка key_operations_log
             cursor.execute("DELETE FROM key_operations_log WHERE created_at < ?", (limit_db,))
 
             # Сохраняем и сжимаем
             conn.commit()
             logger.info(f"🗑️ БД: Удалено {deleted_signals} старых сигналов и {deleted_orders} логов ордеров.")
-            
+
             logger.info("⚙️ [JANITOR] Запуск VACUUM (сжатие БД)...")
             cursor.execute("VACUUM")
             conn.close()
-            
+
         except Exception as e:
             logger.error(f"Ошибка при очистке БД: {e}")
 
@@ -112,7 +112,7 @@ class CleanupService:
         research_dir = os.path.join(self.base_dir, "research")
         if not os.path.exists(research_dir):
             return
-            
+
         now = time.time()
         for f in glob.glob(os.path.join(research_dir, "*")):
             try:
@@ -137,4 +137,3 @@ async def start_janitor_loop():
         await janitor.run_full_cleanup()
         # Спим 24 часа
         await asyncio.sleep(86400)
-

@@ -42,7 +42,7 @@ class AutoImprover:
         }
         try:
             if self.config_path.exists():
-                with open(self.config_path, "r", encoding="utf-8") as f:
+                with open(self.config_path, encoding="utf-8") as f:
                     self.config = {**default_config, **json.load(f)}
             else:
                 self.config = default_config
@@ -64,9 +64,7 @@ class AutoImprover:
         logger.info("Starting automatic improvement analysis")
 
         feedback_stats = self.feedback_collector.get_feedback_stats(days=7)
-        quality_issues = self.feedback_collector.get_quality_issues(
-            unresolved_only=True
-        )
+        quality_issues = self.feedback_collector.get_quality_issues(unresolved_only=True)
 
         improvements: List[Dict] = []
 
@@ -77,11 +75,13 @@ class AutoImprover:
             if self.config.get("auto_adjust_thresholds"):
                 adjustment = self._calculate_threshold_adjustment(feedback_stats)
                 if adjustment:
-                    improvements.append({
-                        "type": "threshold_adjustment",
-                        "adjustment": adjustment,
-                        "reason": f"Low satisfaction rate: {feedback_stats['satisfaction_rate']:.2%}",
-                    })
+                    improvements.append(
+                        {
+                            "type": "threshold_adjustment",
+                            "adjustment": adjustment,
+                            "reason": f"Low satisfaction rate: {feedback_stats['satisfaction_rate']:.2%}",
+                        }
+                    )
 
         for issue in quality_issues[:5]:
             improvement = await self._analyze_specific_issue(issue)
@@ -116,9 +116,7 @@ class AutoImprover:
         issue_type = issue.get("issue_type", "")
 
         if issue_type == "irrelevant":
-            current = getattr(
-                self.rag_service, "similarity_threshold", 0.75
-            )
+            current = getattr(self.rag_service, "similarity_threshold", 0.75)
             return {
                 "type": "increase_similarity_threshold",
                 "current_threshold": current,

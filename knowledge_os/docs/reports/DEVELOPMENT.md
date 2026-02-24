@@ -7,6 +7,7 @@
 **Принцип:** Используем специфичные типы исключений в бизнес-логике, широкий `Exception` только для защиты main loop.
 
 **Примеры:**
+
 ```python
 # ✅ Правильно - специфичные исключения
 except (ValueError, TypeError, KeyError, ConnectionError) as e:
@@ -19,6 +20,7 @@ except Exception as e:
 ```
 
 **Кастомные исключения:**
+
 - `SignalValidationError` - ошибки валидации сигналов
 - `DataQualityError` - проблемы с качеством данных
 - `DatabaseConnectionError` - ошибки БД
@@ -65,11 +67,13 @@ logger.info("Signal sent", extra={
 ### 🔧 Настройка линтера
 
 **pylint:** Отключаем предупреждения для production-кода:
+
 - `broad-except` - для защиты main loop
 - `global-statement` - для singleton pattern
 - `import-error` - для опциональных модулей
 
 **flake8:** Настраиваем под реальность:
+
 - `E722` - разрешаем `except Exception:`
 - `max-complexity = 12` - разумный лимит сложности
 - `max-line-length = 120` - современный стандарт

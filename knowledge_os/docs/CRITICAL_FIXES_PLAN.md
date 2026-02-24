@@ -5,6 +5,7 @@
 ### 1. Исправить импорты в generation.py
 
 **Проблема:** Модуль пытается импортировать несуществующие модули
+
 ```python
 # ТЕКУЩЕЕ (НЕ РАБОТАЕТ):
 from ..filters.news import get_news_data, check_negative_news
@@ -15,6 +16,7 @@ from ..core.cache import get_cache, set_cache
 ```
 
 **Решение:**
+
 ```python
 # ИСПРАВЛЕННОЕ:
 try:
@@ -37,6 +39,7 @@ except ImportError:
 ### 2. Создать недостающие модули
 
 **Структура:**
+
 ```
 src/
 ├── filters/
@@ -71,13 +74,13 @@ class SignalData(BaseModel):
     side: str
     price: float
     timestamp: str
-    
+
     @validator('side')
     def validate_side(cls, v):
         if v not in ['long', 'short']:
             raise ValueError('Side must be long or short')
         return v
-    
+
     @validator('price')
     def validate_price(cls, v):
         if v <= 0:
@@ -98,13 +101,13 @@ from src.signals.core import strict_entry_signal
 class TestCore(unittest.TestCase):
     def setUp(self):
         self.df = self.create_test_dataframe()
-    
+
     def test_strict_entry_signal_long(self):
         # Тест для LONG сигнала
         side, price = strict_entry_signal(self.df, 50)
         self.assertIsNotNone(side)
         self.assertIsNotNone(price)
-    
+
     def create_test_dataframe(self):
         # Создание тестовых данных
         pass
@@ -148,7 +151,7 @@ from typing import Dict, Any
 class PerformanceMetrics:
     def __init__(self):
         self.metrics: Dict[str, float] = {}
-    
+
     def measure_time(self, func_name: str):
         def decorator(func):
             @wraps(func)
@@ -194,10 +197,10 @@ class PluginRegistry:
     def __init__(self):
         self.indicators: Dict[str, IndicatorPlugin] = {}
         self.filters: Dict[str, FilterPlugin] = {}
-    
+
     def register_indicator(self, name: str, plugin: IndicatorPlugin):
         self.indicators[name] = plugin
-    
+
     def register_filter(self, name: str, plugin: FilterPlugin):
         self.filters[name] = plugin
 ```
@@ -206,7 +209,7 @@ class PluginRegistry:
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
+version: "3.8"
 services:
   signal-service:
     build: ./src/signals
@@ -214,19 +217,19 @@ services:
       - "8001:8000"
     environment:
       - REDIS_URL=redis://redis:6379
-  
+
   data-service:
     build: ./src/data
     ports:
       - "8002:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/atra
-  
+
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
-  
+
   postgres:
     image: postgres:13
     environment:
@@ -237,18 +240,21 @@ services:
 ## 📋 ПЛАН ВЫПОЛНЕНИЯ
 
 ### Фаза 1 (Критично - 1-2 дня)
+
 - [ ] Исправить импорты в generation.py
 - [ ] Создать недостающие модули filters/, data/, utils/
 - [ ] Удалить дублирующие файлы
 - [ ] Добавить базовую валидацию данных
 
 ### Фаза 2 (Важно - 1 неделя)
+
 - [ ] Создать unit-тесты для всех модулей
 - [ ] Улучшить обработку ошибок
 - [ ] Добавить метрики производительности
 - [ ] Создать документацию
 
 ### Фаза 3 (Желательно - 2-4 недели)
+
 - [ ] Реализовать систему плагинов
 - [ ] Подготовить к микросервисной архитектуре
 - [ ] Добавить мониторинг и алерты
@@ -257,6 +263,7 @@ services:
 ## 🎯 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 После выполнения критических исправлений:
+
 - ✅ Все модули будут работать независимо
 - ✅ Система будет готова к промышленной эксплуатации
 - ✅ Улучшится поддерживаемость и расширяемость

@@ -7,7 +7,7 @@
 
 Запуск:
   python knowledge_os/app/employees_sync_daemon.py
-  
+
   # Или через Docker/systemd/launchd для продакшена
 """
 
@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 SYNC_DEBOUNCE_SECONDS = int(os.getenv("SYNC_DEBOUNCE_SECONDS", "5"))  # Дебаунс: не чаще раз в 5 сек
-PERIODIC_SYNC_MINUTES = int(os.getenv("PERIODIC_SYNC_MINUTES", "60"))  # Периодическая синхронизация раз в час
+PERIODIC_SYNC_MINUTES = int(
+    os.getenv("PERIODIC_SYNC_MINUTES", "60")
+)  # Периодическая синхронизация раз в час
 
 # Путь к скрипту синхронизации
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -49,12 +51,14 @@ class EmployeesSyncDaemon:
         """Запустить sync_employees_from_db.py."""
         async with self._sync_lock:
             now = datetime.now()
-            
+
             # Дебаунс: не запускать чаще SYNC_DEBOUNCE_SECONDS
             if self.last_sync_time:
                 elapsed = (now - self.last_sync_time).total_seconds()
                 if elapsed < SYNC_DEBOUNCE_SECONDS:
-                    logger.debug("Debounce: sync skipped (%.1fs < %ds)", elapsed, SYNC_DEBOUNCE_SECONDS)
+                    logger.debug(
+                        "Debounce: sync skipped (%.1fs < %ds)", elapsed, SYNC_DEBOUNCE_SECONDS
+                    )
                     self.pending_sync = True
                     return False
 
@@ -62,7 +66,7 @@ class EmployeesSyncDaemon:
             self.pending_sync = False
 
             logger.info("🔄 Запуск синхронизации (%s)...", reason)
-            
+
             python_exe = str(PYTHON_VENV) if PYTHON_VENV.exists() else sys.executable
             try:
                 result = subprocess.run(
@@ -79,8 +83,11 @@ class EmployeesSyncDaemon:
                         if "+" in line or "✅" in line:
                             logger.info("   %s", line.strip())
                 else:
-                    logger.warning("⚠️ Синхронизация завершена с кодом %d: %s", 
-                                   result.returncode, result.stderr[:200])
+                    logger.warning(
+                        "⚠️ Синхронизация завершена с кодом %d: %s",
+                        result.returncode,
+                        result.stderr[:200],
+                    )
                 return True
             except subprocess.TimeoutExpired:
                 logger.error("❌ Таймаут синхронизации (60s)")
@@ -161,7 +168,7 @@ async def trigger_employees_sync(reason: str = "code_call"):
     """
     Функция для вызова из других модулей.
     Запускает синхронизацию асинхронно (fire-and-forget).
-    
+
     Использование:
         from knowledge_os.app.employees_sync_daemon import trigger_employees_sync
         await trigger_employees_sync("after_hire")
@@ -173,7 +180,7 @@ async def trigger_employees_sync(reason: str = "code_call"):
 def trigger_employees_sync_sync(reason: str = "code_call"):
     """
     Синхронная версия для вызова из не-async кода.
-    
+
     Использование:
         from knowledge_os.app.employees_sync_daemon import trigger_employees_sync_sync
         trigger_employees_sync_sync("after_hire")

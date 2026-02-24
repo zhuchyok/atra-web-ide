@@ -29,6 +29,7 @@ if str(user_id) in all_user_data:
 ### Заменена функция `save_user_data_to_file`:
 
 **Было:**
+
 ```python
 # Объединяем существующие данные с новыми
 existing_data = all_user_data[str(user_id)]
@@ -38,6 +39,7 @@ all_user_data[str(user_id)] = existing_data
 ```
 
 **Стало:**
+
 ```python
 # Объединяем существующие данные с новыми, защищая важные поля
 existing_data = all_user_data[str(user_id)]
@@ -61,6 +63,7 @@ all_user_data[str(user_id)] = existing_data
 ## 🧪 Тестирование
 
 ### Результаты теста:
+
 ```
 🧪 ТЕСТ ИСПРАВЛЕНИЯ SAVE_USER_DATA_TO_FILE
 ============================================================
@@ -108,6 +111,7 @@ all_user_data[str(user_id)] = existing_data
 ### 🔧 Где применяется:
 
 Функция `save_user_data_to_file` используется в:
+
 - Обработке ввода депозита
 - Выборе режима торговли
 - Выборе фильтров

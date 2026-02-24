@@ -7,6 +7,7 @@
 ## 🔧 Выполненные изменения
 
 ### 1. Удалены устаревшие функции основной стратегии
+
 ```python
 # УДАЛЕНО:
 def should_open_long(df):
@@ -23,6 +24,7 @@ def should_open_short(df):
 ```
 
 ### 2. Удалены захардкоженные константы
+
 ```python
 # УДАЛЕНО:
 BB_WINDOW = 20
@@ -48,6 +50,7 @@ TP_PCT = 1
 ### 3. Обновлены функции enhanced стратегии
 
 #### should_open_long_enhanced:
+
 ```python
 # БЫЛО:
 ema7 = ta.trend.EMAIndicator(df["close"], window=7).ema_indicator().iloc[i]
@@ -62,11 +65,13 @@ bollinger = ta.volatility.BollingerBands(df["close"], window=config["bb_window"]
 ```
 
 #### should_open_short_enhanced:
+
 ```python
 # Аналогичные изменения - теперь использует параметры из ENHANCED_STRATEGY_CONFIG
 ```
 
 ### 4. Обновлена функция fetch_ohlc
+
 ```python
 # БЫЛО:
 ohlc = await get_ohlc_binance_sync_async(symbol, interval=tf, limit=BB_WINDOW * 2)
@@ -80,6 +85,7 @@ if ohlc and len(ohlc) >= required_length:
 ```
 
 ### 5. Обновлена функция enhanced_bollinger_entry_signal
+
 ```python
 # БЫЛО:
 bollinger = ta.volatility.BollingerBands(df["close"], window=BB_WINDOW, window_dev=BB_STD)
@@ -96,16 +102,19 @@ df["ema25"] = ta.trend.EMAIndicator(df["close"], window=config["ema_slow"]).ema_
 ## ✅ Преимущества рефакторинга
 
 ### 1. Устранение дублирования
+
 - **Удалена основная стратегия** - больше нет конфликтующих логик
 - **Единая конфигурация** - все параметры из `ENHANCED_STRATEGY_CONFIG`
 - **Нет захардкоженных значений** - все оптимизируется автоматически
 
 ### 2. Упрощение архитектуры
+
 - **Одна стратегия** с двумя режимами (SOFT/STRICT)
 - **Единый источник истины** для всех параметров
 - **Автоматическая оптимизация** применяется ко всем компонентам
 
 ### 3. Улучшение поддерживаемости
+
 - **Меньше кода** - удалены устаревшие функции
 - **Единообразие** - все функции используют одинаковые параметры
 - **Легче отладка** - нет конфликтующих конфигураций
@@ -113,12 +122,14 @@ df["ema25"] = ta.trend.EMAIndicator(df["close"], window=config["ema_slow"]).ema_
 ## 🔄 Текущая архитектура
 
 ### Единая стратегия:
+
 1. **ENHANCED_STRATEGY_CONFIG** - центральная конфигурация
 2. **SOFT режим** - использует enhanced функции с мягкими фильтрами
 3. **STRICT режим** - использует простую логику с строгими фильтрами
 4. **Автоматическая оптимизация** - обновляет ENHANCED_STRATEGY_CONFIG
 
 ### Параметры, которые оптимизируются:
+
 - `bb_window`, `bb_std` - Bollinger Bands
 - `ema_fast`, `ema_slow`, `ema_trend` - EMA индикаторы
 - `rsi_window`, `rsi_overbought`, `rsi_oversold` - RSI параметры
@@ -128,12 +139,14 @@ df["ema25"] = ta.trend.EMAIndicator(df["close"], window=config["ema_slow"]).ema_
 ## 📊 Результат
 
 ### До рефакторинга:
+
 - ❌ Две стратегии (основная + расширенная)
 - ❌ Захардкоженные константы
 - ❌ Конфликтующие параметры
 - ❌ Дублирование логики
 
 ### После рефакторинга:
+
 - ✅ Одна расширенная стратегия
 - ✅ Все параметры из ENHANCED_STRATEGY_CONFIG
 - ✅ Единая оптимизация

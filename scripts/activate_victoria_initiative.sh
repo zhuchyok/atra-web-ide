@@ -50,7 +50,7 @@ if [ -f .env ]; then
         echo "USE_VICTORIA_ENHANCED=true" >> .env
         echo -e "${GREEN}   ✅ USE_VICTORIA_ENHANCED добавлен${NC}"
     fi
-    
+
     if grep -q "ENABLE_EVENT_MONITORING" .env; then
         echo -e "${GREEN}   ✅ ENABLE_EVENT_MONITORING настроен${NC}"
     else

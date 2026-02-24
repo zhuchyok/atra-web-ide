@@ -98,7 +98,7 @@ echo ""
 # Проверяем config.py
 if [ -f "config.py" ]; then
     echo -e "${GREEN}✅ config.py найден${NC}"
-    
+
     # Проверяем включенные фильтры
     echo ""
     echo "Проверка включенных фильтров:"
@@ -136,7 +136,7 @@ if systemctl list-unit-files | grep -q $SERVICE_NAME; then
     echo "Запускаем через systemd..."
     systemctl start $SERVICE_NAME
     sleep 3
-    
+
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${GREEN}✅ Бот запущен через systemd${NC}"
     else
@@ -187,26 +187,26 @@ if os.path.exists(db_path):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
+
         # Проверяем сигналы за последние 24 часа
         cursor.execute("""
-            SELECT COUNT(*) FROM signals 
+            SELECT COUNT(*) FROM signals
             WHERE datetime(ts) > datetime('now', '-24 hours')
         """)
         signals_24h = cursor.fetchone()[0]
         print(f"  📊 Сигналов за 24ч: {signals_24h}")
-        
+
         # Проверяем активные сигналы
         cursor.execute("""
-            SELECT COUNT(*) FROM active_signals 
+            SELECT COUNT(*) FROM active_signals
             WHERE status = 'active'
         """)
         active_signals = cursor.fetchone()[0]
         print(f"  📊 Активных сигналов: {active_signals}")
-        
+
         # Проверяем последние сигналы
         cursor.execute("""
-            SELECT symbol, side, ts FROM signals 
+            SELECT symbol, side, ts FROM signals
             ORDER BY ts DESC LIMIT 5
         """)
         recent = cursor.fetchall()
@@ -216,7 +216,7 @@ if os.path.exists(db_path):
                 print(f"    - {symbol} {side} ({ts})")
         else:
             print(f"  ⚠️  Нет сигналов в базе")
-        
+
         conn.close()
     except Exception as e:
         print(f"  ❌ Ошибка проверки БД: {e}")
@@ -237,9 +237,9 @@ try:
     # Проверяем функцию отбора монет
     from src.execution.exchange_api import get_filtered_top_usdt_pairs_fast
     from src.strategies.pair_filtering import get_filtered_top_usdt_pairs_fast as get_filtered_pairs
-    
+
     print("Проверка функции отбора монет...")
-    
+
     # Пробуем получить список монет
     try:
         pairs = get_filtered_top_usdt_pairs_fast(limit=10)
@@ -252,7 +252,7 @@ try:
             print("  ⚠️  Список монет пуст")
     except Exception as e:
         print(f"  ❌ Ошибка получения монет: {e}")
-        
+
 except ImportError as e:
     print(f"  ⚠️  Модуль не найден: {e}")
 except Exception as e:
@@ -269,4 +269,3 @@ echo "  1. Проверьте логи: tail -f $BOT_DIR/signal_live.log"
 echo "  2. Проверьте статус: systemctl status $SERVICE_NAME"
 echo "  3. Проверьте базу данных: python3 -c \"import sqlite3; conn = sqlite3.connect('$BOT_DIR/trading.db'); cursor = conn.cursor(); cursor.execute('SELECT COUNT(*) FROM signals WHERE datetime(ts) > datetime(\\\"now\\\", \\\"-1 hour\\\")'); print(f'Сигналов за час: {cursor.fetchone()[0]}')\""
 echo ""
-

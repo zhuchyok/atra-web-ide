@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 🚀 МОДУЛЬ ПРОАКТИВНОГО РАЗВИТИЯ
 Выполняет микро-улучшения системы каждый час.
 Автор: Виктория (Lead) + Дмитрий (ML)
 """
 
-import logging
 import asyncio
 import json
+import logging
 import os
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
 from typing import Optional
-from src.ai.adaptive_filter_regulator import get_adaptive_regulator, AdaptiveFilterRegulator
+
+from src.ai.adaptive_filter_regulator import AdaptiveFilterRegulator, get_adaptive_regulator
 from src.ai.lightgbm_predictor import get_lightgbm_predictor
+from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
+
 
 class AutonomousEvolver:
     """
     Класс для управления процессом ежечасной эволюции системы.
     """
+
     def __init__(self):
         try:
             self.regulator: Optional[AdaptiveFilterRegulator] = get_adaptive_regulator()
@@ -36,7 +38,7 @@ class AutonomousEvolver:
         while True:
             try:
                 now = get_utc_now()
-                logger.info("🕒 %s — Анализ возможностей для оптимизации...", now.strftime('%H:%M'))
+                logger.info("🕒 %s — Анализ возможностей для оптимизации...", now.strftime("%H:%M"))
 
                 # 1. Оптимизация фильтров
                 if self.regulator:
@@ -71,17 +73,18 @@ class AutonomousEvolver:
                 "rsi_long": self.regulator.current_rsi_long,
                 "rsi_short": self.regulator.current_rsi_short,
                 "volume_ratio": self.regulator.current_volume_ratio,
-                "quality_score": self.regulator.current_quality_score
+                "quality_score": self.regulator.current_quality_score,
             }
 
         entry = {
             "timestamp": get_utc_now().isoformat(),
             "action": "Filter Optimization",
-            "state": state
+            "state": state,
         }
 
         with open("logs/evolution_steps.log", "a", encoding="utf-8") as f:
             f.write(json.dumps(entry) + "\n")
+
 
 async def start_evolution_task():
     """Точка входа для запуска задачи эволюции в main.py"""

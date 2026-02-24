@@ -4,11 +4,12 @@
 Поддерживает локальное развертывание и удаленную отправку
 """
 
-import os
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
+
 
 def create_admin_roles_file():
     """
@@ -19,14 +20,14 @@ def create_admin_roles_file():
             "role": "super_admin",
             "is_admin": True,
             "is_super_admin": True,
-            "description": "Супер администратор - полные права"
+            "description": "Супер администратор - полные права",
         },
         "958930260": {
             "role": "admin",
             "is_admin": True,
             "is_super_admin": False,
-            "description": "Администратор - ограниченные права"
-        }
+            "description": "Администратор - ограниченные права",
+        },
     }
 
     # Сохраняем в файл
@@ -35,6 +36,7 @@ def create_admin_roles_file():
 
     print("✅ Создан файл admin_roles.json с ролями администраторов")
     return admin_roles
+
 
 def create_server_script():
     """
@@ -124,11 +126,12 @@ if __name__ == "__main__":
 
     print("✅ Создан скрипт apply_admin_roles_server.py для сервера")
 
+
 def create_deployment_script():
     """
     Создает скрипт для автоматического развертывания
     """
-    deployment_script = '''#!/bin/bash
+    deployment_script = """#!/bin/bash
 # Скрипт для развертывания ролей администраторов на сервере
 
 echo "🚀 РАЗВЕРТЫВАНИЕ РОЛЕЙ АДМИНИСТРАТОРОВ НА СЕРВЕРЕ"
@@ -162,7 +165,7 @@ else
 fi
 
 echo "🎉 Развертывание завершено!"
-'''
+"""
 
     with open("deploy_admin_roles.sh", "w", encoding="utf-8") as f:
         f.write(deployment_script)
@@ -171,6 +174,7 @@ echo "🎉 Развертывание завершено!"
     os.chmod("deploy_admin_roles.sh", 0o755)
 
     print("✅ Создан скрипт deploy_admin_roles.sh для развертывания")
+
 
 def send_to_server_via_scp(server_info):
     """
@@ -181,7 +185,7 @@ def send_to_server_via_scp(server_info):
             "admin_roles.json",
             "apply_admin_roles_server.py",
             "deploy_admin_roles.sh",
-            "fix_missing_admin.py"
+            "fix_missing_admin.py",
         ]
 
         print(f"📤 Отправка файлов на сервер {server_info['host']}...")
@@ -189,8 +193,9 @@ def send_to_server_via_scp(server_info):
         for file in files_to_send:
             if os.path.exists(file):
                 cmd = [
-                    "scp", file,
-                    f"{server_info['user']}@{server_info['host']}:{server_info['path']}/"
+                    "scp",
+                    file,
+                    f"{server_info['user']}@{server_info['host']}:{server_info['path']}/",
                 ]
 
                 result = subprocess.run(cmd, capture_output=True, text=True)
@@ -208,6 +213,7 @@ def send_to_server_via_scp(server_info):
         print(f"❌ Ошибка отправки на сервер: {e}")
         return False
 
+
 def execute_on_server_via_ssh(server_info):
     """
     Выполняет команды на сервере через SSH
@@ -218,13 +224,10 @@ def execute_on_server_via_ssh(server_info):
         commands = [
             f"cd {server_info['path']}",
             "chmod +x deploy_admin_roles.sh",
-            "./deploy_admin_roles.sh"
+            "./deploy_admin_roles.sh",
         ]
 
-        cmd = [
-            "ssh", f"{server_info['user']}@{server_info['host']}",
-            " && ".join(commands)
-        ]
+        cmd = ["ssh", f"{server_info['user']}@{server_info['host']}", " && ".join(commands)]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
@@ -238,6 +241,7 @@ def execute_on_server_via_ssh(server_info):
     except Exception as e:
         print(f"❌ Ошибка выполнения на сервере: {e}")
         return False
+
 
 def main():
     """
@@ -269,6 +273,7 @@ def main():
             print("\n🔧 Локальное применение ролей...")
             try:
                 from apply_admin_roles_server import apply_admin_roles
+
                 if apply_admin_roles():
                     print("✅ Роли применены локально")
                 else:
@@ -278,11 +283,7 @@ def main():
 
         elif command == "deploy" and len(sys.argv) >= 5:
             # Автоматическое развертывание
-            server_info = {
-                "user": sys.argv[2],
-                "host": sys.argv[3],
-                "path": sys.argv[4]
-            }
+            server_info = {"user": sys.argv[2], "host": sys.argv[3], "path": sys.argv[4]}
 
             print(f"\n📤 Автоматическое развертывание на {server_info['host']}...")
 
@@ -316,6 +317,7 @@ def main():
         print("   python3 deploy_admin_roles.py local")
         print("   # или")
         print("   ./deploy_admin_roles.sh")
+
 
 if __name__ == "__main__":
     main()

@@ -15,6 +15,7 @@
 ## ✅ ИНТЕГРИРОВАННЫЕ ФИЛЬТРЫ
 
 ### Этап 1: Критичные (100%)
+
 1. ✅ AI Score Filter (soft=15.0, strict=25.0)
 2. ✅ Direction Confidence (3/4 для soft, 4/4 для strict)
 3. ✅ RSI Warning (блокировка опасных зон)
@@ -23,6 +24,7 @@
 6. ✅ ADX и Volatility индикаторы
 
 ### Этап 2: Важные (100%)
+
 7. ✅ AI Volume Filter
 8. ✅ AI Volatility Filter
 9. ✅ Anomaly Filter (блокировка 0 и >=5 кружков)
@@ -39,6 +41,7 @@
 Лог файл: `/tmp/backtest_top100_*.log`
 
 Проверка статуса:
+
 ```bash
 # Проверить процесс
 ps aux | grep load_and_backtest_top100
@@ -53,6 +56,7 @@ ls -lh data/reports/backtest_top100_*.json
 ## 📈 ОЖИДАЕМЫЕ РЕЗУЛЬТАТЫ
 
 После завершения будет сгенерирован отчет в `data/reports/backtest_top100_YYYYMMDD_HHMMSS.json` с:
+
 - Финансовыми показателями (PnL, MaxDD, Sharpe, Sortino)
 - Статистикой сделок (Win Rate, Profit Factor)
 - Детальной информацией о сделках
@@ -74,4 +78,3 @@ ls -lh data/reports/backtest_top100_*.json
 2. Проанализировать результаты
 3. Сравнить с предыдущими результатами
 4. Оптимизировать параметры при необходимости
-

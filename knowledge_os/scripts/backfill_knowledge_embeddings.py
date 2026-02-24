@@ -13,6 +13,7 @@ Nightly_learner и другие оркестраторы могут создав
 
 Рекомендуемый timeout запуска из IDE/CI: ≥ 5 мин при большом количестве узлов.
 """
+
 import argparse
 import asyncio
 import logging
@@ -43,7 +44,9 @@ async def run(limit: int = 100) -> int:
         import asyncpg
         from app.semantic_cache import get_embedding
     except ImportError as e:
-        logger.error("Требуются asyncpg и app.semantic_cache (запуск из knowledge_os или с путём): %s", e)
+        logger.error(
+            "Требуются asyncpg и app.semantic_cache (запуск из knowledge_os или с путём): %s", e
+        )
         return 0
 
     db_url = os.getenv("DATABASE_URL")
@@ -96,8 +99,12 @@ async def run(limit: int = 100) -> int:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Дозапись embedding для knowledge_nodes без него (§4.1)")
-    parser.add_argument("--limit", type=int, default=100, help="Максимум узлов за один запуск (по умолчанию 100)")
+    parser = argparse.ArgumentParser(
+        description="Дозапись embedding для knowledge_nodes без него (§4.1)"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=100, help="Максимум узлов за один запуск (по умолчанию 100)"
+    )
     args = parser.parse_args()
     n = asyncio.run(run(limit=args.limit))
     return 0 if n >= 0 else 1

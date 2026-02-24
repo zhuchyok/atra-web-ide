@@ -1,8 +1,10 @@
 """
 Эндпоинты мониторинга оптимизаций RAG-light (Фаза 3, день 3–4).
 """
-from fastapi import APIRouter
+
 from typing import Any, Dict
+
+from fastapi import APIRouter
 
 from app.config import get_settings
 from app.services.rag_light import get_rag_light_service

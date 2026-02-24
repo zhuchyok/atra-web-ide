@@ -12,9 +12,9 @@
 """
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
-from datetime import datetime, timezone
 
 # Маппинг имен
 NAME_MAPPING = {
@@ -537,24 +537,24 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
     if not kb_path.exists():
         print(f"⚠️ База знаний не найдена: {kb_path}")
         return False
-    
-    content = kb_path.read_text(encoding='utf-8')
-    
+
+    content = kb_path.read_text(encoding="utf-8")
+
     # Получаем материалы
     innovations = INNOVATION_TECHNIQUES.get(role, [])
     publications = PUBLICATIONS.get(role, [])
     mentorship = MENTORSHIP.get(role, [])
     awards = AWARDS.get(role, [])
-    
+
     # Добавляем секцию инноваций (проверяем оба варианта)
     if "## 🚀 ИННОВАЦИОННЫЕ ТЕХНИКИ" not in content and "ИННОВАЦИОННЫЕ ТЕХНИКИ" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после продвинутых материалов
             if "## 🚀 ПРОДВИНУТЫЕ МАТЕРИАЛЫ" in line:
                 # Пропускаем до следующего заголовка уровня 2
@@ -562,7 +562,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем инновации
                 if not inserted and innovations:
                     updated_lines.append("")
@@ -573,22 +573,22 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     for innovation in innovations:
                         updated_lines.append(f"- {innovation}")
                     updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Добавляем секцию публикаций и исследований (проверяем оба варианта)
     if "## 📝 ПУБЛИКАЦИИ" not in content and "ПУБЛИКАЦИИ И ИССЛЕДОВАНИЯ" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после реальных кейсов
             if "## 💼 РЕАЛЬНЫЕ КЕЙСЫ" in line:
                 # Пропускаем до следующего заголовка уровня 2
@@ -596,7 +596,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем публикации
                 if not inserted and publications:
                     updated_lines.append("")
@@ -605,22 +605,22 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     for pub in publications:
                         updated_lines.append(f"- {pub}")
                     updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Добавляем секцию менторства (проверяем оба варианта)
     if "## 👨‍🏫 МЕНТОРСТВО" not in content and "МЕНТОРСТВО И ОБУЧЕНИЕ" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после публикаций
             if "## 📝 ПУБЛИКАЦИИ" in line:
                 # Пропускаем до следующего заголовка уровня 2
@@ -628,7 +628,7 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем менторство
                 if not inserted and mentorship:
                     updated_lines.append("")
@@ -637,30 +637,32 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     for ment in mentorship:
                         updated_lines.append(f"- {ment}")
                     updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Добавляем секцию наград (проверяем оба варианта)
     if "## 🏆 НАГРАДЫ" not in content and "НАГРАДЫ И ПРИЗНАНИЕ" not in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
         inserted = False
-        
+
         for i, line in enumerate(lines):
             updated_lines.append(line)
-            
+
             # Вставляем после менторства или публикаций
-            if "## 👨‍🏫 МЕНТОРСТВО" in line or ("## 📝 ПУБЛИКАЦИИ" in line and "## 👨‍🏫" not in content):
+            if "## 👨‍🏫 МЕНТОРСТВО" in line or (
+                "## 📝 ПУБЛИКАЦИИ" in line and "## 👨‍🏫" not in content
+            ):
                 # Пропускаем до следующего заголовка уровня 2
                 j = i + 1
                 while j < len(lines) and not lines[j].startswith("## "):
                     updated_lines.append(lines[j])
                     j += 1
-                
+
                 # Вставляем награды
                 if not inserted and awards:
                     updated_lines.append("")
@@ -669,18 +671,18 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     for award in awards:
                         updated_lines.append(f"- {award}")
                     updated_lines.append("")
-                    
+
                     inserted = True
                     i = j - 1
                     continue
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Обновляем метрики до максимума
     if "## 📊 МЕТРИКИ ОБУЧЕНИЯ" in content:
-        lines = content.split('\n')
+        lines = content.split("\n")
         updated_lines = []
-        
+
         for line in lines:
             if "**Всего задач выполнено:**" in line:
                 updated_lines.append("- **Всего задач выполнено:** 100+")
@@ -692,9 +694,9 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                 updated_lines.append("- **Новых знаний получено:** 200+")
             else:
                 updated_lines.append(line)
-        
+
         # Добавляем дополнительные метрики
-        if "**Новых знаний получено:**" in '\n'.join(updated_lines):
+        if "**Новых знаний получено:**" in "\n".join(updated_lines):
             for i, line in enumerate(updated_lines):
                 if "**Новых знаний получено:**" in line:
                     updated_lines.insert(i + 1, "- **Публикаций:** 5+")
@@ -702,11 +704,11 @@ def update_knowledge_base(name: str, role: str, kb_path: Path):
                     updated_lines.insert(i + 3, "- **Инноваций:** 15+")
                     updated_lines.insert(i + 4, "- **Уровень экспертизы:** ⭐⭐⭐⭐⭐ МАКСИМУМ")
                     break
-        
-        content = '\n'.join(updated_lines)
-    
+
+        content = "\n".join(updated_lines)
+
     # Сохраняем обновленную базу знаний
-    kb_path.write_text(content, encoding='utf-8')
+    kb_path.write_text(content, encoding="utf-8")
     return True
 
 
@@ -715,17 +717,17 @@ def update_learning_program(name: str, role: str, program_path: Path):
     if not program_path.exists():
         print(f"⚠️ Программа обучения не найдена: {program_path}")
         return False
-    
-    content = program_path.read_text(encoding='utf-8')
-    
+
+    content = program_path.read_text(encoding="utf-8")
+
     # Добавляем секцию максимума
     if "## 🔥 МАКСИМАЛЬНЫЙ УРОВЕНЬ" not in content:
         innovations = INNOVATION_TECHNIQUES.get(role, [])
         publications = PUBLICATIONS.get(role, [])
         mentorship = MENTORSHIP.get(role, [])
         awards = AWARDS.get(role, [])
-        
-        maximum_section = f"""
+
+        maximum_section = """
 ---
 
 ## 🔥 МАКСИМАЛЬНЫЙ УРОВЕНЬ
@@ -749,35 +751,35 @@ def update_learning_program(name: str, role: str, program_path: Path):
 
 ### Передовые техники:
 """
-        
+
         if innovations:
             for innovation in innovations[:5]:
                 maximum_section += f"- ✅ {innovation}\n"
-        
+
         maximum_section += "\n## 📝 ПУБЛИКАЦИИ\n\n"
-        
+
         if publications:
             for pub in publications:
                 maximum_section += f"- ✅ {pub}\n"
         else:
             maximum_section += "- ✅ Готовность к публикациям\n"
-        
+
         maximum_section += "\n## 👨‍🏫 МЕНТОРСТВО\n\n"
-        
+
         if mentorship:
             for ment in mentorship:
                 maximum_section += f"- ✅ {ment}\n"
         else:
             maximum_section += "- ✅ Готовность к менторству\n"
-        
+
         maximum_section += "\n## 🏆 НАГРАДЫ\n\n"
-        
+
         if awards:
             for award in awards:
                 maximum_section += f"- ✅ {award}\n"
         else:
             maximum_section += "- ✅ Признание экспертизы\n"
-        
+
         maximum_section += """
 ## 📈 МЕТРИКИ МАКСИМАЛЬНОГО УРОВНЯ
 
@@ -790,22 +792,22 @@ def update_learning_program(name: str, role: str, program_path: Path):
 - **Инноваций:** 15+
 - **Уровень экспертизы:** ⭐⭐⭐⭐⭐ МАКСИМУМ
 """
-        
+
         # Добавляем в конец файла
         content = content.rstrip() + "\n" + maximum_section
-    
+
     # Сохраняем обновленную программу
-    program_path.write_text(content, encoding='utf-8')
+    program_path.write_text(content, encoding="utf-8")
     return True
 
 
 def main():
     """Главная функция"""
     print("🔥 Обновление обучения до АБСОЛЮТНОГО МАКСИМУМА...")
-    
+
     scripts_dir = Path(__file__).parent
     learning_programs_dir = scripts_dir / "learning_programs"
-    
+
     TEAM_MEMBERS = [
         ("Виктория", "Team Lead"),
         ("Дмитрий", "ML Engineer"),
@@ -830,31 +832,30 @@ def main():
         ("Артем", "Code Reviewer"),
         ("Анастасия", "Product Manager"),
     ]
-    
+
     updated_kb = 0
     updated_programs = 0
-    
+
     for name, role in TEAM_MEMBERS:
         file_name = NAME_MAPPING.get(name, name.lower())
         kb_path = scripts_dir / f"{file_name}_knowledge.md"
         program_path = learning_programs_dir / f"{file_name}_program.md"
-        
+
         if update_knowledge_base(name, role, kb_path):
             updated_kb += 1
             print(f"✅ Обновлена база знаний: {name} ({role})")
-        
+
         if update_learning_program(name, role, program_path):
             updated_programs += 1
             print(f"✅ Обновлена программа: {name} ({role})")
-    
+
     print(f"\n🔥 Обновлено баз знаний: {updated_kb}/{len(TEAM_MEMBERS)}")
     print(f"🔥 Обновлено программ: {updated_programs}/{len(TEAM_MEMBERS)}")
     print("🌟 Все сотрудники достигли АБСОЛЮТНОГО МАКСИМУМА!")
     print("📊 Теперь запустите: python3 scripts/check_learning_progress.py")
-    
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

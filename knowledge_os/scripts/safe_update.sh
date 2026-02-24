@@ -102,4 +102,3 @@ echo ""
 echo "🔄 Не забудьте перезапустить бота:"
 echo "   pkill -9 -f main.py && nohup python3 main.py > main.log 2>&1 &"
 echo ""
-

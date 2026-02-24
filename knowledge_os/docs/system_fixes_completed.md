@@ -7,11 +7,13 @@
 **Файл:** `signal_risk_improvements.py`
 
 #### **БЫЛО:**
+
 ```python
 reserve = deposit * 0.15  # 15% резерв для всех
 ```
 
 #### **СТАЛО:**
+
 ```python
 # Адаптивный резерв по размеру депозита
 if deposit <= 1000:
@@ -31,11 +33,13 @@ reserve = deposit * reserve_pct
 **Файл:** `dca_improvements.py`
 
 #### **БЫЛО:**
+
 ```python
 avg_entry_price = sum(p * q for p, q in zip(entry_prices, qtys)) / sum(qtys)
 ```
 
 #### **СТАЛО:**
+
 ```python
 # Правильный расчет средней цены для DCA
 if not entry_prices or not qtys or len(entry_prices) != len(qtys):
@@ -53,11 +57,13 @@ else:
 **Файл:** `price_monitor_system.py`
 
 #### **БЫЛО:**
+
 ```python
 SELECT DISTINCT user_id, symbol, entry, tp1, tp2...
 ```
 
 #### **СТАЛО:**
+
 ```python
 SELECT user_id, symbol, entry, tp1, tp2...
 GROUP BY user_id, symbol  -- Группируем по пользователю и символу
@@ -70,12 +76,14 @@ GROUP BY user_id, symbol  -- Группируем по пользователю 
 **Файл:** `price_monitor_system.py`
 
 #### **БЫЛО:**
+
 ```python
 profit_50pct = (current_price - tp1) * 0.5  # НЕПРАВИЛЬНО!
 profit_100pct = (current_price - tp2) * 1.0  # НЕПРАВИЛЬНО!
 ```
 
 #### **СТАЛО:**
+
 ```python
 # Правильный расчет прибыли для 50% позиции
 total_qty = qty_added or 0
@@ -92,6 +100,7 @@ profit_100pct = (current_price - entry_price) * total_qty
 **Файл:** `signal_risk_improvements.py`
 
 #### **БЫЛО:**
+
 ```python
 volatility_factor = max(0.5, 1.0 - (volatility * 0.3))  # Неограниченно
 trend_factor = 1.0 + (abs(trend_strength) * 0.1)  # Неограниченно
@@ -99,6 +108,7 @@ max_leverage_safe = min(max_leverage, 20)  # Слишком высоко
 ```
 
 #### **СТАЛО:**
+
 ```python
 # Ограниченные множители для безопасности
 volatility_factor = max(0.7, 1.0 - (volatility * 0.2))  # Максимум 30% снижение

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
-from monitoring.infra_metrics import InfraMetricsStore, compute_metrics, should_alert, InfraTargets
+
+from monitoring.infra_metrics import InfraMetricsStore, InfraTargets, compute_metrics, should_alert
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("infra_monitor")
@@ -22,6 +23,7 @@ def main() -> None:
         # Optional: Telegram/alert integration
         try:
             from alert_notifications import get_alert_service
+
             svc = get_alert_service()
             svc.alert_system(f"INFRA ALERT: {msg}")
         except Exception:
@@ -32,5 +34,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

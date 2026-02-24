@@ -47,14 +47,14 @@ if [[ "$CURRENT_STATUS" == "On" ]]; then
 else
     echo "2️⃣ Включение SSH..."
     systemsetup -setremotelogin on
-    
+
     if [[ $? -eq 0 ]]; then
         echo "✅ SSH успешно включен!"
-        
+
         echo ""
         echo "3️⃣ Проверка файрвола..."
         FIREWALL_STATE=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null | grep -i "enabled" || echo "disabled")
-        
+
         if [[ "$FIREWALL_STATE" == *"enabled"* ]]; then
             echo "   Файрвол включен, разрешаю SSH..."
             /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd 2>/dev/null || true
@@ -63,7 +63,7 @@ else
         else
             echo "   Файрвол отключен, пропускаю"
         fi
-        
+
         echo ""
         echo "4️⃣ Проверка порта 22..."
         sleep 2

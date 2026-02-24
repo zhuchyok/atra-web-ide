@@ -13,6 +13,7 @@ logger = None
 
 try:
     import logging
+
     logger = logging.getLogger(__name__)
 except Exception:
     pass
@@ -21,6 +22,7 @@ except Exception:
 @dataclass
 class OrchestrationMetrics:
     """Метрики одной задачи оркестрации."""
+
     task_id: str
     phase_durations: Dict[str, float] = field(default_factory=dict)
     subtasks_created: int = 0
@@ -86,14 +88,25 @@ class OrchestrationMonitor:
         self.daily_stats["tasks_processed"] += 1
         self.daily_stats["by_task_type"][task_type or "unknown"] += 1
         all_durations = [x.total_duration for x in self.metrics.values() if x.total_duration]
-        self.daily_stats["avg_duration"] = sum(all_durations) / len(all_durations) if all_durations else 0.0
+        self.daily_stats["avg_duration"] = (
+            sum(all_durations) / len(all_durations) if all_durations else 0.0
+        )
         successful = sum(1 for x in self.metrics.values() if x.success)
         self.daily_stats["success_rate"] = successful / len(self.metrics) if self.metrics else 0.0
 
     def get_metrics_for_grafana(self) -> Dict:
         """Метрики в формате для Prometheus/Grafana."""
         n = len(self.metrics)
-        phase_names = ["receive", "analyze", "decompose", "strategy", "experts", "check_models", "create_subtasks", "assign_executors"]
+        phase_names = [
+            "receive",
+            "analyze",
+            "decompose",
+            "strategy",
+            "experts",
+            "check_models",
+            "create_subtasks",
+            "assign_executors",
+        ]
         phase_durations = {}
         for p in phase_names:
             vals = [m.phase_durations.get(p, 0) for m in self.metrics.values()]
@@ -103,8 +116,12 @@ class OrchestrationMonitor:
             "orchestration_avg_duration_seconds": self.daily_stats["avg_duration"],
             "orchestration_success_rate": self.daily_stats["success_rate"],
             "orchestration_phase_durations": phase_durations,
-            "subtasks_per_task_avg": sum(m.subtasks_created for m in self.metrics.values()) / n if n else 0,
-            "experts_per_task_avg": sum(m.experts_assigned for m in self.metrics.values()) / n if n else 0,
+            "subtasks_per_task_avg": sum(m.subtasks_created for m in self.metrics.values()) / n
+            if n
+            else 0,
+            "experts_per_task_avg": sum(m.experts_assigned for m in self.metrics.values()) / n
+            if n
+            else 0,
         }
 
     async def export_to_prometheus(self) -> str:

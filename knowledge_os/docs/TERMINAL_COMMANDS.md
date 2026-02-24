@@ -3,11 +3,13 @@
 ## 🚀 Управление ботом:
 
 ### Перезапуск бота (чистый):
+
 ```bash
 ./restart_bot_clean.sh
 ```
 
 ### Проверка статуса:
+
 ```bash
 # Сколько процессов запущено
 ps aux | grep main.py | grep -v grep | wc -l
@@ -20,6 +22,7 @@ ps aux | grep main.py | grep -v grep | awk '{print $2}'
 ```
 
 ### Остановка бота:
+
 ```bash
 # Мягкая остановка
 pkill -f main.py
@@ -29,6 +32,7 @@ pkill -9 -f main.py
 ```
 
 ### Запуск бота:
+
 ```bash
 nohup python3 main.py > main.log 2>&1 &
 ```
@@ -38,21 +42,25 @@ nohup python3 main.py > main.log 2>&1 &
 ## 📝 Мониторинг логов:
 
 ### Основные логи в реальном времени:
+
 ```bash
 tail -f system_improved.log
 ```
 
 ### Логи запуска:
+
 ```bash
 tail -f main.log
 ```
 
 ### Последние 50 строк:
+
 ```bash
 tail -50 system_improved.log
 ```
 
 ### Поиск по логам:
+
 ```bash
 # Найти сигналы
 grep "candidate" system_improved.log | tail -20
@@ -69,6 +77,7 @@ grep "WARNING" system_improved.log | tail -20
 ## 🔍 Проверка сигналов:
 
 ### Проверить сигналы за сегодня:
+
 ```bash
 python3 -c "
 import sqlite3
@@ -85,6 +94,7 @@ conn.close()
 ```
 
 ### Последние сигналы из логов:
+
 ```bash
 tail -100 system_improved.log | grep "candidate"
 ```
@@ -94,16 +104,19 @@ tail -100 system_improved.log | grep "candidate"
 ## 📊 Мониторинг системы:
 
 ### Запустить мониторинг:
+
 ```bash
 python3 terminal_monitor.py
 ```
 
 ### Простой мониторинг:
+
 ```bash
 watch -n 5 'ps aux | grep main.py | grep -v grep'
 ```
 
 ### Статистика процесса:
+
 ```bash
 # CPU и память
 top -pid $(ps aux | grep main.py | grep -v grep | head -1 | awk '{print $2}')
@@ -114,11 +127,13 @@ top -pid $(ps aux | grep main.py | grep -v grep | head -1 | awk '{print $2}')
 ## 🗄️ Работа с базой данных:
 
 ### Открыть базу:
+
 ```bash
 sqlite3 trading.db
 ```
 
 ### Быстрые запросы:
+
 ```bash
 # Количество сигналов
 sqlite3 trading.db "SELECT COUNT(*) FROM signals"
@@ -135,16 +150,19 @@ sqlite3 trading.db "SELECT COUNT(*) FROM active_signals WHERE status='active'"
 ## 🔧 Отладка:
 
 ### Проверить, работает ли Telegram бот:
+
 ```bash
 python3 check_telegram_bot.py
 ```
 
 ### Проверить структуру базы:
+
 ```bash
 python3 check_database_structure.py
 ```
 
 ### Проверить активность бота:
+
 ```bash
 python3 check_bot_activity.py
 ```
@@ -154,11 +172,13 @@ python3 check_bot_activity.py
 ## 💾 Бэкапы:
 
 ### Создать бэкап базы:
+
 ```bash
 cp trading.db "trading_backup_$(date +%Y%m%d_%H%M%S).db"
 ```
 
 ### Список бэкапов:
+
 ```bash
 ls -lh backups/
 ```
@@ -168,6 +188,7 @@ ls -lh backups/
 ## 🎯 Быстрые проверки:
 
 ### Всё в одном:
+
 ```bash
 echo "=== СТАТУС СИСТЕМЫ ==="
 echo "Процессы: $(ps aux | grep main.py | grep -v grep | wc -l)"

@@ -21,4 +21,3 @@ COMMENT ON COLUMN anomaly_detection_logs.anomaly_type IS 'Тип аномали�
 COMMENT ON COLUMN anomaly_detection_logs.severity IS 'Серьезность аномалии (high, medium, low)';
 COMMENT ON COLUMN anomaly_detection_logs.description IS 'Описание аномалии';
 COMMENT ON COLUMN anomaly_detection_logs.metadata IS 'Дополнительные данные аномалии в формате JSON';
-

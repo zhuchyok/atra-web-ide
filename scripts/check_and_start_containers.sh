@@ -47,7 +47,7 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
     echo "   Текущий статус:"
     docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -v "level=warning" || true
     echo ""
-    
+
     # Singularity 15.0: Open WebUI (ask_victoria → Victoria) — поднимаем вместе с Victoria
     if ! docker ps --format "{{.Names}}" | grep -q "^open-webui$"; then
         echo "   🚀 Запуск Open WebUI (Singularity 15.0)..."
@@ -63,10 +63,10 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
         echo "   ⏳ Ожидание Victoria (10 сек)..."
         sleep 10
     fi
-    
+
     # Проверка, какие контейнеры не запущены (up -d поднимает остановленные)
     NOT_RUNNING=$(docker-compose -f knowledge_os/docker-compose.yml ps 2>&1 | grep -E "Exit|Created|Stopped" | wc -l || echo "0")
-    
+
     if [ "$NOT_RUNNING" -gt 0 ]; then
         echo "   ⚠️  Найдено не запущенных контейнеров: $NOT_RUNNING"
         echo "   🚀 Запуск контейнеров..."

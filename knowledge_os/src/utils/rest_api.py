@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 REST API для управления торговым ботом ATRA (FastAPI версия)
 Асинхронный, не блокирует event loop
 """
 
 import logging
-from typing import Dict, Any
 from datetime import datetime
-from src.shared.utils.datetime_utils import get_utc_now
+from typing import Any, Dict
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import uvicorn
+
+from src.shared.utils.datetime_utils import get_utc_now
 
 logger = logging.getLogger(__name__)
 
 # Rate limiting
 try:
     from rest_api_rate_limiter import RateLimitMiddleware
+
     RATE_LIMITING_AVAILABLE = True
 except ImportError:
     RATE_LIMITING_AVAILABLE = False
@@ -31,7 +33,7 @@ app = FastAPI(
     description="REST API для управления торговым ботом ATRA",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    openapi_url="/api/openapi.json",
 )
 
 # Rate limiting middleware (если доступен)
@@ -66,20 +68,16 @@ class StatusResponse(BaseModel):
     response_model=HealthResponse,
     summary="Health Check",
     description="Проверка здоровья API. Этот endpoint не учитывается в rate limiting.",
-    tags=["System"]
+    tags=["System"],
 )
 async def get_health():
     """
     Проверка здоровья API
-    
+
     Возвращает статус API и текущее время.
     Этот endpoint не учитывается в rate limiting для мониторинга.
     """
-    return {
-        "status": "healthy",
-        "timestamp": get_utc_now().isoformat(),
-        "uptime": "running"
-    }
+    return {"status": "healthy", "timestamp": get_utc_now().isoformat(), "uptime": "running"}
 
 
 @app.get(
@@ -87,12 +85,12 @@ async def get_health():
     response_model=StatusResponse,
     summary="System Status",
     description="Получить статус всех компонентов системы",
-    tags=["System"]
+    tags=["System"],
 )
 async def get_system_status():
     """
     Статус системы
-    
+
     Возвращает статус всех компонентов системы:
     - telegram_bot: Статус Telegram бота
     - signal_system: Статус системы генерации сигналов
@@ -102,20 +100,17 @@ async def get_system_status():
         components = {
             "telegram_bot": "running",
             "signal_system": "running",
-            "database": "connected"
+            "database": "connected",
         }
-        
+
         # Проверяем доступность компонентов
         try:
             # Простая проверка доступности бота
             components["telegram_bot"] = "running"
         except Exception:
             components["telegram_bot"] = "unknown"
-        
-        return {
-            "status": "operational",
-            "components": components
-        }
+
+        return {"status": "operational", "components": components}
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -135,17 +130,17 @@ async def get_system_status():
                         "total_trades": 100,
                         "win_rate": 0.65,
                         "total_pnl_usd": 1500.50,
-                        "sharpe_ratio": 1.8
+                        "sharpe_ratio": 1.8,
                     }
                 }
-            }
+            },
         }
-    }
+    },
 )
 async def get_metrics():
     """
     Метрики производительности
-    
+
     Возвращает основные метрики торговой производительности:
     - total_trades: Общее количество сделок
     - win_rate: Процент выигрышных сделок
@@ -156,17 +151,13 @@ async def get_metrics():
         # Пробуем получить метрики из performance_metrics_calculator
         try:
             from performance_metrics_calculator import get_metrics_calculator
+
             calculator = get_metrics_calculator()
             metrics = calculator.calculate_metrics()
             return metrics
         except Exception:
             # Fallback на базовые метрики
-            return {
-                "total_trades": 0,
-                "win_rate": 0,
-                "total_pnl_usd": 0,
-                "sharpe_ratio": 0
-            }
+            return {"total_trades": 0, "win_rate": 0, "total_pnl_usd": 0, "sharpe_ratio": 0}
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -188,20 +179,20 @@ async def get_metrics():
                                 "symbol": "BTCUSDT",
                                 "direction": "LONG",
                                 "entry_price": 50000.0,
-                                "status": "open"
+                                "status": "open",
                             }
                         ],
-                        "count": 1
+                        "count": 1,
                     }
                 }
-            }
+            },
         }
-    }
+    },
 )
 async def get_signals():
     """
     Получить активные сигналы
-    
+
     Возвращает список всех активных торговых сигналов:
     - symbol: Торговая пара
     - direction: Направление (LONG/SHORT)
@@ -211,32 +202,29 @@ async def get_signals():
     try:
         # Пробуем получить активные позиции напрямую из БД
         try:
-            import sqlite3
             import os
+            import sqlite3
+
             db_path = os.path.join(os.path.dirname(__file__), "trading.db")
             conn = sqlite3.connect(
-                f'file:{db_path}?mode=ro',
-                uri=True,
-                timeout=10.0,
-                check_same_thread=False
+                f"file:{db_path}?mode=ro", uri=True, timeout=10.0, check_same_thread=False
             )
             conn.execute("PRAGMA journal_mode=WAL;")
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol, direction, entry_price, status FROM active_positions WHERE status = 'open' LIMIT 100")
+            cursor.execute(
+                "SELECT symbol, direction, entry_price, status FROM active_positions WHERE status = 'open' LIMIT 100"
+            )
             rows = cursor.fetchall()
             conn.close()
-            
-            positions = [{"symbol": r[0], "direction": r[1], "entry_price": r[2], "status": r[3]} for r in rows]
-            return {
-                "signals": positions,
-                "count": len(positions)
-            }
+
+            positions = [
+                {"symbol": r[0], "direction": r[1], "entry_price": r[2], "status": r[3]}
+                for r in rows
+            ]
+            return {"signals": positions, "count": len(positions)}
         except Exception as e:
             logger.debug(f"Error getting signals: {e}")
-            return {
-                "signals": [],
-                "count": 0
-            }
+            return {"signals": [], "count": 0}
     except Exception as e:
         logger.error(f"Error getting signals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -246,9 +234,10 @@ def run_rest_api(host: str = "0.0.0.0", port: int = 8080, use_https: bool = Fals
     """Запуск REST API сервера"""
     try:
         import os
+
         ssl_keyfile = os.getenv("SSL_KEYFILE", "ssl/key.pem")
         ssl_certfile = os.getenv("SSL_CERTFILE", "ssl/cert.pem")
-        
+
         # Проверяем наличие SSL сертификатов
         if use_https:
             if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
@@ -260,21 +249,19 @@ def run_rest_api(host: str = "0.0.0.0", port: int = 8080, use_https: bool = Fals
                     log_level="info",
                     loop="asyncio",
                     ssl_keyfile=ssl_keyfile,
-                    ssl_certfile=ssl_certfile
+                    ssl_certfile=ssl_certfile,
                 )
             else:
-                logger.warning("⚠️ SSL сертификаты не найдены (%s, %s), используем HTTP", ssl_keyfile, ssl_certfile)
+                logger.warning(
+                    "⚠️ SSL сертификаты не найдены (%s, %s), используем HTTP",
+                    ssl_keyfile,
+                    ssl_certfile,
+                )
                 use_https = False
-        
+
         if not use_https:
             logger.info("🚀 Starting ATRA REST API on http://%s:%d", host, port)
-            uvicorn.run(
-                app,
-                host=host,
-                port=port,
-                log_level="info",
-                loop="asyncio"
-            )
+            uvicorn.run(app, host=host, port=port, log_level="info", loop="asyncio")
     except Exception as e:
         logger.error("Error starting REST API: %s", e)
 
@@ -283,11 +270,12 @@ async def run_rest_api_async(host: str = "0.0.0.0", port: int = 8080, use_https:
     """Запуск REST API в async режиме (для интеграции с main.py)"""
     try:
         import os
+
         ssl_keyfile = os.getenv("SSL_KEYFILE", "ssl/key.pem")
         ssl_certfile = os.getenv("SSL_CERTFILE", "ssl/cert.pem")
-        
+
         config = None
-        
+
         # Проверяем наличие SSL сертификатов
         if use_https:
             if os.path.exists(ssl_keyfile) and os.path.exists(ssl_certfile):
@@ -299,22 +287,20 @@ async def run_rest_api_async(host: str = "0.0.0.0", port: int = 8080, use_https:
                     log_level="info",
                     loop="asyncio",
                     ssl_keyfile=ssl_keyfile,
-                    ssl_certfile=ssl_certfile
+                    ssl_certfile=ssl_certfile,
                 )
             else:
-                logger.warning("⚠️ SSL сертификаты не найдены (%s, %s), используем HTTP", ssl_keyfile, ssl_certfile)
+                logger.warning(
+                    "⚠️ SSL сертификаты не найдены (%s, %s), используем HTTP",
+                    ssl_keyfile,
+                    ssl_certfile,
+                )
                 use_https = False
-        
+
         if not use_https or config is None:
             logger.info("🚀 Запуск REST API на http://%s:%d", host, port)
-            config = uvicorn.Config(
-                app,
-                host=host,
-                port=port,
-                log_level="info",
-                loop="asyncio"
-            )
-        
+            config = uvicorn.Config(app, host=host, port=port, log_level="info", loop="asyncio")
+
         server = uvicorn.Server(config)
         await server.serve()
     except Exception as e:

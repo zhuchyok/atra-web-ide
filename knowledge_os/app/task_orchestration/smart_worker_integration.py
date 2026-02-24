@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import asyncpg
+
     ASYNCPG_AVAILABLE = True
 except ImportError:
     asyncpg = None
@@ -27,7 +28,9 @@ except ImportError:
     except ImportError:
         SubTask = None
 
-DEFAULT_DB_URL = os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+DEFAULT_DB_URL = (
+    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+)
 
 
 class SmartWorkerIntegration:
@@ -41,10 +44,12 @@ class SmartWorkerIntegration:
         self._smart_worker = None
         try:
             from app.smart_worker_autonomous import SmartWorkerAutonomous
+
             self._smart_worker = SmartWorkerAutonomous()
         except Exception as e:
             try:
                 from smart_worker_autonomous import SmartWorkerAutonomous
+
                 self._smart_worker = SmartWorkerAutonomous()
             except Exception:
                 logger.debug("SmartWorkerAutonomous not available: %s", e)
@@ -80,11 +85,29 @@ class SmartWorkerIntegration:
             for st_id, st in subtasks.items():
                 assignment = expert_assignments.get(st_id, {})
                 expert_id = assignment.get("expert_id")
-                title = getattr(st, "title", None) or (st.get("title") if isinstance(st, dict) else "") or str(st_id)[:200]
-                description = getattr(st, "description", None) or (st.get("description") if isinstance(st, dict) else "") or ""
-                estimated_min = getattr(st, "estimated_duration_min", None) or (st.get("estimated_duration_min") if isinstance(st, dict) else None) or 30
-                required_models = getattr(st, "required_models", None) or (st.get("required_models") if isinstance(st, dict) else None)
-                metadata = {"source": "orchestrator_v2", "subtask_id": st_id, "parent_task_id": parent_task_id}
+                title = (
+                    getattr(st, "title", None)
+                    or (st.get("title") if isinstance(st, dict) else "")
+                    or str(st_id)[:200]
+                )
+                description = (
+                    getattr(st, "description", None)
+                    or (st.get("description") if isinstance(st, dict) else "")
+                    or ""
+                )
+                estimated_min = (
+                    getattr(st, "estimated_duration_min", None)
+                    or (st.get("estimated_duration_min") if isinstance(st, dict) else None)
+                    or 30
+                )
+                required_models = getattr(st, "required_models", None) or (
+                    st.get("required_models") if isinstance(st, dict) else None
+                )
+                metadata = {
+                    "source": "orchestrator_v2",
+                    "subtask_id": st_id,
+                    "parent_task_id": parent_task_id,
+                }
                 try:
                     row = await conn.fetchrow(
                         """
@@ -106,7 +129,11 @@ class SmartWorkerIntegration:
                         json.dumps(required_models) if required_models else None,
                     )
                 except Exception as e:
-                    if "estimated_duration_min" in str(e) or "required_models" in str(e) or "column" in str(e).lower():
+                    if (
+                        "estimated_duration_min" in str(e)
+                        or "required_models" in str(e)
+                        or "column" in str(e).lower()
+                    ):
                         row = await conn.fetchrow(
                             """
                             INSERT INTO tasks (
@@ -153,7 +180,9 @@ class SmartWorkerIntegration:
         if self._smart_worker and expert_assignments:
             try:
                 if dependency_graph and getattr(dependency_graph, "subtasks", None):
-                    return await self._execute_complex_plan(task_id, expert_assignments, dependency_graph, created_ids)
+                    return await self._execute_complex_plan(
+                        task_id, expert_assignments, dependency_graph, created_ids
+                    )
                 return await self._execute_simple_plan(task_id, expert_assignments)
             except Exception as e:
                 logger.debug("Smart Worker execution failed: %s", e)
@@ -165,18 +194,37 @@ class SmartWorkerIntegration:
             "assignments_count": len(expert_assignments),
         }
 
-    async def _execute_simple_plan(self, task_id: str, expert_assignments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_simple_plan(
+        self, task_id: str, expert_assignments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         main = expert_assignments.get(task_id) or expert_assignments.get("main")
         if not main or not self._smart_worker:
-            return {"task_id": task_id, "type": "simple", "success": False, "reason": "no_assignment"}
+            return {
+                "task_id": task_id,
+                "type": "simple",
+                "success": False,
+                "reason": "no_assignment",
+            }
         if hasattr(self._smart_worker, "process_single"):
-            result = await self._smart_worker.process_single({
-                "id": task_id,
-                "expert_id": main.get("expert_id"),
-                "description": "",
-            })
-            return {"task_id": task_id, "type": "simple", "success": result.get("success", False), "result": result}
-        return {"task_id": task_id, "type": "simple", "success": False, "reason": "process_single_not_available"}
+            result = await self._smart_worker.process_single(
+                {
+                    "id": task_id,
+                    "expert_id": main.get("expert_id"),
+                    "description": "",
+                }
+            )
+            return {
+                "task_id": task_id,
+                "type": "simple",
+                "success": result.get("success", False),
+                "result": result,
+            }
+        return {
+            "task_id": task_id,
+            "type": "simple",
+            "success": False,
+            "reason": "process_single_not_available",
+        }
 
     async def _execute_complex_plan(
         self,
@@ -192,11 +240,13 @@ class SmartWorkerIntegration:
                 if st_id in expert_assignments and hasattr(self._smart_worker, "process_single"):
                     st = dependency_graph.subtasks.get(st_id)
                     desc = getattr(st, "description", "") if st else ""
-                    result = await self._smart_worker.process_single({
-                        "id": st_id,
-                        "expert_id": expert_assignments[st_id].get("expert_id"),
-                        "description": desc,
-                    })
+                    result = await self._smart_worker.process_single(
+                        {
+                            "id": st_id,
+                            "expert_id": expert_assignments[st_id].get("expert_id"),
+                            "description": desc,
+                        }
+                    )
                     results[st_id] = result
         return {
             "task_id": task_id,

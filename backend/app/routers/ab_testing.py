@@ -1,6 +1,7 @@
 """
 Эндпоинты A/B тестирования (День 6–7, Фаза 3).
 """
+
 import logging
 from typing import Any, Dict, List
 
@@ -35,15 +36,17 @@ async def list_experiments(
     """Список всех экспериментов."""
     experiments = []
     for name, exp in ab_testing.experiments.items():
-        experiments.append({
-            "name": name,
-            "description": exp.description,
-            "enabled": exp.enabled,
-            "variants": exp.variants,
-            "parameters": exp.parameters,
-            "start_date": exp.start_date.isoformat() if exp.start_date else None,
-            "end_date": exp.end_date.isoformat() if exp.end_date else None,
-        })
+        experiments.append(
+            {
+                "name": name,
+                "description": exp.description,
+                "enabled": exp.enabled,
+                "variants": exp.variants,
+                "parameters": exp.parameters,
+                "start_date": exp.start_date.isoformat() if exp.start_date else None,
+                "end_date": exp.end_date.isoformat() if exp.end_date else None,
+            }
+        )
     return experiments
 
 

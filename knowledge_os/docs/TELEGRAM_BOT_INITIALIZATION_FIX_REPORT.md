@@ -11,6 +11,7 @@ RuntimeError: ExtBot is not properly initialized. Call `ExtBot.initialize` befor
 ## 🔍 **Анализ**
 
 ### **Старый код (проблемный):**
+
 ```python
 await _application.initialize()
 await _application.start()           # ❌ Вызывал ошибку
@@ -18,6 +19,7 @@ await _application.updater.start_polling()
 ```
 
 ### **Проблема:**
+
 - `_application.start()` пытался получить доступ к `self.bot.id`
 - Но бот еще не был полностью инициализирован
 - Это вызывало `RuntimeError: ExtBot is not properly initialized`
@@ -25,6 +27,7 @@ await _application.updater.start_polling()
 ## ✅ **Решение**
 
 ### **Новый код (исправленный):**
+
 ```python
 await _application.initialize()
 # Проверяем инициализацию бота
@@ -46,11 +49,13 @@ await _application.updater.start_polling(drop_pending_updates=True)
 ## 🎯 **Результат**
 
 ### **До исправления:**
+
 ```
 ❌ Ошибка запуска Telegram бота: ExtBot is not properly initialized
 ```
 
 ### **После исправления:**
+
 ```
 ✅ Application инициализирован
 ✅ Bot инициализирован
@@ -61,11 +66,13 @@ await _application.updater.start_polling(drop_pending_updates=True)
 ## 📊 **Технические детали**
 
 ### **Порядок инициализации в новых версиях:**
+
 1. `Application.initialize()` - инициализирует приложение и бота
 2. `Application.updater.start_polling()` - запускает polling и приложение
 3. `Application.start()` - больше не нужен отдельно
 
 ### **Проверки безопасности:**
+
 - ✅ Проверка инициализации бота
 - ✅ Задержка для стабилизации
 - ✅ Retry логика с экспоненциальной задержкой
@@ -80,6 +87,7 @@ await _application.updater.start_polling(drop_pending_updates=True)
 ## 🔄 **Следующие шаги**
 
 1. **Перезапустить систему:**
+
    ```bash
    python3 main.py
    ```

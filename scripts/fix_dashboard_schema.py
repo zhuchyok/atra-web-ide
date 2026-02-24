@@ -26,7 +26,7 @@ def main():
 
         # usage_count
         cur.execute("""
-            SELECT column_name FROM information_schema.columns 
+            SELECT column_name FROM information_schema.columns
             WHERE table_name = 'knowledge_nodes' AND column_name = 'usage_count'
         """)
         if cur.fetchone() is None:
@@ -38,7 +38,7 @@ def main():
 
         # is_verified
         cur.execute("""
-            SELECT column_name FROM information_schema.columns 
+            SELECT column_name FROM information_schema.columns
             WHERE table_name = 'knowledge_nodes' AND column_name = 'is_verified'
         """)
         if cur.fetchone() is None:

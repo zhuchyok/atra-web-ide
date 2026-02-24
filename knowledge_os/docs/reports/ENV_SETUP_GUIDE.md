@@ -13,11 +13,13 @@
 ### 1. Скопируйте нужный файл как .env
 
 **Для разработки:**
+
 ```bash
 cp env.dev .env
 ```
 
 **Для продакшена:**
+
 ```bash
 cp env.prod .env
 ```
@@ -57,6 +59,7 @@ BSCSCAN_API_KEY=your_real_api_key_here
 ## 📊 Различия между dev и prod
 
 ### DEV (env.dev):
+
 - Быстрые интервалы обновления
 - Короткие кулдауны
 - Включены алерты
@@ -64,6 +67,7 @@ BSCSCAN_API_KEY=your_real_api_key_here
 - Отдельная база данных (`trading_dev.db`)
 
 ### PROD (env.prod):
+
 - Стабильные интервалы
 - Длинные кулдауны
 - Отключены алерты
@@ -73,11 +77,13 @@ BSCSCAN_API_KEY=your_real_api_key_here
 ## 🔐 Безопасность
 
 ### ⚠️ ВАЖНО:
+
 - Никогда не коммитьте .env файлы в git
 - Храните API ключи в безопасном месте
 - Используйте разные токены для dev и prod
 
 ### .gitignore уже настроен:
+
 ```
 .env
 .env.*
@@ -86,21 +92,25 @@ BSCSCAN_API_KEY=your_real_api_key_here
 ## 🛠️ Получение API ключей
 
 ### Telegram Bot:
+
 1. Напишите @BotFather в Telegram
 2. Создайте нового бота: `/newbot`
 3. Скопируйте полученный токен
 
 ### CryptoPanic:
+
 1. Зарегистрируйтесь на https://cryptopanic.com/
 2. Перейдите в API settings
 3. Создайте новый API ключ
 
 ### TradingView:
+
 1. Зарегистрируйтесь на https://tradingview.com/
 2. Перейдите в настройки профиля
 3. Создайте API ключ
 
 ### Blockchain Explorers:
+
 - **Etherscan**: https://etherscan.io/apis
 - **BSCScan**: https://bscscan.com/apis
 - **PolygonScan**: https://polygonscan.com/apis
@@ -109,18 +119,21 @@ BSCSCAN_API_KEY=your_real_api_key_here
 ## 🔄 Переключение окружений
 
 ### Для разработки:
+
 ```bash
 cp env.dev .env
 python main.py
 ```
 
 ### Для продакшена:
+
 ```bash
 cp env.prod .env
 python main.py
 ```
 
 ### Или установите переменную напрямую:
+
 ```bash
 ATRA_ENV=dev python main.py
 ATRA_ENV=prod python main.py
@@ -129,9 +142,11 @@ ATRA_ENV=prod python main.py
 ## 📝 Кастомизация
 
 ### Изменение настроек:
+
 Отредактируйте соответствующий env файл (dev/prod) или создайте свой .env
 
 ### Добавление новых переменных:
+
 1. Добавьте в config.py: `NEW_VAR = os.getenv("NEW_VAR", "default_value")`
 2. Добавьте в env.example и соответствующие env файлы
 3. Обновите документацию
@@ -139,15 +154,19 @@ ATRA_ENV=prod python main.py
 ## 🚨 Troubleshooting
 
 ### Проблема: "TELEGRAM_TOKEN not found"
+
 **Решение:** Убедитесь, что в .env файле указан правильный токен
 
 ### Проблема: "Database connection failed"
+
 **Решение:** Проверьте путь к базе данных в DATABASE
 
 ### Проблема: "API key invalid"
+
 **Решение:** Проверьте правильность API ключей
 
 ### Проблема: "Chat ID not found"
+
 **Решение:** Убедитесь, что TELEGRAM_CHAT_IDS содержит правильные ID
 
 ## 📚 Дополнительная информация

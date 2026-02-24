@@ -221,10 +221,10 @@ def get_prompt_template(role: str) -> str:
     Получает шаблон промпта для роли.
     Для Виктории/Team Lead добавляет блок «услуги сотрудников» для точного делегирования и планирования.
     Fallback: если роли нет в PROMPT_TEMPLATES — загрузка system_prompt из БД (автономные эксперты).
-    
+
     Args:
         role: Имя роли или имя эксперта (Павел/Мария/Максим/...)
-    
+
     Returns:
         str: Шаблон промпта
     """
@@ -240,6 +240,7 @@ def get_prompt_template(role: str) -> str:
     # Fallback: system_prompt из БД для неизвестных экспертов (автономный найм)
     try:
         from expert_services import get_expert_system_prompt
+
         db_prompt = get_expert_system_prompt(role)
         if db_prompt and len(db_prompt.strip()) > 50:
             return db_prompt
@@ -255,24 +256,22 @@ def get_prompt_template(role: str) -> str:
     return out
 
 
-def format_prompt(template: str, task: str, context: str, constraints: str = "Нет", preferences: str = "Нет") -> str:
+def format_prompt(
+    template: str, task: str, context: str, constraints: str = "Нет", preferences: str = "Нет"
+) -> str:
     """
     Форматирует промпт из шаблона
-    
+
     Args:
         template: Шаблон промпта
         task: Задача
         context: Контекст
         constraints: Ограничения
         preferences: Предпочтения
-    
+
     Returns:
         str: Отформатированный промпт
     """
     return template.format(
-        task=task,
-        context=context,
-        constraints=constraints,
-        preferences=preferences
+        task=task, context=context, constraints=constraints, preferences=preferences
     )
-

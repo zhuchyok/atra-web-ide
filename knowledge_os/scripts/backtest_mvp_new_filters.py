@@ -11,15 +11,16 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.run_advanced_backtest import AdvancedBacktest
-from data.historical_data_loader import HistoricalDataLoader
 import pandas as pd
+
+from data.historical_data_loader import HistoricalDataLoader
+from scripts.run_advanced_backtest import AdvancedBacktest
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -53,20 +54,25 @@ async def run_backtest_with_filters(
 ) -> Dict[str, Any]:
     """
     Запускает бэктест для одного символа с указанными фильтрами
-    
+
     Args:
         symbol: Торговый символ
         start_date: Начальная дата
         end_date: Конечная дата
         use_new_filters: Использовать ли новые фильтры (Dominance + Interest Zone)
-    
+
     Returns:
         Dict с результатами бэктеста
     """
     try:
-        logger.info("📊 Бэктест %s: %s -> %s (фильтры: %s)",
-                   symbol, start_date.date(), end_date.date(), "ВКЛ" if use_new_filters else "ВЫКЛ")
-        
+        logger.info(
+            "📊 Бэктест %s: %s -> %s (фильтры: %s)",
+            symbol,
+            start_date.date(),
+            end_date.date(),
+            "ВКЛ" if use_new_filters else "ВЫКЛ",
+        )
+
         # Временно устанавливаем переменные окружения для фильтров
         if use_new_filters:
             os.environ["USE_DOMINANCE_TREND_FILTER"] = "true"
@@ -74,21 +80,19 @@ async def run_backtest_with_filters(
         else:
             os.environ.pop("USE_DOMINANCE_TREND_FILTER", None)
             os.environ.pop("USE_INTEREST_ZONE_FILTER", None)
-        
+
         # Перезагружаем config для применения изменений
         import importlib
+
         import config
+
         importlib.reload(config)
-        
+
         # Загружаем исторические данные
         async with HistoricalDataLoader(exchange="binance") as loader:
             # Загружаем данные для символа
-            symbol_data = await loader.fetch_ohlcv(
-                symbol=symbol,
-                interval="1h",
-                days=BACKTEST_DAYS
-            )
-            
+            symbol_data = await loader.fetch_ohlcv(symbol=symbol, interval="1h", days=BACKTEST_DAYS)
+
             if symbol_data is None or len(symbol_data) == 0:
                 logger.warning("⚠️ Недостаточно данных для %s", symbol)
                 return {
@@ -101,12 +105,14 @@ async def run_backtest_with_filters(
                     "sortino_ratio": 0.0,
                     "max_drawdown": 0.0,
                 }
-            
+
             # Конвертируем в DataFrame
-            df = pd.DataFrame(symbol_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            
+            df = pd.DataFrame(
+                symbol_data, columns=["timestamp", "open", "high", "low", "close", "volume"]
+            )
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            df.set_index("timestamp", inplace=True)
+
             # Загружаем данные BTC (обязательно для фильтров)
             btc_data = await loader.fetch_ohlcv("BTCUSDT", interval="1h", days=BACKTEST_DAYS)
             if btc_data is None or len(btc_data) == 0:
@@ -121,11 +127,13 @@ async def run_backtest_with_filters(
                     "sortino_ratio": 0.0,
                     "max_drawdown": 0.0,
                 }
-            
-            btc_df = pd.DataFrame(btc_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            btc_df['timestamp'] = pd.to_datetime(btc_df['timestamp'], unit='ms')
-            btc_df.set_index('timestamp', inplace=True)
-        
+
+            btc_df = pd.DataFrame(
+                btc_data, columns=["timestamp", "open", "high", "low", "close", "volume"]
+            )
+            btc_df["timestamp"] = pd.to_datetime(btc_df["timestamp"], unit="ms")
+            btc_df.set_index("timestamp", inplace=True)
+
         if len(df) < 100:
             logger.warning("⚠️ Недостаточно данных для %s (%d свечей)", symbol, len(df))
             return {
@@ -138,14 +146,14 @@ async def run_backtest_with_filters(
                 "sortino_ratio": 0.0,
                 "max_drawdown": 0.0,
             }
-        
+
         # Создаем экземпляр бэктеста
         backtest = AdvancedBacktest(
             initial_balance=INITIAL_BALANCE,
             risk_per_trade=RISK_PER_TRADE,
             leverage=LEVERAGE,
         )
-        
+
         # Запускаем бэктест
         await backtest.run_backtest(
             symbol=symbol,
@@ -153,10 +161,10 @@ async def run_backtest_with_filters(
             btc_df=btc_df,
             days=BACKTEST_DAYS,
         )
-        
+
         # Получаем метрики
         metrics = backtest.calculate_metrics()
-        
+
         # Извлекаем метрики
         total_trades = metrics.get("total_trades", 0)
         win_rate = metrics.get("win_rate", 0.0)
@@ -168,10 +176,10 @@ async def run_backtest_with_filters(
         max_drawdown_pct = metrics.get("max_drawdown_pct", 0.0)
         profit_factor = metrics.get("profit_factor", 0.0)
         final_balance = backtest.current_balance
-        
+
         winning_trades = metrics.get("winning_trades", 0)
         losing_trades = metrics.get("losing_trades", 0)
-        
+
         return {
             "symbol": symbol,
             "trades_count": total_trades,
@@ -187,7 +195,7 @@ async def run_backtest_with_filters(
             "max_drawdown_pct": max_drawdown_pct,
             "profit_factor": profit_factor,
         }
-        
+
     except Exception as e:
         logger.error("❌ Ошибка бэктеста для %s: %s", symbol, e, exc_info=True)
         return {
@@ -214,19 +222,19 @@ async def run_comparison_backtest():
     logger.info("Риск на сделку: %.1f%%", RISK_PER_TRADE)
     logger.info("Плечо: %.1fx", LEVERAGE)
     logger.info("")
-    
+
     # Определяем даты
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=BACKTEST_DAYS)
-    
+
     logger.info("📅 Период: %s -> %s", start_date.date(), end_date.date())
     logger.info("")
-    
+
     # Результаты для baseline (без фильтров)
     logger.info("📊 ЭТАП 1: Бэктест БЕЗ новых фильтров (baseline)")
     logger.info("-" * 70)
     baseline_results = {}
-    
+
     for symbol in TOP10_SOL_PORTFOLIO:
         result = await run_backtest_with_filters(
             symbol=symbol,
@@ -235,7 +243,7 @@ async def run_comparison_backtest():
             use_new_filters=False,
         )
         baseline_results[symbol] = result
-        
+
         if "error" not in result:
             logger.info(
                 "  %s: %d сделок, PnL: %.2f USDT (%.2f%%), WR: %.1f%%, Sharpe: %.2f",
@@ -248,12 +256,12 @@ async def run_comparison_backtest():
             )
         else:
             logger.warning("  %s: Ошибка - %s", symbol, result.get("error", "Unknown"))
-    
+
     logger.info("")
     logger.info("📊 ЭТАП 2: Бэктест С новыми фильтрами (Dominance + Interest Zone)")
     logger.info("-" * 70)
     filtered_results = {}
-    
+
     for symbol in TOP10_SOL_PORTFOLIO:
         result = await run_backtest_with_filters(
             symbol=symbol,
@@ -262,7 +270,7 @@ async def run_comparison_backtest():
             use_new_filters=True,
         )
         filtered_results[symbol] = result
-        
+
         if "error" not in result:
             logger.info(
                 "  %s: %d сделок, PnL: %.2f USDT (%.2f%%), WR: %.1f%%, Sharpe: %.2f",
@@ -275,17 +283,19 @@ async def run_comparison_backtest():
             )
         else:
             logger.warning("  %s: Ошибка - %s", symbol, result.get("error", "Unknown"))
-    
+
     # Агрегируем результаты
     def aggregate_results(results: Dict[str, Dict]) -> Dict[str, Any]:
         """Агрегирует результаты по всем символам"""
         total_trades = sum(r.get("trades_count", 0) for r in results.values() if "error" not in r)
         total_pnl = sum(r.get("total_pnl", 0) for r in results.values() if "error" not in r)
         total_pnl_pct = sum(r.get("total_pnl_pct", 0) for r in results.values() if "error" not in r)
-        
-        winning_trades = sum(r.get("winning_trades", 0) for r in results.values() if "error" not in r)
+
+        winning_trades = sum(
+            r.get("winning_trades", 0) for r in results.values() if "error" not in r
+        )
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
-        
+
         # Средний Sharpe (взвешенный по количеству сделок)
         sharpe_values = [
             r.get("sharpe_ratio", 0) * r.get("trades_count", 0)
@@ -293,7 +303,7 @@ async def run_comparison_backtest():
             if "error" not in r and r.get("trades_count", 0) > 0
         ]
         avg_sharpe = sum(sharpe_values) / total_trades if total_trades > 0 else 0.0
-        
+
         # Средний Sortino
         sortino_values = [
             r.get("sortino_ratio", 0) * r.get("trades_count", 0)
@@ -301,13 +311,13 @@ async def run_comparison_backtest():
             if "error" not in r and r.get("trades_count", 0) > 0
         ]
         avg_sortino = sum(sortino_values) / total_trades if total_trades > 0 else 0.0
-        
+
         # Максимальная просадка (максимум из всех символов)
         max_dd = max(
             (r.get("max_drawdown_pct", 0) for r in results.values() if "error" not in r),
-            default=0.0
+            default=0.0,
         )
-        
+
         return {
             "total_trades": total_trades,
             "total_pnl": total_pnl,
@@ -317,10 +327,10 @@ async def run_comparison_backtest():
             "avg_sortino_ratio": avg_sortino,
             "max_drawdown_pct": max_dd,
         }
-    
+
     baseline_agg = aggregate_results(baseline_results)
     filtered_agg = aggregate_results(filtered_results)
-    
+
     # Сравнение
     logger.info("")
     logger.info("=" * 70)
@@ -329,7 +339,11 @@ async def run_comparison_backtest():
     logger.info("")
     logger.info("BASELINE (без фильтров):")
     logger.info("  • Всего сделок: %d", baseline_agg["total_trades"])
-    logger.info("  • Общий PnL: %.2f USDT (%.2f%%)", baseline_agg["total_pnl"], baseline_agg["total_pnl_pct"])
+    logger.info(
+        "  • Общий PnL: %.2f USDT (%.2f%%)",
+        baseline_agg["total_pnl"],
+        baseline_agg["total_pnl_pct"],
+    )
     logger.info("  • Win Rate: %.1f%%", baseline_agg["win_rate"])
     logger.info("  • Средний Sharpe: %.2f", baseline_agg["avg_sharpe_ratio"])
     logger.info("  • Средний Sortino: %.2f", baseline_agg["avg_sortino_ratio"])
@@ -337,7 +351,11 @@ async def run_comparison_backtest():
     logger.info("")
     logger.info("С НОВЫМИ ФИЛЬТРАМИ (Dominance + Interest Zone):")
     logger.info("  • Всего сделок: %d", filtered_agg["total_trades"])
-    logger.info("  • Общий PnL: %.2f USDT (%.2f%%)", filtered_agg["total_pnl"], filtered_agg["total_pnl_pct"])
+    logger.info(
+        "  • Общий PnL: %.2f USDT (%.2f%%)",
+        filtered_agg["total_pnl"],
+        filtered_agg["total_pnl_pct"],
+    )
     logger.info("  • Win Rate: %.1f%%", filtered_agg["win_rate"])
     logger.info("  • Средний Sharpe: %.2f", filtered_agg["avg_sharpe_ratio"])
     logger.info("  • Средний Sortino: %.2f", filtered_agg["avg_sortino_ratio"])
@@ -349,13 +367,19 @@ async def run_comparison_backtest():
     pnl_pct_diff = filtered_agg["total_pnl_pct"] - baseline_agg["total_pnl_pct"]
     wr_diff = filtered_agg["win_rate"] - baseline_agg["win_rate"]
     sharpe_diff = filtered_agg["avg_sharpe_ratio"] - baseline_agg["avg_sharpe_ratio"]
-    
-    logger.info("  • Сделок: %+d (%+.1f%%)", trades_diff, (trades_diff / baseline_agg["total_trades"] * 100) if baseline_agg["total_trades"] > 0 else 0)
+
+    logger.info(
+        "  • Сделок: %+d (%+.1f%%)",
+        trades_diff,
+        (trades_diff / baseline_agg["total_trades"] * 100)
+        if baseline_agg["total_trades"] > 0
+        else 0,
+    )
     logger.info("  • PnL: %+.2f USDT (%+.2f%%)", pnl_diff, pnl_pct_diff)
     logger.info("  • Win Rate: %+.1f%%", wr_diff)
     logger.info("  • Sharpe: %+.2f", sharpe_diff)
     logger.info("")
-    
+
     # Сохраняем результаты
     report = {
         "backtest_date": datetime.utcnow().isoformat(),
@@ -379,29 +403,30 @@ async def run_comparison_backtest():
         },
         "comparison": {
             "trades_diff": trades_diff,
-            "trades_diff_pct": (trades_diff / baseline_agg["total_trades"] * 100) if baseline_agg["total_trades"] > 0 else 0,
+            "trades_diff_pct": (trades_diff / baseline_agg["total_trades"] * 100)
+            if baseline_agg["total_trades"] > 0
+            else 0,
             "pnl_diff": pnl_diff,
             "pnl_diff_pct": pnl_pct_diff,
             "win_rate_diff": wr_diff,
             "sharpe_diff": sharpe_diff,
         },
     }
-    
+
     # Сохраняем в файл
     reports_dir = Path("data/reports")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    
+
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     report_file = reports_dir / f"mvp_backtest_new_filters_{timestamp}.json"
-    
+
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
-    
+
     logger.info("✅ Отчёт сохранён: %s", report_file)
-    
+
     return report
 
 
 if __name__ == "__main__":
     asyncio.run(run_comparison_backtest())
-

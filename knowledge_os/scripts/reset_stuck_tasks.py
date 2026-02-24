@@ -3,15 +3,18 @@
 Скрипт для возврата зависших задач в pending для повторной обработки.
 Запускается периодически через cron.
 """
+
 import asyncio
 import os
 import sys
-import asyncpg
 from datetime import datetime
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'app'))
+import asyncpg
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+
 
 async def reset_stuck_tasks():
     """Возвращает зависшие задачи в pending"""
@@ -31,29 +34,29 @@ async def reset_stuck_tasks():
             WHERE status = 'in_progress'
             AND updated_at < NOW() - INTERVAL '1 hour'
         """)
-        
+
         reset_count = int(result.split()[-1])
-        
+
         if reset_count > 0:
             print(f"[{datetime.now()}] ✅ Возвращено в pending зависших задач: {reset_count}")
         else:
             print(f"[{datetime.now()}] ✅ Зависших задач не найдено")
-        
+
         # Статистика
         stats = await conn.fetch("""
-            SELECT status, COUNT(*) as cnt 
-            FROM tasks 
-            GROUP BY status 
+            SELECT status, COUNT(*) as cnt
+            FROM tasks
+            GROUP BY status
             ORDER BY cnt DESC
         """)
-        
+
         print(f"[{datetime.now()}] 📊 Статистика задач:")
         for row in stats:
             print(f"   {row['status']}: {row['cnt']}")
-        
+
     finally:
         await conn.close()
 
-if __name__ == '__main__':
-    asyncio.run(reset_stuck_tasks())
 
+if __name__ == "__main__":
+    asyncio.run(reset_stuck_tasks())

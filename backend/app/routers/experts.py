@@ -1,13 +1,15 @@
 """
 Experts Router - Улучшенная версия с кэшированием
 """
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import List, Optional
-import logging
 
-from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
 from app.services.cache import get_cache
+from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -15,6 +17,7 @@ router = APIRouter()
 
 class Expert(BaseModel):
     """Эксперт ATRA"""
+
     id: str
     name: str
     role: Optional[str] = None
@@ -24,23 +27,23 @@ class Expert(BaseModel):
 
 @router.get("/", response_model=List[Expert])
 async def list_experts(
-    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client)
+    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client),
 ) -> List[Expert]:
     """
     Получить список всех экспертов
-    
+
     Returns:
         Список из 58+ экспертов ATRA
     """
     cache = get_cache()
     cache_key = "experts:list"
-    
+
     # Проверяем кэш
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug("Experts list served from cache")
         return cached
-    
+
     try:
         experts = await knowledge_os.get_experts()
         result = [
@@ -49,14 +52,14 @@ async def list_experts(
                 name=e["name"],
                 role=e.get("role"),
                 system_prompt=e.get("system_prompt"),
-                created_at=str(e.get("created_at")) if e.get("created_at") else None
+                created_at=str(e.get("created_at")) if e.get("created_at") else None,
             )
             for e in experts
         ]
-        
+
         # Сохраняем в кэш
         cache.set(cache_key, result, ttl=60)  # 1 мин — быстрее видеть новых (автономных) экспертов
-        
+
         return result
     except Exception as e:
         logger.error(f"List experts error: {e}", exc_info=True)
@@ -73,56 +76,49 @@ async def list_experts(
             Expert(id="9", name="Алексей", role="Security Engineer"),
             Expert(id="10", name="Павел", role="Trading Strategy Developer"),
         ]
-        logger.warning(f"Using fallback experts list (DB unavailable)")
+        logger.warning("Using fallback experts list (DB unavailable)")
         return fallback
 
 
 @router.get("/{expert_id}", response_model=Expert)
 async def get_expert(
-    expert_id: str,
-    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client)
+    expert_id: str, knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client)
 ) -> Expert:
     """
     Получить эксперта по ID
-    
+
     Returns:
         Информация об эксперте
     """
     cache = get_cache()
     cache_key = f"expert:{expert_id}"
-    
+
     # Проверяем кэш
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug(f"Expert {expert_id} served from cache")
         return cached
-    
+
     try:
         expert = await knowledge_os.get_expert(expert_id)
-        
+
         if not expert:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Expert {expert_id} not found"
-            )
-        
+            raise HTTPException(status_code=404, detail=f"Expert {expert_id} not found")
+
         result = Expert(
             id=str(expert["id"]),
             name=expert["name"],
             role=expert.get("role"),
             system_prompt=expert.get("system_prompt"),
-            created_at=str(expert.get("created_at")) if expert.get("created_at") else None
+            created_at=str(expert.get("created_at")) if expert.get("created_at") else None,
         )
-        
+
         # Сохраняем в кэш
         cache.set(cache_key, result, ttl=60)  # 1 мин — быстрее видеть обновления
-        
+
         return result
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Get expert error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error while fetching expert"
-        )
+        raise HTTPException(status_code=500, detail="Internal server error while fetching expert")

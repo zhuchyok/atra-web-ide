@@ -70,14 +70,14 @@ VOLUME_COUNT=0
 for volume_file in $VOLUME_FILES; do
     volume_name=$(basename "$volume_file" .tar.gz)
     echo "   Импорт volume: $volume_name"
-    
+
     if ! docker volume ls | grep -q "^${volume_name}$"; then
         docker volume create "$volume_name" 2>/dev/null || true
     fi
-    
+
     docker run --rm -v "$volume_name":/data -v "$BACKUP_DIR":/backup alpine \
         sh -c "cd /data && tar xzf /backup/${volume_name}.tar.gz 2>&1" 2>/dev/null || true
-    
+
     VOLUME_COUNT=$((VOLUME_COUNT + 1))
     echo "      ✅ Импортирован"
 done

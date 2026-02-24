@@ -10,7 +10,6 @@ from .adx import ADXAnalyzer
 from .tsi import TrueStrengthIndex
 
 __all__ = [
-    'ADXAnalyzer',
-    'TrueStrengthIndex',
+    "ADXAnalyzer",
+    "TrueStrengthIndex",
 ]
-

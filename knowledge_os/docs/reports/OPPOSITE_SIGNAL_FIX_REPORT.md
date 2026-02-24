@@ -8,6 +8,7 @@
 ## 🔴 **ПРОБЛЕМА**
 
 ### **Что происходило:**
+
 ```
 21:00 → WLFIUSDT LONG отправлен (уверенность 76%)
 21:13 → WLFIUSDT SHORT отправлен (уверенность 71%)
@@ -16,6 +17,7 @@
 ```
 
 ### **Почему это критично:**
+
 - Нельзя иметь одновременно LONG и SHORT на одном активе
 - Это приводит к хеджированию (взаимному уничтожению позиций)
 - Потеря на комиссиях
@@ -26,6 +28,7 @@
 ## 🔍 **ПРИЧИНА ПРОБЛЕМЫ**
 
 **В коде `correlation_risk_manager.py` строка 492:**
+
 ```python
 # Старая логика:
 for position in open_positions:
@@ -34,6 +37,7 @@ for position in open_positions:
 ```
 
 **Система проверяла:**
+
 - ✅ Корреляцию между РАЗНЫМИ активами (BTCUSDT vs ETHUSDT)
 - ❌ НО НЕ проверяла противоположные сигналы на ОДНОМ активе!
 
@@ -47,37 +51,37 @@ for position in open_positions:
 # 2. 🆕 КРИТИЧЕСКАЯ ПРОВЕРКА: ПРОТИВОПОЛОЖНЫЙ СИГНАЛ НА ТОТ ЖЕ СИМВОЛ
 for position in open_positions:
     position_symbol = position['symbol']
-    
+
     # БЛОКИРУЕМ противоположные сигналы на тот же актив!
     if position_symbol == symbol:
         # Определяем направление открытой позиции
         position_result = position.get('result', '').upper()
-        
+
         if 'LONG' in position_result or 'BUY' in position_result:
             position_side = 'LONG'
         elif 'SHORT' in position_result or 'SELL' in position_result:
             position_side = 'SHORT'
         else:
             position_side = 'LONG'  # По умолчанию
-        
+
         # Определяем направление нового сигнала
         new_signal_side = 'LONG' if signal_type in ['BUY', 'LONG'] else 'SHORT'
-        
+
         # Проверяем на конфликт
         if position_side != new_signal_side:
             logger.warning(
-                "🚨 [OPPOSITE SIGNAL BLOCKED] %s %s заблокирован: 
+                "🚨 [OPPOSITE SIGNAL BLOCKED] %s %s заблокирован:
                 уже открыта позиция %s %s!",
                 symbol, signal_type, symbol, position_side
             )
-            
+
             return {
                 'allowed': False,
                 'reason': 'OPPOSITE_SIGNAL_ON_SAME_ASSET',
-                'details': f'Уже открыта позиция {symbol} {position_side}, 
+                'details': f'Уже открыта позиция {symbol} {position_side},
                            нельзя открыть {signal_type}'
             }
-        
+
         # Если сигнал в том же направлении - РАЗРЕШАЕМ (усреднение)
         else:
             logger.info(
@@ -92,17 +96,19 @@ for position in open_positions:
 ## 🛡️ **ЧТО ТЕПЕРЬ БЛОКИРУЕТСЯ**
 
 ### **Сценарий 1: Противоположный сигнал**
+
 ```
 Открыто: WLFIUSDT LONG
 Новый сигнал: WLFIUSDT SHORT
 
 Результат: 🚨 ЗАБЛОКИРОВАНО
 Причина: "OPPOSITE_SIGNAL_ON_SAME_ASSET"
-Лог: "🚨 [OPPOSITE SIGNAL BLOCKED] WLFIUSDT SHORT заблокирован: 
+Лог: "🚨 [OPPOSITE SIGNAL BLOCKED] WLFIUSDT SHORT заблокирован:
       уже открыта позиция WLFIUSDT LONG!"
 ```
 
 ### **Сценарий 2: Тот же направление (усреднение)**
+
 ```
 Открыто: WLFIUSDT LONG
 Новый сигнал: WLFIUSDT LONG
@@ -113,6 +119,7 @@ for position in open_positions:
 ```
 
 ### **Сценарий 3: Корреляция (как раньше)**
+
 ```
 Открыто: BTCUSDT LONG
 Новый сигнал: ETHUSDT LONG (корр > 0.75)
@@ -148,6 +155,7 @@ for position in open_positions:
 **Метод:** `check_correlation_risk_async()`
 
 **Добавлено:**
+
 - Проверка `if position_symbol == symbol:` (строка 489)
 - Определение направления позиции по `result` (строки 492-501)
 - Определение направления сигнала (строка 504)
@@ -155,6 +163,7 @@ for position in open_positions:
 - Блокировка дублей в том же направлении (строки 524-536)
 
 **Обновлено:**
+
 - Комментарий "2. КРИТИЧЕСКАЯ ПРОВЕРКА" (строка 484)
 - Комментарий "3. ВЫЧИСЛЯЕМ КОРРЕЛЯЦИЮ" → "3. ВЫЧИСЛЯЕМ..." (строка 538)
 - Нумерация следующих блоков (4, 5)
@@ -166,6 +175,7 @@ for position in open_positions:
 ### **Ожидаемое поведение:**
 
 **Тест 1: Противоположный сигнал**
+
 ```python
 # Открыто: WLFIUSDT LONG
 # Новый: WLFIUSDT SHORT
@@ -175,6 +185,7 @@ for position in open_positions:
 ```
 
 **Тест 2: Тот же направление (усреднение)**
+
 ```python
 # Открыто: WLFIUSDT LONG
 # Новый: WLFIUSDT LONG
@@ -184,6 +195,7 @@ for position in open_positions:
 ```
 
 **Тест 3: Разные символы**
+
 ```python
 # Открыто: BTCUSDT LONG
 # Новый: SOLUSDT LONG
@@ -197,6 +209,7 @@ for position in open_positions:
 ## 📈 **ОЖИДАЕМЫЙ ЭФФЕКТ**
 
 ### **До исправления:**
+
 ```
 Проблема: противоположные сигналы проходили
 Риск: хеджирование позиций
@@ -204,6 +217,7 @@ for position in open_positions:
 ```
 
 ### **После исправления:**
+
 ```
 ✅ Противоположные сигналы блокируются
 ✅ Усреднение разрешено (сигналы в том же направлении)
@@ -218,6 +232,7 @@ for position in open_positions:
 **Критическая ошибка исправлена!**
 
 **Теперь система:**
+
 - ✅ Блокирует противоположные сигналы на один актив
 - ✅ Разрешает усреднение (сигналы в том же направлении)
 - ✅ Проверяет корреляцию между разными активами
@@ -232,4 +247,3 @@ for position in open_positions:
 
 **Дата исправления:** 2025-01-28  
 **Статус:** ✅ **ГОТОВО К PRODUCTION**
-

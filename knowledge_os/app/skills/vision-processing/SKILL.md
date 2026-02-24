@@ -4,7 +4,15 @@ description: Vision Processing - анализ изображений, скрин
 category: multimodal
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "👁️", "homepage": "https://github.com/vikhyat/moondream"}}
+metadata:
+  {
+    "clawdbot":
+      {
+        "requires": { "bins": ["python"] },
+        "emoji": "👁️",
+        "homepage": "https://github.com/vikhyat/moondream",
+      },
+  }
 ---
 
 # Vision Processing Skill
@@ -14,6 +22,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "👁️", "h
 ## Когда использовать
 
 Используй этот навык для:
+
 - Анализа скриншотов кода
 - Обработки диаграмм и схем
 - Чтения PDF документов
@@ -28,6 +37,7 @@ metadata: {"clawdbot": {"requires": {"bins": ["python"]}, "emoji": "👁️", "h
 ## Методология
 
 Vision Processing работает через:
+
 1. **Image Download** - Скачивание изображения (из Telegram, URL, файла)
 2. **Base64 Encoding** - Конвертация в base64
 3. **Model Selection** - Выбор модели (moondream для скриншотов, llava для PDF)

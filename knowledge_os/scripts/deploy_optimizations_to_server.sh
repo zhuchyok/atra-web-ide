@@ -25,10 +25,10 @@ FILES=(
     "src/database/optimization_manager.py"
     "src/database/fetch_optimizer.py"
     "src/database/query_profiler.py"
-    
+
     # Обновленный db.py
     "src/database/db.py"
-    
+
     # Скрипты
     "scripts/archive_old_data.py"
     "scripts/optimize_database.py"
@@ -89,4 +89,3 @@ echo "   2. Проверить статус: python3 scripts/apply_all_optimizat
 echo "   3. Мониторинг: python3 scripts/monitor_database_performance.py"
 echo ""
 echo "=================================================================================="
-

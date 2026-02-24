@@ -51,30 +51,43 @@ export MLX_RATE_LIMIT_WINDOW=${MLX_RATE_LIMIT_WINDOW:-90}
 export MLX_MAX_CONCURRENT=${MLX_MAX_CONCURRENT:-1}
 # Кэш: 1 модель — меньше пиковая память GPU, реже краши (см. docs/MLX_PYTHON_CRASH_CAUSE.md)
 export MLX_MAX_CACHED_MODELS=${MLX_MAX_CACHED_MODELS:-1}
-# Предзагрузка: только лёгкая модель; 70B/104B не предзагружаем
+# Предзагрузка: по умолчанию fast (лёгкая). Для полноценной Виктории (мозг в MLX + руки в Ollama) задайте VICTORIA_MLX_BRAIN=true
+export VICTORIA_MLX_BRAIN=${VICTORIA_MLX_BRAIN:-false}
 export MLX_PRELOAD_MODELS=${MLX_PRELOAD_MODELS:-fast}
 
-# Проверка, не запущен ли уже
-if lsof -ti:$MLX_PORT >/dev/null 2>&1; then
-  echo "⚠️  Порт $MLX_PORT уже занят"
-  PID=$(lsof -ti:$MLX_PORT)
-  echo "   PID: $PID"
-  # В автоматическом режиме (без интерактивности) просто убиваем процесс
-  if [ -t 0 ]; then
-    read -p "Остановить процесс и запустить MLX API Server? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-      kill "$PID" 2>/dev/null || true
+# Освобождение порта: убиваем все процессы на MLX_PORT (несколько PID при зависших воркерах)
+free_port() {
+  local pids
+  pids=$(lsof -ti:$MLX_PORT 2>/dev/null)
+  if [ -n "$pids" ]; then
+    echo "⚠️  Порт $MLX_PORT занят (PID: $pids)"
+    echo "$pids" | xargs kill -9 2>/dev/null || true
+    sleep 2
+    # Проверка: если порт всё ещё занят — ещё раз
+    pids=$(lsof -ti:$MLX_PORT 2>/dev/null)
+    if [ -n "$pids" ]; then
+      echo "$pids" | xargs kill -9 2>/dev/null || true
       sleep 2
-    else
+    fi
+  fi
+}
+
+if lsof -ti:$MLX_PORT >/dev/null 2>&1; then
+  if [ -t 0 ]; then
+    read -p "Остановить процесс(ы) на порту $MLX_PORT и запустить MLX API Server? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
       echo "Отменено"
       exit 0
     fi
-  else
-    # Автоматический режим - убиваем процесс
-    kill "$PID" 2>/dev/null || true
-    sleep 2
   fi
+  free_port
+fi
+
+# Перед запуском убедиться, что порт свободен
+if lsof -ti:$MLX_PORT >/dev/null 2>&1; then
+  echo "❌ Порт $MLX_PORT всё ещё занят после освобождения. Проверьте: lsof -i:$MLX_PORT"
+  exit 1
 fi
 
 echo "📡 Запуск MLX API Server на порту $MLX_PORT..."
@@ -104,7 +117,7 @@ if ps -p "$MLX_PID" > /dev/null 2>&1; then
   echo "✅ MLX API Server запущен (PID: $MLX_PID)"
   echo "   PID сохранен: $PID_FILE"
   echo ""
-  
+
   # Проверка доступности (до 15 секунд)
   MAX_WAIT=15
   WAITED=0
@@ -127,12 +140,12 @@ if ps -p "$MLX_PID" > /dev/null 2>&1; then
       exit 1
     fi
   done
-  
+
   if [ $WAITED -ge $MAX_WAIT ]; then
     echo "⚠️  MLX API Server запущен, но еще не отвечает (подожди еще 5-10 секунд)"
     echo "   Логи: tail -f $LOG_DIR/mlx_api_server.log"
   fi
-  
+
   echo ""
   echo "💡 Для остановки:"
   echo "   kill $MLX_PID"

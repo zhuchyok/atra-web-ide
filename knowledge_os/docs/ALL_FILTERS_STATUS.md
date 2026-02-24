@@ -28,6 +28,7 @@
 ## 🔍 ИНТЕГРАЦИЯ В КОДЕ
 
 ### ✅ В src/signals/core.py интегрированы:
+
 - ✅ Volume Profile
 - ✅ VWAP
 - ✅ Market Profile
@@ -44,6 +45,7 @@
 - ✅ Whale
 
 ### ✅ В signal_live.py интегрированы:
+
 - ✅ Dominance Trend (через check_new_filters)
 - ✅ Interest Zone (через check_new_filters)
 - ✅ Fibonacci Zone (через check_new_filters)
@@ -51,6 +53,7 @@
 - ✅ Institutional Patterns (через check_new_filters)
 
 ### ⚠️ НУЖНО ПРОВЕРИТЬ:
+
 - ❓ BTC Trend (используется в signal_live.py через get_btc_trend_status)
 - ❓ ETH Trend (нужно проверить интеграцию)
 - ❓ SOL Trend (нужно проверить интеграцию)
@@ -60,4 +63,3 @@
 ## 📝 ВЫВОД
 
 **Все фильтры включены в config.py**, но нужно убедиться, что все они интегрированы в код генерации сигналов.
-

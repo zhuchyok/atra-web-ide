@@ -9,11 +9,13 @@
 ## 🏗️ Архитектура системы сигналов
 
 ### **1. 🧠 СТРАТЕГИЯ (ENHANCED_BOLLINGER_STRATEGY)**
+
 - **Статус:** ✅ `ENHANCED_BOLLINGER_STRATEGY = True` - **ВКЛЮЧЕНА**
 - **Функция:** `optimized_enhanced_bollinger_entry_signal()`
 - **Приоритет:** **ВЫСШИЙ** - используется первой
 
 ### **2. 🎛️ ФИЛЬТРЫ (strict/soft)**
+
 - **Статус:** ✅ Работают как **дополнительные фильтры**
 - **Функции:** `strict_entry_signal()` и `soft_entry_signal()`
 - **Приоритет:** **НИЗШИЙ** - используются как fallback
@@ -73,27 +75,32 @@ def get_entry_signal_by_mode(df, i, filter_mode="enhanced_bollinger"):
 ### **📊 Режимы работы:**
 
 #### **Для пользователя с `filter_mode = "strict"`:**
+
 1. **Попытка 1:** `optimized_enhanced_bollinger_entry_signal()` (основная стратегия)
 2. **Попытка 2:** `strict_entry_signal()` (строгие дополнительные условия)
 
 #### **Для пользователя с `filter_mode = "soft"`:**
+
 1. **Попытка 1:** `optimized_enhanced_bollinger_entry_signal()` (основная стратегия)
 2. **Попытка 2:** `soft_entry_signal()` (мягкие дополнительные условия)
 
 ## 🔧 Техническая проверка
 
 ### **✅ Импорт функций:**
+
 - `optimized_enhanced_bollinger_entry_signal` ✅
 - `strict_entry_signal` ✅
 - `soft_entry_signal` ✅
 - `get_entry_signal_by_mode` ✅
 
 ### **✅ Конфигурация:**
+
 - `ENHANCED_BOLLINGER_STRATEGY = True` ✅
 - `ENHANCED_STRATEGY_CONFIG` загружен ✅
 - Все индикаторы добавляются ✅
 
 ### **✅ Логика приоритетов:**
+
 - Улучшенная стратегия имеет приоритет ✅
 - Fallback на обычные фильтры работает ✅
 - Все режимы обрабатываются корректно ✅
@@ -109,6 +116,7 @@ def get_entry_signal_by_mode(df, i, filter_mode="enhanced_bollinger"):
 - ✅ **Все функции:** Импортируются и работают
 
 **Архитектура соответствует задумке:**
+
 1. **1 стратегия** (ENHANCED_BOLLINGER_STRATEGY)
 2. **2 фильтра** (strict/soft) как дополнительные условия
 3. **Приоритетная система** с fallback

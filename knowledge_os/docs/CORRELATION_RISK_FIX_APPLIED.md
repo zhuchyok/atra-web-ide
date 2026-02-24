@@ -7,6 +7,7 @@
 **Решение:** Отключен connection pool для `CorrelationRiskManager`
 
 **Изменение в коде:**
+
 ```python
 # ❌ БЫЛО:
 self.db = Database(self.db_path)
@@ -41,4 +42,3 @@ tail -2000 signal_live.log | grep "Курсор БД недоступен"
 
 **Дата:** 2025-12-01  
 **Файл:** `src/risk/correlation_risk.py` (строка 145)
-

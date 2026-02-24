@@ -12,6 +12,7 @@
 ### ✅ Итерация 6: Self-Validation (Высокий приоритет)
 
 **Созданные компоненты:**
+
 1. **`src/core/self_validation.py`** - SelfValidationManager
    - Управление runtime проверками консистентности
    - Декораторы `@validate_invariant` и `@validate_consistency`
@@ -25,9 +26,11 @@
    - Инварианты для RiskCalculator и Portfolio
 
 **Тесты:**
+
 - ✅ `tests/test_self_validation.py` - 15 тестов
 
 **Критерии завершения:**
+
 - ✅ SelfValidationManager создан и протестирован
 - ✅ Инварианты добавлены для критичных объектов
 - ✅ Тесты написаны и проходят
@@ -38,6 +41,7 @@
 ### ✅ Итерация 7: Anti-Pattern Detection (Средний приоритет)
 
 **Созданные компоненты:**
+
 1. **`src/core/anti_pattern_detector.py`** - AntiPatternDetector
    - Обнаружение деления на ноль
    - Обнаружение None в критичных местах
@@ -47,9 +51,11 @@
    - AST visitor для анализа кода
 
 **Тесты:**
+
 - ✅ `tests/test_anti_pattern_detector.py` - 12 тестов
 
 **Критерии завершения:**
+
 - ✅ AntiPatternDetector создан и протестирован
 - ✅ Обнаружение основных антипаттернов работает
 - ✅ Тесты написаны и проходят
@@ -59,6 +65,7 @@
 ### ✅ Итерация 8: Contract-Based Programming (Средний приоритет)
 
 **Созданные компоненты:**
+
 1. **`src/core/contracts.py`** - Система контрактов
    - Декоратор `@precondition` для проверки входных данных
    - Декоратор `@postcondition` для проверки выходных данных
@@ -67,9 +74,11 @@
    - Поддержка async функций
 
 **Тесты:**
+
 - ✅ `tests/test_contracts.py` - 10 тестов
 
 **Критерии завершения:**
+
 - ✅ Декораторы контрактов созданы и протестированы
 - ✅ Поддержка sync и async функций
 - ✅ Тесты написаны и проходят
@@ -79,6 +88,7 @@
 ### ✅ Итерация 9: Performance Profiling (Средний приоритет)
 
 **Созданные компоненты:**
+
 1. **`src/core/profiling.py`** - PerformanceProfiler
    - Интеграция cProfile для профилирования
    - Декоратор `@profile` для автоматического профилирования
@@ -87,9 +97,11 @@
    - Context manager для профилирования блоков кода
 
 **Тесты:**
+
 - ✅ `tests/test_profiling.py` - 11 тестов
 
 **Критерии завершения:**
+
 - ✅ Система профилирования создана
 - ✅ Метрики latency собираются
 - ✅ Автоматическое обнаружение узких мест работает
@@ -100,6 +112,7 @@
 ### ✅ Итерация 10: Property-Based Testing (Низкий приоритет)
 
 **Созданные компоненты:**
+
 1. **`tests/test_property_based.py`** - Property-based тесты с Hypothesis
    - Тесты для валидации данных
    - Тесты для финансовых расчётов
@@ -107,6 +120,7 @@
    - Проверка инвариантов на случайных данных
 
 **Критерии завершения:**
+
 - ✅ Property-based тесты написаны
 - ✅ Интеграция с Hypothesis
 - ✅ Проверка инвариантов на случайных данных
@@ -116,15 +130,18 @@
 ### ✅ Итерация 11: Type Safety (Низкий приоритет)
 
 **Созданные компоненты:**
+
 1. **`src/core/type_safety.py`** - Type Safety утилиты
    - Декоратор `@validate_types` для runtime проверки типов
    - Декоратор `@pydantic_validate` для валидации через pydantic
    - Декоратор `@strict_type_check` для строгой проверки типов
 
 **Тесты:**
+
 - ✅ `tests/test_type_safety.py` - 5 тестов
 
 **Критерии завершения:**
+
 - ✅ Type safety утилиты созданы
 - ✅ Runtime проверка типов работает
 - ✅ Тесты написаны и проходят
@@ -134,6 +151,7 @@
 ## 📊 Статистика изменений
 
 ### Создано новых модулей:
+
 - ✅ `src/core/self_validation.py` - SelfValidationManager
 - ✅ `src/core/invariants.py` - Инварианты для критичных объектов
 - ✅ `src/core/anti_pattern_detector.py` - AntiPatternDetector
@@ -142,6 +160,7 @@
 - ✅ `src/core/type_safety.py` - Type Safety утилиты
 
 ### Создано тестов:
+
 - ✅ `tests/test_self_validation.py` - 15 тестов
 - ✅ `tests/test_anti_pattern_detector.py` - 12 тестов
 - ✅ `tests/test_contracts.py` - 10 тестов
@@ -262,4 +281,3 @@ def calculate_risk(entry_price: float, risk_pct: float) -> float:
 **Автор:** Команда ATRA  
 **Дата:** 2025-01-XX  
 **Версия:** 2.0
-

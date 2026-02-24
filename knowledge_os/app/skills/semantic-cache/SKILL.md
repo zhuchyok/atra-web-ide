@@ -4,7 +4,7 @@ description: Semantic Cache - кэширование семантически п
 category: optimization
 version: 1.0.0
 author: ATRA Corporation
-metadata: {"clawdbot": {"requires": {}, "emoji": "💾"}}
+metadata: { "clawdbot": { "requires": {}, "emoji": "💾" } }
 ---
 
 # Semantic Cache Skill
@@ -14,6 +14,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "💾"}}
 ## Когда использовать
 
 Используй этот навык для:
+
 - Кэширования похожих запросов
 - Экономии токенов
 - Улучшения скорости ответов
@@ -22,6 +23,7 @@ metadata: {"clawdbot": {"requires": {}, "emoji": "💾"}}
 ## Методология
 
 Semantic Cache работает через:
+
 1. **Query Embedding** - Векторизация запроса
 2. **Similarity Search** - Поиск похожих запросов
 3. **Cache Hit** - Использование кэша при совпадении

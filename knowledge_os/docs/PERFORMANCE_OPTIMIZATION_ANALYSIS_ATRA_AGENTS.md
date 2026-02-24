@@ -3,6 +3,7 @@
 ## 🎯 КОНТЕКСТ АНАЛИЗА
 
 ### **Архитектура ATRA:**
+
 - **7 агентов** работают одновременно на сервере
 - **Multi-agent система** с координацией через `AgentCoordinator`
 - **SharedMemory** для обмена данными между агентами
@@ -10,6 +11,7 @@
 - **SQLite** как основная БД (не PostgreSQL!)
 
 ### **Текущие проблемы:**
+
 - **8 одновременных подключений** к SQLite (было 18+)
 - **Блокировки БД** при конкурентных записях
 - **Асинхронные операции** через asyncio
@@ -24,12 +26,14 @@
 > **Оценка: 8/10** - Подход правильный, но требует критической адаптации
 
 **✅ ПЛЮСЫ:**
+
 - **81 техника оптимизации** - отличный охват
 - **Приоритизация** (критичные/дополнительные/продвинутые)
 - **Конкретные метрики** (ускорение 10-40%, экономия места 30-60%)
 - **Фокус на измерении** перед оптимизацией
 
 **❌ ПРОБЛЕМЫ:**
+
 1. **Ориентация на PostgreSQL**, а проект использует **SQLite**
 2. **Не учитывает multi-agent архитектуру** - 7 агентов работают одновременно
 3. **Нет учета конкурентного доступа** - SQLite не поддерживает множественные записи
@@ -44,6 +48,7 @@
 #### **1. КРИТИЧНО: Адаптация для SQLite + Multi-Agent**
 
 **SQLite-специфичные оптимизации:**
+
 ```sql
 -- WAL mode для лучшей производительности при конкурентном доступе
 PRAGMA journal_mode = WAL;
@@ -56,6 +61,7 @@ PRAGMA foreign_keys = ON;  -- Включить FK для целостности
 ```
 
 **Multi-Agent оптимизации:**
+
 - **Connection pooling** через singleton Database
 - **Read-only соединения** для агентов, которые только читают
 - **Write queue** для сериализации записей
@@ -64,6 +70,7 @@ PRAGMA foreign_keys = ON;  -- Включить FK для целостности
 #### **2. Rust оптимизации - ПРИМЕНИТЬ:**
 
 **Текущее состояние:**
+
 ```toml
 [profile.release]
 opt-level = 3
@@ -72,6 +79,7 @@ codegen-units = 1
 ```
 
 **Добавить:**
+
 ```toml
 [profile.release]
 opt-level = 3
@@ -82,6 +90,7 @@ strip = true  # Удаление символов отладки
 ```
 
 **PGO (Profile-Guided Optimization):**
+
 ```bash
 # 1. Компиляция с профилированием
 RUSTFLAGS="-C profile-generate=/tmp/pgo-data" cargo build --release
@@ -98,6 +107,7 @@ RUSTFLAGS="-C profile-use=/tmp/pgo-data" cargo build --release
 #### **3. Python оптимизации - ПРИМЕНИТЬ:**
 
 **uvloop для asyncio:**
+
 ```python
 import uvloop
 uvloop.install()  # Замена стандартного event loop
@@ -106,6 +116,7 @@ uvloop.install()  # Замена стандартного event loop
 **Ожидаемый эффект:** Ускорение на 2-4x для async операций
 
 **Оптимизация event loop:**
+
 ```python
 # Использовать asyncio.gather для batch операций
 results = await asyncio.gather(*[task(data) for data in batch])
@@ -117,11 +128,13 @@ done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 #### **4. Измерение производительности:**
 
 **Бенчмарки:**
+
 - Загрузка данных: 4 года данных (1 тикер, 15m) < 3 секунд
 - Бэктест: 4 года данных (15m) < 20 секунд
 - Загрузка всех тикеров: 64 инструмента (15m) < 3 минуты
 
 **Профилирование:**
+
 - `cProfile` для Python кода
 - `perf` для Rust кода
 - `EXPLAIN QUERY PLAN` для SQLite запросов
@@ -133,11 +146,13 @@ done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 > **Оценка: 7/10** - Подход правильный, но нужна поэтапная реализация
 
 **✅ ПЛЮСЫ:**
+
 - Структурированный подход
 - Готовые примеры кода
 - Учет trade-offs
 
 **❌ ПРОБЛЕМЫ:**
+
 - Слишком много оптимизаций сразу - риск переоптимизации
 - Нет учета текущего кода проекта
 - Нет плана миграции с SQLite на PostgreSQL (если планируется)
@@ -147,22 +162,26 @@ done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 #### **1. Поэтапная реализация:**
 
 **Этап 1: Критичные оптимизации для SQLite (1 неделя)**
+
 - WAL mode и PRAGMA оптимизации
 - Индексы для медленных запросов
 - Connection pooling через singleton
 - Write queue для сериализации записей
 
 **Этап 2: Rust оптимизации (1 неделя)**
+
 - PGO (Profile-Guided Optimization)
 - target-cpu=native
 - jemalloc (если нужно)
 
 **Этап 3: Python оптимизации (1 неделя)**
+
 - uvloop для async
 - Оптимизация event loop
 - Async generators для memory efficiency
 
 **Этап 4: Измерение и профилирование (1 неделя)**
+
 - Бенчмарки до/после
 - Профилирование узких мест
 - Мониторинг метрик
@@ -170,6 +189,7 @@ done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 #### **2. Интеграция с текущим кодом:**
 
 **Использовать существующий `PerformanceOptimizer`:**
+
 ```python
 from src.optimization.performance_optimizer import PerformanceOptimizer, PerformanceConfig
 
@@ -183,6 +203,7 @@ optimizer = PerformanceOptimizer(config)
 ```
 
 **Расширить Rust модуль:**
+
 - Добавить PGO поддержку
 - Добавить target-cpu=native
 - Оптимизировать pyo3 интеграцию
@@ -190,11 +211,13 @@ optimizer = PerformanceOptimizer(config)
 #### **3. Тестирование:**
 
 **Бенчмарки:**
+
 - Запускать до/после каждой оптимизации
 - Проверять на реальных данных
 - Мониторить метрики производительности
 
 **Интеграционные тесты:**
+
 - Проверять работу всех агентов
 - Проверять координацию через AgentCoordinator
 - Проверять SharedMemory и EventBus
@@ -206,11 +229,13 @@ optimizer = PerformanceOptimizer(config)
 > **Оценка: 6/10** - Документ хорош для PostgreSQL, но для SQLite нужна критическая адаптация
 
 **✅ ПЛЮСЫ:**
+
 - Покрытие индексов, партиционирования, оптимизации запросов
 - Учет массовой загрузки данных
 - Мониторинг и аудит
 
 **❌ ПРОБЛЕМЫ:**
+
 - SQLite не поддерживает:
   - Партиционирование (нужны отдельные таблицы/базы)
   - BRIN индексы
@@ -223,6 +248,7 @@ optimizer = PerformanceOptimizer(config)
 #### **1. Адаптация для SQLite:**
 
 **WAL mode для конкурентного доступа:**
+
 ```sql
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
@@ -233,12 +259,13 @@ PRAGMA busy_timeout = 30000;  -- 30 секунд
 ```
 
 **Индексы для SQLite:**
+
 ```sql
 -- Покрывающие индексы (INCLUDE не поддерживается, но можно создать составные)
 CREATE INDEX idx_candles_ticker_interval_time_close ON candles (ticker, interval, time, close);
 
 -- Частичные индексы (WHERE поддерживается)
-CREATE INDEX idx_candles_interval_time_partial ON candles (interval, time) 
+CREATE INDEX idx_candles_interval_time_partial ON candles (interval, time)
     WHERE interval IN ('15m', '5m');
 
 -- Анализ через EXPLAIN QUERY PLAN
@@ -246,6 +273,7 @@ EXPLAIN QUERY PLAN SELECT * FROM candles WHERE ticker = 'BTCUSDT' AND interval =
 ```
 
 **Массовая загрузка:**
+
 ```python
 # BEGIN TRANSACTION → INSERT → COMMIT
 conn.execute("BEGIN TRANSACTION")
@@ -262,6 +290,7 @@ conn.execute("CREATE INDEX idx_candles_ticker_interval_time ON candles (ticker, 
 #### **2. Multi-Agent оптимизации:**
 
 **Connection pooling через singleton:**
+
 ```python
 # db_singleton.py
 _db_instance = None
@@ -277,17 +306,18 @@ def get_database():
 ```
 
 **Write queue для сериализации записей:**
+
 ```python
 class DatabaseWriteQueue:
     def __init__(self):
         self.queue = asyncio.Queue()
         self.worker = None
-    
+
     async def write(self, operation, *args, **kwargs):
         future = asyncio.Future()
         await self.queue.put((operation, args, kwargs, future))
         return await future
-    
+
     async def _worker(self):
         while True:
             operation, args, kwargs, future = await self.queue.get()
@@ -299,6 +329,7 @@ class DatabaseWriteQueue:
 ```
 
 **Read-only соединения для агентов:**
+
 ```python
 # Агенты, которые только читают, используют read-only соединения
 class ReadOnlyDatabase:
@@ -310,6 +341,7 @@ class ReadOnlyDatabase:
 #### **3. Миграция на PostgreSQL (если планируется):**
 
 **Поэтапная миграция:**
+
 1. Настроить PostgreSQL на сервере
 2. Создать схему БД в PostgreSQL
 3. Реплицировать данные из SQLite в PostgreSQL
@@ -317,6 +349,7 @@ class ReadOnlyDatabase:
 5. Тестировать на staging перед production
 
 **Преимущества PostgreSQL для multi-agent:**
+
 - Партиционирование по годам
 - Параллельные запросы
 - Connection pooling (PgBouncer)
@@ -332,11 +365,13 @@ class ReadOnlyDatabase:
 **ИТОГОВАЯ ОЦЕНКА:**
 
 **✅ ПЛЮСЫ:**
+
 - Структурированный подход
 - Конкретные метрики и примеры
 - Учет trade-offs
 
 **❌ МИНУСЫ:**
+
 - Ориентация на PostgreSQL, а проект на SQLite
 - Слишком много оптимизаций сразу
 - Нет учета multi-agent архитектуры
@@ -345,12 +380,14 @@ class ReadOnlyDatabase:
 **🎯 ПЛАН ДЕЙСТВИЙ:**
 
 #### **Этап 1: Адаптация документа (1-2 дня)**
+
 - Создать версию для SQLite
 - Удалить нерелевантные оптимизации PostgreSQL
 - Добавить SQLite-специфичные техники
 - Учесть multi-agent архитектуру
 
 #### **Этап 2: Критичные оптимизации (1 неделя)**
+
 - SQLite PRAGMA оптимизации
 - Индексы для медленных запросов
 - Connection pooling через singleton
@@ -359,11 +396,13 @@ class ReadOnlyDatabase:
 - Python uvloop для async
 
 #### **Этап 3: Измерение и профилирование (1 неделя)**
+
 - Бенчмарки до/после
 - Профилирование узких мест
 - Мониторинг метрик
 
 #### **Этап 4: Дополнительные оптимизации (по необходимости)**
+
 - Python оптимизации (Cython, Numba)
 - Продвинутые Rust оптимизации (SIMD, memory alignment)
 - Кэширование на уровне приложения
@@ -487,4 +526,3 @@ class ReadOnlyDatabase:
 **Дата создания:** 2025-01-09  
 **Авторы:** Команда экспертов (Ольга, Игорь, Роман, Виктор)  
 **Статус:** Готово к реализации
-

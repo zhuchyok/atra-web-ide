@@ -7,11 +7,12 @@
   python scripts/mega_debate.py "Принцип: все ответы и доработки только через экспертов"
   python scripts/mega_debate.py "Внедрение семи доработок из PRINCIPLE_EXPERTS_FIRST" --max 20
 """
+
 import asyncio
-import os
-import sys
 import json
 import logging
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,13 +36,16 @@ async def get_all_experts(limit: int = 86):
         return []
     conn = await asyncpg.connect(DB_URL)
     try:
-        rows = await conn.fetch("""
+        rows = await conn.fetch(
+            """
             SELECT id, name, role, department, system_prompt
             FROM experts
             WHERE (is_active IS NULL OR is_active = TRUE)
             ORDER BY department, name
             LIMIT $1
-        """, limit)
+        """,
+            limit,
+        )
         return [dict(r) for r in rows]
     finally:
         await conn.close()
@@ -64,6 +68,7 @@ async def ask_expert_for_against(expert: dict, topic: str) -> dict:
 
     try:
         from ai_core import run_smart_agent_async
+
         out = await run_smart_agent_async(
             prompt,
             expert_name=name,
@@ -73,6 +78,7 @@ async def ask_expert_for_against(expert: dict, topic: str) -> dict:
         logger.debug("ask_expert %s: %s", name, e)
         try:
             from local_router import LocalAIRouter
+
             router = LocalAIRouter()
             res = await router.run_local_llm(prompt, category="reasoning")
             out = (res[0] if isinstance(res, tuple) and res else res) if res else None
@@ -87,7 +93,13 @@ async def ask_expert_for_against(expert: dict, topic: str) -> dict:
             pro = line.split(":", 1)[-1].strip() if ":" in line else line[2:].strip()
         elif line.upper().startswith("ПРОТИВ:") or line.upper().startswith("ПРОТИВ "):
             against = line.split(":", 1)[-1].strip() if ":" in line else line[6:].strip()
-    return {"name": name, "role": role, "department": department or "General", "pro": pro or out[:200], "against": against or ""}
+    return {
+        "name": name,
+        "role": role,
+        "department": department or "General",
+        "pro": pro or out[:200],
+        "against": against or "",
+    }
 
 
 async def run_mega_debate(topic: str, max_experts: int = 86, batch_size: int = 10):
@@ -99,12 +111,16 @@ async def run_mega_debate(topic: str, max_experts: int = 86, batch_size: int = 1
     logger.info("Совет из %d экспертов. Тема: %s", len(experts), topic)
     results = []
     sem = asyncio.Semaphore(batch_size)
+
     async def ask_with_sem(e):
         async with sem:
             return await ask_expert_for_against(e, topic)
+
     for i in range(0, len(experts), batch_size):
         batch = experts[i : i + batch_size]
-        batch_results = await asyncio.gather(*[ask_with_sem(e) for e in batch], return_exceptions=True)
+        batch_results = await asyncio.gather(
+            *[ask_with_sem(e) for e in batch], return_exceptions=True
+        )
         for r in batch_results:
             if isinstance(r, Exception):
                 logger.warning("Ошибка в батче: %s", r)
@@ -143,7 +159,13 @@ async def run_mega_debate(topic: str, max_experts: int = 86, batch_size: int = 1
 
 Дай краткий вердикт совета экспертов (2–4 предложения): общий баланс ЗА/ПРОТИВ и одну рекомендацию. Без вступлений."""
         from ai_core import run_smart_agent_async
-        synthesis = await run_smart_agent_async(synthesis_prompt, expert_name="Виктория", category="reasoning") or ""
+
+        synthesis = (
+            await run_smart_agent_async(
+                synthesis_prompt, expert_name="Виктория", category="reasoning"
+            )
+            or ""
+        )
     except Exception as e:
         logger.debug("Synthesis skip: %s", e)
     summary["synthesis"] = (synthesis or "").strip()
@@ -175,12 +197,14 @@ def write_mega_debate_md(summary: dict, out_path: Path):
                 lines.append(f"  - ПРОТИВ: {r['against']}")
             lines.append("")
         lines.append("")
-    lines.extend([
-        "---",
-        "",
-        "## Сводка: все аргументы ЗА",
-        "",
-    ])
+    lines.extend(
+        [
+            "---",
+            "",
+            "## Сводка: все аргументы ЗА",
+            "",
+        ]
+    )
     for p in summary.get("all_pros", [])[:50]:
         if p:
             lines.append(f"- {p}")
@@ -197,11 +221,21 @@ def write_mega_debate_md(summary: dict, out_path: Path):
 
 def main():
     import argparse
+
     p = argparse.ArgumentParser(description="Мега-дебаты: совет всех экспертов")
-    p.add_argument("topic", nargs="?", default="Принцип «всё через экспертов»: ответы и доработки только силами экспертов с знаниями, скиллами и интернетом.", help="Тема дебатов")
+    p.add_argument(
+        "topic",
+        nargs="?",
+        default="Принцип «всё через экспертов»: ответы и доработки только силами экспертов с знаниями, скиллами и интернетом.",
+        help="Тема дебатов",
+    )
     p.add_argument("--max", type=int, default=86, help="Макс. число экспертов (по умолчанию 86)")
     p.add_argument("--batch", type=int, default=10, help="Размер батча параллельных вызовов")
-    p.add_argument("--out", default=None, help="Путь к выходному .md (по умолчанию knowledge_os/docs/MEGA_DEBATE_<date>.md)")
+    p.add_argument(
+        "--out",
+        default=None,
+        help="Путь к выходному .md (по умолчанию knowledge_os/docs/MEGA_DEBATE_<date>.md)",
+    )
     args = p.parse_args()
     summary = asyncio.run(run_mega_debate(args.topic, max_experts=args.max, batch_size=args.batch))
     if not summary:

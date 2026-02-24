@@ -4,6 +4,7 @@
 простые одношаговые (покажи файлы) → veronica; «напиши/сделай» → enhanced.
 Запуск: pytest backend/app/tests/test_task_detector_chain.py -v
 """
+
 import os
 import sys
 from pathlib import Path
@@ -15,7 +16,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 import pytest
 
-from src.agents.bridge.task_detector import detect_task_type, should_use_enhanced, is_curator_standard_goal
+from src.agents.bridge.task_detector import (
+    detect_task_type,
+    is_curator_standard_goal,
+    should_use_enhanced,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -123,6 +128,7 @@ class TestOrchestrationContext:
                 _build_orchestration_context,
                 _orchestrator_recommends_veronica,
             )
+
             return _build_orchestration_context, _orchestrator_recommends_veronica
         except Exception as e:
             pytest.skip(f"victoria_server не импортируется (нужны deps): {e}")
@@ -142,9 +148,11 @@ class TestOrchestrationContext:
 
     def test_build_context_with_assignments(self, build_and_recommends):
         build_ctx, _ = build_and_recommends
-        out = build_ctx({
-            "assignments": {"main": {"expert_name": "Игорь", "expert_id": "igor"}},
-        })
+        out = build_ctx(
+            {
+                "assignments": {"main": {"expert_name": "Игорь", "expert_id": "igor"}},
+            }
+        )
         assert "План от оркестратора" in out
         assert "Назначения" in out
         assert "Игорь" in out
@@ -152,10 +160,12 @@ class TestOrchestrationContext:
     def test_build_context_with_strategy_and_assignments(self, build_and_recommends):
         """Контекст содержит и стратегию, и назначения — оба используются в цепочке."""
         build_ctx, _ = build_and_recommends
-        out = build_ctx({
-            "strategy": "Сначала анализ кода, затем рефакторинг",
-            "assignments": {"main": {"expert_name": "Анна", "expert_id": "anna"}},
-        })
+        out = build_ctx(
+            {
+                "strategy": "Сначала анализ кода, затем рефакторинг",
+                "assignments": {"main": {"expert_name": "Анна", "expert_id": "anna"}},
+            }
+        )
         assert "План от оркестратора" in out
         assert "Стратегия оркестратора" in out
         assert "Сначала анализ" in out

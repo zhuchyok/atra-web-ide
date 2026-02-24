@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Victoria Telegram Bot - Интеграция Victoria с Telegram
 Аналог Clawdbot для Victoria Agent
@@ -8,17 +7,18 @@ Victoria Telegram Bot - Интеграция Victoria с Telegram
     python -m src.agents.bridge.victoria_telegram_bot
 """
 
+import asyncio
+import base64
+import fcntl
+import io
+import logging
 import os
 import sys
-import asyncio
-import logging
-import httpx
-import base64
-import io
 import time
-import fcntl
-from typing import Optional, List, Any, Dict, Set
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set
+
+import httpx
 from pydantic import BaseModel
 
 # Глобальный реестр для Health Check
@@ -27,8 +27,9 @@ _bot_health = {
     "status": "starting",
     "errors": 0,
     "last_error": None,
-    "processed_messages": 0
+    "processed_messages": 0,
 }
+
 
 async def notify_victoria_heartbeat():
     """Уведомление Victoria о пульсе"""
@@ -38,6 +39,7 @@ async def notify_victoria_heartbeat():
     except Exception:
         pass
 
+
 def update_heartbeat():
     """Обновление пульса бота для Health Check"""
     _bot_health["last_heartbeat"] = datetime.now(timezone.utc).isoformat()
@@ -45,15 +47,18 @@ def update_heartbeat():
     # Запускаем уведомление в фоне
     asyncio.create_task(notify_victoria_heartbeat())
 
+
 def record_bot_error(error_msg: str):
     """Запись ошибки бота"""
     _bot_health["errors"] += 1
     _bot_health["last_error"] = f"{datetime.now(timezone.utc).isoformat()}: {error_msg}"
     _bot_health["status"] = "error"
 
+
 def record_bot_message():
     """Запись обработанного сообщения"""
     _bot_health["processed_messages"] += 1
+
 
 class BotHealthReport(BaseModel):
     last_heartbeat: Optional[str]
@@ -62,6 +67,7 @@ class BotHealthReport(BaseModel):
     last_error: Optional[str]
     processed_messages: int
     up_since: str = datetime.now(timezone.utc).isoformat()
+
 
 # Инициализация logger в начале файла
 logger = logging.getLogger(__name__)
@@ -72,6 +78,7 @@ _PIP_CMD = f"{sys.executable} -m pip install Pillow pypdf"
 # Попытка импортировать PIL для работы с изображениями
 try:
     from PIL import Image
+
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -81,29 +88,32 @@ except ImportError:
 pypdf: Optional[Any] = None
 try:
     import pypdf as _pypdf_mod  # type: ignore[reportMissingImports]
+
     pypdf = _pypdf_mod
     PDF_AVAILABLE = True
 except ImportError:
     PDF_AVAILABLE = False
     logger.warning("⚠️ pypdf не установлен. Установите в окружении бота: %s", _PIP_CMD)
 
+
 # Загрузка переменных из .env файла
 def load_env_file():
     """Загружает переменные из .env файла"""
     env_path = os.path.join(os.path.dirname(__file__), "../../../.env")
     if os.path.exists(env_path):
-        with open(env_path, 'r') as f:
+        with open(env_path) as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
+                if line and not line.startswith("#") and "=" in line:
                     # Удаляем комментарии после значения (всё после #)
-                    if '#' in line:
-                        line = line.split('#')[0].strip()
-                    key, value = line.split('=', 1)
+                    if "#" in line:
+                        line = line.split("#")[0].strip()
+                    key, value = line.split("=", 1)
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
                     if key and value:
                         os.environ[key] = value
+
 
 # Загружаем .env перед использованием переменных
 load_env_file()
@@ -115,16 +125,15 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", ""
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("ALLOWED_USER_ID", "")
 # Chat ID группы Bikos_Corporation (если указан, бот будет работать в группе)
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-# Victoria URL: приоритет localhost (как для простых, так и для сложных запросов)
-# Явно заданный VICTORIA_URL имеет приоритет, иначе — localhost, не 185
-VICTORIA_LOCAL_URL = os.getenv("VICTORIA_LOCAL_URL", "http://localhost:8010")
-VICTORIA_REMOTE_URL = os.getenv("VICTORIA_REMOTE_URL", "http://185.177.216.15:8010")
-VICTORIA_URL = os.getenv("VICTORIA_URL") or VICTORIA_LOCAL_URL  # localhost по умолчанию, не 185
-# Таймаут ожидания ответа Victoria (сек). Для сложных задач (проверка RAM, анализ кода) — увеличьте.
-VICTORIA_POLL_TIMEOUT_SEC = int(os.getenv("VICTORIA_POLL_TIMEOUT_SEC", "900"))  # 15 мин по умолчанию
+# Victoria URL: приоритет Rust Gateway на 8081
+VICTORIA_URL = os.getenv("VICTORIA_URL") or "http://localhost:8081/v1/chat/completions"
+# Таймаут ожидания ответа Victoria (сек).
+VICTORIA_POLL_TIMEOUT_SEC = int(os.getenv("VICTORIA_POLL_TIMEOUT_SEC", "900"))
 # Таймаут первого POST /run?async_mode=true: Victoria возвращает 202 после стратегии и understand_goal (1–3 мин).
 # Если меньше — бот не получает 202, уходит в долгий sync и кажется что «завис».
-VICTORIA_POST_RUN_TIMEOUT_SEC = int(os.getenv("VICTORIA_POST_RUN_TIMEOUT_SEC", "300"))  # 5 мин до 202
+VICTORIA_POST_RUN_TIMEOUT_SEC = int(
+    os.getenv("VICTORIA_POST_RUN_TIMEOUT_SEC", "300")
+)  # 5 мин до 202
 
 # Сессии чата: project_context и история per chat_id
 _chat_sessions: Dict[str, dict] = {}
@@ -164,6 +173,7 @@ async def _set_bot_commands() -> bool:
         logger.warning(f"⚠️ setMyCommands: {e}")
     return False
 
+
 if not TELEGRAM_BOT_TOKEN:
     logger.error("❌ TELEGRAM_BOT_TOKEN не установлен в переменных окружения!")
     logger.info("💡 Получите токен у @BotFather в Telegram")
@@ -183,7 +193,9 @@ def _escape_telegram_plain(text: str) -> str:
     return "".join(c for c in text if c != "\x00")
 
 
-async def send_telegram_message(chat_id: str, text: str, parse_mode: Optional[str] = None, timeout: float = 10.0) -> bool:
+async def send_telegram_message(
+    chat_id: str, text: str, parse_mode: Optional[str] = None, timeout: float = 10.0
+) -> bool:
     """Отправка сообщения в Telegram. По умолчанию plain text — без parse_mode.
     Ответы Victoria (код, markdown) отправляются только как plain text."""
     if not TELEGRAM_BOT_TOKEN:
@@ -195,14 +207,16 @@ async def send_telegram_message(chat_id: str, text: str, parse_mode: Optional[st
     # Лимит Telegram 4096 символов
     if len(text) > 4096:
         text = text[:4090] + "\n\n...(обрезано)"
-    
+
     payload: Dict[str, Any] = {"chat_id": chat_id, "text": text}
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             response = await client.post(url, json=payload)
             if response.status_code == 200:
                 return True
-            logger.error(f"❌ Ошибка отправки в Telegram: {response.status_code} - {response.text[:200]}")
+            logger.error(
+                f"❌ Ошибка отправки в Telegram: {response.status_code} - {response.text[:200]}"
+            )
             return False
     except Exception as e:
         logger.error(f"❌ Ошибка отправки в Telegram: {e}")
@@ -224,15 +238,12 @@ async def get_telegram_updates(offset: int = 0) -> tuple[int, list]:
     """Получение обновлений из Telegram. Retry при DNS/сетевых ошибках."""
     if not TELEGRAM_BOT_TOKEN:
         return offset, []
-    
+
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    url,
-                    params={"offset": offset, "timeout": 25}
-                )
+                response = await client.get(url, params={"offset": offset, "timeout": 25})
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("ok"):
@@ -252,7 +263,7 @@ async def get_telegram_updates(offset: int = 0) -> tuple[int, list]:
         except Exception as e:
             logger.error(f"❌ Ошибка получения обновлений: {type(e).__name__}: {e}")
         if attempt < 2:
-            await asyncio.sleep(2 ** attempt)  # 1s, 2s backoff
+            await asyncio.sleep(2**attempt)  # 1s, 2s backoff
     return offset, []
 
 
@@ -260,7 +271,7 @@ async def download_telegram_file(file_id: str) -> Optional[bytes]:
     """Скачивание файла из Telegram по file_id"""
     if not TELEGRAM_BOT_TOKEN:
         return None
-    
+
     try:
         # Получаем информацию о файле
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile"
@@ -268,30 +279,30 @@ async def download_telegram_file(file_id: str) -> Optional[bytes]:
             response = await client.get(url, params={"file_id": file_id})
             if response.status_code != 200:
                 return None
-            
+
             data = response.json()
             if not data.get("ok"):
                 return None
-            
+
             file_path = data["result"]["file_path"]
-            
+
             # Скачиваем файл
             file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
             file_response = await client.get(file_url, timeout=60.0)
             if file_response.status_code == 200:
                 return file_response.content
-    
+
     except Exception as e:
         logger.error(f"❌ Ошибка скачивания файла: {e}")
         return None
-    
+
     return None
 
 
 def image_to_base64(image_bytes: bytes) -> str:
     """Конвертация изображения в base64"""
     try:
-        return base64.b64encode(image_bytes).decode('utf-8')
+        return base64.b64encode(image_bytes).decode("utf-8")
     except Exception as e:
         logger.error(f"❌ Ошибка конвертации изображения: {e}")
         return ""
@@ -301,7 +312,7 @@ async def process_pdf(pdf_bytes: bytes) -> Optional[str]:
     """Извлечение текста из PDF"""
     if not PDF_AVAILABLE:
         return None
-    
+
     try:
         if pypdf is None:
             return None
@@ -316,11 +327,18 @@ async def process_pdf(pdf_bytes: bytes) -> Optional[str]:
     except Exception as e:
         logger.error(f"❌ Ошибка обработки PDF: {e}")
         return None
-    
+
     return None
 
 
-async def send_to_victoria_with_media(goal: str, images_base64: Optional[List[str]] = None, pdf_text: Optional[str] = None, project_context: str = "atra-web-ide", chat_id: Optional[str] = None, session_id: Optional[str] = None) -> Optional[str]:
+async def send_to_victoria_with_media(
+    goal: str,
+    images_base64: Optional[List[str]] = None,
+    pdf_text: Optional[str] = None,
+    project_context: str = "atra-web-ide",
+    chat_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> Optional[str]:
     """Отправка задачи Victoria с медиа. session_id для LTM (например telegram-{user_id})."""
     # Формируем goal с медиа
     media_context = ""
@@ -335,181 +353,52 @@ async def send_to_victoria_with_media(goal: str, images_base64: Optional[List[st
 
     enhanced_goal = goal + media_context
 
-    return await send_to_victoria(enhanced_goal, project_context, chat_id, images_base64=images_base64, session_id=session_id)
+    return await send_to_victoria(
+        enhanced_goal, project_context, chat_id, images_base64=images_base64, session_id=session_id
+    )
 
 
-async def send_to_victoria(goal: str, project_context: str = "atra-web-ide", chat_id: Optional[str] = None, chat_history: Optional[List[dict]] = None, images_base64: Optional[List[str]] = None, session_id: Optional[str] = None) -> Optional[str]:
-    """Отправка задачи Victoria через API с автоматическим fallback и индикацией прогресса. session_id для LTM (например telegram-{user_id})."""
+async def send_to_victoria(
+    goal: str,
+    project_context: str = "atra-web-ide",
+    chat_id: Optional[str] = None,
+    chat_history: Optional[List[dict]] = None,
+    images_base64: Optional[List[str]] = None,
+    session_id: Optional[str] = None,
+) -> Optional[str]:
+    """Отправка задачи в Rust Gateway (OpenAI compatible)."""
     session_id = session_id or (f"telegram-{chat_id}" if chat_id else None)
-    # Обновляем пульс при активном взаимодействии
     update_heartbeat()
-    logger.info(f"📤 Отправка в Victoria ({VICTORIA_URL}): {goal[:100]}...")
+    logger.info(f"📤 Отправка в Rust Gateway ({VICTORIA_URL}): {goal[:100]}...")
 
-    # Список URL: сначала localhost (как простые), затем remote — чтобы и сложные шли через localhost
-    _all = [VICTORIA_LOCAL_URL, VICTORIA_URL, VICTORIA_REMOTE_URL, "http://185.177.216.15:8010", "http://185.177.216.15:8020"]
-    urls_to_try = list(dict.fromkeys(_all))  # порядок сохраняем, дубли убираем
-    
-    # Одно сообщение о старте на всю операцию (не при каждой попытке URL)
-    # if chat_id:
-    #     await send_telegram_message(chat_id, "⏳ Отправляю запрос в Victoria...")
-    
-    # Прогресс каждые 120 сек, отменяется при первом ответе
-    progress_task = None
-    poll_interval = 10  # Увеличено с 5 до 10, чтобы не спамить логи Victoria
-    max_poll_time = max(300, VICTORIA_POLL_TIMEOUT_SEC)  # не менее 5 мин
+    payload = {
+        "model": "victoria-wisdom-30b:latest",
+        "messages": [{"role": "user", "content": goal}],
+        "use_rag": True,
+        "stream": False,
+    }
 
-    def _parse_run_output(data: dict) -> Optional[str]:
-        """Извлечь output/response из ответа Victoria."""
-        out = data.get("output") or data.get("response") or data.get("result")
-        if out is not None:
-            return str(out)
-        if data.get("status") == "needs_clarification":
-            qs = data.get("clarification_questions", [])
-            return "Victoria уточняет: " + ("; ".join(qs) if qs else "Нужно уточнение.")
-        return None
+    if chat_history:
+        # Добавляем историю если нужно
+        pass
 
-    async def try_one_url_async(url: str) -> Optional[str]:
-        """Async mode: POST 202 → poll /run/status до completed. Fallback: 200 = sync ответ."""
-        post_timeout = float(VICTORIA_POST_RUN_TIMEOUT_SEC)
-        current_task_id = None
-        try:
-            async with httpx.AsyncClient(timeout=post_timeout) as client:
-                max_steps = int(os.getenv("VICTORIA_MAX_STEPS", "50"))  # 50 — меньше «превышен лимит 500» на локальных моделях
-                payload: dict = {
-                    "goal": goal,
-                    "project_context": project_context,
-                    "max_steps": max_steps,
-                }
-                if session_id:
-                    payload["session_id"] = session_id
-                if chat_history:
-                    payload["chat_history"] = [{"user": h.get("user", ""), "assistant": h.get("assistant", "")} for h in chat_history]
-                if images_base64:
-                    payload["images_base64"] = images_base64
-                
-                logger.info(f"POST {url}/run?async_mode=true")
-                r = await client.post(f"{url}/run?async_mode=true", json=payload)
-                # Fallback: Victoria без async_mode вернул 200 — сразу берём ответ
-                if r.status_code == 200:
-                    try:
-                        data = r.json()
-                        out = _parse_run_output(data)
-                        if out:
-                            logger.info(f"📥 Victoria sync 200 ({url}): ответ получен")
-                            return out
-                    except Exception as parse_e:
-                        logger.warning(f"Victoria 200 parse error ({url}): {parse_e}")
-                    return None
-                if r.status_code != 202:
-                    logger.error(f"❌ Victoria API async ({url}): {r.status_code}")
-                    return None
-                data = r.json()
-                current_task_id = data.get("task_id")
-                if not current_task_id:
-                    return None
-                if chat_id:
-                    await send_telegram_message(
-                        chat_id,
-                        "⏳ Задача принята Victoria. Ответ обычно приходит в течение 1–3 мин (сложные запросы — дольше).",
-                    )
-            status_url = f"{url}/run/status/{current_task_id}"
-            elapsed = 0
-            while elapsed < max_poll_time:
-                # ОБНОВЛЯЕМ ПУЛЬС ВО ВРЕМЯ ОЖИДАНИЯ
-                update_heartbeat()
-                
-                await asyncio.sleep(poll_interval)
-                elapsed += poll_interval
-                try:
-                    async with httpx.AsyncClient(timeout=15.0) as c:
-                        sr = await c.get(status_url)
-                        if sr.status_code != 200:
-                            continue
-                        rec = sr.json()
-                        st = rec.get("status", "")
-                        if st == "completed":
-                            # [SINGULARITY 15.0] Пытаемся найти результат в разных полях (output, result, response)
-                            output = rec.get("output") or rec.get("result") or rec.get("response")
-                            if not output:
-                                # Проверяем на уточняющие вопросы
-                                knowledge = rec.get("knowledge") or {}
-                                qs = knowledge.get("clarification_questions") or rec.get("clarification_questions")
-                                if qs:
-                                    return "Victoria уточняет: " + ("; ".join(qs) if isinstance(qs, list) else str(qs))
-                                return "Задача выполнена, но отчет пуст. Проверьте логи."
-                            return output
-                        if st == "failed":
-                            return rec.get("error") or "Ошибка выполнения"
-                except Exception:
-                    pass
-            logger.error(f"⏱️ Victoria async ({url}): таймаут {max_poll_time}с")
-            return None
-        except Exception as e:
-            # ConnectError при недоступном сервере — ожидаемо, логируем WARNING
-            level = logger.warning if "Connect" in type(e).__name__ or "connection" in str(e).lower() else logger.error
-            level("Victoria (%s): %s: %s", url, type(e).__name__, e)
-            return None
-
-    async def try_one_url_sync(url: str) -> Optional[str]:
-        """Sync mode: POST без async_mode — для Victoria без поддержки async. Таймаут = VICTORIA_POLL_TIMEOUT_SEC."""
-        try:
-            max_steps = int(os.getenv("VICTORIA_MAX_STEPS", "50"))  # 50 — меньше «превышен лимит 500» на локальных моделях
-            payload: dict = {
-                "goal": goal,
-                "project_context": project_context,
-                "max_steps": max_steps,
-            }
-            if session_id:
-                payload["session_id"] = session_id
-            if chat_history:
-                payload["chat_history"] = [{"user": h.get("user", ""), "assistant": h.get("assistant", "")} for h in chat_history]
-            if images_base64:
-                payload["images_base64"] = images_base64
-            async with httpx.AsyncClient(timeout=float(max_poll_time + 30)) as client:
-                r = await client.post(f"{url}/run", json=payload)
-                if r.status_code == 200:
-                    data = r.json()
-                    return _parse_run_output(data)
-        except httpx.TimeoutException:
-            logger.warning(f"⏱️ Victoria sync ({url}): таймаут {max_poll_time}с")
-        except Exception as e:
-            logger.warning("Victoria sync (%s): %s: %s", url, type(e).__name__, e)
-        return None
-
-    async def try_one_url(url: str) -> Optional[str]:
-        """Сначала async, при неудаче — sync."""
-        result = await try_one_url_async(url)
-        if result:
-            return result
-        # Fallback: sync (если async не поддерживается или таймаут)
-        return await try_one_url_sync(url)
-    
     try:
-        # Сначала пробуем основной URL (обычно localhost)
-        result = await try_one_url(VICTORIA_URL)
-        if result:
-            if progress_task:
-                progress_task.cancel()
-            logger.info(f"📥 Ответ Victoria ({VICTORIA_URL}, первые 200 символов): {result[:200]}...")
-            return result
-        for url in urls_to_try:
-            if url == VICTORIA_URL:
-                continue
-            result = await try_one_url(url)
-            if result:
-                if progress_task:
-                    progress_task.cancel()
-                logger.info(f"📥 Ответ Victoria ({url}, первые 200 символов): {result[:200]}...")
-                return result
-
-        # Не шлём сюда — вызывающий handle_telegram_message отправит одно итоговое сообщение при result is None
+        async with httpx.AsyncClient(timeout=float(VICTORIA_POLL_TIMEOUT_SEC)) as client:
+            r = await client.post(VICTORIA_URL, json=payload)
+            if r.status_code == 200:
+                data = r.json()
+                return data["choices"][0]["message"]["content"]
+            else:
+                logger.error(f"❌ Rust Gateway error: {r.status_code} - {r.text[:200]}")
+                return None
+    except Exception as e:
+        logger.error(f"❌ Connection error to Rust Gateway: {e}")
         return None
-    finally:
-        if progress_task:
-            progress_task.cancel()
 
 
-async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_type: str = "private"):
+async def handle_telegram_media(
+    user_id: str, chat_id: str, message: dict, chat_type: str = "private"
+):
     """Обработка медиа из Telegram (фото, документы)"""
     # Проверка авторизации (та же логика что и в handle_telegram_message)
     if chat_type == "private":
@@ -520,20 +409,20 @@ async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_
             return
         if TELEGRAM_USER_ID and str(user_id) != str(TELEGRAM_USER_ID):
             return
-    
+
     await send_telegram_message(chat_id, "⏳ Обрабатываю медиа...")
-    
+
     text = message.get("caption", "") or "Проанализируй это изображение/документ"
     images_base64 = []
     pdf_text = None
-    
+
     # Обработка фото
     if "photo" in message:
         photos = message["photo"]
         # Берем самое большое фото (последнее в списке)
         largest_photo = photos[-1]
         file_id = largest_photo.get("file_id")
-        
+
         if file_id:
             logger.info(f"📷 Получено фото, file_id: {file_id}")
             file_bytes = await download_telegram_file(file_id)
@@ -542,18 +431,18 @@ async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_
                 if base64_str:
                     images_base64.append(base64_str)
                     logger.info(f"✅ Фото конвертировано в base64 ({len(base64_str)} символов)")
-    
+
     # Обработка документов (PDF и другие)
     if "document" in message:
         document = message["document"]
         file_id = document.get("file_id")
         mime_type = document.get("mime_type", "")
         file_name = document.get("file_name", "")
-        
+
         if file_id:
             logger.info(f"📄 Получен документ: {file_name} ({mime_type})")
             file_bytes = await download_telegram_file(file_id)
-            
+
             if file_bytes:
                 # Обработка PDF
                 if mime_type == "application/pdf" or file_name.lower().endswith(".pdf"):
@@ -562,14 +451,21 @@ async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_
                     if pdf_text:
                         logger.info(f"✅ Извлечен текст из PDF ({len(pdf_text)} символов)")
                     else:
-                        await send_telegram_message(chat_id, "⚠️ Не удалось извлечь текст из PDF. Попробую обработать как изображение...")
+                        await send_telegram_message(
+                            chat_id,
+                            "⚠️ Не удалось извлечь текст из PDF. Попробую обработать как изображение...",
+                        )
                 else:
-                    await send_telegram_message(chat_id, f"⚠️ Файл {file_name} ({mime_type}) пока не поддерживается")
-    
+                    await send_telegram_message(
+                        chat_id, f"⚠️ Файл {file_name} ({mime_type}) пока не поддерживается"
+                    )
+
     session = _get_session(chat_id)
     project_context = session.get("project_context", "atra-web-ide")
-    result = await send_to_victoria_with_media(text, images_base64, pdf_text, project_context, chat_id, session_id=f"telegram-{user_id}")
-    
+    result = await send_to_victoria_with_media(
+        text, images_base64, pdf_text, project_context, chat_id, session_id=f"telegram-{user_id}"
+    )
+
     if result:
         if len(result) > 4000:
             result = result[:4000] + "\n\n... (сообщение обрезано)"
@@ -578,7 +474,9 @@ async def handle_telegram_media(user_id: str, chat_id: str, message: dict, chat_
         await send_telegram_message(chat_id, "❌ Не удалось обработать медиа")
 
 
-async def handle_telegram_message(user_id: str, chat_id: str, text: str, chat_type: str = "private"):
+async def handle_telegram_message(
+    user_id: str, chat_id: str, text: str, chat_type: str = "private"
+):
     """Обработка сообщения из Telegram"""
     # Проверка пользователя (для групп проверяем только если указан TELEGRAM_CHAT_ID)
     if chat_type == "private":
@@ -596,10 +494,10 @@ async def handle_telegram_message(user_id: str, chat_id: str, text: str, chat_ty
         if TELEGRAM_USER_ID and str(user_id) != str(TELEGRAM_USER_ID):
             logger.debug(f"ℹ️ Игнорирую сообщение от пользователя {user_id} в группе")
             return
-    
+
     # Обработка команд
     text_lower = text.lower().strip()
-    
+
     if text_lower in ["/start", "/help"]:
         session = _get_session(chat_id)
         help_text = f"""
@@ -609,7 +507,7 @@ async def handle_telegram_message(user_id: str, chat_id: str, text: str, chat_ty
 • /start, /help — эта справка
 • /status — статус Victoria
 • /health — проверка здоровья
-• /project <имя> — сменить проект (сейчас: {session.get('project_context', 'atra-web-ide')})
+• /project <имя> — сменить проект (сейчас: {session.get("project_context", "atra-web-ide")})
 • /models — доступные MLX/Ollama модели
 • /clear — очистить историю чата
 
@@ -624,7 +522,7 @@ async def handle_telegram_message(user_id: str, chat_id: str, text: str, chat_ty
         """
         await send_telegram_message(chat_id, help_text)
         return
-    
+
     if text_lower == "/status":
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -634,11 +532,11 @@ async def handle_telegram_message(user_id: str, chat_id: str, text: str, chat_ty
                     status_text = f"""
 📊 Статус Victoria:
 
-✅ Статус: {status.get('status', 'unknown')}
-🤖 Агент: {status.get('agent', 'unknown')}
-📚 Знаний: {status.get('knowledge_size', 0)}
+✅ Статус: {status.get("status", "unknown")}
+🤖 Агент: {status.get("agent", "unknown")}
+📚 Знаний: {status.get("knowledge_size", 0)}
 
-Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).get('enabled') else '❌ выключен'}
+Victoria Enhanced: {"✅ включен" if status.get("victoria_enhanced", {}).get("enabled") else "❌ выключен"}
                     """
                     await send_telegram_message(chat_id, status_text)
                 else:
@@ -647,7 +545,7 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
             logger.warning("Ошибка /status: %s", e)
             await send_telegram_message(chat_id, "❌ Victoria недоступна (сервер не отвечает)")
         return
-    
+
     if text_lower == "/health":
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -657,8 +555,8 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
                     health_text = f"""
 🏥 Health Check:
 
-Статус: {health.get('status', 'unknown')}
-Агент: {health.get('agent', 'unknown')}
+Статус: {health.get("status", "unknown")}
+Агент: {health.get("agent", "unknown")}
                     """
                     await send_telegram_message(chat_id, health_text)
                 else:
@@ -669,13 +567,17 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
         return
 
     if text_lower == "/audit":
-        await send_telegram_message(chat_id, "🔍 Запускаю полный аудит системы ATRA... Это может занять 1-2 минуты.")
+        await send_telegram_message(
+            chat_id, "🔍 Запускаю полный аудит системы ATRA... Это может занять 1-2 минуты."
+        )
         try:
             # Отправляем задачу Victoria на запуск AuditAgent
             audit_goal = "Запусти AuditAgent и выполни полный аудит системы. Верни подробный отчет о найденных аномалиях и выполненных исправлениях."
             session = _get_session(chat_id)
             project_context = session.get("project_context", "atra-web-ide")
-            result = await send_to_victoria(audit_goal, project_context, chat_id, session_id=f"telegram-{user_id}")
+            result = await send_to_victoria(
+                audit_goal, project_context, chat_id, session_id=f"telegram-{user_id}"
+            )
             if result:
                 await send_telegram_message(chat_id, f"📋 **ОТЧЕТ ОБ АУДИТЕ:**\n\n{result}")
             else:
@@ -694,7 +596,10 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
             await send_telegram_message(chat_id, f"📁 Проект: {new_project}")
         else:
             session = _get_session(chat_id)
-            await send_telegram_message(chat_id, f"📁 Текущий проект: {session.get('project_context', 'atra-web-ide')}\nИспользование: /project atra-web-ide")
+            await send_telegram_message(
+                chat_id,
+                f"📁 Текущий проект: {session.get('project_context', 'atra-web-ide')}\nИспользование: /project atra-web-ide",
+            )
         return
 
     if text_lower == "/models":
@@ -709,11 +614,17 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
                         ollama = data.get("ollama", [])
                         msg = "📦 Модели Victoria:\n\n"
                         if mlx:
-                            msg += f"MLX ({len(mlx)}): {', '.join(mlx[:8])}" + ("..." if len(mlx) > 8 else "") + "\n"
+                            msg += (
+                                f"MLX ({len(mlx)}): {', '.join(mlx[:8])}"
+                                + ("..." if len(mlx) > 8 else "")
+                                + "\n"
+                            )
                         else:
                             msg += "MLX: (нет)\n"
                         if ollama:
-                            msg += f"Ollama ({len(ollama)}): {', '.join(ollama[:8])}" + ("..." if len(ollama) > 8 else "")
+                            msg += f"Ollama ({len(ollama)}): {', '.join(ollama[:8])}" + (
+                                "..." if len(ollama) > 8 else ""
+                            )
                         else:
                             msg += "Ollama: (нет)"
                         await send_telegram_message(chat_id, msg)
@@ -729,7 +640,16 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
         await send_telegram_message(chat_id, "🗑 История чата очищена")
         return
 
-    if any(kw in text_lower for kw in ["как ты пришла", "почему такое решение", "раскрой логику", "покажи мысли", "о чем думала"]):
+    if any(
+        kw in text_lower
+        for kw in [
+            "как ты пришла",
+            "почему такое решение",
+            "раскрой логику",
+            "покажи мысли",
+            "о чем думала",
+        ]
+    ):
         # [SUMMARY READER] Специальная команда для Telegram
         session_id = str(chat_id)
         try:
@@ -756,7 +676,9 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
             await send_telegram_message(chat_id, f"Использование: /{action}_<id>")
             return
         if pid not in _pending_approvals:
-            await send_telegram_message(chat_id, "Нет ожидающих подтверждений (approval flow пока не активен)")
+            await send_telegram_message(
+                chat_id, "Нет ожидающих подтверждений (approval flow пока не активен)"
+            )
             return
         req = _pending_approvals.pop(pid)
         if action == "approve":
@@ -768,7 +690,7 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
     # Обычное сообщение — отправляем в Victoria
     session = _get_session(chat_id)
     project_context = session.get("project_context", "atra-web-ide")
-    
+
     # [SINGULARITY 15.0] Интеллектуальная обработка вопроса "Где результат?"
     text_clean = text.strip().lower()
     if text_clean in ["где результат?", "где результат", "результат?", "что там?", "статус задачи"]:
@@ -782,18 +704,21 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
 
     goal = text
 
-    if text_lower.startswith("виктория"):
-        goal = text[8:].strip(", ").strip()
-    elif text_lower.startswith("вероника"):
+    if text_lower.startswith("виктория") or text_lower.startswith("вероника"):
         goal = text[8:].strip(", ").strip()
 
     try:
-        result = await send_to_victoria(goal, project_context, chat_id, session.get("chat_history"), session_id=f"telegram-{user_id}")
+        result = await send_to_victoria(
+            goal,
+            project_context,
+            chat_id,
+            session.get("chat_history"),
+            session_id=f"telegram-{user_id}",
+        )
     except Exception as e:
         logger.exception("Ошибка при обращении к Victoria: %s", e)
         await send_telegram_message(
-            chat_id,
-            "❌ Внутренняя ошибка при обращении к Victoria. Проверьте victoria_bot.log"
+            chat_id, "❌ Внутренняя ошибка при обращении к Victoria. Проверьте victoria_bot.log"
         )
         return
 
@@ -804,19 +729,28 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
         chunk_size = 4000
         if len(result) <= chunk_size:
             result_trunc = result
-            sent = await send_telegram_message_with_retry(chat_id, f"✅ Результат:\n\n{result_trunc}")
+            sent = await send_telegram_message_with_retry(
+                chat_id, f"✅ Результат:\n\n{result_trunc}"
+            )
         else:
             parts = [result[i : i + chunk_size] for i in range(0, len(result), chunk_size)]
             sent = True
             for i, part in enumerate(parts[:5], 1):  # не более 5 сообщений
-                prefix = f"✅ Результат ({i}/{len(parts)}):\n\n" if len(parts) > 1 else "✅ Результат:\n\n"
+                prefix = (
+                    f"✅ Результат ({i}/{len(parts)}):\n\n"
+                    if len(parts) > 1
+                    else "✅ Результат:\n\n"
+                )
                 if not await send_telegram_message_with_retry(chat_id, prefix + part):
                     sent = False
                     break
             if len(parts) > 5:
                 await send_telegram_message(chat_id, f"... (ещё {len(parts) - 5} частей опущено)")
         if not sent:
-            await send_telegram_message(chat_id, "⚠️ Результат получен, но не удалось отправить в Telegram. Попробуйте короче запрос или проверьте логи.")
+            await send_telegram_message(
+                chat_id,
+                "⚠️ Результат получен, но не удалось отправить в Telegram. Попробуйте короче запрос или проверьте логи.",
+            )
         else:
             session["chat_history"].append({"user": goal, "assistant": result[:4000]})
             if len(session["chat_history"]) > 100:
@@ -829,7 +763,7 @@ Victoria Enhanced: {'✅ включен' if status.get('victoria_enhanced', {}).
             "• Victoria недоступна (сервер не отвечает — проверьте запущен ли victoria-agent)\n"
             f"• Таймаут выполнения (до {VICTORIA_POLL_TIMEOUT_SEC // 60} мин)\n"
             "• Ошибка в коде Victoria\n\n"
-            "Для локальной проверки: curl http://localhost:8010/health"
+            "Для локальной проверки: curl http://localhost:8010/health",
         )
 
 
@@ -837,23 +771,23 @@ async def telegram_bridge():
     """Главный цикл Telegram бота"""
     # Защита от двойного запуска на уровне Python (file locking)
     lock_file_path = os.path.join(os.path.dirname(__file__), "../../../.victoria_bot.lock")
-    lock_file = open(lock_file_path, 'w')
+    lock_file = open(lock_file_path, "w")
     try:
         fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         lock_file.write(str(os.getpid()))
         lock_file.flush()
-    except (IOError, OSError):
+    except OSError:
         logger.error("❌ Другой экземпляр бота уже запущен (lock file занят). Выход.")
         sys.exit(0)
 
     if not TELEGRAM_BOT_TOKEN:
         logger.error("❌ TELEGRAM_BOT_TOKEN не установлен! Бот не может работать.")
         return
-    
+
     if not TELEGRAM_USER_ID:
         logger.error("❌ TELEGRAM_USER_ID не установлен! Бот не может работать.")
         return
-    
+
     # Регистрация в Victoria (если доступна)
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
@@ -861,7 +795,7 @@ async def telegram_bridge():
     except Exception:
         pass
 
-    logger.info(f"🚀 Victoria Telegram Bot запущен")
+    logger.info("🚀 Victoria Telegram Bot запущен")
     if TELEGRAM_USER_ID:
         logger.info(f"   👤 Пользователь: {TELEGRAM_USER_ID}")
     if TELEGRAM_CHAT_ID:
@@ -878,20 +812,20 @@ async def telegram_bridge():
         if target_chat:
             await send_telegram_message(
                 target_chat,
-                "🤖 Victoria Telegram Bot запущен!\n\nЯ на связи и готова к командам!\n\nНапишите /help для списка команд."
+                "🤖 Victoria Telegram Bot запущен!\n\nЯ на связи и готова к командам!\n\nНапишите /help для списка команд.",
             )
     except Exception as e:
         logger.warning(f"⚠️ Не удалось отправить приветственное сообщение: {e}")
-    
+
     offset = 0
-    
+
     while True:
         try:
             # Обновляем пульс в начале каждого цикла ожидания обновлений
             update_heartbeat()
-            
+
             offset, updates = await get_telegram_updates(offset)
-            
+
             for update in updates:
                 update_heartbeat()
                 message = update.get("message")
@@ -901,25 +835,31 @@ async def telegram_bridge():
                     chat_id = str(chat.get("id", ""))
                     chat_type = chat.get("type", "private")  # private, group, supergroup, channel
                     text = message.get("text", "")
-                    
+
                     # Игнорируем сообщения из каналов
                     if chat_type == "channel":
                         continue
-                    
+
                     # Обработка текстовых сообщений
                     if text:
-                        logger.info(f"📨 Получено сообщение от {user_id} в {chat_type} {chat_id}: {text[:50]}...")
+                        logger.info(
+                            f"📨 Получено сообщение от {user_id} в {chat_type} {chat_id}: {text[:50]}..."
+                        )
                         record_bot_message()
-                        asyncio.create_task(handle_telegram_message(user_id, chat_id, text, chat_type))
-                    
+                        asyncio.create_task(
+                            handle_telegram_message(user_id, chat_id, text, chat_type)
+                        )
+
                     # Обработка медиа (фото, документы)
                     elif "photo" in message or "document" in message:
                         logger.info(f"📷 Получено медиа от {user_id} в {chat_type} {chat_id}")
                         record_bot_message()
-                        asyncio.create_task(handle_telegram_media(user_id, chat_id, message, chat_type))
-            
+                        asyncio.create_task(
+                            handle_telegram_media(user_id, chat_id, message, chat_type)
+                        )
+
             await asyncio.sleep(0.1)
-            
+
         except Exception as e:
             logger.error(f"❌ Ошибка в главном цикле: {e}")
             record_bot_error(str(e))
@@ -928,10 +868,9 @@ async def telegram_bridge():
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    
+
     try:
         asyncio.run(telegram_bridge())
     except KeyboardInterrupt:

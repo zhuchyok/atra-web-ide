@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Модуль основной системы сигналов
 Вынесен из signal_live.py для рефакторинга
@@ -12,7 +11,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable
+from typing import Callable, Dict, Optional
 
 from src.signals.core import run_hybrid_signal_system_fixed
 
@@ -30,10 +30,14 @@ def _load_signal_functions() -> Dict[str, Callable[..., Awaitable]]:
         return _SIGNAL_FUNCS
 
     try:
+        from signal_live import (
+            health_check_correlations as _health_check_correlations,
+        )
+        from signal_live import (
+            periodic_health_check_correlations as _periodic_health_check_correlations,
+        )
         from signal_live import (  # noqa: WPS433
             process_symbol_signals as _process_symbol_signals,
-            health_check_correlations as _health_check_correlations,
-            periodic_health_check_correlations as _periodic_health_check_correlations,
         )
     except ImportError as exc:
         logger.error("❌ Не удалось импортировать функции системы сигналов: %s", exc)
@@ -80,4 +84,3 @@ __all__ = [
     "health_check_correlations",
     "periodic_health_check_correlations",
 ]
-

@@ -45,7 +45,7 @@ if docker exec -e PGPASSWORD=secret knowledge_postgres psql -h "$MACBOOK_IP" -U 
 else
     echo "   ⚠️  Прямое подключение не работает"
     echo "   Пробуем через SSH туннель..."
-    
+
     # Создаем SSH туннель
     TUNNEL_PORT=5433
     ssh -fN -L ${TUNNEL_PORT}:localhost:5432 ${MACBOOK_USER}@${MACBOOK_IP} 2>/dev/null || {
@@ -57,7 +57,7 @@ else
         echo "  docker exec -i knowledge_postgres psql -U admin -d knowledge_os < ~/knowledge_os_dump.sql"
         exit 1
     }
-    
+
     MACBOOK_DB_URL="postgresql://admin:secret@localhost:${TUNNEL_PORT}/knowledge_os"
     echo "   ✅ SSH туннель создан (порт $TUNNEL_PORT)"
 fi
@@ -81,30 +81,30 @@ import asyncpg
 async def migrate_from_macbook():
     macbook_url = os.getenv('MACBOOK_DB_URL')
     local_url = os.getenv('DATABASE_URL')
-    
+
     print(f'📡 Подключение к MacBook: {macbook_url.replace(\"secret\", \"***\")}')
     macbook_conn = await asyncpg.connect(macbook_url)
-    
+
     print(f'📡 Подключение к локальной базе')
     local_conn = await asyncpg.connect(local_url)
-    
+
     try:
         # Получаем статистику
         macbook_count = await macbook_conn.fetchval('SELECT COUNT(*) FROM knowledge_nodes')
         local_count = await local_conn.fetchval('SELECT COUNT(*) FROM knowledge_nodes')
-        
+
         print(f'📊 Узлов на MacBook: {macbook_count}')
         print(f'📊 Узлов локально: {local_count}')
         print(f'📊 Недостает: {macbook_count - local_count}')
-        
+
         if macbook_count <= local_count:
             print('✅ Все узлы уже мигрированы!')
             return
-        
+
         # Мигрируем недостающие узлы
         print('💾 Миграция узлов...')
         # ... (логика миграции из migrate_knowledge_from_server46.py)
-        
+
     finally:
         await macbook_conn.close()
         await local_conn.close()

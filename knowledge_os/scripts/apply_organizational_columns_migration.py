@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Применить только миграцию add_experts_organizational_columns.sql.
 Идемпотентно: можно запускать многократно.
@@ -19,10 +18,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     import asyncpg
 except ImportError:
-    print("❌ asyncpg не установлен. Активируйте venv: source .venv/bin/activate && pip install -r requirements.txt")
+    print(
+        "❌ asyncpg не установлен. Активируйте venv: source .venv/bin/activate && pip install -r requirements.txt"
+    )
     sys.exit(1)
 
-MIGRATION_FILE = Path(__file__).parent.parent / "db" / "migrations" / "add_experts_organizational_columns.sql"
+MIGRATION_FILE = (
+    Path(__file__).parent.parent / "db" / "migrations" / "add_experts_organizational_columns.sql"
+)
 DEFAULT_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
 
 
@@ -35,7 +38,9 @@ async def main():
     try:
         conn = await asyncio.wait_for(asyncpg.connect(url), timeout=5.0)
     except asyncio.TimeoutError:
-        print("❌ Таймаут подключения к PostgreSQL. Убедитесь, что БД запущена (Docker или локально).")
+        print(
+            "❌ Таймаут подключения к PostgreSQL. Убедитесь, что БД запущена (Docker или локально)."
+        )
         return 1
     except Exception as e:
         print(f"❌ Ошибка подключения к БД: {e}")

@@ -6,10 +6,10 @@ Victoria (или любой агент) может задать вопрос н�
 Это позволяет отвечать на ЛЮБЫЕ вопросы о корпорации без хардкода классификаторов.
 """
 
-import os
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
+import os
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +70,16 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
 
     try:
         from app.network_resilience import safe_http_request
+
         is_mlx = "11435" in llm_url
         if is_mlx:
-            payload = {"category": "coding", "prompt": prompt, "stream": False, "max_tokens": 300, "temperature": 0.1}
+            payload = {
+                "category": "coding",
+                "prompt": prompt,
+                "stream": False,
+                "max_tokens": 300,
+                "temperature": 0.1,
+            }
         else:
             payload = {
                 "model": "qwen2.5-coder:32b",  # Лучшая для SQL
@@ -80,7 +87,9 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
                 "stream": False,
                 "options": {"num_predict": 300, "temperature": 0.1},
             }
-        resp = await safe_http_request(f"{llm_url}/api/generate", method="POST", timeout=30, json=payload)
+        resp = await safe_http_request(
+            f"{llm_url}/api/generate", method="POST", timeout=30, json=payload
+        )
         if resp is None or resp.status_code != 200:
             return None
         data = resp.json()
@@ -89,7 +98,10 @@ async def _generate_sql_from_question(question: str, llm_url: str) -> Optional[s
         sql = sql.replace("```sql", "").replace("```", "").strip()
         # Проверка безопасности
         sql_upper = sql.upper()
-        if any(kw in sql_upper for kw in ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE"]):
+        if any(
+            kw in sql_upper
+            for kw in ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE"]
+        ):
             logger.warning(f"⚠️ Попытка выполнить опасный SQL: {sql[:100]}")
             return None
         if not sql_upper.startswith("SELECT"):
@@ -105,6 +117,7 @@ async def _execute_sql(sql: str) -> Dict[str, Any]:
     """Выполняет SQL запрос и возвращает результат."""
     try:
         import asyncpg
+
         db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
         conn = await asyncpg.connect(db_url, timeout=5.0)
         try:
@@ -125,11 +138,11 @@ async def _format_answer(question: str, sql_result: Dict[str, Any], llm_url: str
     """Форматирует ответ на естественном языке на основе данных из БД."""
     if not sql_result.get("success"):
         return f"Не удалось получить данные: {sql_result.get('error', 'неизвестная ошибка')}"
-    
+
     data = sql_result.get("data", [])
     if not data:
         return "По вашему запросу данных не найдено."
-    
+
     # Если простой COUNT — НЕ отдаём в LLM! Модель может подменить число (галлюцинация).
     # Отвечаем напрямую, без LLM-формулирования.
     if len(data) == 1 and len(data[0]) == 1:
@@ -144,17 +157,19 @@ async def _format_answer(question: str, sql_result: Dict[str, Any], llm_url: str
                 return f"В базе знаний корпорации {value} узлов знаний."
             if any(w in q for w in ["задач", "task"]):
                 # Сингулярность 10.0: Для статуса проекта добавляем контекст дашборда
-                is_status_project = "статус" in q and ("проект" in q or "задач" in q or "дашборд" in q)
+                is_status_project = "статус" in q and (
+                    "проект" in q or "задач" in q or "дашборд" in q
+                )
                 answer = f"В корпорации {value} задач."
                 if is_status_project:
                     answer += "\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE."
                 return answer
             return f"Результат: {value}"
-    
+
     # Для таблиц — форматируем
     q = question.lower()
     is_status_project = "статус" in q and ("проект" in q or "задач" in q or "дашборд" in q)
-    
+
     if len(data) <= 10:
         lines = []
         for i, row in enumerate(data, 1):
@@ -166,20 +181,20 @@ async def _format_answer(question: str, sql_result: Dict[str, Any], llm_url: str
             f"{i}. " + ", ".join(f"{k}: {v}" for k, v in row.items())
             for i, row in enumerate(data[:10], 1)
         )
-    
+
     if is_status_project:
         answer += "\n\n💡 Статус проекта также доступен в дашборде (порт 8501), смотрите список задач Knowledge OS. Детали в MASTER_REFERENCE."
-        
+
     return answer
 
 
 async def query_corporation_data(question: str) -> Dict[str, Any]:
     """
     Главная функция — отвечает на любой вопрос о данных корпорации.
-    
+
     Args:
         question: Вопрос на естественном языке (рус/англ)
-        
+
     Returns:
         Dict с ключами: answer (ответ), sql (SQL запрос), raw_data (сырые данные)
     """
@@ -195,48 +210,50 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
             "count": None,
             "success": sys_result.get("success", False),
         }
-    
+
     # Определяем URL для LLM
-    is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+    is_docker = (
+        os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+    )
     if is_docker:
         mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
     else:
         mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435")
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    
+
     # Пробуем MLX, потом Ollama
     llm_urls = [url for url in [mlx_url, ollama_url] if url and url.lower() != "disabled"]
-    
+
     sql = None
     for llm_url in llm_urls:
         sql = await _generate_sql_from_question(question, llm_url)
         if sql:
             logger.info(f"✅ SQL сгенерирован через {llm_url}: {sql[:100]}...")
             break
-    
+
     if not sql:
         return {
             "answer": "Не удалось понять вопрос и сформировать запрос к базе данных.",
             "sql": None,
             "raw_data": None,
-            "success": False
+            "success": False,
         }
-    
+
     # Выполняем SQL
     result = await _execute_sql(sql)
-    
+
     if not result.get("success"):
         return {
             "answer": f"Ошибка при выполнении запроса: {result.get('error')}",
             "sql": sql,
             "raw_data": None,
-            "success": False
+            "success": False,
         }
-    
+
     # Форматируем ответ
     answer = await _format_answer(question, result, llm_urls[0])
-    
+
     # Добавляем источник данных (откуда взято)
     if sql:
         answer_with_source = f"{answer}\n\n_Источник: `{sql}`_"
@@ -248,7 +265,7 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
         "sql": sql,
         "raw_data": result.get("data"),
         "count": result.get("count"),
-        "success": True
+        "success": True,
     }
 
 
@@ -260,7 +277,7 @@ def _extract_latest_user_message(goal: str) -> str:
     Пользователь: сколько сотрудников?
     Ассистент: В корпорации 120 сотрудников.
     Пользователь: подтверди количество»
-    
+
     Для data-вопросов используем ТОЛЬКО последнее сообщение пользователя,
     чтобы не передавать в Text-to-SQL ошибочные числа из истории.
     """
@@ -279,10 +296,23 @@ def _extract_latest_user_message(goal: str) -> str:
 def is_system_metrics_question(question: str) -> bool:
     """Запрос о показателях Mac Studio / системы: память, CPU, мониторинг."""
     q = question.lower()
-    return any(kw in q for kw in [
-        "макстудио", "mac studio", "показател", "мониторинг", "память", "памяти",
-        "cpu", "процессор", "диск", "memory", "систем", "ресурс"
-    ])
+    return any(
+        kw in q
+        for kw in [
+            "макстудио",
+            "mac studio",
+            "показател",
+            "мониторинг",
+            "память",
+            "памяти",
+            "cpu",
+            "процессор",
+            "диск",
+            "memory",
+            "систем",
+            "ресурс",
+        ]
+    )
 
 
 async def query_system_metrics() -> Dict[str, Any]:
@@ -294,6 +324,7 @@ async def query_system_metrics() -> Dict[str, Any]:
         sys_text = ""
         try:
             from app.enhanced_monitor import get_system_metrics
+
             sys_m = await get_system_metrics()
             cpu = sys_m.get("cpu", {})
             ram = sys_m.get("ram", {})
@@ -307,6 +338,7 @@ async def query_system_metrics() -> Dict[str, Any]:
         except Exception:
             try:
                 import psutil
+
                 cpu = psutil.cpu_percent(interval=0.5)
                 ram = psutil.virtual_memory()
                 sys_text = f"**Система:** CPU {cpu}%, Память {ram.percent}% ({ram.used / (1024**3):.1f} / {ram.total / (1024**3):.1f} ГБ)\n"
@@ -319,6 +351,7 @@ async def query_system_metrics() -> Dict[str, Any]:
         mlx_text = ""
         try:
             import httpx
+
             async with httpx.AsyncClient(timeout=5.0) as client:
                 r = await client.get(f"{mlx_url}/health")
                 if r.status_code == 200:
@@ -351,22 +384,46 @@ def is_data_question(question: str) -> bool:
     Использует регулярные выражения для точного поиска слов (избегает ложных срабатываний типа 'отрефактори' -> 'кто').
     """
     import re
+
     q = question.lower()
-    
+
     def has_word(text, words):
         for w in words:
             # Поиск слова с границами (начало строки, пробел, пунктуация)
-            if re.search(rf'\b{re.escape(w)}', text):
+            if re.search(rf"\b{re.escape(w)}", text):
                 return True
         return False
 
     # ПРИОРИТЕТ 1: Глаголы действия всегда указывают на задачу, а не на вопрос о данных
     action_verbs = [
-        'создай', 'создать', 'напиши', 'написать', 'сделай', 'сделать', 'удали', 'удалить', 
-        'исправь', 'исправить', 'отрефактори', 'отрефакторить', 
-        'добавь', 'добавить', 'запусти', 'запустить', 'проверь', 'проверить', 
-        'выполни', 'выполнить', 'поручи', 'поручить', 'прикажи', 'приказать',
-        'начинается', 'заканчивается', 'проходит', 'идет'
+        "создай",
+        "создать",
+        "напиши",
+        "написать",
+        "сделай",
+        "сделать",
+        "удали",
+        "удалить",
+        "исправь",
+        "исправить",
+        "отрефактори",
+        "отрефакторить",
+        "добавь",
+        "добавить",
+        "запусти",
+        "запустить",
+        "проверь",
+        "проверить",
+        "выполни",
+        "выполнить",
+        "поручи",
+        "поручить",
+        "прикажи",
+        "приказать",
+        "начинается",
+        "заканчивается",
+        "проходит",
+        "идет",
     ]
     logger.info(f"DEBUG is_data_question: q='{q}' action_verbs_match={has_word(q, action_verbs)}")
     if has_word(q, action_verbs):
@@ -379,45 +436,96 @@ def is_data_question(question: str) -> bool:
     # ПРИОРИТЕТ 2: Запрос о показателях Mac Studio (память, CPU, мониторинг)
     if is_system_metrics_question(question):
         return True
-        
+
     # ПРИОРИТЕТ 3: Если спрашивают про корпорацию — всегда через Text-to-SQL (БД)
     corp_keywords = ["корпораци", "corporation", "компани", "отдел", "department"]
     if has_word(q, corp_keywords):
         return True
 
     data_keywords = [
-        "сколько", "количество", "число", "count", "how many",
-        "список", "покажи", "выведи", "show", "list",
-        "статистика", "метрик", "статус", "stats",
-        "кто", "какие", "какой", "what", "which", "who",
-        "топ", "лучш", "худш", "top", "best", "worst",
-        "последн", "recent", "latest", "новы",
-        "всего", "total", "sum", "итого",
-        "средн", "average", "avg",
-        "подтверди", "повтори", "напомни",
+        "сколько",
+        "количество",
+        "число",
+        "count",
+        "how many",
+        "список",
+        "покажи",
+        "выведи",
+        "show",
+        "list",
+        "статистика",
+        "метрик",
+        "статус",
+        "stats",
+        "кто",
+        "какие",
+        "какой",
+        "what",
+        "which",
+        "who",
+        "топ",
+        "лучш",
+        "худш",
+        "top",
+        "best",
+        "worst",
+        "последн",
+        "recent",
+        "latest",
+        "новы",
+        "всего",
+        "total",
+        "sum",
+        "итого",
+        "средн",
+        "average",
+        "avg",
+        "подтверди",
+        "повтори",
+        "напомни",
     ]
     entity_keywords = [
-        "сотрудник", "эксперт", "expert", "employee",
-        "задач", "task", "задани",
-        "знани", "knowledge", "узл", "node",
-        "домен", "domain", "област",
-        "kpi", "okr", "цел", "goal",
-        "бюджет", "budget", "рейтинг", "score",
-        "лог", "log", "взаимодейств", "interaction",
+        "сотрудник",
+        "эксперт",
+        "expert",
+        "employee",
+        "задач",
+        "task",
+        "задани",
+        "знани",
+        "knowledge",
+        "узл",
+        "node",
+        "домен",
+        "domain",
+        "област",
+        "kpi",
+        "okr",
+        "цел",
+        "goal",
+        "бюджет",
+        "budget",
+        "рейтинг",
+        "score",
+        "лог",
+        "log",
+        "взаимодейств",
+        "interaction",
     ]
-    
+
     has_data_kw = has_word(q, data_keywords)
     has_entity_kw = has_word(q, entity_keywords)
-    
+
     # Дополнительная защита: если вопрос слишком длинный, это скорее всего сложная задача, а не простой запрос данных
     if len(q) > 300:
         return False
-        
+
     return has_data_kw and has_entity_kw
 
 
 # Тест
 if __name__ == "__main__":
+
     async def test():
         questions = [
             "сколько сотрудников в корпорации?",
@@ -431,5 +539,5 @@ if __name__ == "__main__":
             result = await query_corporation_data(q)
             print(f"📊 SQL: {result.get('sql')}")
             print(f"✅ Ответ: {result.get('answer')}")
-    
+
     asyncio.run(test())

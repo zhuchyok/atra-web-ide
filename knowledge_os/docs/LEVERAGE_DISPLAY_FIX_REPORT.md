@@ -1,10 +1,13 @@
 # Отчет об исправлении отображения плеча в позициях
 
 ## Проблема
+
 Для позиций без установленного плеча отображалось "Плечо: xNone" вместо логичного "Плечо: x1", что могло приводить к путанице в расчетах.
 
 ## Причина проблемы
+
 В коде использовалась проверка `if pos_leverage:` или `pos.get('leverage', 1)`, но если в данных позиции уже было сохранено значение `None`, то:
+
 1. `pos.get('leverage', 1)` не заменяло `None` на 1, так как `None` уже было в данных
 2. `if pos_leverage:` не выполнялось для `None`, поэтому плечо не отображалось вообще
 
@@ -13,6 +16,7 @@
 ### 1. Исправлена логика в `positions_cmd`
 
 **Было:**
+
 ```python
 if user_data.get('trade_mode') == 'futures':
     leverage = pos.get('leverage', 1)  # По умолчанию плечо = 1
@@ -20,6 +24,7 @@ if user_data.get('trade_mode') == 'futures':
 ```
 
 **Стало:**
+
 ```python
 if user_data.get('trade_mode') == 'futures':
     leverage = pos.get('leverage')
@@ -31,12 +36,14 @@ if user_data.get('trade_mode') == 'futures':
 ### 2. Исправлена логика в `myreport_cmd`
 
 **Было:**
+
 ```python
 if pos_leverage:
     pos_str += f" | Плечо: x<code>{pos_leverage}</code>"
 ```
 
 **Стало:**
+
 ```python
 if trade_mode == "futures":
     pos_leverage = pos.get("leverage")
@@ -48,12 +55,14 @@ if trade_mode == "futures":
 ### 3. Исправлена логика в `signal_stats_cmd`
 
 **Было:**
+
 ```python
 if pos_leverage:
     pos_str += f" | Плечо: x<code>{pos_leverage}</code>"
 ```
 
 **Стало:**
+
 ```python
 if user_data.get('trade_mode') == 'futures':
     pos_leverage = pos.get("leverage")
@@ -67,6 +76,7 @@ if user_data.get('trade_mode') == 'futures':
 ### Пример отображения плеча:
 
 **Позиция с установленным плечом:**
+
 ```
 🟢 BTCUSDT (LONG)
 ...
@@ -74,6 +84,7 @@ if user_data.get('trade_mode') == 'futures':
 ```
 
 **Позиция без установленного плеча (было):**
+
 ```
 🔴 ETHUSDT (SHORT)
 ...
@@ -81,6 +92,7 @@ if user_data.get('trade_mode') == 'futures':
 ```
 
 **Позиция без установленного плеча (стало):**
+
 ```
 🔴 ETHUSDT (SHORT)
 ...
@@ -97,6 +109,7 @@ if user_data.get('trade_mode') == 'futures':
 ## Тестирование
 
 Функции были протестированы с различными сценариями:
+
 - Позиции с установленным плечом (1.5, 2.0)
 - Позиции без установленного плеча (None)
 - Позиции с плечом = 1
@@ -106,6 +119,7 @@ if user_data.get('trade_mode') == 'futures':
 ## Применение ко всем командам
 
 Исправление применено ко всем командам, которые отображают открытые позиции:
+
 - `/positions` - команда просмотра позиций
 - `/myreport` - персональный отчет
 - `/signal_stats` - статистика сигналов

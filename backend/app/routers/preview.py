@@ -1,12 +1,14 @@
 """
 Preview Router - Live Preview для веб-проектов
 """
+
+import logging
+import mimetypes
+from pathlib import Path
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
-from typing import Optional
-import logging
-from pathlib import Path
-import mimetypes
 
 from app.config import get_settings
 
@@ -18,15 +20,15 @@ settings = get_settings()
 def get_safe_path(path: str) -> Path:
     """Получить безопасный путь внутри workspace"""
     workspace = Path(settings.workspace_root)
-    
+
     if path.startswith("/"):
         path = path[1:]
-    
+
     full_path = (workspace / path).resolve()
-    
+
     if not str(full_path).startswith(str(workspace)):
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     return full_path
 
 
@@ -37,10 +39,11 @@ async def preview_index() -> HTMLResponse:
     """
     try:
         file_path = get_safe_path("index.html")
-        
+
         if not file_path.exists():
             # Возвращаем базовый шаблон
-            return HTMLResponse(content="""
+            return HTMLResponse(
+                content="""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -73,11 +76,12 @@ async def preview_index() -> HTMLResponse:
     </div>
 </body>
 </html>
-            """)
-        
+            """
+            )
+
         content = file_path.read_text(encoding="utf-8")
         return HTMLResponse(content=content)
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -86,38 +90,36 @@ async def preview_index() -> HTMLResponse:
 
 
 @router.get("/file")
-async def preview_file(
-    path: str = Query(..., description="Путь к файлу")
-) -> Response:
+async def preview_file(path: str = Query(..., description="Путь к файлу")) -> Response:
     """
     Превью любого файла с правильным content-type
     """
     try:
         file_path = get_safe_path(path)
-        
+
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
-        
+
         if not file_path.is_file():
             raise HTTPException(status_code=400, detail="Not a file")
-        
+
         # Определяем MIME type
         mime_type, _ = mimetypes.guess_type(str(file_path))
         if mime_type is None:
             mime_type = "application/octet-stream"
-        
+
         # Читаем файл
         if mime_type.startswith("text/") or mime_type in [
             "application/javascript",
             "application/json",
-            "application/xml"
+            "application/xml",
         ]:
             content = file_path.read_text(encoding="utf-8")
             return Response(content=content, media_type=mime_type)
         else:
             content = file_path.read_bytes()
             return Response(content=content, media_type=mime_type)
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -127,20 +129,22 @@ async def preview_file(
 
 @router.get("/html")
 async def render_html(
-    content: str = Query(..., description="HTML контент для рендера")
+    content: str = Query(..., description="HTML контент для рендера"),
 ) -> HTMLResponse:
     """
     Рендер переданного HTML контента
     """
     # Базовая санитизация (в продакшене использовать bleach)
     dangerous = ["<script", "javascript:", "onerror=", "onload="]
-    
+
     for d in dangerous:
         if d.lower() in content.lower():
             raise HTTPException(status_code=400, detail="Dangerous content detected")
-    
+
     # Оборачиваем в базовый HTML если нужно
-    if not content.strip().lower().startswith("<!doctype") and not content.strip().lower().startswith("<html"):
+    if not content.strip().lower().startswith(
+        "<!doctype"
+    ) and not content.strip().lower().startswith("<html"):
         content = f"""
 <!DOCTYPE html>
 <html>
@@ -154,5 +158,5 @@ async def render_html(
 </body>
 </html>
         """
-    
+
     return HTMLResponse(content=content)

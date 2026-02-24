@@ -19,6 +19,7 @@
 ### В `strict_entry_signal` (src/signals/core.py:290-352):
 
 **ТЕКУЩИЙ ПОРЯДОК:**
+
 1. ✅ Volume Profile
 2. ✅ VWAP
 3. ✅ Market Profile
@@ -30,6 +31,7 @@
 9. ❌ **Institutional Patterns** (должен быть 5-м, после Market Profile)
 
 **ПРАВИЛЬНЫЙ ПОРЯДОК ДОЛЖЕН БЫТЬ:**
+
 1. Volume Profile
 2. VWAP
 3. **AMT** ← переместить сюда
@@ -43,6 +45,7 @@
 ### В `soft_entry_signal` (src/signals/core.py:633-790):
 
 **ТЕКУЩИЙ ПОРЯДОК:**
+
 1. ✅ Volume Profile (перед baseline)
 2. ✅ VWAP (перед baseline)
 3. ✅ Baseline (ослабленный, 70%)
@@ -55,6 +58,7 @@
 10. ❌ **Institutional Patterns** (должен быть после AMT)
 
 **ПРАВИЛЬНЫЙ ПОРЯДОК ДОЛЖЕН БЫТЬ:**
+
 1. Volume Profile (перед baseline) ✅
 2. VWAP (перед baseline) ✅
 3. Baseline (ослабленный, 70%) ✅
@@ -71,4 +75,3 @@
 **Порядок фильтров НЕ соответствует успешному бэктесту!**
 
 Нужно исправить порядок в обоих функциях (`strict_entry_signal` и `soft_entry_signal`).
-

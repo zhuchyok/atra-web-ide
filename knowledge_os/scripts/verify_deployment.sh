@@ -59,10 +59,10 @@ check_file() {
     local file="$1"
     local description="$2"
     TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
-    
+
     # Проверяем существование файла
     RESULT=$(ssh_with_password "test -f $SERVER_PATH/$file && echo 'EXISTS' || echo 'NOT_FOUND'" 2>&1)
-    
+
     if echo "$RESULT" | grep -q "EXISTS"; then
         # Получаем размер файла
         SIZE=$(ssh_with_password "stat -c%s $SERVER_PATH/$file 2>/dev/null || stat -f%z $SERVER_PATH/$file 2>/dev/null || echo '0'" 2>&1 | grep -E "^[0-9]+" | head -1 | tr -d '\r\n')
@@ -204,4 +204,3 @@ fi
 
 echo ""
 echo "======================================================================"
-

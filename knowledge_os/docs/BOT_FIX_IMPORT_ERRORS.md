@@ -5,6 +5,7 @@
 **Ошибка:** `ImportError: cannot import name 'start_stuck_monitor' from 'src.risk.autonomous.stuck_monitor'`
 
 **Причина:**
+
 - В файле `src/risk/autonomous/stuck_monitor.py` есть класс `StuckPositionMonitor`, но нет функции `start_stuck_monitor`
 - В `signal_live.py` используется несуществующая функция `start_stuck_monitor()`
 
@@ -20,6 +21,7 @@
 **Файл:** `signal_live.py`
 
 1. **Импорты:**
+
    ```python
    try:
        from src.infrastructure.self_healing.manager import SelfHealingManager
@@ -37,6 +39,7 @@
    ```
 
 2. **Использование Self-Healing:**
+
    ```python
    if SELF_HEALING_AVAILABLE and SelfHealingManager:
        try:
@@ -70,6 +73,7 @@
 ## 🔍 ПРОВЕРКА
 
 После исправлений:
+
 1. ✅ Модуль `signal_live` должен импортироваться без ошибок
 2. ✅ Бот должен запускаться без ошибок импорта
 3. ✅ Self-Healing и Stuck Monitor запускаются только если модули доступны
@@ -80,4 +84,3 @@
 **Исполнитель:** Команда экспертов ATRA (21 сотрудник)
 
 **Статус:** ✅ Ошибки импорта исправлены, ожидание проверки запуска бота
-

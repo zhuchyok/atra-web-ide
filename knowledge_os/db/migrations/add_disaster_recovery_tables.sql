@@ -11,14 +11,13 @@ CREATE TABLE IF NOT EXISTS disaster_recovery_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_disaster_recovery_logs_timestamp 
+CREATE INDEX IF NOT EXISTS idx_disaster_recovery_logs_timestamp
 ON disaster_recovery_logs(timestamp);
 
-CREATE INDEX IF NOT EXISTS idx_disaster_recovery_logs_mode 
+CREATE INDEX IF NOT EXISTS idx_disaster_recovery_logs_mode
 ON disaster_recovery_logs(new_mode);
 
 COMMENT ON TABLE disaster_recovery_logs IS 'Логи изменений режимов работы системы при аварийных ситуациях';
 COMMENT ON COLUMN disaster_recovery_logs.old_mode IS 'Предыдущий режим работы';
 COMMENT ON COLUMN disaster_recovery_logs.new_mode IS 'Новый режим работы';
 COMMENT ON COLUMN disaster_recovery_logs.component_states IS 'Состояние компонентов системы на момент переключения';
-
