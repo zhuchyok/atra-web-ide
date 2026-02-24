@@ -23,5 +23,5 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 
 # Project-specific dependencies
-scraper = "0.18"
+scraper = "0.25"
 walkdir = "2.5"
