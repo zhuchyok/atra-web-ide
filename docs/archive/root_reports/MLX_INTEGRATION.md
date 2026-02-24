@@ -29,6 +29,7 @@
 ### 3. Конфигурация
 
 **Переменные окружения:**
+
 - `MLX_API_URL=http://localhost:11435` (MLX API Server)
 - `OLLAMA_BASE_URL=http://localhost:11434` (Ollama, fallback)
 - `USE_MLX=true` (приоритет MLX)
@@ -71,20 +72,21 @@
 
 Все 8 моделей доступны через MLX API Server:
 
-| Модель | MLX путь | Ollama fallback |
-|--------|----------|-----------------|
-| command-r-plus:104b | ~/.mlx_models/... | command-r-plus:104b |
-| deepseek-r1-distill-llama:70b | ~/.mlx_models/DeepSeek-R1... | deepseek-r1-distill-llama:70b |
-| llama3.3:70b | ~/.mlx_models/... | llama3.3:70b |
-| qwen2.5-coder:32b | ~/.mlx_models/Qwen2.5-Coder-32B... | qwen2.5-coder:32b |
-| phi3.5:3.8b | ~/.mlx_models/Phi-3.5-mini... | phi3.5:3.8b |
-| phi3:mini-4k | ~/.mlx_models/Phi-3-mini... | phi3:mini-4k |
-| qwen2.5:3b | ~/.mlx_models/Qwen2.5-3B... | qwen2.5:3b |
-| tinyllama:1.1b-chat | ~/.mlx_models/TinyLlama... | tinyllama:1.1b-chat |
+| Модель                        | MLX путь                           | Ollama fallback               |
+| ----------------------------- | ---------------------------------- | ----------------------------- |
+| command-r-plus:104b           | ~/.mlx_models/...                  | command-r-plus:104b           |
+| deepseek-r1-distill-llama:70b | ~/.mlx_models/DeepSeek-R1...       | deepseek-r1-distill-llama:70b |
+| llama3.3:70b                  | ~/.mlx_models/...                  | llama3.3:70b                  |
+| qwen2.5-coder:32b             | ~/.mlx_models/Qwen2.5-Coder-32B... | qwen2.5-coder:32b             |
+| phi3.5:3.8b                   | ~/.mlx_models/Phi-3.5-mini...      | phi3.5:3.8b                   |
+| phi3:mini-4k                  | ~/.mlx_models/Phi-3-mini...        | phi3:mini-4k                  |
+| qwen2.5:3b                    | ~/.mlx_models/Qwen2.5-3B...        | qwen2.5:3b                    |
+| tinyllama:1.1b-chat           | ~/.mlx_models/TinyLlama...         | tinyllama:1.1b-chat           |
 
 ## ✅ Результат
 
 **Теперь Victoria Enhanced:**
+
 - ✅ Использует MLX API Server (приоритет)
 - ✅ Fallback на Ollama если MLX недоступен
 - ✅ Работает со всеми 8 моделями из PLAN.md

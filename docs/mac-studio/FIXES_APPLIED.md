@@ -8,17 +8,20 @@
 ## 🔍 НАЙДЕННЫЕ ПРОБЛЕМЫ
 
 ### **1. Enhanced Orchestrator не работает**
+
 - **Проблема:** Ошибка подключения к Redis
 - **Ошибка:** `OSError: Connect call failed ('127.0.0.1', 6379)`
 - **Причина:** Неправильный REDIS_URL (localhost вместо atra-redis)
 - **Решение:** Исправлен REDIS_URL в скрипте запуска
 
 ### **2. Curiosity Engine не активен**
+
 - **Проблема:** Не создает задачи сейчас
 - **Последняя активность:** 2026-01-25 10:27:44
 - **Решение:** Требует проверки и перезапуска
 
 ### **3. Nightly Learner не активен**
+
 - **Проблема:** Скрипт запущен, но не создает задачи
 - **Решение:** Перезапущен
 
@@ -27,12 +30,15 @@
 ## ✅ ИСПРАВЛЕНИЯ
 
 ### **1. Enhanced Orchestrator**
+
 **Было:**
+
 ```bash
 docker exec -e REDIS_URL=redis://atra-redis:6379 knowledge_os_api python /app/enhanced_orchestrator.py
 ```
 
 **Стало:**
+
 ```bash
 docker exec -e REDIS_URL=redis://atra-redis:6379 \
   -e DATABASE_URL=postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os \
@@ -40,11 +46,13 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 \
 ```
 
 **Изменения:**
+
 - ✅ Добавлен правильный DATABASE_URL
 - ✅ REDIS_URL указывает на atra-redis (не localhost)
 - ✅ Перезапущены скрипты
 
 ### **2. Скрипты запуска**
+
 - ✅ `scripts/start_autonomous_systems.sh` — обновлен
 - ✅ `scripts/check_all_autonomous_systems.sh` — создан
 - ✅ Процессы перезапущены
@@ -54,6 +62,7 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 \
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### **✅ Работает:**
+
 - Victoria Agent (порт 8010)
 - Veronica Agent (порт 8011)
 - Knowledge OS DB (порт 5432)
@@ -61,6 +70,7 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 \
 - Redis (atra-redis, порт 6379)
 
 ### **⚠️ В процессе проверки:**
+
 - Enhanced Orchestrator (перезапущен, проверка)
 - Curiosity Engine (требует проверки)
 - Nightly Learner (перезапущен)
@@ -75,10 +85,11 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 \
    - Проверить активность Curiosity Engine
 
 2. **Проверка:**
+
    ```bash
    # Проверка статуса
    bash scripts/check_all_autonomous_systems.sh
-   
+
    # Проверка логов
    tail -f /tmp/orchestrator.log
    tail -f /tmp/nightly_learner.log
@@ -91,4 +102,4 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 \
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

@@ -8,11 +8,13 @@
 ## 🎯 ЧТО РЕАЛИЗОВАНО
 
 ### ✅ Prometheus + Grafana
+
 - Контейнеры запущены и работают
 - Автоматическая настройка datasource через provisioning
 - Дашборд готов к импорту
 
 ### ✅ ELK стек (Elasticsearch + Kibana)
+
 - Контейнеры запущены и работают
 - ELKHandler создан и готов к использованию
 - Интеграция в систему логирования
@@ -46,12 +48,14 @@ bash scripts/setup_grafana_complete.sh
 ```
 
 **Что делает скрипт:**
+
 1. ✅ Проверяет доступность Grafana
 2. ✅ Создает Prometheus datasource (если не существует)
 3. ✅ Импортирует дашборд
 4. ✅ Выводит ссылку на дашборд
 
 **Или вручную:**
+
 1. Откройте http://localhost:3001
 2. Логин: `admin`, пароль: `atra2025`
 3. Settings → Data Sources → Add data source
@@ -70,6 +74,7 @@ bash scripts/setup_kibana_complete.sh
 ```
 
 **Или вручную:**
+
 1. Откройте http://localhost:5601
 2. Management → Stack Management → Index Patterns
 3. Create index pattern
@@ -102,6 +107,7 @@ veronica-agent:
 ```
 
 Затем перезапустите:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent
 ```
@@ -117,6 +123,7 @@ docker exec -e USE_ELK=true -e ELASTICSEARCH_URL=http://atra-elasticsearch:9200 
 ### Шаг 5: Проверка работы
 
 #### Prometheus:
+
 ```bash
 # Проверка targets
 curl http://localhost:9090/api/v1/targets | python3 -m json.tool
@@ -126,12 +133,14 @@ curl http://localhost:9090/api/v1/query?query=up
 ```
 
 #### Grafana:
+
 ```bash
 # Проверка datasources
 curl -u admin:atra2025 http://localhost:3001/api/datasources | python3 -m json.tool
 ```
 
 #### Elasticsearch:
+
 ```bash
 # Проверка индексов
 curl 'http://localhost:9200/_cat/indices?v'
@@ -141,6 +150,7 @@ curl http://localhost:9200/_cluster/health
 ```
 
 #### Kibana:
+
 ```bash
 # Проверка статуса
 curl http://localhost:5601/api/status | python3 -m json.tool
@@ -155,6 +165,7 @@ curl http://localhost:5601/api/status | python3 -m json.tool
 **Симптом:** Target показывает "down" с ошибкой 404
 
 **Решение:**
+
 1. Проверьте, что `/metrics` endpoint доступен:
    ```bash
    curl http://localhost:8000/metrics
@@ -175,6 +186,7 @@ curl http://localhost:5601/api/status | python3 -m json.tool
 **Симптом:** Datasource показывает ошибку подключения
 
 **Решение:**
+
 1. Проверьте, что Prometheus доступен из контейнера Grafana:
    ```bash
    docker exec atra-grafana curl http://atra-prometheus:9090/-/healthy
@@ -192,6 +204,7 @@ curl http://localhost:5601/api/status | python3 -m json.tool
 **Симптом:** Index pattern создан, но нет данных
 
 **Решение:**
+
 1. Проверьте, что ELK логирование включено:
    ```bash
    docker exec victoria-agent env | grep USE_ELK
@@ -214,32 +227,38 @@ curl http://localhost:5601/api/status | python3 -m json.tool
 ## 📋 ПРОВЕРОЧНЫЙ ЧЕКЛИСТ
 
 ### Базовая инфраструктура:
+
 - [ ] Docker Desktop запущен
 - [ ] Все контейнеры запущены (`docker ps`)
 - [ ] Сеть `atra-network` существует
 
 ### Prometheus:
+
 - [ ] Доступен на http://localhost:9090
 - [ ] Targets видны в UI
 - [ ] Метрики собираются
 
 ### Grafana:
+
 - [ ] Доступен на http://localhost:3001
 - [ ] Prometheus datasource настроен
 - [ ] Дашборд импортирован
 - [ ] Метрики отображаются
 
 ### Elasticsearch:
+
 - [ ] Доступен на http://localhost:9200
 - [ ] Health status: green
 - [ ] Индексы создаются при логировании
 
 ### Kibana:
+
 - [ ] Доступен на http://localhost:5601
 - [ ] Index pattern `atra-logs-*` создан
 - [ ] Логи отображаются в Discover
 
 ### ELK логирование:
+
 - [ ] `USE_ELK=true` в переменных окружения
 - [ ] Логи отправляются в Elasticsearch
 - [ ] Логи видны в Kibana
@@ -249,21 +268,25 @@ curl http://localhost:5601/api/status | python3 -m json.tool
 ## 🎯 БЫСТРЫЕ КОМАНДЫ
 
 ### Запуск всех сервисов:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml up -d prometheus grafana elasticsearch kibana
 ```
 
 ### Остановка:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml stop prometheus grafana elasticsearch kibana
 ```
 
 ### Перезапуск:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml restart prometheus grafana elasticsearch kibana
 ```
 
 ### Просмотр логов:
+
 ```bash
 docker logs atra-prometheus -f
 docker logs atra-grafana -f
@@ -272,6 +295,7 @@ docker logs atra-kibana -f
 ```
 
 ### Проверка статуса:
+
 ```bash
 docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 ```
@@ -280,18 +304,19 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 
 ## 📊 ДОСТУП К СЕРВИСАМ
 
-| Сервис | URL | Логин | Пароль |
-|--------|-----|-------|--------|
-| **Prometheus** | http://localhost:9090 | - | - |
-| **Grafana** | http://localhost:3001 | admin | atra2025 |
-| **Elasticsearch** | http://localhost:9200 | - | - |
-| **Kibana** | http://localhost:5601 | - | - |
+| Сервис            | URL                   | Логин | Пароль   |
+| ----------------- | --------------------- | ----- | -------- |
+| **Prometheus**    | http://localhost:9090 | -     | -        |
+| **Grafana**       | http://localhost:3001 | admin | atra2025 |
+| **Elasticsearch** | http://localhost:9200 | -     | -        |
+| **Kibana**        | http://localhost:5601 | -     | -        |
 
 ---
 
 ## ✅ ИТОГ
 
 После выполнения всех шагов:
+
 - ✅ Prometheus собирает метрики
 - ✅ Grafana визуализирует метрики
 - ✅ Elasticsearch хранит логи
@@ -302,4 +327,4 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 
 ---
 
-*Руководство создано 2026-01-25*
+_Руководство создано 2026-01-25_

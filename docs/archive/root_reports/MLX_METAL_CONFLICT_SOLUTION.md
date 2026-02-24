@@ -3,8 +3,9 @@
 ## Проблема
 
 MLX Server падал с ошибкой:
+
 ```
--[AGXG16XFamilyCommandBuffer tryCoalescingPreviousComputeCommandEncoderWithConfig:nextEncoderClass:]:1090: 
+-[AGXG16XFamilyCommandBuffer tryCoalescingPreviousComputeCommandEncoderWithConfig:nextEncoderClass:]:1090:
 failed assertion 'A command encoder is already encoding to this command buffer'
 ```
 
@@ -49,7 +50,7 @@ response_text = await asyncio.wait_for(
 ✅ **Защита от Metal конфликтов**: Только одна генерация для модели одновременно  
 ✅ **Параллелизм для разных моделей**: Разные модели могут работать параллельно  
 ✅ **Соответствие мировым практикам**: Следует рекомендациям Apple Metal  
-✅ **Минимальные изменения**: Использует существующую инфраструктуру блокировок  
+✅ **Минимальные изменения**: Использует существующую инфраструктуру блокировок
 
 ## Результат
 

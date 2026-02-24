@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand, ValueHint, CommandFactory};
-use clap::builder::styling::{AnsiColor, Style, Styles};
+use clap::builder::styling::{AnsiColor, Styles};
 use clap_complete::{generate, Shell};
 use colored::*;
 use dotenv::dotenv;
@@ -112,12 +112,16 @@ enum GitCommand {
     },
 }
 
+/// Reserved for typed API response (gateway /v1/chat/completions).
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug)]
 struct ChatRequest {
     message: String,
     project_context: String,
 }
 
+/// Reserved for typed API response.
+#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug)]
 struct ChatResponse {
     response: String,
@@ -232,7 +236,7 @@ fn gather_context(message: &str) -> String {
                         if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
                             let lossy = entry.path().to_string_lossy();
                             if lossy.ends_with(file_ref) || entry.path().ends_with(file_ref) {
-                                if let Ok(content) = fs::read_to_string(entry.path()) {
+                                if let Ok(_content) = fs::read_to_string(entry.path()) {
                                     let path_str = entry.path().to_string_lossy().to_string();
                                     found_path = Some((entry.path().to_path_buf(), path_str));
                                     break;
@@ -350,7 +354,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 ],
                 "use_rag": true,
-                "stream": false
+                "stream": false,
+                "project_context": project_context
             });
 
             println!("{}", "Sending message to Victoria...".cyan());

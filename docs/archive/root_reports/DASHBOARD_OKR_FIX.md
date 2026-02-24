@@ -12,6 +12,7 @@
 **Где:** Раздел "Стратегия OKR" в дашборде
 
 **Причина:**
+
 - Небезопасное обращение к элементам кортежа/списка
 - Отсутствие проверки наличия данных перед доступом
 - Неправильная обработка `None` значений
@@ -25,11 +26,13 @@
 **Файл:** `knowledge_os/dashboard/app.py`
 
 **Было:**
+
 ```python
 okr_period = okr_period_data[0]['period'] if okr_period_data and len(okr_period_data) > 0 and okr_period_data[0].get('period') else "2026-Q1"
 ```
 
 **Стало:**
+
 ```python
 okr_period = "2026-Q1"  # Значение по умолчанию
 if okr_period_data and len(okr_period_data) > 0:
@@ -47,12 +50,14 @@ if okr_period_data and len(okr_period_data) > 0:
 ### **2. Безопасная обработка значений метрик** ✅
 
 **Было:**
+
 ```python
 current_val = float(kr.get('current_value') or 0)
 target_val = float(kr.get('target_value') or 0)
 ```
 
 **Стало:**
+
 ```python
 # Безопасное получение значений с проверкой типов
 current_val_raw = kr.get('current_value')
@@ -93,9 +98,10 @@ except (ValueError, TypeError):
 ## 📊 ПРОВЕРКА
 
 **Проверка данных OKR:**
+
 ```sql
-SELECT o.objective, kr.description, kr.current_value, kr.target_value, kr.unit 
-FROM okrs o 
+SELECT o.objective, kr.description, kr.current_value, kr.target_value, kr.unit
+FROM okrs o
 JOIN key_results kr ON o.id = kr.okr_id;
 ```
 
@@ -112,12 +118,14 @@ JOIN key_results kr ON o.id = kr.okr_id;
 ## 🎯 УРОК
 
 **Правила обработки данных:**
+
 1. ✅ Всегда проверяйте наличие данных перед доступом
 2. ✅ Используйте `try-except` для преобразований типов
 3. ✅ Предоставляйте значения по умолчанию
 4. ✅ Проверяйте типы перед операциями
 
 **Это мини-тест системы:**
+
 - ✅ Обнаружили ошибку в дашборде
 - ✅ Нашли причину (небезопасный доступ к данным)
 - ✅ Исправили код (добавили проверки)

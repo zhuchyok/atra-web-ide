@@ -39,12 +39,14 @@
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### Задачи:
+
 - **Pending:** 14,780 задач (назначены экспертам)
 - **In Progress:** 61 задача (обрабатываются)
 - **Completed:** 2,059+ задач (завершено, растет!)
 - **Failed:** 3 задачи
 
 ### Обработка:
+
 - ✅ **25+ задач обработано за последние 10 минут**
 - ✅ Worker активно работает
 - ✅ Orchestrator назначает задачи каждые 5 минут
@@ -113,17 +115,17 @@
 ```bash
 # Статус задач
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT status, COUNT(*) as count 
-FROM tasks 
-GROUP BY status 
+SELECT status, COUNT(*) as count
+FROM tasks
+GROUP BY status
 ORDER BY count DESC;
 "
 
 # Обработанные задачи
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT COUNT(*) as processed 
-FROM tasks 
-WHERE status = 'completed' 
+SELECT COUNT(*) as processed
+FROM tasks
+WHERE status = 'completed'
 AND updated_at > NOW() - INTERVAL '1 hour';
 "
 ```
@@ -167,4 +169,4 @@ docker exec knowledge_os_api python /app/enhanced_orchestrator.py
 
 ---
 
-*Восстановление завершено 2026-01-25*
+_Восстановление завершено 2026-01-25_

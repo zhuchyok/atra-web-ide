@@ -8,6 +8,7 @@
 ## ✅ ЧТО СДЕЛАНО
 
 ### 1. Реализация кода
+
 - ✅ Все улучшения реализованы в `src/agents/bridge/victoria_server.py`
 - ✅ Интеграция с Knowledge OS
 - ✅ Автоматический выбор экспертов
@@ -15,11 +16,13 @@
 - ✅ Обучение и адаптация
 
 ### 2. Конфигурация
+
 - ✅ Обновлен `docker-compose.yml` с env vars
 - ✅ `USE_KNOWLEDGE_OS=true`
 - ✅ `VICTORIA_USE_CACHE=true`
 
 ### 3. Docker образ
+
 - ✅ Образ пересобран с новым кодом
 - ✅ asyncpg установлен в Dockerfile
 
@@ -70,6 +73,7 @@ curl http://localhost:8010/status
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {
   "status": "online",
@@ -89,8 +93,9 @@ curl http://localhost:8010/health
 ```
 
 **Ожидаемый результат:**
+
 ```json
-{"status":"ok","agent":"Виктория"}
+{ "status": "ok", "agent": "Виктория" }
 ```
 
 ### 3. Тест простой задачи
@@ -108,6 +113,7 @@ docker logs victoria-agent --tail 30
 ```
 
 **Ожидаемые сообщения:**
+
 - `✅ Knowledge OS интеграция включена`
 - `✅ Knowledge OS Database pool создан`
 - `✅ Загружено X экспертов из Knowledge OS`
@@ -119,6 +125,7 @@ docker logs victoria-agent --tail 30
 ### Проблема: Порт 5432 занят
 
 **Решение:**
+
 ```bash
 # Проверить, какой контейнер использует порт
 docker ps | grep 5432
@@ -130,6 +137,7 @@ docker ps | grep 5432
 ### Проблема: Контейнер не запускается
 
 **Решение:**
+
 ```bash
 # Проверить логи
 docker logs victoria-agent
@@ -144,6 +152,7 @@ docker network create atra-network
 ### Проблема: Knowledge OS не подключается
 
 **Решение:**
+
 ```bash
 # Проверить доступность базы данных
 docker exec victoria-agent python3 -c "
@@ -183,4 +192,4 @@ asyncio.run(test())
 
 ---
 
-*Документация обновлена 2026-01-25*
+_Документация обновлена 2026-01-25_

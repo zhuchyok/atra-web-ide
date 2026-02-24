@@ -8,6 +8,7 @@
 ## 🎯 Обзор
 
 Оптимизации производительности для Victoria Enhanced:
+
 - **Кэширование результатов** - избегание повторных вычислений
 - **Параллельное выполнение** - ускорение независимых задач
 - **Batch processing** - обработка множественных запросов
@@ -21,6 +22,7 @@
 **Файл:** `knowledge_os/app/enhanced_cache.py`
 
 **Возможности:**
+
 - In-memory кэш с TTL
 - Интеграция с PromptCache для персистентности
 - Автоматическая очистка старых записей
@@ -57,6 +59,7 @@ export USE_ENHANCED_CACHE=true
 ```
 
 **Ожидаемый эффект:**
+
 - ⚡ -50-80% latency для повторяющихся задач
 - 📈 +2-3x throughput для кэшируемых запросов
 
@@ -69,6 +72,7 @@ export USE_ENHANCED_CACHE=true
 **Файл:** `knowledge_os/app/parallel_executor.py`
 
 **Возможности:**
+
 - Параллельное выполнение независимых задач
 - Batch processing для множественных элементов
 - Таймауты для контроля выполнения
@@ -111,6 +115,7 @@ export PARALLEL_EXECUTOR_WORKERS=4
 ```
 
 **Ожидаемый эффект:**
+
 - ⚡ -40-60% времени для независимых задач
 - 📈 +2-4x throughput для batch операций
 
@@ -121,6 +126,7 @@ export PARALLEL_EXECUTOR_WORKERS=4
 ### Автоматическое кэширование
 
 Victoria Enhanced автоматически:
+
 1. Проверяет кэш перед выполнением
 2. Сохраняет результаты в кэш после выполнения
 3. Использует кэш для повторяющихся задач
@@ -128,6 +134,7 @@ Victoria Enhanced автоматически:
 ### Параллелизм для Swarm
 
 Swarm Intelligence использует параллельное выполнение для:
+
 - Параллельной работы агентов в рое
 - Batch обработки решений
 - Параллельного вычисления фитнес-функций
@@ -147,11 +154,11 @@ Swarm Intelligence использует параллельное выполне�
 
 ```promql
 # Cache hit rate
-sum(rate(victoria_enhanced_cache_hits_total[5m])) / 
+sum(rate(victoria_enhanced_cache_hits_total[5m])) /
 sum(rate(victoria_enhanced_cache_requests_total[5m])) * 100
 
 # Average latency
-histogram_quantile(0.95, 
+histogram_quantile(0.95,
   sum(rate(victoria_enhanced_task_duration_seconds_bucket[5m])) by (le)
 )
 
@@ -166,6 +173,7 @@ sum(rate(victoria_enhanced_tasks_total[5m]))
 ### Рекомендуемые настройки:
 
 **Для разработки:**
+
 ```bash
 ENHANCED_CACHE_TTL=1800  # 30 минут
 ENHANCED_CACHE_MAX_SIZE=500
@@ -174,6 +182,7 @@ PARALLEL_EXECUTOR_WORKERS=2
 ```
 
 **Для production:**
+
 ```bash
 ENHANCED_CACHE_TTL=3600  # 1 час
 ENHANCED_CACHE_MAX_SIZE=2000
@@ -182,6 +191,7 @@ PARALLEL_EXECUTOR_WORKERS=4
 ```
 
 **Для высокой нагрузки:**
+
 ```bash
 ENHANCED_CACHE_TTL=7200  # 2 часа
 ENHANCED_CACHE_MAX_SIZE=5000
@@ -194,16 +204,19 @@ PARALLEL_EXECUTOR_WORKERS=8
 ## 📈 Ожидаемые улучшения
 
 ### С кэшированием:
+
 - ⚡ -50-80% latency для повторяющихся задач
 - 📈 +2-3x throughput
 - 💰 -60-70% использование ресурсов
 
 ### С параллелизмом:
+
 - ⚡ -40-60% времени для batch операций
 - 📈 +2-4x throughput
 - 🔄 Лучшая утилизация CPU
 
 ### Комбинированный эффект:
+
 - ⚡ -60-75% общее время выполнения
 - 📈 +3-5x общий throughput
 - 💰 -50-60% использование ресурсов

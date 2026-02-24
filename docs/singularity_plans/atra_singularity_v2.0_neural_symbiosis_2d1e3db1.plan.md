@@ -43,8 +43,6 @@ graph TD
     OR -->|"Autonomous Evolution"| AG
 ```
 
-
-
 ## Key Components
 
 ### 1. Neural Pulse Engine
@@ -52,7 +50,7 @@ graph TD
 Develop [`knowledge_os/app/neural_pulse_engine.py`](knowledge_os/app/neural_pulse_engine.py) as a background worker.
 
 - It will subscribe to the Redis `knowledge_stream`.
-- Every 5 minutes, it will synthesize a "Neural Pulse" - a concise summary of what the whole team is doing *right now*.
+- Every 5 minutes, it will synthesize a "Neural Pulse" - a concise summary of what the whole team is doing _right now_.
 - This pulse will be injected into the `LocalAIRouter`'s context, giving the local model "short-term memory" of recent team activities without waiting for fine-tuning.
 
 ### 2. Recursive Prompt Evolution

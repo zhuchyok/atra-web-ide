@@ -28,12 +28,14 @@
 ## 👤 ШАГ 2: Узнать свой Telegram User ID
 
 ### Вариант 1: Через @userinfobot
+
 1. Откройте Telegram
 2. Найдите бота **@userinfobot**
 3. Отправьте любое сообщение
 4. Бот пришлет ваш ID (например: `556251171`)
 
 ### Вариант 2: Через @getidsbot
+
 1. Откройте Telegram
 2. Найдите бота **@getidsbot**
 3. Отправьте любое сообщение
@@ -52,6 +54,7 @@ TELEGRAM_USER_ID=your_user_id_here
 ```
 
 **Пример:**
+
 ```env
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_USER_ID=556251171
@@ -73,23 +76,24 @@ python3 -m src.agents.bridge.victoria_telegram_bot
 Добавьте в `knowledge_os/docker-compose.yml`:
 
 ```yaml
-  victoria-telegram-bot:
-    build:
-      context: ..
-      dockerfile: infrastructure/docker/agents/Dockerfile
-    container_name: victoria-telegram-bot
-    restart: always
-    networks:
-      - atra-network
-    environment:
-      PYTHONPATH: /app
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_USER_ID: ${TELEGRAM_USER_ID}
-      VICTORIA_URL: http://victoria-agent:8000
-    command: python -m src.agents.bridge.victoria_telegram_bot
+victoria-telegram-bot:
+  build:
+    context: ..
+    dockerfile: infrastructure/docker/agents/Dockerfile
+  container_name: victoria-telegram-bot
+  restart: always
+  networks:
+    - atra-network
+  environment:
+    PYTHONPATH: /app
+    TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    TELEGRAM_USER_ID: ${TELEGRAM_USER_ID}
+    VICTORIA_URL: http://victoria-agent:8000
+  command: python -m src.agents.bridge.victoria_telegram_bot
 ```
 
 Затем:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-telegram-bot
 ```
@@ -109,6 +113,7 @@ docker-compose -f knowledge_os/docker-compose.yml up -d victoria-telegram-bot
 Просто напишите задачу, и Victoria её выполнит!
 
 **Примеры:**
+
 - "Создай файл test.py"
 - "Покажи список файлов"
 - "Виктория, помоги с кодом"
@@ -119,18 +124,20 @@ docker-compose -f knowledge_os/docker-compose.yml up -d victoria-telegram-bot
 ## ✅ ПРОВЕРКА
 
 1. **Проверьте, что бот запущен:**
+
    ```bash
    # Локально
    ps aux | grep victoria_telegram_bot
-   
+
    # В Docker
    docker ps | grep victoria-telegram-bot
    ```
 
 2. **Проверьте логи:**
+
    ```bash
    # Локально - логи в консоли
-   
+
    # В Docker
    docker logs victoria-telegram-bot
    ```
@@ -145,18 +152,23 @@ docker-compose -f knowledge_os/docker-compose.yml up -d victoria-telegram-bot
 ## 🔧 УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Проблема 1: "TELEGRAM_BOT_TOKEN не установлен"
+
 **Решение:** Проверьте, что токен добавлен в `.env` и файл загружен
 
 ### Проблема 2: "TELEGRAM_USER_ID не установлен"
+
 **Решение:** Проверьте, что ваш ID добавлен в `.env`
 
 ### Проблема 3: Бот не отвечает
+
 **Решение:**
+
 - Проверьте, что бот запущен
 - Проверьте логи на ошибки
 - Убедитесь, что Victoria доступна по адресу `VICTORIA_URL`
 
 ### Проблема 4: "Доступ запрещен"
+
 **Решение:** Убедитесь, что `TELEGRAM_USER_ID` соответствует вашему реальному ID
 
 ---
@@ -179,5 +191,6 @@ VICTORIA_URL=http://localhost:8010
 После настройки вы сможете общаться с Victoria через Telegram, как в Clawdbot!
 
 **Файлы:**
+
 - `src/agents/bridge/victoria_telegram_bot.py` - основной код бота
 - `.env` - конфигурация (добавьте токен и ID)

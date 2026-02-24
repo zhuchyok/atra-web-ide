@@ -13,36 +13,36 @@
    ├── Обдумывает задачу
    ├── Создает промпт для Veronica (с структурой)
    └── Передает Veronica ↓
-   
+
 2. Veronica (распределение)
    ├── Получает промпт и структуру
    ├── Распределяет задачи по отделам/департаментам/сотрудникам
    ├── Определяет управляющих
    └── Отправляет задачи управляющим ↓
-   
+
 3. Управляющий (координация)
    ├── Получает задачи
    ├── Распределяет между сотрудниками
    ├── Собирает результаты
    ├── Проверяет и утверждает
    └── Передает Department Head ↑
-   
+
 4. Сотрудники (выполнение)
    ├── Получают задачи от управляющего
    ├── Обдумывают, выбирают модель
    ├── Выполняют задачи
    └── Отправляют управляющему ↑
-   
+
 5. Department Head (сбор отдела)
    ├── Получает результаты от управляющих
    ├── Собирает все в одну большую задачу
    └── Передает Veronica ↑
-   
+
 6. Veronica (сбор всех отделов)
    ├── Собирает результаты от всех отделов
    ├── Агрегирует данные
    └── Передает Victoria ↑
-   
+
 7. Victoria (финальный синтез)
    ├── Получает собранные результаты
    ├── Синтезирует финальный ответ
@@ -54,12 +54,14 @@
 ## ✅ ЧТО РЕАЛИЗОВАНО
 
 ### 1. Organizational Structure System
+
 - ✅ `organizational_structure.py` - динамическая структура
 - ✅ Получение структуры из БД
 - ✅ Кэширование структуры (5 минут)
 - ✅ Все уровни знают структуру
 
 ### 2. Task Distribution System
+
 - ✅ `task_distribution_system.py` - распределение задач
 - ✅ Распределение по структуре
 - ✅ Параллельное выполнение
@@ -69,6 +71,7 @@
 - ✅ Синтез Victoria
 
 ### 3. Интеграция в Victoria Enhanced
+
 - ✅ Victoria получает структуру
 - ✅ Включает структуру в промпт для Veronica
 - ✅ Использует Task Distribution System
@@ -80,6 +83,7 @@
 ## 🔄 ПОЛНЫЙ ПРОЦЕСС
 
 ### Этап 1: Victoria создает промпт
+
 ```python
 # Victoria получает структуру
 structure = await org_structure.get_full_structure()
@@ -90,6 +94,7 @@ veronica_prompt = await _think_and_create_prompt_for_veronica(goal)
 ```
 
 ### Этап 2: Veronica распределяет
+
 ```python
 # Veronica распределяет задачи
 assignments = await task_dist.distribute_tasks_from_veronica_prompt(
@@ -100,6 +105,7 @@ assignments = await task_dist.distribute_tasks_from_veronica_prompt(
 ```
 
 ### Этап 3: Сотрудники выполняют (параллельно)
+
 ```python
 # Параллельное выполнение
 completed = await asyncio.gather(*[
@@ -109,6 +115,7 @@ completed = await asyncio.gather(*[
 ```
 
 ### Этап 4: Управляющие проверяют
+
 ```python
 # Проверка управляющими
 reviewed = await asyncio.gather(*[
@@ -118,6 +125,7 @@ reviewed = await asyncio.gather(*[
 ```
 
 ### Этап 5: Department Head собирает
+
 ```python
 # Сбор отдела
 dept_collection = await task_dist.department_head_collect_tasks(
@@ -127,6 +135,7 @@ dept_collection = await task_dist.department_head_collect_tasks(
 ```
 
 ### Этап 6: Veronica собирает все
+
 ```python
 # Сбор всех отделов
 veronica_collection = await task_dist.veronica_collect_all_departments(
@@ -135,6 +144,7 @@ veronica_collection = await task_dist.veronica_collect_all_departments(
 ```
 
 ### Этап 7: Victoria синтезирует
+
 ```python
 # Финальный синтез
 final_result = await _synthesize_collected_results(

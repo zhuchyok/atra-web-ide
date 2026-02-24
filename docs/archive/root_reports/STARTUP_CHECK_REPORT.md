@@ -24,12 +24,14 @@
 **Статус:** ❌ **DOCKER DAEMON НЕ ЗАПУЩЕН**
 
 **Ошибка:**
+
 ```
-Cannot connect to the Docker daemon at unix:///Users/bikos/.docker/run/docker.sock. 
+Cannot connect to the Docker daemon at unix:///Users/bikos/.docker/run/docker.sock.
 Is the docker daemon running?
 ```
 
 **Решение:**
+
 1. Запустить Docker Desktop
 2. Или запустить Docker daemon вручную
 3. После запуска Docker выполнить:
@@ -40,6 +42,7 @@ Is the docker daemon running?
 ### ✅ 3. Проверка кода
 
 **Все компоненты готовы:**
+
 - ✅ `victoria_server.py` - интегрирован с lifespan
 - ✅ `victoria_enhanced.py` - готов к использованию
 - ✅ Все компоненты мониторинга созданы
@@ -54,17 +57,20 @@ Is the docker daemon running?
 **Шаг 1:** Запустить Docker Desktop
 
 **Шаг 2:** Запустить Victoria Agent
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 ```
 
 **Шаг 3:** Проверить логи
+
 ```bash
 docker logs -f victoria-agent
 ```
 
 **Ожидаемые логи:**
+
 ```
 🚀 Инициализация Victoria Enhanced при старте сервера...
 ✅ Victoria Enhanced мониторинг запущен при старте сервера
@@ -75,6 +81,7 @@ docker logs -f victoria-agent
 ```
 
 **Шаг 4:** Проверить статус
+
 ```bash
 curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
@@ -82,18 +89,21 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ### Вариант 2: Локальный запуск
 
 **Шаг 1:** Установить переменные окружения
+
 ```bash
 export USE_VICTORIA_ENHANCED=true
 export ENABLE_EVENT_MONITORING=true
 ```
 
 **Шаг 2:** Запустить сервер
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 python -m src.agents.bridge.victoria_server
 ```
 
 **Ожидаемые логи:**
+
 ```
 🚀 Инициализация Victoria Enhanced при старте сервера...
 ✅ Victoria Enhanced мониторинг запущен при старте сервера
@@ -106,6 +116,7 @@ python -m src.agents.bridge.victoria_server
 ## 📋 Чеклист готовности
 
 ### Код
+
 - [x] Victoria Server интегрирован с lifespan
 - [x] Глобальный экземпляр victoria_enhanced_instance
 - [x] Автоматический запуск мониторинга
@@ -113,11 +124,13 @@ python -m src.agents.bridge.victoria_server
 - [x] Статус в /status endpoint
 
 ### Конфигурация
+
 - [x] Docker Compose настроен
 - [x] .env файл настроен
 - [x] Все переменные окружения
 
 ### Компоненты
+
 - [x] Event Bus
 - [x] File Watcher
 - [x] Service Monitor
@@ -129,6 +142,7 @@ python -m src.agents.bridge.victoria_server
 - [x] Skill State Machine
 
 ### Интеграция
+
 - [x] Backend совместим
 - [x] Frontend совместим
 - [x] Нет конфликтов
@@ -138,11 +152,13 @@ python -m src.agents.bridge.victoria_server
 ## ⚠️ Требуется
 
 **Для запуска:**
+
 1. ✅ Docker Desktop запущен
 2. ✅ PostgreSQL доступна (для миграции БД)
 3. ✅ Переменные окружения настроены
 
 **После запуска Docker:**
+
 ```bash
 # 1. Запустить Victoria Agent
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
@@ -161,6 +177,7 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 **Код полностью готов и интегрирован!**
 
 **Требуется только:**
+
 - Запустить Docker Desktop
 - Запустить контейнер Victoria Agent
 

@@ -45,6 +45,7 @@ curl http://185.177.216.15:8010/health
 ```
 
 **Ответ:**
+
 ```json
 {
   "status": "online",
@@ -131,37 +132,37 @@ print(f"Результат: {result['output']}")
 ## 📝 Node.js пример:
 
 ```javascript
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
-const VICTORIA_URL = 'http://185.177.216.15:8010';
+const VICTORIA_URL = "http://185.177.216.15:8010";
 
 // Health check
 async function checkHealth() {
   const response = await fetch(`${VICTORIA_URL}/health`);
   const data = await response.json();
-  console.log('Health:', data);
+  console.log("Health:", data);
 }
 
 // Отправка задачи
-async function sendTask(goal, projectContext = 'atra-web-ide') {
+async function sendTask(goal, projectContext = "atra-web-ide") {
   const response = await fetch(`${VICTORIA_URL}/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       goal,
       project_context: projectContext,
-      max_steps: 10
-    })
+      max_steps: 10,
+    }),
   });
-  
+
   const result = await response.json();
-  console.log('Результат:', result);
+  console.log("Результат:", result);
   return result;
 }
 
 // Использование
 checkHealth();
-sendTask('Покажи список файлов', 'atra-web-ide');
+sendTask("Покажи список файлов", "atra-web-ide");
 ```
 
 ---
@@ -188,24 +189,28 @@ curl -X POST http://185.177.216.15:8010/run \
 ## 🌍 ИЗ РАЗНЫХ СТРАН
 
 ### Из России:
+
 ```bash
 curl http://185.177.216.15:8010/health
 # ✅ Работает через SSH Reverse Tunnel
 ```
 
 ### Из США:
+
 ```bash
 curl http://185.177.216.15:8010/health
 # ✅ Работает через SSH Reverse Tunnel
 ```
 
 ### Из Европы:
+
 ```bash
 curl http://185.177.216.15:8010/health
 # ✅ Работает через SSH Reverse Tunnel
 ```
 
 ### Из Азии:
+
 ```bash
 curl http://185.177.216.15:8010/health
 # ✅ Работает через SSH Reverse Tunnel
@@ -218,11 +223,13 @@ curl http://185.177.216.15:8010/health
 ## 🔐 БЕЗОПАСНОСТЬ
 
 ### Текущая конфигурация:
+
 - ✅ SSH туннели используют ключи для аутентификации
 - ✅ Доступ только через авторизованные SSH ключи
 - ⚠️ Рекомендуется добавить API ключи для дополнительной защиты
 
 ### Рекомендация (будущее):
+
 ```bash
 # Добавить API ключ в заголовки
 curl -X POST http://185.177.216.15:8010/run \
@@ -240,11 +247,12 @@ curl -X POST http://185.177.216.15:8010/run \
 ```json
 {
   "goal": "Текст задачи (обязательно)",
-  "project_context": "atra-web-ide",  // Опционально, по умолчанию "atra-web-ide"
-  "max_steps": 30,                     // Опционально, по умолчанию 30
-  "session_id": "session_123",         // Опционально, для памяти чата
-  "chat_history": [                    // Опционально, история чата
-    {"user": "...", "assistant": "..."}
+  "project_context": "atra-web-ide", // Опционально, по умолчанию "atra-web-ide"
+  "max_steps": 30, // Опционально, по умолчанию 30
+  "session_id": "session_123", // Опционально, для памяти чата
+  "chat_history": [
+    // Опционально, история чата
+    { "user": "...", "assistant": "..." }
   ]
 }
 ```
@@ -268,15 +276,18 @@ curl -X POST http://185.177.216.15:8010/run \
 ## ⚠️ ВАЖНЫЕ ЗАМЕЧАНИЯ
 
 ### 1. Порт изменился:
+
 - ❌ Старый: `8020` (для atra-web-ide)
 - ✅ Новый: `8010` (общий для всех проектов)
 
 ### 2. Контекст проекта:
+
 - ✅ Передается через `project_context` в запросе
 - ✅ По умолчанию: `"atra-web-ide"`
 - ✅ Можно указать: `"atra"`, `"new-project"`, и т.д.
 
 ### 3. База знаний:
+
 - ✅ Всегда доступна для всех проектов
 - ✅ 58+ экспертов доступны всегда
 - ✅ Глобальные знания доступны всегда
@@ -364,12 +375,14 @@ http://185.177.216.15:8010
 ```
 
 **Примеры использования:**
+
 - ✅ `curl` из терминала
 - ✅ Python `requests`
 - ✅ Node.js `fetch`
 - ✅ Любой HTTP клиент
 
 **Важно:**
+
 - Порт: `8010` (общий для всех проектов)
 - Контекст проекта: через `project_context` в запросе
 - База знаний: всегда доступна для всех проектов
@@ -378,4 +391,4 @@ http://185.177.216.15:8010
 
 ---
 
-*Обновлено: 2026-01-26*
+_Обновлено: 2026-01-26_

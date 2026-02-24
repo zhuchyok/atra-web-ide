@@ -86,11 +86,13 @@ ssh bikos@192.168.1.64
 ### Проблема 1: SSH включен, но подключение не работает
 
 **Решение:**
+
 1. Проверьте файрвол:
+
    ```bash
    # Проверить статус файрвола
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
-   
+
    # Если файрвол включен, разрешите SSH
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/sbin/sshd
    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp /usr/sbin/sshd
@@ -104,7 +106,9 @@ ssh bikos@192.168.1.64
 ### Проблема 2: "Connection refused"
 
 **Решение:**
+
 1. Убедитесь, что SSH включен:
+
    ```bash
    sudo systemsetup -setremotelogin on
    ```
@@ -118,6 +122,7 @@ ssh bikos@192.168.1.64
 ### Проблема 3: "Permission denied"
 
 **Решение:**
+
 1. Убедитесь, что пользователь существует и имеет права на вход
 2. Проверьте настройки в **Системные настройки → Общий доступ → Удалённый вход**
 
@@ -128,6 +133,7 @@ ssh bikos@192.168.1.64
 ### Рекомендации:
 
 1. **Используйте SSH ключи вместо паролей:**
+
    ```bash
    # На клиенте (Mac Studio)
    ssh-keygen -t ed25519 -C "your_email@example.com"
@@ -135,6 +141,7 @@ ssh bikos@192.168.1.64
    ```
 
 2. **Отключите вход по паролю** (после настройки ключей):
+
    ```bash
    # На Mac Studio
    sudo nano /etc/ssh/sshd_config
@@ -170,4 +177,4 @@ sudo systemsetup -setremotelogin on && echo "✅ SSH включен" || echo "�
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

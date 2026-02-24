@@ -8,6 +8,7 @@
 ## 🔍 Диагностика показала
 
 Node.js **не установлен** на вашей системе:
+
 - ❌ Не найден в `/opt/homebrew/bin/node`
 - ❌ Не найден в `/usr/local/bin/node`
 - ❌ nvm не установлен
@@ -65,12 +66,14 @@ npm --version
 1. **Перезапустите терминал** (или выполните `source ~/.zshrc`)
 
 2. **Проверьте установку:**
+
    ```bash
    node --version
    npm --version
    ```
 
 3. **Запустите Frontend:**
+
    ```bash
    cd /Users/bikos/Documents/atra-web-ide/frontend
    npm run dev
@@ -86,4 +89,4 @@ npm --version
 
 ---
 
-*Инструкция создана: 26.01.2026*
+_Инструкция создана: 26.01.2026_

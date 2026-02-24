@@ -20,8 +20,9 @@ curl http://localhost:8010/health
 ```
 
 **Ожидаемый результат:**
+
 ```json
-{"status": "ok", "agent": "Виктория"}
+{ "status": "ok", "agent": "Виктория" }
 ```
 
 ### 2. Статус Victoria Enhanced
@@ -31,6 +32,7 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {
   "enabled": true,
@@ -99,6 +101,7 @@ pkill -f victoria_server
 Логи выводятся в консоль, где запущен сервер.
 
 Для просмотра в реальном времени:
+
 - Если запущен через скрипт - логи в терминале
 - Если в фоне - проверьте через `ps aux | grep victoria_server`
 

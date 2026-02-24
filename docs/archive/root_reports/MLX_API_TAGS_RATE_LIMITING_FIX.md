@@ -9,6 +9,7 @@
 ## 🔍 Проблема
 
 В логах MLX API Server частые 429 ошибки из-за слишком частых запросов к `/api/tags`:
+
 - `check_health()` в `local_router.py` - каждые 30 секунд
 - `_get_available_models()` в `extended_thinking.py` - без кэширования
 - `check_model_available()` в `model_selector.py` - без кэширования
@@ -55,12 +56,14 @@
 ## 📊 Оптимизации
 
 ### До исправления:
+
 - ❌ Запросы к `/api/tags` каждые 30 секунд из `check_health()`
 - ❌ Множественные запросы без кэширования
 - ❌ Нет rate limiting для `/api/tags`
 - ❌ 429 ошибки при высокой нагрузке
 
 ### После исправления:
+
 - ✅ Запросы к `/api/tags` максимум раз в 60-120 секунд
 - ✅ Кэширование на всех уровнях
 - ✅ Rate limiting: 60 запросов/минуту для `/api/tags`
@@ -72,6 +75,7 @@
 ## 🎯 Итог
 
 **Все компоненты оптимизированы:**
+
 - ✅ `local_router.py` - увеличен TTL, используется `/health`
 - ✅ `mlx_api_server.py` - кэш + rate limiting для `/api/tags`
 - ✅ `extended_thinking.py` - кэширование списка моделей

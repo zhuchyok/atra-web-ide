@@ -6,7 +6,7 @@ with automatic retry using tenacity.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
@@ -25,7 +25,7 @@ VERONICA_URL = "http://localhost:8011"
     reraise=True,
 )
 async def call_victoria_with_retry(
-    query: str, context: Dict[str, Any], timeout: int = 60
+    query: str, context: dict[str, Any], timeout: int = 60
 ) -> httpx.Response:
     """
     Call Victoria with exponential backoff retry.
@@ -46,8 +46,8 @@ async def call_victoria_with_retry(
 
 
 async def call_victoria_with_fallback(
-    query: str, context: Optional[Dict[str, Any]] = None, timeout: int = 60
-) -> Dict[str, Any]:
+    query: str, context: dict[str, Any] | None = None, timeout: int = 60
+) -> dict[str, Any]:
     """
     Call Victoria with automatic fallback to Veronica and hardcoded response.
 
@@ -169,4 +169,4 @@ async def chat_with_fallback(message: str, project_context: str = "atra-web-ide"
     result = await call_victoria_with_fallback(
         query=message, context={"project_context": project_context}
     )
-    return result["response"]
+    return str(result["response"])

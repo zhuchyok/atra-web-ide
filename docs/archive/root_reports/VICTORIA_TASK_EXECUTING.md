@@ -12,6 +12,7 @@
 **Цель:** Прочитай файл ALL_TASKS_FOR_VICTORIA.md в корне проекта. Выполни ВСЕ 10 задач последовательно.
 
 **Параметры:**
+
 - max_steps: 60
 - timeout: 900 секунд (15 минут)
 
@@ -37,16 +38,19 @@ Victoria сейчас выполняет все 10 задач:
 ## 🔍 ПРОВЕРКА ВЫПОЛНЕНИЯ
 
 ### Через логи Victoria:
+
 ```bash
 ssh bikos@192.168.1.64 'docker logs victoria-agent --tail 100 -f'
 ```
 
 ### Проверка контейнеров:
+
 ```bash
 ssh bikos@192.168.1.64 'cd ~/Documents/atra-web-ide && export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH" && docker-compose -f knowledge_os/docker-compose.yml ps'
 ```
 
 ### Проверка сервисов:
+
 ```bash
 curl http://192.168.1.64:8010/health  # Victoria
 curl http://192.168.1.64:8011/health  # Veronica
@@ -62,4 +66,4 @@ curl http://192.168.1.64:5601/api/status  # Kibana
 
 ---
 
-*Задача отправлена: 2026-01-26*
+_Задача отправлена: 2026-01-26_

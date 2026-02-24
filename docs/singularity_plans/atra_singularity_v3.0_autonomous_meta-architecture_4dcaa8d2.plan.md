@@ -47,8 +47,6 @@ graph TD
     CM -->|"Trains Local Brain with Reasoning"| LB[Local Brain]
 ```
 
-
-
 ## Advanced Strategies
 
 ### 1. Meta-Architect Agent (Self-Authoring)

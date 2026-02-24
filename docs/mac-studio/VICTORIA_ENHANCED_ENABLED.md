@@ -34,6 +34,7 @@ curl -X POST http://localhost:8010/run \
 ### Ожидаемый результат:
 
 Victoria автоматически выберет оптимальный метод:
+
 - **Reasoning** → Extended Thinking
 - **Planning** → Tree of Thoughts
 - **Complex** → Swarm Intelligence
@@ -44,6 +45,7 @@ Victoria автоматически выберет оптимальный мет
 ## 📊 Проверка что Enhanced активен
 
 Ответ от Victoria будет содержать:
+
 ```json
 {
   "status": "success",

@@ -86,6 +86,7 @@ MOONDREAM_STATION_ENABLED=true
 ## 🎯 Следующие шаги
 
 1. **Запустите Moondream Station:**
+
    ```bash
    bash scripts/start_moondream_station.sh
    ```

@@ -25,16 +25,19 @@
 ## 🔍 Как проверить результаты:
 
 ### Вариант 1: Автоматическое ожидание
+
 ```bash
 python3 scripts/wait_for_test_completion.py
 ```
 
 ### Вариант 2: Мониторинг в реальном времени
+
 ```bash
 python3 scripts/monitor_test.py
 ```
 
 ### Вариант 3: Периодическая проверка
+
 ```bash
 python3 scripts/check_test_status.py
 ```
@@ -42,6 +45,7 @@ python3 scripts/check_test_status.py
 ## 📄 Где будут результаты:
 
 После завершения результаты будут в:
+
 - `logs/website_YYYYMMDD_HHMMSS.html` - HTML файл сайта
 - `logs/website_result_YYYYMMDD_HHMMSS.txt` - текстовый файл
 - `logs/task_trace_result_YYYYMMDD_HHMMSS.json` - JSON трейс

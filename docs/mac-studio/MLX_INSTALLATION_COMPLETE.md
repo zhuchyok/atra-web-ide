@@ -20,11 +20,13 @@
 **Виртуальное окружение:** `./venv/`
 
 ### Активация окружения:
+
 ```bash
 source venv/bin/activate
 ```
 
 ### Проверка установки:
+
 ```bash
 python3 -c "import mlx.core as mx; from mlx_lm import load; print('✅ MLX работает!')"
 ```
@@ -48,6 +50,7 @@ MLX может использовать модели из HuggingFace кеша:
 ## 💻 ИСПОЛЬЗОВАНИЕ
 
 ### Загрузка модели:
+
 ```python
 from mlx_lm import load
 
@@ -56,6 +59,7 @@ model, tokenizer = load("mlx-community/Phi-3-mini-4k-instruct-4bit")
 ```
 
 ### Генерация текста:
+
 ```python
 from mlx_lm import generate
 
@@ -68,6 +72,7 @@ print(response)
 ## 🔄 ИНТЕГРАЦИЯ С СИСТЕМОЙ
 
 MLX интегрирован с:
+
 - ✅ `knowledge_os/app/mlx_router.py` - Роутер для MLX моделей
 - ✅ `knowledge_os/app/mlx_api_server.py` - FastAPI сервер для MLX
 - ✅ Автоматический выбор между Ollama и MLX в `local_router.py`
@@ -93,5 +98,4 @@ MLX интегрирован с:
 
 ---
 
-*Установка выполнена командой экспертов ATRA - 2025-01-21*
-
+_Установка выполнена командой экспертов ATRA - 2025-01-21_

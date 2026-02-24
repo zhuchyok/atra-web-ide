@@ -19,6 +19,7 @@
 1. **Отдельный Victoria-сервер**  
    Добавлен `src/agents/bridge/victoria_server.py` с **VictoriaAgent** (Team Lead, planner + executor).  
    Контейнер `victoria-agent` теперь стартует через:
+
    ```bash
    python -m src.agents.bridge.victoria_server
    ```
@@ -27,16 +28,16 @@
    Контейнер `veronica-agent` переведён на `src.agents.bridge.server` (VeronicaAgent).  
    Оба агента работают как FastAPI-сервисы с `/run`, `/status`, `/health`.
 
-3. **Ollama/MLX по env**  
-   - В `OllamaExecutor` добавлена `_ollama_base_url()`: читает `OLLAMA_BASE_URL` или `MAC_STUDIO_LLM_URL`, иначе `http://localhost:11434`.  
+3. **Ollama/MLX по env**
+   - В `OllamaExecutor` добавлена `_ollama_base_url()`: читает `OLLAMA_BASE_URL` или `MAC_STUDIO_LLM_URL`, иначе `http://localhost:11434`.
    - В docker-compose для обоих агентов задано:
      ```yaml
      OLLAMA_BASE_URL: http://host.docker.internal:11434
      ```
-   В Mac Studio MLX API слушает 11434 на хосте, контейнеры ходят туда через `host.docker.internal`.
+     В Mac Studio MLX API слушает 11434 на хосте, контейнеры ходят туда через `host.docker.internal`.
 
-4. **Порты и /health**  
-   - Victoria: `8010:8000`, Veronica: `8011:8000`.  
+4. **Порты и /health**
+   - Victoria: `8010:8000`, Veronica: `8011:8000`.
    - В bridge и в victoria_server добавлен `GET /health`.
 
 ## Проверка

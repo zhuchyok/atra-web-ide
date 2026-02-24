@@ -12,6 +12,7 @@
 **Victoria Server поддерживает два режима:**
 
 #### Режим 1: Стандартный (по умолчанию)
+
 ```python
 # Если USE_VICTORIA_ENHANCED=false или не установлен
 agent = VictoriaAgent(name="Виктория")  # Существующий класс
@@ -19,6 +20,7 @@ result = await agent.run(goal, max_steps=30)
 ```
 
 **Используется:**
+
 - ✅ Существующий класс `VictoriaAgent` (не изменен)
 - ✅ Все существующие методы: `run()`, `orchestrate_task()`, `plan()`, `step()`
 - ✅ Knowledge OS интеграция (если включена)
@@ -27,6 +29,7 @@ result = await agent.run(goal, max_steps=30)
 - ✅ LocalAIRouter (MLX support)
 
 #### Режим 2: Enhanced (опционально)
+
 ```python
 # Если USE_VICTORIA_ENHANCED=true
 enhanced = VictoriaEnhanced()  # Новый класс
@@ -34,6 +37,7 @@ result = await enhanced.solve(goal, use_enhancements=True)
 ```
 
 **Используется:**
+
 - ✅ Новый класс `VictoriaEnhanced` (дополнительный)
 - ✅ Все новые компоненты: ReAct, Swarm, Extended Thinking и т.д.
 - ✅ Event-Driven Architecture
@@ -50,7 +54,7 @@ result = await enhanced.solve(goal, use_enhancements=True)
 @app.post("/run")
 async def run_task(request: TaskRequest):
     use_enhanced = os.getenv("USE_VICTORIA_ENHANCED", "false").lower() == "true"
-    
+
     if use_enhanced:
         # Пробуем Enhanced режим
         try:
@@ -60,7 +64,7 @@ async def run_task(request: TaskRequest):
         except Exception as e:
             # ✅ FALLBACK на стандартный режим
             logger.warning(f"⚠️ Ошибка Enhanced, fallback на стандартный режим: {e}")
-    
+
     # ✅ Стандартный режим (всегда работает)
     agent = VictoriaAgent(name="Виктория")  # Существующий класс
     result = await agent.run(goal, max_steps=30)
@@ -68,6 +72,7 @@ async def run_task(request: TaskRequest):
 ```
 
 **Ключевые моменты:**
+
 1. ✅ Enhanced режим опционален - включается только если `USE_VICTORIA_ENHANCED=true`
 2. ✅ Fallback на стандартный режим при любой ошибке Enhanced
 3. ✅ Существующий `VictoriaAgent` не изменен - работает как раньше
@@ -82,6 +87,7 @@ async def run_task(request: TaskRequest):
 **Класс:** `src/agents/bridge/victoria_server.py::VictoriaAgent`
 
 **Методы (не изменены):**
+
 - ✅ `run(goal, max_steps)` - выполнение задачи
 - ✅ `orchestrate_task(goal)` - оркестрация сложных задач
 - ✅ `plan(goal)` - планирование
@@ -92,6 +98,7 @@ async def run_task(request: TaskRequest):
 - ✅ `_learn_from_task(goal, result)` - обучение из задач
 
 **Функциональность (не изменена):**
+
 - ✅ Knowledge OS интеграция
 - ✅ Кэширование задач
 - ✅ Выбор экспертов
@@ -108,6 +115,7 @@ async def run_task(request: TaskRequest):
 **Класс:** `knowledge_os/app/victoria_enhanced.py::VictoriaEnhanced`
 
 **Новые возможности:**
+
 - ✅ ReAct Framework
 - ✅ Extended Thinking
 - ✅ Swarm Intelligence
@@ -117,6 +125,7 @@ async def run_task(request: TaskRequest):
 - ✅ Мониторинг (File Watcher, Service Monitor, etc.)
 
 **Важно:**
+
 - ✅ `VictoriaEnhanced` - это **отдельный класс**, не заменяет `VictoriaAgent`
 - ✅ Работает **параллельно** со стандартным режимом
 - ✅ Не изменяет существующий код `VictoriaAgent`
@@ -133,6 +142,7 @@ USE_VICTORIA_ENHANCED=false  # или не установлен
 ```
 
 **Результат:**
+
 - ✅ Используется стандартный `VictoriaAgent`
 - ✅ Все работает как раньше
 - ✅ Нет изменений в поведении
@@ -146,6 +156,7 @@ USE_VICTORIA_ENHANCED=true
 ```
 
 **Если Enhanced не может запуститься:**
+
 - ✅ Автоматический fallback на стандартный режим
 - ✅ Логируется предупреждение
 - ✅ Задача выполняется через `VictoriaAgent`
@@ -160,6 +171,7 @@ ENABLE_EVENT_MONITORING=true
 ```
 
 **Результат:**
+
 - ✅ Используется `VictoriaEnhanced` для задач
 - ✅ Мониторинг работает в фоне
 - ✅ Стандартный `VictoriaAgent` доступен как fallback
@@ -169,18 +181,18 @@ ENABLE_EVENT_MONITORING=true
 
 ## 📊 Сравнение режимов
 
-| Функция | Стандартный режим | Enhanced режим |
-|---------|-------------------|----------------|
-| **Базовые задачи** | ✅ VictoriaAgent | ✅ VictoriaEnhanced |
-| **Knowledge OS** | ✅ Работает | ✅ Работает |
-| **Кэширование** | ✅ Работает | ✅ Работает |
-| **Выбор экспертов** | ✅ Работает | ✅ Работает |
-| **ReAct Framework** | ❌ Нет | ✅ Есть |
-| **Swarm Intelligence** | ❌ Нет | ✅ Есть |
-| **Event-Driven** | ❌ Нет | ✅ Есть |
-| **Skill Registry** | ❌ Нет | ✅ Есть |
-| **Мониторинг** | ❌ Нет | ✅ Есть |
-| **Fallback** | ✅ Всегда доступен | ✅ На стандартный |
+| Функция                | Стандартный режим  | Enhanced режим      |
+| ---------------------- | ------------------ | ------------------- |
+| **Базовые задачи**     | ✅ VictoriaAgent   | ✅ VictoriaEnhanced |
+| **Knowledge OS**       | ✅ Работает        | ✅ Работает         |
+| **Кэширование**        | ✅ Работает        | ✅ Работает         |
+| **Выбор экспертов**    | ✅ Работает        | ✅ Работает         |
+| **ReAct Framework**    | ❌ Нет             | ✅ Есть             |
+| **Swarm Intelligence** | ❌ Нет             | ✅ Есть             |
+| **Event-Driven**       | ❌ Нет             | ✅ Есть             |
+| **Skill Registry**     | ❌ Нет             | ✅ Есть             |
+| **Мониторинг**         | ❌ Нет             | ✅ Есть             |
+| **Fallback**           | ✅ Всегда доступен | ✅ На стандартный   |
 
 ---
 
@@ -253,12 +265,14 @@ result = await agent.run("Задача")
 ### Для использования Enhanced:
 
 1. **Включить в .env:**
+
    ```bash
    USE_VICTORIA_ENHANCED=true
    ENABLE_EVENT_MONITORING=true
    ```
 
 2. **Проверить работу:**
+
    ```bash
    curl http://localhost:8010/status | jq '.victoria_enhanced'
    ```
@@ -271,6 +285,7 @@ result = await agent.run("Задача")
 ### Для использования стандартного режима:
 
 1. **Оставить по умолчанию:**
+
    ```bash
    # USE_VICTORIA_ENHANCED не установлен или =false
    ```

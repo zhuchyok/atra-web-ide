@@ -67,13 +67,13 @@ python scripts/test_victoria_enhanced.py
 
 Victoria Enhanced автоматически выбирает оптимальный метод:
 
-| Категория | Метод | Компоненты |
-|-----------|-------|------------|
-| Reasoning | Extended Thinking | ExtendedThinkingEngine |
-| Planning | Tree of Thoughts | TreeOfThoughts |
-| Complex | Swarm Intelligence | SwarmIntelligence |
-| Execution | ReAct Framework | ReActAgent |
-| General | Extended Thinking | ExtendedThinkingEngine |
+| Категория | Метод              | Компоненты             |
+| --------- | ------------------ | ---------------------- |
+| Reasoning | Extended Thinking  | ExtendedThinkingEngine |
+| Planning  | Tree of Thoughts   | TreeOfThoughts         |
+| Complex   | Swarm Intelligence | SwarmIntelligence      |
+| Execution | ReAct Framework    | ReActAgent             |
+| General   | Extended Thinking  | ExtendedThinkingEngine |
 
 ---
 

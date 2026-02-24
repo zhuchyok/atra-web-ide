@@ -8,16 +8,19 @@
 ## 🔍 ТЕКУЩАЯ КОНФИГУРАЦИЯ
 
 ### В `knowledge_os/docker-compose.yml`:
+
 ```yaml
 DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 ### В `.env`:
+
 ```env
 DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 ### Проблема:
+
 - Docker Compose использует `knowledge_postgres` (имя контейнера)
 - `.env` использует `db` (не существует)
 - БД закомментирована в docker-compose.yml
@@ -36,6 +39,7 @@ DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 **Проверка:**
+
 ```bash
 # Проверить, запущена ли БД
 docker ps | grep knowledge_postgres
@@ -72,6 +76,7 @@ DATABASE_URL: postgresql://admin:secret@host.docker.internal:5432/knowledge_os
 ```
 
 **Проверка:**
+
 ```bash
 # Проверить, доступна ли БД на хосте
 psql -h localhost -U admin -d knowledge_os -c "SELECT COUNT(*) FROM experts;"
@@ -91,7 +96,7 @@ psql -h localhost -U admin -d knowledge_os -c "SELECT COUNT(*) FROM experts;"
 services:
   db:
     image: pgvector/pgvector:pg16
-    container_name: knowledge_os_db  # ← Изменить имя!
+    container_name: knowledge_os_db # ← Изменить имя!
     # ... остальная конфигурация
 
   victoria-agent:
@@ -106,24 +111,28 @@ services:
 ### Если БД `knowledge_postgres` уже запущена:
 
 1. **Обновить `.env`:**
+
 ```bash
 # В .env файле изменить:
 DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 2. **Или установить переменную окружения для Victoria:**
+
 ```bash
 # В knowledge_os/docker-compose.yml уже правильно:
 DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 3. **Перезапустить Victoria:**
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent
 ```
 
 4. **Проверить подключение:**
+
 ```bash
 # Проверить логи Victoria
 docker logs victoria-agent | grep -i "database\|DATABASE_URL\|эксперты"
@@ -137,16 +146,19 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ## 📋 ПРОВЕРКА ПОДКЛЮЧЕНИЯ
 
 ### 1. Проверить, какая БД запущена:
+
 ```bash
 docker ps --filter "name=postgres\|knowledge" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
 ### 2. Проверить переменные окружения Victoria:
+
 ```bash
 docker exec victoria-agent env | grep DATABASE_URL
 ```
 
 ### 3. Проверить подключение из Victoria:
+
 ```bash
 docker exec victoria-agent python -c "
 import os
@@ -155,6 +167,7 @@ print('DATABASE_URL:', os.getenv('DATABASE_URL', 'НЕ УСТАНОВЛЕН'))
 ```
 
 ### 4. Проверить логи Victoria:
+
 ```bash
 docker logs victoria-agent 2>&1 | grep -E "DATABASE_URL|эксперты|fallback" | tail -20
 ```
@@ -164,18 +177,24 @@ docker logs victoria-agent 2>&1 | grep -E "DATABASE_URL|эксперты|fallbac
 ## 🚨 ЧАСТЫЕ ПРОБЛЕМЫ
 
 ### Проблема 1: "asyncpg или DATABASE_URL недоступны"
+
 **Решение:** Проверить, что:
+
 - БД запущена: `docker ps | grep knowledge_postgres`
 - DATABASE_URL правильный: `docker exec victoria-agent env | grep DATABASE_URL`
 - Сеть Docker правильная: оба контейнера в одной сети `atra-network`
 
 ### Проблема 2: "connection refused"
-**Решение:** 
+
+**Решение:**
+
 - Проверить имя контейнера БД: должно быть `knowledge_postgres`
 - Проверить сеть: `docker network inspect atra-network`
 
 ### Проблема 3: "authentication failed"
+
 **Решение:**
+
 - Проверить пароль: должен быть `secret` (или изменить в обоих местах)
 - Проверить пользователя: должен быть `admin`
 
@@ -184,6 +203,7 @@ docker logs victoria-agent 2>&1 | grep -E "DATABASE_URL|эксперты|fallbac
 ## 📝 ИТОГОВАЯ КОНФИГУРАЦИЯ
 
 ### Для Victoria (в `knowledge_os/docker-compose.yml`):
+
 ```yaml
 victoria-agent:
   environment:
@@ -192,11 +212,13 @@ victoria-agent:
 ```
 
 ### Для локального запуска (в `.env`):
+
 ```env
 DATABASE_URL=postgresql://admin:secret@localhost:5432/knowledge_os
 ```
 
 ### Для Docker Compose (в `docker-compose.yml`):
+
 ```yaml
 backend:
   environment:
@@ -223,6 +245,7 @@ docker logs victoria-agent 2>&1 | tail -50 | grep -i "database\|fallback"
 ---
 
 **Если проблема не решена, проверьте:**
+
 1. Имя контейнера БД: `docker ps | grep postgres`
 2. Сеть Docker: `docker network ls | grep atra`
 3. Логи Victoria: `docker logs victoria-agent 2>&1 | tail -100`

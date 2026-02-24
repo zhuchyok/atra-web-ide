@@ -8,6 +8,7 @@
 ## 📦 Что было синхронизировано
 
 ### ✅ Приоритет 3 (5 файлов):
+
 - `knowledge_os/app/reinforcement_learning.py`
 - `knowledge_os/app/adaptive_agent.py`
 - `knowledge_os/app/emergent_hierarchy.py`
@@ -17,11 +18,13 @@
 ### ✅ Singularity 9.0 Улучшения:
 
 **Middleware (3 файла):**
+
 - `backend/app/middleware/error_handler.py`
 - `backend/app/middleware/rate_limiter.py`
 - `backend/app/middleware/logging_middleware.py`
 
 **Backend улучшения (9 файлов):**
+
 - `backend/app/config.py`
 - `backend/app/main.py`
 - `backend/app/services/cache.py`
@@ -33,6 +36,7 @@
 - `backend/app/routers/experts.py`
 
 **Документация:**
+
 - `docs/mac-studio/SINGULARITY_9_IMPROVEMENTS.md`
 
 ---

@@ -3,18 +3,21 @@
 ## Текущий статус
 
 ### Загружено (Server 1 — 185.177.216.15)
-| Файл | Размер | Статус |
-|------|--------|--------|
-| knowledge_os.sql | 16 МБ | OK |
-| s1_logic.tar.gz | 777 МБ | OK |
-| atra.sql | — | не создан на S1 |
-| redis.rdb | — | не скопирован |
+
+| Файл             | Размер | Статус          |
+| ---------------- | ------ | --------------- |
+| knowledge_os.sql | 16 МБ  | OK              |
+| s1_logic.tar.gz  | 777 МБ | OK              |
+| atra.sql         | —      | не создан на S1 |
+| redis.rdb        | —      | не скопирован   |
 
 ### Server 2 (46.149.66.170)
-| Файл | Размер | Статус |
-|------|--------|--------|
-| knowledge_os.sql | 71 МБ | OK |
-| s2_brain.tar.gz | 42 МБ | OK |
+
+| Файл             | Размер | Статус |
+| ---------------- | ------ | ------ |
+| knowledge_os.sql | 71 МБ  | OK     |
+| s2_brain.tar.gz  | 42 МБ  | OK     |
+
 При необходимости повторной загрузки только S2: `python3 scripts/migration/fetch_s2_only.py` (таймаут 30 мин, лог: `~/migration/fetch_s2.log`).
 
 ### Следующие шаги
@@ -26,25 +29,26 @@
    `python3 scripts/migration/fetch_s2_only.py`  
    Лог: `tail -f ~/migration/fetch_s2.log`. Тар ~30 мин.
 
-3. **Запуск Docker → агенты (рекомендуется)**  
-   - **Сначала запустите Docker Desktop.**  
+3. **Запуск Docker → агенты (рекомендуется)**
+   - **Сначала запустите Docker Desktop.**
    - В корне репо:
      ```bash
      bash scripts/migration/up_agents_after_docker.sh
      ```
-   Скрипт ждёт Docker до 60 с, поднимает db/api/worker, собирает и запускает Victoria и Veronica, запускает проверку. MLX/Ollama — на `localhost:11434`.  
-   Если Docker уже запущен: `SKIP_DOCKER_WAIT=1 bash scripts/migration/up_agents_after_docker.sh` — без ожидания.
+     Скрипт ждёт Docker до 60 с, поднимает db/api/worker, собирает и запускает Victoria и Veronica, запускает проверку. MLX/Ollama — на `localhost:11434`.  
+     Если Docker уже запущен: `SKIP_DOCKER_WAIT=1 bash scripts/migration/up_agents_after_docker.sh` — без ожидания.
 
-4. **Восстановление (если ещё не делали)**  
+4. **Восстановление (если ещё не делали)**
    - Docker запущен, стек поднят:  
-     `docker-compose -f knowledge_os/docker-compose.yml up -d db api worker`  
+     `docker-compose -f knowledge_os/docker-compose.yml up -d db api worker`
    - Выполнить:  
-     `python3 scripts/migration/restore_only.py`  
+     `python3 scripts/migration/restore_only.py`
    - Если скрипт «висит» на Docker:  
      `RESTORE_SKIP_DOCKER=1 python3 scripts/migration/restore_only.py`  
      затем импорт вручную (п. 5).
 
 5. **Ручной импорт БД**:
+
    ```bash
    docker exec -i knowledge_os_db psql -U admin -d knowledge_os < ~/migration/server1/knowledge_os.sql
    ```

@@ -8,7 +8,9 @@
 ## 🐛 Найденные проблемы
 
 ### 1. Ошибка импорта
+
 **Проблема:**
+
 ```
 ModuleNotFoundError: No module named 'scripts.test_task_distribution_trace'
 ```
@@ -20,13 +22,16 @@ ModuleNotFoundError: No module named 'scripts.test_task_distribution_trace'
 ---
 
 ### 2. Rate Limit на MLX API Server
+
 **Проблема:**
+
 ```
 ERROR: ❌ Все модели и URL недоступны (повторяется много раз)
 Rate limit exceeded. Max 100 requests per 60 seconds
 ```
 
-**Причина:** 
+**Причина:**
+
 - Extended Thinking не обрабатывал rate limit (429)
 - Зацикливание при попытках подключения
 - Нет fallback на Ollama при rate limit
@@ -36,7 +41,9 @@ Rate limit exceeded. Max 100 requests per 60 seconds
 ---
 
 ### 3. Неправильный выбор метода для создания сайта
+
 **Проблема:**
+
 - Задача "напишут одностраничный сайт..." использовала department_heads вместо ReAct
 - Результат: "Задача выполнена экспертом 'Андрей' (статус: finish)" - слишком короткий
 
@@ -49,16 +56,19 @@ Rate limit exceeded. Max 100 requests per 60 seconds
 ## ✅ Что исправлено
 
 ### 1. Импорт в `run_website_test.py`
+
 - ✅ Добавлен путь к корню проекта в `sys.path`
 - ✅ Импорт `scripts.test_task_distribution_trace` теперь работает
 
 ### 2. Обработка rate limit в Extended Thinking
+
 - ✅ Добавлена обработка статуса 429 (rate limit)
 - ✅ Добавлена обработка статуса 500+ (серверные ошибки)
 - ✅ Добавлен fallback на Ollama при rate limit
 - ✅ Добавлено ожидание (sleep) перед повторной попыткой
 
 ### 3. Определение задач создания файлов
+
 - ✅ Добавлены ключевые слова: "напишут", "одностраничный сайт", "сайт по"
 - ✅ Задачи создания сайтов теперь используют ReAct вместо department_heads
 - ✅ Добавлены ключевые слова в список для делегирования Veronica
@@ -68,12 +78,14 @@ Rate limit exceeded. Max 100 requests per 60 seconds
 ## 📊 Результаты
 
 ### До исправлений:
+
 - ❌ Ошибка импорта
 - ❌ Зацикливание при rate limit
 - ❌ Неправильный выбор метода (department_heads вместо ReAct)
 - ❌ Короткий результат (52 символа)
 
 ### После исправлений:
+
 - ✅ Импорт работает
 - ✅ Rate limit обрабатывается с fallback
 - ✅ Правильный выбор метода (ReAct для создания файлов)
@@ -84,12 +96,14 @@ Rate limit exceeded. Max 100 requests per 60 seconds
 ## 🚀 Теперь можно использовать
 
 **Запуск теста:**
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 python3 scripts/run_website_test.py
 ```
 
 **Что будет происходить:**
+
 1. ✅ Проверка MLX API Server
 2. ✅ Инициализация Victoria Enhanced
 3. ✅ Правильный выбор метода (ReAct для создания сайтов)
@@ -101,16 +115,19 @@ python3 scripts/run_website_test.py
 ## 📝 Дополнительные улучшения
 
 ### В `react_agent.py`:
+
 - ✅ Обработка rate limit (429) с fallback на Ollama
 - ✅ Обработка серверных ошибок (500+) с fallback на Ollama
 - ✅ Улучшена логика определения задач создания файлов
 
 ### В `extended_thinking.py`:
+
 - ✅ Обработка rate limit (429) с fallback на Ollama
 - ✅ Обработка серверных ошибок (500+) с fallback на Ollama
 - ✅ Ожидание перед повторной попыткой
 
 ### В `victoria_enhanced.py`:
+
 - ✅ Расширен список ключевых слов для задач создания файлов
 - ✅ Улучшена проверка задач создания сайтов
 

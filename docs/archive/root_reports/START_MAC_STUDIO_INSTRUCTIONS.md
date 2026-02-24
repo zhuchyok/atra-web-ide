@@ -18,11 +18,13 @@
 ## 🚀 ЗАПУСК ИНФРАСТРУКТУРЫ
 
 ### Вариант 1: Через готовый скрипт
+
 ```bash
 ./scripts/start_mac_studio_full.sh
 ```
 
 ### Вариант 2: Вручную через Docker Compose
+
 ```bash
 # 1. Создайте директории
 mkdir -p logs/mlx logs/knowledge-os logs/agents
@@ -86,16 +88,19 @@ curl http://localhost:3000/api/health
 ## 🔧 УПРАВЛЕНИЕ
 
 ### Остановка:
+
 ```bash
 docker-compose down
 ```
 
 ### Перезапуск:
+
 ```bash
 docker-compose restart [service_name]
 ```
 
 ### Просмотр логов:
+
 ```bash
 docker-compose logs -f [service_name]
 ```
@@ -112,4 +117,4 @@ docker-compose logs -f [service_name]
 
 ---
 
-*Скопировано из atra в atra-web-ide для работы по Mac Studio — 2025-01*
+_Скопировано из atra в atra-web-ide для работы по Mac Studio — 2025-01_

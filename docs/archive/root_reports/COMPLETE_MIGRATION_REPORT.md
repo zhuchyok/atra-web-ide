@@ -7,6 +7,7 @@
 ## 📊 ЧТО БЫЛО НАЙДЕНО И ПЕРЕНЕСЕНО
 
 ### 1. Knowledge OS контейнеры ✅
+
 - ✅ Victoria Agent (knowledge_os-victoria-agent)
 - ✅ Veronica Agent (knowledge_os-veronica-agent)
 - ✅ Knowledge OS API (knowledge_os-api)
@@ -15,12 +16,14 @@
 - ✅ Elasticsearch, Kibana, Prometheus, Grafana
 
 **Volumes:**
+
 - knowledge_os_postgres_data
 - knowledge_os_elasticsearch_data
 - knowledge_os_grafana_data
 - knowledge_os_prometheus_data
 
 ### 2. Корневые контейнеры (docker-compose.yml) ✅
+
 - ✅ Frontend (atra-web-ide-frontend)
 - ✅ Backend (atra-web-ide-backend)
 - ✅ Victoria Agent (atra-victoria-agent)
@@ -29,6 +32,7 @@
 - ✅ Redis (atra-redis)
 
 **Volumes:**
+
 - atra-postgres-data
 - atra-redis-data
 - atra-workspace-data
@@ -38,22 +42,26 @@
 ## 📋 СТАТУС МИГРАЦИИ
 
 ### ✅ Выполнено:
+
 1. ✅ Экспорт Knowledge OS контейнеров
 2. ✅ Экспорт корневых контейнеров
 3. ✅ Копирование на Mac Studio
 
 ### ⚠️ Требуется на Mac Studio:
+
 1. ⚠️ Импорт корневых контейнеров:
+
    ```bash
    cd ~/Documents/atra-web-ide
    bash scripts/import_root_containers.sh
    ```
 
 2. ⚠️ Запуск всех контейнеров:
+
    ```bash
    # Knowledge OS
    docker-compose -f knowledge_os/docker-compose.yml up -d
-   
+
    # Корневые контейнеры
    docker-compose up -d
    ```
@@ -84,6 +92,7 @@ docker-compose ps
 ## 📊 ВСЕ КОНТЕЙНЕРЫ
 
 ### Knowledge OS (knowledge_os/docker-compose.yml):
+
 - Victoria Agent (8010)
 - Veronica Agent (8011)
 - Knowledge OS API (8000)
@@ -91,6 +100,7 @@ docker-compose ps
 - Elasticsearch, Kibana, Prometheus, Grafana
 
 ### Корневые (docker-compose.yml):
+
 - Frontend (3000)
 - Backend (8080)
 - Victoria Agent (8010) - альтернативная версия
@@ -113,4 +123,4 @@ docker-compose ps
 
 ---
 
-*Отчет создан: 2026-01-26*
+_Отчет создан: 2026-01-26_

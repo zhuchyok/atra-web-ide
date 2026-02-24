@@ -8,6 +8,7 @@
 ## 🎯 Статус подключения
 
 ### Victoria Agent
+
 - **Статус:** ✅ Работает
 - **Порт:** 8010 (общий для всех проектов)
 - **URL:** http://localhost:8010
@@ -15,6 +16,7 @@
 - **Проект:** atra-web-ide (MAIN_PROJECT)
 
 ### Backend (ATRA Web IDE)
+
 - **Статус:** ✅ Работает
 - **Порт:** 8080
 - **URL:** http://localhost:8080
@@ -22,6 +24,7 @@
 - **Health:** ✅ Healthy
 
 ### Frontend (ATRA Web IDE)
+
 - **Статус:** ✅ Работает
 - **Порт:** 3002
 - **URL:** http://localhost:3002
@@ -113,40 +116,45 @@
 ## 🏢 Корпорация и команда
 
 ### Конфигурация:
+
 - **MAIN_PROJECT:** atra-web-ide
 - **USE_VICTORIA_ENHANCED:** true
 - **ENABLE_EVENT_MONITORING:** true (если установлено)
 - **PROJECT_CONTEXT:** atra-web-ide
 
 ### Автоматический выбор метода:
+
 Victoria Enhanced автоматически выбирает оптимальный метод для задачи:
 
-| Категория задачи | Используемый метод | Компоненты |
-|-----------------|-------------------|------------|
-| **Reasoning** | Extended Thinking + ReCAP | ExtendedThinkingEngine, ReCAPFramework |
-| **Planning** | Tree of Thoughts + Hierarchical | TreeOfThoughts, HierarchicalOrchestrator |
-| **Complex** | Swarm + Consensus | SwarmIntelligence, ConsensusAgent |
-| **Execution** | ReAct Framework | ReActAgent |
-| **General** | Extended Thinking | ExtendedThinkingEngine |
-| **Fast** | Simple Mode | Быстрые ответы |
+| Категория задачи | Используемый метод              | Компоненты                               |
+| ---------------- | ------------------------------- | ---------------------------------------- |
+| **Reasoning**    | Extended Thinking + ReCAP       | ExtendedThinkingEngine, ReCAPFramework   |
+| **Planning**     | Tree of Thoughts + Hierarchical | TreeOfThoughts, HierarchicalOrchestrator |
+| **Complex**      | Swarm + Consensus               | SwarmIntelligence, ConsensusAgent        |
+| **Execution**    | ReAct Framework                 | ReActAgent                               |
+| **General**      | Extended Thinking               | ExtendedThinkingEngine                   |
+| **Fast**         | Simple Mode                     | Быстрые ответы                           |
 
 ---
 
 ## 🔗 Интеграция
 
 ### Backend → Victoria
+
 - **URL:** http://victoria-agent:8000 (внутри Docker)
 - **URL (локально):** http://localhost:8010
 - **Клиент:** VictoriaClient (с retry logic)
 - **Проект контекст:** Передается автоматически
 
 ### Victoria → Knowledge OS
+
 - **Database:** PostgreSQL + pgvector
 - **Connection:** postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 - **Knowledge Nodes:** ✅ Доступны
 - **Experts:** Загружаются из БД
 
 ### Victoria → Команда экспертов
+
 - **TaskDelegator:** ✅ Активен
 - **Delegation:** Victoria может делегировать задачи Veronica и другим агентам
 - **Expert Selection:** Автоматический выбор экспертов по категории задачи
@@ -156,6 +164,7 @@ Victoria Enhanced автоматически выбирает оптимальн
 ## 📊 Проверка подключения
 
 ### Тест Victoria:
+
 ```bash
 curl -X POST http://localhost:8010/run \
   -H "Content-Type: application/json" \
@@ -163,11 +172,13 @@ curl -X POST http://localhost:8010/run \
 ```
 
 ### Тест Backend:
+
 ```bash
 curl http://localhost:8080/health
 ```
 
 ### Тест через Backend:
+
 ```bash
 curl -X POST http://localhost:8080/api/chat \
   -H "Content-Type: application/json" \

@@ -9,16 +9,16 @@
 
 ## 📋 Модели из PLAN.md
 
-| Модель | Размер | Назначение | Автовыбор |
-|--------|--------|------------|-----------|
-| command-r-plus:104b | ~65GB | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise |
-| deepseek-r1-distill-llama:70b | ~40GB | Reasoning, планирование (distilled) | ✅ reasoning |
-| llama3.3:70b | ~40GB | Максимальное качество, общие задачи | ✅ complex |
-| qwen2.5-coder:32b | ~20GB | Качественный код, рефакторинг | ✅ coding (high quality) |
-| phi3.5:3.8b | ~2.5GB | Быстрые задачи, общие | ✅ fast, general |
-| phi3:mini-4k | ~2GB | Быстрые ответы, легкие задачи | ✅ fast (lightweight) |
-| qwen2.5:3b | ~2GB | Быстрые ответы, общие задачи | ✅ fast, default |
-| tinyllama:1.1b-chat | ~700MB | Очень быстрые ответы | ✅ fast (ultra-lightweight) |
+| Модель                        | Размер | Назначение                                  | Автовыбор                   |
+| ----------------------------- | ------ | ------------------------------------------- | --------------------------- |
+| command-r-plus:104b           | ~65GB  | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise      |
+| deepseek-r1-distill-llama:70b | ~40GB  | Reasoning, планирование (distilled)         | ✅ reasoning                |
+| llama3.3:70b                  | ~40GB  | Максимальное качество, общие задачи         | ✅ complex                  |
+| qwen2.5-coder:32b             | ~20GB  | Качественный код, рефакторинг               | ✅ coding (high quality)    |
+| phi3.5:3.8b                   | ~2.5GB | Быстрые задачи, общие                       | ✅ fast, general            |
+| phi3:mini-4k                  | ~2GB   | Быстрые ответы, легкие задачи               | ✅ fast (lightweight)       |
+| qwen2.5:3b                    | ~2GB   | Быстрые ответы, общие задачи                | ✅ fast, default            |
+| tinyllama:1.1b-chat           | ~700MB | Очень быстрые ответы                        | ✅ fast (ultra-lightweight) |
 
 ## ✅ Реализовано
 
@@ -65,6 +65,7 @@
 ### 4. Категоризация задач
 
 Victoria автоматически определяет категорию задачи:
+
 - **coding**: "код", "программируй", "напиши код"
 - **reasoning**: "реши", "рассчитай", "reasoning", "логика"
 - **complex**: "сложн", "комплекс", "complex", "enterprise"

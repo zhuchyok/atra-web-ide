@@ -8,6 +8,7 @@
 ## ✅ ПЕРЕД ПЕРЕЗАПУСКОМ
 
 Убедитесь, что:
+
 - ✅ Docker Desktop запущен
 - ✅ БД `knowledge_postgres` запущена
 - ✅ Конфигурация обновлена (см. `DATABASE_FIX_SUMMARY.md`)
@@ -17,17 +18,20 @@
 ## 🚀 ПЕРЕЗАПУСК VICTORIA
 
 ### 1. Проверить статус Docker:
+
 ```bash
 docker ps
 ```
 
 ### 2. Перезапустить Victoria:
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent
 ```
 
 ### 3. Проверить статус:
+
 ```bash
 # Проверить health
 curl http://localhost:8010/health
@@ -37,6 +41,7 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
 
 ### 4. Проверить логи:
+
 ```bash
 # Проверить подключение к БД
 docker logs victoria-agent 2>&1 | grep -i "database\|DATABASE_URL\|эксперты\|fallback"
@@ -52,12 +57,14 @@ docker logs victoria-agent 2>&1 | tail -50
 ### Признаки успешного подключения:
 
 1. **В логах должно быть:**
+
    ```
    🔌 Использую DATABASE_URL для подключения к экспертам корпорации
    ✅ Подключение к БД успешно
    ```
 
 2. **НЕ должно быть:**
+
    ```
    ⚠️ DATABASE_URL не настроен
    ⚠️ asyncpg или DATABASE_URL недоступны, используем fallback
@@ -80,6 +87,7 @@ docker logs victoria-agent 2>&1 | tail -50
 ## 🔧 ЕСЛИ ПРОБЛЕМЫ
 
 ### Проблема 1: Docker не запущен
+
 ```bash
 # Запустить Docker Desktop вручную
 open -a Docker
@@ -87,6 +95,7 @@ open -a Docker
 ```
 
 ### Проблема 2: БД не доступна
+
 ```bash
 # Проверить, запущена ли БД
 docker ps | grep knowledge_postgres
@@ -97,6 +106,7 @@ docker-compose up -d knowledge_postgres
 ```
 
 ### Проблема 3: Victoria не подключается к БД
+
 ```bash
 # Проверить переменные окружения
 docker exec victoria-agent env | grep DATABASE_URL
@@ -106,6 +116,7 @@ docker exec victoria-agent env | grep DATABASE_URL
 ```
 
 ### Проблема 4: Сеть Docker
+
 ```bash
 # Проверить сеть
 docker network ls | grep atra
@@ -139,6 +150,7 @@ docker logs -f victoria-agent
 ## ✅ РЕЗУЛЬТАТ
 
 После успешного перезапуска:
+
 - ✅ Victoria должна подключаться к БД `knowledge_postgres`
 - ✅ Использовать экспертов из базы знаний (не fallback)
 - ✅ Все компоненты Victoria Enhanced должны работать

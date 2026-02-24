@@ -66,6 +66,7 @@ print(status)
 Victoria теперь **сама реагирует** на события:
 
 #### Реакция на создание файла
+
 ```
 1. Вы создаете файл test.py
 2. File Watcher обнаруживает изменение
@@ -77,6 +78,7 @@ Victoria теперь **сама реагирует** на события:
 ```
 
 #### Реакция на падение сервиса
+
 ```
 1. MLX API Server падает
 2. Service Monitor обнаруживает проблему
@@ -87,6 +89,7 @@ Victoria теперь **сама реагирует** на события:
 ```
 
 #### Реакция на дедлайн
+
 ```
 1. Дедлайн задачи через 6 часов
 2. Deadline Tracker обнаруживает приближение
@@ -101,6 +104,7 @@ Victoria теперь **сама реагирует** на события:
 Victoria теперь **сама создает новые skills**:
 
 #### Пример: Нужен skill для Gmail API
+
 ```
 1. Вы просите: "отправь email через Gmail API"
 2. Victoria определяет, что нужен skill
@@ -115,6 +119,7 @@ Victoria теперь **сама создает новые skills**:
 ```
 
 #### Использование skills
+
 ```python
 # Victoria автоматически использует skills из реестра
 # Список доступных skills:
@@ -271,10 +276,10 @@ SELECT COUNT(*) FROM skills;
 SELECT name, version, source FROM skills LIMIT 10;
 
 -- Статистика использования skills
-SELECT skill_id, COUNT(*) as usage_count 
-FROM skill_usage 
-GROUP BY skill_id 
-ORDER BY usage_count DESC 
+SELECT skill_id, COUNT(*) as usage_count
+FROM skill_usage
+GROUP BY skill_id
+ORDER BY usage_count DESC
 LIMIT 10;
 ```
 
@@ -306,18 +311,18 @@ from knowledge_os.app.victoria_enhanced import VictoriaEnhanced
 async def test_full_cycle():
     victoria = VictoriaEnhanced()
     await victoria.start()
-    
+
     # Создаем тестовый файл
     with open("/tmp/test.py", "w") as f:
         f.write("print('test')")
-    
+
     # Ждем обработки
     await asyncio.sleep(2)
-    
+
     # Проверяем результат
     status = await victoria.get_status()
     assert status["monitoring_started"] == True
-    
+
     await victoria.stop()
 
 asyncio.run(test_full_cycle())
@@ -398,6 +403,7 @@ await victoria.stop()
 ### Q: Как проверить, что все работает?
 
 A: Проверьте статус:
+
 ```python
 status = await victoria.get_status()
 assert status["monitoring_started"] == True
@@ -408,6 +414,7 @@ assert status["skill_registry_available"] == True
 ### Q: Как добавить свой skill?
 
 A: Создайте директорию с `SKILL.md`:
+
 ```bash
 mkdir -p ~/.atra/skills/my-skill
 cat > ~/.atra/skills/my-skill/SKILL.md << EOF
@@ -428,6 +435,7 @@ Victoria автоматически загрузит его при следую�
 ### Q: Как отключить мониторинг?
 
 A: Установите переменные окружения:
+
 ```bash
 export ENABLE_EVENT_MONITORING=false
 export FILE_WATCHER_ENABLED=false
@@ -439,6 +447,7 @@ export SERVICE_MONITOR_ENABLED=false
 A: По умолчанию: `~/.atra/state_machines/`
 
 Можно изменить через:
+
 ```python
 config = StateMachineConfig(
     persistence_path="/custom/path"

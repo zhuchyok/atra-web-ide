@@ -48,4 +48,3 @@ EOF
 5. du -sh ~/.ollama/models/blobs
 
 Отправьте результаты всех команд.
-

@@ -12,6 +12,7 @@
 **Файл:** `src/agents/bridge/victoria_server.py`
 
 **Изменения:**
+
 - ✅ Добавлен глобальный экземпляр `victoria_enhanced_instance` для переиспользования
 - ✅ Добавлен FastAPI `lifespan` для автоматического запуска/остановки мониторинга
 - ✅ Мониторинг запускается автоматически при старте сервера (если `ENABLE_EVENT_MONITORING=true`)
@@ -20,6 +21,7 @@
 - ✅ Добавлен статус мониторинга в `/status` endpoint
 
 **Как работает:**
+
 1. При старте сервера (если `USE_VICTORIA_ENHANCED=true` и `ENABLE_EVENT_MONITORING=true`):
    - Создается глобальный экземпляр `VictoriaEnhanced`
    - Автоматически вызывается `await victoria_enhanced_instance.start()`
@@ -36,6 +38,7 @@
 **Файл:** `knowledge_os/docker-compose.yml`
 
 **Добавлены переменные окружения:**
+
 - ✅ `ENABLE_EVENT_MONITORING: "true"` - включить мониторинг событий
 - ✅ `FILE_WATCHER_ENABLED: "true"` - включить File Watcher
 - ✅ `SERVICE_MONITOR_ENABLED: "true"` - включить Service Monitor
@@ -43,22 +46,26 @@
 - ✅ `SKILLS_WATCHER_ENABLED: "true"` - включить Skills Watcher
 
 **Результат:**
+
 - При запуске контейнера `victoria-agent` все компоненты мониторинга запускаются автоматически
 - Все компоненты работают в фоне и реагируют на события
 
 ### 3. ✅ Проверка связанных компонентов
 
 **Backend (`backend/app/`):**
+
 - ✅ Backend использует Victoria через HTTP API (`VictoriaClient`)
 - ✅ Backend не зависит напрямую от Victoria Enhanced
 - ✅ Backend получает статус через `/status` endpoint (теперь включает статус мониторинга)
 
 **Frontend:**
+
 - ✅ Frontend использует Backend API
 - ✅ Frontend не зависит напрямую от Victoria Enhanced
 - ✅ Все работает через существующие API endpoints
 
 **Veronica Agent:**
+
 - ✅ Veronica использует тот же `VictoriaEnhanced` класс (общий)
 - ✅ Veronica может использовать те же компоненты при необходимости
 - ✅ Нет конфликтов между Victoria и Veronica
@@ -66,6 +73,7 @@
 ### 4. ✅ Проверка зависимостей
 
 **Все зависимости проверены:**
+
 - ✅ `watchdog` - установлен (для File Watcher и Skills Watcher)
 - ✅ `asyncpg` - опционально (для Deadline Tracker с БД)
 - ✅ Все Python модули импортируются корректно
@@ -122,6 +130,7 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {
   "enabled": true,
@@ -165,6 +174,7 @@ docker logs victoria-agent | grep "FILE_CREATED"
 ### Переменные окружения (Docker)
 
 В `knowledge_os/docker-compose.yml` уже настроено:
+
 ```yaml
 ENABLE_EVENT_MONITORING: "true"
 FILE_WATCHER_ENABLED: "true"
@@ -176,6 +186,7 @@ SKILLS_WATCHER_ENABLED: "true"
 ### Переменные окружения (локально)
 
 В `.env`:
+
 ```bash
 USE_VICTORIA_ENHANCED=true
 ENABLE_EVENT_MONITORING=true

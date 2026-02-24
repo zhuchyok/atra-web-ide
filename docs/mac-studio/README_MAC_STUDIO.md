@@ -15,13 +15,13 @@
 
 ## Документы в этой папке
 
-| Файл | Описание |
-|------|----------|
-| MAC_STUDIO_AND_SERVERS_KNOWLEDGE | Сводка по серверам, Mac Studio, сотрудникам |
-| VICTORIA_CURSOR_SETUP | Подключение Victoria к Cursor |
-| MAC_STUDIO_M4_MODELS_GUIDE | Модели для M4 Max |
-| MAC_STUDIO_MIGRATION_GUIDE | Миграция на Mac Studio |
-| DOCKER_AFTER_MIGRATION, MIGRATION_* | Миграция, агенты, Docker |
+| Файл                                 | Описание                                    |
+| ------------------------------------ | ------------------------------------------- |
+| MAC_STUDIO_AND_SERVERS_KNOWLEDGE     | Сводка по серверам, Mac Studio, сотрудникам |
+| VICTORIA_CURSOR_SETUP                | Подключение Victoria к Cursor               |
+| MAC_STUDIO_M4_MODELS_GUIDE           | Модели для M4 Max                           |
+| MAC_STUDIO_MIGRATION_GUIDE           | Миграция на Mac Studio                      |
+| DOCKER*AFTER_MIGRATION, MIGRATION*\* | Миграция, агенты, Docker                    |
 
 ## Скрипты (корень / scripts)
 

@@ -23,13 +23,14 @@
    - Только после этого начинать загрузку новой модели
 
 2. **Логика:**
+
    ```python
    # Проверяем активные генерации
    active_generations = sum(_active_model_requests.values())
    if active_generations > 0:
        # Ждем завершения генераций
        wait_for_generations_to_complete()
-   
+
    # Только теперь загружаем новую модель
    load_model()
    ```

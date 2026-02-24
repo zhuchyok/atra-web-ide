@@ -73,6 +73,7 @@
 ## 🎯 Что знают Victoria и Veronica
 
 ### Victoria Enhanced знает:
+
 - ✅ Что она использует Victoria Enhanced
 - ✅ ReAct Framework: Reasoning + Acting для сложных задач
 - ✅ Extended Thinking: Глубокое рассуждение
@@ -85,6 +86,7 @@
 - ✅ Как автоматически выбирать оптимальный метод для задачи
 
 ### Veronica Enhanced знает:
+
 - ✅ Что она использует Veronica Enhanced
 - ✅ Те же 8 компонентов, что и Victoria
 - ✅ Плюс уникальные способности: приоритет локальности, безопасность, веб-поиск

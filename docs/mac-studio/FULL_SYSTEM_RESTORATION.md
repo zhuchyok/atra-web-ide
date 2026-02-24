@@ -22,10 +22,12 @@
 ## ✅ ЧТО ВОССТАНОВЛЕНО
 
 ### 1. Исправлена ошибка в `semantic_cache.py`
+
 - **Проблема:** `Optional` не был импортирован
 - **Решение:** Добавлен `from typing import Optional`
 
 ### 2. Создан скрипт полного запуска
+
 - **Файл:** `scripts/start_full_corporation.sh`
 - **Функции:**
   - Запускает всю инфраструктуру
@@ -60,7 +62,6 @@ bash scripts/start_full_corporation.sh
      - Балансирует нагрузку
      - Создает связи между знаниями
      - Обрабатывает гипотезы
-   
    - **Nightly Learner** - ежедневно в 6:00 MSK (3:00 UTC):
      - Обучает всех активных экспертов
      - Проводит дебаты (Expert Council)
@@ -68,7 +69,6 @@ bash scripts/start_full_corporation.sh
      - Стресс-тесты (Adversarial Critic)
      - Контекстное обучение
      - Эволюция экспертов
-   
    - **Smart Worker Autonomous** - постоянно:
      - Обрабатывает pending задачи
      - Приоритизирует по bug_probability
@@ -136,20 +136,20 @@ docker logs -f atra-veronica-agent
 ```bash
 # Статус задач
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT status, COUNT(*) as count 
-FROM tasks 
-GROUP BY status 
+SELECT status, COUNT(*) as count
+FROM tasks
+GROUP BY status
 ORDER BY count DESC;
 "
 
 # Распределение задач по экспертам
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT e.name, COUNT(*) as tasks 
-FROM tasks t 
-JOIN experts e ON t.assignee_expert_id = e.id 
-WHERE t.status = 'pending' 
-GROUP BY e.name 
-ORDER BY tasks DESC 
+SELECT e.name, COUNT(*) as tasks
+FROM tasks t
+JOIN experts e ON t.assignee_expert_id = e.id
+WHERE t.status = 'pending'
+GROUP BY e.name
+ORDER BY tasks DESC
 LIMIT 10;
 "
 ```
@@ -204,4 +204,4 @@ docker exec knowledge_os_worker python smart_worker_autonomous.py
 
 ---
 
-*Восстановление выполнено 2026-01-25*
+_Восстановление выполнено 2026-01-25_

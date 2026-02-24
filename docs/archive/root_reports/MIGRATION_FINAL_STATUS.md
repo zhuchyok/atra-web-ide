@@ -8,12 +8,14 @@
 ## ✅ ВСЕ ЭТАПЫ ВЫПОЛНЕНЫ
 
 ### 1. Knowledge OS контейнеры ✅
+
 - ✅ Экспортировано: 8 образов, 9 volumes
 - ✅ Скопировано на Mac Studio
 - ✅ Импортировано на Mac Studio
 - ✅ Контейнеры запущены
 
 ### 2. Корневые контейнеры ✅
+
 - ✅ Экспортировано: 4 образа
 - ✅ Скопировано на Mac Studio
 - ✅ Импортировано на Mac Studio
@@ -31,6 +33,7 @@ docker-compose -f knowledge_os/docker-compose.yml up -d
 ```
 
 **Сервисы:**
+
 - Victoria Agent (8010)
 - Veronica Agent (8011)
 - Knowledge OS API (8000)
@@ -44,6 +47,7 @@ docker-compose up -d
 ```
 
 **Сервисы:**
+
 - Frontend (3000)
 - Backend (8080)
 - Victoria Agent (8010) - конфликт с knowledge_os!
@@ -58,6 +62,7 @@ docker-compose up -d
 **НЕ запускайте оба docker-compose одновременно!**
 
 Используйте только один:
+
 - **Рекомендуется:** `knowledge_os/docker-compose.yml` (основные сервисы)
 - **Опционально:** `docker-compose.yml` (только если нужен Web IDE frontend/backend)
 
@@ -84,17 +89,20 @@ curl http://localhost:11434/api/tags
 ## 🌐 ДОСТУП
 
 ### Локально на Mac Studio:
+
 - `http://localhost:8010` - Victoria
 - `http://localhost:8011` - Veronica
 - `http://localhost:8000` - Knowledge OS API
 - `http://localhost:11434` - Ollama/MLX
 
 ### С Mac Studio:
+
 - `http://192.168.1.64:8010` - Victoria
 - `http://192.168.1.64:8011` - Veronica
 - `http://192.168.1.64:8000` - Knowledge OS API
 
 ### Web IDE (если запущен):
+
 - `http://192.168.1.64:3000` - Frontend
 - `http://192.168.1.64:8080` - Backend
 
@@ -112,4 +120,4 @@ curl http://localhost:11434/api/tags
 
 ---
 
-*Статус обновлен: 2026-01-26 00:30*
+_Статус обновлен: 2026-01-26 00:30_

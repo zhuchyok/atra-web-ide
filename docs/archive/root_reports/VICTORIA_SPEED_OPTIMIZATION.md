@@ -17,7 +17,6 @@
   - Короткие запросы (≤5 слов)
   - Простые вопросы (≤8 слов с "?")
   - Ключевые слова: "привет", "как дела", "скажи", "покажи", "список"
-  
 - ✅ **Категории задач:**
   - `fast` - простые задачи (максимальная скорость)
   - `reasoning` - сложные рассуждения
@@ -52,13 +51,13 @@
 
 Victoria Enhanced автоматически выбирает модель:
 
-| Категория | Приоритет моделей | Метод |
-|-----------|-------------------|-------|
-| **fast** | tinyllama → phi3:mini-4k → qwen2.5:3b | simple (⚡ быстрый) |
-| **reasoning** | deepseek-r1 → llama3.3:70b → qwen2.5-coder:32b | extended_thinking |
-| **complex** | command-r-plus → llama3.3:70b → deepseek-r1 | swarm/consensus |
-| **coding** | qwen2.5-coder:32b → phi3.5:3.8b | react/simple |
-| **general** | qwen2.5-coder:32b → phi3.5:3.8b | simple |
+| Категория     | Приоритет моделей                              | Метод               |
+| ------------- | ---------------------------------------------- | ------------------- |
+| **fast**      | tinyllama → phi3:mini-4k → qwen2.5:3b          | simple (⚡ быстрый) |
+| **reasoning** | deepseek-r1 → llama3.3:70b → qwen2.5-coder:32b | extended_thinking   |
+| **complex**   | command-r-plus → llama3.3:70b → deepseek-r1    | swarm/consensus     |
+| **coding**    | qwen2.5-coder:32b → phi3.5:3.8b                | react/simple        |
+| **general**   | qwen2.5-coder:32b → phi3.5:3.8b                | simple              |
 
 ## 🎯 Как это работает
 
@@ -72,6 +71,7 @@ Victoria Enhanced автоматически выбирает модель:
 ### Примеры:
 
 **Простая задача:**
+
 ```
 Запрос: "Привет! Как дела?"
 → Категория: fast
@@ -81,6 +81,7 @@ Victoria Enhanced автоматически выбирает модель:
 ```
 
 **Сложная задача:**
+
 ```
 Запрос: "Реши сложную математическую задачу с доказательством"
 → Категория: reasoning

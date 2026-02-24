@@ -8,12 +8,14 @@
 ## 📊 ТЕКУЩАЯ СИТУАЦИЯ
 
 ### Статистика задач:
+
 - **Pending (ожидают):** 14,793 задач
 - **In Progress (в работе):** 61 задача
 - **Completed (завершено):** 2,046 задач
 - **Failed (ошибки):** 3 задачи
 
 ### Проблема:
+
 - **14,633 задачи** без назначенного эксперта (`assignee_expert_id IS NULL`)
 - **160 задач** с назначенными экспертами, но не обрабатываются
 - **Worker не работает** - нет логов, процесс не активен
@@ -23,18 +25,21 @@
 ## 🔍 КТО ДОЛЖЕН ОБРАБАТЫВАТЬ ЗАДАЧИ
 
 ### 1. **Knowledge OS Worker** (основной обработчик)
+
 - **Файл:** `knowledge_os/app/worker.py`
 - **Функция:** Обрабатывает задачи с назначенными экспертами
 - **Статус:** ❌ Не работает (нет логов, процесс не запущен)
 - **Проблема:** Worker запускается, но не выводит логи и не обрабатывает задачи
 
 ### 2. **Enhanced Orchestrator** (назначение задач)
+
 - **Файл:** `knowledge_os/app/enhanced_orchestrator.py`
 - **Функция:** Назначает задачи экспертам, балансирует нагрузку
 - **Статус:** ❌ Не запущен (ошибка импорта: `Optional` не определен)
 - **Проблема:** Требуется исправление импортов
 
 ### 3. **Smart Worker Autonomous** (продвинутый worker)
+
 - **Файл:** `knowledge_os/app/smart_worker_autonomous.py`
 - **Функция:** Автономная обработка с приоритизацией
 - **Статус:** ⏸️ Не используется (worker.py используется вместо него)
@@ -44,15 +49,16 @@
 ## 🛠️ ЧТО НУЖНО СДЕЛАТЬ
 
 ### 1. ✅ Назначить задачи экспертам
+
 ```sql
 -- Назначить задачи экспертам (выполнено частично)
 UPDATE tasks t
 SET assignee_expert_id = (
-    SELECT e.id FROM experts e 
+    SELECT e.id FROM experts e
     WHERE e.id NOT IN (
-        SELECT assignee_expert_id FROM tasks 
-        WHERE status IN ('pending', 'in_progress') 
-        GROUP BY assignee_expert_id 
+        SELECT assignee_expert_id FROM tasks
+        WHERE status IN ('pending', 'in_progress')
+        GROUP BY assignee_expert_id
         HAVING COUNT(*) > 10
     )
     ORDER BY RANDOM() LIMIT 1
@@ -61,11 +67,13 @@ WHERE assignee_expert_id IS NULL AND status = 'pending';
 ```
 
 ### 2. ⚠️ Исправить и запустить Worker
+
 - Проверить, почему worker не выводит логи
 - Убедиться, что worker обрабатывает задачи
 - Возможно, использовать `smart_worker_autonomous.py` вместо `worker.py`
 
 ### 3. ⚠️ Исправить Enhanced Orchestrator
+
 - Исправить импорт `Optional` в `semantic_cache.py`
 - Запустить orchestrator для автоматического назначения задач
 
@@ -74,11 +82,13 @@ WHERE assignee_expert_id IS NULL AND status = 'pending';
 ## 📝 РЕКОМЕНДАЦИИ
 
 ### Вариант 1: Быстрое решение
+
 1. Назначить задачи через SQL (частично выполнено)
 2. Исправить worker и убедиться, что он обрабатывает задачи
 3. Мониторить выполнение
 
 ### Вариант 2: Полное решение
+
 1. Исправить Enhanced Orchestrator
 2. Запустить orchestrator для автоматического назначения
 3. Использовать Smart Worker Autonomous для обработки
@@ -103,6 +113,7 @@ WHERE assignee_expert_id IS NULL AND status = 'pending';
    - Сохраняет результат в `knowledge_nodes`
 
 ### Текущее состояние:
+
 - ❌ Orchestrator не работает
 - ❌ Worker не обрабатывает задачи
 - ⚠️ Только 160 задач назначены экспертам из 14,793
@@ -127,4 +138,4 @@ WHERE assignee_expert_id IS NULL AND status = 'pending';
 
 ---
 
-*Отчет создан 2026-01-25*
+_Отчет создан 2026-01-25_

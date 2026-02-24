@@ -8,11 +8,13 @@
 ## 🔍 Проверка статуса
 
 ### Автоматический мониторинг:
+
 ```bash
 ./scripts/monitor_glm_download.sh
 ```
 
 Скрипт обновляется каждые 10 секунд и показывает:
+
 - ✅ Статус установки модели
 - ⏳ Активные процессы загрузки
 - 📊 Использование ресурсов
@@ -20,16 +22,19 @@
 ### Ручная проверка:
 
 **Проверить, установлена ли модель:**
+
 ```bash
 ollama list | grep glm-4.7-flash
 ```
 
 **Проверить процесс загрузки:**
+
 ```bash
 ps aux | grep "ollama pull glm-4.7-flash"
 ```
 
 **Посмотреть лог загрузки:**
+
 ```bash
 tail -f /tmp/glm_download.log
 ```
@@ -39,11 +44,13 @@ tail -f /tmp/glm_download.log
 ## 🚀 Запуск загрузки
 
 Если загрузка не идет, запустите:
+
 ```bash
 nohup ollama pull glm-4.7-flash > /tmp/glm_download.log 2>&1 &
 ```
 
 Или в интерактивном режиме:
+
 ```bash
 ollama pull glm-4.7-flash
 ```
@@ -53,6 +60,7 @@ ollama pull glm-4.7-flash
 ## ✅ После завершения
 
 Модель автоматически будет использоваться для:
+
 - **Coding задачи** - `MODEL_MAP["coding"] = "glm-4.7-flash"`
 - **Reasoning задачи** - `MODEL_MAP["reasoning"] = "glm-4.7-flash"`
 

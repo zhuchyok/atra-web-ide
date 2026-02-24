@@ -8,15 +8,18 @@
 ## ✅ ЧТО ДОБАВЛЕНО
 
 ### 1. 🔄 Retry Manager (Повторные попытки)
+
 **Файл:** `task_distribution_improvements.py`
 
 **Функции:**
+
 - ✅ Автоматические повторные попытки с экспоненциальной задержкой
 - ✅ Обработка временных ошибок
 - ✅ Максимальное количество попыток (по умолчанию 3)
 - ✅ Логирование всех попыток
 
 **Использование:**
+
 ```python
 from app.task_distribution_improvements import get_retry_manager
 
@@ -30,15 +33,18 @@ result = await retry_manager.retry_task_assignment(
 ---
 
 ### 2. ⚖️ Load Balancer (Балансировка нагрузки)
+
 **Файл:** `task_distribution_improvements.py`
 
 **Функции:**
+
 - ✅ Отслеживание загрузки сотрудников
 - ✅ Учет среднего времени выполнения
 - ✅ Умный выбор сотрудника с учетом загрузки
 - ✅ Приоритизация критических задач
 
 **Использование:**
+
 ```python
 from app.task_distribution_improvements import get_load_balancer, TaskPriority
 
@@ -52,15 +58,18 @@ best_employee = balancer.select_best_employee(
 ---
 
 ### 3. 🔍 Task Validator (Валидация результатов)
+
 **Файл:** `task_distribution_improvements.py`
 
 **Функции:**
+
 - ✅ Базовая валидация результатов
 - ✅ LLM-валидация через Victoria (опционально)
 - ✅ Оценка качества результата (0-1)
 - ✅ Список проблем для доработки
 
 **Использование:**
+
 ```python
 from app.task_distribution_improvements import get_validator
 
@@ -76,9 +85,11 @@ if not validation["valid"]:
 ---
 
 ### 4. 🔄 Task Escalator (Эскалация)
+
 **Файл:** `task_distribution_improvements.py`
 
 **Функции:**
+
 - ✅ Автоматическое определение необходимости эскалации
 - ✅ Уровни эскалации: Employee → Manager → Department Head → Veronica → Victoria
 - ✅ Эскалация при:
@@ -87,6 +98,7 @@ if not validation["valid"]:
   - Множественных отклонениях
 
 **Использование:**
+
 ```python
 from app.task_distribution_improvements import get_escalator
 
@@ -99,15 +111,18 @@ if escalator.should_escalate(assignment):
 ---
 
 ### 5. 📊 Metrics Collector (Метрики)
+
 **Файл:** `task_distribution_improvements.py`
 
 **Функции:**
+
 - ✅ Отслеживание времени выполнения задач
 - ✅ Статистика по успешности
 - ✅ Статистика по отделам
 - ✅ Сводка метрик
 
 **Использование:**
+
 ```python
 from app.task_distribution_improvements import get_metrics_collector
 
@@ -127,6 +142,7 @@ summary = collector.get_metrics_summary()
 ### В `task_distribution_system.py`:
 
 1. **Добавить retry в `execute_task_assignment`:**
+
 ```python
 from app.task_distribution_improvements import get_retry_manager
 
@@ -138,6 +154,7 @@ result = await retry_manager.retry_task_assignment(
 ```
 
 2. **Использовать Load Balancer в `_select_employee_for_task`:**
+
 ```python
 from app.task_distribution_improvements import get_load_balancer
 
@@ -147,6 +164,7 @@ balancer.increment_load(employee['id'])
 ```
 
 3. **Улучшить валидацию в `manager_review_task`:**
+
 ```python
 from app.task_distribution_improvements import get_validator
 
@@ -157,6 +175,7 @@ if not validation["valid"]:
 ```
 
 4. **Добавить метрики:**
+
 ```python
 from app.task_distribution_improvements import get_metrics_collector
 

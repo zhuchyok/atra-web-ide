@@ -16,9 +16,11 @@
 ### 1. Event-Driven Architecture (Этап 1)
 
 #### 1.1 Расширенный Event Bus
+
 **Файл:** `knowledge_os/app/event_bus.py`
 
 **Добавленные типы событий:**
+
 - `FILE_CREATED` - создание файла
 - `FILE_MODIFIED` - изменение файла
 - `FILE_DELETED` - удаление файла
@@ -36,21 +38,25 @@
 - `SKILL_LOADED` - skill загружен
 
 #### 1.2 File Watcher
+
 **Файл:** `knowledge_os/app/file_watcher.py`
 
 **Возможности:**
+
 - Мониторинг директорий проекта (watchdog)
 - Отслеживание изменений файлов
 - Публикация событий в Event Bus
 - Конфигурируемые пути и фильтры по расширениям
-- Игнорирование .git, __pycache__, node_modules
+- Игнорирование .git, **pycache**, node_modules
 
 **Основано на:** Clawdbot patterns
 
 #### 1.3 Service Monitor
+
 **Файл:** `knowledge_os/app/service_monitor.py`
 
 **Возможности:**
+
 - Мониторинг Docker контейнеров
 - Мониторинг HTTP сервисов (health checks)
 - Мониторинг процессов
@@ -58,6 +64,7 @@
 - Интеграция с SelfCheckSystem
 
 **Мониторит:**
+
 - Victoria Agent (8010)
 - Veronica Agent (8011)
 - MLX API Server (11435)
@@ -67,9 +74,11 @@
 - Redis (6379)
 
 #### 1.4 Deadline Tracker
+
 **Файл:** `knowledge_os/app/deadline_tracker.py`
 
 **Возможности:**
+
 - Парсинг дедлайнов из БД (таблица `tasks`)
 - Парсинг дедлайнов из описаний задач (regex)
 - Отслеживание приближающихся дедлайнов
@@ -77,9 +86,11 @@
 - Публикация события при прохождении дедлайна
 
 #### 1.5 Victoria Event Handlers
+
 **Файл:** `knowledge_os/app/victoria_event_handlers.py`
 
 **Возможности:**
+
 - LangGraph state machines для обработки событий
 - Persistence и checkpoints
 - Обработчики для всех типов событий
@@ -87,6 +98,7 @@
 - Интеграция с Extended Thinking для диагностики
 
 **Обработчики:**
+
 - `handle_file_created` - анализ нового файла с использованием базы знаний
 - `handle_file_modified` - проверка изменений
 - `handle_service_down` - перезапуск сервиса через SelfCheckSystem
@@ -99,9 +111,11 @@
 ### 2. Skill Registry и саморасширение (Этап 2)
 
 #### 2.1 Skill Registry
+
 **Файл:** `knowledge_os/app/skill_registry.py`
 
 **Возможности:**
+
 - Реестр всех доступных skills
 - Поддержка AgentSkills формата (`SKILL.md` с YAML frontmatter)
 - Метаданные skills (описание, параметры, примеры)
@@ -111,6 +125,7 @@
 - Сохранение в БД (интеграция с базой знаний)
 
 **Локации skills (как в Clawdbot):**
+
 1. Bundled skills: `knowledge_os/app/skills/` (встроенные)
 2. Managed skills: `~/.atra/skills/` (установленные пользователем)
 3. Workspace skills: `<workspace>/skills/` (проектные)
@@ -119,9 +134,11 @@
 **Основано на:** Agent Skills Framework (Anthropic), Clawdbot patterns
 
 #### 2.2 Skill Loader
+
 **Файл:** `knowledge_os/app/skill_loader.py`
 
 **Возможности:**
+
 - Динамическая загрузка skills из `SKILL.md` файлов
 - Парсинг YAML frontmatter
 - Валидация skills перед добавлением
@@ -130,6 +147,7 @@
 - Gating на основе метаданных
 
 **Skills Watcher:**
+
 - Мониторинг изменений `SKILL.md` файлов
 - Автоматическое обновление реестра
 - Debounce для множественных изменений (250ms)
@@ -138,9 +156,11 @@
 **Основано на:** Clawdbot Skills Watcher
 
 #### 2.3 Skill Discovery
+
 **Файл:** `knowledge_os/app/skill_discovery.py`
 
 **Возможности:**
+
 - Поиск библиотек через PyPI API
 - Поиск API через документацию (Gmail, GitHub, Slack, Discord)
 - Генерация `SKILL.md` файла в формате AgentSkills
@@ -150,6 +170,7 @@
 - Сохранение в базу знаний
 
 **Процесс:**
+
 1. Victoria определяет, что нужен skill
 2. Публикует событие `SKILL_NEEDED`
 3. Skill Discovery получает событие
@@ -165,9 +186,11 @@
 ### 3. Интеграция компонентов
 
 #### 3.1 Victoria Enhanced Integration
+
 **Файл:** `knowledge_os/app/victoria_enhanced.py`
 
 **Добавлено:**
+
 - Инициализация Event Bus, Skill Registry, Skill Loader
 - Инициализация File Watcher, Service Monitor, Deadline Tracker
 - Инициализация Victoria Event Handlers
@@ -177,6 +200,7 @@
 - Интеграция Skill Discovery
 
 **Метод `start()` запускает:**
+
 - Event Bus
 - File Watcher
 - Service Monitor
@@ -185,9 +209,11 @@
 - Подписка на события
 
 #### 3.2 ReActAgent Integration
+
 **Файл:** `knowledge_os/app/react_agent.py`
 
 **Изменения:**
+
 - Инициализация Skill Registry
 - Замена статического списка `available_tools` на динамический из Skill Registry
 - Использование skills из реестра для выполнения действий

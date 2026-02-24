@@ -31,6 +31,7 @@ defaults write com.docker.docker 'StartAtLogin' -bool true
 ```
 
 Проверка:
+
 ```bash
 defaults read com.docker.docker 'StartAtLogin'
 # Должно вернуть: 1 (true)
@@ -43,19 +44,21 @@ defaults read com.docker.docker 'StartAtLogin'
 **Хорошая новость:** Контейнеры уже настроены с `restart: always`!
 
 В `knowledge_os/docker-compose.yml`:
+
 ```yaml
 services:
   db:
-    restart: always  # ← Автоматический перезапуск
-  
+    restart: always # ← Автоматический перезапуск
+
   victoria-agent:
-    restart: always  # ← Автоматический перезапуск
-  
+    restart: always # ← Автоматический перезапуск
+
   veronica-agent:
-    restart: always  # ← Автоматический перезапуск
+    restart: always # ← Автоматический перезапуск
 ```
 
 **Что это значит:**
+
 - Когда Docker Desktop запускается, контейнеры автоматически запускаются
 - Если контейнер упал, Docker автоматически перезапустит его
 - После перезагрузки Mac контейнеры запустятся автоматически
@@ -145,6 +148,7 @@ bash scripts/start_autonomous_systems.sh
 ### Вариант 2: Ручной запуск
 
 Если не хотите автозапуск Docker Desktop:
+
 ```bash
 # Запуск Docker Desktop
 open -a Docker
@@ -156,6 +160,7 @@ bash scripts/start_full_corporation.sh
 ### Вариант 3: Проверка и запуск
 
 Скрипт автоматически проверит и запустит всё:
+
 ```bash
 bash scripts/start_full_corporation.sh
 # Скрипт проверит Docker и запустит всё необходимое
@@ -168,14 +173,16 @@ bash scripts/start_full_corporation.sh
 **Ответ:** Нет, не нужно всегда запускать Docker вручную!
 
 **После настройки:**
+
 1. ✅ Docker Desktop запускается автоматически при входе в Mac
 2. ✅ Контейнеры запускаются автоматически (restart: always)
 3. ✅ Всё работает без ручного запуска
 
 **Настройка занимает 2 минуты:**
+
 - Включить "Start Docker Desktop when you log in" в настройках
 - Готово!
 
 ---
 
-*Руководство создано 2026-01-25*
+_Руководство создано 2026-01-25_

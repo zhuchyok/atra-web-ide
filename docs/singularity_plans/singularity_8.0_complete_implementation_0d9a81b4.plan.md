@@ -18,29 +18,27 @@ graph TD
     Phase2 --> Phase3[Фаза 3: Безопасность]
     Phase3 --> Phase4[Фаза 4: Мониторинг]
     Phase4 --> Phase5[Фаза 5: Новые возможности]
-    
+
     Phase1 --> P1_1[Параллельная обработка]
     Phase1 --> P1_2[Умное кэширование TTL]
     Phase1 --> P1_3[Оптимизация эмбеддингов]
-    
+
     Phase2 --> P2_1[ML Routing v2]
     Phase2 --> P2_2[Контекстная память]
     Phase2 --> P2_3[Feedback система]
-    
+
     Phase3 --> P3_1[Rate Limiting]
     Phase3 --> P3_2[Шифрование]
     Phase3 --> P3_3[Graceful Degradation]
-    
+
     Phase4 --> P4_1[Grafana Dashboard]
     Phase4 --> P4_2[Usage Analytics]
     Phase4 --> P4_3[Автоотчеты]
-    
+
     Phase5 --> P5_1[Multi-modal]
     Phase5 --> P5_2[Голосовые команды]
     Phase5 --> P5_3[Внешние API]
 ```
-
-
 
 ## Фаза 1: Производительность и оптимизация (1-2 недели)
 

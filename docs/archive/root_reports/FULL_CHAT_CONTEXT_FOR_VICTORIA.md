@@ -10,6 +10,7 @@
 **Миграция всех Docker контейнеров с Mac Studio на Mac Studio**
 
 ### Ключевые параметры:
+
 - Mac Studio IP: **192.168.1.64**
 - Пользователь Mac Studio: **bikos**
 - Mac Studio путь: `~/Documents/atra-web-ide`
@@ -20,6 +21,7 @@
 ## ✅ ЧТО УЖЕ СДЕЛАНО
 
 ### 1. Экспорт с Mac Studio ✅
+
 - ✅ Остановлены все контейнеры (Knowledge OS и корневые)
 - ✅ Экспортировано **9 Docker volumes**:
   - `atra-postgres-data` (79 MB)
@@ -42,11 +44,13 @@
   - `.env` файлы
 
 ### 2. Копирование на Mac Studio ✅
+
 - ✅ Бэкапы скопированы через SCP:
   - `atra-docker-migration-20260125-235238` (~800 MB)
   - `atra-root-migration-20260126-002134` (~1.5 GB)
 
 ### 3. Импорт на Mac Studio ✅
+
 - ✅ Docker Desktop установлен и запущен
 - ✅ Docker сеть `atra-network` создана
 - ✅ Knowledge OS образы импортированы
@@ -54,6 +58,7 @@
 - ✅ Volumes импортированы
 
 ### 4. Запуск контейнеров ⚠️
+
 - ✅ Knowledge OS контейнеры запущены:
   - Victoria Agent (8010) - работает: `{"status":"ok"}`
   - Veronica Agent (8011) - работает: `{"status":"ok"}`
@@ -107,6 +112,7 @@ atra-web-ide/
 ## 🔧 СОЗДАННЫЕ СКРИПТЫ
 
 ### Миграция:
+
 1. **scripts/full_migration_Mac Studio_to_macstudio.sh** - полная миграция
 2. **scripts/migrate_docker_to_mac_studio.sh** - экспорт с Mac Studio
 3. **scripts/import_docker_from_Mac Studio.sh** - импорт на Mac Studio
@@ -114,6 +120,7 @@ atra-web-ide/
 5. **scripts/import_root_containers.sh** - импорт корневых контейнеров
 
 ### Управление:
+
 6. **scripts/check_and_start_containers.sh** - проверка и запуск
 7. **scripts/start_all_on_mac_studio.sh** - полный запуск всех сервисов
 8. **START_ON_MAC_STUDIO.sh** - простой скрипт запуска
@@ -123,9 +130,11 @@ atra-web-ide/
 ## ⚠️ ЧТО НЕ СДЕЛАНО / ТРЕБУЕТСЯ
 
 ### 1. Запуск всех контейнеров Knowledge OS ⚠️
+
 **Статус:** Частично запущены
 
 **Требуется:**
+
 - ✅ Victoria, Veronica, API, Database, Worker - работают
 - ⚠️ Elasticsearch - не запущен
 - ⚠️ Kibana - не запущен
@@ -133,6 +142,7 @@ atra-web-ide/
 - ⚠️ Grafana - не запущен
 
 **Действие:**
+
 ```bash
 cd ~/Documents/atra-web-ide
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -140,9 +150,11 @@ docker-compose -f knowledge_os/docker-compose.yml up -d
 ```
 
 ### 2. Проверка всех сервисов ⚠️
+
 **Статус:** Частично проверено
 
 **Требуется проверить:**
+
 - ✅ Victoria (8010) - работает
 - ✅ Veronica (8011) - работает
 - ✅ Knowledge OS API (8003) - работает
@@ -153,6 +165,7 @@ docker-compose -f knowledge_os/docker-compose.yml up -d
 - ⚠️ Ollama/MLX (11434) - не проверен
 
 **Действие:**
+
 ```bash
 curl http://localhost:9200/_cluster/health  # Elasticsearch
 curl http://localhost:5601/api/status       # Kibana
@@ -162,28 +175,35 @@ curl http://localhost:11434/api/tags       # Ollama/MLX
 ```
 
 ### 3. Настройка автозапуска ⚠️
+
 **Статус:** Не настроено
 
 **Требуется:**
+
 - Создать launchd service для автозапуска контейнеров при перезагрузке Mac Studio
 
 **Действие:**
+
 ```bash
 bash scripts/create_mac_studio_autostart.sh
 ```
 
 ### 4. Обновление PLAN.md ⚠️
+
 **Статус:** Частично обновлен
 
 **Требуется:**
+
 - Зафиксировать все изменения в PLAN.md
 - Обновить статус миграции
 - Обновить IP адреса (192.168.1.64 вместо 192.168.1.43)
 
 ### 5. Проверка доступности с Mac Studio ⚠️
+
 **Статус:** Не проверено
 
 **Требуется:**
+
 - Проверить доступность всех сервисов с Mac Studio:
   - `http://192.168.1.64:8010` - Victoria
   - `http://192.168.1.64:8011` - Veronica
@@ -194,26 +214,31 @@ bash scripts/create_mac_studio_autostart.sh
 ## 📋 ПОШАГОВЫЙ ПЛАН ДЛЯ VICTORIA
 
 ### Шаг 1: Проверка текущего состояния
+
 1. Проверить статус всех контейнеров на Mac Studio
 2. Проверить доступность всех сервисов
 3. Проверить логи контейнеров
 
 ### Шаг 2: Запуск недостающих контейнеров
+
 1. Запустить Elasticsearch, Kibana, Prometheus, Grafana
 2. Проверить их доступность
 3. Проверить логи на ошибки
 
 ### Шаг 3: Проверка всех сервисов
+
 1. Проверить каждый сервис через health endpoints
 2. Проверить доступность с Mac Studio
 3. Зафиксировать результаты
 
 ### Шаг 4: Настройка автозапуска
+
 1. Создать launchd service
 2. Протестировать автозапуск
 3. Задокументировать
 
 ### Шаг 5: Обновление документации
+
 1. Обновить PLAN.md
 2. Обновить все IP адреса (192.168.1.64)
 3. Зафиксировать финальный статус
@@ -233,12 +258,14 @@ bash scripts/create_mac_studio_autostart.sh
 7. ✅ Создай финальный отчет о завершении миграции
 
 **Используй:**
+
 - Extended Thinking для анализа
 - Swarm Intelligence для координации задач
 - Hierarchical Orchestration для планирования
 - ReCAP Framework для структурирования
 
 **Важно:**
+
 - Mac Studio IP: 192.168.1.64
 - Пользователь: bikos
 - Путь: ~/Documents/atra-web-ide
@@ -259,4 +286,4 @@ bash scripts/create_mac_studio_autostart.sh
 
 ---
 
-*Контекст создан: 2026-01-26*
+_Контекст создан: 2026-01-26_

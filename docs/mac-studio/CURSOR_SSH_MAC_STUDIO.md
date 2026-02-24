@@ -86,8 +86,8 @@ Host macstudio
 
 ## Связанные документы
 
-| Документ | Назначение |
-|----------|------------|
-| [SSH_ENABLE_MAC_STUDIO.md](SSH_ENABLE_MAC_STUDIO.md) | Включение SSH и проверка на Mac Studio |
-| [SSH_KEYS_ENV_SETUP.md](SSH_KEYS_ENV_SETUP.md) | Ключи и переменные для скриптов |
-| [MASTER_REFERENCE.md](../MASTER_REFERENCE.md) | Порты и компоненты (Victoria 8010, MLX 11435 и др.) |
+| Документ                                             | Назначение                                          |
+| ---------------------------------------------------- | --------------------------------------------------- |
+| [SSH_ENABLE_MAC_STUDIO.md](SSH_ENABLE_MAC_STUDIO.md) | Включение SSH и проверка на Mac Studio              |
+| [SSH_KEYS_ENV_SETUP.md](SSH_KEYS_ENV_SETUP.md)       | Ключи и переменные для скриптов                     |
+| [MASTER_REFERENCE.md](../MASTER_REFERENCE.md)        | Порты и компоненты (Victoria 8010, MLX 11435 и др.) |

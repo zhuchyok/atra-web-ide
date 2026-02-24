@@ -8,11 +8,13 @@
 ## 🎯 ПРОБЛЕМА
 
 **Было:**
+
 - Victoria выбирала только первого найденного эксперта с нужной ролью
 - Не учитывались: опыт, загрузка, специализация
 - Из 58 экспертов использовались только 4-5
 
 **Требования:**
+
 - Учитывать ВСЕХ экспертов с подходящей ролью
 - Выбирать лучшего на основе специализации и загрузки
 - Распределение должно быть точным в зависимости от того, кто что делает
@@ -24,6 +26,7 @@
 ### 1. Поиск всех кандидатов
 
 **Было:**
+
 ```python
 # Находил только первого
 for expert_name, expert_data in self.expert_team.items():
@@ -32,6 +35,7 @@ for expert_name, expert_data in self.expert_team.items():
 ```
 
 **Стало:**
+
 ```python
 # Находит ВСЕХ экспертов с подходящими ролями
 candidates = []
@@ -67,8 +71,9 @@ for expert_name, expert_data in self.expert_team.items():
    - Совпадение specialization в metadata
 
 **Итоговый score:**
+
 ```python
-score = role_priority_score + specialization_score + experience_score + 
+score = role_priority_score + specialization_score + experience_score +
         success_rate_score - workload_penalty + metadata_score
 ```
 
@@ -93,6 +98,7 @@ for expert_name, expert_data in candidates:
 ### 4. Дополнительные эксперты для сложных задач
 
 Для сложных задач (с ключевыми словами: "проанализируй", "оптимизируй", "разработай стратегию"):
+
 - Выбирается основной эксперт (лучший)
 - Добавляются 1-2 дополнительных эксперта (следующие по score)
 
@@ -101,11 +107,13 @@ for expert_name, expert_data in candidates:
 ## 📊 РЕЗУЛЬТАТЫ
 
 ### До улучшений:
+
 - Использовалось: 4-5 экспертов из 58
 - Выбор: первый найденный
 - Критерии: только роль
 
 ### После улучшений:
+
 - Используется: все 58 экспертов (рассматриваются все кандидаты)
 - Выбор: лучший по score
 - Критерии: роль + специализация + опыт + успешность + загрузка
@@ -115,9 +123,11 @@ for expert_name, expert_data in candidates:
 ## 🔍 ПРИМЕРЫ
 
 ### Пример 1: Backend задача
+
 **Задача:** "создай API endpoint для получения списка пользователей"
 
 **Кандидаты:**
+
 - Игорь (Backend Developer) - score: 25.5
   - Роль: 20 (основная)
   - Опыт: 3.0 (6 задач)
@@ -132,12 +142,15 @@ for expert_name, expert_data in candidates:
 ---
 
 ### Пример 2: Сложная ML задача
+
 **Задача:** "проанализируй и оптимизируй обучение модели"
 
 **Основной эксперт:**
+
 - Дмитрий (ML Engineer) - score: 28.0
 
 **Дополнительные эксперты:**
+
 - Максим (Data Analyst) - score: 15.0
 - Александр Нейман (Principal AI Systems Architect) - score: 12.0
 
@@ -148,6 +161,7 @@ for expert_name, expert_data in candidates:
 ## 📈 МОНИТОРИНГ
 
 ### Статистика в логах:
+
 ```
 ✅ Выбран лучший эксперт: Игорь (Backend Developer) для задачи: создай API endpoint (score: 25.5)
 📊 Рассмотрено кандидатов: 3 из 58 экспертов
@@ -155,6 +169,7 @@ for expert_name, expert_data in candidates:
 ```
 
 ### Статистика в /status:
+
 ```json
 {
   "experts_stats": {
@@ -179,4 +194,4 @@ for expert_name, expert_data in candidates:
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

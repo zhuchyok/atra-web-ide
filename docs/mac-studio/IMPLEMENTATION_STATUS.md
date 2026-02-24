@@ -25,16 +25,18 @@ for task in tasks:
 
 # Стало: параллельная обработка
 await asyncio.gather(*[
-    process_task(pool, task) 
+    process_task(pool, task)
     for task in batch
 ], return_exceptions=True)
 ```
 
 ### **Ожидаемый эффект:**
+
 - **10x ускорение** обработки задач
 - **14,359 задач:** ~24 минуты вместо 4 часов
 
 ### **Конфигурация:**
+
 - `SMART_WORKER_MAX_CONCURRENT=10` (env var)
 - `SMART_WORKER_BATCH_SIZE=50` (env var)
 
@@ -60,24 +62,25 @@ await asyncio.gather(*[
 async def orchestrate_task(goal: str) -> str:
     # 1. Анализ задачи
     complexity = self._assess_complexity(goal)
-    
+
     # 2. Выбор стратегии
     if complexity == "simple":
         # Один эксперт или Veronica
         return await self.run(goal)
-    
+
     elif complexity == "complex":
         # Swarm (3-5 экспертов параллельно)
         expert_team = await self.select_expert_for_task(goal, use_multiple=True)
         responses = await gather_responses_parallel(expert_team, goal)
         return await self.synthesize_consensus(responses)
-    
+
     else:  # multi_department
         # Иерархия (будущее)
         ...
 ```
 
 ### **Методы:**
+
 - `_assess_complexity()` — оценка сложности задачи
 - `orchestrate_task()` — главный метод оркестрации
 - Интеграция с `select_expert_for_task()` (уже реализовано)
@@ -89,13 +92,16 @@ async def orchestrate_task(goal: str) -> str:
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### **Завершено:**
+
 - ✅ Этап 1: Параллельная обработка задач
 - ✅ Этап 2: Victoria как координатор
 
 ### **В процессе:**
+
 - ⏳ Этап 3: Параллельный сбор ответов (частично — через ai_core)
 
 ### **Ожидает:**
+
 - ⏸️ Этап 4: Иерархия по департаментам
 - ⏸️ Этап 5: Интеграция облачных моделей
 
@@ -106,22 +112,24 @@ async def orchestrate_task(goal: str) -> str:
 ### **Как протестировать:**
 
 1. **Параллельная обработка:**
+
    ```bash
    # Проверить логи Smart Worker
    docker logs -f atra-knowledge-os-smart-worker
-   
+
    # Должны увидеть:
    # "Processing batch 1: 10 tasks"
    # "✅ Batch completed: 10 tasks processed"
    ```
 
 2. **Victoria оркестрация:**
+
    ```bash
    # Простая задача
    curl -X POST http://localhost:8010/orchestrate \
      -H "Content-Type: application/json" \
      -d '{"goal": "скажи привет"}'
-   
+
    # Сложная задача (Swarm)
    curl -X POST http://localhost:8010/orchestrate \
      -H "Content-Type: application/json" \
@@ -133,12 +141,14 @@ async def orchestrate_task(goal: str) -> str:
 ## 📈 МЕТРИКИ
 
 ### **Ожидаемые улучшения:**
+
 - ⚡ **10x ускорение** обработки задач
 - 🎯 **45% быстрее** решение проблем (IBM Research)
 - 🎯 **3x быстрее** принятие решений
 - 🎯 **60% точнее** результаты (с Swarm)
 
 ### **Мониторинг:**
+
 - Количество обработанных задач/секунду
 - Время обработки батча
 - Количество параллельных задач
@@ -149,20 +159,23 @@ async def orchestrate_task(goal: str) -> str:
 ## 🔄 СЛЕДУЮЩИЕ ШАГИ
 
 ### **Этап 3: Улучшение параллельного сбора ответов**
+
 - [ ] Оптимизация синтеза консенсуса
 - [ ] Обработка конфликтов между экспертами
 - [ ] Кэширование промежуточных результатов
 
 ### **Этап 4: Иерархия по департаментам**
+
 - [ ] Определение Department Heads
 - [ ] Иерархическое распределение для межотдельных задач
 - [ ] Координация через отделы
 
 ### **Этап 5: Облачные модели**
+
 - [ ] Интеграция OpenAI/Anthropic
 - [ ] Автоматический выбор: локально vs облако
 - [ ] Fallback на локальные модели
 
 ---
 
-*Документ обновлен 2026-01-25*
+_Документ обновлен 2026-01-25_

@@ -14,12 +14,15 @@
 ## 📋 ШАГ 1: Убедитесь, что бот добавлен в группу
 
 ### 1.1. Откройте Telegram
+
 - Откройте приложение Telegram на телефоне или компьютере
 
 ### 1.2. Найдите группу Bikos_Corporation
+
 - Откройте группу **Bikos_Corporation**
 
 ### 1.3. Добавьте бота в группу (если еще не добавлен)
+
 1. Нажмите на название группы (вверху)
 2. Нажмите "Добавить участников" или "Add Members"
 3. Найдите вашего бота: **@Bikos_Corporation_Bot** (или по токену)
@@ -40,15 +43,17 @@ Chat ID — это уникальный номер группы. Для груп
    - Добавьте его
 
 2. **Отправьте команду в группе:**
+
    ```
    /start
    ```
 
 3. **Бот пришлет ответ с chat_id:**
+
    ```
    Chat ID: -1001234567890
    ```
-   
+
    **Скопируйте этот номер!** (он начинается с `-100`)
 
 ### Способ 2: Через API (если способ 1 не работает)
@@ -57,11 +62,13 @@ Chat ID — это уникальный номер группы. Для груп
    - Например: "test" или "привет"
 
 2. **Откройте терминал и выполните команду:**
+
    ```bash
    curl "https://api.telegram.org/bot8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU/getUpdates" | python3 -m json.tool
    ```
 
 3. **В ответе найдите:**
+
    ```json
    {
      "message": {
@@ -81,27 +88,34 @@ Chat ID — это уникальный номер группы. Для груп
 ## 📋 ШАГ 3: Добавьте Chat ID в .env файл
 
 ### 3.1. Откройте файл .env
+
 - Откройте файл `.env` в корне проекта `/Users/bikos/Documents/atra-web-ide/.env`
 
 ### 3.2. Найдите строку с TELEGRAM_CHAT_ID
+
 Найдите эту строку (она закомментирована):
+
 ```env
 # TELEGRAM_CHAT_ID=-1001234567890
 ```
 
 ### 3.3. Раскомментируйте и вставьте ваш chat_id
+
 Замените на ваш реальный chat_id:
+
 ```env
 TELEGRAM_CHAT_ID=-1001234567890
 ```
 
 **Пример:**
 Если ваш chat_id = `-1001234567890`, то строка должна быть:
+
 ```env
 TELEGRAM_CHAT_ID=-1001234567890
 ```
 
-**ВАЖНО:** 
+**ВАЖНО:**
+
 - Chat ID группы **всегда отрицательный** (начинается с `-100`)
 - Не забудьте убрать `#` в начале строки!
 
@@ -110,18 +124,22 @@ TELEGRAM_CHAT_ID=-1001234567890
 ## 📋 ШАГ 4: Перезапустите бота
 
 ### 4.1. Остановите текущий бот
+
 В терминале выполните:
+
 ```bash
 pkill -f victoria_telegram_bot
 ```
 
 ### 4.2. Запустите бот заново
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 python3 -m src.agents.bridge.victoria_telegram_bot
 ```
 
 Или запустите в фоне:
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 nohup python3 -m src.agents.bridge.victoria_telegram_bot > telegram_bot.log 2>&1 &
@@ -134,17 +152,21 @@ nohup python3 -m src.agents.bridge.victoria_telegram_bot > telegram_bot.log 2>&1
 ### 5.1. Откройте группу Bikos_Corporation в Telegram
 
 ### 5.2. Отправьте сообщение в группе
+
 Например:
+
 - `/start` — должно прийти приветствие
 - "Виктория, привет" — Victoria должна ответить
 - "Создай файл test.py" — Victoria выполнит задачу
 
 ### 5.3. Проверьте логи (если нужно)
+
 ```bash
 tail -f telegram_bot.log
 ```
 
 Должны увидеть:
+
 ```
 📨 Получено сообщение от 556251171 в supergroup -1001234567890: Виктория, привет...
 ```
@@ -160,18 +182,24 @@ tail -f telegram_bot.log
 ## 🔧 ЕСЛИ НЕ РАБОТАЕТ
 
 ### Проблема 1: Бот не отвечает в группе
+
 **Решение:**
+
 - Проверьте, что бот добавлен в группу
 - Проверьте, что `TELEGRAM_CHAT_ID` правильный (начинается с `-100`)
 - Проверьте, что бот перезапущен после изменения .env
 
 ### Проблема 2: "Доступ запрещен"
+
 **Решение:**
+
 - Убедитесь, что ваш `TELEGRAM_USER_ID=556251171` правильный
 - Проверьте, что вы отправили сообщение из правильного аккаунта
 
 ### Проблема 3: Не могу найти chat_id
+
 **Решение:**
+
 - Используйте бота @getidsbot (самый простой способ)
 - Или отправьте сообщение в группе и проверьте через API
 
@@ -191,12 +219,13 @@ TELEGRAM_CHAT_ID=-1001234567890  ← ВАШ CHAT_ID ГРУППЫ
 ## 💡 БЫСТРАЯ ПРОВЕРКА
 
 После настройки выполните:
+
 ```bash
 # Проверить, что переменные загружены
 cd /Users/bikos/Documents/atra-web-ide
-python3 -c "import os; 
-from src.agents.bridge.victoria_telegram_bot import load_env_file; 
-load_env_file(); 
+python3 -c "import os;
+from src.agents.bridge.victoria_telegram_bot import load_env_file;
+load_env_file();
 print('TELEGRAM_CHAT_ID:', os.getenv('TELEGRAM_CHAT_ID', 'НЕ УСТАНОВЛЕН'))"
 ```
 

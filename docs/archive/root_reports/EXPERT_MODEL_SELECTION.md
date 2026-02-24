@@ -56,6 +56,7 @@
 ### 3. Эксперт выбирает модель
 
 **Вариант A: Эксперт уверен (expert_choice)**
+
 ```python
 async def expert_execute_task(task, recommended_models):
     # Эксперт анализирует задачу
@@ -65,11 +66,12 @@ async def expert_execute_task(task, recommended_models):
     else:
         # Использует рекомендации
         selected_model = recommended_models[0]
-    
+
     result = await execute_with_model(task, selected_model)
 ```
 
 **Вариант B: Следовать рекомендациям (recommended)**
+
 ```python
 async def expert_execute_task(task, recommended_models):
     # Использует первую рекомендованную модель
@@ -78,6 +80,7 @@ async def expert_execute_task(task, recommended_models):
 ```
 
 **Вариант C: Автоматический выбор (auto)**
+
 ```python
 async def expert_execute_task(task):
     # Система выбирает модель

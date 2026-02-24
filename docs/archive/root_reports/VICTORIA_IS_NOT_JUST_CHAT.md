@@ -14,30 +14,35 @@
 ## 🛠️ ЧТО VICTORIA УМЕЕТ ДЕЛАТЬ
 
 ### 1. **Создание файлов** ✅
+
 ```python
 # Victoria может создать файл
 {"action": "create_file", "input": {"file_path": "test.txt", "content": "привет"}}
 ```
 
 ### 2. **Выполнение команд** ✅
+
 ```python
 # Victoria может выполнить команду
 {"action": "run_terminal_cmd", "input": {"command": "ls -la"}}
 ```
 
 ### 3. **Чтение файлов** ✅
+
 ```python
 # Victoria может прочитать файл
 {"action": "read_file", "input": {"file_path": "config.py"}}
 ```
 
 ### 4. **Список файлов** ✅
+
 ```python
 # Victoria может показать список файлов
 {"action": "list_directory", "input": {"directory": "/tmp"}}
 ```
 
 ### 5. **Поиск в базе знаний** ✅
+
 ```python
 # Victoria может искать информацию
 {"action": "search_knowledge", "input": {"query": "как работает Victoria"}}
@@ -48,7 +53,9 @@
 ## 🔍 ПРОБЛЕМА, КОТОРУЮ Я ИСПРАВИЛ
 
 ### Проблема 1: ReActAgent использовал заглушку
+
 **Было:**
+
 ```python
 async def _execute_action(self, action: str, action_input: Dict) -> Any:
     # TODO: Интеграция с реальными инструментами
@@ -56,6 +63,7 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 ```
 
 **Стало:**
+
 ```python
 async def _execute_action(self, action: str, action_input: Dict) -> Any:
     # Реальная интеграция с инструментами
@@ -67,11 +75,13 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 ```
 
 ### Проблема 2: ReActAgent не находил модели в Docker
+
 **Было:** Использовал `http://localhost:11435` (не работает в Docker)
 
 **Стало:** Использует `http://host.docker.internal:11435` (работает в Docker)
 
 ### Проблема 3: Недостаточно инструментов
+
 **Было:** Только `["read_file", "run_terminal_cmd", "search_knowledge", "finish"]`
 
 **Стало:** `["read_file", "run_terminal_cmd", "list_directory", "create_file", "write_file", "search_knowledge", "finish"]`
@@ -81,15 +91,18 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 ## 📊 КАК VICTORIA ВЫБИРАЕТ МЕТОД
 
 ### Simple метод (только генерация текста):
+
 - Используется для: простые вопросы ("привет", "как дела")
 - ❌ НЕ использует инструменты
 
 ### ReAct метод (с инструментами):
+
 - Используется для: задачи с действиями ("создай", "выполни", "прочитай")
 - ✅ **ИСПОЛЬЗУЕТ ИНСТРУМЕНТЫ**
 - ✅ Может создавать файлы, выполнять команды, читать файлы
 
 **Автоматический выбор:**
+
 - "создай файл" → категория "coding" → метод "react" → использует инструменты ✅
 - "выполни команду" → категория "coding" → метод "react" → использует инструменты ✅
 - "прочитай файл" → категория "coding" → метод "react" → использует инструменты ✅
@@ -111,6 +124,7 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 ## 🚀 ПРИМЕРЫ ЗАДАЧ
 
 ### Victoria МОЖЕТ:
+
 - ✅ "создай файл test.txt с текстом привет"
 - ✅ "выполни команду ls -la"
 - ✅ "прочитай файл config.py"
@@ -119,6 +133,7 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 - ✅ "создай HTML страницу"
 
 ### Victoria НЕ МОЖЕТ (пока):
+
 - ❌ Удалять файлы (нет инструмента delete_file)
 - ❌ Редактировать файлы построчно (есть только write_file)
 - ❌ Выполнять SSH команды (есть только локальные команды)
@@ -128,6 +143,7 @@ async def _execute_action(self, action: str, action_input: Dict) -> Any:
 ## 📝 ИТОГ
 
 **Victoria НЕ просто болталка!** Она может:
+
 - ✅ Создавать файлы
 - ✅ Выполнять команды
 - ✅ Читать файлы

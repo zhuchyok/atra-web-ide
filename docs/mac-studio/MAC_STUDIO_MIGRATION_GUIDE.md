@@ -8,6 +8,7 @@
 ## 📋 ЧТО МИГРИРУЕТСЯ
 
 ### Знания и данные:
+
 - ✅ 40+ экспертов (experts)
 - ✅ Все знания (knowledge_nodes)
 - ✅ Домены (domains)
@@ -20,11 +21,13 @@
 - ✅ AI кэш (semantic_ai_cache)
 
 ### Агенты:
+
 - ✅ Victoria Agent (Team Lead)
 - ✅ Veronica Agent (Web Researcher)
 - ✅ Nightly Learner (обучение экспертов)
 
 ### Инфраструктура:
+
 - ✅ MLX API Server (все модели)
 - ✅ Knowledge OS (PostgreSQL + API + Worker)
 - ✅ Мониторинг (Prometheus + Grafana)
@@ -36,17 +39,20 @@
 ### Этап 1: Подготовка (Mac Studio M4 Max)
 
 1. **Установите Docker Desktop:**
+
    ```bash
    # Скачайте и установите Docker Desktop для Mac
    # https://www.docker.com/products/docker-desktop
    ```
 
 2. **Установите модели:**
+
    ```bash
    ./scripts/install_models_mac_studio.sh
    ```
-   
+
    Или вручную:
+
    ```bash
    python3 scripts/setup_all_hf_models_mac_studio.py
    ```
@@ -124,21 +130,25 @@ Mac Studio M4 Max
 ## 🔧 УПРАВЛЕНИЕ
 
 ### Запуск всех сервисов:
+
 ```bash
 docker-compose up -d
 ```
 
 ### Остановка:
+
 ```bash
 docker-compose down
 ```
 
 ### Просмотр логов:
+
 ```bash
 docker-compose logs -f [service_name]
 ```
 
 ### Перезапуск сервиса:
+
 ```bash
 docker-compose restart [service_name]
 ```
@@ -167,18 +177,21 @@ docker-compose restart [service_name]
 ## 🐛 УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Docker daemon не запущен:
+
 ```bash
 # Запустите Docker Desktop
 open -a Docker
 ```
 
 ### Модели не найдены:
+
 ```bash
 # Установите модели
 ./scripts/install_models_mac_studio.sh
 ```
 
 ### База данных не запускается:
+
 ```bash
 # Проверьте логи
 docker-compose logs knowledge-os-db
@@ -190,5 +203,4 @@ docker-compose up -d knowledge-os-db
 
 ---
 
-*Создано командой экспертов ATRA*
-
+_Создано командой экспертов ATRA_

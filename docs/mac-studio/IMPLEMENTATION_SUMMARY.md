@@ -10,11 +10,13 @@
 ### 1. Prometheus + Grafana
 
 #### Файлы изменены:
+
 - ✅ `knowledge_os/docker-compose.yml` — добавлены Prometheus и Grafana
 - ✅ `infrastructure/monitoring/prometheus.yml` — обновлена конфигурация
 - ✅ `knowledge_os/app/main.py` — добавлен `/metrics` endpoint
 
 #### Что сделано:
+
 - Prometheus контейнер настроен для сбора метрик
 - Grafana контейнер настроен с дашбордом
 - `/metrics` endpoint экспортирует метрики в формате Prometheus
@@ -25,11 +27,13 @@
 ### 2. ELK стек (Elasticsearch + Kibana)
 
 #### Файлы созданы/изменены:
+
 - ✅ `knowledge_os/app/elk_handler.py` — полнофункциональный ELK handler
 - ✅ `knowledge_os/src/shared/utils/logger.py` — интеграция ELK
 - ✅ `knowledge_os/docker-compose.yml` — добавлены Elasticsearch и Kibana
 
 #### Что сделано:
+
 - Elasticsearch контейнер настроен для хранения логов
 - Kibana контейнер настроен для визуализации
 - ELKHandler с батчингом и асинхронной отправкой
@@ -42,6 +46,7 @@
 ### Docker Compose:
 
 Все сервисы добавлены в `knowledge_os/docker-compose.yml`:
+
 - `atra-prometheus` (порт 9090)
 - `atra-grafana` (порт 3000)
 - `atra-elasticsearch` (порт 9200)
@@ -50,6 +55,7 @@
 ### Переменные окружения:
 
 Для включения ELK логирования добавьте в контейнеры:
+
 ```yaml
 environment:
   - USE_ELK=true
@@ -110,4 +116,4 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 
 ---
 
-*Реализация завершена обдуманно и пошагово 2026-01-25*
+_Реализация завершена обдуманно и пошагово 2026-01-25_

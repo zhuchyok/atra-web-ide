@@ -10,12 +10,14 @@
 ### 1. **Enhanced Orchestrator** ✅
 
 **Функции:**
+
 - Назначает экспертов для задач без assignee
 - Балансирует нагрузку между экспертами
 - Создает новые задачи для "голодных" доменов
 - Запускает Cross-Domain Linker и Curiosity Engine
 
 **Автозапуск:**
+
 - ✅ **Crontab:** Каждые 5 минут
 - ✅ **Команда:** `docker exec victoria-agent python3 -c "from enhanced_orchestrator import run_enhanced_orchestration_cycle; asyncio.run(run_enhanced_orchestration_cycle())"`
 - ✅ **Логи:** `/tmp/orchestrator.log`
@@ -25,11 +27,13 @@
 ### 2. **Smart Worker Autonomous** ✅
 
 **Функции:**
+
 - Обрабатывает pending задачи
 - Переводит в in_progress → completed
 - Использует экспертов для выполнения
 
 **Автозапуск:**
+
 - ✅ **Docker restart:** `always` или `unless-stopped`
 - ✅ **Контейнер:** `knowledge_worker`
 - ✅ **Автоматический перезапуск** при падении
@@ -39,11 +43,13 @@
 ### 3. **Nightly Learner** ✅
 
 **Функции:**
+
 - Ежедневное обучение всех экспертов
 - Expert Council обсуждения
 - Обновление знаний
 
 **Автозапуск:**
+
 - ✅ **Crontab:** Ежедневно в 3:00 UTC (6:00 MSK)
 - ✅ **Команда:** `docker exec victoria-agent python3 /app/knowledge_os/app/nightly_learner.py`
 - ✅ **Логи:** `/tmp/nightly_learner.log`
@@ -57,14 +63,16 @@
 **Проблема:** 852 задачи застряли в `in_progress`
 
 **Решение:**
+
 ```sql
-UPDATE tasks 
-SET status = 'pending' 
-WHERE status = 'in_progress' 
+UPDATE tasks
+SET status = 'pending'
+WHERE status = 'in_progress'
 AND updated_at < NOW() - INTERVAL '1 day';
 ```
 
 **Автоматизация:**
+
 - Enhanced Orchestrator проверяет застрявшие задачи
 - Автоматически возвращает их в pending
 
@@ -75,6 +83,7 @@ AND updated_at < NOW() - INTERVAL '1 day';
 **Проблема:** 729 задач без назначенных экспертов
 
 **Решение:**
+
 - Enhanced Orchestrator назначает экспертов автоматически
 - Балансирует нагрузку между экспертами
 
@@ -85,6 +94,7 @@ AND updated_at < NOW() - INTERVAL '1 day';
 **Проблема:** Worker не обрабатывает задачи из-за ошибок
 
 **Решение:**
+
 - Исправлены подключения к БД и Redis
 - Используются правильные имена хостов в Docker
 - Добавлена обработка ошибок и retry логика

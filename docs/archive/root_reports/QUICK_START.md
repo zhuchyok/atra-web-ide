@@ -13,17 +13,20 @@
 **Шаг 1:** Запустить Docker Desktop
 
 **Шаг 2:** После запуска Docker выполнить:
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 docker-compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 ```
 
 **Шаг 3:** Проверить логи:
+
 ```bash
 docker logs -f victoria-agent
 ```
 
 **Ожидаемые логи:**
+
 ```
 🚀 Инициализация Victoria Enhanced при старте сервера...
 ✅ Victoria Enhanced мониторинг запущен при старте сервера
@@ -34,6 +37,7 @@ docker logs -f victoria-agent
 ```
 
 **Шаг 4:** Проверить статус:
+
 ```bash
 curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
@@ -43,18 +47,21 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ### Вариант 2: Локальный запуск
 
 **Шаг 1:** Установить переменные окружения:
+
 ```bash
 export USE_VICTORIA_ENHANCED=true
 export ENABLE_EVENT_MONITORING=true
 ```
 
 **Шаг 2:** Запустить сервер:
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 python -m src.agents.bridge.victoria_server
 ```
 
 **Ожидаемые логи:**
+
 ```
 🚀 Инициализация Victoria Enhanced при старте сервера...
 ✅ Victoria Enhanced мониторинг запущен при старте сервера
@@ -73,6 +80,7 @@ curl http://localhost:8010/status | jq '.victoria_enhanced'
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {
   "enabled": true,
@@ -111,7 +119,7 @@ docker logs victoria-agent | grep "SERVICE_DOWN"
 
 **Код:** ✅ Готов  
 **Конфигурация:** ✅ Настроена  
-**Docker:** ⚠️ Требуется запуск Docker Desktop  
+**Docker:** ⚠️ Требуется запуск Docker Desktop
 
 **После запуска Docker все компоненты автоматически запустятся!**
 

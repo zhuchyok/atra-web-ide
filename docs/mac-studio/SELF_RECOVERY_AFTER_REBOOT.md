@@ -14,65 +14,74 @@
 ## 📊 ЧТО ДОЛЖНО РАБОТАТЬ ПОСЛЕ ПЕРЕЗАГРУЗКИ
 
 ### 1. Базовая инфраструктура
-| Компонент | Порт | Автозапуск | Проверка |
-|-----------|------|------------|----------|
-| Docker Desktop | - | StartAtLogin | `defaults read com.docker.docker StartAtLogin` |
-| atra-network | - | При старте Docker | `docker network inspect atra-network` |
+
+| Компонент      | Порт | Автозапуск        | Проверка                                       |
+| -------------- | ---- | ----------------- | ---------------------------------------------- |
+| Docker Desktop | -    | StartAtLogin      | `defaults read com.docker.docker StartAtLogin` |
+| atra-network   | -    | При старте Docker | `docker network inspect atra-network`          |
 
 ### 2. Knowledge OS (Docker, restart: always/unless-stopped)
-| Сервис | Порт | Restart | Контейнер |
-|--------|------|---------|-----------|
-| PostgreSQL | 5432 | always | knowledge_postgres |
-| Redis | 6380→6379 | always | knowledge_redis |
-| Victoria Agent | 8010 | always | victoria-agent |
-| Veronica Agent | 8011 | always | veronica-agent |
-| Knowledge OS Worker | - | unless-stopped | knowledge_os_worker |
-| Nightly Learner | - | unless-stopped | knowledge_nightly |
-| Orchestrator | - | unless-stopped | knowledge_os_orchestrator |
-| Prometheus | 9092 | unless-stopped | atra-prometheus |
-| Grafana | 3001 | unless-stopped | atra-grafana |
-| Elasticsearch | 9200 | unless-stopped | atra-elasticsearch |
-| Kibana | 5601 | unless-stopped | atra-kibana |
-| Corporation Dashboard | 8501 | unless-stopped | corporation-dashboard |
-| Knowledge REST API | 8002 | unless-stopped | knowledge_rest |
+
+| Сервис                | Порт      | Restart        | Контейнер                 |
+| --------------------- | --------- | -------------- | ------------------------- |
+| PostgreSQL            | 5432      | always         | knowledge_postgres        |
+| Redis                 | 6380→6379 | always         | knowledge_redis           |
+| Victoria Agent        | 8010      | always         | victoria-agent            |
+| Veronica Agent        | 8011      | always         | veronica-agent            |
+| Knowledge OS Worker   | -         | unless-stopped | knowledge_os_worker       |
+| Nightly Learner       | -         | unless-stopped | knowledge_nightly         |
+| Orchestrator          | -         | unless-stopped | knowledge_os_orchestrator |
+| Prometheus            | 9092      | unless-stopped | atra-prometheus           |
+| Grafana               | 3001      | unless-stopped | atra-grafana              |
+| Elasticsearch         | 9200      | unless-stopped | atra-elasticsearch        |
+| Kibana                | 5601      | unless-stopped | atra-kibana               |
+| Corporation Dashboard | 8501      | unless-stopped | corporation-dashboard     |
+| Knowledge REST API    | 8002      | unless-stopped | knowledge_rest            |
 
 ### 3. LLM и модели
-| Сервис | Порт | Автозапуск | Проверка |
-|--------|------|------------|----------|
-| Ollama | 11434 | brew services | `brew services list \| grep ollama` |
-| MLX API Server | 11435 | launchd | `launchctl list \| grep mlx` |
+
+| Сервис         | Порт  | Автозапуск    | Проверка                            |
+| -------------- | ----- | ------------- | ----------------------------------- |
+| Ollama         | 11434 | brew services | `brew services list \| grep ollama` |
+| MLX API Server | 11435 | launchd       | `launchctl list \| grep mlx`        |
 
 ### 4. ATRA Web IDE (Docker)
-| Сервис | Порт | Restart |
-|--------|------|---------|
-| Backend | 8080 | unless-stopped |
+
+| Сервис   | Порт | Restart        |
+| -------- | ---- | -------------- |
+| Backend  | 8080 | unless-stopped |
 | Frontend | 3000 | unless-stopped |
 
 ### 4.1. Victoria Telegram Bot (процесс на хосте)
-| Компонент | Автозапуск | Проверка |
-|-----------|------------|----------|
+
+| Компонент             | Автозапуск              | Проверка                         |
+| --------------------- | ----------------------- | -------------------------------- |
 | Victoria Telegram Bot | Вручную или LaunchAgent | `pgrep -f victoria_telegram_bot` |
 
 После перезагрузки бот **не запускается автоматически** (это процесс на хосте, не в Docker). Запуск:
+
 ```bash
 cd /path/to/atra-web-ide && python3 -m src.agents.bridge.victoria_telegram_bot
 ```
+
 Для автозапуска при загрузке Mac см. `docs/TELEGRAM_VICTORIA_TROUBLESHOOTING.md` или настройте LaunchAgent по аналогии с Victoria MCP.
 
 ### 5. Самопроверка
-| Компонент | Интервал | Описание |
-|-----------|----------|----------|
-| system_auto_recovery | 5 мин | Шаг 10: вызывает verify_mac_studio_self_recovery.sh |
-| start_self_check | 5 мин | Запускает verify_mac_studio_self_recovery.sh (через start_autonomous_systems) |
+
+| Компонент            | Интервал | Описание                                                                      |
+| -------------------- | -------- | ----------------------------------------------------------------------------- |
+| system_auto_recovery | 5 мин    | Шаг 10: вызывает verify_mac_studio_self_recovery.sh                           |
+| start_self_check     | 5 мин    | Запускает verify_mac_studio_self_recovery.sh (через start_autonomous_systems) |
 
 ### 6. Launchd (автозапуск при загрузке)
-| Job | Скрипт | Интервал |
-|-----|--------|----------|
-| com.atra.auto-recovery | system_auto_recovery.sh | RunAtLoad + 5 мин |
-| com.atra.mlx-monitor | monitor_mlx_api_server.sh | KeepAlive |
-| com.atra.self-check | start_autonomous_systems.sh | RunAtLoad + 5 мин |
-| com.atra.victoria-mcp | Victoria MCP Server | RunAtLoad |
-| com.atra.mac-studio-startup | start_all_on_mac_studio.sh | RunAtLoad + 5 мин |
+
+| Job                         | Скрипт                      | Интервал          |
+| --------------------------- | --------------------------- | ----------------- |
+| com.atra.auto-recovery      | system_auto_recovery.sh     | RunAtLoad + 5 мин |
+| com.atra.mlx-monitor        | monitor_mlx_api_server.sh   | KeepAlive         |
+| com.atra.self-check         | start_autonomous_systems.sh | RunAtLoad + 5 мин |
+| com.atra.victoria-mcp       | Victoria MCP Server         | RunAtLoad         |
+| com.atra.mac-studio-startup | start_all_on_mac_studio.sh  | RunAtLoad + 5 мин |
 
 ---
 
@@ -151,4 +160,4 @@ launchctl list | grep atra
 
 ---
 
-*Документация обновлена 2026-01-27*
+_Документация обновлена 2026-01-27_

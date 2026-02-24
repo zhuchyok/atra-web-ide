@@ -14,6 +14,7 @@ bash ~/Documents/dev/atra/.cursor_chats_backup/copy_all_from_Mac Studio.sh
 ```
 
 Скрипт:
+
 - ✅ Запросит IP адрес Mac Studio
 - ✅ Проверит доступность
 - ✅ Оценит размер (~2 GB)
@@ -21,6 +22,7 @@ bash ~/Documents/dev/atra/.cursor_chats_backup/copy_all_from_Mac Studio.sh
 - ✅ Покажет результат
 
 **Пример использования:**
+
 ```bash
 bash ~/Documents/dev/atra/.cursor_chats_backup/copy_all_from_Mac Studio.sh 192.168.1.100
 ```
@@ -52,6 +54,7 @@ rsync -avz --progress \
 ### Вариант 3: Через USB/внешний диск
 
 **На Mac Studio:**
+
 ```bash
 cd ~/Documents/atra-web-ide
 
@@ -68,6 +71,7 @@ tar czf atra-web-ide-full.tar.gz \
 ```
 
 **Скопировать архив на внешний диск, затем на Mac Studio:**
+
 ```bash
 # На Mac Studio
 cd ~/Documents
@@ -105,6 +109,7 @@ ssh bikos@[Mac Studio_IP]
 ## ✅ ПОСЛЕ КОПИРОВАНИЯ
 
 1. **Проверка файлов:**
+
    ```bash
    cd ~/Documents/atra-web-ide
    ls -la
@@ -122,4 +127,4 @@ ssh bikos@[Mac Studio_IP]
 
 ---
 
-*Инструкция создана: 2026-01-26*
+_Инструкция создана: 2026-01-26_

@@ -72,10 +72,10 @@ open http://localhost:3000         # Frontend
 
 ## 📊 ПОРТЫ
 
-| Сервис | Порт | URL |
-|--------|------|-----|
+| Сервис   | Порт | URL                   |
+| -------- | ---- | --------------------- |
 | Frontend | 3000 | http://localhost:3000 |
-| Backend | 8080 | http://localhost:8080 |
+| Backend  | 8080 | http://localhost:8080 |
 | Victoria | 8010 | http://localhost:8010 |
 | Veronica | 8011 | http://localhost:8011 |
 
@@ -93,4 +93,4 @@ open http://localhost:3000         # Frontend
 
 **Проект готов к работе!** 🎉
 
-*Создано: 2026-01-26*
+_Создано: 2026-01-26_

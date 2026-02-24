@@ -8,11 +8,13 @@
 ## 🚀 ЗАПУСК MLX API SERVER
 
 ### Команда
+
 ```bash
 cd knowledge_os/app && python3 -m uvicorn mlx_api_server:app --host 0.0.0.0 --port 11435
 ```
 
 ### Статус
+
 - 🔄 Запускается на порту 11435
 - ⏳ Проверяется доступность...
 

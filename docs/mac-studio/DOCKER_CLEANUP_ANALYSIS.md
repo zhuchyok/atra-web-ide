@@ -8,6 +8,7 @@
 ## 📊 ТЕКУЩЕЕ СОСТОЯНИЕ
 
 ### Использование дискового пространства:
+
 ```
 Images:      38.67GB (31.59GB можно освободить - 81%)
 Containers:  1.925MB (16.38kB можно освободить - 0%)
@@ -38,10 +39,12 @@ Build Cache: 20.64GB (всё можно освободить!)
 **Проблема:** Старые и новые образы агентов одновременно.
 
 #### Victoria:
+
 - ✅ `atra-web-ide-victoria:latest` (3.64GB) — **ИСПОЛЬЗУЕТСЯ**
 - ❌ `knowledge_os-victoria-agent:latest` (1.15GB) — **НЕ ИСПОЛЬЗУЕТСЯ** (старый)
 
 #### Veronica:
+
 - ✅ `atra-web-ide-veronica:latest` (3.46GB) — **ИСПОЛЬЗУЕТСЯ**
 - ❌ `knowledge_os-veronica-agent:latest` (1.15GB) — **НЕ ИСПОЛЬЗУЕТСЯ** (старый)
 
@@ -113,6 +116,7 @@ Build Cache: 20.64GB (всё можно освободить!)
 ## ✅ ЧТО НУЖНО (активные ресурсы)
 
 ### Контейнеры (8 активных):
+
 1. ✅ `atra-knowledge-os-db` — база данных
 2. ✅ `atra-victoria-agent` — Victoria Agent
 3. ✅ `atra-veronica-agent` — Veronica Agent
@@ -123,6 +127,7 @@ Build Cache: 20.64GB (всё можно освободить!)
 8. ⚠️ `atra-web-ide-frontend` — нужно проверить
 
 ### Образы (нужные):
+
 1. ✅ `pgvector/pgvector:pg16` — PostgreSQL с pgvector
 2. ✅ `atra-web-ide-victoria:latest` — Victoria
 3. ✅ `atra-web-ide-veronica:latest` — Veronica
@@ -137,16 +142,19 @@ Build Cache: 20.64GB (всё можно освободить!)
 ### Безопасная очистка (можно делать сразу):
 
 1. **Удалить остановленные контейнеры:**
+
    ```bash
    docker rm knowledge_os_db knowledge-os-db
    ```
 
 2. **Удалить старые образы агентов:**
+
    ```bash
    docker rmi knowledge_os-victoria-agent:latest knowledge_os-veronica-agent:latest
    ```
 
 3. **Очистить build cache:**
+
    ```bash
    docker builder prune -f
    ```
@@ -185,6 +193,7 @@ bash scripts/docker_cleanup.sh
 ```
 
 Скрипт:
+
 - ✅ Показывает что можно удалить
 - ✅ Спрашивает подтверждение перед удалением
 - ✅ Безопасно удаляет только неиспользуемые ресурсы
@@ -233,6 +242,7 @@ docker rmi grafana/grafana:latest
 **Да, есть лишнее в Docker!**
 
 **Основные проблемы:**
+
 1. ❌ Дублирующиеся контейнеры БД (2 лишних)
 2. ❌ Старые образы агентов (~2.3GB)
 3. ❌ Build cache (20.64GB!)
@@ -242,4 +252,4 @@ docker rmi grafana/grafana:latest
 
 ---
 
-*Анализ выполнен 2026-01-25*
+_Анализ выполнен 2026-01-25_

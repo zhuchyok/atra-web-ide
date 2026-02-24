@@ -19,12 +19,14 @@ ls -la /Users/bikos/.docker/run/docker.sock
 ### 2. Если Docker Desktop запущен, но сокет недоступен:
 
 **Решение 1: Перезапустить Docker Desktop**
+
 1. Закройте Docker Desktop полностью (Quit из меню)
 2. Подождите 10 секунд
 3. Запустите Docker Desktop заново
 4. Дождитесь полного запуска (иконка в меню должна быть зеленая)
 
 **Решение 2: Проверить права доступа**
+
 ```bash
 # Проверить права на сокет
 ls -la /Users/bikos/.docker/run/docker.sock
@@ -34,6 +36,7 @@ sudo chmod 666 /Users/bikos/.docker/run/docker.sock
 ```
 
 **Решение 3: Использовать альтернативный путь**
+
 ```bash
 # Попробовать через /var/run/docker.sock (если доступен)
 export DOCKER_HOST=unix:///var/run/docker.sock
@@ -57,6 +60,7 @@ docker ps
    - Иконка должна стать зеленой
 
 3. **Проверить подключение:**
+
    ```bash
    docker ps
    ```
@@ -74,10 +78,12 @@ docker ps
 ### Если Docker Desktop не запускается:
 
 **Вариант 1: Переустановить Docker Desktop**
+
 - Скачайте последнюю версию с docker.com
 - Установите заново
 
 **Вариант 2: Использовать Docker через Colima (альтернатива)**
+
 ```bash
 # Установить Colima
 brew install colima docker docker-compose
@@ -90,6 +96,7 @@ docker ps
 ```
 
 **Вариант 3: Использовать Podman (альтернатива)**
+
 ```bash
 brew install podman
 podman machine start
@@ -121,6 +128,7 @@ curl http://localhost:8010/health
 ## 🚨 ЕСЛИ НИЧЕГО НЕ ПОМОГАЕТ
 
 1. **Перезагрузите Mac Studio:**
+
    ```bash
    sudo reboot
    ```
@@ -135,6 +143,7 @@ curl http://localhost:8010/health
 ## ✅ ОЖИДАЕМЫЙ РЕЗУЛЬТАТ
 
 После успешного перезапуска Victoria:
+
 - ✅ Подключение к БД `knowledge_postgres`
 - ✅ В логах: `🔌 Использую DATABASE_URL для подключения к экспертам корпорации`
 - ✅ НЕ должно быть: `⚠️ DATABASE_URL не настроен` или `fallback`

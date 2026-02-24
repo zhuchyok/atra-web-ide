@@ -12,6 +12,7 @@
 **Файл:** `backend/app/services/ollama.py`
 
 Добавлен правильный список моделей Mac Studio M4 Max:
+
 - `command-r-plus:104b` (~65GB) - Максимальная мощность
 - `deepseek-r1-distill-llama:70b` (~40GB) - Reasoning
 - `llama3.3:70b` (~40GB) - Максимальное качество
@@ -26,6 +27,7 @@
 **Файл:** `backend/app/routers/chat.py`
 
 Добавлена функция `_select_model_for_chat()`:
+
 - Автоматически выбирает модель на основе содержания сообщения
 - Использует доступные модели из реального списка
 - Приоритет: coding → reasoning → fast → default
@@ -35,6 +37,7 @@
 **Файл:** `docker-compose.yml`
 
 Настроено:
+
 - `OLLAMA_URL=http://host.docker.internal:11434`
 
 ---
@@ -42,6 +45,7 @@
 ## ❌ ПРОБЛЕМА
 
 Из Docker контейнера не получается подключиться к Ollama на хосте:
+
 - Ollama возвращает `404 Not Found` для `/api/generate`
 - Возможно, Ollama слушает только на `localhost:11434`, а не на всех интерфейсах
 
@@ -64,9 +68,10 @@ killall ollama && ollama serve
 ### Вариант 2: Использовать IP адрес напрямую
 
 В `docker-compose.yml`:
+
 ```yaml
 environment:
-  - OLLAMA_URL=http://192.168.1.38:11434  # IP вашего Mac
+  - OLLAMA_URL=http://192.168.1.38:11434 # IP вашего Mac
 ```
 
 ### Вариант 3: Запустить backend не в Docker
@@ -81,6 +86,7 @@ uvicorn app.main:app --reload --port 8000
 ## 📋 ДОСТУПНЫЕ МОДЕЛИ НА MAC STUDIO
 
 Текущие модели в Ollama:
+
 - `moondream:latest` - Vision
 - `phi4:latest` - Fast/Balanced
 - `deepseek-r1:7b` - Reasoning

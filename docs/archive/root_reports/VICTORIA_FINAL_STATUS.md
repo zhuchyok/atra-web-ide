@@ -40,11 +40,13 @@
 ### Проблема: Отсутствуют зависимости
 
 **Требуется установка:**
+
 ```bash
 pip3 install --user aiohttp fastapi uvicorn pydantic watchdog
 ```
 
 Или из requirements.txt:
+
 ```bash
 pip3 install --user -r requirements.txt
 ```
@@ -52,12 +54,14 @@ pip3 install --user -r requirements.txt
 ### После установки зависимостей:
 
 **Запуск:**
+
 ```bash
 cd /Users/bikos/Documents/atra-web-ide
 ./START_VICTORIA_SIMPLE.sh
 ```
 
 **Или вручную:**
+
 ```bash
 export USE_VICTORIA_ENHANCED=true
 export ENABLE_EVENT_MONITORING=true

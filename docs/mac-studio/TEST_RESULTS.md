@@ -16,6 +16,7 @@
 ### **2. Тестирование задач**
 
 #### **Простая задача через `/run`:**
+
 ```bash
 curl -X POST http://localhost:8010/run \
   -H "Content-Type: application/json" \
@@ -25,6 +26,7 @@ curl -X POST http://localhost:8010/run \
 **Результат:** ✅ Успешно
 
 #### **Простая задача через `/orchestrate`:**
+
 ```bash
 curl -X POST http://localhost:8010/orchestrate \
   -H "Content-Type: application/json" \
@@ -34,6 +36,7 @@ curl -X POST http://localhost:8010/orchestrate \
 **Результат:** ✅ Успешно
 
 #### **Сложная задача (Swarm оркестрация):**
+
 ```bash
 curl -X POST http://localhost:8010/orchestrate \
   -H "Content-Type: application/json" \
@@ -47,12 +50,14 @@ curl -X POST http://localhost:8010/orchestrate \
 ## 📈 СТАТИСТИКА
 
 ### **Статус задач:**
+
 - **Pending:** 14,359 задач
 - **Completed:** 2,483 задачи
 - **In Progress:** 63 задачи
 - **Failed:** 3 задачи
 
 ### **Производительность:**
+
 - **Завершено за последние 5 минут:** проверяется в реальном времени
 - **Параллельная обработка:** активирована (10 задач одновременно)
 
@@ -61,11 +66,13 @@ curl -X POST http://localhost:8010/orchestrate \
 ## ⚡ ПРОИЗВОДИТЕЛЬНОСТЬ
 
 ### **Ожидаемые улучшения:**
+
 - ✅ **10x ускорение** обработки задач
 - ✅ **Параллельная обработка** 10 задач одновременно
 - ✅ **Swarm оркестрация** для сложных задач
 
 ### **Метрики:**
+
 - **До:** ~1 задача/секунду (последовательно)
 - **После:** ~10 задач/секунду (параллельно)
 - **14,359 задач:** ~24 минуты вместо 4 часов
@@ -75,6 +82,7 @@ curl -X POST http://localhost:8010/orchestrate \
 ## 🔍 ЛОГИ
 
 ### **Smart Worker:**
+
 ```
 🚀 AUTONOMOUS SMART WORKER v4.0 (PARALLEL) starting...
 ⚡ Parallel processing: 10 concurrent tasks, batch size: 50
@@ -84,6 +92,7 @@ Processing batch 1: 10 tasks
 ```
 
 ### **Victoria:**
+
 ```
 🎯 Victoria оркестрирует задачу: скажи привет
 📊 Анализ: сложность=simple, категория=general
@@ -95,6 +104,7 @@ Processing batch 1: 10 tasks
 ## ✅ ВЫВОДЫ
 
 ### **Что работает:**
+
 - ✅ Параллельная обработка задач в Smart Worker
 - ✅ Victoria оркестрация (простые задачи)
 - ✅ Victoria оркестрация (сложные задачи - Swarm)
@@ -102,6 +112,7 @@ Processing batch 1: 10 tasks
 - ✅ Интеграция с Knowledge OS
 
 ### **Что нужно улучшить:**
+
 - ⏳ Мониторинг производительности в реальном времени
 - ⏳ Оптимизация синтеза консенсуса для Swarm
 - ⏳ Иерархия по департаментам (этап 4)
@@ -126,4 +137,4 @@ Processing batch 1: 10 tasks
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

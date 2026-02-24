@@ -20,15 +20,18 @@ TELEGRAM_CHAT_ID=ЗАМЕНИТЕ_НА_CHAT_ID_ГРУППЫ
 ## 📋 ГДЕ ВЗЯТЬ ЗНАЧЕНИЯ
 
 ### 1. TELEGRAM_BOT_TOKEN
+
 - Получите у @BotFather после создания бота
 - Формат: `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`
 
 ### 2. TELEGRAM_USER_ID
+
 - Узнайте у @userinfobot в Telegram
 - Отправьте `/start` боту
 - Формат: `556251171` (положительное число)
 
 ### 3. TELEGRAM_CHAT_ID
+
 - Узнайте через @getidsbot в группе Bikos_Corporation
 - Отправьте `/start` в группе
 - Формат: `-1001234567890` (отрицательное число, начинается с `-100`)

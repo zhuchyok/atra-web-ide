@@ -46,12 +46,14 @@
 ## 📊 ТЕКУЩИЙ СТАТУС
 
 ### Задачи:
+
 - **Pending:** 14,780 задач (назначены экспертам)
 - **In Progress:** 61 задача (обрабатываются)
 - **Completed:** 2,059+ задач (завершено, растет!)
 - **Failed:** 3 задачи
 
 ### Обработка:
+
 - ✅ **37+ задач обработано за последний час**
 - ✅ Worker активно работает
 - ✅ Orchestrator работает каждые 5 минут
@@ -91,6 +93,7 @@
 ### Enhanced Orchestrator (каждые 5 минут):
 
 **Видно в логах:**
+
 ```
 🚀 ENHANCED ORCHESTRATOR v3.1 starting...
 📊 Phase 1: Prioritizing existing tasks...
@@ -128,17 +131,17 @@
 ```bash
 # Статус задач
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT status, COUNT(*) as count 
-FROM tasks 
-GROUP BY status 
+SELECT status, COUNT(*) as count
+FROM tasks
+GROUP BY status
 ORDER BY count DESC;
 "
 
 # Обработанные задачи за час
 docker exec -i atra-knowledge-os-db psql -U admin -d knowledge_os -c "
-SELECT COUNT(*) as processed 
-FROM tasks 
-WHERE status = 'completed' 
+SELECT COUNT(*) as processed
+FROM tasks
+WHERE status = 'completed'
 AND updated_at > NOW() - INTERVAL '1 hour';
 "
 ```
@@ -200,4 +203,4 @@ docker exec -e REDIS_URL=redis://atra-redis:6379 knowledge_os_api python /app/en
 
 ---
 
-*Восстановление завершено 2026-01-25. Все системы работают автономно!*
+_Восстановление завершено 2026-01-25. Все системы работают автономно!_

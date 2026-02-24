@@ -8,12 +8,14 @@
 ## 📊 Текущая ситуация
 
 ### ✅ Victoria работает:
+
 ```bash
 curl http://localhost:8010/health
 # {"status":"ok","agent":"Виктория"}
 ```
 
 ### ✅ Telegram бот запущен:
+
 ```bash
 ps aux | grep victoria_telegram_bot
 # Python -m src.agents.bridge.victoria_telegram_bot (PID: 71494)
@@ -22,6 +24,7 @@ ps aux | grep victoria_telegram_bot
 ### ⚠️ Проблема в логах:
 
 **Последний запрос:**
+
 - **Время:** 23:00:01
 - **Запрос:** "Что скажешь про код?"
 - **Статус:** ⏱️ Таймаут через 2 минуты (23:02:02)
@@ -41,7 +44,8 @@ ps aux | grep victoria_telegram_bot
 
 ### 2. Ошибка Markdown
 
-**Проблема:** 
+**Проблема:**
+
 ```
 Bad Request: can't parse entities: Can't find end of the entity starting at byte offset 320
 ```
@@ -57,6 +61,7 @@ Bad Request: can't parse entities: Can't find end of the entity starting at byte
 ### 1. Безопасная отправка сообщений
 
 **Изменения:**
+
 - Убрано принудительное использование `parse_mode: "Markdown"`
 - Добавлено автоматическое экранирование проблемных символов
 - Fallback на обычный текст при ошибке Markdown
@@ -64,6 +69,7 @@ Bad Request: can't parse entities: Can't find end of the entity starting at byte
 ### 2. Увеличен таймаут
 
 **Изменения:**
+
 - Таймаут увеличен до 180 секунд (3 минуты)
 - Добавлены периодические обновления прогресса
 
@@ -88,11 +94,13 @@ python3 -m src.agents.bridge.victoria_telegram_bot
 ### 2. Проверить, что запрос обрабатывается
 
 **Проверка логов:**
+
 ```bash
 tail -f /Users/bikos/Documents/atra-web-ide/victoria_bot.log
 ```
 
 **Проверка Victoria:**
+
 ```bash
 curl http://localhost:8010/status
 ```
@@ -108,6 +116,7 @@ curl http://localhost:8010/status
    - Сложные задачи могут требовать больше времени
 
 2. **Проверьте, не зависла ли Victoria:**
+
    ```bash
    curl http://localhost:8010/health
    ```
@@ -121,14 +130,17 @@ curl http://localhost:8010/status
 ## ✅ Итого
 
 **Проблемы найдены:**
+
 1. ✅ Бот не перезапущен (использует старый код)
 2. ✅ Ошибка Markdown при отправке ответа
 3. ✅ Таймаут 120 секунд вместо 180
 
 **Исправления:**
+
 1. ✅ Улучшена обработка Markdown
 2. ✅ Увеличен таймаут до 180 секунд
 3. ✅ Добавлены периодические обновления
 
 **Действие:**
+
 - ⚠️ **Нужно перезапустить бот** для применения изменений

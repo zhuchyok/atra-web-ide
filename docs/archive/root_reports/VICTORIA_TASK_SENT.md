@@ -12,6 +12,7 @@
 **Цель:** Прочитай файл ALL_TASKS_FOR_VICTORIA.md в корне проекта. Выполни ВСЕ 10 задач из списка последовательно.
 
 **Параметры:**
+
 - max_steps: 60
 - timeout: 900 секунд (15 минут)
 
@@ -35,16 +36,19 @@
 ## 🔍 ПРОВЕРКА ВЫПОЛНЕНИЯ
 
 ### Через логи:
+
 ```bash
 ssh bikos@192.168.1.64 'docker logs victoria-agent --tail 100 -f'
 ```
 
 ### Через статус:
+
 ```bash
 curl http://192.168.1.64:8010/status
 ```
 
 ### Проверка результатов:
+
 ```bash
 # Проверить контейнеры
 ssh bikos@192.168.1.64 'cd ~/Documents/atra-web-ide && export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH" && docker-compose -f knowledge_os/docker-compose.yml ps'
@@ -63,4 +67,4 @@ curl http://192.168.1.64:9200/_cluster/health
 
 ---
 
-*Задача отправлена: 2026-01-26*
+_Задача отправлена: 2026-01-26_

@@ -183,8 +183,9 @@ curl http://185.177.216.15:8010/health
 ```
 
 **Ожидаемый результат:**
+
 ```json
-{"status":"online","agent":"Victoria","knowledge_size":150}
+{ "status": "online", "agent": "Victoria", "knowledge_size": 150 }
 ```
 
 ---
@@ -198,6 +199,7 @@ curl -X POST http://185.177.216.15:8010/run \
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {"status":"success","output":"Привет! Я Виктория...","knowledge":{...}}
 ```
@@ -211,6 +213,7 @@ VICTORIA_REMOTE_URL=http://185.177.216.15:8010 python3 victoria_chat_standalone.
 ```
 
 **Ожидаемый вывод:**
+
 ```
 ============================================================
 🤖 VICTORIA CHAT - Интерактивный чат с Victoria
@@ -229,7 +232,7 @@ VICTORIA_REMOTE_URL=http://185.177.216.15:8010 python3 victoria_chat_standalone.
 💡 Команды: /status, /health, /project <name>, /help
 ------------------------------------------------------------
 
-👤 Вы: 
+👤 Вы:
 ```
 
 ---
@@ -317,18 +320,18 @@ print(response.json())
 ### Вариант 3: Node.js
 
 ```javascript
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
-fetch('http://185.177.216.15:8010/run', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
+fetch("http://185.177.216.15:8010/run", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    goal: 'Привет!',
-    project_context: 'atra-web-ide'
-  })
+    goal: "Привет!",
+    project_context: "atra-web-ide",
+  }),
 })
-.then(r => r.json())
-.then(console.log);
+  .then((r) => r.json())
+  .then(console.log);
 ```
 
 ---
@@ -342,10 +345,11 @@ fetch('http://185.177.216.15:8010/run', {
 3. ✅ Запустите: `VICTORIA_REMOTE_URL=http://185.177.216.15:8010 python3 victoria_chat_standalone.py`
 
 **Если не работает:**
+
 - Проверьте доступность: `curl http://185.177.216.15:8010/health`
 - Проверьте SSH туннель на Mac Studio
 - Используйте прямой curl для тестирования
 
 ---
 
-*Обновлено: 2026-01-26*
+_Обновлено: 2026-01-26_

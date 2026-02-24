@@ -25,7 +25,8 @@
 - Эталонный текст (или ключевые пункты).
 - Чем ответ Victoria отличается: недостатки и что улучшить.
 
-Эталоны складывать в **docs/curator_reports/standards/** (см. README и пример what_can_you_do.md). Сравнение ответа с эталоном: `python3 scripts/curator_compare_to_standard.py --report путь/к/отчёту.json --standard имя_эталона`. Использовать для:
+Эталоны складывать в **docs/curator_reports/standards/** (см. README и пример what*can_you_do.md). Сравнение ответа с эталоном: `python3 scripts/curator_compare_to_standard.py --report путь/к/отчёту.json --standard имя*эталона`. Использовать для:
+
 - обновления промптов и порогов маршрутизации;
 - добавления примеров в knowledge_nodes (обучение корпорации).
 
@@ -46,9 +47,11 @@
 ---
 
 **Полный прогон (при запущенной Victoria):**
+
 ```bash
 ./scripts/run_curator.sh --file scripts/curator_tasks.txt --async --max-wait 600
 ```
+
 Или быстрый: `./scripts/run_curator.sh` (2 задачи).
 
 **Ссылки:** [VICTORIA_CURATOR_PLAN.md](../VICTORIA_CURATOR_PLAN.md), [FINDINGS_2026-02-08.md](FINDINGS_2026-02-08.md), [CORPORATION_FULL_AUDIT_2026-02-08.md](CORPORATION_FULL_AUDIT_2026-02-08.md), эталоны [standards/](standards/).

@@ -3,6 +3,7 @@
 ## 🎯 Что сделано
 
 ### 1. MCP сервер для Victoria
+
 - **Файл:** `src/agents/bridge/victoria_mcp_server.py`
 - **Порт:** 8012
 - **SSE endpoint:** `http://localhost:8012/sse`
@@ -12,16 +13,19 @@
   - `victoria_health` — health check
 
 ### 2. Автоматическая настройка MCP в Cursor
+
 - **Скрипт:** `scripts/setup_cursor_mcp_global.py`
 - **Результат:** VictoriaATRA добавлен в `~/Library/Application Support/Cursor/User/settings.json`
 - **Статус:** ✅ Выполнено
 
 ### 3. Автоматическое подключение при открытии проекта
+
 - **Скрипт:** `scripts/victoria_auto_connect.sh`
 - **Автозапуск:** `.vscode/tasks.json` (запускается при открытии проекта)
 - **Функция:** Автоматически проверяет и запускает Victoria + MCP сервер
 
 ### 4. Глобальная настройка (один раз)
+
 - **Скрипт:** `scripts/final_victoria_setup.sh`
 - **Что делает:**
   1. Настраивает MCP в Cursor settings
@@ -41,6 +45,7 @@ bash scripts/final_victoria_setup.sh
 ```
 
 ### Перезапуск Cursor:
+
 После настройки **перезапусти Cursor**, чтобы применить MCP настройки.
 
 ### Использование в любом проекте:
@@ -58,12 +63,14 @@ bash scripts/final_victoria_setup.sh
 ## 🔄 Автоматическая работа
 
 ### При открытии проекта:
+
 1. `.vscode/tasks.json` автоматически запускает `victoria_auto_connect.sh`
 2. Скрипт проверяет Victoria (localhost:8010)
 3. Скрипт проверяет MCP сервер (localhost:8012)
 4. Если не запущены — запускает автоматически
 
 ### Требования:
+
 - Docker запущен
 - Victoria контейнер работает (или будет запущен автоматически)
 - fastmcp установлен (установится автоматически при первом запуске)
@@ -102,15 +109,17 @@ python3 -m src.agents.bridge.victoria_mcp_server
 ## ✅ Итог
 
 **Всё настроено автоматически:**
+
 - ✅ MCP добавлен в Cursor settings (глобально)
 - ✅ Автоматическое подключение при открытии проекта
 - ✅ MCP сервер готов к работе
 - ✅ Victoria доступна через `@victoria_run` в любом проекте
 
 **Осталось только:**
+
 1. Перезапустить Cursor
 2. Использовать `@victoria_run` в чате
 
 ---
 
-*Создано: 2026-01-23*
+_Создано: 2026-01-23_

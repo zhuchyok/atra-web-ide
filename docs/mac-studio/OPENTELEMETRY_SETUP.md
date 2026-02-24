@@ -68,6 +68,7 @@ environment:
 ### Автоматическая трассировка
 
 Victoria Enhanced автоматически создает spans для:
+
 - `victoria_enhanced.solve` - основная функция решения задач
 - Категория задачи
 - Выбранный метод
@@ -101,6 +102,7 @@ manager.set_attribute("custom.attribute", "value")
 ### Jaeger
 
 1. Запустить Jaeger:
+
 ```bash
 docker run -d --name jaeger \
   -e COLLECTOR_OTLP_ENABLED=true \

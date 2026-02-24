@@ -19,6 +19,7 @@
 ## 📊 GRAFANA: Настройка за 2 минуты
 
 ### 1. Откройте Grafana:
+
 ```
 http://localhost:3001
 Логин: admin
@@ -26,12 +27,14 @@ http://localhost:3001
 ```
 
 ### 2. Добавьте Prometheus datasource:
+
 1. Settings → Data Sources → Add data source
 2. Выберите **Prometheus**
 3. URL: `http://atra-prometheus:9090`
 4. Нажмите **Save & Test**
 
 ### 3. Импортируйте дашборд:
+
 1. Dashboards → Import
 2. Загрузите файл: `knowledge_os/dashboard/grafana_dashboard.json`
 3. Выберите Prometheus datasource
@@ -44,11 +47,13 @@ http://localhost:3001
 ## 🔍 KIBANA: Настройка за 2 минуты
 
 ### 1. Откройте Kibana:
+
 ```
 http://localhost:5601
 ```
 
 ### 2. Создайте index pattern:
+
 1. Management → Stack Management → Index Patterns
 2. Нажмите **Create index pattern**
 3. Pattern: `atra-logs-*`
@@ -56,6 +61,7 @@ http://localhost:5601
 5. Нажмите **Create index pattern**
 
 ### 3. Просмотр логов:
+
 1. Analytics → Discover
 2. Выберите index pattern `atra-logs-*`
 3. Просматривайте логи в реальном времени
@@ -97,16 +103,19 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronic
 ## 📋 КОМАНДЫ УПРАВЛЕНИЯ
 
 ### Запуск всех сервисов мониторинга:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml up -d prometheus grafana elasticsearch kibana
 ```
 
 ### Остановка:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml stop prometheus grafana elasticsearch kibana
 ```
 
 ### Просмотр логов:
+
 ```bash
 docker logs atra-prometheus -f
 docker logs atra-grafana -f
@@ -115,6 +124,7 @@ docker logs atra-kibana -f
 ```
 
 ### Проверка статуса:
+
 ```bash
 docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 ```
@@ -124,12 +134,14 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 ## 🎯 ЧТО МОЖНО ДЕЛАТЬ
 
 ### В Grafana:
+
 - 📊 Смотреть метрики производительности
 - 📈 Анализировать тренды
 - 🚨 Настраивать алерты
 - 📉 Отслеживать использование ресурсов
 
 ### В Kibana:
+
 - 🔍 Искать по всем логам
 - 📊 Визуализировать паттерны в логах
 - 🚨 Настраивать алерты на основе логов
@@ -145,4 +157,4 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 
 ---
 
-*Создано 2026-01-25*
+_Создано 2026-01-25_

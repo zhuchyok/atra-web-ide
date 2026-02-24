@@ -16,12 +16,14 @@
 ### 1. Автоматическое делегирование
 
 **Умный выбор агента** на основе:
+
 - Типа задачи (планирование, выполнение, файлы, исследования)
 - Способностей агентов
 - Текущей загрузки
 - Приоритета задачи
 
 **Пример:**
+
 ```python
 from app.task_delegation import get_task_delegator
 
@@ -33,11 +35,13 @@ task = await delegator.delegate_smart("Спланируй разработку �
 ### 2. Координация сложных задач
 
 **Автоматическая координация** между агентами:
+
 1. Victoria планирует задачу
 2. Veronica выполняет план
 3. Victoria проверяет результат
 
 **Пример:**
+
 ```python
 from app.multi_agent_collaboration import get_collaboration
 
@@ -52,6 +56,7 @@ result = await collab.coordinate_complex_task(
 **Автоматическое разрешение** разногласий между агентами через консенсус.
 
 **Пример:**
+
 ```python
 result = await collab.resolve_conflict(
     "Выбор технологии",
@@ -132,11 +137,13 @@ print(f"Результат: {result.result}")
 ## 📊 Профили агентов
 
 ### Victoria
+
 - **Способности:** Planning, Reasoning, Coordination, Code Analysis
 - **Эффективность:** Planning (95%), Coordination (98%)
 - **Макс. задач:** 10
 
 ### Veronica
+
 - **Способности:** Execution, File Operations, Research, System Admin
 - **Эффективность:** File Operations (98%), Execution (95%)
 - **Макс. задач:** 8
@@ -179,6 +186,7 @@ python scripts/test_collaboration.py
 ```
 
 **Тесты:**
+
 - ✅ Простое делегирование
 - ✅ Координация сложных задач
 - ✅ Разрешение конфликтов

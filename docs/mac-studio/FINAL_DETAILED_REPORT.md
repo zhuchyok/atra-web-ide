@@ -10,22 +10,26 @@
 ### Этап 1: Анализ и планирование ✅
 
 #### Изучена документация:
+
 - `knowledge_os/docs/SYSTEM_UPGRADE_COMPLETE_REPORT.md` — план модернизации
 - `knowledge_os/docs/MONITORING_LOGGING_REPORT.md` — требования к мониторингу
 - `knowledge_os/docs/QUICK_START_GUIDE.md` — упоминания ELK стека
 - `knowledge_os/scripts/setup_grafana.sh` — существующий скрипт настройки
 
 #### Определено назначение:
+
 - **ELK стек:** Централизованное логирование, поиск по логам, анализ паттернов
 - **Grafana:** Визуализация метрик, дашборды, алерты
 
 #### Выявлены проблемы текущего подхода:
+
 - Логи разбросаны по файлам
 - Нет централизованного поиска
 - Метрики экспортируются, но не визуализируются
 - Нет алертов
 
 #### Составлен план:
+
 - Приоритет 1: Grafana + Prometheus (быстро, метрики уже есть)
 - Приоритет 2: ELK стек (критично для масштабирования)
 
@@ -38,6 +42,7 @@
 **Файл:** `knowledge_os/docker-compose.yml`
 
 **Добавлено:**
+
 ```yaml
 prometheus:
   image: prom/prometheus:latest
@@ -46,14 +51,19 @@ prometheus:
   volumes:
     - ../infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     - prometheus_data:/prometheus
-  command: [--config.file=..., --storage.tsdb.path=..., --storage.tsdb.retention.time=30d]
+  command:
+    [
+      --config.file=...,
+      --storage.tsdb.path=...,
+      --storage.tsdb.retention.time=30d,
+    ]
   networks: [atra-network]
   restart: unless-stopped
 
 grafana:
   image: grafana/grafana:latest
   container_name: atra-grafana
-  ports: ["3001:3000"]  # Порт изменен на 3001 (3000 занят)
+  ports: ["3001:3000"] # Порт изменен на 3001 (3000 занят)
   environment:
     - GF_SECURITY_ADMIN_PASSWORD=atra2025
     - GF_SERVER_ROOT_URL=http://localhost:3001
@@ -76,26 +86,27 @@ grafana:
 **Файл:** `infrastructure/monitoring/prometheus.yml`
 
 **Обновлено:**
+
 ```yaml
 scrape_configs:
-  - job_name: 'victoria-agent'
+  - job_name: "victoria-agent"
     static_configs:
-      - targets: ['atra-victoria-agent:8010']
-    metrics_path: '/health'
-  
-  - job_name: 'veronica-agent'
+      - targets: ["atra-victoria-agent:8010"]
+    metrics_path: "/health"
+
+  - job_name: "veronica-agent"
     static_configs:
-      - targets: ['atra-veronica-agent:8011']
-    metrics_path: '/health'
-  
-  - job_name: 'knowledge-os-api'
+      - targets: ["atra-veronica-agent:8011"]
+    metrics_path: "/health"
+
+  - job_name: "knowledge-os-api"
     static_configs:
-      - targets: ['knowledge_os_api:8000']
-    metrics_path: '/metrics'
-  
-  - job_name: 'prometheus'
+      - targets: ["knowledge_os_api:8000"]
+    metrics_path: "/metrics"
+
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 ```
 
 **Результат:** ✅ Конфигурация обновлена для правильных targets
@@ -107,6 +118,7 @@ scrape_configs:
 **Файл:** `knowledge_os/app/main.py`
 
 **Добавлено:**
+
 ```python
 @mcp.custom_route("/metrics", methods=["GET"])
 async def metrics_endpoint(request):
@@ -130,11 +142,13 @@ async def metrics_endpoint(request):
 #### 2.4 Автоматическая настройка Grafana:
 
 **Создано:**
+
 - `infrastructure/monitoring/grafana/provisioning/datasources/prometheus.yml` — автоматическая настройка datasource
 - `infrastructure/monitoring/grafana/provisioning/dashboards/dashboard.yml` — автоматический импорт дашбордов
 - `scripts/setup_grafana_complete.sh` — скрипт автоматической настройки
 
-**Результат:** 
+**Результат:**
+
 - ✅ Prometheus datasource создан автоматически
 - ✅ Dashboard импортирован автоматически
 
@@ -147,6 +161,7 @@ async def metrics_endpoint(request):
 **Файл:** `knowledge_os/docker-compose.yml`
 
 **Добавлено:**
+
 ```yaml
 elasticsearch:
   image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
@@ -159,7 +174,8 @@ elasticsearch:
   volumes: [elasticsearch_data:/usr/share/elasticsearch/data]
   networks: [atra-network]
   healthcheck:
-    test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+    test:
+      ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
   restart: unless-stopped
 
 kibana:
@@ -187,6 +203,7 @@ kibana:
 **Файл:** `knowledge_os/app/elk_handler.py` (280+ строк)
 
 **Реализовано:**
+
 - ✅ Асинхронная отправка логов (не блокирует работу)
 - ✅ Батчинг (batch_size=10) для эффективности
 - ✅ Автоматический flush по интервалу (5 секунд)
@@ -196,17 +213,18 @@ kibana:
 - ✅ Bulk API для эффективной отправки
 
 **Ключевые особенности:**
+
 ```python
 class ELKHandler(logging.Handler):
     def __init__(self, elasticsearch_url, index_prefix="atra-logs", batch_size=10, flush_interval=5.0):
         # Асинхронный клиент
         # Буфер логов
         # Фоновый flush loop
-    
+
     def emit(self, record):
         # Добавление в буфер
         # Автоматическая отправка при заполнении
-    
+
     async def _flush_buffer(self):
         # Отправка через Bulk API
         # Обработка ошибок
@@ -221,6 +239,7 @@ class ELKHandler(logging.Handler):
 **Файл:** `knowledge_os/src/shared/utils/logger.py`
 
 **Добавлено:**
+
 ```python
 def setup_logging(
     level: str = "INFO",
@@ -229,7 +248,7 @@ def setup_logging(
     elk_url: Optional[str] = None
 ) -> logging.Logger:
     # ... существующий код ...
-    
+
     # Добавляем ELK handler если включен
     if use_elk:
         try:
@@ -279,24 +298,29 @@ atra-kibana             Up (порт 5601) — работает ✅
 ## 📁 СОЗДАННЫЕ ФАЙЛЫ (ДЕТАЛЬНО)
 
 ### Docker конфигурация (1 файл):
+
 - `knowledge_os/docker-compose.yml` — добавлены 4 сервиса, 2 volumes, networks
 
 ### Конфигурация мониторинга (4 файла):
+
 - `infrastructure/monitoring/prometheus.yml` — обновлена (32 строки)
 - `infrastructure/monitoring/grafana/provisioning/datasources/prometheus.yml` — создана (11 строк)
 - `infrastructure/monitoring/grafana/provisioning/dashboards/dashboard.yml` — создана (12 строк)
 - `infrastructure/monitoring/kibana/kibana.yml` — создана (8 строк)
 
 ### Код (3 файла):
+
 - `knowledge_os/app/main.py` — добавлен `/metrics` endpoint (15 строк)
 - `knowledge_os/app/elk_handler.py` — создан ELK handler (280+ строк)
 - `knowledge_os/src/shared/utils/logger.py` — интеграция ELK (30+ строк)
 
 ### Скрипты (2 файла):
+
 - `scripts/setup_grafana_complete.sh` — автоматическая настройка Grafana (130+ строк)
 - `scripts/setup_kibana_complete.sh` — инструкции по Kibana (50+ строк)
 
 ### Документация (8 файлов):
+
 - `docs/mac-studio/ELK_GRAFANA_IMPLEMENTATION_PLAN.md` — план реализации
 - `docs/mac-studio/FINAL_IMPLEMENTATION_REPORT.md` — финальный отчет
 - `docs/mac-studio/QUICK_START_MONITORING.md` — быстрый старт
@@ -313,6 +337,7 @@ atra-kibana             Up (порт 5601) — работает ✅
 ## 🔧 ТЕХНИЧЕСКИЕ ДЕТАЛИ
 
 ### Prometheus:
+
 - **Версия:** latest
 - **Retention:** 30 дней
 - **Scrape interval:** 15-30 секунд
@@ -320,6 +345,7 @@ atra-kibana             Up (порт 5601) — работает ✅
 - **Storage:** `/prometheus` (volume)
 
 ### Grafana:
+
 - **Версия:** latest (12.3.1)
 - **Порт:** 3001 (изменен с 3000)
 - **Datasource:** Prometheus (автоматически настроен)
@@ -327,6 +353,7 @@ atra-kibana             Up (порт 5601) — работает ✅
 - **Refresh:** 5 секунд
 
 ### Elasticsearch:
+
 - **Версия:** 8.11.0
 - **Memory:** 512MB (настроено для Mac Studio)
 - **Security:** отключен (для упрощения)
@@ -334,6 +361,7 @@ atra-kibana             Up (порт 5601) — работает ✅
 - **Storage:** `/usr/share/elasticsearch/data` (volume)
 
 ### ELKHandler:
+
 - **Batch size:** 10 логов
 - **Flush interval:** 5 секунд
 - **Index pattern:** `atra-logs-YYYY.MM.DD`
@@ -364,6 +392,7 @@ atra-kibana             Up (порт 5601) — работает ✅
 ### Включение ELK логирования:
 
 Добавьте в `docker-compose.yml`:
+
 ```yaml
 victoria-agent:
   environment:
@@ -372,6 +401,7 @@ victoria-agent:
 ```
 
 Перезапустите:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent
 ```
@@ -397,6 +427,7 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronic
 **Все компоненты реализованы обдуманно, протестированы и настроены!**
 
 ### Что работает:
+
 - ✅ Prometheus собирает метрики
 - ✅ Grafana визуализирует метрики (datasource + dashboard настроены)
 - ✅ Elasticsearch готов к приему логов
@@ -404,6 +435,7 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronic
 - ✅ ELKHandler готов к отправке логов
 
 ### Что можно сделать дополнительно:
+
 1. Включить ELK логирование через `USE_ELK=true` (2 минуты)
 2. Создать index pattern в Kibana после появления логов (1 минута)
 
@@ -411,4 +443,4 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronic
 
 ---
 
-*Реализация завершена обдуманно и подробно 2026-01-25*
+_Реализация завершена обдуманно и подробно 2026-01-25_

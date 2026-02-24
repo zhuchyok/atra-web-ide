@@ -16,13 +16,13 @@
 
 ### Доступ
 
-| Куда | Как |
-|------|-----|
-| Локально | `http://localhost:8010` |
-| Web IDE | Frontend (3002) → Backend (8080) → Victoria (8010) |
-| Telegram | Telegram Bot → напрямую Victoria (8010) |
-| Удалённо | `http://185.177.216.15:8010` (atra), `8020` (atra-web-ide) |
-| Docker | контейнер `victoria-agent` из `knowledge_os/docker-compose.yml` |
+| Куда     | Как                                                             |
+| -------- | --------------------------------------------------------------- |
+| Локально | `http://localhost:8010`                                         |
+| Web IDE  | Frontend (3002) → Backend (8080) → Victoria (8010)              |
+| Telegram | Telegram Bot → напрямую Victoria (8010)                         |
+| Удалённо | `http://185.177.216.15:8010` (atra), `8020` (atra-web-ide)      |
+| Docker   | контейнер `victoria-agent` из `knowledge_os/docker-compose.yml` |
 
 ---
 
@@ -51,15 +51,15 @@
 
 Victoria может выполнять действия, а не только отвечать текстом:
 
-| Инструмент | Назначение |
-|------------|------------|
-| **read_file** | Чтение файлов (`file_path`) |
-| **run_terminal_cmd** | Выполнение команд в терминале |
-| **list_directory** | Список файлов в директории |
-| **create_file** | Создание файла (`file_path`, `content`) |
-| **write_file** | Запись/перезапись файла |
-| **search_knowledge** | Поиск в базе знаний |
-| **finish** | Завершение задачи с результатом |
+| Инструмент           | Назначение                              |
+| -------------------- | --------------------------------------- |
+| **read_file**        | Чтение файлов (`file_path`)             |
+| **run_terminal_cmd** | Выполнение команд в терминале           |
+| **list_directory**   | Список файлов в директории              |
+| **create_file**      | Создание файла (`file_path`, `content`) |
+| **write_file**       | Запись/перезапись файла                 |
+| **search_knowledge** | Поиск в базе знаний                     |
+| **finish**           | Завершение задачи с результатом         |
 
 ### 2.3 Выбор метода (автоматический)
 
@@ -177,11 +177,11 @@ Victoria может выполнять действия, а не только о
 
 Это **не три разных сервиса**, а **один процесс** с разными уровнями:
 
-| Что | Что это | Где живёт |
-|-----|---------|-----------|
-| **Victoria Agent** | Контейнер/сервис, который **должен работать**. Запускает `victoria_server` (HTTP API на порту 8010). | `knowledge_os/docker-compose.yml` → сервис `victoria-agent`, команда `python -m src.agents.bridge.victoria_server` |
-| **Victoria Enhanced** | Режим/код **внутри** Victoria Agent: класс `VictoriaEnhanced`, 18 компонентов (ReAct, Extended Thinking, Swarm, Department Heads, делегирование и т.д.). | Включается переменной **`USE_VICTORIA_ENHANCED=true`** в контейнере `victoria-agent`. Код: `knowledge_os/app/victoria_enhanced.py` |
-| **Victoria Initiative** | Набор проактивных/событийных возможностей **внутри** того же контейнера: Event-Driven, мониторинг, file watcher, deadline tracker, skills watcher. | Включается переменными в `victoria-agent`: `ENABLE_EVENT_MONITORING`, `FILE_WATCHER_ENABLED`, `SERVICE_MONITOR_ENABLED`, `DEADLINE_TRACKER_ENABLED`, `SKILLS_WATCHER_ENABLED` (в docker-compose уже заданы) |
+| Что                     | Что это                                                                                                                                                  | Где живёт                                                                                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Victoria Agent**      | Контейнер/сервис, который **должен работать**. Запускает `victoria_server` (HTTP API на порту 8010).                                                     | `knowledge_os/docker-compose.yml` → сервис `victoria-agent`, команда `python -m src.agents.bridge.victoria_server`                                                                                          |
+| **Victoria Enhanced**   | Режим/код **внутри** Victoria Agent: класс `VictoriaEnhanced`, 18 компонентов (ReAct, Extended Thinking, Swarm, Department Heads, делегирование и т.д.). | Включается переменной **`USE_VICTORIA_ENHANCED=true`** в контейнере `victoria-agent`. Код: `knowledge_os/app/victoria_enhanced.py`                                                                          |
+| **Victoria Initiative** | Набор проактивных/событийных возможностей **внутри** того же контейнера: Event-Driven, мониторинг, file watcher, deadline tracker, skills watcher.       | Включается переменными в `victoria-agent`: `ENABLE_EVENT_MONITORING`, `FILE_WATCHER_ENABLED`, `SERVICE_MONITOR_ENABLED`, `DEADLINE_TRACKER_ENABLED`, `SKILLS_WATCHER_ENABLED` (в docker-compose уже заданы) |
 
 **Итого что должно работать у вас:**
 
@@ -190,6 +190,7 @@ Victoria может выполнять действия, а не только о
 3. **Плюс:** **Victoria Initiative** — те же флаги мониторинга/событий в docker-compose включены; при старте вызывается `victoria_enhanced_instance.start()`, поднимаются event bus, file watcher, service monitor и т.д.
 
 **Проверка:**
+
 ```bash
 # Контейнер (Victoria Agent) запущен?
 docker ps | grep victoria-agent

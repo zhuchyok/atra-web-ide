@@ -8,11 +8,13 @@
 ## 🎯 ВЫПОЛНЕННАЯ РАБОТА
 
 ### Этап 1: Анализ и планирование ✅
+
 - Изучена документация о назначении ELK стека и Grafana
 - Определена необходимость реализации
 - Составлен детальный план
 
 ### Этап 2: Реализация Prometheus + Grafana ✅
+
 - Добавлены в `docker-compose.yml`
 - Обновлена конфигурация Prometheus
 - Добавлен `/metrics` endpoint
@@ -20,6 +22,7 @@
 - **Dashboard импортирован автоматически** ✅
 
 ### Этап 3: Реализация ELK стека ✅
+
 - Добавлены Elasticsearch и Kibana в `docker-compose.yml`
 - Создан ELKHandler (280+ строк)
 - Интегрирован в систему логирования
@@ -51,27 +54,30 @@ veronica-agent          Up (порт 8011) — работает ✅
 
 ## 🔗 ДОСТУП К СЕРВИСАМ
 
-| Сервис | URL | Логин | Пароль | Статус |
-|--------|-----|-------|--------|--------|
-| **Prometheus** | http://localhost:9090 | - | - | ✅ Работает |
-| **Grafana** | http://localhost:3001 | admin | atra2025 | ✅ Работает |
-| **Elasticsearch** | http://localhost:9200 | - | - | ✅ Работает (healthy) |
-| **Kibana** | http://localhost:5601 | - | - | ✅ Работает |
+| Сервис            | URL                   | Логин | Пароль   | Статус                |
+| ----------------- | --------------------- | ----- | -------- | --------------------- |
+| **Prometheus**    | http://localhost:9090 | -     | -        | ✅ Работает           |
+| **Grafana**       | http://localhost:3001 | admin | atra2025 | ✅ Работает           |
+| **Elasticsearch** | http://localhost:9200 | -     | -        | ✅ Работает (healthy) |
+| **Kibana**        | http://localhost:5601 | -     | -        | ✅ Работает           |
 
 ---
 
 ## 📁 СОЗДАННЫЕ/ИЗМЕНЕННЫЕ ФАЙЛЫ
 
 ### Docker конфигурация (1 файл):
+
 - `knowledge_os/docker-compose.yml` — добавлены 4 сервиса, ELK переменные для агентов
 
 ### Конфигурация мониторинга (4 файла):
+
 - `infrastructure/monitoring/prometheus.yml` — обновлена
 - `infrastructure/monitoring/grafana/provisioning/datasources/prometheus.yml` — создана
 - `infrastructure/monitoring/grafana/provisioning/dashboards/dashboard.yml` — создана
 - `infrastructure/monitoring/kibana/kibana.yml` — создана
 
 ### Код (5 файлов):
+
 - `knowledge_os/app/main.py` — добавлен `/metrics` endpoint
 - `knowledge_os/app/elk_handler.py` — создан ELK handler (280+ строк)
 - `knowledge_os/src/shared/utils/logger.py` — интеграция ELK
@@ -79,10 +85,12 @@ veronica-agent          Up (порт 8011) — работает ✅
 - `src/agents/bridge/server.py` — добавлена поддержка ELK
 
 ### Скрипты (2 файла):
+
 - `scripts/setup_grafana_complete.sh` — автоматическая настройка Grafana
 - `scripts/setup_kibana_complete.sh` — инструкции по Kibana
 
 ### Документация (9 файлов):
+
 - `docs/mac-studio/ELK_GRAFANA_IMPLEMENTATION_PLAN.md`
 - `docs/mac-studio/FINAL_IMPLEMENTATION_REPORT.md`
 - `docs/mac-studio/QUICK_START_MONITORING.md`
@@ -137,6 +145,7 @@ veronica-agent          Up (порт 8011) — работает ✅
 **Все компоненты реализованы обдуманно, протестированы и настроены!**
 
 ### Что работает:
+
 - ✅ Prometheus собирает метрики
 - ✅ Grafana визуализирует метрики (datasource + dashboard настроены)
 - ✅ Elasticsearch готов к приему логов
@@ -145,10 +154,11 @@ veronica-agent          Up (порт 8011) — работает ✅
 - ✅ Victoria и Veronica отправляют логи в Elasticsearch
 
 ### Что можно сделать дополнительно:
+
 1. Создать index pattern в Kibana после появления логов (1 минута)
 
 **Корпорация ATRA теперь имеет полный мониторинг и логирование!**
 
 ---
 
-*Реализация завершена обдуманно и подробно 2026-01-25*
+_Реализация завершена обдуманно и подробно 2026-01-25_

@@ -10,6 +10,7 @@
 ### 1. Проверка и запуск всех контейнеров Knowledge OS ⚠️
 
 **Текущий статус:**
+
 - ✅ Victoria (8010) - работает
 - ✅ Veronica (8011) - работает
 - ✅ Knowledge OS API (8003) - работает
@@ -21,6 +22,7 @@
 - ⚠️ Grafana (3001) - НЕ ЗАПУЩЕН
 
 **Действие:**
+
 ```bash
 cd ~/Documents/atra-web-ide
 export PATH="/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
@@ -78,6 +80,7 @@ bash scripts/create_mac_studio_autostart.sh
 ```
 
 **Или создать вручную:**
+
 - Файл: `~/Library/LaunchAgents/com.atra.mac-studio-startup.plist`
 - Запуск: `scripts/start_all_on_mac_studio.sh`
 - При загрузке системы и каждые 5 минут
@@ -116,6 +119,7 @@ grep -r "192.168.1.43" --include="*.md" --include="*.sh" --include="*.py" .
 ```
 
 **Файлы для обновления:**
+
 - Документация (где актуально)
 - Скрипты
 - Конфигурационные файлы
@@ -127,6 +131,7 @@ grep -r "192.168.1.43" --include="*.md" --include="*.sh" --include="*.py" .
 **Создать файл: `MIGRATION_COMPLETE_FINAL.md`**
 
 Содержание:
+
 - ✅ Что было сделано
 - ✅ Текущий статус всех сервисов
 - ✅ Доступность сервисов
@@ -201,4 +206,4 @@ Docker PATH: /usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PAT
 
 ---
 
-*Задачи созданы: 2026-01-26*
+_Задачи созданы: 2026-01-26_

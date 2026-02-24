@@ -8,6 +8,7 @@
 ## 🎯 ЦЕЛЬ
 
 Превратить Victoria в главного оркестратора корпорации, который:
+
 - ✅ Координирует все задачи
 - ✅ Использует иерархическую структуру
 - ✅ Собирает ответы от экспертов
@@ -19,11 +20,13 @@
 ## 🏗️ АРХИТЕКТУРА
 
 ### **Текущая архитектура:**
+
 ```
 Задача → Orchestrator → Эксперт → Результат
 ```
 
 ### **Предлагаемая архитектура:**
+
 ```
 Задача → Victoria (анализ) → Выбор стратегии
                               ├── Simple → Один эксперт
@@ -49,7 +52,7 @@ async def analyze_task(goal: str) -> TaskAnalysis:
     category = categorize_task(goal)
     complexity = assess_complexity(goal)
     departments = identify_departments(goal)
-    
+
     return TaskAnalysis(
         category=category,
         complexity=complexity,  # simple, complex, multi_department
@@ -61,16 +64,19 @@ async def analyze_task(goal: str) -> TaskAnalysis:
 ### **2. Выбор стратегии**
 
 #### **Simple Task** (простая задача)
+
 - Один эксперт
 - Прямое выполнение
 - Быстрый ответ
 
 #### **Complex Task** (сложная задача)
+
 - Swarm подход
 - 3-5 экспертов параллельно
 - Синтез консенсуса
 
 #### **Multi-Department Task** (межотдельная задача)
+
 - Иерархический подход
 - Department Heads координируют
 - Сбор результатов от отделов
@@ -85,7 +91,7 @@ async def collect_responses(experts: List[Expert], goal: str) -> List[Response]:
     for expert in experts:
         task = expert.execute(goal)
         tasks.append(task)
-    
+
     responses = await asyncio.gather(*tasks)
     return responses
 ```
@@ -97,16 +103,16 @@ async def synthesize_responses(responses: List[Response], goal: str) -> str:
     """Victoria синтезирует финальный ответ"""
     synthesis_prompt = f"""
     ВЫ - ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA.
-    
+
     ЗАДАЧА: {goal}
-    
+
     ОТВЕТЫ ЭКСПЕРТОВ:
     {format_responses(responses)}
-    
+
     ЗАДАЧА: Сформируйте финальное, идеальное решение на основе мнений экспертов.
     Учтите все точки зрения, устраните противоречия, создайте единое решение.
     """
-    
+
     final_result = await victoria.planner.ask(synthesis_prompt)
     return final_result
 ```
@@ -208,25 +214,29 @@ Victoria (Team Lead)
 ## 🚀 ПЛАН РЕАЛИЗАЦИИ
 
 ### **Этап 1: Интеграция Victoria в оркестрацию**
+
 - [ ] Добавить метод `orchestrate_task()` в Victoria
 - [ ] Интеграция с существующими оркестраторами
 - [ ] Использование улучшенной логики выбора экспертов
 
 ### **Этап 2: Иерархическая структура**
+
 - [ ] Определение Department Heads
 - [ ] Реализация иерархического распределения
 - [ ] Делегирование через отделы
 
 ### **Этап 3: Сбор и синтез**
+
 - [ ] Механизм сбора ответов
 - [ ] Синтез консенсуса
 - [ ] Обработка конфликтов
 
 ### **Этап 4: Саморазвитие**
+
 - [ ] Автоматическое формирование команд
 - [ ] Адаптация к новым задачам
 - [ ] Непрерывное обучение
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

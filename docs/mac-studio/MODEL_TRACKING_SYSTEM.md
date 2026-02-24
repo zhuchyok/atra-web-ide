@@ -16,6 +16,7 @@
 ### 1. Model Tracker (`knowledge_os/app/model_tracker.py`)
 
 **Функции:**
+
 - ✅ Периодически проверяет доступные модели через API (`/api/tags`)
 - ✅ Сохраняет информацию о моделях в базу знаний
 - ✅ Отслеживает изменения (новые/удаленные модели)
@@ -27,6 +28,7 @@
 ### 2. Model Notifier (`knowledge_os/app/model_notifier.py`)
 
 **Функции:**
+
 - ✅ Уведомляет Викторию (Team Lead) о новых моделях
 - ✅ Уведомляет Веронику (Local Developer) о новых моделях
 - ✅ Сохраняет уведомления в базу знаний
@@ -89,6 +91,7 @@ python3 -m app.model_tracker
 ```
 
 Запуск:
+
 ```bash
 launchctl load ~/Library/LaunchAgents/com.atra.model_tracker.plist
 ```
@@ -99,13 +102,13 @@ launchctl load ~/Library/LaunchAgents/com.atra.model_tracker.plist
 
 ### Переменные окружения
 
-| Переменная | Описание | По умолчанию |
-|------------|----------|--------------|
-| `DATABASE_URL` | URL базы данных | `postgresql://zhuchyok@localhost:5432/knowledge_os` |
-| `OLLAMA_BASE_URL` | URL Ollama/MLX API | `http://localhost:11434` |
-| `MODEL_TRACKER_INTERVAL` | Интервал проверки (секунды) | `3600` (1 час) |
-| `VICTORIA_URL` | URL Виктории для уведомлений | `http://localhost:8010` |
-| `VERONICA_URL` | URL Вероники для уведомлений | `http://localhost:8011` |
+| Переменная               | Описание                     | По умолчанию                                        |
+| ------------------------ | ---------------------------- | --------------------------------------------------- |
+| `DATABASE_URL`           | URL базы данных              | `postgresql://zhuchyok@localhost:5432/knowledge_os` |
+| `OLLAMA_BASE_URL`        | URL Ollama/MLX API           | `http://localhost:11434`                            |
+| `MODEL_TRACKER_INTERVAL` | Интервал проверки (секунды)  | `3600` (1 час)                                      |
+| `VICTORIA_URL`           | URL Виктории для уведомлений | `http://localhost:8010`                             |
+| `VERONICA_URL`           | URL Вероники для уведомлений | `http://localhost:8011`                             |
 
 ---
 
@@ -114,6 +117,7 @@ launchctl load ~/Library/LaunchAgents/com.atra.model_tracker.plist
 ### Информация о моделях
 
 Для каждой модели сохраняется:
+
 - ✅ Имя модели
 - ✅ Размер (в GB/MB)
 - ✅ Количество параметров
@@ -127,6 +131,7 @@ launchctl load ~/Library/LaunchAgents/com.atra.model_tracker.plist
 ### Изменения
 
 Система отслеживает:
+
 - 🆕 Новые модели (автоматически добавляются)
 - ⚠️ Удаленные модели (отмечаются в сводке)
 - 📊 Общее количество доступных моделей
@@ -140,8 +145,8 @@ launchctl load ~/Library/LaunchAgents/com.atra.model_tracker.plist
 Все модели сохраняются в домен "AI Models" как `knowledge_nodes`:
 
 ```sql
-SELECT content, metadata 
-FROM knowledge_nodes 
+SELECT content, metadata
+FROM knowledge_nodes
 WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Models')
 ORDER BY created_at DESC;
 ```
@@ -172,6 +177,7 @@ ORDER BY created_at DESC;
 ### Виктория (Team Lead)
 
 Получает уведомления о:
+
 - 🆕 Новых моделях с полной информацией
 - 📊 Характеристиках моделей
 - 💡 Рекомендации по использованию
@@ -179,6 +185,7 @@ ORDER BY created_at DESC;
 ### Вероника (Local Developer)
 
 Получает уведомления о:
+
 - 🆕 Новых моделях (краткая информация)
 - 💡 Возможности использования для разработки
 
@@ -189,6 +196,7 @@ ORDER BY created_at DESC;
 ### Логи
 
 Логи отслеживания сохраняются в:
+
 - Стандартный вывод (stdout)
 - Файл логов (если настроен через systemd/launchd)
 
@@ -197,10 +205,10 @@ ORDER BY created_at DESC;
 ```bash
 # Проверить последние записи в базе знаний
 psql -d knowledge_os -c "
-SELECT content, created_at 
-FROM knowledge_nodes 
+SELECT content, created_at
+FROM knowledge_nodes
 WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Models')
-ORDER BY created_at DESC 
+ORDER BY created_at DESC
 LIMIT 5;
 "
 ```
@@ -212,6 +220,7 @@ LIMIT 5;
 ### Victoria Agent
 
 Виктория автоматически получает уведомления о новых моделях и может:
+
 - Обновить конфигурацию выбора моделей
 - Рекомендовать использование новых моделей
 - Анализировать производительность моделей
@@ -219,12 +228,14 @@ LIMIT 5;
 ### Veronica Agent
 
 Вероника получает уведомления и может:
+
 - Использовать новые модели для разработки
 - Тестировать новые модели на задачах
 
 ### Knowledge OS
 
 Информация о моделях доступна через:
+
 - Поиск в базе знаний: "модели", "AI Models"
 - MCP инструменты: `capture_knowledge`, `search_knowledge`
 - REST API: `/knowledge?domain=AI Models`
@@ -236,11 +247,13 @@ LIMIT 5;
 ### Модели не отслеживаются
 
 1. Проверьте доступность API:
+
    ```bash
    curl http://localhost:11434/api/tags
    ```
 
 2. Проверьте подключение к БД:
+
    ```bash
    psql -d knowledge_os -c "SELECT COUNT(*) FROM domains WHERE name = 'AI Models';"
    ```
@@ -253,6 +266,7 @@ LIMIT 5;
 ### Уведомления не отправляются
 
 1. Проверьте доступность агентов:
+
    ```bash
    curl http://localhost:8010/health  # Victoria
    curl http://localhost:8011/health  # Veronica
@@ -284,8 +298,8 @@ import asyncpg
 
 conn = await asyncpg.connect("postgresql://zhuchyok@localhost:5432/knowledge_os")
 models = await conn.fetch("""
-    SELECT content, metadata 
-    FROM knowledge_nodes 
+    SELECT content, metadata
+    FROM knowledge_nodes
     WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Models')
     AND metadata->>'type' = 'model'
     ORDER BY created_at DESC

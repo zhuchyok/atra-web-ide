@@ -10,6 +10,7 @@
 ### 1. **ELK стек (Elasticsearch + Kibana)**
 
 #### Назначение:
+
 - ✅ **Централизованное логирование** — все логи в одном месте
 - ✅ **Поиск по логам** — быстрый поиск по всем логам системы
 - ✅ **Анализ логов** — визуализация паттернов, ошибок, производительности
@@ -17,6 +18,7 @@
 - ✅ **Real-time мониторинг** — отслеживание логов в реальном времени
 
 #### Проблемы текущего подхода:
+
 - ❌ Логи разбросаны по файлам (`logs/*.log`)
 - ❌ Нет централизованного поиска
 - ❌ Сложно анализировать логи от разных компонентов
@@ -24,6 +26,7 @@
 - ❌ Нет алертов на основе логов
 
 #### Что уже есть:
+
 - ✅ Structured logging (structlog) — JSON формат готов
 - ✅ Файловое логирование работает
 - ❌ Нет интеграции с Elasticsearch
@@ -33,18 +36,21 @@
 ### 2. **Grafana**
 
 #### Назначение:
+
 - ✅ **Визуализация метрик** — графики производительности
 - ✅ **Дашборды** — единая точка мониторинга
 - ✅ **Алерты** — уведомления о проблемах
 - ✅ **Исторические данные** — анализ трендов
 
 #### Проблемы текущего подхода:
+
 - ❌ Метрики экспортируются, но не визуализируются
 - ❌ Нет дашбордов для мониторинга
 - ❌ Нет алертов на основе метрик
 - ❌ Сложно отслеживать производительность
 
 #### Что уже есть:
+
 - ✅ `metrics_exporter.py` — экспорт метрик в Prometheus формате
 - ✅ `grafana_dashboard.json` — готовый дашборд
 - ✅ `setup_grafana.sh` — скрипт настройки
@@ -83,6 +89,7 @@
 ### Этап 1: Grafana + Prometheus (приоритет: ВЫСОКИЙ)
 
 **Почему сначала Grafana:**
+
 - Метрики уже экспортируются
 - Дашборд уже готов
 - Конфигурация Prometheus уже есть
@@ -96,6 +103,7 @@
 ### Этап 2: ELK стек (приоритет: СРЕДНИЙ)
 
 **Почему потом ELK:**
+
 - Требует больше настройки
 - Нужна интеграция в код
 - Но критично для масштабирования
@@ -124,8 +132,8 @@ services:
       - ../infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
     networks:
       - atra-network
     restart: unless-stopped
@@ -166,30 +174,30 @@ global:
 
 scrape_configs:
   # Knowledge OS API (метрики из metrics_exporter)
-  - job_name: 'knowledge_os_api'
+  - job_name: "knowledge_os_api"
     static_configs:
-      - targets: ['knowledge_os_api:8000']
-    metrics_path: '/metrics'  # Если есть endpoint /metrics
+      - targets: ["knowledge_os_api:8000"]
+    metrics_path: "/metrics" # Если есть endpoint /metrics
     scrape_interval: 30s
 
   # Victoria Agent
-  - job_name: 'victoria-agent'
+  - job_name: "victoria-agent"
     static_configs:
-      - targets: ['atra-victoria-agent:8010']
-    metrics_path: '/health'
+      - targets: ["atra-victoria-agent:8010"]
+    metrics_path: "/health"
     scrape_interval: 30s
 
   # Veronica Agent
-  - job_name: 'veronica-agent'
+  - job_name: "veronica-agent"
     static_configs:
-      - targets: ['atra-veronica-agent:8011']
-    metrics_path: '/health'
+      - targets: ["atra-veronica-agent:8011"]
+    metrics_path: "/health"
     scrape_interval: 30s
 
   # Prometheus сам себя
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 ```
 
 ### Шаг 3: Добавить /metrics endpoint в Knowledge OS API
@@ -252,7 +260,8 @@ services:
       - atra-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -296,26 +305,26 @@ from typing import Optional
 
 class ELKHandler(logging.Handler):
     """Handler для отправки логов в Elasticsearch"""
-    
+
     def __init__(self, elasticsearch_url: str = "http://atra-elasticsearch:9200"):
         super().__init__()
         self.elasticsearch_url = elasticsearch_url
         self.index_prefix = "atra-logs"
         self.client: Optional[httpx.AsyncClient] = None
         self._init_client()
-    
+
     def _init_client(self):
         """Инициализация HTTP клиента"""
         try:
             self.client = httpx.AsyncClient(timeout=5.0)
         except Exception as e:
             logging.error(f"Failed to init ELK client: {e}")
-    
+
     def emit(self, record):
         """Отправка лога в Elasticsearch"""
         if not self.client:
             return
-        
+
         try:
             log_data = {
                 "@timestamp": datetime.utcnow().isoformat(),
@@ -326,15 +335,15 @@ class ELKHandler(logging.Handler):
                 "function": record.funcName,
                 "line": record.lineno,
             }
-            
+
             # Добавляем дополнительные поля если есть
             if hasattr(record, 'extra'):
                 log_data.update(record.extra)
-            
+
             # Добавляем exception если есть
             if record.exc_info:
                 log_data["exception"] = self.format(record)
-            
+
             # Отправка в Elasticsearch (асинхронно, не блокирует)
             try:
                 loop = asyncio.get_event_loop()
@@ -347,12 +356,12 @@ class ELKHandler(logging.Handler):
                 asyncio.run(self._send_to_elasticsearch(log_data))
         except Exception:
             self.handleError(record)
-    
+
     async def _send_to_elasticsearch(self, log_data: dict):
         """Асинхронная отправка в Elasticsearch"""
         if not self.client:
             return
-        
+
         try:
             index_name = f"{self.index_prefix}-{datetime.utcnow().strftime('%Y.%m.%d')}"
             url = f"{self.elasticsearch_url}/{index_name}/_doc"
@@ -361,7 +370,7 @@ class ELKHandler(logging.Handler):
         except Exception as e:
             # Fallback на файловое логирование при ошибке
             logging.debug(f"Failed to send log to Elasticsearch: {e}")
-    
+
     def close(self):
         """Закрытие клиента"""
         if self.client:
@@ -375,27 +384,27 @@ class ELKHandler(logging.Handler):
 
 ```python
 def setup_logging(
-    level: str = "INFO", 
-    use_structlog: bool = True, 
+    level: str = "INFO",
+    use_structlog: bool = True,
     use_elk: bool = False,
     elk_url: Optional[str] = None
 ):
     """Setup structured logging with optional ELK integration"""
     # ... существующий код structlog ...
-    
+
     if use_elk:
         try:
             import sys
             sys.path.insert(0, '/app')  # Путь в контейнере
             from app.elk_handler import ELKHandler
-            
+
             elk_handler = ELKHandler(elk_url or "http://atra-elasticsearch:9200")
             elk_handler.setLevel(getattr(logging, level.upper()))
-            
+
             # Добавляем к root logger
             root_logger = logging.getLogger()
             root_logger.addHandler(elk_handler)
-            
+
             logging.info("✅ ELK handler enabled")
         except ImportError as e:
             logging.warning(f"ELK handler not available: {e}")
@@ -445,12 +454,14 @@ docker-compose -f knowledge_os/docker-compose.yml up -d elasticsearch kibana
 ## ✅ ПРЕИМУЩЕСТВА ПОСЛЕ РЕАЛИЗАЦИИ
 
 ### Grafana:
+
 - 📊 Визуализация метрик производительности
 - 📈 Дашборды для мониторинга корпорации
 - 🚨 Алерты при проблемах
 - 📉 Анализ трендов производительности
 
 ### ELK стек:
+
 - 🔍 Централизованный поиск по логам всех компонентов
 - 📊 Визуализация паттернов в логах
 - 🚨 Алерты на основе логов
@@ -468,4 +479,4 @@ docker-compose -f knowledge_os/docker-compose.yml up -d elasticsearch kibana
 
 ---
 
-*План создан 2026-01-25*
+_План создан 2026-01-25_

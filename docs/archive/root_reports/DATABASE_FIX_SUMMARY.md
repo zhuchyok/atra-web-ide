@@ -17,24 +17,28 @@
 ## ✅ ИСПРАВЛЕНИЯ
 
 ### 1. `.env`
+
 ```diff
 - DATABASE_URL=postgresql://admin:secret@db:5432/knowledge_os
 + DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 ### 2. `docker-compose.yml` (Backend)
+
 ```diff
 - DATABASE_URL=postgresql://admin:secret@knowledge_os_db:5432/knowledge_os
 + DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 ### 3. `knowledge_os/app/victoria_enhanced.py`
+
 ```diff
 - db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@db:5432/knowledge_os")
 + db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
 ```
 
 ### 4. `VICTORIA_DATABASE_CONNECTION.md`
+
 - Обновлена документация с правильными значениями
 
 ---
@@ -42,11 +46,13 @@
 ## 📊 ТЕКУЩАЯ КОНФИГУРАЦИЯ
 
 ### Все компоненты теперь используют:
+
 ```
 DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ```
 
 ### Где используется:
+
 - ✅ `.env` - для локального запуска
 - ✅ `knowledge_os/docker-compose.yml` - Victoria и Veronica
 - ✅ `docker-compose.yml` - Backend
@@ -57,11 +63,13 @@ DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
 ## 🚀 СЛЕДУЮЩИЕ ШАГИ
 
 1. **Перезапустить Victoria:**
+
    ```bash
    docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent
    ```
 
 2. **Проверить подключение:**
+
    ```bash
    docker logs victoria-agent | grep -i "database\|эксперты"
    ```

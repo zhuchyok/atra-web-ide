@@ -16,6 +16,7 @@
 ## 📊 КОНФИГУРАЦИЯ
 
 ### 1. Ollama/MLX API Server
+
 - **URL:** `http://localhost:11434` (локальный)
 - **Или:** `http://host.docker.internal:11434` (из Docker контейнеров)
 - **Статус:** ✅ Работает на Mac Studio M4 Max
@@ -23,6 +24,7 @@
 ### 2. Модели по умолчанию
 
 #### Victoria Agent (Team Lead):
+
 - **Основная модель:** `qwen2.5-coder:32b` (локальная)
 - **Planner модель:** `phi3.5:3.8b` (локальная)
 - **Для максимального качества:** `deepseek-r1-distill-llama:70b` (локальная)
@@ -30,21 +32,22 @@
 - **Локальный роутер:** `VICTORIA_USE_LOCAL_ROUTER=true` ✅
 
 #### Veronica Agent:
+
 - Использует те же локальные модели через `OLLAMA_BASE_URL`
 - Настроена на `http://host.docker.internal:11434`
 
 ### 3. Доступные локальные модели на Mac Studio:
 
-| Модель | Размер | Назначение | Статус |
-|--------|--------|------------|--------|
-| `deepseek-r1-distill-llama:70b` | ~40GB | Reasoning, планирование | ✅ |
-| `llama3.3:70b` | ~40GB | Максимальное качество | ✅ |
-| `qwen2.5-coder:32b` | ~20GB | Coding (high quality) | ✅ |
-| `command-r-plus:104b` | ~61GB | Complex/enterprise | ✅ |
-| `phi3.5:3.8b` | ~2.5GB | Fast/general | ✅ |
-| `phi3:mini-4k` | ~2.3GB | Fast lightweight | ✅ |
-| `qwen2.5:3b` | ~2GB | Fast/default | ✅ |
-| `tinyllama:1.1b-chat` | ~0.7GB | Fast ultra-lightweight | ✅ |
+| Модель                          | Размер | Назначение              | Статус |
+| ------------------------------- | ------ | ----------------------- | ------ |
+| `deepseek-r1-distill-llama:70b` | ~40GB  | Reasoning, планирование | ✅     |
+| `llama3.3:70b`                  | ~40GB  | Максимальное качество   | ✅     |
+| `qwen2.5-coder:32b`             | ~20GB  | Coding (high quality)   | ✅     |
+| `command-r-plus:104b`           | ~61GB  | Complex/enterprise      | ✅     |
+| `phi3.5:3.8b`                   | ~2.5GB | Fast/general            | ✅     |
+| `phi3:mini-4k`                  | ~2.3GB | Fast lightweight        | ✅     |
+| `qwen2.5:3b`                    | ~2GB   | Fast/default            | ✅     |
+| `tinyllama:1.1b-chat`           | ~0.7GB | Fast ultra-lightweight  | ✅     |
 
 ---
 
@@ -68,9 +71,9 @@ VICTORIA_USE_LOCAL_ROUTER=true      # ✅ Локальный роутер
 ```yaml
 # docker-compose.yml
 environment:
-  - OLLAMA_BASE_URL=http://host.docker.internal:11434  # ✅ Локальный
-  - VICTORIA_MODEL=qwen2.5-coder:32b                    # ✅ Локальная модель
-  - VICTORIA_USE_LOCAL_ROUTER=true                      # ✅ Локальный роутер
+  - OLLAMA_BASE_URL=http://host.docker.internal:11434 # ✅ Локальный
+  - VICTORIA_MODEL=qwen2.5-coder:32b # ✅ Локальная модель
+  - VICTORIA_USE_LOCAL_ROUTER=true # ✅ Локальный роутер
 ```
 
 ### 3. Код агентов:
@@ -88,6 +91,7 @@ self.executor = OllamaExecutor(model=model_name, base_url=base)  # ✅ Ollama
 ### 4. Knowledge OS компоненты:
 
 Все компоненты используют `OLLAMA_URL`:
+
 - ✅ `react_agent.py` - `OLLAMA_URL = 'http://localhost:11434'`
 - ✅ `extended_thinking.py` - `OLLAMA_URL = 'http://localhost:11434'`
 - ✅ `swarm_intelligence.py` - `OLLAMA_URL = 'http://localhost:11434'`
@@ -113,12 +117,14 @@ class LocalAIRouter:
 ## 🚫 ОБЛАЧНЫЕ МОДЕЛИ НЕ ИСПОЛЬЗУЮТСЯ
 
 ### Проверка кода:
+
 - ❌ `OPENAI_API_KEY` - закомментирован в `.env`
 - ❌ `ANTHROPIC_API_KEY` - закомментирован в `.env`
 - ❌ Нет импортов `openai` или `anthropic` в активном коде
 - ❌ Нет вызовов облачных API в компонентах
 
 ### Исключение:
+
 - `OPENAI_API_KEY` может быть указан в `knowledge_os/docker-compose.yml` как опциональный fallback, но по умолчанию не используется.
 
 ---
@@ -126,16 +132,19 @@ class LocalAIRouter:
 ## 📋 КАК РАБОТАЕТ СИСТЕМА
 
 ### 1. Victoria Agent:
+
 ```
 Запрос → LocalAIRouter → Ollama/MLX API (localhost:11434) → Модель (qwen2.5-coder:32b)
 ```
 
 ### 2. Veronica Agent:
+
 ```
 Запрос → OllamaExecutor → Ollama/MLX API (localhost:11434) → Модель
 ```
 
 ### 3. Knowledge OS компоненты:
+
 ```
 Запрос → Компонент → Ollama API (localhost:11434) → Локальная модель
 ```
@@ -156,4 +165,4 @@ class LocalAIRouter:
 
 ---
 
-*Подтверждено: 2026-01-26*
+_Подтверждено: 2026-01-26_

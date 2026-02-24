@@ -20,6 +20,7 @@
 Модель настроена в системе и будет автоматически использоваться после завершения загрузки:
 
 **`knowledge_os/app/local_router.py`:**
+
 - ✅ `MODEL_MAP["coding"] = "glm-4.7-flash"`
 - ✅ `MODEL_MAP["reasoning"] = "glm-4.7-flash"`
 - ✅ `OLLAMA_MODELS["coding"] = "glm-4.7-flash"`
@@ -30,11 +31,13 @@
 ## 🔍 Проверка статуса
 
 ### Быстрая проверка:
+
 ```bash
 ./scripts/check_glm_download.sh
 ```
 
 ### Или вручную:
+
 ```bash
 # Проверить, установлена ли модель
 ollama list | grep glm-4.7-flash
@@ -48,6 +51,7 @@ ps aux | grep "ollama pull glm-4.7-flash"
 ## 🎯 После завершения загрузки
 
 Модель автоматически будет использоваться для:
+
 - ✅ **Coding задачи** - приоритетная модель
 - ✅ **Reasoning задачи** - приоритетная модель
 - ✅ **Fallback** - при недоступности других моделей

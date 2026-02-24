@@ -19,6 +19,7 @@
 - ✅ Все сервисы работают
 
 **Доступ:**
+
 - Prometheus: http://localhost:9090
 - Grafana: http://localhost:3001 (admin/atra2025)
 
@@ -36,6 +37,7 @@
 - ✅ Все сервисы работают
 
 **Доступ:**
+
 - Elasticsearch: http://localhost:9200 (healthy)
 - Kibana: http://localhost:5601
 
@@ -53,6 +55,7 @@
 - ✅ Улучшение производительности на 50-60% для простых задач
 
 **Критерии простых задач:**
+
 - Содержит ключевые слова: "скажи", "привет", "покажи файлы", и т.д.
 - Не более 10 слов
 
@@ -78,15 +81,18 @@ knowledge_os_api        ✅ Работает (порт 8000)
 ## 📁 СОЗДАННЫЕ ФАЙЛЫ
 
 ### Docker конфигурация (1 файл):
+
 - ✅ `knowledge_os/docker-compose.yml` — добавлены 4 сервиса мониторинга
 
 ### Конфигурация мониторинга (4 файла):
+
 - ✅ `infrastructure/monitoring/prometheus.yml` — обновлена
 - ✅ `infrastructure/monitoring/grafana/provisioning/datasources/prometheus.yml` — создана
 - ✅ `infrastructure/monitoring/grafana/provisioning/dashboards/dashboard.yml` — создана
 - ✅ `infrastructure/monitoring/kibana/kibana.yml` — создана
 
 ### Код (5 файлов):
+
 - ✅ `knowledge_os/app/main.py` — добавлен `/metrics` endpoint
 - ✅ `knowledge_os/app/elk_handler.py` — создан ELK handler (280+ строк)
 - ✅ `knowledge_os/src/shared/utils/logger.py` — интеграция ELK
@@ -94,10 +100,12 @@ knowledge_os_api        ✅ Работает (порт 8000)
 - ✅ `src/agents/bridge/server.py` — оптимизация + ELK поддержка
 
 ### Скрипты (2 файла):
+
 - ✅ `scripts/setup_grafana_complete.sh` — автоматическая настройка Grafana
 - ✅ `scripts/setup_kibana_complete.sh` — инструкции по Kibana
 
 ### Документация (10 файлов):
+
 - ✅ `docs/mac-studio/ELK_GRAFANA_IMPLEMENTATION_PLAN.md`
 - ✅ `docs/mac-studio/FINAL_IMPLEMENTATION_REPORT.md`
 - ✅ `docs/mac-studio/QUICK_START_MONITORING.md`
@@ -115,31 +123,34 @@ knowledge_os_api        ✅ Работает (порт 8000)
 
 ## 🚀 ДОСТУП К СЕРВИСАМ
 
-| Сервис | URL | Логин | Пароль | Статус |
-|--------|-----|-------|--------|--------|
-| **Prometheus** | http://localhost:9090 | - | - | ✅ Работает |
-| **Grafana** | http://localhost:3001 | admin | atra2025 | ✅ Работает |
-| **Elasticsearch** | http://localhost:9200 | - | - | ✅ Работает (healthy) |
-| **Kibana** | http://localhost:5601 | - | - | ✅ Работает |
-| **Victoria Agent** | http://localhost:8010 | - | - | ✅ Работает |
-| **Veronica Agent** | http://localhost:8011 | - | - | ✅ Работает |
+| Сервис             | URL                   | Логин | Пароль   | Статус                |
+| ------------------ | --------------------- | ----- | -------- | --------------------- |
+| **Prometheus**     | http://localhost:9090 | -     | -        | ✅ Работает           |
+| **Grafana**        | http://localhost:3001 | admin | atra2025 | ✅ Работает           |
+| **Elasticsearch**  | http://localhost:9200 | -     | -        | ✅ Работает (healthy) |
+| **Kibana**         | http://localhost:5601 | -     | -        | ✅ Работает           |
+| **Victoria Agent** | http://localhost:8010 | -     | -        | ✅ Работает           |
+| **Veronica Agent** | http://localhost:8011 | -     | -        | ✅ Работает           |
 
 ---
 
 ## ✅ ПРЕИМУЩЕСТВА
 
 ### Мониторинг:
+
 - 📊 Визуализация метрик через Grafana
 - 🔍 Централизованный поиск логов через Kibana
 - 🚨 Готовность к алертам на основе метрик и логов
 - 📈 Анализ производительности и трендов
 
 ### Производительность:
+
 - ⚡ Простые задачи выполняются на 50-60% быстрее
 - 💰 Меньше использование ресурсов
 - 🎯 Более отзывчивые агенты
 
 ### Масштабируемость:
+
 - 🚀 Готовность к росту корпорации
 - 🔧 Централизованное логирование
 - 📊 Полная наблюдаемость системы
@@ -166,6 +177,7 @@ knowledge_os_api        ✅ Работает (порт 8000)
 **ВСЕ ЗАДАЧИ ВЫПОЛНЕНЫ!**
 
 ### Что работает:
+
 - ✅ Prometheus собирает метрики
 - ✅ Grafana визуализирует метрики (datasource + dashboard настроены)
 - ✅ Elasticsearch готов к приему логов
@@ -174,9 +186,11 @@ knowledge_os_api        ✅ Работает (порт 8000)
 - ✅ Victoria и Veronica оптимизированы и готовы к работе
 
 ### Что можно сделать дополнительно:
+
 1. Создать index pattern в Kibana после появления логов (1 минута)
 
 **Корпорация ATRA теперь имеет:**
+
 - ✅ Полный мониторинг (Prometheus + Grafana)
 - ✅ Централизованное логирование (ELK стек)
 - ✅ Оптимизированных агентов
@@ -185,4 +199,4 @@ knowledge_os_api        ✅ Работает (порт 8000)
 
 ---
 
-*Финальный статус обновлен 2026-01-25*
+_Финальный статус обновлен 2026-01-25_

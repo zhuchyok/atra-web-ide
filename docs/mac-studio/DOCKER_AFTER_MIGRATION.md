@@ -5,7 +5,7 @@
 1. **Импорт БД** — дамп `~/migration/server1/knowledge_os.sql` импортирован в `knowledge_os_db` (часть ошибок «already exists» нормальна).
 2. **restore_only** — при импорте приоритет у контейнеров `*_db` (избегаем импорта в API).
 3. **Compose агентов** — `context: ..`, volumes `../data`, `../logs`, `../src`. Victoria → `victoria_server`, Veronica → `bridge.server`, порты 8010/8011, `OLLAMA_BASE_URL`.
-4. **.dockerignore** — добавлен для сборки агентов (исключены data, logs, archive, ai_learning_data, *.jsonl, **/venv и т.п.).
+4. **.dockerignore** — добавлен для сборки агентов (исключены data, logs, archive, ai_learning_data, \*.jsonl, \*\*/venv и т.п.).
 
 ## Важно: место на диске
 

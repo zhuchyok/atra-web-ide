@@ -10,26 +10,31 @@
 ### ✅ **АВТОМАТИЧЕСКИ ЗАПУСТИТСЯ:**
 
 #### 1. Docker Desktop
+
 - **Статус:** ✅ Настроен (`StartAtLogin = true`)
 - **Проверка:** `defaults read com.docker.docker StartAtLogin` → `1`
 - **Действие:** Запускается автоматически при входе в систему
 
 #### 2. Docker контейнеры (с `restart: always`):
+
 - ✅ **db** (PostgreSQL) — `restart: always`
 - ✅ **victoria-agent** — `restart: always`
 - ✅ **veronica-agent** — `restart: always`
 
 **Что это значит:**
+
 - При запуске Docker Desktop эти контейнеры автоматически запускаются
 - Если контейнер упал, Docker автоматически перезапустит его
 
 #### 3. Docker контейнеры (с `restart: unless-stopped`):
+
 - ✅ **prometheus** — `restart: unless-stopped`
 - ✅ **grafana** — `restart: unless-stopped`
 - ✅ **elasticsearch** — `restart: unless-stopped`
 - ✅ **kibana** — `restart: unless-stopped`
 
 **Что это значит:**
+
 - Запускаются автоматически при старте Docker
 - НЕ перезапускаются если были остановлены вручную (`docker stop`)
 - Перезапускаются если упали сами
@@ -39,6 +44,7 @@
 ### ⚠️ **ТРЕБУЕТ ПРОВЕРКИ/НАСТРОЙКИ:**
 
 #### 1. Ollama (LLM модели)
+
 - **Статус:** ⚠️ Требует проверки
 - **Вопрос:** Запускается ли Ollama автоматически?
 - **Проверка:**
@@ -54,6 +60,7 @@
   ```
 
 #### 2. Victoria MCP Server (порт 8012)
+
 - **Статус:** ⚠️ Требует настройки через launchd
 - **Настройка:**
   ```bash
@@ -62,6 +69,7 @@
 - **Результат:** MCP сервер будет запускаться автоматически
 
 #### 3. Автономные системы (Orchestrator, Nightly Learner)
+
 - **Статус:** ⚠️ Требует настройки через launchd
 - **Настройка:**
   ```bash
@@ -173,6 +181,7 @@ curl http://localhost:5601/api/status  # Kibana
 5. ✅ Автономные системы запустятся автоматически (если настроены)
 
 **Осталось только:**
+
 - Проверить/настроить Ollama автозапуск
 - Настроить Victoria MCP Server (1 команда)
 - Настроить автономные системы (1 команда)
@@ -181,4 +190,4 @@ curl http://localhost:5601/api/status  # Kibana
 
 ---
 
-*Документация создана 2026-01-25*
+_Документация создана 2026-01-25_

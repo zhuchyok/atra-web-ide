@@ -6,11 +6,12 @@
 ✅ **MLX API Server работает** (порт 11435)  
 ✅ **Модели доступны** (qwen2.5-coder:32b, phi3.5:3.8b)  
 ✅ **Event-Driven Architecture интегрирована** в Victoria и ReActAgent  
-✅ **Skill Registry подключен** к ReActAgent  
+✅ **Skill Registry подключен** к ReActAgent
 
 ## Что добавлено
 
 ### 1. Event-Driven Architecture в Victoria ✅
+
 - Event Bus инициализирован
 - Skill Registry подключен
 - Skill Loader настроен
@@ -18,6 +19,7 @@
 - Методы `start()` и `stop()` для мониторинга
 
 ### 2. Skill Registry в ReActAgent ✅
+
 - Динамические tools из Skill Registry
 - Автоматическая публикация событий SKILL_NEEDED
 - Fallback на статические tools
@@ -25,16 +27,19 @@
 ## Мониторинг теста
 
 ### Проверить статус:
+
 ```bash
 python3 scripts/check_test_status.py
 ```
 
 ### Мониторинг в реальном времени:
+
 ```bash
 python3 scripts/monitor_test.py
 ```
 
 ### Проверить процесс:
+
 ```bash
 ps aux | grep run_website_test
 ```
@@ -48,6 +53,7 @@ ps aux | grep run_website_test
 3. **Финальный синтезированный результат** от Victoria
 
 Файлы будут сохранены в:
+
 - `logs/website_YYYYMMDD_HHMMSS.html` - HTML файл
 - `logs/website_result_YYYYMMDD_HHMMSS.txt` - текстовый файл
 - `logs/task_trace_result_YYYYMMDD_HHMMSS.json` - JSON трейс

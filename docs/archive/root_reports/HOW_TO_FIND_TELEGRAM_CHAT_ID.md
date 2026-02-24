@@ -8,11 +8,13 @@
 ## 📋 СПОСОБ 1: Через Telegram API (Рекомендуется)
 
 ### Шаг 1: Добавьте бота в группу
+
 1. Откройте группу **Bikos_Corporation** в Telegram
 2. Добавьте бота в группу (если еще не добавлен)
 3. Дайте боту права на чтение сообщений
 
 ### Шаг 2: Отправьте сообщение в группу
+
 - Напишите любое сообщение в группе (например: "test")
 
 ### Шаг 3: Получите chat_id через API
@@ -23,6 +25,7 @@ curl "https://api.telegram.org/bot8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU
 ```
 
 В ответе найдите:
+
 ```json
 {
   "message": {
@@ -60,11 +63,13 @@ curl "https://api.telegram.org/bot8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU
 После того, как узнаете chat_id группы:
 
 1. **Добавьте в `.env`:**
+
 ```env
 TELEGRAM_CHAT_ID=-1001234567890
 ```
 
 2. **Перезапустите бота:**
+
 ```bash
 # Остановите текущий процесс
 pkill -f victoria_telegram_bot
@@ -78,6 +83,7 @@ python3 -m src.agents.bridge.victoria_telegram_bot
 ## ✅ ПРОВЕРКА
 
 После настройки:
+
 1. Отправьте сообщение в группу Bikos_Corporation
 2. Бот должен ответить в группе
 3. Victoria выполнит задачу и ответит в группе

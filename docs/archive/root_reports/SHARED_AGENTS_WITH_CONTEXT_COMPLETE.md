@@ -16,10 +16,12 @@
 ### 1. ✅ Удалены дубликаты агентов из `docker-compose.yml`
 
 **Удалено:**
+
 - ❌ `victoria` service (был на порту 8020)
 - ❌ `veronica` service (был на порту 8021)
 
 **Осталось:**
+
 - ✅ `frontend` :3002
 - ✅ `backend` :8080
 - ✅ `redis` :6380
@@ -31,11 +33,13 @@
 ### 2. ✅ Обновлен `knowledge_os/docker-compose.yml` - общие порты
 
 **Изменено:**
+
 - ✅ Victoria: порт `8010:8000` (общий для всех проектов)
 - ✅ Veronica: порт `8011:8000` (общий для всех проектов)
 - ✅ Добавлено: `MAIN_PROJECT: "atra-web-ide"` в environment
 
 **Контейнеры:**
+
 - `victoria-agent` :8010 (общий)
 - `veronica-agent` :8011 (общий)
 
@@ -44,6 +48,7 @@
 ### 3. ✅ Добавлен `project_context` в `TaskRequest`
 
 **Victoria (`src/agents/bridge/victoria_server.py`):**
+
 ```python
 class TaskRequest(BaseModel):
     goal: str
@@ -52,6 +57,7 @@ class TaskRequest(BaseModel):
 ```
 
 **Veronica (`src/agents/bridge/server.py`):**
+
 ```python
 class TaskRequest(BaseModel):
     goal: str
@@ -64,16 +70,19 @@ class TaskRequest(BaseModel):
 ### 4. ✅ Обновлены системные промпты с контекстом проекта
 
 **Victoria:**
+
 - ✅ Определяет `project_context` из запроса или `MAIN_PROJECT`
 - ✅ Добавляет контекст проекта в системный промпт перед выполнением задачи
 - ✅ Восстанавливает оригинальный промпт после выполнения
 
 **Veronica:**
+
 - ✅ Определяет `project_context` из запроса или `MAIN_PROJECT`
 - ✅ Добавляет контекст проекта в системный промпт перед выполнением задачи
 - ✅ Восстанавливает оригинальный промпт после выполнения
 
 **Формат контекста:**
+
 ```
 🏢 КОНТЕКСТ ПРОЕКТА: {project_context}
 🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_project}
@@ -89,11 +98,13 @@ class TaskRequest(BaseModel):
 ### 5. ✅ Обновлен backend для передачи контекста
 
 **`backend/app/services/victoria.py`:**
+
 - ✅ Добавлен параметр `project_context` в метод `run()`
 - ✅ Передает `project_context` в запросе к Victoria
 - ✅ По умолчанию: `os.getenv("PROJECT_NAME", "atra-web-ide")`
 
 **`backend/app/routers/chat.py`:**
+
 - ✅ Передает `project_context="atra-web-ide"` при вызове Victoria
 
 ---
@@ -101,16 +112,19 @@ class TaskRequest(BaseModel):
 ### 6. ✅ Обновлена конфигурация
 
 **`backend/app/config.py`:**
+
 - ✅ Добавлено: `project_name: str = os.getenv("PROJECT_NAME", "atra-web-ide")`
 - ✅ Добавлено: `main_project: str = os.getenv("MAIN_PROJECT", "atra-web-ide")`
 - ✅ Обновлено: `victoria_url` → `http://localhost:8010` (общий порт)
 
 **`.env`:**
+
 - ✅ Добавлено: `PROJECT_NAME=atra-web-ide`
 - ✅ Добавлено: `MAIN_PROJECT=atra-web-ide`
 - ✅ Обновлено: `VICTORIA_URL=http://host.docker.internal:8010`
 
 **`docker-compose.yml` (backend):**
+
 - ✅ Обновлено: `VICTORIA_URL=http://victoria-agent:8000` (через Docker сеть)
 - ✅ Добавлено: `PROJECT_NAME=atra-web-ide`
 
@@ -171,6 +185,7 @@ POST http://victoria-agent:8000/run
 ```
 
 **Victoria понимает:**
+
 - Работает с проектом `atra-web-ide`
 - Основной проект корпорации: `atra-web-ide`
 - Все файлы и команды в контексте `atra-web-ide`
@@ -186,6 +201,7 @@ POST http://victoria-agent:8000/run
 ```
 
 **Victoria понимает:**
+
 - Работает с проектом `atra`
 - Основной проект корпорации: `atra-web-ide`
 - Это внешняя задача, но база знаний - `atra-web-ide`
@@ -201,6 +217,7 @@ POST http://victoria-agent:8000/run
 ```
 
 **Victoria понимает:**
+
 - Работает с проектом `new-project`
 - Основной проект корпорации: `atra-web-ide`
 - Все операции в контексте `new-project`
@@ -273,4 +290,4 @@ curl -X POST http://localhost:8010/run \
 
 ---
 
-*Завершено: 2026-01-26*
+_Завершено: 2026-01-26_

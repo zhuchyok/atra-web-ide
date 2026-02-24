@@ -47,18 +47,21 @@
 ### Шаг 1: На Mac Studio - Экспорт данных
 
 **Вариант А: Полная миграция (рекомендуется):**
+
 ```bash
 cd ~/Documents/atra-web-ide
 bash scripts/full_migration_Mac Studio_to_macstudio.sh
 ```
 
 **Вариант Б: Только экспорт:**
+
 ```bash
 cd ~/Documents/atra-web-ide
 bash scripts/migrate_docker_to_mac_studio.sh
 ```
 
 **Что делает:**
+
 1. ✅ Останавливает ВСЕ контейнеры на Mac Studio (knowledge_os и корневые)
 2. ✅ Экспортирует ВСЕ Docker volumes
 3. ✅ Экспортирует ВСЕ Docker образы (images)
@@ -75,6 +78,7 @@ bash scripts/import_docker_from_Mac Studio.sh
 ```
 
 **Что делает:**
+
 1. ✅ Импортирует Docker volumes
 2. ✅ Копирует конфигурацию
 3. ✅ Создает Docker сеть
@@ -197,4 +201,4 @@ docker-compose -f knowledge_os/docker-compose.yml config
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

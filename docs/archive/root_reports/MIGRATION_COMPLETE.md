@@ -8,17 +8,20 @@
 ## ✅ ВЫПОЛНЕНО
 
 ### 1. Экспорт с Mac Studio ✅
+
 - ✅ Остановлены все контейнеры
 - ✅ Экспортировано 9 Docker volumes
 - ✅ Экспортировано 8 Docker образов
 - ✅ Скопирована конфигурация
 
 ### 2. Копирование на Mac Studio ✅
+
 - ✅ Бэкап скопирован (~800 MB)
 - ✅ Скрипты импорта скопированы
 - ✅ docker-compose.yml скопирован
 
 ### 3. Импорт на Mac Studio ✅
+
 - ✅ Docker Desktop запущен
 - ✅ Docker сеть `atra-network` создана
 - ✅ Образы импортированы
@@ -61,12 +64,14 @@ curl http://localhost:8000/health
 ## 🌐 ДОСТУП К СЕРВИСАМ
 
 ### Локально на Mac Studio:
+
 - `http://localhost:8010` - Victoria Agent
 - `http://localhost:8011` - Veronica Agent
 - `http://localhost:11434` - Ollama/MLX API
 - `http://localhost:8000` - Knowledge OS API
 
 ### С Mac Studio:
+
 - `http://192.168.1.64:8010` - Victoria Agent
 - `http://192.168.1.64:8011` - Veronica Agent
 - `http://192.168.1.64:11434` - Ollama/MLX API
@@ -81,4 +86,4 @@ curl http://localhost:8000/health
 
 ---
 
-*Миграция завершена: 2026-01-26 00:00*
+_Миграция завершена: 2026-01-26 00:00_

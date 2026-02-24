@@ -8,6 +8,7 @@
 ## 🎯 Обзор
 
 Добавлена поддержка:
+
 - ✅ **Ollama Cloud Models** - облачные модели без локального GPU
 - ✅ **Claude Code Integration** - интеграция с Claude Code через Anthropic-compatible API
 
@@ -123,6 +124,7 @@ config = client.get_anthropic_compatible_config()
 ### Использование
 
 После настройки Claude Code будет работать с выбранной моделью Ollama, позволяя:
+
 - Читать код из рабочей директории
 - Модифицировать код
 - Выполнять код

@@ -29,6 +29,7 @@
 ### 1. Smart Worker не работает
 
 **Smart Worker Autonomous** должен:
+
 - Брать `pending` задачи
 - Переводить в `in_progress`
 - Выполнять через экспертов
@@ -39,6 +40,7 @@
 ### 2. Задачи "застряли"
 
 852 задачи в `in_progress` не обновлялись более 6 дней:
+
 - Они были взяты в работу
 - Но не были завершены
 - Worker не обрабатывает их
@@ -51,9 +53,9 @@
 
 ```sql
 -- Вернуть застрявшие задачи в pending
-UPDATE tasks 
-SET status = 'pending' 
-WHERE status = 'in_progress' 
+UPDATE tasks
+SET status = 'pending'
+WHERE status = 'in_progress'
 AND updated_at < NOW() - INTERVAL '1 day';
 ```
 
@@ -68,6 +70,7 @@ AND updated_at < NOW() - INTERVAL '1 day';
 **Файл:** `knowledge_os/app/smart_worker_autonomous.py`
 
 **Запуск:**
+
 ```bash
 # В Docker контейнере
 docker exec knowledge_os_api python3 /app/smart_worker_autonomous.py
@@ -81,6 +84,7 @@ docker-compose -f knowledge_os/docker-compose.yml up -d smart_worker
 **Файл:** `knowledge_os/app/enhanced_orchestrator.py`
 
 **Запуск:**
+
 ```bash
 # Через скрипт
 ./scripts/start_enhanced_orchestrator.sh

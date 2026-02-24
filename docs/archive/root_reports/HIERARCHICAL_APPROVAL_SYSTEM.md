@@ -37,6 +37,7 @@ Department Head / Менеджер (уровень 2 - проверка)
 ## 📊 ПРОЦЕСС РАБОТЫ
 
 ### Уровень 1: Эксперт (выполнение)
+
 ```python
 async def expert_execute_task(subtask, expert_info):
     """
@@ -47,13 +48,13 @@ async def expert_execute_task(subtask, expert_info):
     """
     # Обдумывание
     thinking = await expert_think(subtask)
-    
+
     # Выбор модели
     selected_model = await expert_select_model(subtask, thinking)
-    
+
     # Выполнение
     result = await expert_execute(subtask, selected_model)
-    
+
     # Отправка на проверку
     return {
         "result": result,
@@ -63,6 +64,7 @@ async def expert_execute_task(subtask, expert_info):
 ```
 
 ### Уровень 2: Department Head (проверка)
+
 ```python
 async def department_head_review(expert_result):
     """
@@ -71,7 +73,7 @@ async def department_head_review(expert_result):
     3. Отправляет на утверждение выше
     """
     review = await head_review(expert_result)
-    
+
     if review.approved:
         return {
             "result": expert_result,
@@ -90,6 +92,7 @@ async def department_head_review(expert_result):
 ```
 
 ### Уровень 3: Вероника (сбор)
+
 ```python
 async def veronica_collect_results(approved_results):
     """
@@ -105,9 +108,9 @@ async def veronica_collect_results(approved_results):
             "result": result.result,
             "approved_by": result.reviewer
         })
-    
+
     aggregated = await veronica_aggregate(collected)
-    
+
     return {
         "collected_results": collected,
         "aggregated": aggregated,
@@ -116,6 +119,7 @@ async def veronica_collect_results(approved_results):
 ```
 
 ### Уровень 4: Виктория (финальный синтез)
+
 ```python
 async def victoria_final_synthesis(veronica_data, original_goal):
     """
@@ -128,7 +132,7 @@ async def victoria_final_synthesis(veronica_data, original_goal):
         collected_results=veronica_data.collected_results,
         aggregated=veronica_data.aggregated
     )
-    
+
     return {
         "final_result": synthesis,
         "method": "hierarchical_approval",

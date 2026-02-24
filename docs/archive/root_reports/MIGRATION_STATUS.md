@@ -8,6 +8,7 @@
 ## ✅ ВЫПОЛНЕНО
 
 ### 1. Экспорт с Mac Studio ✅
+
 - ✅ Остановлены все контейнеры на Mac Studio
 - ✅ Экспортировано **9 Docker volumes**:
   - `atra-postgres-data` (79 MB)
@@ -33,6 +34,7 @@
 - ✅ Скопирована конфигурация (docker-compose.yml, .env файлы)
 
 ### 2. Копирование на Mac Studio ✅
+
 - ✅ Бэкап успешно скопирован на Mac Studio
 - ✅ Расположение: `~/Documents/atra-web-ide/backups/migration/atra-docker-migration-20260125-235238`
 - ✅ Скрипты импорта скопированы
@@ -44,27 +46,30 @@
 ### На Mac Studio нужно:
 
 1. **Установить/запустить Docker Desktop:**
+
    ```bash
    # Проверьте, установлен ли Docker
    which docker
-   
+
    # Если не установлен, скачайте и установите:
    # https://www.docker.com/products/docker-desktop
-   
+
    # Запустите Docker Desktop
    open -a Docker
-   
+
    # Дождитесь запуска (30-60 секунд)
    docker info
    ```
 
 2. **Выполнить импорт:**
+
    ```bash
    cd ~/Documents/atra-web-ide
    bash scripts/import_docker_from_Mac Studio.sh
    ```
 
    Или автоматически (если Docker уже запущен):
+
    ```bash
    bash scripts/start_all_on_mac_studio.sh
    ```
@@ -134,4 +139,4 @@ curl http://localhost:11434/api/tags
 
 ---
 
-*Статус обновлен: 2026-01-25 23:57*
+_Статус обновлен: 2026-01-25 23:57_

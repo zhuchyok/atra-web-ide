@@ -8,11 +8,13 @@
 ## 🎯 ЧТО РЕАЛИЗОВАНО
 
 ### 1. Victoria создает рекомендации моделей
+
 - ✅ В промпте для Veronica указываются `recommended_models`
 - ✅ Указывается `model_selection`: `expert_choice` | `recommended` | `auto`
 - ✅ Рекомендации передаются эксперту через промпт
 
 ### 2. Промпт для эксперта включает рекомендации
+
 ```
 ПОДЗАДАЧА: Создать API endpoint
 - Отдел: Backend
@@ -25,6 +27,7 @@
 ## 🔄 КАК ЭКСПЕРТ ВЫБИРАЕТ МОДЕЛЬ
 
 ### Вариант 1: Эксперт сам выбирает (expert_choice)
+
 ```python
 # Эксперт получает промпт с рекомендациями
 prompt = """
@@ -45,6 +48,7 @@ else:
 ```
 
 ### Вариант 2: Следовать рекомендациям (recommended)
+
 ```python
 # Эксперт получает промпт с обязательными рекомендациями
 prompt = """
@@ -57,6 +61,7 @@ selected_model = recommended_models[0]
 ```
 
 ### Вариант 3: Автоматический выбор (auto)
+
 ```python
 # Система сама выбирает модель
 selected_model = await auto_select_model(task.category)
@@ -67,6 +72,7 @@ selected_model = await auto_select_model(task.category)
 ## 📊 ДОСТУПНЫЕ МОДЕЛИ
 
 Эксперт может выбрать из:
+
 - `command-r-plus:104b` - Максимальная мощность
 - `deepseek-r1-distill-llama:70b` - Reasoning
 - `llama3.3:70b` - Максимальное качество

@@ -10,6 +10,7 @@
 ### 1. ✅ Prometheus + Grafana
 
 #### Реализовано:
+
 - ✅ Prometheus контейнер запущен и работает (порт 9090)
 - ✅ Grafana контейнер запущен и работает (порт 3001)
 - ✅ Конфигурация Prometheus обновлена для правильных targets
@@ -17,6 +18,7 @@
 - ✅ Все подключено к сети `atra-network`
 
 #### Файлы:
+
 - `knowledge_os/docker-compose.yml` — добавлены сервисы
 - `infrastructure/monitoring/prometheus.yml` — обновлена конфигурация
 - `knowledge_os/app/main.py` — добавлен `/metrics` endpoint
@@ -26,6 +28,7 @@
 ### 2. ✅ ELK стек (Elasticsearch + Kibana)
 
 #### Реализовано:
+
 - ✅ Elasticsearch контейнер запущен и работает (порт 9200)
 - ✅ Kibana контейнер запущен и работает (порт 5601)
 - ✅ ELKHandler создан с батчингом и асинхронной отправкой
@@ -33,6 +36,7 @@
 - ✅ Все подключено к сети `atra-network`
 
 #### Файлы:
+
 - `knowledge_os/app/elk_handler.py` — полнофункциональный handler
 - `knowledge_os/src/shared/utils/logger.py` — интеграция ELK
 - `knowledge_os/docker-compose.yml` — добавлены сервисы
@@ -71,6 +75,7 @@ atra-kibana             Up (порт 5601)
 ### ELK логирование:
 
 Для включения добавьте в переменные окружения контейнеров:
+
 ```yaml
 environment:
   - USE_ELK=true
@@ -106,6 +111,7 @@ environment:
 ### 3. Включение ELK логирования:
 
 Добавьте в `docker-compose.yml` для нужных контейнеров:
+
 ```yaml
 victoria-agent:
   environment:
@@ -114,6 +120,7 @@ victoria-agent:
 ```
 
 Затем перезапустите:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronica-agent knowledge_os_api
 ```
@@ -148,10 +155,11 @@ docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent veronic
 **Все компоненты реализованы, протестированы и работают!**
 
 Корпорация ATRA теперь имеет:
+
 - ✅ Полный мониторинг метрик через Prometheus + Grafana
 - ✅ Централизованное логирование через ELK стек
 - ✅ Готовность к масштабированию и анализу
 
 ---
 
-*Реализация завершена обдуманно и полностью 2026-01-25*
+_Реализация завершена обдуманно и полностью 2026-01-25_

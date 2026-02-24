@@ -98,4 +98,4 @@ curl 'http://localhost:9200/_cat/indices?v' | grep atra-logs
 
 ---
 
-*Настроено 2026-01-25*
+_Настроено 2026-01-25_

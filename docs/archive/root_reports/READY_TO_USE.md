@@ -8,21 +8,24 @@
 ## ✅ ЧТО УЖЕ СДЕЛАНО
 
 ### Docker инфраструктура
+
 - ✅ 4 Docker образа импортированы
-- ✅ Сеть `atra-network` создана  
+- ✅ Сеть `atra-network` создана
 - ✅ 3 Docker volumes созданы
 - ✅ 6 сервисов Web IDE готовы
 - ✅ 7 сервисов Knowledge OS готовы
 
 ### Конфигурация
+
 - ✅ `.env` настроен для Mac Studio
 - ✅ `.cursorrules` для Cursor создан
 - ✅ `docker-compose.yml` проверен
 - ✅ Структура проекта подготовлена
 
 ### Файлы проекта
+
 - ✅ Backend файлы присутствуют
-- ✅ Frontend файлы присутствуют  
+- ✅ Frontend файлы присутствуют
 - ✅ Knowledge OS настроен
 - ⚠️ Возможно не хватает некоторых файлов (~2 GB полный проект)
 
@@ -31,11 +34,13 @@
 ## 🚀 БЫСТРЫЙ ЗАПУСК
 
 ### 1. Открыть в Cursor
+
 ```
 File → Open Folder → ~/Documents/atra-web-ide
 ```
 
 ### 2. Запустить контейнеры
+
 ```bash
 cd ~/Documents/atra-web-ide
 
@@ -49,6 +54,7 @@ docker-compose up -d
 ```
 
 ### 3. Проверить
+
 ```bash
 curl http://localhost:8010/health  # Victoria
 curl http://localhost:8011/health  # Veronica

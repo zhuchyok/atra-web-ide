@@ -10,6 +10,7 @@
 ### Принцип: Постепенная интеграция с минимальными изменениями
 
 **Подход:**
+
 1. ✅ Сохранить существующую функциональность
 2. ✅ Добавить новые возможности опционально (через env vars)
 3. ✅ Обеспечить обратную совместимость
@@ -71,7 +72,7 @@ else:
 class VictoriaAgent(BaseAgent):
     def __init__(self, name: str = "Виктория", model_name: str = None):
         # ... существующий код ...
-        
+
         # Интеграция с Knowledge OS (опционально)
         self.db = None
         self.expert_team = {}
@@ -81,7 +82,7 @@ class VictoriaAgent(BaseAgent):
                 db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@atra-knowledge-os-db:5432/knowledge_os")
                 self.db = Database(db_url=db_url)
                 logger.info("✅ Knowledge OS Database подключена")
-                
+
                 # Загрузка команды экспертов (асинхронно, при первом использовании)
                 self._expert_team_loaded = False
             except Exception as e:
@@ -96,7 +97,7 @@ async def _load_expert_team(self):
     """Загрузить команду экспертов из Knowledge OS"""
     if not self.db or self._expert_team_loaded:
         return
-    
+
     try:
         # Получить всех экспертов из базы
         experts = await self.db.get_all_experts()
@@ -115,14 +116,14 @@ async def _get_knowledge_context(self, goal: str, limit: int = 5) -> str:
     """Получить релевантные знания из Knowledge OS"""
     if not self.db:
         return ""
-    
+
     try:
         # Поиск знаний по задаче
         knowledge_nodes = await self.db.search_knowledge(
             query=goal,
             limit=limit
         )
-        
+
         if knowledge_nodes:
             context = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ ---\n"
             for node in knowledge_nodes:
@@ -130,7 +131,7 @@ async def _get_knowledge_context(self, goal: str, limit: int = 5) -> str:
             return context
     except Exception as e:
         logger.warning(f"Ошибка поиска знаний: {e}")
-    
+
     return ""
 ```
 
@@ -142,7 +143,7 @@ async def plan(self, goal: str):
     knowledge_context = ""
     if USE_KNOWLEDGE_OS and self.db:
         knowledge_context = await self._get_knowledge_context(goal)
-    
+
     plan_prompt = f"""ТЫ — ТЕХНИЧЕСКИЙ ДИРЕКТОР ATRA. Составь ПРОСТОЙ план.
 
 {knowledge_context}
@@ -155,7 +156,7 @@ async def plan(self, goal: str):
 - Выполняй ТОЧНО то что просят, ничего лишнего
 
 ПЛАН (только 1-2 шага, максимально просто):"""
-    
+
     return await self.planner.ask(plan_prompt, raw_response=True)
 ```
 
@@ -169,7 +170,7 @@ async def plan(self, goal: str):
 def _categorize_task(self, goal: str) -> str:
     """Определить категорию задачи для выбора эксперта"""
     goal_lower = goal.lower()
-    
+
     # Категории и ключевые слова
     categories = {
         "backend": ["api", "сервер", "база данных", "postgresql", "sql", "docker"],
@@ -180,11 +181,11 @@ def _categorize_task(self, goal: str) -> str:
         "database": ["база данных", "миграция", "схема", "индекс"],
         "performance": ["производительность", "оптимизация", "скорость", "latency"],
     }
-    
+
     for category, keywords in categories.items():
         if any(keyword in goal_lower for keyword in keywords):
             return category
-    
+
     return "general"  # По умолчанию
 ```
 
@@ -195,15 +196,15 @@ async def select_expert_for_task(self, goal: str) -> tuple[Optional[str], Option
     """Автоматически выбрать эксперта для задачи"""
     if not self.db or not USE_KNOWLEDGE_OS:
         return None, None
-    
+
     try:
         # Загрузить экспертов если еще не загружены
         if not self._expert_team_loaded:
             await self._load_expert_team()
-        
+
         # Определить категорию задачи
         category = self._categorize_task(goal)
-        
+
         # Маппинг категорий на роли экспертов
         category_to_role = {
             "backend": "Backend Developer",
@@ -215,9 +216,9 @@ async def select_expert_for_task(self, goal: str) -> tuple[Optional[str], Option
             "performance": "Performance Engineer",
             "general": "Team Lead"
         }
-        
+
         target_role = category_to_role.get(category, "Team Lead")
-        
+
         # Найти эксперта по роли
         for expert_name, expert_data in self.expert_team.items():
             if expert_data.get('role') == target_role:
@@ -225,10 +226,10 @@ async def select_expert_for_task(self, goal: str) -> tuple[Optional[str], Option
                 expert_knowledge = await self.db.get_expert_knowledge(expert_name)
                 logger.info(f"✅ Выбран эксперт: {expert_name} ({target_role}) для задачи: {goal[:50]}")
                 return expert_name, expert_knowledge
-        
+
         # Если не найден, вернуть None
         return None, None
-        
+
     except Exception as e:
         logger.error(f"❌ Ошибка выбора эксперта: {e}")
         return None, None
@@ -243,12 +244,12 @@ async def plan(self, goal: str):
     expert_knowledge = None
     if USE_KNOWLEDGE_OS and self.db:
         expert_name, expert_knowledge = await self.select_expert_for_task(goal)
-    
+
     # Получить контекст из базы знаний
     knowledge_context = ""
     if USE_KNOWLEDGE_OS and self.db:
         knowledge_context = await self._get_knowledge_context(goal)
-    
+
     # Формировать промпт с учетом эксперта
     if expert_name and expert_knowledge:
         plan_prompt = f"""ТЫ — ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA.
@@ -276,7 +277,7 @@ async def plan(self, goal: str):
 - Выполняй ТОЧНО то что просят, ничего лишнего
 
 ПЛАН (только 1-2 шага, максимально просто):"""
-    
+
     return await self.planner.ask(plan_prompt, raw_response=True)
 ```
 
@@ -293,7 +294,7 @@ from datetime import datetime, timedelta
 class VictoriaAgent(BaseAgent):
     def __init__(self, name: str = "Виктория", model_name: str = None):
         # ... существующий код ...
-        
+
         # Кэш выполненных задач
         self.task_cache = {}
         self.cache_ttl = timedelta(hours=24)  # TTL кэша
@@ -313,7 +314,7 @@ def _get_cached_result(self, goal: str) -> Optional[str]:
     """Получить результат из кэша"""
     if not self.use_cache:
         return None
-    
+
     task_hash = self._task_hash(goal)
     if task_hash in self.task_cache:
         cached_data = self.task_cache[task_hash]
@@ -324,14 +325,14 @@ def _get_cached_result(self, goal: str) -> Optional[str]:
         else:
             # Удалить устаревший кэш
             del self.task_cache[task_hash]
-    
+
     return None
 
 def _save_to_cache(self, goal: str, result: str):
     """Сохранить результат в кэш"""
     if not self.use_cache:
         return
-    
+
     task_hash = self._task_hash(goal)
     # Сохранять только успешные результаты
     if result and "ошибка" not in result.lower() and "error" not in result.lower():
@@ -350,26 +351,26 @@ async def run(self, goal: str, max_steps: int = 30) -> str:
     cached_result = self._get_cached_result(goal)
     if cached_result:
         return cached_result
-    
+
     # Простые задачи не требуют планирования
     simple_tasks = ["скажи", "привет", "покажи файлы", "выведи список", "список файлов"]
     goal_lower = goal.lower()
-    
+
     if any(task in goal_lower for task in simple_tasks) and len(goal.split()) <= 10:
         enhanced = f"ВЫПОЛНИ ЗАДАЧУ: {goal}\n\nВАЖНО: Выполняй ТОЧНО то что просят, ничего лишнего!"
     else:
         raw_plan = await self.plan(goal)
         enhanced = f"ТВОЙ ПЛАН:\n{raw_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ: {goal}"
-    
+
     result = await super().run(enhanced, max_steps)
-    
+
     # Сохранить в кэш
     self._save_to_cache(goal, result)
-    
+
     # Сохранить в Knowledge OS для обучения (если включено)
     if USE_KNOWLEDGE_OS and self.db and result:
         await self._learn_from_task(goal, result)
-    
+
     return result
 ```
 
@@ -384,10 +385,10 @@ async def _learn_from_task(self, goal: str, result: str):
     """Обучение на основе выполненной задачи"""
     if not self.db:
         return
-    
+
     try:
         from datetime import datetime, timezone
-        
+
         # Извлечь знания из результата
         knowledge = {
             "task": goal,
@@ -396,7 +397,7 @@ async def _learn_from_task(self, goal: str, result: str):
             "expert": "Виктория",
             "domain": "victoria_tasks"
         }
-        
+
         # Сохранить в Knowledge OS
         await self.db.add_knowledge_node(
             domain="victoria_tasks",
@@ -404,9 +405,9 @@ async def _learn_from_task(self, goal: str, result: str):
             metadata=knowledge,
             source="victoria_agent"
         )
-        
+
         logger.debug(f"📚 Сохранено знание из задачи: {goal[:50]}")
-        
+
     except Exception as e:
         logger.warning(f"Ошибка сохранения знания: {e}")
 ```
@@ -451,6 +452,7 @@ victoria-agent:
 ## ✅ ПЛАН ТЕСТИРОВАНИЯ
 
 ### Тест 1: Интеграция Knowledge OS
+
 ```bash
 # Проверить подключение
 curl -X POST http://localhost:8010/run \
@@ -459,6 +461,7 @@ curl -X POST http://localhost:8010/run \
 ```
 
 ### Тест 2: Выбор эксперта
+
 ```bash
 # Задача для backend эксперта
 curl -X POST http://localhost:8010/run \
@@ -467,6 +470,7 @@ curl -X POST http://localhost:8010/run \
 ```
 
 ### Тест 3: Кэширование
+
 ```bash
 # Первый запрос
 curl -X POST http://localhost:8010/run \
@@ -484,6 +488,7 @@ curl -X POST http://localhost:8010/run \
 ## 📊 МЕТРИКИ УСПЕХА
 
 ### После реализации:
+
 - ✅ Victoria использует базу знаний (50,926 знаний)
 - ✅ Автоматический выбор экспертов работает
 - ✅ Кэширование ускоряет повторяющиеся задачи на 30-50%
@@ -501,4 +506,4 @@ curl -X POST http://localhost:8010/run \
 
 ---
 
-*План реализации создан 2026-01-25*
+_План реализации создан 2026-01-25_

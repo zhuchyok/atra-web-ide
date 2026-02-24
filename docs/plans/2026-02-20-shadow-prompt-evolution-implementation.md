@@ -11,7 +11,9 @@
 ---
 
 ### Task 1: Database Schema Expansion
+
 **Files:**
+
 - Create: `knowledge_os/db/migrations/20260220_add_expert_mutations.sql`
 - Modify: `knowledge_os/app/rest_api.py`
 
@@ -23,7 +25,9 @@
 ---
 
 ### Task 2: Shadow Mirroring Logic in AI Core
+
 **Files:**
+
 - Modify: `knowledge_os/app/ai_core.py`
 - Test: `knowledge_os/tests/test_shadow_mirror.py`
 
@@ -36,7 +40,9 @@
 ---
 
 ### Task 3: Shadow Evaluator Service
+
 **Files:**
+
 - Create: `knowledge_os/app/shadow_evaluator.py`
 - Test: `knowledge_os/tests/test_shadow_evaluator.py`
 
@@ -49,7 +55,9 @@
 ---
 
 ### Task 4: Automated Promotion Engine
+
 **Files:**
+
 - Create: `knowledge_os/app/promotion_engine.py`
 - Modify: `knowledge_os/app/nightly_learner.py`
 
@@ -62,7 +70,9 @@
 ---
 
 ### Task 5: Dashboard Visualization (Canvas)
+
 **Files:**
+
 - Modify: `knowledge_os/dashboard/tabs/data_tab.py`
 
 **Step 1: Replace Canvas mock with real `expert_mutations` data**

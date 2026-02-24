@@ -8,6 +8,7 @@
 ## 🎯 Проблема
 
 **Claude Code работает только с Ollama моделями**, потому что:
+
 - Claude Code использует **Anthropic-compatible API** (`/v1/messages`)
 - Ollama эмулирует Anthropic API
 - MLX API Server эмулировал только **Ollama API** (`/api/generate`)
@@ -58,12 +59,12 @@ claude --model qwen2.5-coder:32b  # MLX модель!
 
 ## 📊 Сравнение
 
-| Параметр | Ollama | MLX API Server |
-|----------|--------|----------------|
-| **Скорость** | Средняя | ⚡ Быстрее (Neural Engine) |
-| **Память** | Больше | 💾 Меньше (квантованные модели) |
-| **Claude Code** | ✅ Работает | ✅ **Теперь работает!** |
-| **Модели** | Ollama модели | MLX модели (наши локальные) |
+| Параметр        | Ollama        | MLX API Server                  |
+| --------------- | ------------- | ------------------------------- |
+| **Скорость**    | Средняя       | ⚡ Быстрее (Neural Engine)      |
+| **Память**      | Больше        | 💾 Меньше (квантованные модели) |
+| **Claude Code** | ✅ Работает   | ✅ **Теперь работает!**         |
+| **Модели**      | Ollama модели | MLX модели (наши локальные)     |
 
 ---
 
@@ -72,17 +73,17 @@ claude --model qwen2.5-coder:32b  # MLX модель!
 ### Endpoint: `/v1/messages`
 
 **Формат запроса (Anthropic):**
+
 ```json
 {
   "model": "qwen2.5-coder:32b",
-  "messages": [
-    {"role": "user", "content": "Привет!"}
-  ],
+  "messages": [{ "role": "user", "content": "Привет!" }],
   "max_tokens": 1024
 }
 ```
 
 **Что происходит:**
+
 1. MLX API Server получает Anthropic-формат запрос
 2. Преобразует в Ollama формат (объединяет сообщения)
 3. Использует существующую логику генерации MLX
@@ -91,6 +92,7 @@ claude --model qwen2.5-coder:32b  # MLX модель!
 ### Streaming поддержка
 
 Claude Code может использовать streaming для интерактивной работы:
+
 - Формат: Server-Sent Events (SSE)
 - Типы событий: `content_block_delta`, `message_delta`, `message_stop`
 
@@ -99,16 +101,19 @@ Claude Code может использовать streaming для интерак�
 ## 🎯 Преимущества
 
 ### 1. **Используем наши MLX модели**
+
 - ✅ Быстрее на Apple Silicon
 - ✅ Экономия памяти
 - ✅ Наши локальные модели
 
 ### 2. **Claude Code работает с MLX**
+
 - ✅ Прямой доступ к MLX моделям
 - ✅ Не нужен Ollama как промежуточный слой
 - ✅ Полная интеграция
 
 ### 3. **Единый API сервер**
+
 - ✅ MLX API Server поддерживает и Ollama API, и Anthropic API
 - ✅ Один сервер для всех клиентов
 - ✅ Упрощенная архитектура
@@ -162,23 +167,28 @@ message = client.messages.create(
 ## ⚠️ Важные замечания
 
 ### 1. Порт MLX API Server
+
 - По умолчанию: `11435`
 - Ollama использует: `11434`
 - Claude Code должен указывать правильный порт
 
 ### 2. Маппинг моделей
+
 - MLX API Server автоматически маппит имена моделей
 - Если модель не найдена, вернется ошибка 404
 
 ### 3. Streaming
+
 - MLX не поддерживает настоящий streaming
 - Эмулируется через разбиение ответа на символы
 - Для Claude Code это прозрачно
 
 ### 4. ⚠️ Нагрузка на MLX сервер
+
 **ВАЖНО:** Claude Code + MLX = **ДОПОЛНИТЕЛЬНАЯ нагрузка** на MLX сервер!
 
 **Для разгрузки MLX:**
+
 - Используйте Ollama для Claude Code: `export ANTHROPIC_BASE_URL=http://localhost:11434`
 - Это разгрузит MLX для Victoria (Telegram/Web)
 - MLX будет использоваться только для критичных задач
@@ -190,12 +200,14 @@ message = client.messages.create(
 ## 🔄 Миграция с Ollama на MLX
 
 ### Было (Ollama):
+
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:11434
 claude --model qwen3-coder
 ```
 
 ### Стало (MLX):
+
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:11435  # MLX!
 claude --model qwen2.5-coder:32b  # MLX модель!

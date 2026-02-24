@@ -30,11 +30,13 @@ atra-kibana             Up (порт 5601) — работает ✅
 ### 1. Grafana: Prometheus Datasource
 
 #### Автоматически (через скрипт):
+
 ```bash
 bash scripts/setup_grafana_complete.sh
 ```
 
 #### Вручную:
+
 1. Откройте http://localhost:3001
 2. Логин: `admin`, пароль: `atra2025`
 3. Settings → Data Sources → Add data source
@@ -48,11 +50,13 @@ bash scripts/setup_grafana_complete.sh
 ### 2. Grafana: Импорт дашборда
 
 #### Автоматически (через скрипт):
+
 ```bash
 bash scripts/setup_grafana_complete.sh
 ```
 
 #### Вручную:
+
 1. В Grafana: Dashboards → Import
 2. Загрузите файл: `knowledge_os/dashboard/grafana_dashboard.json`
 3. Выберите Prometheus datasource
@@ -63,6 +67,7 @@ bash scripts/setup_grafana_complete.sh
 ### 3. Kibana: Index Pattern
 
 #### Вручную (требуется после появления логов):
+
 1. Откройте http://localhost:5601
 2. Management → Stack Management → Index Patterns
 3. Create index pattern
@@ -109,12 +114,14 @@ docker logs veronica-agent | grep -i elk
 
 ### Проблема 1: Prometheus targets показывают "down"
 
-**Причина:** 
+**Причина:**
+
 - `/metrics` endpoint возвращает 404
 - Контейнеры в разных сетях
 - Targets недоступны
 
 **Решение:**
+
 1. Проверьте сеть:
    ```bash
    docker network inspect atra-network | grep -E "(prometheus|victoria|veronica|knowledge_os_api)"
@@ -135,6 +142,7 @@ docker logs veronica-agent | grep -i elk
 **Причина:** Файлы не монтируются правильно
 
 **Решение:**
+
 1. Проверьте монтирование:
    ```bash
    docker exec atra-grafana ls -la /etc/grafana/provisioning/datasources/
@@ -151,6 +159,7 @@ docker logs veronica-agent | grep -i elk
 **Причина:** ELK логирование не включено
 
 **Решение:**
+
 1. Проверьте переменные окружения:
    ```bash
    docker exec victoria-agent env | grep USE_ELK
@@ -166,27 +175,32 @@ docker logs veronica-agent | grep -i elk
 ## ✅ ПРОВЕРОЧНЫЙ ЧЕКЛИСТ
 
 ### Инфраструктура:
+
 - [x] Docker Desktop запущен
 - [x] Все контейнеры запущены
 - [x] Сеть `atra-network` существует
 
 ### Prometheus:
+
 - [x] Контейнер запущен
 - [x] Доступен на http://localhost:9090
 - [ ] Targets показывают "up" (требует исправления /metrics endpoint)
 
 ### Grafana:
+
 - [x] Контейнер запущен
 - [x] Доступен на http://localhost:3001
 - [ ] Prometheus datasource создан (требует настройки)
 - [ ] Дашборд импортирован (требует настройки)
 
 ### Elasticsearch:
+
 - [x] Контейнер запущен и healthy
 - [x] Доступен на http://localhost:9200
 - [ ] Индексы создаются (требует включения ELK логирования)
 
 ### Kibana:
+
 - [x] Контейнер запущен
 - [x] Доступен на http://localhost:5601
 - [ ] Index pattern создан (требует настройки после появления логов)
@@ -196,6 +210,7 @@ docker logs veronica-agent | grep -i elk
 ## 📝 СЛЕДУЮЩИЕ ШАГИ
 
 1. **Настроить Grafana:**
+
    ```bash
    bash scripts/setup_grafana_complete.sh
    ```
@@ -213,4 +228,4 @@ docker logs veronica-agent | grep -i elk
 
 ---
 
-*Отчет создан 2026-01-25*
+_Отчет создан 2026-01-25_

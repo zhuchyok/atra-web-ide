@@ -45,8 +45,9 @@
 Victoria Enhanced пытается использовать MLX API (порт 11435), но он недоступен. Вместо использования Ollama как fallback, Victoria возвращает неполный ответ "Обрабатываю...".
 
 ### Логи показывают:
+
 ```
-ERROR:app.network_resilience:❌ Не удалось выполнить запрос к 
+ERROR:app.network_resilience:❌ Не удалось выполнить запрос к
 http://host.docker.internal:11435/api/generate после 3 попыток
 ```
 
@@ -65,15 +66,18 @@ http://host.docker.internal:11435/api/generate после 3 попыток
 ## 🔧 РЕШЕНИЕ
 
 ### Вариант 1: Запустить MLX API Server
+
 ```bash
 # Проверьте, как запускается MLX в вашей системе
 # Обычно это отдельный процесс или сервис
 ```
 
 ### Вариант 2: Настроить Victoria на использование Ollama
+
 Обновите конфигурацию Victoria Enhanced, чтобы она использовала Ollama вместо MLX.
 
 ### Вариант 3: Улучшить fallback логику
+
 Victoria Enhanced должна лучше обрабатывать недоступность MLX и автоматически переключаться на Ollama.
 
 ---

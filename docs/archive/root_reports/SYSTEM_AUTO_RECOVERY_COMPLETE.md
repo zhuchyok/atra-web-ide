@@ -10,10 +10,12 @@
 ### 1. ✅ Docker Compose Restart Policies
 
 **Файлы:**
+
 - `docker-compose.yml` - ATRA Web IDE сервисы
 - `knowledge_os/docker-compose.yml` - Knowledge OS сервисы
 
 **Политики перезапуска:**
+
 - `restart: always` - Victoria Agent, Veronica Agent (автоматический перезапуск при любом завершении)
 - `restart: unless-stopped` - Frontend, Backend, Prometheus, Grafana, Elasticsearch, Kibana (автозапуск при старте Docker)
 
@@ -24,10 +26,12 @@
 ### 2. ✅ Система Самовосстановления
 
 **Файлы:**
+
 - `scripts/system_auto_recovery.sh` - основной скрипт проверки и восстановления
 - `scripts/setup_system_auto_recovery.sh` - настройка автозапуска через launchd
 
 **Функции:**
+
 - ✅ Проверка и запуск Docker
 - ✅ Проверка и создание Docker сети
 - ✅ Запуск Knowledge OS сервисов
@@ -38,6 +42,7 @@
 - ✅ Финальная проверка и отчет
 
 **Автозапуск:**
+
 - Запускается при загрузке системы (через launchd)
 - Проверяет все сервисы каждые 5 минут
 - Автоматически исправляет проблемы
@@ -49,6 +54,7 @@
 **Файл:** `knowledge_os/app/self_check_system.py`
 
 **Функции:**
+
 - ✅ Автоматическая проверка всех компонентов
 - ✅ Диагностика проблем
 - ✅ Автоматическое исправление (перезапуск упавших сервисов)
@@ -64,6 +70,7 @@
 **Файл:** `knowledge_os/app/self_healing.py`
 
 **Функции:**
+
 - ✅ Проверка здоровья узлов
 - ✅ Автоматическое исправление (перезапуск)
 - ✅ Отслеживание успешных/неуспешных попыток
@@ -74,11 +81,13 @@
 ### 5. ✅ Скрипты Проверки
 
 **Файлы:**
+
 - `scripts/check_and_start_corporation.sh` - проверка и запуск корпорации
 - `scripts/check_and_start_containers.sh` - проверка и запуск контейнеров
 - `scripts/check_all_services_enhanced.sh` - расширенная проверка всех сервисов
 
 **Функции:**
+
 - ✅ Проверка Docker
 - ✅ Проверка контейнеров
 - ✅ Проверка автономных систем
@@ -90,6 +99,7 @@
 ### 6. ✅ Автозапуск через launchd
 
 **Настроенные сервисы:**
+
 - ✅ `com.atra.auto-recovery` - система самовосстановления (каждые 5 минут)
 - ✅ `com.atra.self-check` - система самопроверки (каждые 5 минут)
 - ✅ `com.atra.mac-studio-startup` - полный запуск на Mac Studio
@@ -98,6 +108,7 @@
 - ✅ `com.atra.victoria-mcp` - Victoria MCP Server
 
 **Логи:**
+
 - `~/Library/Logs/atra-auto-recovery.log`
 - `~/Library/Logs/atra-auto-recovery.error.log`
 - `~/Library/Logs/atra-self-check.log`
@@ -120,7 +131,7 @@
    - Knowledge OS (Victoria, Veronica, БД, Redis)
    - ATRA Web IDE (Frontend, Backend)
    - MLX API Server
-   ↓
+     ↓
 6. **Автоматическое исправление проблем** (перезапуск упавших контейнеров)
    ↓
 7. **Финальная проверка и отчет**
@@ -132,6 +143,7 @@
 ## 📋 ЧТО ПРОВЕРЯЕТСЯ
 
 ### Knowledge OS сервисы:
+
 - ✅ Victoria Agent (порт 8010)
 - ✅ Veronica Agent (порт 8011)
 - ✅ PostgreSQL + pgvector (порт 5432)
@@ -142,11 +154,13 @@
 - ✅ Grafana (порт 3001)
 
 ### ATRA Web IDE сервисы:
+
 - ✅ Frontend (порт 3002)
 - ✅ Backend (порт 8080)
 - ✅ API endpoints (`/health`, `/api/chat/status`)
 
 ### Внешние сервисы:
+
 - ✅ MLX API Server (порт 11435)
 - ✅ Docker сеть (`atra-network`)
 
@@ -182,6 +196,7 @@ bash scripts/check_and_start_corporation.sh
 ## ✅ ИТОГОВЫЙ СТАТУС
 
 ### Реализовано:
+
 - ✅ Docker Compose restart policies (все контейнеры)
 - ✅ Система самовосстановления (`system_auto_recovery.sh`)
 - ✅ Автозапуск через launchd
@@ -193,6 +208,7 @@ bash scripts/check_and_start_corporation.sh
 - ✅ Логирование и отчетность
 
 ### При перезагрузке системы:
+
 1. ✅ Docker Desktop запускается автоматически
 2. ✅ Все Docker контейнеры запускаются автоматически
 3. ✅ Система самовосстановления проверяет все сервисы
@@ -206,16 +222,18 @@ bash scripts/check_and_start_corporation.sh
 **✅ СИСТЕМА ПОЛНОСТЬЮ АВТОНОМНА!**
 
 При перезагрузке системы:
+
 - Все сервисы запускаются автоматически
 - Все проблемы исправляются автоматически
 - Все проверяется автоматически
 - Система работает без вмешательства человека
 
 **Проверка после перезагрузки:**
+
 ```bash
 bash scripts/system_auto_recovery.sh
 ```
 
 ---
 
-*Создано: 2026-01-26*
+_Создано: 2026-01-26_

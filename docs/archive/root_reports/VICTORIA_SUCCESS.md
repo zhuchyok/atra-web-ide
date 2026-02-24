@@ -47,8 +47,9 @@ curl http://localhost:8000/health
 ```
 
 **Ожидаемый результат:**
+
 ```json
-{"status": "ok", "agent": "Виктория"}
+{ "status": "ok", "agent": "Виктория" }
 ```
 
 ### Статус Victoria Enhanced:
@@ -58,6 +59,7 @@ curl http://localhost:8000/status | jq '.victoria_enhanced'
 ```
 
 **Ожидаемый результат:**
+
 ```json
 {
   "enabled": true,

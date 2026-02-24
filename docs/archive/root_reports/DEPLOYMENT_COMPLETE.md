@@ -8,6 +8,7 @@
 ## ✅ ВЫПОЛНЕННЫЕ ЗАДАЧИ
 
 ### 1. Проверка и исправление конфигурации ✅
+
 - ✅ Исправлено дублирование volumes в veronica-agent
 - ✅ Добавлен USE_VERONICA_ENHANCED в корневой docker-compose.yml
 - ✅ Добавлены все необходимые переменные окружения для Victoria
@@ -15,18 +16,21 @@
 - ✅ Исправлена конфигурация сети (external: true)
 
 ### 2. Проверка файлов проекта ✅
+
 - ✅ Backend файлы присутствуют и корректны
 - ✅ Frontend файлы присутствуют и корректны
 - ✅ Dockerfile для backend и frontend проверены
 - ✅ requirements.txt и package.json проверены
 
 ### 3. Сборка и запуск сервисов ✅
+
 - ✅ Docker образы собраны (backend, frontend)
 - ✅ Knowledge OS контейнеры запущены (Victoria, Veronica, DB)
 - ✅ Web IDE контейнеры запущены (Frontend, Backend, Redis)
 - ✅ Использована существующая БД из knowledge_os (избежание конфликтов)
 
 ### 4. Исправление конфликтов портов ✅
+
 - ✅ Frontend перенесен на порт 3002 (3000 занят Grafana)
 - ✅ Использована существующая БД (5432 занят knowledge_os_db)
 - ✅ Все сервисы работают без конфликтов
@@ -36,6 +40,7 @@
 ## 🚀 ЗАПУЩЕННЫЕ СЕРВИСЫ
 
 ### Knowledge OS (из knowledge_os/docker-compose.yml):
+
 - ✅ **Victoria Agent** (порт 8010) - работает, health check OK
 - ✅ **Veronica Agent** (порт 8011) - работает, health check OK
 - ✅ **PostgreSQL** (порт 5432) - работает, healthy
@@ -44,6 +49,7 @@
 - ✅ **Kibana, Prometheus, Grafana** - работают
 
 ### Web IDE (из docker-compose.yml):
+
 - ✅ **Frontend** (порт 3002) - работает, доступен
 - ✅ **Backend** (порт 8080) - работает, health check OK
 - ✅ **Redis** (порт 6379) - работает
@@ -53,6 +59,7 @@
 ## 📊 API ENDPOINTS
 
 ### Backend (http://localhost:8080):
+
 - ✅ `GET /` - Информация о сервисе - работает
 - ✅ `GET /health` - Health check - работает (статус: degraded из-за Ollama)
 - ✅ `POST /api/chat` - Чат с агентами - готов
@@ -62,10 +69,12 @@
 - ✅ `GET /docs` - Swagger документация - доступна
 
 ### Victoria Agent (http://localhost:8010):
+
 - ✅ `GET /health` - Health check - работает
 - ✅ `POST /chat` - Чат с Victoria - работает
 
 ### Veronica Agent (http://localhost:8011):
+
 - ✅ `GET /health` - Health check - работает
 - ✅ `POST /chat` - Чат с Veronica - работает
 
@@ -74,6 +83,7 @@
 ## 🌐 ДОСТУП К СЕРВИСАМ
 
 ### Локальный доступ:
+
 - **Frontend:** http://localhost:3002
 - **Backend API:** http://localhost:8080
 - **Backend Docs:** http://localhost:8080/docs
@@ -84,6 +94,7 @@
 - **Prometheus:** http://localhost:9090
 
 ### Из Docker контейнеров:
+
 - **Victoria URL:** `http://host.docker.internal:8010`
 - **Ollama URL:** `http://host.docker.internal:11434` (если запущен)
 - **Database:** `postgresql://admin:secret@knowledge_os_db:5432/knowledge_os`
@@ -93,17 +104,21 @@
 ## ⚠️ ИЗВЕСТНЫЕ ПРОБЛЕМЫ
 
 ### 1. Ollama недоступен
+
 **Статус:** ⚠️ Ollama не запущен на localhost:11434  
 **Влияние:** Backend показывает статус "degraded", но работает  
-**Решение:** 
+**Решение:**
+
 - Запустить Ollama/MLX API Server: `bash scripts/start_mlx_api_server.sh`
 - Или использовать внешний Ollama сервер
 
 ### 2. Frontend на порту 3002
+
 **Причина:** Порт 3000 занят Grafana  
 **Решение:** Используется порт 3002, работает корректно
 
 ### 3. Используется существующая БД
+
 **Причина:** Порт 5432 занят knowledge_os_db  
 **Решение:** Backend использует существующую БД через `knowledge_os_db:5432`
 
@@ -112,6 +127,7 @@
 ## 🔧 КОНФИГУРАЦИЯ
 
 ### Переменные окружения (.env):
+
 ```env
 VICTORIA_URL=http://host.docker.internal:8010
 OLLAMA_URL=http://host.docker.internal:11434
@@ -123,6 +139,7 @@ USE_VICTORIA_ENHANCED=true
 ```
 
 ### Docker Compose:
+
 - **Knowledge OS:** `docker-compose -f knowledge_os/docker-compose.yml up -d`
 - **Web IDE:** `docker-compose up -d frontend backend redis`
 
@@ -131,12 +148,14 @@ USE_VICTORIA_ENHANCED=true
 ## 📋 СЛЕДУЮЩИЕ ШАГИ
 
 ### Рекомендуется:
+
 1. ✅ Запустить Ollama/MLX API Server для полной функциональности
 2. ✅ Настроить CORS в frontend для работы с backend
 3. ✅ Протестировать чат через Web IDE интерфейс
 4. ✅ Настроить автозапуск всех сервисов
 
 ### Опционально:
+
 - Настроить SSL/TLS для production
 - Настроить мониторинг и алерты
 - Добавить аутентификацию пользователей
@@ -158,4 +177,4 @@ USE_VICTORIA_ENHANCED=true
 
 ---
 
-*Развертывание завершено: 2026-01-26*
+_Развертывание завершено: 2026-01-26_

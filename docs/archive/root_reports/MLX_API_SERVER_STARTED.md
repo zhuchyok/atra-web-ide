@@ -8,11 +8,13 @@
 ## 🚀 ЗАПУСК MLX API SERVER
 
 ### Команда
+
 ```bash
 python3 -m uvicorn knowledge_os.app.mlx_api_server:app --host 0.0.0.0 --port 11435
 ```
 
 ### Статус
+
 - ✅ Сервер запущен на порту 11435
 - ✅ Доступен локально: `http://localhost:11435`
 - ✅ Доступен из Docker: `http://host.docker.internal:11435`
@@ -28,6 +30,7 @@ python3 -m uvicorn knowledge_os.app.mlx_api_server:app --host 0.0.0.0 --port 114
 ## ✅ РЕЗУЛЬТАТЫ
 
 После запуска MLX API Server:
+
 - ✅ ReActAgent сможет использовать модели
 - ✅ Создание файлов будет работать
 - ✅ Более качественные ответы

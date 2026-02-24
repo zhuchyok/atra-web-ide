@@ -8,6 +8,7 @@
 ## ✅ ВЫПОЛНЕНО АВТОМАТИЧЕСКИ
 
 ### 1. Экспорт с Mac Studio ✅
+
 - ✅ Остановлены все контейнеры (13 контейнеров)
 - ✅ Экспортировано **9 Docker volumes** (~200+ MB данных):
   - `atra-postgres-data` (79 MB) - база данных
@@ -36,6 +37,7 @@
   - Настройки контейнеров
 
 ### 2. Копирование на Mac Studio ✅
+
 - ✅ Бэкап успешно скопирован через SCP
 - ✅ Расположение: `~/Documents/atra-web-ide/backups/migration/atra-docker-migration-20260125-235238`
 - ✅ Скрипты импорта скопированы:
@@ -47,6 +49,7 @@
 ## ⚠️ ТРЕБУЕТСЯ РУЧНОЕ ДЕЙСТВИЕ НА MAC STUDIO
 
 ### Проблема:
+
 Docker Desktop не установлен или не запущен на Mac Studio.
 
 ### Решение:
@@ -64,6 +67,7 @@ Docker Desktop не установлен или не запущен на Mac Stu
 #### Вариант 2: Если Docker Desktop уже установлен
 
 1. **Запустите Docker Desktop:**
+
    ```bash
    open -a Docker
    ```
@@ -162,9 +166,10 @@ curl http://localhost:8000/health
 
 ## 📊 СТАТУС КОНТЕЙНЕРОВ НА Mac Studio
 
-После миграции контейнеры на Mac Studio **остановлены**. 
+После миграции контейнеры на Mac Studio **остановлены**.
 
 **Можно:**
+
 - ✅ Выключить Docker Desktop на Mac Studio
 - ✅ Использовать Mac Studio только как клиент
 - ✅ Подключаться к сервисам на Mac Studio через `http://192.168.1.64:8010`
@@ -176,17 +181,20 @@ curl http://localhost:8000/health
 После импорта все сервисы будут доступны:
 
 ### Локально на Mac Studio:
+
 - `http://localhost:8010` - Victoria Agent
 - `http://localhost:8011` - Veronica Agent
 - `http://localhost:11434` - Ollama/MLX API
 - `http://localhost:8000` - Knowledge OS API
 
 ### С Mac Studio:
+
 - `http://192.168.1.64:8010` - Victoria Agent
 - `http://192.168.1.64:8011` - Veronica Agent
 - `http://192.168.1.64:11434` - Ollama/MLX API
 
 ### Из интернета (через SSH туннель):
+
 - `http://185.177.216.15:8010` - Victoria Agent
 - `http://185.177.216.15:8011` - Veronica Agent
 
@@ -202,4 +210,4 @@ curl http://localhost:8000/health
 
 ---
 
-*Отчет создан: 2026-01-25 00:05*
+_Отчет создан: 2026-01-25 00:05_

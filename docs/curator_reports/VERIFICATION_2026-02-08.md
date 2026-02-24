@@ -6,11 +6,11 @@
 
 ## 1. Тесты
 
-| Набор | Результат |
-|-------|-----------|
-| Backend `backend/app/tests/` | 37 passed |
-| Knowledge OS `test_json_fast_http_client` + `test_service_monitor` | 11 passed |
-| Frontend `npm run test` | 4 passed (chat.spec.js) |
+| Набор                                                              | Результат               |
+| ------------------------------------------------------------------ | ----------------------- |
+| Backend `backend/app/tests/`                                       | 37 passed               |
+| Knowledge OS `test_json_fast_http_client` + `test_service_monitor` | 11 passed               |
+| Frontend `npm run test`                                            | 4 passed (chat.spec.js) |
 
 ---
 

@@ -10,6 +10,7 @@
 ### ✅ **ДА, задачи автоматически выбирают модели!**
 
 Корпорация ATRA использует **интеллектуальную систему автоматического выбора моделей** на основе:
+
 1. **Категории задачи** (reasoning, coding, fast, vision)
 2. **Содержания промпта** (ключевые слова, длина)
 3. **ML Router** (Singularity 5.0) — машинное обучение для оптимального выбора
@@ -27,24 +28,25 @@
 def _select_model(self, prompt: str, category: str = None) -> str:
     """Select the best local model for the task."""
     prompt_lower = prompt.lower()
-    
+
     # Reasoning задачи → deepseek-r1:7b
     if category == "reasoning" or "подумай" in prompt_lower or "логика" in prompt_lower:
         return MODEL_MAP["reasoning"]  # deepseek-r1:7b
-    
+
     # Fast задачи → phi4
     if category == "fast" or len(prompt) < 300:
         return MODEL_MAP["fast"]  # phi4
-    
+
     # Coding задачи → qwen2.5-coder:7b
     if "код" in prompt_lower or "программируй" in prompt_lower:
         return MODEL_MAP["coding"]  # qwen2.5-coder:7b
-    
+
     # По умолчанию → qwen2.5-coder:7b
     return MODEL_MAP["default"]  # qwen2.5-coder:7b
 ```
 
 **Категории:**
+
 - `reasoning` → `deepseek-r1:7b` (планирование, логика)
 - `coding` → `qwen2.5-coder:7b` (код, рефакторинг)
 - `fast` → `phi4` (быстрые ответы)
@@ -66,6 +68,7 @@ def _select_model(self, prompt: str, category: str = None) -> str:
   - Историю успешных запросов
 
 **Файлы:**
+
 - `knowledge_os/app/ml_router_v2.py` — ML Router V2
 - `knowledge_os/app/ml_router_model.py` — ML модель
 - `knowledge_os/app/ml_router_trainer.py` — Обучение модели
@@ -92,6 +95,7 @@ async def select_available_model(
 ```
 
 **Приоритеты по категориям:**
+
 - `reasoning`: `["deepseek-r1:7b", "qwen2.5-coder:7b", "phi4"]`
 - `coding`: `["qwen2.5-coder:7b", "deepseek-coder:6.7b", "phi4"]`
 - `fast`: `["phi4", "qwen2.5-coder:7b"]`
@@ -109,6 +113,7 @@ async def select_available_model(
 - **Ночь:** Только легкие модели
 
 **Автоматически:**
+
 - Загружает нужные модели
 - Выгружает неиспользуемые
 - Оптимизирует память
@@ -118,6 +123,7 @@ async def select_available_model(
 ## 📊 ПРИМЕРЫ АВТОМАТИЧЕСКОГО ВЫБОРА
 
 ### Пример 1: Reasoning задача
+
 ```
 Промпт: "Подумай о стратегии развития проекта"
 Категория: reasoning (или определяется автоматически)
@@ -125,6 +131,7 @@ async def select_available_model(
 ```
 
 ### Пример 2: Coding задача
+
 ```
 Промпт: "Напиши функцию для обработки данных"
 Категория: coding (определяется по ключевому слову "напиши")
@@ -132,6 +139,7 @@ async def select_available_model(
 ```
 
 ### Пример 3: Fast задача
+
 ```
 Промпт: "Скажи привет" (короткий промпт < 300 символов)
 Категория: fast
@@ -139,6 +147,7 @@ async def select_available_model(
 ```
 
 ### Пример 4: Vision задача
+
 ```
 Промпт: "Что на этом изображении?"
 Изображение: предоставлено
@@ -150,6 +159,7 @@ async def select_available_model(
 ## 🎯 КАК ЭКСПЕРТЫ ИСПОЛЬЗУЮТ МОДЕЛИ
 
 ### Victoria Agent:
+
 ```python
 # Planner (для планирования)
 self.planner = OllamaExecutor(model="qwen2.5-coder:32b")
@@ -161,6 +171,7 @@ self.executor = OllamaExecutor(model="qwen2.5-coder:32b")
 **Примечание:** Модели задаются при инициализации, но могут быть переопределены через категории.
 
 ### Veronica Agent:
+
 ```python
 # Planner (для планирования)
 self.planner = OllamaExecutor(model="deepseek-r1:7b")
@@ -195,16 +206,16 @@ self.executor = OllamaExecutor(model="qwen2.5-coder:7b")
 
 **Статус:** ✅ MLX API Server работает на порту 11434 (эмулирует Ollama API)
 
-| Модель | Размер | Назначение | Автовыбор |
-|--------|--------|------------|-----------|
-| **command-r-plus:104b** | ~65GB | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise |
-| **deepseek-r1-distill-llama:70b** | ~40GB | Reasoning, планирование (distilled) | ✅ reasoning |
-| **llama3.3:70b** | ~40GB | Максимальное качество, общие задачи | ✅ complex |
-| **qwen2.5-coder:32b** | ~20GB | Качественный код, рефакторинг | ✅ coding (high quality) |
-| **phi3.5:3.8b** | ~2.5GB | Быстрые задачи, общие | ✅ fast, general |
-| **phi3:mini-4k** | ~2GB | Быстрые ответы, легкие задачи | ✅ fast (lightweight) |
-| **qwen2.5:3b** | ~2GB | Быстрые ответы, общие задачи | ✅ fast, default |
-| **tinyllama:1.1b-chat** | ~700MB | Очень быстрые ответы | ✅ fast (ultra-lightweight) |
+| Модель                            | Размер | Назначение                                  | Автовыбор                   |
+| --------------------------------- | ------ | ------------------------------------------- | --------------------------- |
+| **command-r-plus:104b**           | ~65GB  | Максимальная мощность, RAG, мультиязычность | ✅ complex, enterprise      |
+| **deepseek-r1-distill-llama:70b** | ~40GB  | Reasoning, планирование (distilled)         | ✅ reasoning                |
+| **llama3.3:70b**                  | ~40GB  | Максимальное качество, общие задачи         | ✅ complex                  |
+| **qwen2.5-coder:32b**             | ~20GB  | Качественный код, рефакторинг               | ✅ coding (high quality)    |
+| **phi3.5:3.8b**                   | ~2.5GB | Быстрые задачи, общие                       | ✅ fast, general            |
+| **phi3:mini-4k**                  | ~2GB   | Быстрые ответы, легкие задачи               | ✅ fast (lightweight)       |
+| **qwen2.5:3b**                    | ~2GB   | Быстрые ответы, общие задачи                | ✅ fast, default            |
+| **tinyllama:1.1b-chat**           | ~700MB | Очень быстрые ответы                        | ✅ fast (ultra-lightweight) |
 
 ---
 
@@ -233,6 +244,7 @@ self.executor = OllamaExecutor(model="qwen2.5-coder:7b")
 **ДА, задачи автоматически выбирают модели из доступных!**
 
 Система использует:
+
 - ✅ **Категории задач** для базового выбора
 - ✅ **ML Router** для интеллектуального выбора
 - ✅ **Эвристики** как fallback
@@ -242,4 +254,4 @@ self.executor = OllamaExecutor(model="qwen2.5-coder:7b")
 
 ---
 
-*Документация создана 2026-01-25*
+_Документация создана 2026-01-25_

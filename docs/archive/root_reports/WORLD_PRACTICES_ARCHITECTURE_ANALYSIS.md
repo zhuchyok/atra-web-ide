@@ -8,6 +8,7 @@
 ## 🎯 ЧТО МЫ СДЕЛАЛИ
 
 ### Наша реализация:
+
 1. ✅ **Единый экземпляр агентов** (Victoria, Veronica) для всех проектов
 2. ✅ **Поддержка контекста проекта** через параметр `project_context` в запросах
 3. ✅ **Динамическое обновление системных промптов** с контекстом проекта
@@ -20,6 +21,7 @@
 ### 1. **Microsoft Multi-Agent Reference Architecture** ✅
 
 **Подход:**
+
 - Поддерживает **shared infrastructure** с orchestration
 - **Agent Registry** для управления агентами
 - **Memory Systems** для контекста (short и long-term)
@@ -27,6 +29,7 @@
 - **Observability & Evaluation** для мониторинга
 
 **Наше соответствие:** ✅ **100%**
+
 - У нас есть shared infrastructure (knowledge_os/docker-compose.yml)
 - У нас есть Agent Registry (Victoria, Veronica)
 - У нас есть Memory Systems (project_knowledge, Knowledge OS)
@@ -38,12 +41,14 @@
 ### 2. **Microsoft AutoGen** ✅
 
 **Подход:**
+
 - **Standalone Runtime**: Single-process, shared infrastructure
 - **Distributed Runtime**: Multi-process, dedicated agents
 - **Гибкость**: Одинаковые агенты работают в обоих режимах
 - **Actor Model**: Асинхронная передача сообщений
 
 **Наше соответствие:** ✅ **95%**
+
 - Мы используем Standalone Runtime (shared infrastructure)
 - Наши агенты могут работать в distributed режиме (через Docker сеть)
 - У нас есть асинхронная обработка (FastAPI async)
@@ -54,18 +59,21 @@
 ### 3. **AWS Bedrock Multi-Tenant Architecture** ⚠️
 
 **Подход:**
+
 - **Pooled Model**: Shared resources с fine-grained policies
 - **Context Isolation**: Tenant context НЕ отправляется напрямую в LLM
 - **Authoritative Sources**: Контекст вводится через детерминированные компоненты
 - **Security**: Предотвращение prompt injection через изоляцию контекста
 
 **Наше соответствие:** ⚠️ **80%**
+
 - ✅ Мы используем Pooled Model (shared agents)
 - ✅ У нас есть context isolation (project_context)
 - ⚠️ **ПРОБЛЕМА**: Мы отправляем `project_context` напрямую в системный промпт LLM
 - ⚠️ **РИСК**: Возможность prompt injection, если злоумышленник передаст вредоносный project_context
 
 **Рекомендация AWS:**
+
 > "Tenant context should be passed through deterministic application components rather than directly to foundation models (FMs). FMs are susceptible to prompt injection attacks."
 
 ---
@@ -73,17 +81,20 @@
 ### 4. **OpenAI Agents SDK** ⚠️
 
 **Подход:**
+
 - **RunContextWrapper**: Контекст НЕ отправляется в LLM
 - **Context Management**: Контекст - это Python объект (dataclass/Pydantic)
 - **Separation**: Контекстные данные (user IDs, dependencies) отделены от model inputs
 
 **Наше соответствие:** ⚠️ **70%**
+
 - ✅ У нас есть контекст (project_context)
 - ✅ У нас есть Pydantic модели (TaskRequest)
 - ⚠️ **ПРОБЛЕМА**: Мы отправляем project_context в системный промпт
 - ⚠️ **РИСК**: Контекст может быть скомпрометирован через prompt injection
 
 **Рекомендация OpenAI:**
+
 > "Context is explicitly NOT sent to the LLM. This keeps contextual data like user IDs and dependencies separate from model inputs, preventing unintended data exposure."
 
 ---
@@ -91,12 +102,14 @@
 ### 5. **Anthropic MCP (Model Context Protocol)** ✅
 
 **Подход:**
+
 - **Code Execution**: Агенты генерируют и выполняют код в sandboxed environments
 - **Context Separation**: Обработка данных вне context window
 - **Data Masking**: Данные маскируются перед отправкой в модель
 - **Sandboxing**: Изоляция выполнения кода
 
 **Наше соответствие:** ✅ **85%**
+
 - ✅ У нас есть code execution (Veronica может выполнять команды)
 - ✅ У нас есть context separation (project_context отделен от goal)
 - ⚠️ **Нет sandboxing**: Мы не изолируем выполнение кода по проектам
@@ -135,6 +148,7 @@
 1. **Security: Context Injection в LLM** ⚠️
 
 **Текущая реализация:**
+
 ```python
 project_prompt = f"""
 🏢 КОНТЕКСТ ПРОЕКТА: {project_context}
@@ -145,11 +159,13 @@ agent.executor.system_prompt = original_prompt + "\n" + project_prompt
 ```
 
 **Проблема:**
+
 - `project_context` отправляется напрямую в LLM
 - Риск prompt injection, если злоумышленник передаст вредоносный `project_context`
 - Не соответствует рекомендациям AWS и OpenAI
 
 **Рекомендация:**
+
 ```python
 # Валидация project_context (whitelist)
 ALLOWED_PROJECTS = ["atra-web-ide", "atra", "new-project"]
@@ -166,10 +182,12 @@ PROJECT_CONFIGS = {
 2. **Sandboxing для Code Execution** ⚠️
 
 **Текущая реализация:**
+
 - Veronica выполняет команды без изоляции по проектам
 - Нет проверки, что команды выполняются в правильной директории проекта
 
 **Рекомендация:**
+
 ```python
 # Изоляция выполнения по проектам
 with project_workspace(project_context):
@@ -179,16 +197,18 @@ with project_workspace(project_context):
 3. **Context Management (как OpenAI)** ⚠️
 
 **Текущая реализация:**
+
 - Контекст отправляется в системный промпт
 
 **Рекомендация (OpenAI style):**
+
 ```python
 # Контекст НЕ отправляется в LLM, используется только для routing
 class ProjectContext:
     project_id: str
     workspace_path: str
     allowed_tools: List[str]
-    
+
 # Используется для routing, но НЕ в промпте
 context = ProjectContext(project_id=project_context)
 # Routing на основе context, но промпт без context
@@ -198,14 +218,14 @@ context = ProjectContext(project_id=project_context)
 
 ## 📊 ИТОГОВАЯ ОЦЕНКА
 
-| Критерий | Оценка | Комментарий |
-|----------|--------|-------------|
+| Критерий                  | Оценка  | Комментарий                                  |
+| ------------------------- | ------- | -------------------------------------------- |
 | **Shared Infrastructure** | ✅ 100% | Соответствует Microsoft AutoGen, AWS Bedrock |
-| **Context Isolation** | ✅ 90% | Есть изоляция, но можно улучшить |
-| **Security** | ⚠️ 70% | Нужна валидация project_context, sandboxing |
-| **Scalability** | ✅ 100% | Легко добавлять новые проекты |
-| **Best Practices** | ✅ 85% | Соответствует большинству практик |
-| **Architecture Pattern** | ✅ 95% | Правильный выбор (Pooled Model) |
+| **Context Isolation**     | ✅ 90%  | Есть изоляция, но можно улучшить             |
+| **Security**              | ⚠️ 70%  | Нужна валидация project_context, sandboxing  |
+| **Scalability**           | ✅ 100% | Легко добавлять новые проекты                |
+| **Best Practices**        | ✅ 85%  | Соответствует большинству практик            |
+| **Architecture Pattern**  | ✅ 95%  | Правильный выбор (Pooled Model)              |
 
 **Общая оценка:** ✅ **88% - ОТЛИЧНО!**
 
@@ -255,6 +275,7 @@ context = ProjectContext(project_id=project_context)
 ### Приоритет 1 (Security):
 
 1. **Валидация project_context:**
+
 ```python
 ALLOWED_PROJECTS = ["atra-web-ide", "atra"]
 if project_context not in ALLOWED_PROJECTS:
@@ -262,6 +283,7 @@ if project_context not in ALLOWED_PROJECTS:
 ```
 
 2. **Deterministic Mapping:**
+
 ```python
 PROJECT_CONFIGS = {
     "atra-web-ide": {
@@ -275,6 +297,7 @@ PROJECT_CONFIGS = {
 ### Приоритет 2 (Best Practices):
 
 3. **Context Separation (OpenAI style):**
+
 ```python
 # Контекст для routing, но НЕ в промпте
 context = ProjectContext(project_id=project_context)
@@ -283,6 +306,7 @@ context = ProjectContext(project_id=project_context)
 ```
 
 4. **Sandboxing:**
+
 ```python
 # Изоляция выполнения
 with project_workspace(project_context):
@@ -296,11 +320,13 @@ with project_workspace(project_context):
 ### ✅ **ДА, МЫ СДЕЛАЛИ ПРАВИЛЬНО!**
 
 Наша архитектура соответствует **88% мировых практик** и использует правильные паттерны:
+
 - ✅ Shared Infrastructure (Microsoft AutoGen, AWS Bedrock)
 - ✅ Context Isolation (Multi-tenant architecture)
 - ✅ Flexible Architecture (Scalability)
 
 **Небольшие улучшения:**
+
 - ⚠️ Security: валидация project_context
 - ⚠️ Best Practices: context separation (OpenAI style)
 - ⚠️ Sandboxing: изоляция выполнения кода
@@ -309,7 +335,8 @@ with project_workspace(project_context):
 
 ---
 
-*Анализ основан на:*
+_Анализ основан на:_
+
 - Microsoft Multi-Agent Reference Architecture
 - Microsoft AutoGen Documentation
 - AWS Bedrock Multi-Tenant Architecture

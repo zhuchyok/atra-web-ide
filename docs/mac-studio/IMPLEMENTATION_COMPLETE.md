@@ -10,12 +10,14 @@
 ### 1. ✅ Prometheus и Grafana
 
 #### Добавлено в `docker-compose.yml`:
+
 - ✅ Prometheus контейнер (порт 9090)
 - ✅ Grafana контейнер (порт 3000)
 - ✅ Volumes для персистентности данных
 - ✅ Подключение к сети `atra-network`
 
 #### Обновлено:
+
 - ✅ `prometheus.yml` — конфигурация для правильных targets:
   - Victoria Agent (atra-victoria-agent:8010)
   - Veronica Agent (atra-veronica-agent:8011)
@@ -23,6 +25,7 @@
   - Prometheus сам себя
 
 #### Добавлено:
+
 - ✅ `/metrics` endpoint в `knowledge_os/app/main.py` для экспорта метрик Prometheus
 
 ---
@@ -30,6 +33,7 @@
 ### 2. ✅ ELK стек (Elasticsearch + Kibana)
 
 #### Добавлено в `docker-compose.yml`:
+
 - ✅ Elasticsearch контейнер (порт 9200)
 - ✅ Kibana контейнер (порт 5601)
 - ✅ Healthcheck для Elasticsearch
@@ -37,6 +41,7 @@
 - ✅ Подключение к сети `atra-network`
 
 #### Создано:
+
 - ✅ `knowledge_os/app/elk_handler.py` — полнофункциональный ELK handler:
   - Асинхронная отправка логов
   - Батчинг для эффективности
@@ -45,6 +50,7 @@
   - Структурированные логи с метаданными
 
 #### Интегрировано:
+
 - ✅ `knowledge_os/src/shared/utils/logger.py` — добавлена поддержка ELK:
   - Параметр `use_elk` в `setup_logging()`
   - Автоматическое создание ELK handler
@@ -129,12 +135,14 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 ## ✅ ПРЕИМУЩЕСТВА
 
 ### Grafana:
+
 - 📊 Визуализация метрик производительности
 - 📈 Дашборды для мониторинга корпорации
 - 🚨 Алерты при проблемах
 - 📉 Анализ трендов
 
 ### ELK стек:
+
 - 🔍 Централизованный поиск по логам всех компонентов
 - 📊 Визуализация паттернов в логах
 - 🚨 Алерты на основе логов
@@ -152,4 +160,4 @@ docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 
 ---
 
-*Реализация завершена 2026-01-25*
+_Реализация завершена 2026-01-25_

@@ -8,12 +8,14 @@
 ## 🐳 DOCKER ОБРАЗЫ
 
 ### ATRA Web IDE:
+
 - ✅ `atra-web-ide-frontend:latest`
 - ✅ `atra-web-ide-backend:latest`
 - ✅ `atra-victoria-agent:latest`
 - ✅ `atra-veronica-agent:latest`
 
 ### Knowledge OS:
+
 - ✅ `atra-knowledge_mcp`
 - ✅ `atra-knowledge_rest`
 - ✅ `atra-knowledge_vector_core`
@@ -22,6 +24,7 @@
 - ✅ `atra-knowledge_nightly`
 
 ### Инфраструктура:
+
 - ✅ `pgvector/pgvector:pg16` (PostgreSQL + pgvector)
 - ✅ `redis:7-alpine`
 - ✅ `grafana/grafana:latest`
@@ -34,6 +37,7 @@
 ## 🐳 DOCKER КОНТЕЙНЕРЫ
 
 ### Запущенные сервисы:
+
 - `knowledge_os_db` - PostgreSQL для Knowledge OS
 - `knowledge_postgres` - PostgreSQL основной
 - `knowledge_redis` - Redis кэш
@@ -55,12 +59,14 @@
 ## 💾 DOCKER VOLUMES
 
 ### Knowledge OS:
+
 - `atra_knowledge_postgres_data` - Данные PostgreSQL
 - `atra_knowledge_redis_data` - Данные Redis
 - `atra_prometheus_data` - Данные Prometheus
 - `atra_grafana_data` - Данные Grafana
 
 ### ATRA Web IDE:
+
 - `atra-postgres-data` - PostgreSQL для Web IDE
 - `atra-redis-data` - Redis для Web IDE
 - `atra-workspace-data` - Workspace данные
@@ -76,16 +82,19 @@
 ## ✅ ЧТО ПЕРЕНЕСЕНО СЕГОДНЯ
 
 ### 1. Knowledge OS контейнеры ✅
+
 - Все образы импортированы
 - Все volumes созданы
 - Контейнеры запущены и работают
 
 ### 2. ATRA Web IDE контейнеры ✅
+
 - Frontend и Backend образы импортированы
 - Victoria и Veronica агенты готовы
 - Volumes созданы
 
 ### 3. Инфраструктура ✅
+
 - PostgreSQL + pgvector
 - Redis
 - Grafana
@@ -109,4 +118,4 @@
 
 ---
 
-*Статус обновлен: 2026-01-26*
+_Статус обновлен: 2026-01-26_

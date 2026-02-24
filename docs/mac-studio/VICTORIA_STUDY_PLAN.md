@@ -35,6 +35,7 @@
 ## СВЯЗАННЫЕ ОТЧЕТЫ
 
 Также изучи:
+
 - `docs/mac-studio/VICTORIA_CHAT_COMPLETE_REPORT.md`
 - `docs/mac-studio/CHAT_FULL_SUMMARY.md`
 - `docs/mac-studio/VICTORIA_TASK.md`

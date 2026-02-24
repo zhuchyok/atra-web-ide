@@ -22,6 +22,7 @@ python scripts/test_enhanced_comprehensive.py
 ```
 
 **Что тестируется:**
+
 - ✅ ReAct Framework
 - ✅ Extended Thinking
 - ✅ Tree of Thoughts
@@ -32,6 +33,7 @@ python scripts/test_enhanced_comprehensive.py
 - ✅ Автоматический выбор метода
 
 **Результаты:**
+
 - Сохраняются в `docs/mac-studio/test_results/enhanced_test_*.json`
 - Выводятся в консоль
 
@@ -44,12 +46,14 @@ python scripts/run_enhanced_benchmarks.py
 ```
 
 **Что измеряется:**
+
 - ⏱️ Время выполнения
 - ✅ Success rate
 - 📊 Улучшение качества
 - 🎯 Выбор метода
 
 **Результаты:**
+
 - Сохраняются в `docs/mac-studio/test_results/benchmark_*.json`
 - Сравнительная статистика
 
@@ -60,6 +64,7 @@ python scripts/run_enhanced_benchmarks.py
 ### Comprehensive Test Suite
 
 **Успешный тест:**
+
 ```json
 {
   "status": "passed",
@@ -71,6 +76,7 @@ python scripts/run_enhanced_benchmarks.py
 ```
 
 **Проваленный тест:**
+
 ```json
 {
   "status": "failed",
@@ -79,6 +85,7 @@ python scripts/run_enhanced_benchmarks.py
 ```
 
 **Пропущенный тест:**
+
 ```json
 {
   "status": "skipped",
@@ -89,12 +96,14 @@ python scripts/run_enhanced_benchmarks.py
 ### Benchmark Tests
 
 **Метрики:**
+
 - `avg_time` - среднее время выполнения
 - `success_rate` - процент успешных выполнений
 - `time_improvement` - улучшение времени в %
 - `success_improvement` - улучшение success rate в %
 
 **Ожидаемые результаты:**
+
 - Enhanced режим должен быть медленнее на 10-30% (из-за дополнительной обработки)
 - Success rate должен быть выше на 20-40%
 - Качество ответов должно быть выше
@@ -119,6 +128,7 @@ export LOG_LEVEL=DEBUG
 ### Кастомизация тестов
 
 Редактируйте `scripts/test_enhanced_comprehensive.py`:
+
 - Добавьте новые тесты в `run_all_tests()`
 - Измените тестовые задачи
 - Настройте таймауты
@@ -173,6 +183,7 @@ print(f"Extended Thinking: {enhanced.extended_thinking is not None}")
 ### Автоматические отчеты:
 
 Тесты автоматически создают JSON отчеты в:
+
 - `docs/mac-studio/test_results/enhanced_test_*.json`
 - `docs/mac-studio/test_results/benchmark_*.json`
 

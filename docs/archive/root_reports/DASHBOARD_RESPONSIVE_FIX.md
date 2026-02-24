@@ -8,6 +8,7 @@
 ## 🔍 ПРОБЛЕМА
 
 Дашборд корпорации не был адаптивным на мобильных устройствах:
+
 - Не оптимизирован для маленьких экранов
 - Колонки не адаптируются
 - Навигация неудобна на мобильных
@@ -21,38 +22,46 @@
 **Файл:** `knowledge_os/dashboard/app.py`
 
 **Изменения:**
+
 - Добавлены медиа-запросы для экранов ≤768px и ≤480px
 - Оптимизированы размеры карточек и отступы
 - Улучшена навигация вкладок на мобильных
 - Уменьшены размеры шрифтов для маленьких экранов
 
 **Код:**
+
 ```css
 @media (max-width: 768px) {
-    .premium-card {
-        padding: 16px !important;
-        margin-bottom: 12px !important;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        flex-wrap: wrap;
-        gap: 8px !important;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        font-size: 12px !important;
-        padding: 8px 12px !important;
-    }
+  .premium-card {
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .stTabs [data-baseweb="tab-list"] {
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  .stTabs [data-baseweb="tab"] {
+    font-size: 12px !important;
+    padding: 8px 12px !important;
+  }
 }
 
 @media (max-width: 480px) {
-    .premium-card {
-        padding: 12px !important;
-    }
-    
-    h1 { font-size: 24px !important; }
-    h2 { font-size: 20px !important; }
-    h3 { font-size: 18px !important; }
+  .premium-card {
+    padding: 12px !important;
+  }
+
+  h1 {
+    font-size: 24px !important;
+  }
+  h2 {
+    font-size: 20px !important;
+  }
+  h3 {
+    font-size: 18px !important;
+  }
 }
 ```
 
@@ -66,6 +75,7 @@
 **Статус:** В работе
 
 **Что нужно сделать:**
+
 1. ✅ Добавить responsive design для мобильных (выполнено)
 2. Оптимизировать колонки и таблицы
 3. Улучшить навигацию на маленьких экранах
@@ -79,6 +89,7 @@
 **Статус:** В ожидании
 
 **Что нужно проверить:**
+
 1. Как корпорация использует Ollama модели
 2. Как работает MLX на Mac Studio
 3. Какие модели доступны и используются
@@ -94,11 +105,13 @@
 **URL:** `http://host.docker.internal:11434`
 
 **Проверка:**
+
 ```bash
 curl http://localhost:11434/api/tags
 ```
 
 **Доступные модели:**
+
 - Проверяется автоматически
 
 ### **MLX**
@@ -106,6 +119,7 @@ curl http://localhost:11434/api/tags
 **URL:** `http://host.docker.internal:5000` (если запущен)
 
 **Проверка:**
+
 ```bash
 curl http://localhost:5000/health
 ```

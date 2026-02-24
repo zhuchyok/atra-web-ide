@@ -10,7 +10,6 @@ Based on llama.cpp audit (9/10):
 import gc
 import logging
 from enum import Enum
-from typing import Dict, Optional
 
 import mlx.core as mx
 
@@ -61,12 +60,12 @@ def get_model_by_profile(profile: str = "default") -> str:
         return QUANT_PROFILE_MODELS[QuantProfile.DEFAULT]
 
 
-def get_gpu_memory() -> Optional[Dict[str, float]]:
+def get_gpu_memory() -> dict[str, float] | None:
     """
     Get current GPU memory usage (Metal-specific).
 
     Returns:
-        Dict with memory stats or None if unavailable:
+        dict with memory stats or None if unavailable:
         {
             "allocated_bytes": int,
             "max_bytes": int,
@@ -173,7 +172,7 @@ def cleanup_if_warning() -> bool:
     return False
 
 
-def get_recommended_context_limit() -> Optional[int]:
+def get_recommended_context_limit() -> int | None:
     """
     Get recommended context window limit based on available memory.
 
@@ -211,7 +210,7 @@ class MLXMetrics:
         self.tokens_per_second = 0.0
         self.total_tokens = 0
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return {
             "load_time_ms": self.load_time_ms,
             "ttft_ms": self.ttft_ms,

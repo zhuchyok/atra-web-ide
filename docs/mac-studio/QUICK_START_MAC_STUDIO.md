@@ -15,6 +15,7 @@ bash scripts/start_all_on_mac_studio.sh
 ```
 
 Скрипт автоматически:
+
 1. ✅ Проверит Docker
 2. ✅ Создаст сеть atra-network
 3. ✅ Проверит MLX/Ollama
@@ -27,7 +28,7 @@ bash scripts/start_all_on_mac_studio.sh
 ## 📋 ЧТО ЗАПУСТИТСЯ
 
 - ✅ **Victoria Agent** (8010) - Team Lead
-- ✅ **Veronica Agent** (8011) - Web Researcher  
+- ✅ **Veronica Agent** (8011) - Web Researcher
 - ✅ **Victoria MCP** (8012) - MCP для Cursor
 - ✅ **Knowledge OS Database** (5432) - PostgreSQL
 - ✅ **Knowledge OS API** (8000) - REST API
@@ -58,16 +59,19 @@ curl http://localhost:8000/health
 ## 🌐 ДОСТУПНОСТЬ
 
 ### Локально на Mac Studio:
+
 - `http://localhost:8010` - Victoria
 - `http://localhost:8011` - Veronica
 - `http://localhost:11434` - Ollama/MLX
 
 ### С Mac Studio:
+
 - `http://192.168.1.64:8010` - Victoria
 - `http://192.168.1.64:8011` - Veronica
 - `http://192.168.1.64:11434` - Ollama/MLX
 
 ### Из интернета (через SSH туннель):
+
 - `http://185.177.216.15:8010` - Victoria
 - `http://185.177.216.15:8011` - Veronica
 - `http://185.177.216.15:11434` - Ollama/MLX
@@ -84,20 +88,23 @@ curl http://localhost:8000/health
 ## 🐛 УСТРАНЕНИЕ ПРОБЛЕМ
 
 ### Docker не запущен
+
 ```bash
 open -a Docker
 ```
 
 ### MLX/Ollama недоступен
+
 ```bash
 bash scripts/start_mlx_api_server.sh
 ```
 
 ### Контейнеры не запускаются
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml logs
 ```
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

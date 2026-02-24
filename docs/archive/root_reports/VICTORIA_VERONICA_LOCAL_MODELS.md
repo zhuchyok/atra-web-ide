@@ -16,16 +16,19 @@
 ## 🔄 НОВОЕ: АВТОВЫБОР МОДЕЛЕЙ
 
 ### Как работает:
+
 1. При запуске сканируются **Ollama (порт 11434)** и **MLX (порт 11435)** **РАЗДЕЛЬНО**
 2. Выбираются **самые мощные** из каждого списка
 3. Списки не смешиваются — Ollama для executor/planner, MLX для LocalAIRouter
 
 ### Приоритет выбора Ollama:
+
 ```
 qwq:32b → qwen2.5-coder:32b → glm-4.7-flash:q8_0 → phi3.5:3.8b → tinyllama:1.1b-chat
 ```
 
 ### Приоритет выбора MLX:
+
 ```
 command-r-plus:104b → deepseek-r1-distill-llama:70b → llama3.3:70b → qwen2.5-coder:32b
 ```
@@ -43,7 +46,7 @@ class VictoriaAgent(BaseAgent):
     def __init__(self, name: str = "Виктория", model_name: str = None):
         # Автовыбор модели: None = сканирование Ollama при первом запросе
         model_name = model_name or os.getenv("VICTORIA_MODEL") or None
-        
+
         # При первом запросе:
         # 1. Сканируется Ollama (http://localhost:11434/api/tags)
         # 2. Выбирается лучшая модель по приоритету
@@ -51,6 +54,7 @@ class VictoriaAgent(BaseAgent):
 ```
 
 ### Результат сканирования:
+
 ```
 🔵 OLLAMA МОДЕЛИ (для executor/planner):
    Доступно: 7
@@ -82,7 +86,7 @@ class VeronicaAgent(BaseAgent):
     def __init__(self, name: str = "Вероника", model_name: str = None):
         # Автовыбор модели: None = сканирование Ollama при первом запросе
         model_name = model_name or os.getenv("VERONICA_MODEL") or None
-        
+
         # Planner и Executor с автовыбором
         self.planner = OllamaExecutor(model=planner_model, base_url=base)
         self.executor = OllamaExecutor(model=model_name, base_url=base)
@@ -99,6 +103,7 @@ class VeronicaAgent(BaseAgent):
 ## 🔧 КОНФИГУРАЦИЯ
 
 ### Docker Compose (автовыбор):
+
 ```yaml
 # knowledge_os/docker-compose.yml
 
@@ -107,18 +112,19 @@ victoria-agent:
     OLLAMA_BASE_URL: http://host.docker.internal:11434
     MLX_API_URL: http://host.docker.internal:11435
     # Автовыбор модели (рекомендуется)
-    VICTORIA_MODEL: ${VICTORIA_MODEL:-}        # Пустое = автовыбор
+    VICTORIA_MODEL: ${VICTORIA_MODEL:-} # Пустое = автовыбор
     VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-}
 
 veronica-agent:
   environment:
     OLLAMA_BASE_URL: http://host.docker.internal:11434
     # Автовыбор модели (рекомендуется)
-    VERONICA_MODEL: ${VERONICA_MODEL:-}        # Пустое = автовыбор
+    VERONICA_MODEL: ${VERONICA_MODEL:-} # Пустое = автовыбор
     VERONICA_PLANNER_MODEL: ${VERONICA_PLANNER_MODEL:-}
 ```
 
 ### Явное указание модели:
+
 ```yaml
 # Если нужно зафиксировать конкретную модель:
 VICTORIA_MODEL: qwen2.5-coder:32b
@@ -129,28 +135,31 @@ VERONICA_MODEL: phi3.5:3.8b
 
 ## 📋 СРАВНЕНИЕ МОДЕЛЕЙ
 
-| Агент | Executor | Planner | Источник | Автовыбор |
-|-------|----------|---------|----------|-----------|
-| **Victoria** | `qwq:32b` (лучшая) | `qwq:32b` | Ollama | ✅ ДА |
-| **Veronica** | `qwq:32b` (лучшая) | `qwq:32b` | Ollama | ✅ ДА |
-| **LocalAIRouter** | `command-r-plus:104b` | - | MLX | ✅ ДА |
+| Агент             | Executor              | Planner   | Источник | Автовыбор |
+| ----------------- | --------------------- | --------- | -------- | --------- |
+| **Victoria**      | `qwq:32b` (лучшая)    | `qwq:32b` | Ollama   | ✅ ДА     |
+| **Veronica**      | `qwq:32b` (лучшая)    | `qwq:32b` | Ollama   | ✅ ДА     |
+| **LocalAIRouter** | `command-r-plus:104b` | -         | MLX      | ✅ ДА     |
 
 ---
 
 ## ✅ ДОКАЗАТЕЛЬСТВА
 
 ### 1. Victoria использует автовыбор:
+
 - ✅ При запуске сканируется Ollama и MLX
 - ✅ Выбирается лучшая доступная модель
 - ✅ Списки Ollama и MLX раздельные
 - ✅ Нет hardcoded моделей
 
 ### 2. Veronica использует автовыбор:
+
 - ✅ При первом запросе сканируется Ollama
 - ✅ Выбирается лучшая доступная модель
 - ✅ Нет hardcoded моделей
 
 ### 3. Логи подтверждают:
+
 ```
 [MODEL_SELECT] СКАНИРОВАНИЕ МОДЕЛЕЙ (Ollama и MLX РАЗДЕЛЬНО)
 [MODEL_SELECT] 🔵 OLLAMA МОДЕЛИ (для executor/planner):
@@ -178,11 +187,13 @@ VERONICA_MODEL: phi3.5:3.8b
 **✅ ДА, и Victoria, и Veronica используют ВАШИ локальные модели с автовыбором!**
 
 ### Victoria:
+
 - ✅ Автовыбор лучшей модели из Ollama
 - ✅ LocalAIRouter для MLX поддержки
 - ✅ URL: `localhost:11434` (Ollama) / `localhost:11435` (MLX)
 
 ### Veronica:
+
 - ✅ Автовыбор лучшей модели из Ollama
 - ✅ URL: `localhost:11434` (Ollama)
 
@@ -190,4 +201,4 @@ VERONICA_MODEL: phi3.5:3.8b
 
 ---
 
-*Обновлено: 2026-01-30*
+_Обновлено: 2026-01-30_

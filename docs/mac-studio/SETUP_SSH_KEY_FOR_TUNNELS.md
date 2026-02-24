@@ -8,11 +8,13 @@
 ## 📋 ТЕКУЩАЯ СИТУАЦИЯ
 
 **На Mac Studio:**
+
 - ✅ Ключ `~/.ssh/id_ed25519` существует
 - ✅ Публичный ключ добавлен на сервер `185.177.216.15`
 - ✅ Подключение к серверу работает
 
 **На Mac Studio:**
+
 - ❌ Ключ `~/.ssh/id_ed25519` отсутствует
 - ❌ Туннели 8010/8012 не работают
 - ⚠️ Нет доступа к серверу по ключу
@@ -24,12 +26,14 @@
 ### Шаг 1: Копирование ключа на Mac Studio
 
 **На Mac Studio выполните:**
+
 ```bash
 # Копируем приватный и публичный ключи
 scp ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub bikos@192.168.1.64:~/.ssh/
 ```
 
 **На Mac Studio выполните:**
+
 ```bash
 # Устанавливаем правильные права доступа
 chmod 600 ~/.ssh/id_ed25519
@@ -39,6 +43,7 @@ chmod 644 ~/.ssh/id_ed25519.pub
 ### Шаг 2: Проверка подключения
 
 **На Mac Studio:**
+
 ```bash
 # Проверяем подключение к серверу
 ssh -i ~/.ssh/id_ed25519 root@185.177.216.15 "echo 'SSH key works'"
@@ -47,6 +52,7 @@ ssh -i ~/.ssh/id_ed25519 root@185.177.216.15 "echo 'SSH key works'"
 ### Шаг 3: Запуск туннелей
 
 **На Mac Studio:**
+
 ```bash
 cd /path/to/atra-web-ide
 bash scripts/start_mac_studio_tunnels.sh
@@ -59,6 +65,7 @@ bash scripts/start_mac_studio_tunnels.sh
 ### Шаг 1: Генерация нового ключа
 
 **На Mac Studio выполните:**
+
 ```bash
 # Создаем новый ключ
 ssh-keygen -t ed25519 -C "mac-studio-tunnel" -f ~/.ssh/id_ed25519
@@ -71,12 +78,14 @@ chmod 644 ~/.ssh/id_ed25519.pub
 ### Шаг 2: Добавление публичного ключа на сервер
 
 **На Mac Studio:**
+
 ```bash
 # Копируем публичный ключ на сервер
 cat ~/.ssh/id_ed25519.pub | ssh root@185.177.216.15 'cat >> ~/.ssh/authorized_keys'
 ```
 
 **Или вручную:**
+
 ```bash
 # Показываем публичный ключ
 cat ~/.ssh/id_ed25519.pub
@@ -87,6 +96,7 @@ cat ~/.ssh/id_ed25519.pub
 ### Шаг 3: Проверка и запуск туннелей
 
 **На Mac Studio:**
+
 ```bash
 # Проверяем подключение
 ssh -i ~/.ssh/id_ed25519 root@185.177.216.15 "echo 'SSH key works'"
@@ -112,6 +122,7 @@ curl -s http://185.177.216.15:8012/health
 ```
 
 **Ожидаемый результат:**
+
 - Порт 8010 слушается на сервере
 - Порт 8012 слушается на сервере
 - Victoria доступна через `http://185.177.216.15:8010`
@@ -124,6 +135,7 @@ curl -s http://185.177.216.15:8012/health
 Для автоматического запуска туннелей при загрузке Mac Studio создайте launchd service:
 
 **На Mac Studio:**
+
 ```bash
 # Создаем plist файл
 cat > ~/Library/LaunchAgents/com.atra.ssh-tunnels.plist << 'EOF'

@@ -19,7 +19,7 @@
 Если нужна более детальная команда:
 
 ```
-@victoria 
+@victoria
 
 Прочитай файл FULL_CHAT_CONTEXT_FOR_VICTORIA.md в корне проекта atra-web-ide.
 
@@ -60,4 +60,4 @@ Docker PATH: /usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:$PAT
 
 ---
 
-*Документ создан: 2026-01-26*
+_Документ создан: 2026-01-26_

@@ -3,11 +3,13 @@
 ## ✅ Что уже работает
 
 ### 1. Victoria (Docker)
+
 - **Статус:** ✅ `restart: always` в `docker-compose.yml`
 - **Поведение:** Автоматически запускается при старте Docker/Mac
 - **Порт:** 8010
 
 ### 2. MCP сервер
+
 - **Настройка:** Запусти `bash scripts/quick_victoria_autostart.sh`
 - **Результат:** MCP сервер будет запускаться автоматически при старте Mac
 - **Порт:** 8012
@@ -22,6 +24,7 @@ bash scripts/quick_victoria_autostart.sh
 ```
 
 Это настроит:
+
 - ✅ Автозапуск MCP сервера через launchd
 - ✅ Victoria уже настроена (через Docker restart policy)
 
@@ -30,9 +33,11 @@ bash scripts/quick_victoria_autostart.sh
 ## 🔄 После настройки
 
 ### Вариант 1: Перезагрузи Mac
+
 После перезагрузки Victoria и MCP сервер запустятся автоматически.
 
 ### Вариант 2: Запусти сейчас
+
 ```bash
 # Запуск MCP сервера
 launchctl start com.atra.victoria-mcp
@@ -75,14 +80,16 @@ python3 -m src.agents.bridge.victoria_mcp_server
 ## ✅ Итог
 
 **После настройки:**
+
 1. ✅ Victoria запускается автоматически (Docker)
 2. ✅ MCP сервер запускается автоматически (launchd)
 3. ✅ Всё готово сразу при открытии Cursor
 
 **Использование:**
+
 - Просто открой Cursor в любом проекте
 - Используй `@victoria_run 'задача'` — всё работает!
 
 ---
 
-*Обновлено: 2026-01-23*
+_Обновлено: 2026-01-23_

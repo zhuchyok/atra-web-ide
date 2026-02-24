@@ -37,6 +37,7 @@ python3 -m uvicorn app.mlx_api_server:app --host 0.0.0.0 --port 11435 --reload
 ```
 
 Или через скрипт:
+
 ```bash
 ./scripts/start_mlx_api_server.sh
 ```
@@ -46,6 +47,7 @@ python3 -m uvicorn app.mlx_api_server:app --host 0.0.0.0 --port 11435 --reload
 ## 📊 Ожидаемый результат
 
 После перезапуска в логах должно быть:
+
 ```
 ✅ Предзагружено моделей: 2 (qwen2.5-coder:32b, phi3.5:3.8b)
 ```

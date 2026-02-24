@@ -128,8 +128,6 @@ CREATE INDEX idx_user_style_profiles_user ON user_style_profiles(user_identifier
 CREATE INDEX idx_user_style_profiles_similarity ON user_style_profiles(similarity_score DESC);
 ```
 
-
-
 ### Задача 1.4: Сбор метрик стилевого совпадения
 
 **Файл:** `knowledge_os/app/tacit_knowledge_miner.py`**Метрики:**
@@ -169,8 +167,6 @@ EMOTION_PROFILES = {
 }
 ```
 
-
-
 ### Задача 2.2: Интеграция в `ai_core.py`
 
 **Файл:** `knowledge_os/app/ai_core.py`**Изменения:**
@@ -200,8 +196,6 @@ CREATE TABLE IF NOT EXISTS emotion_logs (
 CREATE INDEX idx_emotion_logs_interaction ON emotion_logs(interaction_log_id);
 CREATE INDEX idx_emotion_logs_emotion ON emotion_logs(detected_emotion);
 ```
-
-
 
 ### Задача 2.4: Сбор метрик удовлетворенности
 
@@ -278,8 +272,6 @@ CREATE TABLE IF NOT EXISTS code_smell_training_data (
 CREATE INDEX idx_code_smell_predictions_file ON code_smell_predictions(file_path);
 CREATE INDEX idx_code_smell_training_bug ON code_smell_training_data(actual_bug);
 ```
-
-
 
 ### Задача 3.4: Обучение ML модели
 

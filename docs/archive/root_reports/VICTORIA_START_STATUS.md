@@ -89,6 +89,7 @@ curl -X POST http://localhost:8010/run \
    - Дождаться полной загрузки (30-60 секунд)
 
 2. **Проверить:**
+
    ```bash
    docker ps
    ```
@@ -114,6 +115,7 @@ curl -X POST http://localhost:8010/run \
 **Используйте локальный запуск** - все готово и будет работать точно так же, как в Docker!
 
 **Команда:**
+
 ```bash
 ./START_VICTORIA_LOCAL.sh
 ```

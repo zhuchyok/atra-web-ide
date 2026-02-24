@@ -32,6 +32,7 @@ grep GatewayPorts /etc/ssh/sshd_config.d/gatewayports.conf
 ### После настройки GatewayPorts:
 
 1. **Перезапустите туннели на Mac Studio:**
+
    ```bash
    bash scripts/setup_ssh_tunnel_for_headscale.sh
    ```
@@ -47,6 +48,7 @@ grep GatewayPorts /etc/ssh/sshd_config.d/gatewayports.conf
 ## ⚠️ БЕЗОПАСНОСТЬ
 
 **GatewayPorts yes** открывает порты на всех интерфейсах сервера. Убедитесь, что:
+
 - ✅ Файрвол настроен правильно
 - ✅ Порты защищены (если нужно)
 - ✅ Доступ ограничен (если нужно)
@@ -76,4 +78,4 @@ server {
 
 ---
 
-*Документ создан 2026-01-25*
+_Документ создан 2026-01-25_

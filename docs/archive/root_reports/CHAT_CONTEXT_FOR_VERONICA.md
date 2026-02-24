@@ -19,12 +19,14 @@
 ## 📋 ВЫПОЛНЕННАЯ МИГРАЦИЯ
 
 ### 1. Knowledge OS контейнеры ✅
+
 - ✅ Экспортировано: 8 образов, 9 volumes
 - ✅ Скопировано на Mac Studio
 - ✅ Импортировано на Mac Studio
 - ✅ Контейнеры запущены и работают
 
 **Сервисы:**
+
 - Victoria Agent (порт 8010) - `{"status":"ok"}`
 - Veronica Agent (порт 8011) - `{"status":"ok"}`
 - Knowledge OS API (порт 8003)
@@ -33,11 +35,13 @@
 - Elasticsearch, Kibana, Prometheus, Grafana
 
 ### 2. Корневые контейнеры ✅
+
 - ✅ Экспортировано: 4 образа
 - ✅ Скопировано на Mac Studio
 - ✅ Импортировано на Mac Studio
 
 **Сервисы:**
+
 - Frontend (atra-web-ide-frontend)
 - Backend (atra-web-ide-backend)
 - Victoria (atra-victoria-agent)
@@ -71,6 +75,7 @@ atra-web-ide/
 ## 🔧 СОЗДАННЫЕ СКРИПТЫ
 
 ### Миграция:
+
 1. **scripts/full_migration_Mac Studio_to_macstudio.sh**
    - Полная миграция одной командой на Mac Studio
 
@@ -87,6 +92,7 @@ atra-web-ide/
    - Импорт корневых контейнеров на Mac Studio
 
 ### Управление:
+
 6. **scripts/check_and_start_containers.sh**
    - Проверка и запуск контейнеров
 
@@ -101,6 +107,7 @@ atra-web-ide/
 ## 📚 ДОКУМЕНТАЦИЯ
 
 Все документы миграции находятся в корне проекта:
+
 - FINAL_MIGRATION_REPORT.md
 - MIGRATION_STATUS.md
 - COMPLETE_MIGRATION_REPORT.md
@@ -131,6 +138,7 @@ atra-web-ide/
 ## 🎯 ЗАДАЧА ДЛЯ VERONICA
 
 Изучи весь этот контекст и будь готова:
+
 1. Отвечать на вопросы о миграции
 2. Объяснять структуру проекта
 3. Помогать с запуском контейнеров
@@ -141,4 +149,4 @@ atra-web-ide/
 
 ---
 
-*Контекст создан: 2026-01-26*
+_Контекст создан: 2026-01-26_

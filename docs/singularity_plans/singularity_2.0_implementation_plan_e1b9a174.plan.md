@@ -34,9 +34,9 @@ todos:
 
 - Добавить в таблицу `knowledge_nodes` колонки `is_verified` (boolean) и `quality_report` (jsonb).
 - Создать [`knowledge_os/app/evaluator.py`](knowledge_os/app/evaluator.py), который:
-    - Выбирает узлы с `is_verified = FALSE`.
-    - Использует `cursor-agent` для критического анализа данных по 3 критериям: Достоверность, Актуальность, Полезность.
-    - Присваивает финальный `confidence_score` и устанавливает `is_verified = TRUE`.
+  - Выбирает узлы с `is_verified = FALSE`.
+  - Использует `cursor-agent` для критического анализа данных по 3 критериям: Достоверность, Актуальность, Полезность.
+  - Присваивает финальный `confidence_score` и устанавливает `is_verified = TRUE`.
 - Обновить [`knowledge_os/app/researcher.py`](knowledge_os/app/researcher.py), чтобы новые данные из интернета помечались как не верифицированные.
 
 ## 2. Слой «Agentic Observability» (Tracer)
@@ -46,8 +46,8 @@ todos:
 ### Задачи:
 
 - Модифицировать [`knowledge_os/app/telegram_gateway.py`](knowledge_os/app/telegram_gateway.py):
-    - Добавить объект `TraceContext` для сбора логов оркестрации внутри `handle_message`.
-    - Сохранять в `interaction_logs.metadata` полный CoT (Chain of Thought): какой план составила Виктория, какие вопросы задавала экспертам и какие ответы получила.
+  - Добавить объект `TraceContext` для сбора логов оркестрации внутри `handle_message`.
+  - Сохранять в `interaction_logs.metadata` полный CoT (Chain of Thought): какой план составила Виктория, какие вопросы задавала экспертам и какие ответы получила.
 - Это позволит Радару выявлять логические ошибки в рассуждениях агентов.
 
 ## 3. Слой «Agent Gym» (Synthetic Generator)
@@ -57,9 +57,9 @@ todos:
 ### Задачи:
 
 - Создать [`knowledge_os/app/synthetic_generator.py`](knowledge_os/app/synthetic_generator.py):
-    - Выбирает «горячую» тему или конфликтный вопрос.
-    - Инициирует дискуссию между двумя экспертами с разными ролями (например, Дмитрий (ML) и Мария (Risk)).
-    - Синтезирует итог дискуссии в новый узел знаний с пометкой `source_type: synthetic`.
+  - Выбирает «горячую» тему или конфликтный вопрос.
+  - Инициирует дискуссию между двумя экспертами с разными ролями (например, Дмитрий (ML) и Мария (Risk)).
+  - Синтезирует итог дискуссии в новый узел знаний с пометкой `source_type: synthetic`.
 - Добавить запуск генератора в ночной цикл `cron`.
 
 ## Технический стек и инструменты:

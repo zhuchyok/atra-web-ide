@@ -17,6 +17,7 @@ python3 scripts/test_task_distribution_trace.py
 ## 📊 ЧТО ОТСЛЕЖИВАЕТСЯ
 
 ### 1. 🤖 Выбор моделей:
+
 - **Victoria** → модель для анализа задачи (ExtendedThinkingEngine или run_smart_agent_async)
 - **Сотрудники** → каждый выбирает модель для своей задачи
   - По рекомендациям Victoria
@@ -24,6 +25,7 @@ python3 scripts/test_task_distribution_trace.py
   - По умолчанию
 
 ### 2. 💬 Промпты:
+
 - Промпт Victoria для анализа задачи
 - Промпт Victoria для Veronica (с распределением)
 - Промпт для каждого сотрудника
@@ -31,6 +33,7 @@ python3 scripts/test_task_distribution_trace.py
 - Промпт для синтеза
 
 ### 3. 🎯 Решения:
+
 - Выбор отдела
 - Выбор сотрудника
 - Выбор модели
@@ -38,6 +41,7 @@ python3 scripts/test_task_distribution_trace.py
 - Решение об эскалации
 
 ### 4. 📋 Этапы:
+
 - INIT → VICTORIA_INIT → TASK_START → ... → TASK_COMPLETE
 
 ---
@@ -45,10 +49,12 @@ python3 scripts/test_task_distribution_trace.py
 ## 📄 РЕЗУЛЬТАТЫ
 
 ### Файлы:
+
 1. `logs/task_trace_YYYYMMDD_HHMMSS.log` - детальный лог
 2. `logs/task_trace_result_YYYYMMDD_HHMMSS.json` - JSON трейс
 
 ### В JSON будет:
+
 ```json
 {
   "start_time": "...",

@@ -15,13 +15,13 @@ Victoria Enhanced - это обертка над Victoria, которая авт
 
 ### Автоматический выбор метода:
 
-| Категория задачи | Используемый метод | Компоненты |
-|-----------------|-------------------|------------|
-| **Reasoning** | Extended Thinking + ReCAP | ExtendedThinkingEngine, ReCAPFramework |
-| **Planning** | Tree of Thoughts + Hierarchical | TreeOfThoughts, HierarchicalOrchestrator |
-| **Complex** | Swarm + Consensus | SwarmIntelligence, ConsensusAgent |
-| **Execution** | ReAct Framework | ReActAgent |
-| **General** | Extended Thinking | ExtendedThinkingEngine |
+| Категория задачи | Используемый метод              | Компоненты                               |
+| ---------------- | ------------------------------- | ---------------------------------------- |
+| **Reasoning**    | Extended Thinking + ReCAP       | ExtendedThinkingEngine, ReCAPFramework   |
+| **Planning**     | Tree of Thoughts + Hierarchical | TreeOfThoughts, HierarchicalOrchestrator |
+| **Complex**      | Swarm + Consensus               | SwarmIntelligence, ConsensusAgent        |
+| **Execution**    | ReAct Framework                 | ReActAgent                               |
+| **General**      | Extended Thinking               | ExtendedThinkingEngine                   |
 
 ---
 
@@ -75,6 +75,7 @@ python scripts/test_victoria_enhanced.py
 ## 📊 Примеры работы
 
 ### Reasoning задача:
+
 ```python
 result = await victoria.solve("Реши задачу: 2+2*2")
 # Использует: Extended Thinking
@@ -82,6 +83,7 @@ result = await victoria.solve("Реши задачу: 2+2*2")
 ```
 
 ### Planning задача:
+
 ```python
 result = await victoria.solve("Спланируй оптимизацию БД")
 # Использует: Tree of Thoughts
@@ -89,6 +91,7 @@ result = await victoria.solve("Спланируй оптимизацию БД")
 ```
 
 ### Complex задача:
+
 ```python
 result = await victoria.solve("Как улучшить мультиагентную систему?")
 # Использует: Swarm Intelligence (16 агентов)
@@ -96,6 +99,7 @@ result = await victoria.solve("Как улучшить мультиагентн�
 ```
 
 ### Execution задача:
+
 ```python
 result = await victoria.solve("Выполни анализ кода")
 # Использует: ReAct Framework
@@ -127,19 +131,20 @@ VICTORIA_USE_COLLECTIVE_MEMORY=true
 
 ## 📈 Ожидаемые улучшения
 
-| Метрика | Улучшение |
-|---------|-----------|
-| **Reasoning задачи** | +40-60% качества |
-| **Planning задачи** | +50-70% качества |
-| **Complex задачи** | +50-70% через Swarm |
+| Метрика              | Улучшение           |
+| -------------------- | ------------------- |
+| **Reasoning задачи** | +40-60% качества    |
+| **Planning задачи**  | +50-70% качества    |
+| **Complex задачи**   | +50-70% через Swarm |
 | **Execution задачи** | +30-40% через ReAct |
-| **Общее качество** | +50-80% |
+| **Общее качество**   | +50-80%             |
 
 ---
 
 ## ✅ Статус компонентов
 
 Проверка доступности:
+
 ```python
 status = await victoria.get_status()
 # Показывает какие компоненты доступны

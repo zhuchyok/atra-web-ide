@@ -8,6 +8,7 @@
 ## 🎯 ЧТО ЭТО
 
 Полная система мониторинга и логирования для корпорации ATRA:
+
 - **Prometheus** — сбор метрик
 - **Grafana** — визуализация метрик
 - **Elasticsearch** — хранение логов
@@ -18,11 +19,13 @@
 ## 🚀 БЫСТРЫЙ СТАРТ
 
 ### 1. Проверка статуса:
+
 ```bash
 docker ps | grep -E "(prometheus|grafana|elastic|kibana)"
 ```
 
 ### 2. Открыть Grafana:
+
 ```
 http://localhost:3001
 Логин: admin
@@ -32,6 +35,7 @@ http://localhost:3001
 **Дашборд уже настроен!** Откройте: Dashboards → ATRA Knowledge OS Dashboard
 
 ### 3. Открыть Kibana:
+
 ```
 http://localhost:5601
 ```
@@ -52,16 +56,19 @@ http://localhost:5601
 ## 🔧 КОМАНДЫ
 
 ### Запуск:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml up -d prometheus grafana elasticsearch kibana
 ```
 
 ### Остановка:
+
 ```bash
 docker-compose -f knowledge_os/docker-compose.yml stop prometheus grafana elasticsearch kibana
 ```
 
 ### Настройка Grafana:
+
 ```bash
 bash scripts/setup_grafana_complete.sh
 ```
@@ -74,4 +81,4 @@ bash scripts/setup_grafana_complete.sh
 
 ---
 
-*Создано 2026-01-25*
+_Создано 2026-01-25_

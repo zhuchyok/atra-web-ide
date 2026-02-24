@@ -3,6 +3,7 @@
 ## КРИТИЧЕСКИ ВАЖНО
 
 Изучи файлы:
+
 - `docs/mac-studio/VICTORIA_CHAT_COMPLETE_REPORT.md` - полный отчет
 - `docs/mac-studio/CHAT_FULL_SUMMARY.md` - резюме чата
 

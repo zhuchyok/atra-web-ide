@@ -3,13 +3,25 @@ name = "scout"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "scout"
+path = "src/main.rs"
+
+[[bin]]
+name = "project_scout"
+path = "src/project_scout.rs"
+
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.11", features = ["json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-dotenv = "0.15"
+# Workspace dependencies
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+dotenv = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Project-specific dependencies
 scraper = "0.18"
-uuid = { version = "1.0", features = ["v4"] }
-chrono = { version = "0.4", features = ["serde"] }
+walkdir = "2.5"

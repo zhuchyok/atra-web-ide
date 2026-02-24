@@ -8,10 +8,12 @@
 ## 🎉 Что сделано
 
 ### 1. ✅ Проверка зависимостей
+
 - ✅ `watchdog` установлен (для hot-reload skills)
 - ✅ Все Python модули импортируются
 
 ### 2. ✅ Тестирование компонентов
+
 - ✅ Event Bus - работает
 - ✅ Skill Registry - работает
 - ✅ Skill Loader - работает
@@ -20,6 +22,7 @@
 - ✅ Service Monitor - готов к использованию
 
 ### 3. ✅ Созданы скрипты
+
 - ✅ `scripts/test_victoria_initiative.py` - тестирование всех компонентов
 - ✅ `scripts/activate_victoria_initiative.sh` - автоматическая активация
 
@@ -65,6 +68,7 @@ print(status)
 ## 📊 Текущий статус
 
 **Компоненты:**
+
 - ✅ Event Bus - активен
 - ✅ Skill Registry - активен (0 skills загружено)
 - ✅ Skill Loader - активен
@@ -74,6 +78,7 @@ print(status)
 - ✅ Deadline Tracker - готов (требует asyncpg для БД)
 
 **Примечания:**
+
 - ⚠️ `asyncpg` не установлен - Deadline Tracker не может работать с БД напрямую
 - ⚠️ Skills пока не загружены - добавьте skills в `knowledge_os/app/skills/` или `~/.atra/skills/`
 - ✅ Все остальные компоненты работают без БД

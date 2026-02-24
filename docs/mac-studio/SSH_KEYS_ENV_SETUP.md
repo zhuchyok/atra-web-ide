@@ -74,6 +74,7 @@ MAC_STUDIO_HOST = os.getenv("MAC_STUDIO_HOST")
 ## ✅ ПРОВЕРКА
 
 **На Mac Studio:**
+
 ```bash
 source .env
 echo "SSH ключ: $SSH_KEY_PATH"
@@ -81,6 +82,7 @@ ls -la "$SSH_KEY_PATH"
 ```
 
 **На Mac Studio:**
+
 ```bash
 source ~/.env
 echo "SSH ключ: $SSH_KEY_PATH"

@@ -68,12 +68,15 @@ nohup python3 -m src.agents.bridge.victoria_telegram_bot > victoria_bot.log 2>&1
    - Скопируйте Chat ID (начинается с `-100`)
 
 3. **Обновите .env:**
+
    ```env
    TELEGRAM_CHAT_ID=-1001234567890
    ```
+
    (замените на ваш реальный Chat ID)
 
 4. **Перезапустите бота:**
+
    ```bash
    pkill -f victoria_telegram_bot
    python3 -m src.agents.bridge.victoria_telegram_bot
@@ -97,21 +100,25 @@ nohup python3 -m src.agents.bridge.victoria_telegram_bot > victoria_bot.log 2>&1
 ## 🔍 ПРОВЕРКА РАБОТЫ
 
 ### 1. Проверьте, что бот запущен:
+
 ```bash
 ps aux | grep victoria_telegram_bot | grep -v grep
 ```
 
 ### 2. Проверьте логи (если запущен в фоне):
+
 ```bash
 tail -f victoria_bot.log
 ```
 
 ### 3. Проверьте Victoria API:
+
 ```bash
 curl http://localhost:8010/health
 ```
 
 ### 4. Отправьте тестовое сообщение:
+
 - В Telegram напишите боту: "Привет, Victoria!"
 - Должен прийти ответ
 
@@ -122,11 +129,13 @@ curl http://localhost:8010/health
 ### Бот не отвечает
 
 1. **Проверьте, что бот запущен:**
+
    ```bash
    ps aux | grep victoria_telegram_bot
    ```
 
 2. **Проверьте, что Victoria работает:**
+
    ```bash
    curl http://localhost:8010/health
    ```

@@ -9,6 +9,7 @@
 ## 🚀 Модель
 
 **GLM-4.7-Flash** - мощная модель для кодинга и reasoning:
+
 - **Архитектура:** 30B-A3B Mixture of Experts (MoE), 29.9B параметров
 - **Размер:** ~19GB (Q4_K_M)
 - **Context:** 198K tokens
@@ -23,26 +24,31 @@
 ### 1. `knowledge_os/app/local_router.py`
 
 **OLLAMA_MODELS:**
+
 - ✅ `"coding": "glm-4.7-flash"` - топ модель для кодинга
 - ✅ `"reasoning": "glm-4.7-flash"` - мощная модель для reasoning
 
 **MODEL_MAP:**
+
 - ✅ `"coding": "glm-4.7-flash"` - по умолчанию для coding задач
 - ✅ `"reasoning": "glm-4.7-flash"` - по умолчанию для reasoning задач
 
 ### 2. `knowledge_os/app/extended_thinking.py`
 
 **Fallback модели:**
+
 - ✅ Добавлена `glm-4.7-flash` в начало всех fallback списков
 - ✅ Приоритет при ошибках и недоступности других моделей
 
 ### 3. `backend/app/services/ollama.py`
 
 **MODELS:**
+
 - ✅ `"coding": "glm-4.7-flash"` - вместо qwen2.5-coder:32b
 - ✅ `"reasoning": "glm-4.7-flash"` - вместо deepseek-r1-distill-llama:70b
 
 **CLAUDE_CODE_MODELS:**
+
 - ✅ Добавлена `glm-4.7-flash` в начало списка рекомендованных моделей
 
 ---
@@ -52,6 +58,7 @@
 ### Автоматический выбор
 
 Система автоматически выберет `glm-4.7-flash` для:
+
 - ✅ **Coding задачи** - лучшая производительность в SWE-bench (59.2)
 - ✅ **Reasoning задачи** - мощная 30B MoE модель с 198K context
 - ✅ **Fallback** - при недоступности других моделей
