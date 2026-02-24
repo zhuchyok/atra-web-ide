@@ -37,7 +37,7 @@ class WriteFileRequest(BaseModel):
     """Запрос на запись файла"""
     content: str = Field(..., min_length=0, max_length=settings.max_file_size)
     encoding: str = Field(default="utf-8", pattern="^(utf-8|utf-16|ascii|latin-1)$")
-    
+
     @field_validator('content')
     @classmethod
     def validate_content_size(cls, v: str) -> str:
@@ -51,7 +51,7 @@ class CreateRequest(BaseModel):
     """Запрос на создание файла/папки"""
     type: str = Field(..., pattern="^(file|directory)$")
     content: Optional[str] = Field(default=None, max_length=settings.max_file_size)
-    
+
     @field_validator('content')
     @classmethod
     def validate_content(cls, v: Optional[str], info) -> Optional[str]:
@@ -64,37 +64,37 @@ class CreateRequest(BaseModel):
 def get_safe_path(path: str) -> Path:
     """
     Получить безопасный путь внутри workspace
-    
+
     Args:
         path: Путь к файлу/директории
-    
+
     Returns:
         Path объект
-    
+
     Raises:
         HTTPException: Если путь небезопасен
     """
     workspace = Path(settings.workspace_root)
-    
+
     # Создаём workspace если не существует
     workspace.mkdir(parents=True, exist_ok=True)
-    
+
     # Нормализуем путь
     if path.startswith("/"):
         path = path[1:]
-    
+
     # Убираем .. и другие опасные символы
     path = os.path.normpath(path).lstrip('/')
-    
+
     # Проверяем на попытку выхода за пределы workspace
     if ".." in path or path.startswith("/"):
         raise HTTPException(
             status_code=403,
             detail="Access denied: invalid path"
         )
-    
+
     full_path = (workspace / path).resolve()
-    
+
     # Проверяем что путь внутри workspace
     try:
         full_path.relative_to(workspace.resolve())
@@ -103,7 +103,7 @@ def get_safe_path(path: str) -> Path:
             status_code=403,
             detail="Access denied: path outside workspace"
         )
-    
+
     return full_path
 
 
@@ -124,22 +124,22 @@ async def list_files(
 ) -> List[FileInfo]:
     """
     Список файлов в директории
-    
+
     Returns:
         Список файлов и директорий
     """
     try:
         dir_path = get_safe_path(path)
-        
+
         if not dir_path.exists():
             return []
-        
+
         if not dir_path.is_dir():
             raise HTTPException(
                 status_code=400,
                 detail="Path is not a directory"
             )
-        
+
         files = []
         for item in sorted(dir_path.iterdir()):
             try:
@@ -154,9 +154,9 @@ async def list_files(
             except (OSError, PermissionError) as e:
                 logger.warning(f"Cannot access {item}: {e}")
                 continue
-        
+
         return files
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -173,25 +173,25 @@ async def read_file(
 ) -> FileContent:
     """
     Прочитать файл
-    
+
     Returns:
         Содержимое файла
     """
     try:
         file_path = get_safe_path(path)
-        
+
         if not file_path.exists():
             raise HTTPException(
                 status_code=404,
                 detail="File not found"
             )
-        
+
         if not file_path.is_file():
             raise HTTPException(
                 status_code=400,
                 detail="Path is not a file"
             )
-        
+
         # Проверка размера файла
         file_size = file_path.stat().st_size
         if file_size > settings.max_file_size:
@@ -199,7 +199,7 @@ async def read_file(
                 status_code=413,
                 detail=f"File too large: {file_size} bytes (max: {settings.max_file_size})"
             )
-        
+
         # Читаем содержимое
         try:
             content = file_path.read_text(encoding="utf-8")
@@ -214,13 +214,13 @@ async def read_file(
                 status_code=500,
                 detail="Error reading file"
             )
-        
+
         return FileContent(
             path=path,
             content=content,
             encoding="utf-8"
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -238,7 +238,7 @@ async def write_file(
 ) -> dict:
     """
     Записать файл
-    
+
     Returns:
         Результат записи
     """
@@ -247,16 +247,16 @@ async def write_file(
             status_code=400,
             detail="Request body is required"
         )
-    
+
     try:
         file_path = get_safe_path(path)
-        
+
         # Проверяем расширение
         validate_file_extension(file_path)
-        
+
         # Создаём родительские директории
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Записываем
         try:
             file_path.write_text(request.content, encoding=request.encoding)
@@ -266,13 +266,13 @@ async def write_file(
                 status_code=500,
                 detail="Error writing file"
             )
-        
+
         return {
             "success": True,
             "path": path,
             "size": len(request.content.encode(request.encoding))
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -290,7 +290,7 @@ async def create_item(
 ) -> dict:
     """
     Создать файл или папку
-    
+
     Returns:
         Результат создания
     """
@@ -299,16 +299,16 @@ async def create_item(
             status_code=400,
             detail="Request body is required"
         )
-    
+
     try:
         item_path = get_safe_path(path)
-        
+
         if item_path.exists():
             raise HTTPException(
                 status_code=409,
                 detail="Path already exists"
             )
-        
+
         if request.type == "directory":
             item_path.mkdir(parents=True, exist_ok=True)
         else:
@@ -316,13 +316,13 @@ async def create_item(
             validate_file_extension(item_path)
             item_path.parent.mkdir(parents=True, exist_ok=True)
             item_path.write_text(request.content or "", encoding="utf-8")
-        
+
         return {
             "success": True,
             "path": path,
             "type": request.type
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -339,19 +339,19 @@ async def delete_item(
 ) -> dict:
     """
     Удалить файл или папку
-    
+
     Returns:
         Результат удаления
     """
     try:
         item_path = get_safe_path(path)
-        
+
         if not item_path.exists():
             raise HTTPException(
                 status_code=404,
                 detail="Path not found"
             )
-        
+
         # Защита от удаления workspace root
         workspace = Path(settings.workspace_root).resolve()
         if item_path.resolve() == workspace:
@@ -359,7 +359,7 @@ async def delete_item(
                 status_code=403,
                 detail="Cannot delete workspace root"
             )
-        
+
         try:
             if item_path.is_dir():
                 shutil.rmtree(item_path)
@@ -371,12 +371,12 @@ async def delete_item(
                 status_code=500,
                 detail="Error deleting item"
             )
-        
+
         return {
             "success": True,
             "path": path
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -394,39 +394,39 @@ async def rename_item(
 ) -> dict:
     """
     Переименовать файл или папку
-    
+
     Returns:
         Результат переименования
     """
     try:
         old = get_safe_path(old_path)
         new = get_safe_path(new_path)
-        
+
         if not old.exists():
             raise HTTPException(
                 status_code=404,
                 detail="Source not found"
             )
-        
+
         if new.exists():
             raise HTTPException(
                 status_code=409,
                 detail="Destination already exists"
             )
-        
+
         # Проверяем расширение для файлов
         if old.is_file():
             validate_file_extension(new)
-        
+
         new.parent.mkdir(parents=True, exist_ok=True)
         old.rename(new)
-        
+
         return {
             "success": True,
             "old_path": old_path,
             "new_path": new_path
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:

@@ -19,11 +19,11 @@
 
 **Назначение:** при запросе с /expert или «подключи экспертов» агент обязан опираться на три источника.
 
-| Источник | Как подключить в Cursor |
-|----------|-------------------------|
-| **Эксперты из Docker** | Читать `configs/experts/team.md`, `.cursor/rules/README.md`; при доступном бэкенде — упоминать `GET /api/experts`; в ответах использовать роли и имена из team.md и правил (Игорь, Дмитрий, Анна и т.д.) и стиль из TEAM_PERSONALITIES. |
-| **Узлы знаний** | Использовать «библию»: `docs/MASTER_REFERENCE.md`, `docs/CHANGES_FROM_OTHER_CHATS.md`, при необходимости `ARCHITECTURE_FULL`, `VERIFICATION_CHECKLIST_OPTIMIZATIONS`; при реализации в коде — следовать логике Knowledge OS (knowledge_nodes, expert_services). |
-| **Знания гигантов** | Указывать в контексте: `docs/COGNITIVE_CODE.md`, `docs/OPENWEBUI_RAG_SETUP.md`; при проектировании и аудите — мировые практики (12-Factor, first principles, runbook’и из docs). |
+| Источник               | Как подключить в Cursor                                                                                                                                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Эксперты из Docker** | Читать `configs/experts/team.md`, `.cursor/rules/README.md`; при доступном бэкенде — упоминать `GET /api/experts`; в ответах использовать роли и имена из team.md и правил (Игорь, Дмитрий, Анна и т.д.) и стиль из TEAM_PERSONALITIES.                         |
+| **Узлы знаний**        | Использовать «библию»: `docs/MASTER_REFERENCE.md`, `docs/CHANGES_FROM_OTHER_CHATS.md`, при необходимости `ARCHITECTURE_FULL`, `VERIFICATION_CHECKLIST_OPTIMIZATIONS`; при реализации в коде — следовать логике Knowledge OS (knowledge_nodes, expert_services). |
+| **Знания гигантов**    | Указывать в контексте: `docs/COGNITIVE_CODE.md`, `docs/OPENWEBUI_RAG_SETUP.md`; при проектировании и аудите — мировые практики (12-Factor, first principles, runbook’и из docs).                                                                                |
 
 **Правило:** один источник истины. Эксперты — `employees.json` → team.md + .cursor/rules; знания — MASTER_REFERENCE и связка; гиганты — COGNITIVE_CODE + ai_research в БД (в Cursor — через документы).
 
@@ -34,6 +34,7 @@
 **Назначение:** при запросе с /brainstorm или перед креативной работой (фичи, новые компоненты, смена поведения) агент обязан следовать скиллу **brainstorming**.
 
 **Обязательные шаги (по скиллу):**
+
 1. Изучить контекст проекта (файлы, доки, последние изменения).
 2. Задавать уточняющие вопросы по одному (цель, ограничения, критерии успеха).
 3. Предложить 2–3 подхода с плюсами/минусами и рекомендацией.
@@ -61,4 +62,4 @@
 
 ---
 
-*Связь: EXPERT_CONNECTION_ARCHITECTURE, KNOWLEDGE_BASE_WHO_USES, OPENWEBUI_RAG_SETUP, brainstorming skill.*
+_Связь: EXPERT_CONNECTION_ARCHITECTURE, KNOWLEDGE_BASE_WHO_USES, OPENWEBUI_RAG_SETUP, brainstorming skill._

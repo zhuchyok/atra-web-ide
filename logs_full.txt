@@ -17,7 +17,7 @@ INFO:     172.20.0.20:42892 - "GET /metrics HTTP/1.1" 200 OK
 📝 Аргументы: {
   "command": "echo 'Вероника, выведи сообщение \"Привет! Я Виктория.\" в главном файле ATRA Web IDE."
 }
-👀 Результат: STDOUT: 
+👀 Результат: STDOUT:
 STDERR: /bin/sh: 1: Syntax error: Unterminated quoted string
 
 INFO:     172.20.0.9:52996 - "GET /metrics HTTP/1.1" 200 OK
@@ -27,7 +27,7 @@ INFO:     172.20.0.20:42892 - "GET /metrics HTTP/1.1" 200 OK
 📝 Аргументы: {
   "command": "npm run test"
 }
-👀 Результат: STDOUT: 
+👀 Результат: STDOUT:
 STDERR: /bin/sh: 1: npm: not found
 
 🤔 Мысль: Начну проверку полученного результата, чтобы убедиться в его корректности и соответствии требованиям.
@@ -35,7 +35,7 @@ STDERR: /bin/sh: 1: npm: not found
 📝 Аргументы: {
   "command": "npm run test"
 }
-👀 Результат: STDOUT: 
+👀 Результат: STDOUT:
 STDERR: /bin/sh: 1: npm: not found
 
 🤔 Мысль: Начну проверку полученного результата, чтобы убедиться в его корректности и соответствии требованиям.

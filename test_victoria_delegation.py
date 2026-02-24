@@ -17,7 +17,7 @@ try:
         json={"goal": goal1, "max_steps": 500},
         timeout=60
     )
-    
+
     if response.status_code == 200:
         result = response.json()
         print("✅ Статус:", result.get("status", "N/A"))
@@ -51,7 +51,7 @@ try:
         json={"goal": goal2, "max_steps": 500},
         timeout=60
     )
-    
+
     if response.status_code == 200:
         result = response.json()
         print("✅ Статус:", result.get("status", "N/A"))

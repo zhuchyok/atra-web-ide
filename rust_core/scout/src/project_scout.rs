@@ -56,16 +56,16 @@ async fn distill_content(text: &str) -> String {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
     let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/knowledge_os".to_string());
-    
+
     println!("🚀 Project Scout-agent starting...");
-    
+
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&db_url).await?;
 
     let project_root = Path::new("/Users/bikos/Documents/atra-web-ide");
     let folders_to_index = vec!["backend", "frontend", "rust_core", "knowledge_os"];
-    
+
     let mut total_count = 0;
     let domain_id = Uuid::parse_str("8a31f9dd-cd47-426c-bd1d-3ecb435fca8a").unwrap(); // General Knowledge domain
 
@@ -80,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             let path = entry.path();
             let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
-            
+
             // Filter relevant files
             if !["rs", "py", "ts", "js", "svelte", "toml", "json", "md", "sql"].contains(&extension) {
                 continue;
@@ -109,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let now = Utc::now();
 
             sqlx::query(
-                "INSERT INTO knowledge_nodes (id, content, domain_id, confidence_score, is_verified, created_at, updated_at) 
+                "INSERT INTO knowledge_nodes (id, content, domain_id, confidence_score, is_verified, created_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7)"
             )
             .bind(node_id)
@@ -121,12 +121,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .bind(now)
             .execute(&pool)
             .await?;
-            
+
             total_count += 1;
         }
     }
-    
+
     println!("✅ Successfully indexed {} project files into Knowledge OS.", total_count);
-    
+
     Ok(())
 }

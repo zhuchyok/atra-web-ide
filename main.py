@@ -47,34 +47,34 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Database: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'N/A'}")
     logger.info(f"   Workspace: {settings.workspace_root}")
     logger.info(f"   Rate Limiting: {'enabled' if settings.rate_limit_enabled else 'disabled'}")
-    
+
     # Проверка зависимостей при старте
     try:
         from app.services.victoria import get_victoria_client
         from app.services.ollama import get_ollama_client
-        
+
         victoria = await get_victoria_client()
         ollama = await get_ollama_client()
-        
+
         # Проверяем доступность сервисов
         victoria_health = await victoria.health()
         ollama_health = await ollama.health()
-        
+
         if victoria_health.get("status") != "healthy":
             logger.warning(f"⚠️ Victoria недоступна: {victoria_health}")
         else:
             logger.info("✅ Victoria доступна")
-        
+
         if ollama_health.get("status") != "healthy":
             logger.warning(f"⚠️ Ollama недоступна: {ollama_health}")
         else:
             logger.info("✅ Ollama доступна")
-            
+
     except Exception as e:
         logger.warning(f"⚠️ Ошибка проверки зависимостей: {e}")
-    
+
     yield
-    
+
     logger.info("👋 ATRA Web IDE остановлен")
 
 
@@ -139,26 +139,26 @@ async def health():
     """Health check с проверкой зависимостей"""
     from app.services.victoria import get_victoria_client
     from app.services.ollama import get_ollama_client
-    
+
     health_status = {
         "status": "healthy",
         "service": "atra-web-ide",
         "version": settings.api_version
     }
-    
+
     # Проверка зависимостей
     try:
         victoria = await get_victoria_client()
         ollama = await get_ollama_client()
-        
+
         victoria_health = await victoria.health()
         ollama_health = await ollama.health()
-        
+
         health_status["dependencies"] = {
             "victoria": victoria_health.get("status", "unknown"),
             "ollama": ollama_health.get("status", "unknown")
         }
-        
+
         # Если критичные зависимости недоступны
         if victoria_health.get("status") != "healthy" and ollama_health.get("status") != "healthy":
             health_status["status"] = "degraded"
@@ -166,7 +166,7 @@ async def health():
         logger.error(f"Health check error: {e}")
         health_status["status"] = "unhealthy"
         health_status["error"] = str(e)
-    
+
     return health_status
 
 

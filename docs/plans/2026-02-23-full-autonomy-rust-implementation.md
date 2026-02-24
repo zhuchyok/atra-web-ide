@@ -4,7 +4,8 @@
 
 **Goal:** Build a Rust-based Scout-agent for offline knowledge indexing and a high-performance API Gateway to replace Python-based routing.
 
-**Architecture:** 
+**Architecture:**
+
 - **Scout-agent:** A standalone Rust binary using `reqwest` for crawling and `sqlx` for storing дистиллированные знания in PostgreSQL (knowledge_nodes).
 - **API Gateway:** An `axum` based server that routes requests between Victoria (Docker) and MLX/Ollama (Host), optimizing for low latency and high concurrency.
 
@@ -13,13 +14,16 @@
 ---
 
 ### Task 1: Initialize Rust Workspace
+
 **Files:**
+
 - Create: `Cargo.toml` (Workspace)
 - Create: `rust_core/Cargo.toml`
 - Create: `rust_core/scout/Cargo.toml`
 - Create: `rust_core/gateway/Cargo.toml`
 
 **Step 1: Create workspace Cargo.toml**
+
 ```toml
 [workspace]
 members = [
@@ -35,6 +39,7 @@ Run: `cargo init rust_core/scout --bin`
 Run: `cargo init rust_core/gateway --bin`
 
 **Step 3: Commit**
+
 ```bash
 git add Cargo.toml rust_core/
 git commit -m "infra: initialize rust workspace for scout and gateway"
@@ -43,11 +48,14 @@ git commit -m "infra: initialize rust workspace for scout and gateway"
 ---
 
 ### Task 2: Implement Scout-agent (Basic Crawler)
+
 **Files:**
+
 - Modify: `rust_core/scout/Cargo.toml`
 - Modify: `rust_core/scout/src/main.rs`
 
 **Step 1: Add dependencies to Scout**
+
 ```toml
 [dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -59,6 +67,7 @@ dotenv = "0.15"
 ```
 
 **Step 2: Implement basic crawl logic in `rust_core/scout/src/main.rs`**
+
 ```rust
 use sqlx::postgres::PgPoolOptions;
 use std::env;
@@ -78,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 **Step 3: Commit**
+
 ```bash
 git add rust_core/scout/
 git commit -m "feat(scout): basic scout-agent structure with db connection"
@@ -86,11 +96,14 @@ git commit -m "feat(scout): basic scout-agent structure with db connection"
 ---
 
 ### Task 3: Implement API Gateway (Basic Routing)
+
 **Files:**
+
 - Modify: `rust_core/gateway/Cargo.toml`
 - Modify: `rust_core/gateway/src/main.rs`
 
 **Step 1: Add dependencies to Gateway**
+
 ```toml
 [dependencies]
 axum = "0.7"
@@ -104,6 +117,7 @@ tracing-subscriber = "0.3"
 ```
 
 **Step 2: Implement basic proxy in `rust_core/gateway/src/main.rs`**
+
 ```rust
 use axum::{
     routing::{get, post},
@@ -138,6 +152,7 @@ async fn proxy_chat(Json(payload): Json<serde_json::Value>) -> impl IntoResponse
 ```
 
 **Step 3: Commit**
+
 ```bash
 git add rust_core/gateway/
 git commit -m "feat(gateway): basic axum gateway on port 8081"

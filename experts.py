@@ -28,19 +28,19 @@ async def list_experts(
 ) -> List[Expert]:
     """
     Получить список всех экспертов
-    
+
     Returns:
         Список из 58+ экспертов ATRA
     """
     cache = get_cache()
     cache_key = "experts:list"
-    
+
     # Проверяем кэш
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug("Experts list served from cache")
         return cached
-    
+
     try:
         experts = await knowledge_os.get_experts()
         result = [
@@ -53,10 +53,10 @@ async def list_experts(
             )
             for e in experts
         ]
-        
+
         # Сохраняем в кэш
         cache.set(cache_key, result, ttl=300)  # 5 минут
-        
+
         return result
     except Exception as e:
         logger.error(f"List experts error: {e}", exc_info=True)
@@ -84,28 +84,28 @@ async def get_expert(
 ) -> Expert:
     """
     Получить эксперта по ID
-    
+
     Returns:
         Информация об эксперте
     """
     cache = get_cache()
     cache_key = f"expert:{expert_id}"
-    
+
     # Проверяем кэш
     cached = cache.get(cache_key)
     if cached is not None:
         logger.debug(f"Expert {expert_id} served from cache")
         return cached
-    
+
     try:
         expert = await knowledge_os.get_expert(expert_id)
-        
+
         if not expert:
             raise HTTPException(
                 status_code=404,
                 detail=f"Expert {expert_id} not found"
             )
-        
+
         result = Expert(
             id=str(expert["id"]),
             name=expert["name"],
@@ -113,10 +113,10 @@ async def get_expert(
             system_prompt=expert.get("system_prompt"),
             created_at=str(expert.get("created_at")) if expert.get("created_at") else None
         )
-        
+
         # Сохраняем в кэш
         cache.set(cache_key, result, ttl=600)  # 10 минут
-        
+
         return result
     except HTTPException:
         raise

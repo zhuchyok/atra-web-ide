@@ -18,7 +18,7 @@ settings = get_settings()
 
 class VictoriaClient:
     """Клиент для Victoria Agent с улучшенной обработкой ошибок"""
-    
+
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = base_url or settings.victoria_url
         self.timeout = httpx.Timeout(
@@ -27,11 +27,11 @@ class VictoriaClient:
         )
         self.max_retries = 3
         self.retry_delay = 1.0
-    
+
     async def _retry_request(self, func, *args, **kwargs):
         """Повторная попытка запроса с экспоненциальной задержкой"""
         last_error = None
-        
+
         for attempt in range(self.max_retries):
             try:
                 return await func(*args, **kwargs)
@@ -46,23 +46,23 @@ class VictoriaClient:
                     await asyncio.sleep(delay)
                 else:
                     logger.error(f"Victoria request failed after {self.max_retries} attempts: {e}")
-        
+
         raise last_error
-    
+
     async def run(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         expert_name: Optional[str] = None,
         stream: bool = False
     ) -> dict:
         """
         Выполнить задачу через Victoria
-        
+
         Args:
             prompt: Текст запроса (goal)
             expert_name: Имя эксперта (опционально)
             stream: Использовать стриминг
-        
+
         Returns:
             Результат выполнения
         """
@@ -72,14 +72,14 @@ class VictoriaClient:
                     "goal": prompt,  # Victoria expects 'goal', not 'prompt'
                     "max_steps": 500,  # Limit steps for chat responses
                 }
-                
+
                 response = await client.post(
                     f"{self.base_url}/run",
                     json=payload
                 )
                 response.raise_for_status()
                 return response.json()
-        
+
         try:
             data = await self._retry_request(_make_request)
             # Map Victoria response to expected format
@@ -89,9 +89,9 @@ class VictoriaClient:
                 output = data.get("result", "")
             if not output and "response" in data:
                 output = data.get("response", "")
-            
+
             logger.info(f"Victoria response: status={data.get('status')}, output_length={len(output) if output else 0}")
-            
+
             return {
                 "status": data.get("status", "success"),
                 "result": output,
@@ -105,15 +105,15 @@ class VictoriaClient:
                 "error": str(e),
                 "result": None
             }
-    
+
     async def run_stream(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         expert_name: Optional[str] = None
     ) -> AsyncGenerator[str, None]:
         """
         Стриминг ответа от Victoria
-        
+
         Yields:
             Части ответа в формате SSE
         """
@@ -124,7 +124,7 @@ class VictoriaClient:
             }
             if expert_name:
                 payload["expert_name"] = expert_name
-            
+
             try:
                 async with client.stream(
                     "POST",
@@ -138,7 +138,7 @@ class VictoriaClient:
             except httpx.HTTPError as e:
                 logger.error(f"Victoria stream error: {e}")
                 yield json.dumps({"error": str(e)})
-    
+
     async def status(self) -> dict:
         """Получить статус Victoria"""
         async def _make_request():
@@ -146,13 +146,13 @@ class VictoriaClient:
                 response = await client.get(f"{self.base_url}/status")
                 response.raise_for_status()
                 return response.json()
-        
+
         try:
             return await self._retry_request(_make_request)
         except httpx.HTTPError as e:
             logger.error(f"Victoria status error: {e}")
             return {"status": "offline", "error": str(e)}
-    
+
     async def health(self) -> dict:
         """Health check Victoria"""
         async def _make_request():
@@ -160,7 +160,7 @@ class VictoriaClient:
                 response = await client.get(f"{self.base_url}/health")
                 response.raise_for_status()
                 return response.json()
-        
+
         try:
             result = await self._retry_request(_make_request)
             return {"status": "healthy", **result}

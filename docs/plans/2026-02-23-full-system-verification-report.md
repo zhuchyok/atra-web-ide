@@ -7,11 +7,11 @@
 
 ## 1. Источники для /expert (три столпа)
 
-| Источник | Где находится | Как используется |
-|----------|---------------|-------------------|
+| Источник               | Где находится                                                                                                                                                                                                                             | Как используется                                                                                                                                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Эксперты из Docker** | БД `knowledge_os.experts` (контейнер `knowledge_postgres`), синхронизация из `configs/experts/employees.json` через `scripts/sync_employees.py`. Роли и стиль: `configs/experts/team.md`, `.cursor/rules/`, `docs/TEAM_PERSONALITIES.md`. | В Cursor: team.md + README правил; в рантайме: бэкенд `GET /api/experts` (читает БД; при недоступности БД — fallback список 9 экспертов). Оркестратор, Victoria, воркеры — через БД и expert_services. |
-| **Узлы знаний** | Таблица `knowledge_nodes` в Knowledge OS; «библия»: `docs/MASTER_REFERENCE.md`, `docs/CHANGES_FROM_OTHER_CHATS.md`, `ARCHITECTURE_FULL`, `VERIFICATION_CHECKLIST_OPTIMIZATIONS`. | Victoria/Veronica подставляют релевантный контекст при USE_KNOWLEDGE_OS=true; в Cursor агент опирается на библию и docs/. |
-| **Знания гигантов** | RAG: `knowledge_os/knowledge_base/ai_research/`, индексация в knowledge_nodes; документы: `docs/COGNITIVE_CODE.md`, `docs/OPENWEBUI_RAG_SETUP.md`, эталоны в `docs/curator_reports/standards/`. | В Cursor явно подключать MASTER_REFERENCE, COGNITIVE_CODE; при проектировании — 12-Factor, first principles, runbook’и. |
+| **Узлы знаний**        | Таблица `knowledge_nodes` в Knowledge OS; «библия»: `docs/MASTER_REFERENCE.md`, `docs/CHANGES_FROM_OTHER_CHATS.md`, `ARCHITECTURE_FULL`, `VERIFICATION_CHECKLIST_OPTIMIZATIONS`.                                                          | Victoria/Veronica подставляют релевантный контекст при USE_KNOWLEDGE_OS=true; в Cursor агент опирается на библию и docs/.                                                                              |
+| **Знания гигантов**    | RAG: `knowledge_os/knowledge_base/ai_research/`, индексация в knowledge_nodes; документы: `docs/COGNITIVE_CODE.md`, `docs/OPENWEBUI_RAG_SETUP.md`, эталоны в `docs/curator_reports/standards/`.                                           | В Cursor явно подключать MASTER_REFERENCE, COGNITIVE_CODE; при проектировании — 12-Factor, first principles, runbook’и.                                                                                |
 
 **Правило:** при запросе /expert или «подключи экспертов» агент обязан опираться на все три источника и явно указывать их (см. `.cursor/rules/expert_and_brainstorm.mdc`).
 
@@ -22,6 +22,7 @@
 **Когда:** /brainstorm или креативная задача (фичи, новые компоненты, смена поведения).
 
 **Шаги (без перехода к коду до одобрения):**
+
 1. Изучить контекст (файлы, доки, последние изменения).
 2. Задавать уточняющие вопросы **по одному** (цель, ограничения, критерии успеха).
 3. Предложить **2–3 подхода** с плюсами/минусами и рекомендацией.
@@ -37,40 +38,40 @@
 
 ### 3.1 Ядро (мозг + руки + координация)
 
-| Компонент | Ожидание | Статус проверки | Связи |
-|-----------|----------|------------------|-------|
-| **MLX API (мозг)** | Порт 11435, health OK, модели в кэше. | ✅ healthy, models_cached: 1 (victoria-wisdom-30b), memory ~50%. | Victoria, оркестратор, local_router обращаются к host.docker.internal:11435. |
-| **Ollama (руки)** | Порт 11434, victoria-wisdom-30b в списке. | ✅ api/tags отвечает, victoria-wisdom-30b:latest в списке. | Victoria, Open WebUI, воркеры — host.docker.internal:11434. |
-| **Victoria Agent** | Порт 8010, /health ok. | ✅ status ok, agent Виктория. | Бэкенд 8080 → Victoria 8010; Open WebUI ask_victoria → бэкенд → Victoria. |
-| **Backend (Web IDE)** | Порт 8080, /health, зависимости healthy. | ✅ healthy, victoria/ollama/mlx в health — healthy. | Frontend 3000, GET /api/experts, POST /api/chat/stream, ask-victoria. |
+| Компонент             | Ожидание                                  | Статус проверки                                                  | Связи                                                                        |
+| --------------------- | ----------------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **MLX API (мозг)**    | Порт 11435, health OK, модели в кэше.     | ✅ healthy, models_cached: 1 (victoria-wisdom-30b), memory ~50%. | Victoria, оркестратор, local_router обращаются к host.docker.internal:11435. |
+| **Ollama (руки)**     | Порт 11434, victoria-wisdom-30b в списке. | ✅ api/tags отвечает, victoria-wisdom-30b:latest в списке.       | Victoria, Open WebUI, воркеры — host.docker.internal:11434.                  |
+| **Victoria Agent**    | Порт 8010, /health ok.                    | ✅ status ok, agent Виктория.                                    | Бэкенд 8080 → Victoria 8010; Open WebUI ask_victoria → бэкенд → Victoria.    |
+| **Backend (Web IDE)** | Порт 8080, /health, зависимости healthy.  | ✅ healthy, victoria/ollama/mlx в health — healthy.              | Frontend 3000, GET /api/experts, POST /api/chat/stream, ask-victoria.        |
 
 ### 3.2 Данные и оркестрация
 
-| Компонент | Ожидание | Статус проверки | Связи |
-|-----------|----------|------------------|-------|
-| **PostgreSQL (knowledge_os)** | Контейнер knowledge_postgres, БД доступна. | ✅ verify_full_recovery_readiness: PostgreSQL доступна и здорова. | Оркестратор, Victoria, бэкенд, воркеры, дашборд — DATABASE_URL. |
-| **Redis (knowledge_os)** | Контейнер knowledge_os_redis. | ✅ healthy (в списке Docker). | Очереди, кэш, бэкенд REDIS_URL. |
-| **Оркестратор** | knowledge_os_orchestrator запущен. | ✅ Up. | Циклы оркестрации, health monitor → RECOVERY_WEBHOOK_URL при падении MLX/Ollama. |
+| Компонент                     | Ожидание                                   | Статус проверки                                                   | Связи                                                                            |
+| ----------------------------- | ------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **PostgreSQL (knowledge_os)** | Контейнер knowledge_postgres, БД доступна. | ✅ verify_full_recovery_readiness: PostgreSQL доступна и здорова. | Оркестратор, Victoria, бэкенд, воркеры, дашборд — DATABASE_URL.                  |
+| **Redis (knowledge_os)**      | Контейнер knowledge_os_redis.              | ✅ healthy (в списке Docker).                                     | Очереди, кэш, бэкенд REDIS_URL.                                                  |
+| **Оркестратор**               | knowledge_os_orchestrator запущен.         | ✅ Up.                                                            | Циклы оркестрации, health monitor → RECOVERY_WEBHOOK_URL при падении MLX/Ollama. |
 
 ### 3.3 Дефибриллятор и восстановление
 
-| Компонент | Ожидание | Статус проверки | Связи |
-|-----------|----------|------------------|-------|
-| **Recovery listener** | Порт 9099, POST /recover → system_auto_recovery.sh. | ✅ Порт 9099 занят (слушатель запущен). | Оркестратор шлёт webhook при недоступности MLX/Ollama. |
-| **OLLAMA_KEEP_ALIVE** | -1 в .env (модель не выгружается). | ✅ В проверке: OLLAMA_KEEP_ALIVE=-1. | Стабильная работа victoria-wisdom-30b в Ollama. |
-| **MLX LaunchAgent** | com.atra.mlx-api-server.plist. | ✅ Найден (verify script). | Автоперезапуск wrapper при падении; монитор mlx-monitor — проверка каждые 30 с. |
+| Компонент             | Ожидание                                            | Статус проверки                         | Связи                                                                           |
+| --------------------- | --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| **Recovery listener** | Порт 9099, POST /recover → system_auto_recovery.sh. | ✅ Порт 9099 занят (слушатель запущен). | Оркестратор шлёт webhook при недоступности MLX/Ollama.                          |
+| **OLLAMA_KEEP_ALIVE** | -1 в .env (модель не выгружается).                  | ✅ В проверке: OLLAMA_KEEP_ALIVE=-1.    | Стабильная работа victoria-wisdom-30b в Ollama.                                 |
+| **MLX LaunchAgent**   | com.atra.mlx-api-server.plist.                      | ✅ Найден (verify script).              | Автоперезапуск wrapper при падении; монитор mlx-monitor — проверка каждые 30 с. |
 
 ### 3.4 Интерфейсы
 
-| Компонент | Ожидание | Статус проверки | Связи |
-|-----------|----------|------------------|-------|
-| **Open WebUI** | Порт 3005, модели от Ollama, Victoria/Enhanced по ссылке. | ✅ Up healthy. | OLLAMA_BASE_URL=host.docker.internal:11434; OPENAI_API_BASE_URL=victoria-agent:8000/v1. |
-| **Frontend (Web IDE)** | Порт 3000. | В списке Docker (atra-web-ide-frontend). | Backend 8080. |
+| Компонент              | Ожидание                                                  | Статус проверки                          | Связи                                                                                   |
+| ---------------------- | --------------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Open WebUI**         | Порт 3005, модели от Ollama, Victoria/Enhanced по ссылке. | ✅ Up healthy.                           | OLLAMA_BASE_URL=host.docker.internal:11434; OPENAI_API_BASE_URL=victoria-agent:8000/v1. |
+| **Frontend (Web IDE)** | Порт 3000.                                                | В списке Docker (atra-web-ide-frontend). | Backend 8080.                                                                           |
 
 ### 3.5 API экспертов
 
-| Компонент | Ожидание | Статус проверки | Связи |
-|-----------|----------|------------------|-------|
+| Компонент            | Ожидание                      | Статус проверки                                                                                                          | Связи                                             |
+| -------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
 | **GET /api/experts** | Список экспертов из БД (86+). | ⚠️ Зависит от доступности бэкенда к knowledge_postgres (сеть atra-network). При недоступности БД — fallback 9 экспертов. | Backend → KnowledgeOSClient → PostgreSQL experts. |
 
 **Рекомендация:** убедиться, что бэкенд и knowledge_postgres в одной сети (atra-network); при запуске только docker-compose корня — поднять также knowledge_os (или общую сеть).
@@ -115,4 +116,4 @@ Open WebUI (3005) ──► Ollama (11434) для моделей; Victoria (8000
 
 ---
 
-*Связь: docs/plans/2026-02-23-expert-and-brainstorm-design.md, docs/EXPERT_CONNECTION_ARCHITECTURE.md, docs/MASTER_REFERENCE.md, .cursor/rules/expert_and_brainstorm.mdc.*
+_Связь: docs/plans/2026-02-23-expert-and-brainstorm-design.md, docs/EXPERT_CONNECTION_ARCHITECTURE.md, docs/MASTER_REFERENCE.md, .cursor/rules/expert_and_brainstorm.mdc._

@@ -88,14 +88,14 @@ except ImportError:
 class VictoriaEnhanced:
     """
     Victoria Enhanced - Victoria с интеграцией всех новых компонентов
-    
+
     Автоматически выбирает оптимальный метод для задачи:
     - Reasoning → Extended Thinking + ReCAP
     - Planning → Tree of Thoughts + Hierarchical Orchestration
     - Complex → Swarm Intelligence + Consensus
     - Execution → ReAct Framework
     """
-    
+
     def __init__(
         self,
         model_name: str = "phi3.5:3.8b",
@@ -111,7 +111,7 @@ class VictoriaEnhanced:
         self.use_swarm = use_swarm and SWARM_AVAILABLE
         self.use_consensus = use_consensus and CONSENSUS_AVAILABLE
         self.use_collective_memory = use_collective_memory and COLLECTIVE_MEMORY_AVAILABLE
-        
+
         # Инициализируем компоненты
         self.react_agent = None
         self.extended_thinking = None
@@ -121,7 +121,7 @@ class VictoriaEnhanced:
         self.hierarchical_orch = None
         self.recap = None
         self.tot = None
-        
+
         # Инициализация observability
         self.observability = None
         if OBSERVABILITY_AVAILABLE:
@@ -130,7 +130,7 @@ class VictoriaEnhanced:
                 logger.info("✅ Observability инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации Observability: {e}")
-        
+
         # Инициализация кэша
         self.cache = None
         self.use_cache = ENHANCED_CACHE_AVAILABLE
@@ -141,9 +141,9 @@ class VictoriaEnhanced:
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации Enhanced Cache: {e}")
                 self.use_cache = False
-        
+
         self._initialize_components()
-    
+
     def _initialize_components(self):
         """Инициализировать доступные компоненты"""
         if self.use_react:
@@ -155,7 +155,7 @@ class VictoriaEnhanced:
                 logger.info("✅ ReActAgent инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации ReActAgent: {e}")
-        
+
         if self.use_extended_thinking:
             try:
                 self.extended_thinking = ExtendedThinkingEngine(
@@ -164,7 +164,7 @@ class VictoriaEnhanced:
                 logger.info("✅ ExtendedThinkingEngine инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации ExtendedThinkingEngine: {e}")
-        
+
         if self.use_swarm:
             try:
                 self.swarm = SwarmIntelligence(
@@ -174,46 +174,46 @@ class VictoriaEnhanced:
                 logger.info("✅ SwarmIntelligence инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации SwarmIntelligence: {e}")
-        
+
         if self.use_consensus:
             try:
                 self.consensus = ConsensusAgent(model_name=self.model_name)
                 logger.info("✅ ConsensusAgent инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации ConsensusAgent: {e}")
-        
+
         if self.use_collective_memory:
             try:
                 self.collective_memory = CollectiveMemorySystem()
                 logger.info("✅ CollectiveMemorySystem инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации CollectiveMemorySystem: {e}")
-        
+
         if HIERARCHICAL_AVAILABLE:
             try:
                 self.hierarchical_orch = HierarchicalOrchestrator(root_agent="Victoria")
                 logger.info("✅ HierarchicalOrchestrator инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации HierarchicalOrchestrator: {e}")
-        
+
         if RECAP_AVAILABLE:
             try:
                 self.recap = ReCAPFramework(model_name=self.model_name)
                 logger.info("✅ ReCAPFramework инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации ReCAPFramework: {e}")
-        
+
         if TOT_AVAILABLE:
             try:
                 self.tot = TreeOfThoughts(model_name=self.model_name)
                 logger.info("✅ TreeOfThoughts инициализирован")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка инициализации TreeOfThoughts: {e}")
-    
+
     def _categorize_task(self, goal: str) -> str:
         """Определить категорию задачи"""
         goal_lower = goal.lower()
-        
+
         if any(word in goal_lower for word in ["реши", "рассчитай", "вычисли", "reasoning", "логика"]):
             return "reasoning"
         elif any(word in goal_lower for word in ["спланируй", "организуй", "plan", "планирование"]):
@@ -224,7 +224,7 @@ class VictoriaEnhanced:
             return "execution"
         else:
             return "general"
-    
+
     async def solve(
         self,
         goal: str,
@@ -233,19 +233,19 @@ class VictoriaEnhanced:
     ) -> Dict:
         """
         Решить задачу используя оптимальный метод
-        
+
         Args:
             goal: Цель задачи
             method: Предпочтительный метод (опционально)
             use_enhancements: Использовать ли улучшения
-        
+
         Returns:
             Результат с метаданными
         """
         if not use_enhancements:
             # Fallback на простой метод
             return {"result": "Enhanced methods disabled", "method": "simple"}
-        
+
         # Трассировка через OpenTelemetry
         span_attributes = {"goal": goal[:100], "use_enhancements": use_enhancements}
         span_context = None
@@ -255,20 +255,20 @@ class VictoriaEnhanced:
             except Exception as e:
                 logger.debug(f"Observability недоступен: {e}")
                 span_context = None
-        
+
         try:
             if span_context:
                 span_context.__enter__()
-            
+
             # Определяем категорию задачи
             category = self._categorize_task(goal)
-            
+
             # Выбираем метод
             if method is None:
                 method = self._select_optimal_method(category, goal)
-            
+
             logger.info(f"🎯 Victoria Enhanced: категория={category}, метод={method}")
-            
+
             # Добавляем атрибуты в span
             if hasattr(self, 'observability') and self.observability:
                 try:
@@ -276,7 +276,7 @@ class VictoriaEnhanced:
                     self.observability.set_attribute("task.method", method)
                 except Exception as e:
                     logger.debug(f"Не удалось установить атрибуты observability: {e}")
-            
+
             # Получаем контекст из Collective Memory
             context = None
             if self.collective_memory:
@@ -287,7 +287,7 @@ class VictoriaEnhanced:
                     )
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка получения collective memory: {e}")
-            
+
             # Проверяем кэш
             if self.use_cache and self.cache:
                 cached_result = await self.cache.get(method, goal, context)
@@ -304,10 +304,10 @@ class VictoriaEnhanced:
                         self.observability.set_attribute("cache.hit", False)
                     except Exception:
                         pass
-            
+
             # Выполняем через выбранный метод
             result = await self._execute_method(method, goal, category, context)
-            
+
             # Сохраняем в кэш
             if self.use_cache and self.cache:
                 try:
@@ -315,7 +315,7 @@ class VictoriaEnhanced:
                     logger.debug(f"💾 Результат сохранен в кэш: {method}")
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка сохранения в кэш: {e}")
-            
+
             # Добавляем метрики в span
             if hasattr(self, 'observability') and self.observability:
                 try:
@@ -326,7 +326,7 @@ class VictoriaEnhanced:
                     })
                 except Exception as e:
                     logger.debug(f"Не удалось добавить метрики observability: {e}")
-            
+
             # Сохраняем в Collective Memory
             if self.collective_memory:
                 try:
@@ -338,12 +338,12 @@ class VictoriaEnhanced:
                     )
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка сохранения в collective memory: {e}")
-            
+
             return result
         finally:
             if span_context:
                 span_context.__exit__(None, None, None)
-    
+
     def _select_optimal_method(self, category: str, goal: str) -> str:
         """Выбрать оптимальный метод для категории"""
         method_map = {
@@ -353,9 +353,9 @@ class VictoriaEnhanced:
             "execution": "react" if self.react_agent else "simple",
             "general": "extended_thinking" if self.extended_thinking else "simple"
         }
-        
+
         method = method_map.get(category, "simple")
-        
+
         # Проверяем доступность метода
         if method == "extended_thinking" and not self.extended_thinking:
             method = "simple"
@@ -367,9 +367,9 @@ class VictoriaEnhanced:
             method = "hierarchical" if self.hierarchical_orch else "simple"
         elif method == "recap" and not self.recap:
             method = "extended_thinking" if self.extended_thinking else "simple"
-        
+
         return method
-    
+
     async def _execute_method(
         self,
         method: str,
@@ -379,7 +379,7 @@ class VictoriaEnhanced:
     ) -> Dict:
         """Выполнить задачу через выбранный метод"""
         start_time = datetime.now(timezone.utc)
-        
+
         try:
             if method == "react" and self.react_agent:
                 result = await self.react_agent.run(goal, context)
@@ -389,7 +389,7 @@ class VictoriaEnhanced:
                     "steps": len(result.get("steps", [])),
                     "metadata": result
                 }
-            
+
             elif method == "extended_thinking" and self.extended_thinking:
                 result = await self.extended_thinking.think(goal, context, use_iterative=True)
                 return {
@@ -402,7 +402,7 @@ class VictoriaEnhanced:
                         "thinking_time": result.thinking_time_seconds
                     }
                 }
-            
+
             elif method == "swarm" and self.swarm:
                 result = await self.swarm.solve(goal)
                 return {
@@ -413,7 +413,7 @@ class VictoriaEnhanced:
                     "convergence_rate": result.convergence_rate,
                     "metadata": result
                 }
-            
+
             elif method == "consensus" and self.consensus:
                 # Используем команду экспертов для consensus
                 agents = ["Victoria", "Veronica", "Игорь", "Сергей", "Дмитрий"]
@@ -426,7 +426,7 @@ class VictoriaEnhanced:
                     "iterations": result.iterations,
                     "metadata": result
                 }
-            
+
             elif method == "tree_of_thoughts" and self.tot:
                 result = await self.tot.solve(goal)
                 return {
@@ -437,7 +437,7 @@ class VictoriaEnhanced:
                     "exploration_depth": result.exploration_depth,
                     "metadata": result
                 }
-            
+
             elif method == "recap" and self.recap:
                 result = await self.recap.solve(goal, context)
                 return {
@@ -446,7 +446,7 @@ class VictoriaEnhanced:
                     "high_level_steps": len(result["plan"].high_level_steps),
                     "metadata": result
                 }
-            
+
             elif method == "hierarchical" and self.hierarchical_orch:
                 # Нужны агенты для hierarchical
                 agents = {
@@ -463,7 +463,7 @@ class VictoriaEnhanced:
                     "dependencies": len(state.dependencies),
                     "metadata": state.visualization_data
                 }
-            
+
             else:
                 # Fallback на простой метод
                 return {
@@ -471,7 +471,7 @@ class VictoriaEnhanced:
                     "method": "simple",
                     "note": "Enhanced methods not available"
                 }
-        
+
         except Exception as e:
             logger.error(f"❌ Ошибка выполнения метода {method}: {e}")
             return {
@@ -482,7 +482,7 @@ class VictoriaEnhanced:
         finally:
             elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
             logger.info(f"⏱️ Метод {method} выполнен за {elapsed:.2f}с")
-    
+
     async def get_status(self) -> Dict:
         """Получить статус всех компонентов"""
         return {
@@ -501,13 +501,13 @@ class VictoriaEnhanced:
 async def main():
     """Тестирование Victoria Enhanced"""
     victoria = VictoriaEnhanced()
-    
+
     # Проверяем статус
     status = await victoria.get_status()
     print("Статус компонентов:")
     for key, value in status.items():
         print(f"  {key}: {value}")
-    
+
     # Тестируем разные типы задач
     test_tasks = [
         ("Реши задачу: 2+2*2", "reasoning"),
@@ -515,7 +515,7 @@ async def main():
         ("Сложная задача требующая коллективного интеллекта", "complex"),
         ("Выполни анализ кода", "execution")
     ]
-    
+
     print("\n🧪 Тестирование задач:")
     for goal, expected_category in test_tasks:
         print(f"\n📋 Задача: {goal}")

@@ -9,22 +9,22 @@ def check_db():
         with conn.cursor() as cur:
             # 1. Считаем узлы по доменам
             cur.execute("""
-                SELECT d.name, COUNT(k.id) as node_count 
-                FROM domains d 
-                LEFT JOIN knowledge_nodes k ON d.id = k.domain_id 
-                GROUP BY d.name 
+                SELECT d.name, COUNT(k.id) as node_count
+                FROM domains d
+                LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
+                GROUP BY d.name
                 ORDER BY node_count DESC;
             """)
             counts = cur.fetchall()
             print("--- Узлы по доменам ---")
             for row in counts:
                 print(f"{row['name']}: {row['node_count']}")
-            
+
             # 2. Проверяем связи между доменами
             cur.execute("""
-                SELECT 
-                    d1.name as source_domain, 
-                    d2.name as target_domain, 
+                SELECT
+                    d1.name as source_domain,
+                    d2.name as target_domain,
                     COUNT(*) as link_count
                 FROM knowledge_links l
                 JOIN knowledge_nodes k1 ON l.source_node_id = k1.id
@@ -39,7 +39,7 @@ def check_db():
             print("\n--- Топ связей между доменами ---")
             for row in links:
                 print(f"{row['source_domain']} -> {row['target_domain']}: {row['link_count']}")
-                
+
         conn.close()
     except Exception as e:
         print(f"Ошибка: {e}")

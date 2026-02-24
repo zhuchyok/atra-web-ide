@@ -16,13 +16,13 @@
 
         is_simple = is_simple_message(body.goal)
         is_fast_track = is_fast_track_message(body.goal)
-        
+
         # [VIP ROUTE] Проверка на VIP-запрос (Иван/Совет)
         is_vip = any(word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"])
-        
+
         # [FAST TRACK] Проверка на вопросы об обучении и способностях
         is_info_query = any(word in (body.goal or "").lower() for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"])
-        
+
         # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
         if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
             if is_vip:
@@ -31,9 +31,9 @@
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Инфо-запрос', 'content': 'Отвечаю на вопрос о системе...'})}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Быстрый ответ', 'content': 'Простой запрос, отвечаю через локальную модель.'})}\n\n"
-            
+
             ideal_model = _select_model_for_chat(body.goal)
-            
+
             # Сингулярность 10.0: Подтягиваем знания AI Research даже для простых запросов
             ai_research_context = ""
             try:
@@ -46,7 +46,7 @@
             prompt_for_gen = body.goal
             if ai_research_context:
                 prompt_for_gen = f"{ai_research_context}\n\nЗапрос: {body.goal}"
-                
+
             content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
             if content:
                 words = content.split()
@@ -58,7 +58,7 @@
         else:
             yield f"data: {json.dumps({'type': 'progress', 'step': 1, 'total': 3, 'status': 'analysis'})}\n\n"
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ задачи', 'content': 'Запускаю экспертную цепочку Victoria Enhanced...', 'correlation_id': correlation_id})}\n\n"
-            
+
             try:
                 result = await run_task(body, request, async_mode=False)
                 if isinstance(result, TaskResponse):

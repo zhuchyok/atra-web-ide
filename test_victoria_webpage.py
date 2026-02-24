@@ -17,7 +17,7 @@ try:
         json={"goal": goal, "max_steps": 500},
         timeout=120
     )
-    
+
     if response.status_code == 200:
         result = response.json()
         print("✅ Статус:", result.get("status", "N/A"))
@@ -26,7 +26,7 @@ try:
         print("=" * 60)
         print(result.get("output", "")[:1000])
         print("=" * 60)
-        
+
         knowledge = result.get("knowledge", {})
         if knowledge:
             print(f"\n🎯 Метод: {knowledge.get('method', 'N/A')}")
@@ -34,7 +34,7 @@ try:
     else:
         print(f"❌ Ошибка HTTP {response.status_code}")
         print(response.text[:500])
-        
+
 except requests.exceptions.Timeout:
     print("⏱️ Таймаут - Victoria не ответила за 2 минуты")
 except Exception as e:
