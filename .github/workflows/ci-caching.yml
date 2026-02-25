@@ -1,0 +1,51 @@
+# CI/CD Task Caching (Turbo patterns)
+name: CI Caching & Change Detection
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed_packages: ${{ steps.check.outputs.packages }}
+      affected_tasks: ${{ steps.check.outputs.tasks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Check changed packages and tasks
+        id: check
+        run: |
+          # Используем наш новый скрипт для определения изменений
+          RESULT=$(python scripts/task_hash.py changed origin/main)
+          echo "packages=$(echo $RESULT | jq -c '.changed_packages')" >> $GITHUB_OUTPUT
+          echo "tasks=$(echo $RESULT | jq -c '.affected_tasks')" >> $GITHUB_OUTPUT
+          
+          echo "Changed packages: $(echo $RESULT | jq -r '.changed_packages | join(", ")')"
+          echo "Affected tasks: $(echo $RESULT | jq -r '.affected_tasks | join(", ")')"
+
+  run-tasks:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.changed_packages != '[]'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run affected tasks
+        run: |
+          TASKS='${{ needs.detect-changes.outputs.affected_tasks }}'
+          for task in $(echo $TASKS | jq -r '.[]'); do
+            echo "Running task: $task"
+            # Здесь логика запуска конкретных задач на основе их ID
+            # Например: if [ "$task" == "rust_core:test" ]; then cd rust_core && cargo test; fi
+          done

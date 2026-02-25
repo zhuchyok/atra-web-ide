@@ -1,0 +1,27 @@
+{
+  "include": [
+    "backend",
+    "knowledge_os",
+    "src",
+    "scripts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "frontend",
+    "rust_core",
+    "fused_model",
+    "training_data",
+    "target",
+    "dist",
+    "**/venv",
+    "**/.venv",
+    "knowledge_os/cache_normalizer_rs",
+    "ai_insights",
+    "data",
+    "mirror"
+  ],
+  "venvPath": "knowledge_os",
+  "venv": ".venv",
+  "typeCheckingMode": "basic"
+}
