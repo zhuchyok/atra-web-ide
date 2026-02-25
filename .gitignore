@@ -66,5 +66,23 @@ target/
 *.swp
 *.tmp
 
+# Lock / большие логи (чтобы не раздувать «active changes» в Cursor)
+.victoria_bot.lock
+full_logs.txt
+
+# Playwright / frontend test output
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
+
+# Curator reports (генерируемые)
+docs/curator_reports/*.md
+!docs/curator_reports/README.md
+
+# Артефакты сборки / зеркала (чтобы не раздувать число «active changes» в Cursor)
+fused_model/
+mirror/
+
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/
