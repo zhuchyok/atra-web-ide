@@ -222,7 +222,7 @@ ENABLE_EVENT_MONITORING: "false"
 ## 7. Ссылки
 
 - Замер времени одного ответа модели: `scripts/measure_ollama_response_time.sh`
-- Замер **каждой** модели: `scripts/measure_all_ollama_models.sh` (Ollama) → tmp/ollama_model_timings._; `scripts/measure_all_models_ollama_mlx.py` (Ollama + MLX, таймауты по размеру + буфер на запуск) → tmp/model_timings_ollama_mlx._
+- Замер **каждой** модели: `scripts/measure_all_ollama_models.sh` (Ollama) → tmp/ollama*model_timings.*; `scripts/measure_all_models_ollama_mlx.py` (Ollama + MLX, таймауты по размеру + буфер на запуск) → tmp/model*timings_ollama_mlx.*
 - Время по моделям (загрузка, один вызов): [MODEL_TIMING_REFERENCE.md](MODEL_TIMING_REFERENCE.md)
 - Service Monitor (внутри Victoria): `knowledge_os/app/service_monitor.py` (\_get_default_services, VICTORIA_PORT)
 - Обработчик SERVICE_DOWN: `knowledge_os/app/victoria_event_handlers.py` (handle_service_down, skip self)
