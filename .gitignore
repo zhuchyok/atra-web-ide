@@ -84,6 +84,9 @@ docs/curator_reports/*.md
 fused_model/
 mirror/
 
+# Объёмные данные обучения (десятки GB — не в git)
+training_data/
+
 # Обучение: датасеты и экспорт моделей (десятки GB, не в репо)
 training_data/
 
