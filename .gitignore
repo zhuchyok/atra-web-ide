@@ -87,12 +87,8 @@ mirror/
 # Объёмные данные обучения (десятки GB — не в git)
 training_data/
 
-# Обучение: датасеты и экспорт моделей (десятки GB, не в репо)
-training_data/
-
-# Обучение: датасеты и артефакты моделей (десятки GB), не в репо
-training_data/
+# Rust gateway (лог не в репо)
+rust_core/gateway.log
 
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/
-rust_core/gateway.log
