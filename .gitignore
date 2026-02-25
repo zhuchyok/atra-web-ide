@@ -84,5 +84,12 @@ docs/curator_reports/*.md
 fused_model/
 mirror/
 
+# Обучение: датасеты и экспорт моделей (десятки GB, не в репо)
+training_data/
+
+# Обучение: датасеты и артефакты моделей (десятки GB), не в репо
+training_data/
+
 # Allow cursor rules for cross-project sharing
 !.cursor/rules/
+rust_core/gateway.log
