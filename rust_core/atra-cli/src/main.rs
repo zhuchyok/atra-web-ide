@@ -1,6 +1,6 @@
 use clap::builder::styling::{AnsiColor, Styles};
 use clap::{CommandFactory, Parser, Subcommand, ValueHint};
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use colored::*;
 use dotenv::dotenv;
 use ignore::WalkBuilder;
@@ -298,11 +298,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(config_path) = cli.config.or_else(|| {
         let home = env::var("HOME").ok()?;
         let path = PathBuf::from(home).join(".config/atra/config.toml");
-        if path.exists() {
-            Some(path)
-        } else {
-            None
-        }
+        if path.exists() { Some(path) } else { None }
     }) {
         if let Ok(content) = fs::read_to_string(&config_path) {
             if let Ok(config) = toml::from_str::<toml::Value>(&content) {
