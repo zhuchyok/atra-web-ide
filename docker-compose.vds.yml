@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  # ============================================
+  # Database - PostgreSQL + pgvector
+  # ============================================
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: atra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret_password_123}
+      POSTGRES_DB: atra_os
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - atra-net
+
+  # ============================================
+  # Cache - Redis
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: atra-redis
+    restart: unless-stopped
+    volumes:
+      - ./redis_data:/data
+    networks:
+      - atra-net
+
+  # ============================================
+  # Nginx Proxy Manager - Traffic Controller
+  # ============================================
+  nginx-proxy:
+    image: "jc21/nginx-proxy-manager:latest"
+    container_name: atra-nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80" # HTTP
+      - "81:81" # Admin Web Port
+      - "443:443" # HTTPS
+    volumes:
+      - ./nginx_proxy/data:/data
+      - ./nginx_proxy/letsencrypt:/etc/letsencrypt
+    networks:
+      - atra-net
+
+  # ============================================
+  # Atra OS Kernel (Rust API)
+  # ============================================
+  atra-core:
+    image: atra-core:latest
+    container_name: atra-kernel
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    env_file: .env.atra
+    networks:
+      - atra-net
+
+  # ============================================
+  # API Сетки 21 (moskit-api: цены, админка, дилеры, заказы)
+  # Образ собирается на VDS из исходников setki-21: docker build -f moskit-api/Dockerfile -t moskit-api:latest .
+  # Перед первым запуском: скрипт create_moskit_db_vds.sh (создаёт БД moskit и пользователя moskit).
+  # ============================================
+  moskit-api:
+    image: moskit-api:latest
+    container_name: moskit-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://moskit:${MOSKIT_DB_PASSWORD:-moskit_secret}@postgres:5432/moskit
+      POSTGRES_PASSWORD: ${MOSKIT_DB_PASSWORD:-moskit_secret}
+      JWT_SECRET: ${JWT_SECRET:-setki21_jwt_secret_change_me}
+      PORT: "8080"
+    depends_on:
+      - postgres
+    networks:
+      - atra-net
+
+  # ============================================
+  # Сайт Сетки 21 (статическая раздача)
+  # Собери сайт из проекта setki-21, залей в setki21_site/ на VDS, перезапусти контейнер.
+  # ============================================
+  setki21-site:
+    image: nginx:alpine
+    container_name: setki21-site
+    restart: unless-stopped
+    volumes:
+      - ./setki21_site:/usr/share/nginx/html:ro
+      - ./setki21_nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - atra-net
+
+networks:
+  atra-net:
+    name: atra-network
+    driver: bridge

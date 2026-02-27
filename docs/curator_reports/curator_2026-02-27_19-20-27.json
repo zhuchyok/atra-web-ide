@@ -1,0 +1,42 @@
+{
+  "ts": "2026-02-27T19:20:34.353742+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Добрый день! Спасибо за попробовать использовать мою помощь в письме. Мне нравится этот язык, и я хочу помочь вам с его написанием.\n\nЯ могу помочь вам сформулировать вопрос на русском языке. Для этого выберите один из следующих вариантов:\n\n1. Как делать это?\n2. Что делать?\n3. В чем дело?\n4. Почему делать это?\n5. Как это сделать?\n6. Что это делать?\n7. Как это сделать?\n8. Что это делать?\n9. Как это сделать?\n10. Что это делать?\n\nВыберите вариант, который наиболее подходит для того, чтобы описать ва",
+      "output_length": 509,
+      "correlation_id": "145f341f-8e45-4aaa-8a7a-02fba6aaed95",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "ollama"
+      },
+      "elapsed_seconds": 2.03
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5617abcb-f007-4f60-81e0-6c560fb769d7",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "5617abcb-f007-4f60-81e0-6c560fb769d7",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 5.07
+    }
+  ]
+}

@@ -47,14 +47,7 @@ class SessionContextManager:
     async def get_session_context(self, user_id: str, expert_name: str, current_query: str) -> str:
         """
         Получает релевантный контекст из предыдущих запросов в сессии.
-
-        Args:
-            user_id: ID пользователя
-            expert_name: Имя эксперта
-            current_query: Текущий запрос
-
-        Returns:
-            Контекст в виде строки для добавления к промпту
+        [SINGULARITY 24.0] On-Demand: поиск по ключевым словам + интеллектуальная обрезка.
         """
         session_id = self._generate_session_id(user_id, expert_name)
 
@@ -72,20 +65,56 @@ class SessionContextManager:
                 if not table_exists:
                     return ""
 
-                # Получаем последние запросы из сессии (не старше TTL)
-                rows = await conn.fetch(
-                    """
-                    SELECT query_text, response_text, created_at
-                    FROM session_context
-                    WHERE session_id = $1
-                    AND created_at > NOW() - INTERVAL '1 hour' * $2
-                    ORDER BY created_at DESC
-                    LIMIT $3
-                """,
-                    session_id,
-                    self.session_ttl_hours,
-                    self.max_context_queries,
-                )
+                # [SINGULARITY 24.0] Context Pruning: игнорируем служебные слова
+                stop_words = {
+                    "привет",
+                    "здравствуй",
+                    "спасибо",
+                    "пожалуйста",
+                    "виктория",
+                    "команда",
+                }
+                keywords = [
+                    w for w in current_query.lower().split() if len(w) > 3 and w not in stop_words
+                ]
+
+                rows = []
+                if keywords:
+                    # Ищем релевантные по смыслу
+                    rows = await conn.fetch(
+                        """
+                        SELECT query_text, response_text, created_at
+                        FROM session_context
+                        WHERE session_id = $1
+                        AND created_at > NOW() - INTERVAL '1 hour' * $2
+                        AND (query_text ILIKE ANY($4) OR response_text ILIKE ANY($4))
+                        ORDER BY created_at DESC
+                        LIMIT $3
+                    """,
+                        session_id,
+                        self.session_ttl_hours,
+                        self.max_context_queries,
+                        [f"%{k}%" for k in keywords[:5]],
+                    )
+
+                # Если по ключевым словам ничего не нашли или их мало, берем последние 2 для связности
+                if len(rows) < 2:
+                    recent_rows = await conn.fetch(
+                        """
+                        SELECT query_text, response_text, created_at
+                        FROM session_context
+                        WHERE session_id = $1
+                        AND created_at > NOW() - INTERVAL '1 hour' * $2
+                        ORDER BY created_at DESC
+                        LIMIT 2
+                    """,
+                        session_id,
+                        self.session_ttl_hours,
+                    )
+                    # Объединяем, избегая дублей
+                    for rr in recent_rows:
+                        if not any(r["query_text"] == rr["query_text"] for r in rows):
+                            rows.append(rr)
 
                 if not rows:
                     return ""
@@ -93,9 +122,12 @@ class SessionContextManager:
                 # Формируем контекст (обратный порядок для хронологии)
                 context_parts = []
                 for row in reversed(rows):  # От старых к новым
-                    context_parts.append(
-                        f"Q: {row['query_text']}\nA: {row['response_text'][:200]}..."
-                    )
+                    q = row["query_text"].strip()
+                    r = row["response_text"].strip()
+                    # [SINGULARITY 24.0] Smart Pruning: обрезаем слишком длинные ответы в истории
+                    if len(r) > 400:
+                        r = r[:350] + "... [обрезано для экономии токенов]"
+                    context_parts.append(f"User: {q}\nVictoria: {r}")
 
                 context = "\n\n".join(context_parts)
 

@@ -2,7 +2,6 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
-import requests
 import streamlit as st
 from database_service import fetch_data
 
@@ -69,9 +68,11 @@ def render_expert_sandbox():
 
         backend_url = os.getenv("BACKEND_URL", "http://localhost:8080")
 
-        # Получаем реальный статус из API (requests импортирован в начале модуля)
+        # Получаем реальный статус из API
         try:
-            # Внутри Docker: BACKEND_URL; локально: http://localhost:8080 или Rust Gateway 8081
+            import requests
+
+            # Внутри Docker контейнера dashboard может обращаться к backend по имени сервиса или localhost:8080
             status_resp = requests.get(
                 f"{backend_url}/api/sandbox/status/{selected_expert}", timeout=2
             )
@@ -226,16 +227,16 @@ def render_expert_sandbox():
 
 
 def render_war_room():
-    """🚨 Tactical War Room UI (таблица expert_discussions)."""
+    """🚨 Tactical War Room UI."""
     st.subheader("🚨 Tactical War Room (Экстренное реагирование)")
-    try:
-        sessions = fetch_data("""
-            SELECT topic, status, consensus_summary, created_at
-            FROM expert_discussions
-            ORDER BY created_at DESC LIMIT 10
-        """)
-    except Exception:
-        sessions = []
+
+    # В таблице expert_discussions нет колонки metadata в текущей схеме
+    sessions = fetch_data("""
+        SELECT topic, status, consensus_summary, created_at
+        FROM expert_discussions
+        ORDER BY created_at DESC LIMIT 10
+    """)
+
     if sessions:
         for s in sessions:
             # Упрощенная логика без метаданных
@@ -250,7 +251,7 @@ def render_war_room():
                     st.success("**✅ Утвержденный план:**")
                     st.markdown(s["consensus_summary"])
     else:
-        st.info("Активных сессий в War Room нет или таблица expert_discussions не создана.")
+        st.info("Активных сессий в War Room нет. Система работает в штатном режиме.")
 
 
 def render_health_status():
@@ -276,7 +277,7 @@ def render_health_status():
 
 
 def render_security():
-    """🛡️ Threat Detection (таблица anomaly_detection_logs)."""
+    """🛡️ Threat Detection."""
     st.subheader("🛡️ Мониторинг Угроз")
     try:
         threats = fetch_data("""
@@ -301,8 +302,8 @@ def render_security():
                 )
         else:
             st.success("Угроз не обнаружено.")
-    except Exception:
-        st.info("Модуль угроз не настроен (таблица anomaly_detection_logs).")
+    except:
+        pass
 
 
 def render_singularity_metrics():

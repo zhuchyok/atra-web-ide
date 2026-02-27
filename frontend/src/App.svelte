@@ -7,7 +7,6 @@
   import FileTree from './components/FileTree.svelte'
   import Preview from './components/Preview.svelte'
   import Terminal from './components/Terminal.svelte'
-  import Git from './components/Git.svelte'
   // ExpertSelector убран - используется только Виктория
 
   import { currentFile, openFiles, unsavedChanges, loadFile } from './stores/files.js'
@@ -29,8 +28,7 @@
     // Проверка статуса Victoria и MLX
     async function checkStatus() {
       try {
-        // Используем порт 8081 для Rust Gateway
-        const response = await fetch(`http://${window.location.hostname}:8081/api/chat/status`)
+        const response = await fetch('/api/chat/status')
         if (response.ok) {
           const data = await response.json()
           console.log('Status data:', data);
@@ -178,14 +176,6 @@
           <span class="text-gray-300">📊</span>
           <span class="font-medium">Мониторинг</span>
         </div>
-        <div
-          class="px-3 py-1 rounded-t text-sm flex items-center gap-2 transition-colors cursor-pointer shrink-0 {activeCenterTab === 'git' ? 'bg-atra-dark border-b-2 border-atra-primary' : 'bg-atra-darker hover:bg-atra-accent/30'}"
-          on:click={() => activeCenterTab = 'git'}
-          title="Git: status, diff, log, commit"
-        >
-          <span class="text-gray-300">📂</span>
-          <span class="font-medium">Git</span>
-        </div>
         {#each $openFiles as file}
           <div
             class="px-3 py-1 rounded-t text-sm flex items-center gap-2 transition-colors cursor-pointer shrink-0 {activeCenterTab === file.path ? 'bg-atra-dark' : 'bg-atra-darker hover:bg-atra-accent/30'}"
@@ -261,8 +251,6 @@
           <PlanPanel />
         {:else if activeCenterTab === 'monitoring'}
           <SystemMetrics />
-        {:else if activeCenterTab === 'git'}
-          <Git />
         {:else}
           <div class="flex-1 min-h-0">
             <Editor />

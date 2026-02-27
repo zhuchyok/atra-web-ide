@@ -1,0 +1,42 @@
+{
+  "ts": "2026-02-27T19:16:49.663114+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Добрый день! Спасибо за вопрос. В данном случае, \"Ты - полезный ИИ-ассистент корпорации ATRA\" можно перевести как \"Вы - инженер-аппаратный программист корпорации ATRA\".",
+      "output_length": 168,
+      "correlation_id": "0b16127d-2693-4a6e-9178-d41d023dd13c",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "ollama"
+      },
+      "elapsed_seconds": 1.79
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "65846403-af24-4850-a5aa-d6fdc98cc035",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "65846403-af24-4850-a5aa-d6fdc98cc035",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 32.67
+    }
+  ]
+}

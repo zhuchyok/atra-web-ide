@@ -302,22 +302,22 @@ class SkillRegistry:
 
             logger.info(f"📂 Загрузка skills из: {skills_dir}")
 
-            # Ищем поддиректории с SKILL.md
-            for skill_dir in skills_dir.iterdir():
-                if skill_dir.is_dir():
-                    skill = self._load_skill_from_directory(skill_dir, source)
-                    if skill:
-                        # Workspace skills имеют приоритет
-                        if skill.name not in self.skills or source == SkillSource.WORKSPACE:
-                            self.skills[skill.name] = skill
+            # Рекурсивный поиск SKILL.md
+            for skill_file in skills_dir.glob("**/SKILL.md"):
+                skill_dir = skill_file.parent
+                skill = self._load_skill_from_directory(skill_dir, source)
+                if skill:
+                    # Workspace skills имеют приоритет
+                    if skill.name not in self.skills or source == SkillSource.WORKSPACE:
+                        self.skills[skill.name] = skill
 
-                            # Добавляем в категории
-                            category = skill.category
-                            if category not in self.skills_by_category:
-                                self.skills_by_category[category] = []
-                            self.skills_by_category[category].append(skill)
+                        # Добавляем в категории
+                        category = skill.category
+                        if category not in self.skills_by_category:
+                            self.skills_by_category[category] = []
+                        self.skills_by_category[category].append(skill)
 
-                            logger.info(f"✅ Skill загружен: {skill.name} ({source.value})")
+                        logger.info(f"✅ Skill загружен: {skill.name} ({source.value})")
 
         logger.info(f"📊 Всего загружено skills: {len(self.skills)}")
 

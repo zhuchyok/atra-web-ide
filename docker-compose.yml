@@ -3,8 +3,35 @@
 #
 # Запуск: docker-compose up -d
 # Открыть: http://localhost:3000
+# atra chat → Gateway 8081 → Victoria 8010 / Ollama fallback
 
 services:
+  # ============================================
+  # Gateway - Rust API (atra chat, /v1/chat/completions)
+  # ============================================
+  gateway:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/gateway/Dockerfile
+    image: atra-gateway
+    container_name: atra-web-ide-gateway
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - TZ=Europe/Moscow
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - VICTORIA_URL=http://victoria-agent:8000
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - USE_VICTORIA_AGENT=true
+      - PROJECT_CONTEXT=atra-web-ide
+      - WORKSPACE_ROOT=/workspace
+      - RUST_LOG=info
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - atra-network
+
   # ============================================
   # Frontend - Svelte + Tailwind
   # ============================================

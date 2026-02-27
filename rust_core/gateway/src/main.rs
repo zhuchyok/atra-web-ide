@@ -1,33 +1,36 @@
 use axum::{
-    body::Body,
-    extract::{Path, Query, State, WebSocketUpgrade, ws::{WebSocket, Message}},
-    http::{HeaderMap, StatusCode, Method, header},
-    response::{IntoResponse, Response, Html},
-    routing::{get, post, delete},
     Json, Router,
+    body::Body,
+    extract::{
+        Path, Query, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
+    },
+    http::{HeaderMap, Method, StatusCode, header},
+    response::{Html, IntoResponse, Response},
+    routing::{delete, get, post},
 };
+use dotenv::dotenv;
 use futures_util::StreamExt;
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
-use tracing::{info, error};
-use sysinfo::System;
 use sqlx::FromRow;
-use dotenv::dotenv;
-use std::env;
 use sqlx::types::chrono;
 use sqlx::types::uuid::Uuid;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use tokio::fs;
-use portable_pty::{native_pty_system, PtySize, CommandBuilder};
+use std::env;
 use std::io::{Read, Write};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+use sysinfo::System;
+use tokio::fs;
 use tokio::sync::mpsc;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
+use tracing::{error, info};
 
 use knowledge_engine::KnowledgeEngine;
 use tokio::sync::Semaphore;
@@ -114,13 +117,44 @@ struct TerminalAskRequest {
 fn task_classify(message: &str) -> &'static str {
     let lower = message.to_lowercase();
     let veronica_triggers = [
-        "файл", "file", "прочитай", "read", "создай", "create", "удали", "delete",
-        "найди", "find", "поиск", "search", "выполни", "execute", "сделай", "do", "запусти", "run",
-        "напиши код", "write code", "проверь код", "check code",
+        "файл",
+        "file",
+        "прочитай",
+        "read",
+        "создай",
+        "create",
+        "удали",
+        "delete",
+        "найди",
+        "find",
+        "поиск",
+        "search",
+        "выполни",
+        "execute",
+        "сделай",
+        "do",
+        "запусти",
+        "run",
+        "напиши код",
+        "write code",
+        "проверь код",
+        "check code",
     ];
     let victoria_triggers = [
-        "спланируй", "plan", "организуй", "organize", "стратегия", "strategy",
-        "координируй", "coordinate", "управляй", "manage", "команда", "team", "сложн", "complex",
+        "спланируй",
+        "plan",
+        "организуй",
+        "organize",
+        "стратегия",
+        "strategy",
+        "координируй",
+        "coordinate",
+        "управляй",
+        "manage",
+        "команда",
+        "team",
+        "сложн",
+        "complex",
     ];
     if victoria_triggers.iter().any(|t| lower.contains(t)) {
         return "victoria";
@@ -176,7 +210,8 @@ async fn get_autocomplete(
             "json" => "JSON",
             "md" => "Markdown",
             _ => "Text",
-        }.to_string()
+        }
+        .to_string()
     });
 
     let prompt = format!(
@@ -200,7 +235,9 @@ async fn get_lint(
 ) -> impl IntoResponse {
     let prompt = format!(
         "Проверь код на ошибки (linting).\n\nЯзык: {}\nФайл: {}\n\nКод:\n{}\n\nВерни список ошибок в формате JSON: {{\"errors\": [{{ \"line\": 1, \"column\": 1, \"message\": \"...\", \"severity\": \"error\" }}]}}",
-        req.language.as_deref().unwrap_or("Unknown"), req.filename, req.code
+        req.language.as_deref().unwrap_or("Unknown"),
+        req.filename,
+        req.code
     );
 
     let payload = json!({
@@ -214,9 +251,7 @@ async fn get_lint(
 
 // --- Sandbox Handlers ---
 
-async fn get_sandbox_status(
-    Path(expert_name): Path<String>,
-) -> impl IntoResponse {
+async fn get_sandbox_status(Path(expert_name): Path<String>) -> impl IntoResponse {
     let container_name = format!("sandbox-{}", expert_name.to_lowercase().replace(' ', "-"));
 
     let output = tokio::process::Command::new("docker")
@@ -226,20 +261,27 @@ async fn get_sandbox_status(
 
     match output {
         Ok(out) if out.status.success() => {
-            let state_json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or(json!({}));
-            (StatusCode::OK, Json(json!({
-                "status": state_json["Status"].as_str().unwrap_or("unknown"),
-                "container": container_name,
-                "created": state_json["StartedAt"].as_str().unwrap_or(""),
-            }))).into_response()
-        },
-        _ => (StatusCode::OK, Json(json!({ "status": "not_found", "container": container_name }))).into_response(),
+            let state_json: serde_json::Value =
+                serde_json::from_slice(&out.stdout).unwrap_or(json!({}));
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status": state_json["Status"].as_str().unwrap_or("unknown"),
+                    "container": container_name,
+                    "created": state_json["StartedAt"].as_str().unwrap_or(""),
+                })),
+            )
+                .into_response()
+        }
+        _ => (
+            StatusCode::OK,
+            Json(json!({ "status": "not_found", "container": container_name })),
+        )
+            .into_response(),
     }
 }
 
-async fn reset_sandbox(
-    Path(expert_name): Path<String>,
-) -> impl IntoResponse {
+async fn reset_sandbox(Path(expert_name): Path<String>) -> impl IntoResponse {
     let container_name = format!("sandbox-{}", expert_name.to_lowercase().replace(' ', "-"));
 
     let _ = tokio::process::Command::new("docker")
@@ -247,7 +289,13 @@ async fn reset_sandbox(
         .output()
         .await;
 
-    (StatusCode::OK, Json(json!({ "status": "success", "message": format!("Sandbox for {} reset", expert_name) }))).into_response()
+    (
+        StatusCode::OK,
+        Json(
+            json!({ "status": "success", "message": format!("Sandbox for {} reset", expert_name) }),
+        ),
+    )
+        .into_response()
 }
 
 async fn get_recent_experiments() -> impl IntoResponse {
@@ -261,31 +309,37 @@ async fn get_recent_experiments() -> impl IntoResponse {
 
 // --- Latency Handlers ---
 
-async fn get_latency_benchmark(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn get_latency_benchmark(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let benchmark_path = state.workspace_root.join("latency_benchmark.json");
     if !benchmark_path.exists() {
-        return (StatusCode::OK, Json(json!({
-            "status": "no_data",
-            "message": "Run: python scripts/benchmark_latency.py",
-        }))).into_response();
+        return (
+            StatusCode::OK,
+            Json(json!({
+                "status": "no_data",
+                "message": "Run: python scripts/benchmark_latency.py",
+            })),
+        )
+            .into_response();
     }
 
     match fs::read_to_string(benchmark_path).await {
         Ok(content) => {
             let data: serde_json::Value = serde_json::from_str(&content).unwrap_or(json!({}));
-            (StatusCode::OK, Json(json!({
-                "status": "ok",
-                "p50_ms": data["p50_ms"],
-                "p95_ms": data["p95_ms"],
-                "p99_ms": data["p99_ms"],
-                "avg_ms": data["avg_ms"],
-                "n_requests": data["n_requests"],
-                "p95_ok": data["p95_ms"].as_f64().unwrap_or(999.0) < 300.0,
-                "services": data["services"],
-            }))).into_response()
-        },
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status": "ok",
+                    "p50_ms": data["p50_ms"],
+                    "p95_ms": data["p95_ms"],
+                    "p99_ms": data["p99_ms"],
+                    "avg_ms": data["avg_ms"],
+                    "n_requests": data["n_requests"],
+                    "p95_ok": data["p95_ms"].as_f64().unwrap_or(999.0) < 300.0,
+                    "services": data["services"],
+                })),
+            )
+                .into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -295,44 +349,54 @@ async fn get_latency_benchmark(
 async fn get_plan_cache_stats() -> impl IntoResponse {
     // В Rust Gateway мы пока не реализовали кэширование планов,
     // но возвращаем структуру для совместимости с фронтендом.
-    (StatusCode::OK, Json(json!({
-        "hits": 0,
-        "misses": 0,
-        "size": 0,
-        "status": "not_implemented_in_rust"
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "hits": 0,
+            "misses": 0,
+            "size": 0,
+            "status": "not_implemented_in_rust"
+        })),
+    )
 }
 
 async fn get_rag_optimization_stats() -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({
-        "embedding_batch": { "status": "active", "queue_size": 0 },
-        "prefetch": { "status": "active", "cached_queries": 3 },
-        "fallback": { "status": "active", "total_fallbacks": 0 }
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "embedding_batch": { "status": "active", "queue_size": 0 },
+            "prefetch": { "status": "active", "cached_queries": 3 },
+            "fallback": { "status": "active", "total_fallbacks": 0 }
+        })),
+    )
 }
 
 // --- Analytics Handlers ---
 
 async fn get_ab_testing_stats() -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({
-        "status": "active",
-        "experiments": [
-            { "id": "rust_gateway_v1", "name": "Rust Gateway Migration", "status": "running", "variant": "A" }
-        ]
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status": "active",
+            "experiments": [
+                { "id": "rust_gateway_v1", "name": "Rust Gateway Migration", "status": "running", "variant": "A" }
+            ]
+        })),
+    )
 }
 
 async fn get_quality_metrics() -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({
-        "avg_confidence": 0.92,
-        "success_rate": 0.98,
-        "total_tasks": 123
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "avg_confidence": 0.92,
+            "success_rate": 0.98,
+            "total_tasks": 123
+        })),
+    )
 }
 
-async fn get_system_metrics(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn get_system_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let mut sys = System::new_all();
     sys.refresh_all();
 
@@ -370,8 +434,15 @@ async fn get_system_metrics(
     });
 
     // DB metrics
-    if let Ok(experts_count) = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM experts").fetch_one(&state.knowledge_engine.pool).await {
-        if let Ok(nodes_count) = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM knowledge_nodes").fetch_one(&state.knowledge_engine.pool).await {
+    if let Ok(experts_count) = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM experts")
+        .fetch_one(&state.knowledge_engine.pool)
+        .await
+    {
+        if let Ok(nodes_count) =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM knowledge_nodes")
+                .fetch_one(&state.knowledge_engine.pool)
+                .await
+        {
             result["db"] = json!({
                 "experts": experts_count,
                 "knowledge_nodes": nodes_count,
@@ -384,11 +455,14 @@ async fn get_system_metrics(
 }
 
 async fn get_auto_optimizer_status() -> impl IntoResponse {
-    (StatusCode::OK, Json(json!({
-        "is_running": true,
-        "optimizations_count": 42,
-        "status": "active_via_gateway"
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "is_running": true,
+            "optimizations_count": 42,
+            "status": "active_via_gateway"
+        })),
+    )
 }
 
 // --- Data Retention Handlers ---
@@ -400,7 +474,9 @@ struct CleanupRequest {
     tables: Option<String>,
 }
 
-fn default_dry_run() -> bool { true }
+fn default_dry_run() -> bool {
+    true
+}
 
 async fn run_cleanup(
     State(state): State<Arc<AppState>>,
@@ -411,7 +487,8 @@ async fn run_cleanup(
     let mut results = Vec::new();
     let mut total_deleted = 0;
 
-    let tables_to_clean: Vec<String> = req.tables
+    let tables_to_clean: Vec<String> = req
+        .tables
         .map(|t| t.split(',').map(|s| s.trim().to_string()).collect())
         .unwrap_or_else(|| allowed_tables.iter().map(|s| s.to_string()).collect());
 
@@ -422,28 +499,40 @@ async fn run_cleanup(
         }
 
         let query = if req.dry_run {
-            format!("SELECT COUNT(*) FROM {} WHERE created_at < NOW() - INTERVAL '{} days'", table, retention_days)
+            format!(
+                "SELECT COUNT(*) FROM {} WHERE created_at < NOW() - INTERVAL '{} days'",
+                table, retention_days
+            )
         } else {
-            format!("DELETE FROM {} WHERE created_at < NOW() - INTERVAL '{} days'", table, retention_days)
+            format!(
+                "DELETE FROM {} WHERE created_at < NOW() - INTERVAL '{} days'",
+                table, retention_days
+            )
         };
 
-        match sqlx::query_scalar::<_, i64>(&query).fetch_one(&state.knowledge_engine.pool).await {
+        match sqlx::query_scalar::<_, i64>(&query)
+            .fetch_one(&state.knowledge_engine.pool)
+            .await
+        {
             Ok(count) => {
                 results.push(json!({ "table": table, "deleted": count, "dry_run": req.dry_run }));
                 total_deleted += count;
-            },
+            }
             Err(e) => {
                 results.push(json!({ "table": table, "deleted": 0, "error": e.to_string() }));
             }
         }
     }
 
-    (StatusCode::OK, Json(json!({
-        "status": if req.dry_run { "dry_run" } else { "completed" },
-        "timestamp": chrono::Utc::now().to_rfc3339(),
-        "total_deleted": total_deleted,
-        "results": results
-    })))
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status": if req.dry_run { "dry_run" } else { "completed" },
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "total_deleted": total_deleted,
+            "results": results
+        })),
+    )
 }
 
 // --- Files Handlers ---
@@ -465,7 +554,11 @@ async fn read_file_handler(
     }
 
     match fs::read_to_string(safe_path).await {
-        Ok(content) => (StatusCode::OK, Json(json!({ "content": content, "path": req.path }))).into_response(),
+        Ok(content) => (
+            StatusCode::OK,
+            Json(json!({ "content": content, "path": req.path })),
+        )
+            .into_response(),
         Err(e) => (StatusCode::NOT_FOUND, format!("File not found: {}", e)).into_response(),
     }
 }
@@ -486,8 +579,16 @@ async fn write_file_handler(
     }
 
     match fs::write(safe_path, req.content).await {
-        Ok(_) => (StatusCode::OK, Json(json!({ "status": "success", "path": req.path }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {}", e)).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({ "status": "success", "path": req.path })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to write file: {}", e),
+        )
+            .into_response(),
     }
 }
 
@@ -511,7 +612,9 @@ async fn list_files_handler(
     let mut entries = Vec::new();
     let mut dir = match fs::read_dir(safe_path).await {
         Ok(d) => d,
-        Err(e) => return (StatusCode::NOT_FOUND, format!("Directory not found: {}", e)).into_response(),
+        Err(e) => {
+            return (StatusCode::NOT_FOUND, format!("Directory not found: {}", e)).into_response();
+        }
     };
 
     while let Ok(Some(entry)) = dir.next_entry().await {
@@ -573,8 +676,14 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     // Drop slave to avoid keeping it open
     drop(pair.slave);
 
-    let mut pty_reader = pair.master.try_clone_reader().expect("Failed to clone PTY reader");
-    let mut pty_writer = pair.master.take_writer().expect("Failed to take PTY writer");
+    let mut pty_reader = pair
+        .master
+        .try_clone_reader()
+        .expect("Failed to clone PTY reader");
+    let mut pty_writer = pair
+        .master
+        .take_writer()
+        .expect("Failed to take PTY writer");
 
     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(100);
 
@@ -583,7 +692,9 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     std::thread::spawn(move || {
         let mut buffer = [0u8; 1024];
         while let Ok(n) = pty_reader.read(&mut buffer) {
-            if n == 0 { break; }
+            if n == 0 {
+                break;
+            }
             if tx_pty.blocking_send(buffer[..n].to_vec()).is_err() {
                 break;
             }
@@ -633,14 +744,22 @@ async fn terminal_execute_handler(
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            (StatusCode::OK, Json(json!({
-                "status": if output.status.success() { "success" } else { "failed" },
-                "exit_code": output.status.code(),
-                "stdout": stdout,
-                "stderr": stderr
-            }))).into_response()
-        },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to execute command: {}", e)).into_response(),
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status": if output.status.success() { "success" } else { "failed" },
+                    "exit_code": output.status.code(),
+                    "stdout": stdout,
+                    "stderr": stderr
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to execute command: {}", e),
+        )
+            .into_response(),
     }
 }
 
@@ -652,7 +771,11 @@ fn is_git_repo(workspace: &PathBuf) -> bool {
 
 async fn git_status_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     if !is_git_repo(&state.workspace_root) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Not a git repository" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Not a git repository" })),
+        )
+            .into_response();
     }
     match tokio::process::Command::new("git")
         .args(["status", "--short"])
@@ -663,14 +786,22 @@ async fn git_status_handler(State(state): State<Arc<AppState>>) -> impl IntoResp
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            (StatusCode::OK, Json(json!({
-                "status": if output.status.success() { "success" } else { "failed" },
-                "stdout": stdout,
-                "stderr": stderr,
-                "lines": stdout.lines().filter(|s| !s.is_empty()).collect::<Vec<_>>()
-            }))).into_response()
-        },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("{}", e) }))).into_response(),
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "status": if output.status.success() { "success" } else { "failed" },
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "lines": stdout.lines().filter(|s| !s.is_empty()).collect::<Vec<_>>()
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("{}", e) })),
+        )
+            .into_response(),
     }
 }
 
@@ -684,7 +815,11 @@ async fn git_diff_handler(
     Query(q): Query<GitDiffQuery>,
 ) -> impl IntoResponse {
     if !is_git_repo(&state.workspace_root) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Not a git repository" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Not a git repository" })),
+        )
+            .into_response();
     }
     let mut cmd = tokio::process::Command::new("git");
     cmd.arg("diff").current_dir(&state.workspace_root);
@@ -697,12 +832,20 @@ async fn git_diff_handler(
     match cmd.output().await {
         Ok(output) => {
             let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-            (StatusCode::OK, Json(json!({
-                "stdout": stdout,
-                "exit_code": output.status.code()
-            }))).into_response()
-        },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("{}", e) }))).into_response(),
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "stdout": stdout,
+                    "exit_code": output.status.code()
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("{}", e) })),
+        )
+            .into_response(),
     }
 }
 
@@ -716,11 +859,21 @@ async fn git_log_handler(
     Query(q): Query<GitLogQuery>,
 ) -> impl IntoResponse {
     if !is_git_repo(&state.workspace_root) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Not a git repository" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Not a git repository" })),
+        )
+            .into_response();
     }
     let n = q.n.unwrap_or(20).min(100);
     match tokio::process::Command::new("git")
-        .args(["log", "-n", &n.to_string(), "--pretty=format:%h|%an|%ad|%s", "--date=short"])
+        .args([
+            "log",
+            "-n",
+            &n.to_string(),
+            "--pretty=format:%h|%an|%ad|%s",
+            "--date=short",
+        ])
         .current_dir(&state.workspace_root)
         .output()
         .await
@@ -741,14 +894,22 @@ async fn git_log_handler(
                 })
                 .collect();
             (StatusCode::OK, Json(json!({ "commits": commits }))).into_response()
-        },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("{}", e) }))).into_response(),
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("{}", e) })),
+        )
+            .into_response(),
     }
 }
 
 async fn git_branch_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     if !is_git_repo(&state.workspace_root) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Not a git repository" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Not a git repository" })),
+        )
+            .into_response();
     }
     let current = tokio::process::Command::new("git")
         .args(["branch", "--show-current"])
@@ -768,12 +929,20 @@ async fn git_branch_handler(State(state): State<Arc<AppState>>) -> impl IntoResp
                 .map(|s| s.trim().trim_start_matches('*').trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            (StatusCode::OK, Json(json!({
-                "current": current_name,
-                "branches": branch_list
-            }))).into_response()
-        },
-        _ => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "git branch failed" }))).into_response(),
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "current": current_name,
+                    "branches": branch_list
+                })),
+            )
+                .into_response()
+        }
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "git branch failed" })),
+        )
+            .into_response(),
     }
 }
 
@@ -788,16 +957,29 @@ async fn git_commit_handler(
     Json(req): Json<GitCommitRequest>,
 ) -> impl IntoResponse {
     if !is_git_repo(&state.workspace_root) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Not a git repository" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Not a git repository" })),
+        )
+            .into_response();
     }
     let msg = req.message.trim();
     if msg.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Commit message is required" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Commit message is required" })),
+        )
+            .into_response();
     }
     let paths = req.paths.as_deref().unwrap_or(&[]);
     let add_args: Vec<&str> = paths.iter().map(String::as_str).collect();
     let add_ok = if add_args.is_empty() {
-        tokio::process::Command::new("git").arg("add").arg("-A").current_dir(&state.workspace_root).output().await
+        tokio::process::Command::new("git")
+            .arg("add")
+            .arg("-A")
+            .current_dir(&state.workspace_root)
+            .output()
+            .await
     } else {
         let mut cmd = tokio::process::Command::new("git");
         cmd.arg("add").current_dir(&state.workspace_root);
@@ -814,7 +996,11 @@ async fn git_commit_handler(
         _ => false,
     };
     if !add_ok {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "git add failed" }))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "git add failed" })),
+        )
+            .into_response();
     }
     let commit = tokio::process::Command::new("git")
         .args(["commit", "-m", msg])
@@ -825,14 +1011,22 @@ async fn git_commit_handler(
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout).to_string();
             let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            (StatusCode::OK, Json(json!({
-                "success": out.status.success(),
-                "stdout": stdout,
-                "stderr": stderr,
-                "exit_code": out.status.code()
-            }))).into_response()
-        },
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("{}", e) }))).into_response(),
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": out.status.success(),
+                    "stdout": stdout,
+                    "stderr": stderr,
+                    "exit_code": out.status.code()
+                })),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": format!("{}", e) })),
+        )
+            .into_response(),
     }
 }
 
@@ -858,11 +1052,17 @@ async fn process_image(
     match state.client.post(moondream_url).json(&payload).send().await {
         Ok(res) if res.status().is_success() => {
             let data: serde_json::Value = res.json().await.unwrap_or(json!({}));
-            (StatusCode::OK, Json(json!({ "text": data["description"], "content_type": "image" }))).into_response()
-        },
+            (
+                StatusCode::OK,
+                Json(json!({ "text": data["description"], "content_type": "image" })),
+            )
+                .into_response()
+        }
         _ => {
             // Fallback to Ollama Vision if Moondream is down
-            let ollama_url = "http://localhost:11434/api/generate";
+            let ollama_base =
+                env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+            let ollama_url = format!("{}/api/generate", ollama_base.trim_end_matches('/'));
             let ollama_payload = json!({
                 "model": "moondream",
                 "prompt": "Describe this image",
@@ -870,12 +1070,26 @@ async fn process_image(
                 "stream": false
             });
 
-            match state.client.post(ollama_url).json(&ollama_payload).send().await {
+            match state
+                .client
+                .post(ollama_url)
+                .json(&ollama_payload)
+                .send()
+                .await
+            {
                 Ok(res) if res.status().is_success() => {
                     let data: serde_json::Value = res.json().await.unwrap_or(json!({}));
-                    (StatusCode::OK, Json(json!({ "text": data["response"], "content_type": "image" }))).into_response()
-                },
-                _ => (StatusCode::SERVICE_UNAVAILABLE, "Vision services unavailable").into_response(),
+                    (
+                        StatusCode::OK,
+                        Json(json!({ "text": data["response"], "content_type": "image" })),
+                    )
+                        .into_response()
+                }
+                _ => (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "Vision services unavailable",
+                )
+                    .into_response(),
             }
         }
     }
@@ -893,11 +1107,7 @@ async fn proxy_plan(
 ) -> impl IntoResponse {
     let victoria_url = format!("{}/plan", state.victoria_url.trim_end_matches('/'));
 
-    let res = state.client
-        .post(&victoria_url)
-        .json(&req)
-        .send()
-        .await;
+    let res = state.client.post(&victoria_url).json(&req).send().await;
 
     match res {
         Ok(response) => {
@@ -928,7 +1138,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
-
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/knowledge_os".to_string());
 
@@ -936,10 +1145,13 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "/Users/bikos/Documents/atra-web-ide".to_string());
     let workspace_root = PathBuf::from(workspace_root_str);
 
-    let victoria_url = env::var("VICTORIA_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
+    let victoria_url =
+        env::var("VICTORIA_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
     let use_victoria_agent = env::var("USE_VICTORIA_AGENT")
         .unwrap_or_else(|_| "true".to_string())
-        .to_lowercase() == "true" || env::var("USE_VICTORIA_AGENT").unwrap_or_else(|_| "1".to_string()) == "1";
+        .to_lowercase()
+        == "true"
+        || env::var("USE_VICTORIA_AGENT").unwrap_or_else(|_| "1".to_string()) == "1";
 
     let knowledge_engine = KnowledgeEngine::new(&database_url)
         .await
@@ -965,7 +1177,10 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         chat_semaphore: Arc::new(Semaphore::new(max_concurrent_chat)),
     });
 
-    info!("🔒 Chat semaphore initialized with max_concurrent={}", max_concurrent_chat);
+    info!(
+        "🔒 Chat semaphore initialized with max_concurrent={}",
+        max_concurrent_chat
+    );
 
     // Configure CORS
     let cors = CorsLayer::new()
@@ -978,7 +1193,10 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new()
         .route("/health", get(health_check))
-        .nest_service("/crates", ServeDir::new(workspace_root.join("mirror/crates.io/crates")))
+        .nest_service(
+            "/crates",
+            ServeDir::new(workspace_root.join("mirror/crates.io/crates")),
+        )
         .route("/v1/chat/completions", post(proxy_chat))
         .route("/api/chat/plan", post(proxy_plan))
         .route("/v1/knowledge/search", get(knowledge_search))
@@ -996,7 +1214,10 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/terminal/ask", post(terminal_ask))
         .route("/api/latency/benchmark", get(get_latency_benchmark))
         .route("/api/plan-cache/stats", get(get_plan_cache_stats))
-        .route("/api/rag-optimization/stats", get(get_rag_optimization_stats))
+        .route(
+            "/api/rag-optimization/stats",
+            get(get_rag_optimization_stats),
+        )
         .route("/api/ab-testing/stats", get(get_ab_testing_stats))
         .route("/api/quality-metrics", get(get_quality_metrics))
         .route("/api/system-metrics", get(get_system_metrics))
@@ -1050,31 +1271,51 @@ async fn health_check() -> &'static str {
 
 // --- File Operations Helpers ---
 
-async fn get_safe_path(workspace_root: &PathBuf, path_str: &str) -> Result<PathBuf, (StatusCode, Json<serde_json::Value>)> {
+async fn get_safe_path(
+    workspace_root: &PathBuf,
+    path_str: &str,
+) -> Result<PathBuf, (StatusCode, Json<serde_json::Value>)> {
     let safe_path_str = path_str.trim_start_matches('/');
     let full_path = workspace_root.join(safe_path_str);
 
     if path_str.contains("..") {
-        return Err((StatusCode::FORBIDDEN, Json(json!({ "error": "Access denied: invalid path" }))));
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Access denied: invalid path" })),
+        ));
     }
 
     let canonical_root = workspace_root.canonicalize()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Workspace root error: {} (path: {:?})", e, workspace_root) }))))?;
 
     if full_path.exists() {
-        let canonical_path = full_path.canonicalize()
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Path canonicalization error: {}", e) }))))?;
+        let canonical_path = full_path.canonicalize().map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": format!("Path canonicalization error: {}", e) })),
+            )
+        })?;
 
         if !canonical_path.starts_with(&canonical_root) {
-            return Err((StatusCode::FORBIDDEN, Json(json!({ "error": "Access denied: path outside workspace" }))));
+            return Err((
+                StatusCode::FORBIDDEN,
+                Json(json!({ "error": "Access denied: path outside workspace" })),
+            ));
         }
     } else {
         if let Some(parent) = full_path.parent() {
             if parent.exists() {
-                let canonical_parent = parent.canonicalize()
-                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Parent canonicalization error: {}", e) }))))?;
+                let canonical_parent = parent.canonicalize().map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": format!("Parent canonicalization error: {}", e) })),
+                    )
+                })?;
                 if !canonical_parent.starts_with(&canonical_root) {
-                    return Err((StatusCode::FORBIDDEN, Json(json!({ "error": "Access denied: path outside workspace" }))));
+                    return Err((
+                        StatusCode::FORBIDDEN,
+                        Json(json!({ "error": "Access denied: path outside workspace" })),
+                    ));
                 }
             }
         }
@@ -1099,13 +1340,23 @@ async fn list_files(
     }
 
     if !dir_path.is_dir() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Path is not a directory" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Path is not a directory" })),
+        )
+            .into_response();
     }
 
     let mut files = Vec::new();
     let mut entries = match fs::read_dir(dir_path).await {
         Ok(e) => e,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response();
+        }
     };
 
     while let Ok(Some(entry)) = entries.next_entry().await {
@@ -1139,20 +1390,36 @@ async fn read_file(
     };
 
     if !file_path.exists() {
-        return (StatusCode::NOT_FOUND, Json(json!({ "error": "File not found" }))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "File not found" })),
+        )
+            .into_response();
     }
 
     if !file_path.is_file() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "Path is not a file" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Path is not a file" })),
+        )
+            .into_response();
     }
 
     match fs::read_to_string(file_path).await {
-        Ok(content) => (StatusCode::OK, Json(FileContent {
-            path: params.path,
-            content,
-            encoding: "utf-8".to_string(),
-        })).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Ok(content) => (
+            StatusCode::OK,
+            Json(FileContent {
+                path: params.path,
+                content,
+                encoding: "utf-8".to_string(),
+            }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -1171,12 +1438,20 @@ async fn write_file(
     }
 
     match fs::write(&file_path, &req.content).await {
-        Ok(_) => (StatusCode::OK, Json(json!({
-            "success": true,
-            "path": params.path,
-            "size": req.content.len()
-        }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({
+                "success": true,
+                "path": params.path,
+                "size": req.content.len()
+            })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -1191,21 +1466,41 @@ async fn create_item(
     };
 
     if item_path.exists() {
-        return (StatusCode::CONFLICT, Json(json!({ "error": "Path already exists" }))).into_response();
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "Path already exists" })),
+        )
+            .into_response();
     }
 
     if req.item_type == "directory" {
         match fs::create_dir_all(&item_path).await {
-            Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "path": params.path, "type": "directory" }))).into_response(),
-            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+            Ok(_) => (
+                StatusCode::OK,
+                Json(json!({ "success": true, "path": params.path, "type": "directory" })),
+            )
+                .into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response(),
         }
     } else {
         if let Some(parent) = item_path.parent() {
             let _ = fs::create_dir_all(parent).await;
         }
         match fs::write(&item_path, req.content.unwrap_or_default()).await {
-            Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "path": params.path, "type": "file" }))).into_response(),
-            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+            Ok(_) => (
+                StatusCode::OK,
+                Json(json!({ "success": true, "path": params.path, "type": "file" })),
+            )
+                .into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response(),
         }
     }
 }
@@ -1220,11 +1515,19 @@ async fn delete_item(
     };
 
     if !item_path.exists() {
-        return (StatusCode::NOT_FOUND, Json(json!({ "error": "Path not found" }))).into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Path not found" })),
+        )
+            .into_response();
     }
 
     if item_path == state.workspace_root {
-        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Cannot delete workspace root" }))).into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Cannot delete workspace root" })),
+        )
+            .into_response();
     }
 
     let res = if item_path.is_dir() {
@@ -1234,56 +1537,78 @@ async fn delete_item(
     };
 
     match res {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "path": params.path }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({ "success": true, "path": params.path })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
-async fn list_experts(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn list_experts(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match sqlx::query_as::<_, Expert>(
-        "SELECT id, name, role, system_prompt, created_at FROM experts ORDER BY name"
+        "SELECT id, name, role, system_prompt, created_at FROM experts ORDER BY name",
     )
     .fetch_all(&state.knowledge_engine.pool)
-    .await {
+    .await
+    {
         Ok(experts) => (StatusCode::OK, Json(experts)).into_response(),
         Err(e) => {
             error!("List experts error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
 
-async fn get_expert(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
+async fn get_expert(State(state): State<Arc<AppState>>, Path(id): Path<Uuid>) -> impl IntoResponse {
     match sqlx::query_as::<_, Expert>(
-        "SELECT id, name, role, system_prompt, created_at FROM experts WHERE id = $1"
+        "SELECT id, name, role, system_prompt, created_at FROM experts WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.knowledge_engine.pool)
-    .await {
+    .await
+    {
         Ok(Some(expert)) => (StatusCode::OK, Json(expert)).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Expert not found" }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Expert not found" })),
+        )
+            .into_response(),
         Err(e) => {
             error!("Get expert error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
 
 async fn list_domains(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match sqlx::query_as::<_, Domain>(
-        "SELECT id, name, description, created_at FROM domains ORDER BY name"
+        "SELECT id, name, description, created_at FROM domains ORDER BY name",
     )
     .fetch_all(&state.knowledge_engine.pool)
-    .await {
+    .await
+    {
         Ok(domains) => (StatusCode::OK, Json(domains)).into_response(),
         Err(e) => {
             error!("List domains error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -1334,7 +1659,11 @@ async fn create_item_handler(
     match req.item_type.as_str() {
         "directory" => {
             if let Err(e) = fs::create_dir_all(&safe_path).await {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create directory: {}", e)).into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to create directory: {}", e),
+                )
+                    .into_response();
             }
         }
         "file" => {
@@ -1342,13 +1671,21 @@ async fn create_item_handler(
                 let _ = fs::create_dir_all(parent).await;
             }
             if let Err(e) = fs::write(&safe_path, req.content.unwrap_or_default()).await {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create file: {}", e)).into_response();
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to create file: {}", e),
+                )
+                    .into_response();
             }
         }
         _ => return (StatusCode::BAD_REQUEST, "Invalid item type").into_response(),
     }
 
-    (StatusCode::OK, Json(json!({ "success": true, "path": req.path }))).into_response()
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "path": req.path })),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -1378,14 +1715,20 @@ async fn delete_item_handler(
     };
 
     match res {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "path": req.path }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete item: {}", e)).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({ "success": true, "path": req.path })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to delete item: {}", e),
+        )
+            .into_response(),
     }
 }
 
-async fn chat_status_handler(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn chat_status_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let victoria_url = format!("{}/health", state.victoria_url.trim_end_matches('/'));
     match state.client.get(victoria_url).send().await {
         Ok(res) => {
@@ -1396,13 +1739,17 @@ async fn chat_status_handler(
     }
 }
 
-async fn chat_models_handler(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
-    let victoria_url = format!("{}/api/available-models", state.victoria_url.trim_end_matches('/'));
+async fn chat_models_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let victoria_url = format!(
+        "{}/api/available-models",
+        state.victoria_url.trim_end_matches('/')
+    );
     match state.client.get(victoria_url).send().await {
         Ok(res) => {
-            let data: serde_json::Value = res.json().await.unwrap_or(json!({ "mlx": [], "ollama": [] }));
+            let data: serde_json::Value = res
+                .json()
+                .await
+                .unwrap_or(json!({ "mlx": [], "ollama": [] }));
             (StatusCode::OK, Json(data)).into_response()
         }
         Err(_) => (StatusCode::OK, Json(json!({ "mlx": [], "ollama": [] }))).into_response(),
@@ -1411,9 +1758,7 @@ async fn chat_models_handler(
 
 // --- Preview Handlers ---
 
-async fn preview_index_handler(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn preview_index_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let file_path = state.workspace_root.join("index.html");
     if !file_path.exists() {
         return Html(r#"
@@ -1473,21 +1818,21 @@ async fn preview_file_handler(
             StatusCode::OK,
             [(header::CONTENT_TYPE, mime.to_string())],
             content,
-        ).into_response(),
+        )
+            .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
 // --- Experts Handlers ---
 
-async fn list_experts_handler(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+async fn list_experts_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     match sqlx::query_as::<_, Expert>(
-        "SELECT id, name, role, system_prompt, created_at FROM experts ORDER BY name"
+        "SELECT id, name, role, system_prompt, created_at FROM experts ORDER BY name",
     )
     .fetch_all(&state.knowledge_engine.pool)
-    .await {
+    .await
+    {
         Ok(experts) => (StatusCode::OK, Json(experts)).into_response(),
         Err(e) => {
             error!("List experts error: {}", e);
@@ -1508,14 +1853,23 @@ async fn get_expert_handler(
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     match sqlx::query_as::<_, Expert>(
-        "SELECT id, name, role, system_prompt, created_at FROM experts WHERE id = $1"
+        "SELECT id, name, role, system_prompt, created_at FROM experts WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(&state.knowledge_engine.pool)
-    .await {
+    .await
+    {
         Ok(Some(expert)) => (StatusCode::OK, Json(expert)).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(json!({ "error": "Expert not found" }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Expert not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 
@@ -1537,15 +1891,14 @@ async fn preview_file(
         Ok(content) => (
             StatusCode::OK,
             [(header::CONTENT_TYPE, mime.to_string())],
-            content
-        ).into_response(),
+            content,
+        )
+            .into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
 
-async fn render_html(
-    Query(params): Query<serde_json::Value>,
-) -> impl IntoResponse {
+async fn render_html(Query(params): Query<serde_json::Value>) -> impl IntoResponse {
     let content = params["content"].as_str().unwrap_or("");
     Html(content.to_string()).into_response()
 }
@@ -1569,7 +1922,9 @@ async fn handle_ws_pty(mut socket: WebSocket, state: Arc<AppState>) {
     }) {
         Ok(p) => p,
         Err(e) => {
-            let _ = socket.send(Message::Text(format!("Error opening PTY: {}", e))).await;
+            let _ = socket
+                .send(Message::Text(format!("Error opening PTY: {}", e)))
+                .await;
             return;
         }
     };
@@ -1581,7 +1936,9 @@ async fn handle_ws_pty(mut socket: WebSocket, state: Arc<AppState>) {
     let _child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
         Err(e) => {
-            let _ = socket.send(Message::Text(format!("Error spawning shell: {}", e))).await;
+            let _ = socket
+                .send(Message::Text(format!("Error spawning shell: {}", e)))
+                .await;
             return;
         }
     };
@@ -1644,6 +2001,42 @@ async fn terminal_ask(
 
 // --- Chat & Knowledge Engine logic (same as before) ---
 
+/// Извлекает имя проекта из текста сообщения (например «перейди в проект setki-21» → Some("setki-21")).
+/// Slug: буквы/цифры/дефис; при отсутствии совпадения — None.
+fn extract_project_from_message(message: &str) -> Option<String> {
+    let msg = message.trim();
+    let patterns = [
+        "перейди в проект ",
+        "открой проект ",
+        "в проекте ",
+        "работай в проекте ",
+        "работа в проекте ",
+        "проект ",
+    ];
+    for p in patterns {
+        if let Some(rest) = msg
+            .to_lowercase()
+            .find(&p.to_lowercase())
+            .map(|i| &msg[i + p.len()..])
+        {
+            let slug: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+                .collect();
+            if !slug.is_empty()
+                && slug
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_alphanumeric())
+                    .unwrap_or(false)
+            {
+                return Some(slug);
+            }
+        }
+    }
+    None
+}
+
 /// Вызов Victoria Agent (мозг MLX + руки Ollama). POST /run?async_mode=true → опрос /run/status/{task_id}.
 async fn call_victoria_agent(
     client: &Client,
@@ -1658,15 +2051,15 @@ async fn call_victoria_agent(
         "project_context": project_context,
     });
 
-    let res = client
-        .post(&run_url)
-        .json(&payload)
-        .send()
-        .await?;
+    let res = client.post(&run_url).json(&payload).send().await?;
 
     if res.status().as_u16() == 200 {
         let data: serde_json::Value = res.json().await?;
-        let out = data["output"].as_str().or_else(|| data["result"].as_str()).unwrap_or("").to_string();
+        let out = data["output"]
+            .as_str()
+            .or_else(|| data["result"].as_str())
+            .unwrap_or("")
+            .to_string();
         return Ok(out);
     }
 
@@ -1678,8 +2071,14 @@ async fn call_victoria_agent(
     }
 
     let data: serde_json::Value = res.json().await?;
-    let task_id = data["task_id"].as_str().ok_or("No task_id in 202 response")?;
-    let status_url = format!("{}/run/status/{}", victoria_url.trim_end_matches('/'), task_id);
+    let task_id = data["task_id"]
+        .as_str()
+        .ok_or("No task_id in 202 response")?;
+    let status_url = format!(
+        "{}/run/status/{}",
+        victoria_url.trim_end_matches('/'),
+        task_id
+    );
 
     let poll_interval = std::time::Duration::from_secs(8);
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(900);
@@ -1696,7 +2095,11 @@ async fn call_victoria_agent(
         let st: serde_json::Value = status_res.json().await?;
         let status_val = st["status"].as_str().unwrap_or("").to_lowercase();
         if status_val == "completed" {
-            let out = st["output"].as_str().or_else(|| st["result"].as_str()).unwrap_or("").to_string();
+            let out = st["output"]
+                .as_str()
+                .or_else(|| st["result"].as_str())
+                .unwrap_or("")
+                .to_string();
             return Ok(out);
         }
         if status_val == "failed" {
@@ -1708,22 +2111,25 @@ async fn call_victoria_agent(
     Err("Victoria polling timeout (900s)".into())
 }
 
-async fn get_embedding(client: &Client, text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
-    let ollama_url = "http://localhost:11434/api/embeddings";
+async fn get_embedding(
+    client: &Client,
+    text: &str,
+) -> Result<Vec<f32>, Box<dyn std::error::Error + Send + Sync>> {
+    let ollama_base =
+        env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let ollama_url = format!("{}/api/embeddings", ollama_base.trim_end_matches('/'));
     let payload = json!({
         "model": "nomic-embed-text",
         "prompt": text
     });
 
-    let res = client.post(ollama_url)
-        .json(&payload)
-        .send()
-        .await?;
+    let res = client.post(ollama_url).json(&payload).send().await?;
 
     if res.status().is_success() {
         let body: serde_json::Value = res.json().await?;
         if let Some(embedding) = body["embedding"].as_array() {
-            let vector: Vec<f32> = embedding.iter()
+            let vector: Vec<f32> = embedding
+                .iter()
                 .map(|v| v.as_f64().unwrap_or(0.0) as f32)
                 .collect();
             return Ok(vector);
@@ -1745,21 +2151,33 @@ async fn knowledge_search(
 
     match get_embedding(&state.client, &params.q).await {
         Ok(embedding) => {
-            match state.knowledge_engine.retrieve_similar_with_embeddings(embedding.clone(), 15).await {
+            match state
+                .knowledge_engine
+                .retrieve_similar_with_embeddings(embedding.clone(), 15)
+                .await
+            {
                 Ok(nodes) => {
                     let ranked_nodes = state.knowledge_engine.rank_nodes_locally(embedding, nodes);
                     let top_nodes = ranked_nodes.into_iter().take(5).collect::<Vec<_>>();
                     (StatusCode::OK, Json(top_nodes)).into_response()
-                },
+                }
                 Err(e) => {
                     error!("Knowledge search error: {}", e);
-                    (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Search failed", "details": e.to_string() }))).into_response()
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "error": "Search failed", "details": e.to_string() })),
+                    )
+                        .into_response()
                 }
             }
-        },
+        }
         Err(e) => {
             error!("Embedding error: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Embedding failed", "details": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "Embedding failed", "details": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -1783,8 +2201,9 @@ async fn proxy_chat(
                     "error": "Service temporarily unavailable",
                     "message": "Too many concurrent requests. Please try again in a few seconds.",
                     "retry_after_seconds": 5
-                }))
-            ).into_response();
+                })),
+            )
+                .into_response();
         }
     };
 
@@ -1794,16 +2213,31 @@ async fn proxy_chat(
         .and_then(|m| m["content"].as_str())
         .unwrap_or("");
 
-    let project_context = env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
+    let project_from_message = extract_project_from_message(last_user_message);
+    let project_context = project_from_message.clone().unwrap_or_else(|| {
+        env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string())
+    });
+    if project_from_message.is_some() {
+        info!("Project context taken from message: {}", project_context);
+    }
 
     let use_rag = headers.contains_key("x-use-rag") || payload["use_rag"].as_bool().unwrap_or(true);
     let mut context_for_goal = String::new();
     if use_rag && !last_user_message.is_empty() {
         if let Ok(embedding) = get_embedding(&state.client, last_user_message).await {
-            if let Ok(nodes) = state.knowledge_engine.retrieve_similar_with_embeddings(embedding.clone(), 10).await {
+            if let Ok(nodes) = state
+                .knowledge_engine
+                .retrieve_similar_with_embeddings(embedding.clone(), 10)
+                .await
+            {
                 let ranked = state.knowledge_engine.rank_nodes_locally(embedding, nodes);
                 if !ranked.is_empty() {
-                    context_for_goal = ranked.iter().take(3).map(|n| n.content.as_str()).collect::<Vec<_>>().join("\n---\n");
+                    context_for_goal = ranked
+                        .iter()
+                        .take(3)
+                        .map(|n| n.content.as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n---\n");
                 }
             }
         }
@@ -1811,7 +2245,10 @@ async fn proxy_chat(
     let goal_for_victoria = if context_for_goal.is_empty() {
         last_user_message.to_string()
     } else {
-        format!("CONTEXT (from knowledge base):\n{}\n\nUser request (answer in Russian):\n{}", context_for_goal, last_user_message)
+        format!(
+            "CONTEXT (from knowledge base):\n{}\n\nUser request (answer in Russian):\n{}",
+            context_for_goal, last_user_message
+        )
     };
 
     // Сначала пробуем полный контур: Victoria Agent (мозг MLX + руки Ollama)
@@ -1843,19 +2280,30 @@ async fn proxy_chat(
                 info!("Victoria Agent returned empty output, falling back to Ollama");
             }
             Err(e) => {
-                info!("Victoria Agent unavailable or failed ({}), falling back to Ollama", e);
+                info!(
+                    "Victoria Agent unavailable or failed ({}), falling back to Ollama",
+                    e
+                );
             }
         }
     }
 
-    let ollama_url = "http://localhost:11434/v1/chat/completions";
+    let ollama_url =
+        env::var("OLLAMA_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let ollama_chat_url = format!("{}/v1/chat/completions", ollama_url.trim_end_matches('/'));
     let fallback_model = "tinyllama:1.1b-chat";
 
     let role = task_classify(last_user_message);
     let (role_name, role_instruction) = if role == "veronica" {
-        ("Veronica", "Ты Вероника, Local Developer. Отвечай кратко, по делу, с фокусом на код и выполнение задач.")
+        (
+            "Veronica",
+            "Ты Вероника, Local Developer. Отвечай кратко, по делу, с фокусом на код и выполнение задач.",
+        )
     } else {
-        ("Victoria", "Ты Виктория, Team Lead Singularity 14.0. Отвечай профессионально, структурированно, с учётом контекста.")
+        (
+            "Victoria",
+            "Ты Виктория, Team Lead Singularity 14.0. Отвечай профессионально, структурированно, с учётом контекста.",
+        )
     };
 
     // При fallback на Ollama повторно используем контекст, уже собранный для Victoria (если есть)
@@ -1863,30 +2311,47 @@ async fn proxy_chat(
     if use_rag && !last_user_message.is_empty() && context.is_empty() {
         match get_embedding(&state.client, last_user_message).await {
             Ok(embedding) => {
-                match state.knowledge_engine.retrieve_similar_with_embeddings(embedding.clone(), 10).await {
+                match state
+                    .knowledge_engine
+                    .retrieve_similar_with_embeddings(embedding.clone(), 10)
+                    .await
+                {
                     Ok(nodes) => {
-                        let ranked_nodes = state.knowledge_engine.rank_nodes_locally(embedding, nodes);
+                        let ranked_nodes =
+                            state.knowledge_engine.rank_nodes_locally(embedding, nodes);
                         if !ranked_nodes.is_empty() {
-                            context = ranked_nodes.iter()
+                            context = ranked_nodes
+                                .iter()
                                 .take(3)
                                 .map(|n| n.content.clone())
                                 .collect::<Vec<String>>()
                                 .join("\n---\n");
                         }
-                    },
+                    }
                     Err(e) => error!("Knowledge Engine error: {}", e),
                 }
-            },
+            }
             Err(e) => error!("Embedding error: {}", e),
         }
     }
 
     if let Some(messages) = payload["messages"].as_array_mut() {
-        let base_system = format!("{} Обязательно отвечай только на русском. {}", role_instruction, if context.is_empty() { "" } else { "Ниже контекст из базы знаний." });
+        let base_system = format!(
+            "{} Обязательно отвечай только на русском. {}",
+            role_instruction,
+            if context.is_empty() {
+                ""
+            } else {
+                "Ниже контекст из базы знаний."
+            }
+        );
         let injection = if context.is_empty() {
             format!("\n\nIMPORTANT: Answer in Russian only. Be professional and concise.")
         } else {
-            format!("\n\nCONTEXT:\n{}\n\nIMPORTANT: Answer in Russian language only. Be professional and concise.", context)
+            format!(
+                "\n\nCONTEXT:\n{}\n\nIMPORTANT: Answer in Russian language only. Be professional and concise.",
+                context
+            )
         };
         let system_content = format!("{}{}", base_system, injection);
 
@@ -1905,23 +2370,32 @@ async fn proxy_chat(
                 messages[idx]["content"] = json!(system_content);
             }
         } else {
-            messages.insert(0, json!({
-                "role": "system",
+            messages.insert(
+                0,
+                json!({
+                    "role": "system",
                 "content": format!("You are {}. {}", role_name, system_content)
-            }));
+                }),
+            );
         }
     }
 
-    match send_request(&state.client, ollama_url, &headers, &payload).await {
+    match send_request(&state.client, &ollama_chat_url, &headers, &payload).await {
         Ok(response) => {
             let status = response.status();
             if status.is_success() {
                 return handle_response(response).await;
             }
-            error!("Primary model failed with status: {}. Attempting fallback...", status);
+            error!(
+                "Primary model failed with status: {}. Attempting fallback...",
+                status
+            );
         }
         Err(err) => {
-            error!("Primary model request failed: {}. Attempting fallback...", err);
+            error!(
+                "Primary model request failed: {}. Attempting fallback...",
+                err
+            );
         }
     }
 
@@ -1930,11 +2404,15 @@ async fn proxy_chat(
         obj.insert("model".to_string(), json!(fallback_model));
     }
 
-    match send_request(&state.client, ollama_url, &headers, &payload).await {
+    match send_request(&state.client, &ollama_chat_url, &headers, &payload).await {
         Ok(response) => handle_response(response).await,
         Err(err) => {
             error!("Fallback model also failed: {}", err);
-            (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "error": "All models failed", "details": err.to_string() }))).into_response()
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({ "error": "All models failed", "details": err.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -1958,8 +2436,10 @@ async fn handle_response(response: reqwest::Response) -> Response {
     for (name, value) in response.headers().iter() {
         response_builder = response_builder.header(name, value);
     }
-    let stream = response.bytes_stream().map(|result| {
-        result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))
-    });
-    response_builder.body(Body::from_stream(stream)).unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+    let stream = response
+        .bytes_stream()
+        .map(|result| result.map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err)));
+    response_builder
+        .body(Body::from_stream(stream))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }

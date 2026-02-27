@@ -1,9 +1,9 @@
-use sqlx::postgres::{PgPoolOptions, PgHasArrayType, PgTypeInfo};
-use sqlx::{Pool, Postgres, Type, Decode, Encode, FromRow};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use ndarray::{Array1, ArrayView1};
+use serde::{Deserialize, Serialize};
+use sqlx::postgres::{PgHasArrayType, PgPoolOptions, PgTypeInfo};
+use sqlx::{Decode, Encode, FromRow, Pool, Postgres, Type};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Vector(pub Vec<f32>);
@@ -27,7 +27,9 @@ impl<'q> Encode<'q, Postgres> for Vector {
 }
 
 impl<'r> Decode<'r, Postgres> for Vector {
-    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    fn decode(
+        value: sqlx::postgres::PgValueRef<'r>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let bytes = value.as_bytes()?;
         if bytes.len() < 4 {
             return Err("Vector too short".into());
@@ -37,8 +39,15 @@ impl<'r> Decode<'r, Postgres> for Vector {
         for i in 0..dim {
             let start = 4 + i * 4;
             let end = start + 4;
-            if end > bytes.len() { break; }
-            v.push(f32::from_be_bytes([bytes[start], bytes[start+1], bytes[start+2], bytes[start+3]]));
+            if end > bytes.len() {
+                break;
+            }
+            v.push(f32::from_be_bytes([
+                bytes[start],
+                bytes[start + 1],
+                bytes[start + 2],
+                bytes[start + 3],
+            ]));
         }
         Ok(Vector(v))
     }
@@ -92,7 +101,7 @@ impl KnowledgeEngine {
             "SELECT id, content, metadata, created_at, updated_at
              FROM knowledge_nodes
              ORDER BY embedding <=> $1::vector
-             LIMIT $2"
+             LIMIT $2",
         )
         .bind(Vector(embedding))
         .bind(limit)
@@ -111,7 +120,7 @@ impl KnowledgeEngine {
             "SELECT id, content, metadata, embedding, created_at, updated_at
              FROM knowledge_nodes
              ORDER BY embedding <=> $1::vector
-             LIMIT $2"
+             LIMIT $2",
         )
         .bind(Vector(embedding))
         .bind(limit)
@@ -138,25 +147,32 @@ impl KnowledgeEngine {
     pub fn rank_nodes_locally(
         &self,
         query_embedding: Vec<f32>,
-        nodes_with_embeddings: Vec<KnowledgeNodeWithEmbedding>
+        nodes_with_embeddings: Vec<KnowledgeNodeWithEmbedding>,
     ) -> Vec<KnowledgeNode> {
         let q_arr = Array1::from(query_embedding);
         let q_view = q_arr.view();
 
         let mut ranked = nodes_with_embeddings;
         ranked.sort_by(|a, b| {
-            let sim_a = Self::cosine_similarity(&q_view, &Array1::from(a.embedding.0.clone()).view());
-            let sim_b = Self::cosine_similarity(&q_view, &Array1::from(b.embedding.0.clone()).view());
-            sim_b.partial_cmp(&sim_a).unwrap_or(std::cmp::Ordering::Equal)
+            let sim_a =
+                Self::cosine_similarity(&q_view, &Array1::from(a.embedding.0.clone()).view());
+            let sim_b =
+                Self::cosine_similarity(&q_view, &Array1::from(b.embedding.0.clone()).view());
+            sim_b
+                .partial_cmp(&sim_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        ranked.into_iter().map(|n| KnowledgeNode {
-            id: n.id,
-            content: n.content,
-            metadata: n.metadata,
-            created_at: n.created_at,
-            updated_at: n.updated_at,
-        }).collect()
+        ranked
+            .into_iter()
+            .map(|n| KnowledgeNode {
+                id: n.id,
+                content: n.content,
+                metadata: n.metadata,
+                created_at: n.created_at,
+                updated_at: n.updated_at,
+            })
+            .collect()
     }
 }
 
@@ -169,7 +185,8 @@ mod tests {
     async fn test_query_logic_structure() {
         // This is a basic test to verify the structure and compilation
         dotenv::dotenv().ok();
-        let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/test".to_string());
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://localhost/test".to_string());
 
         // We don't actually run the query here to avoid dependency on a live DB during cargo check/test
         // but we verify the types and logic can be instantiated.

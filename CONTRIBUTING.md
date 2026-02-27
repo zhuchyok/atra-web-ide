@@ -1,7 +1,33 @@
 # Руководство для контрибьюторов (Contributing Guide)
 
 **Для кого:** разработчики и участники команды ATRA Web IDE.  
-**Связь:** [HOW_TO_INDEX.md](docs/HOW_TO_INDEX.md) — «как что сделать»; [MASTER_REFERENCE.md](docs/MASTER_REFERENCE.md) — библия проекта.
+**Связь:** [HOW_TO_INDEX.md](docs/HOW_TO_INDEX.md) — «как что сделать»; [MASTER_REFERENCE.md](docs/MASTER_REFERENCE.md) — библия проекта; [FAQ](docs/FAQ.md) — типовые вопросы.
+
+---
+
+## Куда идти (три шага)
+
+| Цель                  | Действие                                                                                                                                                                                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Баг, сбой**         | [VERIFICATION_CHECKLIST_OPTIMIZATIONS](docs/VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) §3 (причины сбоев), runbook по компоненту ([CURATOR_RUNBOOK](docs/CURATOR_RUNBOOK.md), [MASTER_REFERENCE](docs/MASTER_REFERENCE.md) §11). При новой причине — дополнить таблицу в §3. |
+| **Предложение, фича** | Планы в [docs/plans/](docs/plans/); после внедрения — обновить [CHANGES_FROM_OTHER_CHATS](docs/CHANGES_FROM_OTHER_CHATS.md) и раздел «Последние изменения» в MASTER_REFERENCE.                                                                                             |
+| **Вопрос «как?»**     | [MASTER_REFERENCE](docs/MASTER_REFERENCE.md), [FAQ](docs/FAQ.md), [HOW_TO_INDEX](docs/HOW_TO_INDEX.md), команда экспертов ([team.md](configs/experts/team.md)).                                                                                                            |
+
+**Правки вносить в репо того проекта, где живёт код:** setki-21 → репо setki-21; atra → репо atra; Web IDE / Knowledge OS → atra-web-ide. См. [MASTER_REFERENCE](docs/MASTER_REFERENCE.md) (правило репо), [FAQ](docs/FAQ.md).
+
+---
+
+## Оглавление
+
+1. [С чего начать](#1-с-чего-начать)
+2. [Как тестировать](#2-как-тестировать)
+3. [Методология и правила](#3-методология-и-правила)
+4. [Как добавить эксперта / изменить команду](#4-как-добавить-эксперта--изменить-команду)
+5. [Развитие Victoria и корпорации](#5-развитие-victoria-и-корпорации)
+6. [TODO/FIXME в коде](#6-todofixme-в-коде)
+7. [Ручные проверки](#7-ручные-проверки-по-желанию)
+
+**Задачи для первого контрибута (help wanted):** [TODO_FIXME_BACKLOG](docs/TODO_FIXME_BACKLOG.md) (секция низкого приоритета), планы в [docs/plans/](docs/plans/) с пометкой «good first» в описании.
 
 ---
 

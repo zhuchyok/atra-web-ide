@@ -26,8 +26,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Установка Docker CLI для Service Monitor (проверка статусов контейнеров)
+# ca-certificates для безопасного curl, gnupg для GPG-ключей
 RUN apt-get update && apt-get install -y \
     build-essential libpq-dev curl git expect \
+    ca-certificates gnupg lsb-release \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt* ./

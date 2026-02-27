@@ -31,7 +31,7 @@ except ImportError:
     print("pip install requests")
     sys.exit(1)
 
-VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
+VICTORIA_URL = os.getenv("VICTORIA_URL", "http://0.0.0.0:8010")
 REPORTS_DIR = ROOT / "docs" / "curator_reports"
 SYNC_TIMEOUT = int(os.getenv("CURATOR_SYNC_TIMEOUT", "300"))
 # Таймаут первого POST /run при async: до 202 Victoria выполняет стратегию и understand_goal (LLM); холодный старт может 3–5 мин
@@ -49,7 +49,8 @@ def check_health(url: str) -> bool:
     try:
         r = requests.get(f"{url}/health", timeout=5)
         return r.status_code == 200
-    except Exception:
+    except Exception as e:
+        print(f"Health check error: {e}")
         return False
 
 
@@ -73,6 +74,15 @@ def run_async_poll(url: str, goal: str, project_context: str, max_steps: int, ma
     payload = {"goal": goal, "max_steps": max_steps, "project_context": project_context}
     try:
         r = requests.post(f"{url}/run", json=payload, params={"async_mode": "true"}, timeout=POST_RUN_TIMEOUT)
+        if r.status_code == 200:
+            # Fast Track или мгновенный ответ
+            data = r.json()
+            return {
+                "status": "success",
+                "output": data.get("output") or "",
+                "knowledge": data.get("knowledge") or {},
+                "correlation_id": data.get("correlation_id")
+            }
         if r.status_code != 202:
             r.raise_for_status()
         data = r.json()

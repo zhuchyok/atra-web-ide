@@ -1,9 +1,9 @@
+use chrono::Utc;
+use scraper::{Html, Selector};
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
-use scraper::{Html, Selector};
 use uuid::Uuid;
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
 struct OllamaRequest {
@@ -53,13 +53,15 @@ async fn distill_content(text: &str) -> String {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
-    let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://admin:secret@localhost:5432/knowledge_os".to_string());
+    let db_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://admin:secret@localhost:5432/knowledge_os".to_string());
 
     println!("🚀 Scout-agent initializing connection to Knowledge OS...");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&db_url).await?;
+        .connect(&db_url)
+        .await?;
 
     println!("✅ Connected to database. Scout-agent ready for indexing.");
 
@@ -101,14 +103,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let chapter_doc = Html::parse_document(&chapter_res);
 
         for element in chapter_doc.select(&p_selector) {
-            let raw_content = element.text().collect::<Vec<_>>().join(" ").trim().to_string();
+            let raw_content = element
+                .text()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
 
             if raw_content.is_empty() || raw_content.len() < 40 {
                 continue;
             }
 
             let preview_len = raw_content.chars().count();
-            let preview: String = raw_content.chars().take(std::cmp::min(preview_len, 50)).collect();
+            let preview: String = raw_content
+                .chars()
+                .take(std::cmp::min(preview_len, 50))
+                .collect();
             println!("🧠 Distilling content: {}...", preview);
             let content = distill_content(&raw_content).await;
 
@@ -136,7 +146,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("✅ Successfully indexed {} nodes from all Rust Book chapters.", total_count);
+    println!(
+        "✅ Successfully indexed {} nodes from all Rust Book chapters.",
+        total_count
+    );
 
     Ok(())
 }

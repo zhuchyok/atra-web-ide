@@ -83,8 +83,36 @@ class ServiceMonitor:
 
     def _get_default_services(self) -> List[Service]:
         """Получить список сервисов по умолчанию для мониторинга.
-        В контейнере Victoria слушает порт 8000 (VICTORIA_PORT); снаружи 8010. Иначе сам себя помечает как down и сыпет события."""
+        В контейнере Victoria слушает порт 8000 (VICTORIA_PORT); снаружи 8010. Иначе сам себя помечает как down и сыпет события.
+
+        Переменные окружения для настройки URL сервисов:
+        - MLX_MONITOR_URL: URL для проверки MLX API Server (по умолчанию: host.docker.internal:11435 в Docker, localhost:11435 локально)
+        - BACKEND_MONITOR_URL: URL для проверки Backend (по умолчанию: atra-web-ide-backend:8000 в Docker, localhost:8080 локально)
+        - FRONTEND_MONITOR_URL: URL для проверки Frontend (по умолчанию: atra-web-ide-grafana:3000 в Docker, localhost:3002 локально)
+        """
         victoria_port = int(os.getenv("VICTORIA_PORT", "8010"))
+
+        # Определяем, запущены ли мы в Docker (по наличию переменной DATABASE_URL с knowledge_postgres)
+        in_docker = "knowledge_postgres" in os.getenv("DATABASE_URL", "")
+
+        # MLX API Server URL: в Docker используем host.docker.internal, локально localhost
+        mlx_url = os.getenv(
+            "MLX_MONITOR_URL",
+            "http://host.docker.internal:11435" if in_docker else "http://localhost:11435",
+        )
+
+        # Backend URL: в Docker используем имя контейнера, локально localhost
+        backend_url = os.getenv(
+            "BACKEND_MONITOR_URL",
+            "http://host.docker.internal:8080" if in_docker else "http://localhost:8080",
+        )
+
+        # Frontend URL: в Docker используем имя контейнера, локально localhost
+        frontend_url = os.getenv(
+            "FRONTEND_MONITOR_URL",
+            "http://host.docker.internal:3002" if in_docker else "http://localhost:3002",
+        )
+
         return [
             Service(
                 name="Victoria Agent",
@@ -105,29 +133,20 @@ class ServiceMonitor:
             Service(
                 name="MLX API Server",
                 service_type="http",
-                endpoint="http://localhost:11435",
+                endpoint=mlx_url,
                 port=11435,
                 health_check_path="/health",
                 check_interval=10,
                 timeout=5,
             ),
             Service(
-                name="MLX API Server (legacy)",
-                service_type="http",
-                endpoint="http://localhost:11435",
-                port=11435,
-                health_check_path="/health",
-            ),
-            Service(
                 name="Backend",
                 service_type="http",
-                endpoint="http://localhost:8080",
+                endpoint=backend_url,
                 port=8080,
                 health_check_path="/health",
             ),
-            Service(
-                name="Frontend", service_type="http", endpoint="http://localhost:3002", port=3002
-            ),
+            Service(name="Frontend", service_type="http", endpoint=frontend_url, port=3002),
             Service(
                 name="PostgreSQL", service_type="docker", endpoint="knowledge_postgres", port=5432
             ),
@@ -179,10 +198,11 @@ class ServiceMonitor:
             if service.health_check_path:
                 url = f"{service.endpoint}{service.health_check_path}"
 
-            async with httpx.AsyncClient(timeout=service.timeout) as client:
+            async with httpx.AsyncClient(timeout=service.timeout, follow_redirects=False) as client:
                 response = await client.get(url)
 
-                if response.status_code == 200:
+                # 200 — OK, 301/302 — редирект (нормально для Grafana, frontend без /health)
+                if response.status_code in [200, 301, 302]:
                     return ServiceStatus.UP
                 elif response.status_code in [503, 502]:
                     return ServiceStatus.DEGRADED

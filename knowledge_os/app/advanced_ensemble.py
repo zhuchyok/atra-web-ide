@@ -45,10 +45,10 @@ class AdvancedEnsemble:
 
     def __init__(self):
         self.models = [
-            "qwen3-coder:30b",
+            "victoria-wisdom-30b",
             "phi3.5:3.8b",
             "qwq:32b",
-            "qwen3-coder:30b",
+            "victoria-wisdom-30b",
             "phi3.5:3.8b",
         ]
 

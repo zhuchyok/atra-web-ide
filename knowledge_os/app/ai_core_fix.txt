@@ -1,0 +1,54 @@
+        if spec and not spec.startswith(("❌", "⚠️")):
+            # Phase 2: Executor executes the spec (Ollama call)
+            # Проверяем доступность локальных моделей через disaster recovery
+            if disaster_recovery and not disaster_recovery.can_use_local_models():
+                logger.warning(
+                    "⚠️ [DISASTER RECOVERY] Локальные модели недоступны, используем облако"
+                )
+                local_result = None
+            else:
+                # Inject few-shot examples from distillation engine
+                examples = ""
+                if distiller and hasattr(distiller, 'get_relevant_examples'):
+                    try:
+                        if db_breaker:
+                            examples = await db_breaker.call(
+                                distiller.get_relevant_examples, user_part, category or "coding"
+                            )
+                        else:
+                            examples = await distiller.get_relevant_examples(
+                                user_part, category or "coding"
+                            )
+                    except CircuitBreakerOpenError:
+                        logger.warning(
+                            "⚠️ [CIRCUIT BREAKER] Distillation engine недоступен, продолжаем без примеров"
+                        )
+                        examples = ""
+
+                worker_prompt = f"{examples}\n\n{style_modifier}\n{emotion_modifier}\n\nТЗ ОТ СТРАТЕГА ({strategist_model}):\n{spec}\n\nВЫПОЛНИТЕ ЗАДАНИЕ:"
+                logger.info(f"👷 [EXECUTOR START] {executor_model} executing TS locally...")
+
+                # Используем Executor (Qwen3) на Ollama
+                try:
+                    if router:
+                        local_result = await router.run_local_llm(
+                            worker_prompt, category="coding", model_hint=executor_model
+                        )
+                    else:
+                        local_result = None
+                except Exception as e:
+                    logger.warning(f"⚠️ [EXECUTOR FAILED] {e}")
+                    # [SINGULARITY 24.0] Self-Healing: Check for context overflow
+                    if "context" in str(e).lower() or "too long" in str(e).lower():
+                        logger.info("🩹 [SELF-HEALING] Context overflow detected. Compacting...")
+                        # Агрессивное сжатие: берем только ТЗ и последние факты
+                        worker_prompt = f"### [SELF-HEALING MODE: COMPACTED CONTEXT]\n\nТЗ ОТ СТРАТЕГА:\n{spec[:2000]}\n\nВЫПОЛНИТЕ ЗАДАНИЕ:"
+                        try:
+                            local_result = await router.run_local_llm(
+                                worker_prompt, category="coding", model_hint=executor_model
+                            )
+                        except Exception as e2:
+                            logger.error(f"❌ [SELF-HEALING FAILED] Retry also failed: {e2}")
+                            local_result = None
+                    else:
+                        local_result = None

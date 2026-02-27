@@ -1,7 +1,8 @@
 # ============================================
-# Stage 1: Builder
+# Stage 1: Builder (на VDS: BUILDPLATFORM=amd64, на Mac: arm64)
+# Для VDS собирать образ на сервере: docker build -t atra-core:latest .
 # ============================================
-FROM rust:1.75-slim-bookworm as builder
+FROM rust:1.88-slim-bookworm AS builder
 
 WORKDIR /usr/src/atra
 
@@ -41,10 +42,11 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Установка системных библиотек
-RUN apt-get update && apt-get install -y \
+# tini — минимальный init для контейнера (реап зомби, передача сигналов)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     ca-certificates \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Копируем бинарный файл из builder
@@ -53,4 +55,5 @@ COPY --from=builder /usr/src/atra/target/release/atra-core /app/atra-core
 # Порт для Rust Kernel
 EXPOSE 8081
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["./atra-core"]

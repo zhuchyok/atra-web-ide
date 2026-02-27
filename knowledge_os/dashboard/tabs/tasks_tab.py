@@ -342,7 +342,7 @@ def _render_put_task():
         project_slugs = get_project_slugs()
         project_ctx = st.selectbox("Проект", project_slugs if project_slugs else ["atra-web-ide"])
 
-        submitted = st.form_submit_button("🚀 Создать задачу")
+        submitted = st.form_submit_state = st.form_submit_button("🚀 Создать задачу")
         if submitted:
             if not title or not description:
                 st.error("Название и описание обязательны")

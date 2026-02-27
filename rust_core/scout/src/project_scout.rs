@@ -1,10 +1,10 @@
+use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 #[derive(Serialize)]
@@ -55,13 +55,16 @@ async fn distill_content(text: &str) -> String {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
-    let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/knowledge_os".to_string());
+    let db_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://postgres:postgres@localhost:5432/knowledge_os".to_string()
+    });
 
     println!("🚀 Project Scout-agent starting...");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&db_url).await?;
+        .connect(&db_url)
+        .await?;
 
     let project_root = Path::new("/Users/bikos/Documents/atra-web-ide");
     let folders_to_index = vec!["backend", "frontend", "rust_core", "knowledge_os"];
@@ -82,13 +85,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let extension = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
             // Filter relevant files
-            if !["rs", "py", "ts", "js", "svelte", "toml", "json", "md", "sql"].contains(&extension) {
+            if ![
+                "rs", "py", "ts", "js", "svelte", "toml", "json", "md", "sql",
+            ]
+            .contains(&extension)
+            {
                 continue;
             }
 
             // Skip node_modules, target, .venv, etc.
             let path_str = path.to_string_lossy();
-            if path_str.contains("/node_modules/") || path_str.contains("/target/") || path_str.contains("/.venv/") || path_str.contains("/.git/") {
+            if path_str.contains("/node_modules/")
+                || path_str.contains("/target/")
+                || path_str.contains("/.venv/")
+                || path_str.contains("/.git/")
+            {
                 continue;
             }
 
@@ -102,7 +113,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
-            let file_info = format!("File: {:?}\n\nContent:\n{}", path.strip_prefix(project_root).unwrap_or(path), content);
+            let file_info = format!(
+                "File: {:?}\n\nContent:\n{}",
+                path.strip_prefix(project_root).unwrap_or(path),
+                content
+            );
             let distilled = distill_content(&file_info).await;
 
             let node_id = Uuid::new_v4();
@@ -126,7 +141,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("✅ Successfully indexed {} project files into Knowledge OS.", total_count);
+    println!(
+        "✅ Successfully indexed {} project files into Knowledge OS.",
+        total_count
+    );
 
     Ok(())
 }

@@ -6,9 +6,6 @@ import plotly.express as px
 import streamlit as st
 from database_service import fetch_data
 
-# API экспертов: в Docker — knowledge_rest:8002, локально — localhost:8002 или Rust Gateway 8081
-REST_API_URL = os.getenv("KNOWLEDGE_REST_URL", os.getenv("REST_API_URL", "http://localhost:8002"))
-
 
 def format_msk(dt):
     """Форматирует datetime в московское время (UTC+3)."""
@@ -79,17 +76,16 @@ def render_aoi_status():
 def render_finance_and_roi():
     """💰 Финансы и ROI знаний."""
     st.subheader("📈 Финансовый Учет Интеллекта (Knowledge P&L)")
-    try:
-        # Метрики ликвидности и экспертов (virtual_budget/performance_score могут отсутствовать в старых схемах)
-        results = fetch_data("""
-            SELECT
-                (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes) as total_liquidity,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0) as active_nodes,
-                (SELECT SUM(virtual_budget) FROM experts) as total_budget,
-                (SELECT AVG(performance_score) FROM experts) as avg_performance
-        """)
-    except Exception:
-        results = []
+
+    # Метрики ликвидности и экспертов
+    results = fetch_data("""
+        SELECT
+            (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes) as total_liquidity,
+            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0) as active_nodes,
+            (SELECT SUM(virtual_budget) FROM experts) as total_budget,
+            (SELECT AVG(performance_score) FROM experts) as avg_performance
+    """)
+
     if results and results[0]:
         r = results[0]
         c1, c2, c3, c4 = st.columns(4)
@@ -153,29 +149,26 @@ def render_structure():
             new_role = st.text_input("Роль", value=exp_data["role"])
             new_dept = st.text_input("Департамент", value=exp_data["department"])
 
-            # Получаем полный системный промпт из БД (параметризованный запрос)
+            # Получаем полный системный промпт из БД
             full_expert = fetch_data(
-                "SELECT system_prompt FROM experts WHERE id = %s", (str(exp_data["id"]),)
+                f"SELECT system_prompt FROM experts WHERE id = '{exp_data['id']}'"
             )
-            current_prompt = (
-                full_expert[0]["system_prompt"] if full_expert and full_expert[0] else ""
-            )
+            current_prompt = full_expert[0]["system_prompt"] if full_expert else ""
 
             new_prompt = st.text_area("Системный промпт (ДНК)", value=current_prompt, height=300)
 
             if st.button(f"💾 Сохранить изменения для {selected_expert}"):
-                try:
-                    import httpx
+                import requests
 
-                    api_url = f"{REST_API_URL}/api/experts/update"
+                try:
+                    api_url = "http://knowledge_rest:8002/api/experts/update"
                     payload = {
                         "expert_id": str(exp_data["id"]),
                         "system_prompt": new_prompt,
                         "role": new_role,
                         "department": new_dept,
                     }
-                    with httpx.Client() as client:
-                        resp = client.post(api_url, json=payload, timeout=10)
+                    resp = requests.post(api_url, json=payload, timeout=10)
                     if resp.status_code == 200:
                         st.success(f"✅ ДНК {selected_expert} успешно обновлена!")
                         st.rerun()
@@ -187,9 +180,11 @@ def render_structure():
         # --- Управление Скиллами (Skill Hub) ---
         with st.expander("🎓 Библиотека Скиллов (Skill Hub)", expanded=False):
             try:
-                import httpx
+                import requests
 
-                skills_resp = httpx.get(f"{REST_API_URL}/api/experts/skills", timeout=5)
+                skills_resp = requests.get(
+                    "http://knowledge_rest:8002/api/experts/skills", timeout=5
+                )
                 if skills_resp.status_code == 200:
                     all_skills = skills_resp.json()
                     for skill in all_skills:

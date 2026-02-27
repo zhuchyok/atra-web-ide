@@ -34,7 +34,6 @@ OLLAMA_BEST_FIRST: List[str] = [
     "tinyllama:1.1b-chat",  # Tiny fallback (всегда в памяти)
     "lfm2.5-thinking:1.2b",  # Logic check (всегда в памяти)
     "moondream:latest",  # Vision small (всегда в памяти)
-    "qwen3-coder:30b",  # 30B Main Engineer (Base) - РЕЗЕРВ
     "deepseek-r1:14b",  # 14B Fast Reasoning (Medium) - РЕЗЕРВ
     "minicpm-v:latest",  # Vision medium - РЕЗЕРВ
     "deepseek-r1:32b",  # РЕЗЕРВ
@@ -56,7 +55,7 @@ OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["tinyllama:1.1b-chat", "lfm2.5-thinking:1.2b", "victoria-wisdom-30b"],
     "default": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
     "general": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
-    "coding": ["victoria-wisdom-30b", "qwen3-coder:30b"],
+    "coding": ["victoria-wisdom-30b"],
     "reasoning": ["victoria-wisdom-30b", "deepseek-r1:14b", "deepseek-r1:32b"],
     "complex": ["victoria-wisdom-30b", "deepseek-r1:32b", "qwq:32b"],
     "vision": ["moondream:latest", "minicpm-v:latest"],
@@ -69,9 +68,9 @@ MLX_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
     "default": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
     "general": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "coding": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "reasoning": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "complex": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "coding": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "reasoning": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "complex": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
 }
 
 

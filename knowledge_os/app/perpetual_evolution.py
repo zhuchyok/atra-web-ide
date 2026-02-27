@@ -30,8 +30,27 @@ class PerpetualEvolution:
         """Main autonomous loop."""
         logger.info("🚀 [EVOLUTION] Perpetual Evolution Engine STARTED.")
 
+        try:
+            # [SINGULARITY 24.0] Autonomous Skill Refinement
+            # Виктория анализирует старые навыки и обновляет их на основе недавних успехов.
+            from scripts.autonomous_skill_refinement import refine_skills
+
+            await refine_skills()
+        except Exception as asr:
+            logger.debug(f"Autonomous skill refinement failed: {asr}")
+
         while True:
             try:
+                # [SINGULARITY 24.0] Wisdom Injection Phase
+                # Automatically turn successful insights into skills
+                try:
+                    from wisdom_injection import WisdomInjectionEngine
+
+                    wisdom_engine = WisdomInjectionEngine()
+                    await wisdom_engine.scan_and_inject()
+                except Exception as we:
+                    logger.debug(f"Wisdom injection failed: {we}")
+
                 # [SINGULARITY 21.0] Knowledge Distillation Phase
                 # Before researching new things, distill existing knowledge
                 from distillation_engine import KnowledgeDistiller

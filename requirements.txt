@@ -20,5 +20,8 @@ pypdf>=4.0.0
 # Redis для кэша и очередей (Singularity 10.0)
 redis>=5.0.1
 
+# Docker SDK для SandboxManager (Victoria Enhanced)
+docker>=7.0.0
+
 # Веб-поиск: Veronica / knowledge_os_worker (VeronicaWebResearcher)
 duckduckgo-search>=6.0.0

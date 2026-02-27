@@ -167,6 +167,59 @@ class SystemTools:
         except Exception as e:
             return f"Patch Error: {str(e)}"
 
+    @staticmethod
+    async def generate_sop_skill(
+        name: str,
+        description: str,
+        category: str,
+        procedure: str,
+        pitfalls: Optional[str] = None,
+        verification: Optional[str] = None,
+    ) -> str:
+        """
+        Создание нового навыка (SOP) на основе успешного опыта.
+        Формат: SKILL.md с YAML frontmatter.
+        """
+        try:
+            # Путь к папке навыков (пропорционально структуре проекта)
+            # Внутри контейнера это может быть /app/knowledge_os/app/skills/procedural
+            base_dir = os.path.join("knowledge_os", "app", "skills", "procedural")
+            skill_name_slug = name.lower().replace(" ", "-")
+            skill_dir = os.path.join(base_dir, skill_name_slug)
+            os.makedirs(skill_dir, exist_ok=True)
+
+            skill_file = os.path.join(skill_dir, "SKILL.md")
+
+            # Формируем контент
+            content = f"""---
+name: {name}
+description: {description}
+category: {category}
+version: 1.0.0
+author: Victoria AI
+---
+
+# {name}
+
+## Когда использовать
+{description}
+
+## Процедура
+{procedure}
+"""
+            if pitfalls:
+                content += f"\n## Грабли (Pitfalls)\n{pitfalls}\n"
+
+            if verification:
+                content += f"\n## Проверка (Verification)\n{verification}\n"
+
+            with open(skill_file, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            return f"✅ Навык '{name}' успешно создан в {skill_file}. Теперь он доступен для использования."
+        except Exception as e:
+            return f"❌ Ошибка при создании навыка: {str(e)}"
+
 
 class WebTools:
     """Инструменты для работы с интернетом"""

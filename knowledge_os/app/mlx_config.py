@@ -10,32 +10,44 @@ Based on llama.cpp audit (9/10):
 import gc
 import logging
 from enum import Enum
+from typing import TypedDict
 
 import mlx.core as mx
+
+
+class GPUMemoryStats(TypedDict):
+    allocated_bytes: int
+    max_bytes: int
+    allocated_mb: float
+    max_mb: float
+    percent: float
+    status: str
+
 
 logger = logging.getLogger(__name__)
 
 
 class QuantProfile(str, Enum):
-    """Quantization profiles based on llama.cpp best practices"""
+    """Профили выбора модели MLX (ключи из mlx_api_server.MODEL_PATHS)."""
 
-    REASONING = "reasoning"  # Q4_K_M - best quality/speed balance for complex tasks
-    CODING = "coding"  # Q5_K_M - higher quality for code generation
-    FAST = "fast"  # Q4_0 - maximum speed, lower quality
-    DEFAULT = "default"  # Q8_0 - high quality, more memory
+    REASONING = "reasoning"  # victoria-wisdom-30b — сложные задачи, рассуждения
+    CODING = "coding"  # victoria-wisdom-30b — код, рефакторинг
+    FAST = "fast"  # phi3.5-mini-4k — быстрые ответы
+    DEFAULT = "default"  # victoria-wisdom-30b — по умолчанию
 
 
-# Model registry by quantization profile
+# Model registry by quantization profile (ключи из mlx_api_server.MODEL_PATHS / CATEGORY_TO_MODEL)
+# См. knowledge_os/app/mlx_api_server.py: fast=phi3.5-mini-4k, victoria-wisdom-30b=exported_model
 QUANT_PROFILE_MODELS = {
-    QuantProfile.REASONING: "mlx-community/Qwen3-Coder-30B-Q4_K_M",
-    QuantProfile.CODING: "mlx-community/Qwen3-Coder-30B-Q5_K_M",
-    QuantProfile.FAST: "mlx-community/Qwen3-Coder-8B-Q4_0",
-    QuantProfile.DEFAULT: "mlx-community/Qwen3-Coder-30B-Q8_0",
+    QuantProfile.REASONING: "victoria-wisdom-30b",
+    QuantProfile.CODING: "victoria-wisdom-30b",
+    QuantProfile.FAST: "fast",
+    QuantProfile.DEFAULT: "victoria-wisdom-30b",
 }
 
 # Memory thresholds (%)
-MEMORY_WARNING_THRESHOLD = 80
-MEMORY_CRITICAL_THRESHOLD = 95
+MEMORY_WARNING_THRESHOLD = 85
+MEMORY_CRITICAL_THRESHOLD = 98
 
 
 def get_model_by_profile(profile: str = "default") -> str:
@@ -50,7 +62,7 @@ def get_model_by_profile(profile: str = "default") -> str:
 
     Example:
         >>> get_model_by_profile("reasoning")
-        'mlx-community/Qwen3-Coder-30B-Q4_K_M'
+        'victoria-wisdom-30b'
     """
     try:
         profile_enum = QuantProfile(profile.lower())
@@ -60,7 +72,7 @@ def get_model_by_profile(profile: str = "default") -> str:
         return QUANT_PROFILE_MODELS[QuantProfile.DEFAULT]
 
 
-def get_gpu_memory() -> dict[str, float] | None:
+def get_gpu_memory() -> GPUMemoryStats | None:
     """
     Get current GPU memory usage (Metal-specific).
 
@@ -71,13 +83,14 @@ def get_gpu_memory() -> dict[str, float] | None:
             "max_bytes": int,
             "allocated_mb": float,
             "max_mb": float,
-            "percent": float (0-100)
+            "percent": float (0-100),
+            "status": str ("ok" | "warning" | "critical")
         }
 
     Based on llama.cpp ggml-metal-device.m patterns.
     """
     try:
-        device = mx.metal.device()
+        device = mx.metal.device()  # type: ignore[reportAttributeAccessIssue]
 
         # Try to get Metal device memory info
         allocated = getattr(device, "currentAllocatedSize", None)
@@ -87,8 +100,8 @@ def get_gpu_memory() -> dict[str, float] | None:
             percent = (allocated / max_mem) * 100
 
             return {
-                "allocated_bytes": allocated,
-                "max_bytes": max_mem,
+                "allocated_bytes": int(allocated),
+                "max_bytes": int(max_mem),
                 "allocated_mb": round(allocated / (1024 * 1024), 2),
                 "max_mb": round(max_mem / (1024 * 1024), 2),
                 "percent": round(percent, 2),
@@ -120,10 +133,13 @@ def cleanup_if_critical() -> bool:
     """
     mem = get_gpu_memory()
 
-    if mem and mem["percent"] > MEMORY_CRITICAL_THRESHOLD:
+    percent = mem.get("percent", 0.0) if mem else 0.0
+    if mem and percent > MEMORY_CRITICAL_THRESHOLD:
+        alloc_mb = mem.get("allocated_mb", 0.0)
+        max_mb = mem.get("max_mb", 0.0)
         logger.warning(
-            f"GPU memory critical: {mem['percent']:.1f}% "
-            f"({mem['allocated_mb']:.0f}MB / {mem['max_mb']:.0f}MB). "
+            f"GPU memory critical: {percent:.1f}% "
+            f"({alloc_mb:.0f}MB / {max_mb:.0f}MB). "
             f"Performing aggressive cleanup..."
         )
 
@@ -139,9 +155,11 @@ def cleanup_if_critical() -> bool:
         # Check memory after cleanup
         mem_after = get_gpu_memory()
         if mem_after:
+            percent_after = mem_after.get("percent", 0.0)
+            alloc_after = mem_after.get("allocated_mb", 0.0)
             logger.info(
-                f"Cleanup complete. Memory: {mem_after['percent']:.1f}% "
-                f"(freed {mem['allocated_mb'] - mem_after['allocated_mb']:.0f}MB)"
+                f"Cleanup complete. Memory: {percent_after:.1f}% "
+                f"(freed {alloc_mb - alloc_after:.0f}MB)"
             )
 
         return True
@@ -158,8 +176,9 @@ def cleanup_if_warning() -> bool:
     """
     mem = get_gpu_memory()
 
-    if mem and mem["percent"] > MEMORY_WARNING_THRESHOLD:
-        logger.info(f"GPU memory warning: {mem['percent']:.1f}%. Performing light cleanup...")
+    percent = mem.get("percent", 0.0) if mem else 0.0
+    if mem and percent > MEMORY_WARNING_THRESHOLD:
+        logger.info(f"GPU memory warning: {percent:.1f}%. Performing light cleanup...")
 
         # Just clear cache, no GC
         try:
@@ -188,7 +207,7 @@ def get_recommended_context_limit() -> int | None:
 
     # Rough heuristic: 1GB per 10K context for 30B model
     # Adjust based on available memory
-    available_mb = mem["max_mb"] - mem["allocated_mb"]
+    available_mb = mem.get("max_mb", 0.0) - mem.get("allocated_mb", 0.0)
 
     if available_mb < 1000:
         return 4096  # Conservative for low memory

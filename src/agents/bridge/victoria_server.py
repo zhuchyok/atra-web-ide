@@ -212,7 +212,7 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
         return "victoria-wisdom-30b"
 
     if len(content) < 200:
-        return "tinyllama:1.1b-chat"  # Быстрая модель для коротких вопросов
+        return "lfm2.5-thinking:1.2b"  # Быстрая модель для коротких вопросов
 
     return "victoria-wisdom-30b"
 
@@ -289,7 +289,11 @@ async def _rag_cache_get(key: str) -> Optional[str]:
     if not key:
         return None
     if RAG_CACHE_BACKEND == "redis" and redis_manager:
-        return await redis_manager.get_cache(f"rag_ctx:{key}")
+        # [SINGULARITY 24.0] Rocket Speed: Продлеваем TTL при каждом попадании (LRU-ish)
+        val = await redis_manager.get_cache(f"rag_ctx:{key}")
+        if val:
+            await redis_manager.set_cache(f"rag_ctx:{key}", val, ttl=3600)
+        return val
 
     now = time.time()
     if key in _rag_ctx_cache and _rag_ctx_cache[key][1] > now:
@@ -3226,37 +3230,6 @@ async def _record_orchestration_task_complete(
         logger.debug("_record_orchestration_task_complete: %s", e)
 
 
-# Таймаут для долгих задач (аудит, глубокий анализ) — чтобы не зависать без ответа
-VICTORIA_AUDIT_TIMEOUT = int(
-    os.getenv("VICTORIA_AUDIT_TIMEOUT", "1800")
-)  # 30 мин макс на enhanced.solve
-
-
-async def _update_task_progress(
-    task_id: str,
-    stage: str,
-    progress_pct: Optional[int] = None,
-    progress_message: Optional[str] = None,
-) -> None:
-    """Обновить прогресс фоновой задачи (stage + progress %) для polling-клиентов."""
-    if task_id not in _run_task_store:
-        return
-    store = _run_task_store[task_id]
-    store["stage"] = stage
-    store["updated_at"] = datetime.now(timezone.utc).isoformat()
-    if progress_pct is not None:
-        store["progress"] = progress_pct
-    if progress_message is not None:
-        store["progress_message"] = progress_message
-    if redis_manager:
-        meta = {"stage": stage}
-        if progress_pct is not None:
-            meta["progress"] = progress_pct
-        if progress_message is not None:
-            meta["progress_message"] = progress_message
-        await redis_manager.update_task_status(task_id, "processing", metadata=meta)
-
-
 def _get_verbose_steps(agent) -> List[Dict[str, Any]]:
     """Из memory агента извлечь пошаговые шаги (thought, tool, tool_input) для verbose-ответа."""
     steps = []
@@ -3740,17 +3713,7 @@ async def _run_task_background(
                 logger.warning("Фоновая задача: не удалось создать VictoriaEnhanced: %s", e)
         if use_enhanced_actual and not veronica_tried_and_failed and enhanced is not None:
             store["stage"] = "enhanced_solve"
-            await _update_task_progress(
-                task_id,
-                "enhanced_analysis",
-                40,
-                "Анализ (Victoria Enhanced). Это может занять несколько минут…",
-            )
-            logger.info(
-                "[TRACE] _run_task_background: before enhanced.solve task_id=%s timeout=%ss",
-                task_id[:8],
-                VICTORIA_AUDIT_TIMEOUT,
-            )
+            logger.info("[TRACE] _run_task_background: before enhanced.solve task_id=%s", task_id)
             context_with_history = {}
             if chat_history:
                 max_msgs = min(len(chat_history), VICTORIA_CHAT_HISTORY_MAX_MESSAGES)
@@ -3792,46 +3755,11 @@ async def _run_task_background(
                 goal_for_enhanced_bg = (
                     orchestration_context_bg + "\n\nЗАДАЧА: " + goal_for_enhanced_bg
                 )
-            try:
-                enhanced_result = await asyncio.wait_for(
-                    enhanced.solve(
-                        goal_for_enhanced_bg,
-                        use_enhancements=True,
-                        context=context_with_history if context_with_history else None,
-                    ),
-                    timeout=float(VICTORIA_AUDIT_TIMEOUT),
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "[VICTORIA_CYCLE] enhanced.solve timeout (%ss) task_id=%s",
-                    VICTORIA_AUDIT_TIMEOUT,
-                    task_id[:8],
-                )
-                await _update_task_progress(task_id, "failed", 0, "Превышено время анализа.")
-                store["status"] = "failed"
-                store["error"] = (
-                    f"Превышено время анализа ({VICTORIA_AUDIT_TIMEOUT} с). "
-                    "Попробуйте задачу короче, разбейте на части или используйте аудит через chunked flow (см. docs/AUDIT_SYSTEM_TEST_RESULTS.md)."
-                )
-                store["knowledge"] = {
-                    "method": "timeout",
-                    "metadata": {
-                        "model_used": "Victoria Enhanced",
-                        "source": "local",
-                        "timeout_sec": VICTORIA_AUDIT_TIMEOUT,
-                    },
-                    "project_context": project_context,
-                }
-                _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
-                store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                if redis_manager:
-                    await redis_manager.update_task_status(
-                        task_id,
-                        "failed",
-                        result=store["error"],
-                        metadata={"stage": "failed", "knowledge": store["knowledge"]},
-                    )
-                return
+            enhanced_result = await enhanced.solve(
+                goal_for_enhanced_bg,
+                use_enhancements=True,
+                context=context_with_history if context_with_history else None,
+            )
             if enhanced_result is None or not isinstance(enhanced_result, dict):
                 store["status"] = "completed"
                 store["output"] = (
@@ -4028,8 +3956,6 @@ async def get_run_status(task_id: str):
         "task_id": task_id,
         "status": status_val,
         "stage": rec.get("stage"),
-        "progress": rec.get("progress"),
-        "progress_message": rec.get("progress_message"),
         "output": out,
         "knowledge": knowledge,
         "error": rec.get("error"),
@@ -4048,6 +3974,29 @@ async def _generate_via_mlx_or_ollama(
     system: str = "Ты - полезный ИИ-ассистент корпорации ATRA. Отвечай кратко на русском.",
 ) -> tuple:
     """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None)."""
+    # [SINGULARITY 24.0] Procedural Skill: Fast Track Optimization
+    try:
+        # Проверяем наличие навыка в реестре (тихо)
+        from app.skill_registry import get_skill_registry
+
+        from knowledge_os.src.agents.tools.system_tools import SystemTools
+
+        registry = get_skill_registry()
+        if not registry.get_skill("Fast Track Optimization"):
+            # Используем loop.call_soon_threadsafe или просто запускаем в фоне без ожидания
+            loop = asyncio.get_event_loop()
+            loop.create_task(
+                SystemTools.generate_sop_skill(
+                    name="Fast Track Optimization",
+                    description="Процедура ускорения ответов через Semantic Router и Fast Track",
+                    category="performance",
+                    procedure="1. Проверить запрос через SemanticRouter.\n2. Если категория fast_track/info/vip - использовать lfm2.5-thinking.\n3. Использовать кэш Redis с продлением TTL.\n4. Поддерживать Pulse прогрев моделей.",
+                    verification="Отклик на 'привет' < 500мс",
+                )
+            )
+    except Exception as e:
+        logger.debug("SOP generation failed: %s", e)
+
     # 1) MLX
     try:
         if hasattr(agent.executor, "mlx_url") and agent.executor.mlx_url:
@@ -4073,7 +4022,19 @@ async def _generate_via_mlx_or_ollama(
     try:
         res = await agent.executor.ask(full_prompt, system=system, model=ideal_model)
         if res:
-            return (res.strip(), "ollama")
+            # [SINGULARITY 24.0] Robust extraction from AgentFinish/AgentAction or Dict
+            if hasattr(res, "output"):
+                content = res.output
+            elif isinstance(res, dict):
+                content = res.get("output") or res.get("response") or res.get("message")
+                if not content and "error" in res:
+                    logger.debug(f"Ollama returned error: {res['error']}")
+                    return (None, None)
+            else:
+                content = str(res)
+
+            if content:
+                return (content.strip(), "ollama")
     except Exception as e:
         logger.debug(f"Ollama generate failed: {e}")
 
@@ -4113,16 +4074,28 @@ async def run_task_stream(body: TaskRequest, request: Request):
         is_simple = is_simple_message(body.goal)
         is_fast_track = is_fast_track_message(body.goal)
 
-        # [VIP ROUTE] Проверка на VIP-запрос (Иван/Совет)
-        is_vip = any(
-            word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"]
-        )
+        # [SINGULARITY 24.0] Semantic Fast Track
+        semantic_route = None
+        try:
+            from app.semantic_router import get_semantic_router
 
-        # [FAST TRACK] Проверка на вопросы об обучении и способностях
-        is_info_query = any(
-            word in (body.goal or "").lower()
-            for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"]
+            router = get_semantic_router()
+            semantic_route = await router.route(body.goal)
+        except Exception as e:
+            logger.debug("Semantic router failed: %s", e)
+
+        is_vip = (
+            any(word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"])
+            or semantic_route == "vip_query"
         )
+        is_info_query = (
+            any(
+                word in (body.goal or "").lower()
+                for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"]
+            )
+            or semantic_route == "info_query"
+        )
+        is_fast_track = is_fast_track or semantic_route == "fast_track"
 
         # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
         if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
@@ -4156,7 +4129,8 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     chunk = " ".join(words[i : i + 5]) + " "
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                     await asyncio.sleep(0.05)
-                yield f"data: {json.dumps({'type': 'end'})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'end'})}\n\n"
         else:
             yield f"data: {json.dumps({'type': 'progress', 'step': 1, 'total': 3, 'status': 'analysis'})}\n\n"
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ задачи', 'content': 'Запускаю экспертную цепочку Victoria Enhanced...', 'correlation_id': correlation_id})}\n\n"
@@ -4277,9 +4251,31 @@ async def run_task(
     # === FAST PATH ДЛЯ ПРИВЕТСТВИЙ И ПРОСТЫХ ФРАЗ (SINGULARITY 10.0 UNIFIED) ===
     is_simple = is_simple_message(goal)
     is_fast_track = is_fast_track_message(goal)
-    is_vip = any(word in goal.lower() for word in ["иван", "ceo", "стратег", "совет"])
 
-    if is_fast_track or (is_simple and not use_enhanced) or is_vip:
+    # [SINGULARITY 24.0] Semantic Fast Track
+    semantic_route = None
+    try:
+        from app.semantic_router import get_semantic_router
+
+        router = get_semantic_router()
+        semantic_route = await router.route(goal)
+    except Exception as e:
+        logger.debug("Semantic router failed: %s", e)
+
+    is_vip = (
+        any(word in goal.lower() for word in ["иван", "ceo", "стратег", "совет"])
+        or semantic_route == "vip_query"
+    )
+    is_info_query = (
+        any(
+            word in goal.lower()
+            for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"]
+        )
+        or semantic_route == "info_query"
+    )
+    is_fast_track = is_fast_track or semantic_route == "fast_track"
+
+    if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
         logger.info(
             "[VICTORIA_CYCLE] sync 200 correlation_id=%s route=unified_fast_path fast_track=%s vip=%s",
             correlation_id[:8],
@@ -5149,7 +5145,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                             full_response_content += f"{i}. {q}\n"
                     else:
                         full_response_content = body_data.get("output", str(body_data))
-                elif isinstance(result, TaskResponse) or hasattr(result, "output"):
+                elif isinstance(result, TaskResponse):
+                    full_response_content = result.output if result.output is not None else ""
+                elif hasattr(result, "output"):
                     full_response_content = result.output if result.output is not None else ""
                 else:
                     full_response_content = str(result) if result is not None else ""
@@ -5238,7 +5236,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     output_text += f"{i}. {q}\n"
             else:
                 output_text = body_data.get("output", body_data.get("message", str(body_data)))
-        elif isinstance(result, TaskResponse) or hasattr(result, "output"):
+        elif isinstance(result, TaskResponse):
+            output_text = result.output
+        elif hasattr(result, "output"):
             output_text = result.output
         else:
             output_text = str(result)

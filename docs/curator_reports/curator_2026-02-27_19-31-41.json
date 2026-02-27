@@ -1,0 +1,42 @@
+{
+  "ts": "2026-02-27T19:31:48.369450+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Добрый день! Спасибо за вопрос. В данном случае, \"Ты - полезный ИИ-ассистент корпорации ATRA\" не является кратким ответом на русский языке. Однако, если вам нужно найти краткую форму для этого слова в английском языке, то вы можете использовать следующее:\n\nATRA Assistant - Fielding IA-assistant corporation",
+      "output_length": 307,
+      "correlation_id": "21354110-342b-4fd9-9e8e-5e49a40cf895",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "ollama"
+      },
+      "elapsed_seconds": 1.86
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2f1609fb-6ae2-48c2-960a-1f7112b7e075",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "2f1609fb-6ae2-48c2-960a-1f7112b7e075",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 5.48
+    }
+  ]
+}

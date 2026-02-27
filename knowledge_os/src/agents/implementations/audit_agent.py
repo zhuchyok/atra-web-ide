@@ -38,6 +38,7 @@ class AuditAgent(AtraBaseAgent):
         self.add_tool("read_file", SystemTools.read_project_file)
         self.add_tool("run_terminal_cmd", SystemTools.run_local_command)
         self.add_tool("ssh_run", SystemTools.run_ssh_command)
+        self.add_tool("generate_sop_skill", SystemTools.generate_sop_skill)
 
     async def plan(self, goal: str):
         # В будущем здесь будет LLM-планировщик

@@ -207,7 +207,10 @@ class ContextSwapper:
     """
 
     def __init__(self, redis_mgr=None, max_tokens: int = 8000):
-        from redis_manager import redis_manager
+        try:
+            from redis_manager import redis_manager
+        except ImportError:
+            from app.redis_manager import redis_manager
 
         self.redis = redis_mgr or redis_manager
         self.max_tokens = max_tokens
@@ -579,7 +582,11 @@ async def _run_cloud_agent_async(prompt: str):
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
                         if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
                             # Mac Studio - лучшие модели
-                            models_to_try = ["qwen3-coder:30b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
+                            models_to_try = [
+                                "victoria-wisdom-30b",
+                                "glm-4.7-flash:q8_0",
+                                "phi3.5:3.8b",
+                            ]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)
                             models_to_try = [
@@ -683,20 +690,31 @@ async def _get_knowledge_context_impl(query: str) -> str:
             return ""
 
         async with pool.acquire() as conn:
+            # [SINGULARITY 24.0] Hybrid RAG: Semantic + Keyword Search
+            keywords = [w for w in query.lower().split() if len(w) > 3]
+            keyword_filter = ""
+            if keywords:
+                # Формируем ILIKE условие для ключевых слов
+                keyword_filter = (
+                    "OR (" + " OR ".join([f"content ILIKE '%{k}%'" for k in keywords[:3]]) + ")"
+                )
+
             # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
             rows = await conn.fetch(
-                """
+                f"""
                 SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
                 FROM knowledge_nodes
-                WHERE embedding IS NOT NULL
+                WHERE (embedding IS NOT NULL OR content IS NOT NULL)
                 AND (
                     domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
                     OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
                     OR metadata->>'source' = 'external_docs_indexer'
                     OR source_ref = 'autonomous_worker'
+                    OR metadata->>'type' = 'corporate_standard'
                 )
                 AND confidence_score >= 0.3
-                ORDER BY similarity DESC LIMIT 8
+                AND ((1 - (embedding <=> $1::vector)) >= 0.5 {keyword_filter})
+                ORDER BY similarity DESC NULLS LAST LIMIT 8
             """,
                 str(embedding),
             )
@@ -788,11 +806,35 @@ async def run_smart_agent_async_impl(
     project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
 
+    # [SINGULARITY 24.0] Lean Identity: Load SOUL.md and USER.md
+    soul_context = ""
+    user_context = ""
+    try:
+        # Пытаемся найти файлы в разных локациях (Docker vs Local)
+        possible_paths = [
+            os.path.dirname(__file__),
+            os.path.join(os.getcwd(), "knowledge_os"),
+            "/app/knowledge_os",
+            os.getcwd(),  # Для вызова из корня
+        ]
+        for p in possible_paths:
+            soul_p = os.path.join(p, "SOUL.md")
+            user_p = os.path.join(p, "USER.md")
+            if os.path.exists(soul_p) and not soul_context:
+                with open(soul_p) as f:
+                    soul_context = f"\n### 👩‍💼 MY SOUL (IDENTITY):\n{f.read()}\n"
+            if os.path.exists(user_p) and not user_context:
+                with open(user_p) as f:
+                    user_context = f"\n### 👤 USER CONTEXT (BOSS):\n{f.read()}\n"
+    except Exception as e:
+        logger.debug(f"Lean Identity load failed: {e}")
+
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
     meta_wisdom_context = ""
     mentorship_context = ""
     experience_context = ""
     constitution_context = ""
+    cross_pollination_context = ""  # [SINGULARITY 24.0]
     try:
         # 0. Digital Constitution
         from digital_constitution import get_constitution_context
@@ -802,6 +844,38 @@ async def run_smart_agent_async_impl(
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
+                # [SINGULARITY 24.0] Cross-Pollination Wisdom
+                # Ищем инсайты из ДРУГИХ доменов, которые могут быть полезны
+                try:
+                    # Avoid circular import by using local import
+                    from app.skill_registry import get_skill_registry
+
+                    registry = get_skill_registry()
+
+                    cross_nodes = await conn.fetch(
+                        """
+                        SELECT content, metadata->>'category' as cat FROM knowledge_nodes
+                        WHERE is_verified = TRUE
+                        AND metadata->>'category' != $1
+                        AND confidence_score >= 0.8
+                        ORDER BY created_at DESC LIMIT 2
+                    """,
+                        category or "general",
+                    )
+                    if cross_nodes:
+                        cross_pollination_context = (
+                            "\n### 🧬 CROSS-DOMAIN INSIGHTS (POLLINATION):\n"
+                        )
+                        for cn in cross_nodes:
+                            cross_pollination_context += (
+                                f"- [{cn['cat'].upper()}]: {cn['content'][:300]}\n"
+                            )
+                        logger.info(
+                            f"🧬 [CROSS-POLLINATION] Injected {len(cross_nodes)} cross-domain insights"
+                        )
+                except Exception as cpe:
+                    logger.debug(f"Cross-pollination failed: {cpe}")
+
                 # 1. Meta-Strategies
                 meta_nodes = await conn.fetch("""
                     SELECT content FROM knowledge_nodes
@@ -855,11 +929,20 @@ async def run_smart_agent_async_impl(
 
         logger.info(f"🧠 [ENSEMBLE] Запуск верификации для {expert_name} (глубина {depth})")
 
-        verify_prompt = f"""Ты - AI-аудитор. Проверь ответ на наличие критических ошибок, галлюцинаций или нарушения логики.
+        # [SINGULARITY 24.0] Empathetic Verification: Check against SOUL.md
+        verify_prompt = f"""Ты - AI-аудитор и хранитель 'Души' корпорации.
+Проверь ответ на наличие критических ошибок, галлюцинаций и соответствие стандартам SOUL.md.
+
+СТАНДАРТЫ SOUL.md:
+- Тон: Профессиональный, умный, но живой (не как робот).
+- Идентичность: Виктория, Team Lead (я, мы).
+- Принципы: First Principles, Root Cause.
+
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {initial_prompt}
 ОТВЕТ ДЛЯ ПРОВЕРКИ: {initial_response}
 
-Если всё верно, напиши 'OK'. Если есть ошибка, опиши её кратко и предложи исправление."""
+Если всё верно и тон соответствует Виктории, напиши 'OK'.
+Если есть ошибка или ответ слишком 'сухой/роботизированный', опиши проблему и предложи исправление в стиле Виктории."""
 
         # Используем lfm2.5-thinking как самого быстрого и логичного критика
         try:
@@ -873,12 +956,14 @@ async def run_smart_agent_async_impl(
                 )
 
                 if verify_text and "OK" not in verify_text.upper()[:10]:
-                    logger.warning(f"⚠️ [ENSEMBLE] Критик нашел ошибку: {verify_text[:100]}...")
+                    logger.warning(
+                        f"⚠️ [ENSEMBLE] Критик нашел проблему (логика или тон): {verify_text[:100]}..."
+                    )
 
-                    refine_prompt = f"""Основная модель выдала ответ с ошибкой. Исправь его, учитывая замечания критика.
+                    refine_prompt = f"""Исправь ответ, учитывая замечания критика по логике или тону (стиль Виктории).
 ЗАМЕЧАНИЯ КРИТИКА: {verify_text}
 ИСХОДНЫЙ ЗАПРОС: {initial_prompt}
-ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ:"""
+ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ В СТИЛЕ ВИКТОРИИ:"""
 
                     refined_result = await router.run_local_llm(refine_prompt, category="coding")
                     return (
@@ -1012,6 +1097,22 @@ async def run_smart_agent_async_impl(
     # 1.1. RAG: Поиск знаний в базе (учимся у коллег)
     kb_context = ""
 
+    # [SINGULARITY 24.0] Predictive Context Prefetching
+    # Проверяем, нет ли заранее подгруженных SOP в Redis
+    try:
+        import hashlib
+
+        from app.redis_manager import RedisManager
+
+        redis_manager = RedisManager()
+        prefetch_key = f"prefetch:{hashlib.md5(user_part.encode()).hexdigest()}"
+        prefetched_sop = await redis_manager.get_cache(prefetch_key)
+        if prefetched_sop:
+            kb_context = f"\n### ПРЕДЗАГРУЖЕННЫЕ СТАНДАРТЫ (SOP):\n{prefetched_sop}\n---\n"
+            logger.info("🔮 [PREFETCH] Injected prefetched context from Redis")
+    except Exception as pe:
+        logger.debug(f"Prefetch injection failed: {pe}")
+
     # [SINGULARITY 20.0] Proactive Knowledge Utilization
     # Force RAG for all tasks to increase knowledge usage from 0.04%
     force_rag = os.getenv("FORCE_PROACTIVE_RAG", "true").lower() == "true"
@@ -1093,10 +1194,12 @@ async def run_smart_agent_async_impl(
         or mentorship_context
         or experience_context
         or constitution_context
+        or soul_context
+        or user_context
     ):
         # [SINGULARITY 14.2] Use ContextSwapper for kb_context
         swapper = ContextSwapper()
-        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
+        full_context = f"{constitution_context}\n{soul_context}\n{user_context}\n{cross_pollination_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
         kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
 
@@ -1322,7 +1425,7 @@ async def run_smart_agent_async_impl(
 
     # [SINGULARITY 20.0] Load hybrid models from .env
     strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-30b")
-    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "qwen3-coder:30b")
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-30b")
 
     # Track token savings
     tokens_saved = 0
@@ -1388,7 +1491,7 @@ async def run_smart_agent_async_impl(
             else:
                 # Inject few-shot examples from distillation engine
                 examples = ""
-                if distiller:
+                if distiller and hasattr(distiller, "get_relevant_examples"):
                     try:
                         if db_breaker:
                             examples = await db_breaker.call(
@@ -1417,7 +1520,20 @@ async def run_smart_agent_async_impl(
                         local_result = None
                 except Exception as e:
                     logger.warning(f"⚠️ [EXECUTOR FAILED] {e}")
-                    local_result = None
+                    # [SINGULARITY 24.0] Self-Healing: Check for context overflow
+                    if "context" in str(e).lower() or "too long" in str(e).lower():
+                        logger.info("🩹 [SELF-HEALING] Context overflow detected. Compacting...")
+                        # Агрессивное сжатие: берем только ТЗ и последние факты
+                        worker_prompt = f"### [SELF-HEALING MODE: COMPACTED CONTEXT]\n\nТЗ ОТ СТРАТЕГА:\n{spec[:2000]}\n\nВЫПОЛНИТЕ ЗАДАНИЕ:"
+                        try:
+                            local_result = await router.run_local_llm(
+                                worker_prompt, category="coding", model_hint=executor_model
+                            )
+                        except Exception as e2:
+                            logger.error(f"❌ [SELF-HEALING FAILED] Retry also failed: {e2}")
+                            local_result = None
+                    else:
+                        local_result = None
             local_resp, routing_source = (
                 local_result if isinstance(local_result, tuple) else (local_result, None)
             )

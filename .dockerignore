@@ -55,11 +55,36 @@ quality_report.html
 # Rust target (собирается в builder, не из контекста)
 target/
 
-# Большие/учебные данные
+# Большие/учебные данные и модели (не нужны в контейнере)
 knowledge_os/ai_learning_data/
+training_data/
+fused_model/
+mirror/
+venv_*/
+.venv/
+venv/
+.mypy_cache/
 
 # Тесты (в образ только runtime для агентов)
 tests/
 *.spec.js
 *.spec.ts
 test-results/
+
+# Ollama модели и кэши (очень большие!)
+**/.ollama/
+**/models/
+knowledge_os/models/
+.ollama/
+
+# Docker volumes и временные файлы
+postgres_data/
+redis_data/
+prometheus_data/
+grafana_data/
+elasticsearch_data/
+
+# Cursor artifacts
+.cursor_chats_backup/
+agent-transcripts/
+terminals/

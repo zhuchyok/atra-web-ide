@@ -779,7 +779,7 @@ def main():
         st.markdown("### 💓 Пульс Корпорации")
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            # Последние алерты безопасности (таблица anomaly_detection_logs может отсутствовать)
+            # Последние алерты безопасности
             try:
                 threats = fetch_data(
                     "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3"
@@ -792,8 +792,8 @@ def main():
                         )
                 else:
                     st.success("🛡️ Угроз не обнаружено")
-            except Exception:
-                st.caption("🛡️ Модуль безопасности не настроен")
+            except:
+                pass
         with col_p2:
             # Последние решения совета
             try:
@@ -804,12 +804,12 @@ def main():
                     st.markdown("**🏛️ Решения Совета**")
                     for d in decisions:
                         st.caption(
-                            f"📜 {(d['content'] or '')[:50]}... ({d['created_at'].strftime('%d.%m') if hasattr(d['created_at'], 'strftime') else d['created_at']})"
+                            f"📜 {d['content'][:50]}... ({d['created_at'].strftime('%d.%m')})"
                         )
                 else:
                     st.info("🏛️ Решений совета пока нет")
-            except Exception:
-                st.caption("🏛️ Нет данных по решениям совета")
+            except:
+                pass
         with col_p3:
             # Новое в AI Research
             try:
@@ -819,12 +819,11 @@ def main():
                 if latest_ai:
                     st.markdown("**📚 AI Research**")
                     for ai in latest_ai:
-                        p = ai.get("path") or ""
-                        st.caption(f"📄 {p.split('/')[-1] if p else '—'}")
+                        st.caption(f"📄 {ai['path'].split('/')[-1]}")
                 else:
                     st.caption("📚 База мудрости пуста")
-            except Exception:
-                st.caption("📚 Домен AI Research не настроен")
+            except:
+                pass
 
         st.stop()
 

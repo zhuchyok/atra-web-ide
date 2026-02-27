@@ -202,7 +202,7 @@ MODEL_PATHS = {
     "qwen_3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
-    "victoria-wisdom-30b": "/Users/bikos/Documents/atra-web-ide/training_data/exported_model",
+    "victoria-wisdom-30b": os.path.join(MLX_BASE, "qwen3-coder-30b-mlx"),
     "phi3:mini-4k": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "qwen2.5:3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "tinyllama:1.1b-chat": os.path.join(MLX_BASE, "tinyllama-1.1b-chat"),
@@ -264,6 +264,8 @@ OLLAMA_TO_MLX_MAP = {
     "phi3:mini-4k": "phi3:mini-4k",
     "qwen2.5:3b": "qwen2.5:3b",
     "tinyllama:1.1b-chat": "tinyllama:1.1b-chat",
+    "victoria-wisdom-30b:latest": "victoria-wisdom-30b",
+    "mlx-community/Qwen3-Coder-30B-Q8_0": "victoria-wisdom-30b",
 }
 
 # Оценки времени по моделям (только лёгкие в MLX). Fallback по размеру в имени — в _get_estimates_for_model.
@@ -504,7 +506,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
         if aggressive or memory_info["used_percent"] > 0.98:  # 98% - экстренная ситуация
             # Экстренная очистка: выгружаем только НЕИСПОЛЬЗУЕМЫЕ модели
             logger.error("🚨 ЭКСТРЕННАЯ ОЧИСТКА: выгружаем неиспользуемые модели из памяти")
-            keys_to_remove = [k for k in _models_cache if k not in protected_models]
+            keys_to_remove = [k for k in _models_cache.keys() if k not in protected_models]
 
             if not keys_to_remove and protected_models:
                 logger.warning(
@@ -552,10 +554,12 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
             # Оставляем keep_count самых используемых + все защищенные
             models_to_keep_keys = set()
             for k, v in sorted_models:
-                if k in protected_models or len(models_to_keep_keys) < keep_count:
+                if k in protected_models:
+                    models_to_keep_keys.add(k)
+                elif len(models_to_keep_keys) < keep_count:
                     models_to_keep_keys.add(k)
 
-            keys_to_remove = [k for k in _models_cache if k not in models_to_keep_keys]
+            keys_to_remove = [k for k in _models_cache.keys() if k not in models_to_keep_keys]
 
             if not keys_to_remove:
                 logger.info("✅ Все модели защищены или необходимы, очистка не требуется")
@@ -875,7 +879,7 @@ async def list_models():
                     "format": "mlx",
                     "exists": os.path.exists(MODEL_PATHS.get(name, "")),
                 }
-                for name in MODEL_PATHS
+                for name in MODEL_PATHS.keys()
             ]
         }
     except Exception as e:

@@ -48,17 +48,17 @@
 
 ## 4. Реализация
 
-- **Правило Cursor:** `.cursor/rules/expert_and_brainstorm.mdc` с `alwaysApply: true` — текст, описывающий режимы /expert и /brainstorm и обязательные источники/шаги.
-- **Команды:** в Cursor Command Palette команды задаются через настройки; правило достаточно, чтобы при вводе пользователем «/expert» или «/brainstorm» (или «подключи экспертов», «сделай брейншторм») агент интерпретировал контекст и вёл себя согласно дизайну.
-- **Связь с библией:** в MASTER_REFERENCE или CHANGES_FROM_OTHER_CHATS добавить ссылку на этот дизайн и на правило.
+- **Правило Cursor:** `.cursor/rules/expert_and_brainstorm.mdc` с `alwaysApply: true` — чеклисты для /expert (прочитать перечисленные файлы, ответ от лица экспертов) и /brainstorm (вызвать Skill brainstorming, следовать чеклисту скилла, не переходить к коду до одобрения).
+- **Команды:** в `.cursor/commands/` — **expert.md** (список файлов для чтения + ответ от экспертов) и **brainstorm.md** (вызвать скилл brainstorming, дизайн → docs/plans/ → writing-plans). Запуск через Command Palette или по триггеру «/expert»/«/brainstorm» в чате.
+- **Связь с библией:** MASTER_REFERENCE, CHANGES_FROM_OTHER_CHATS — ссылка на этот дизайн и правило.
 
 ---
 
 ## 5. Критерии приёмки
 
-- [ ] При запросе с /expert агент явно опирается на team.md/правила, библию и COGNITIVE_CODE/знания гигантов.
-- [ ] При запросе с /brainstorm агент не пишет код до дизайна и одобрения; задаёт вопросы по одному; предлагает подходы; пишет дизайн в docs/plans/ и переходит к writing-plans.
-- [ ] Правило expert_and_brainstorm.mdc присутствует и подключено (alwaysApply).
+- [x] При запросе с /expert агент явно опирается на team.md/правила, библию и COGNITIVE_CODE/знания гигантов. **Реализация:** правило expert_and_brainstorm.mdc содержит чеклист «прочитать (Read)» перечисленные файлы; команда .cursor/commands/expert.md дублирует список и требует ответа от лица экспертов.
+- [x] При запросе с /brainstorm агент не пишет код до дизайна и одобрения; задаёт вопросы по одному; предлагает подходы; пишет дизайн в docs/plans/ и переходит к writing-plans. **Реализация:** правило требует вызвать Skill brainstorming; команда .cursor/commands/brainstorm.md явно предписывает вызвать скилл и следовать чеклисту.
+- [x] Правило expert_and_brainstorm.mdc присутствует и подключено (alwaysApply).
 
 ---
 

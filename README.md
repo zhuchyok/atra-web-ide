@@ -13,6 +13,8 @@
 **Здесь же — всё по Mac Studio:** серверы, Victoria, Veronica, MCP, миграция, эксперты.  
 → **Индекс:** `docs/MAC_STUDIO_INDEX.md` · **Что скопировано:** `docs/COPY_FROM_ATRA_COMPLETE.md`
 
+**Quick links (онбординг и поиск):** [Библия](docs/MASTER_REFERENCE.md) · [Правки из чатов](docs/CHANGES_FROM_OTHER_CHATS.md) · [Верификация](docs/VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) · [Куратор runbook](docs/CURATOR_RUNBOOK.md) · [Участие](CONTRIBUTING.md) · [FAQ](docs/FAQ.md) · [Как что сделать](docs/HOW_TO_INDEX.md)
+
 ## 🎯 Функционал
 
 - 💬 **AI Чат** — общение с Victoria и командой агентов

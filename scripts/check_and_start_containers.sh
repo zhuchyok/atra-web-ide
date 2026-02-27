@@ -130,7 +130,8 @@ VERONICA_OK=0
 check_service "Victoria (8010)" "http://localhost:8010/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VICTORIA_OK=1; }
 check_service "Veronica (8011)" "http://localhost:8011/health" && { SERVICES_OK=$((SERVICES_OK + 1)); VERONICA_OK=1; }
 check_service "Ollama/MLX (11434)" "http://localhost:11434/api/tags" && SERVICES_OK=$((SERVICES_OK + 1))
-check_service "Knowledge OS (8000)" "http://localhost:8000/health" && SERVICES_OK=$((SERVICES_OK + 1))
+# Knowledge OS REST API слушает порт 8002 (не 8000 — тот только внутри контейнеров)
+check_service "Knowledge REST (8002)" "http://localhost:8002/health" && SERVICES_OK=$((SERVICES_OK + 1))
 check_service "Open WebUI (3005)" "http://localhost:3005" || true
 
 # 5. Автоперезапуск Victoria/Veronica при сбое; проверка трёх уровней Victoria
@@ -146,10 +147,11 @@ if [ -f "knowledge_os/docker-compose.yml" ]; then
             echo "   ✅ Victoria поднялась после перезапуска"
         fi
     else
+        # Initiative (Event Bus) поднимается асинхронно через 15–30 с после старта; при первом прогоне после загрузки системы даём время
         if ! check_victoria_levels; then
             echo "   ⚠️ Victoria: не все три уровня (agent/enhanced/initiative) активны — перезапускаю victoria-agent..."
             docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent 2>&1 | grep -v "level=warning" || true
-            sleep 25
+            sleep 30
             if check_victoria_levels; then
                 echo "   ✅ Victoria: все три уровня запущены после перезапуска"
             else
@@ -189,6 +191,6 @@ echo "🌐 Доступные сервисы:"
 echo "   - Victoria: http://localhost:8010"
 echo "   - Veronica: http://localhost:8011"
 echo "   - Ollama/MLX: http://localhost:11434"
-echo "   - Knowledge OS: http://localhost:8000"
+echo "   - Knowledge REST: http://localhost:8002"
 echo "   - Open WebUI (Singularity 15.0): http://localhost:3005"
 echo ""

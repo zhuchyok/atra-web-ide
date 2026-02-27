@@ -125,10 +125,15 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", ""
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("ALLOWED_USER_ID", "")
 # Chat ID группы Bikos_Corporation (если указан, бот будет работать в группе)
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-# Victoria URL: приоритет Rust Gateway на 8081
-VICTORIA_URL = os.getenv("VICTORIA_URL") or "http://localhost:8081/v1/chat/completions"
-# Таймаут ожидания ответа Victoria (сек).
-VICTORIA_POLL_TIMEOUT_SEC = int(os.getenv("VICTORIA_POLL_TIMEOUT_SEC", "900"))
+# Victoria URL: приоритет localhost (как для простых, так и для сложных запросов)
+# Явно заданный VICTORIA_URL имеет приоритет, иначе — localhost, не 185
+VICTORIA_LOCAL_URL = os.getenv("VICTORIA_LOCAL_URL", "http://localhost:8010")
+VICTORIA_REMOTE_URL = os.getenv("VICTORIA_REMOTE_URL", "http://185.177.216.15:8010")
+VICTORIA_URL = os.getenv("VICTORIA_URL") or VICTORIA_LOCAL_URL  # localhost по умолчанию, не 185
+# Таймаут ожидания ответа Victoria (сек). Для сложных задач (проверка RAM, анализ кода) — увеличьте.
+VICTORIA_POLL_TIMEOUT_SEC = int(
+    os.getenv("VICTORIA_POLL_TIMEOUT_SEC", "900")
+)  # 15 мин по умолчанию
 # Таймаут первого POST /run?async_mode=true: Victoria возвращает 202 после стратегии и understand_goal (1–3 мин).
 # Если меньше — бот не получает 202, уходит в долгий sync и кажется что «завис».
 VICTORIA_POST_RUN_TIMEOUT_SEC = int(
@@ -366,34 +371,200 @@ async def send_to_victoria(
     images_base64: Optional[List[str]] = None,
     session_id: Optional[str] = None,
 ) -> Optional[str]:
-    """Отправка задачи в Rust Gateway (OpenAI compatible)."""
+    """Отправка задачи Victoria через API с автоматическим fallback и индикацией прогресса. session_id для LTM (например telegram-{user_id})."""
     session_id = session_id or (f"telegram-{chat_id}" if chat_id else None)
+    # Обновляем пульс при активном взаимодействии
     update_heartbeat()
-    logger.info(f"📤 Отправка в Rust Gateway ({VICTORIA_URL}): {goal[:100]}...")
+    logger.info(f"📤 Отправка в Victoria ({VICTORIA_URL}): {goal[:100]}...")
 
-    payload = {
-        "model": "victoria-wisdom-30b:latest",
-        "messages": [{"role": "user", "content": goal}],
-        "use_rag": True,
-        "stream": False,
-    }
+    # Список URL: сначала localhost (как простые), затем remote — чтобы и сложные шли через localhost
+    _all = [
+        VICTORIA_LOCAL_URL,
+        VICTORIA_URL,
+        VICTORIA_REMOTE_URL,
+        "http://185.177.216.15:8010",
+        "http://185.177.216.15:8020",
+    ]
+    urls_to_try = list(dict.fromkeys(_all))  # порядок сохраняем, дубли убираем
 
-    if chat_history:
-        # Добавляем историю если нужно
-        pass
+    # Одно сообщение о старте на всю операцию (не при каждой попытке URL)
+    # if chat_id:
+    #     await send_telegram_message(chat_id, "⏳ Отправляю запрос в Victoria...")
+
+    # Прогресс каждые 120 сек, отменяется при первом ответе
+    progress_task = None
+    poll_interval = 10  # Увеличено с 5 до 10, чтобы не спамить логи Victoria
+    max_poll_time = max(300, VICTORIA_POLL_TIMEOUT_SEC)  # не менее 5 мин
+
+    def _parse_run_output(data: dict) -> Optional[str]:
+        """Извлечь output/response из ответа Victoria."""
+        out = data.get("output") or data.get("response") or data.get("result")
+        if out is not None:
+            return str(out)
+        if data.get("status") == "needs_clarification":
+            qs = data.get("clarification_questions", [])
+            return "Victoria уточняет: " + ("; ".join(qs) if qs else "Нужно уточнение.")
+        return None
+
+    async def try_one_url_async(url: str) -> Optional[str]:
+        """Async mode: POST 202 → poll /run/status до completed. Fallback: 200 = sync ответ."""
+        post_timeout = float(VICTORIA_POST_RUN_TIMEOUT_SEC)
+        current_task_id = None
+        try:
+            async with httpx.AsyncClient(timeout=post_timeout) as client:
+                max_steps = int(
+                    os.getenv("VICTORIA_MAX_STEPS", "50")
+                )  # 50 — меньше «превышен лимит 500» на локальных моделях
+                payload: dict = {
+                    "goal": goal,
+                    "project_context": project_context,
+                    "max_steps": max_steps,
+                }
+                if session_id:
+                    payload["session_id"] = session_id
+                if chat_history:
+                    payload["chat_history"] = [
+                        {"user": h.get("user", ""), "assistant": h.get("assistant", "")}
+                        for h in chat_history
+                    ]
+                if images_base64:
+                    payload["images_base64"] = images_base64
+
+                logger.info(f"POST {url}/run?async_mode=true")
+                r = await client.post(f"{url}/run?async_mode=true", json=payload)
+                # Fallback: Victoria без async_mode вернул 200 — сразу берём ответ
+                if r.status_code == 200:
+                    try:
+                        data = r.json()
+                        out = _parse_run_output(data)
+                        if out:
+                            logger.info(f"📥 Victoria sync 200 ({url}): ответ получен")
+                            return out
+                    except Exception as parse_e:
+                        logger.warning(f"Victoria 200 parse error ({url}): {parse_e}")
+                    return None
+                if r.status_code != 202:
+                    logger.error(f"❌ Victoria API async ({url}): {r.status_code}")
+                    return None
+                data = r.json()
+                current_task_id = data.get("task_id")
+                if not current_task_id:
+                    return None
+                if chat_id:
+                    await send_telegram_message(
+                        chat_id,
+                        "⏳ Задача принята Victoria. Ответ обычно приходит в течение 1–3 мин (сложные запросы — дольше).",
+                    )
+            status_url = f"{url}/run/status/{current_task_id}"
+            elapsed = 0
+            while elapsed < max_poll_time:
+                # ОБНОВЛЯЕМ ПУЛЬС ВО ВРЕМЯ ОЖИДАНИЯ
+                update_heartbeat()
+
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+                try:
+                    async with httpx.AsyncClient(timeout=15.0) as c:
+                        sr = await c.get(status_url)
+                        if sr.status_code != 200:
+                            continue
+                        rec = sr.json()
+                        st = rec.get("status", "")
+                        if st == "completed":
+                            # [SINGULARITY 15.0] Пытаемся найти результат в разных полях (output, result, response)
+                            output = rec.get("output") or rec.get("result") or rec.get("response")
+                            if not output:
+                                # Проверяем на уточняющие вопросы
+                                knowledge = rec.get("knowledge") or {}
+                                qs = knowledge.get("clarification_questions") or rec.get(
+                                    "clarification_questions"
+                                )
+                                if qs:
+                                    return "Victoria уточняет: " + (
+                                        "; ".join(qs) if isinstance(qs, list) else str(qs)
+                                    )
+                                return "Задача выполнена, но отчет пуст. Проверьте логи."
+                            return output
+                        if st == "failed":
+                            return rec.get("error") or "Ошибка выполнения"
+                except Exception:
+                    pass
+            logger.error(f"⏱️ Victoria async ({url}): таймаут {max_poll_time}с")
+            return None
+        except Exception as e:
+            # ConnectError при недоступном сервере — ожидаемо, логируем WARNING
+            level = (
+                logger.warning
+                if "Connect" in type(e).__name__ or "connection" in str(e).lower()
+                else logger.error
+            )
+            level("Victoria (%s): %s: %s", url, type(e).__name__, e)
+            return None
+
+    async def try_one_url_sync(url: str) -> Optional[str]:
+        """Sync mode: POST без async_mode — для Victoria без поддержки async. Таймаут = VICTORIA_POLL_TIMEOUT_SEC."""
+        try:
+            max_steps = int(
+                os.getenv("VICTORIA_MAX_STEPS", "50")
+            )  # 50 — меньше «превышен лимит 500» на локальных моделях
+            payload: dict = {
+                "goal": goal,
+                "project_context": project_context,
+                "max_steps": max_steps,
+            }
+            if session_id:
+                payload["session_id"] = session_id
+            if chat_history:
+                payload["chat_history"] = [
+                    {"user": h.get("user", ""), "assistant": h.get("assistant", "")}
+                    for h in chat_history
+                ]
+            if images_base64:
+                payload["images_base64"] = images_base64
+            async with httpx.AsyncClient(timeout=float(max_poll_time + 30)) as client:
+                r = await client.post(f"{url}/run", json=payload)
+                if r.status_code == 200:
+                    data = r.json()
+                    return _parse_run_output(data)
+        except httpx.TimeoutException:
+            logger.warning(f"⏱️ Victoria sync ({url}): таймаут {max_poll_time}с")
+        except Exception as e:
+            logger.warning("Victoria sync (%s): %s: %s", url, type(e).__name__, e)
+        return None
+
+    async def try_one_url(url: str) -> Optional[str]:
+        """Сначала async, при неудаче — sync."""
+        result = await try_one_url_async(url)
+        if result:
+            return result
+        # Fallback: sync (если async не поддерживается или таймаут)
+        return await try_one_url_sync(url)
 
     try:
-        async with httpx.AsyncClient(timeout=float(VICTORIA_POLL_TIMEOUT_SEC)) as client:
-            r = await client.post(VICTORIA_URL, json=payload)
-            if r.status_code == 200:
-                data = r.json()
-                return data["choices"][0]["message"]["content"]
-            else:
-                logger.error(f"❌ Rust Gateway error: {r.status_code} - {r.text[:200]}")
-                return None
-    except Exception as e:
-        logger.error(f"❌ Connection error to Rust Gateway: {e}")
+        # Сначала пробуем основной URL (обычно localhost)
+        result = await try_one_url(VICTORIA_URL)
+        if result:
+            if progress_task:
+                progress_task.cancel()
+            logger.info(
+                f"📥 Ответ Victoria ({VICTORIA_URL}, первые 200 символов): {result[:200]}..."
+            )
+            return result
+        for url in urls_to_try:
+            if url == VICTORIA_URL:
+                continue
+            result = await try_one_url(url)
+            if result:
+                if progress_task:
+                    progress_task.cancel()
+                logger.info(f"📥 Ответ Victoria ({url}, первые 200 символов): {result[:200]}...")
+                return result
+
+        # Не шлём сюда — вызывающий handle_telegram_message отправит одно итоговое сообщение при result is None
         return None
+    finally:
+        if progress_task:
+            progress_task.cancel()
 
 
 async def handle_telegram_media(
@@ -704,7 +875,9 @@ Victoria Enhanced: {"✅ включен" if status.get("victoria_enhanced", {}).
 
     goal = text
 
-    if text_lower.startswith("виктория") or text_lower.startswith("вероника"):
+    if text_lower.startswith("виктория"):
+        goal = text[8:].strip(", ").strip()
+    elif text_lower.startswith("вероника"):
         goal = text[8:].strip(", ").strip()
 
     try:

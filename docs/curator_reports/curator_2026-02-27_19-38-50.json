@@ -1,0 +1,42 @@
+{
+  "ts": "2026-02-27T19:38:56.680995+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Как может помочь?",
+      "output_length": 25,
+      "correlation_id": "3f8b8668-d16d-47c1-86b6-702f972e60ab",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "ollama"
+      },
+      "elapsed_seconds": 1.16
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2aa52cd6-fadc-4897-8624-0123f4b97bbe",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "2aa52cd6-fadc-4897-8624-0123f4b97bbe",
+        "goal_preview": "какой статус проекта?"
+      },
+      "elapsed_seconds": 5.06
+    }
+  ]
+}

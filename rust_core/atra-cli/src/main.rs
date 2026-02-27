@@ -1,15 +1,15 @@
-use clap::{Parser, Subcommand, ValueHint, CommandFactory};
 use clap::builder::styling::{AnsiColor, Styles};
+use clap::{CommandFactory, Parser, Subcommand, ValueHint};
 use clap_complete::{generate, Shell};
 use colored::*;
 use dotenv::dotenv;
+use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use ignore::WalkBuilder;
 
 // ATRA branded color scheme for help output
 const ATRA_STYLES: Styles = Styles::styled()
@@ -163,7 +163,10 @@ fn parse_patch_blocks(text: &str) -> Vec<PatchBlock> {
     blocks
 }
 
-fn apply_patches(file_path: &str, patches: &[PatchBlock]) -> Result<(), Box<dyn std::error::Error>> {
+fn apply_patches(
+    file_path: &str,
+    patches: &[PatchBlock],
+) -> Result<(), Box<dyn std::error::Error>> {
     let path = Path::new(file_path);
     if !path.exists() {
         return Err(format!("File not found: {}", file_path).into());
@@ -188,7 +191,12 @@ fn apply_patches(file_path: &str, patches: &[PatchBlock]) -> Result<(), Box<dyn 
     }
 
     fs::write(path, content)?;
-    println!("{} Applied {} patches to {}", "✔".green(), applied_count, file_path);
+    println!(
+        "{} Applied {} patches to {}",
+        "✔".green(),
+        applied_count,
+        file_path
+    );
     Ok(())
 }
 
@@ -224,38 +232,42 @@ fn gather_context(message: &str) -> String {
             let file_ref = word[1..].trim_matches('"');
             let path = Path::new(file_ref);
 
-            let (content_path, display_path): (std::path::PathBuf, String) = if path.exists() && path.is_file() {
-                (path.to_path_buf(), file_ref.to_string())
-            } else if root.join(file_ref).exists() && root.join(file_ref).is_file() {
-                let p = root.join(file_ref);
-                (p.clone(), p.to_string_lossy().to_string())
-            } else {
-                let mut found_path: Option<(std::path::PathBuf, String)> = None;
-                for result in WalkBuilder::new(&root).build() {
-                    if let Ok(entry) = result {
-                        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
-                            let lossy = entry.path().to_string_lossy();
-                            if lossy.ends_with(file_ref) || entry.path().ends_with(file_ref) {
-                                if let Ok(_content) = fs::read_to_string(entry.path()) {
-                                    let path_str = entry.path().to_string_lossy().to_string();
-                                    found_path = Some((entry.path().to_path_buf(), path_str));
-                                    break;
+            let (content_path, display_path): (std::path::PathBuf, String) =
+                if path.exists() && path.is_file() {
+                    (path.to_path_buf(), file_ref.to_string())
+                } else if root.join(file_ref).exists() && root.join(file_ref).is_file() {
+                    let p = root.join(file_ref);
+                    (p.clone(), p.to_string_lossy().to_string())
+                } else {
+                    let mut found_path: Option<(std::path::PathBuf, String)> = None;
+                    for result in WalkBuilder::new(&root).build() {
+                        if let Ok(entry) = result {
+                            if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                                let lossy = entry.path().to_string_lossy();
+                                if lossy.ends_with(file_ref) || entry.path().ends_with(file_ref) {
+                                    if let Ok(_content) = fs::read_to_string(entry.path()) {
+                                        let path_str = entry.path().to_string_lossy().to_string();
+                                        found_path = Some((entry.path().to_path_buf(), path_str));
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                match found_path {
-                    Some((p, s)) => (p, s),
-                    None => {
-                        println!("{} Warning: File not found: {}", "⚠".yellow(), file_ref);
-                        continue;
+                    match found_path {
+                        Some((p, s)) => (p, s),
+                        None => {
+                            println!("{} Warning: File not found: {}", "⚠".yellow(), file_ref);
+                            continue;
+                        }
                     }
-                }
-            };
+                };
 
             if let Ok(content) = fs::read_to_string(&content_path) {
-                context.push_str(&format!("FILE: {}\n---\n{}\n---\n\n", display_path, content));
+                context.push_str(&format!(
+                    "FILE: {}\n---\n{}\n---\n\n",
+                    display_path, content
+                ));
                 included_files.push(display_path);
             }
         }
@@ -286,7 +298,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(config_path) = cli.config.or_else(|| {
         let home = env::var("HOME").ok()?;
         let path = PathBuf::from(home).join(".config/atra/config.toml");
-        if path.exists() { Some(path) } else { None }
+        if path.exists() {
+            Some(path)
+        } else {
+            None
+        }
     }) {
         if let Ok(content) = fs::read_to_string(&config_path) {
             if let Ok(config) = toml::from_str::<toml::Value>(&content) {
@@ -304,12 +320,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let command = cli.command.unwrap_or_else(|| {
-        eprintln!("{}", "Error: No command specified. Use --help for usage.".red());
+        eprintln!(
+            "{}",
+            "Error: No command specified. Use --help for usage.".red()
+        );
         std::process::exit(1);
     });
 
-    let gateway_url = env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
-    let victoria_url = env::var("VICTORIA_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
+    let gateway_url =
+        env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+    let victoria_url =
+        env::var("VICTORIA_URL").unwrap_or_else(|_| "http://localhost:8010".to_string());
 
     match &command {
         Commands::Health => {
@@ -318,19 +339,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let client = reqwest::Client::new();
             match client.get(format!("{}/health", gateway_url)).send().await {
                 Ok(res) if res.status().is_success() => {
-                    println!("{} Gateway ({}): {}", "✔".green(), gateway_url, "Connected".green());
+                    println!(
+                        "{} Gateway ({}): {}",
+                        "✔".green(),
+                        gateway_url,
+                        "Connected".green()
+                    );
                 }
                 _ => {
-                    println!("{} Gateway ({}): {}", "✘".red(), gateway_url, "Disconnected".red());
+                    println!(
+                        "{} Gateway ({}): {}",
+                        "✘".red(),
+                        gateway_url,
+                        "Disconnected".red()
+                    );
                 }
             }
 
             match client.get(format!("{}/health", victoria_url)).send().await {
                 Ok(res) if res.status().is_success() => {
-                    println!("{} Victoria ({}): {}", "✔".green(), victoria_url, "Connected".green());
+                    println!(
+                        "{} Victoria ({}): {}",
+                        "✔".green(),
+                        victoria_url,
+                        "Connected".green()
+                    );
                 }
                 _ => {
-                    println!("{} Victoria ({}): {}", "✘".red(), victoria_url, "Disconnected".red());
+                    println!(
+                        "{} Victoria ({}): {}",
+                        "✘".red(),
+                        victoria_url,
+                        "Disconnected".red()
+                    );
                 }
             }
         }
@@ -343,7 +384,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let client = reqwest::Client::new();
-            let project_context = env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
+            let project_context =
+                env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
 
             let request = json!({
                 "model": "victoria-wisdom-30b:latest",
@@ -377,7 +419,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let patches = parse_patch_blocks(response_text);
                     if !patches.is_empty() {
-                        println!("\n{}", "Detected smart-patch blocks. Apply them?".yellow().bold());
+                        println!(
+                            "\n{}",
+                            "Detected smart-patch blocks. Apply them?".yellow().bold()
+                        );
                         print!("Enter file path (or leave empty to skip): ");
                         io::stdout().flush()?;
 
@@ -411,7 +456,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             let client = reqwest::Client::new();
-            let project_context = env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
+            let project_context =
+                env::var("PROJECT_CONTEXT").unwrap_or_else(|_| "atra-web-ide".to_string());
 
             let request = json!({
                 "goal": full_goal,
@@ -448,28 +494,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Status => {
             let client = reqwest::Client::new();
-            let gateway_url = env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+            let gateway_url =
+                env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
 
             println!("{}", "Fetching system status...".cyan());
 
-            match client.get(format!("{}/api/system-metrics", gateway_url)).send().await {
+            match client
+                .get(format!("{}/api/system-metrics", gateway_url))
+                .send()
+                .await
+            {
                 Ok(res) if res.status().is_success() => {
                     let metrics: serde_json::Value = res.json().await?;
                     println!("\n{}", "System Status:".bright_magenta().bold());
 
                     if let Some(cpu) = metrics["cpu"].as_object() {
-                        println!("{} CPU: {}% ({} cores)", "💻".cyan(), cpu["percent"], cpu["count"]);
+                        println!(
+                            "{} CPU: {}% ({} cores)",
+                            "💻".cyan(),
+                            cpu["percent"],
+                            cpu["count"]
+                        );
                     }
                     if let Some(ram) = metrics["ram"].as_object() {
-                        println!("{} RAM: {}% ({} GB / {} GB used)", "🧠".cyan(), ram["percent"], ram["used_gb"], ram["total_gb"]);
+                        println!(
+                            "{} RAM: {}% ({} GB / {} GB used)",
+                            "🧠".cyan(),
+                            ram["percent"],
+                            ram["used_gb"],
+                            ram["total_gb"]
+                        );
                     }
                     if let Some(disk) = metrics["disk"].as_object() {
-                        println!("{} Disk: {}% ({} GB / {} GB used)", "💾".cyan(), disk["percent"], disk["used_gb"], disk["total_gb"]);
+                        println!(
+                            "{} Disk: {}% ({} GB / {} GB used)",
+                            "💾".cyan(),
+                            disk["percent"],
+                            disk["used_gb"],
+                            disk["total_gb"]
+                        );
                     }
                     if let Some(db) = metrics["db"].as_object() {
-                        println!("{} Knowledge Base: {} experts, {} nodes (Status: {})",
-                            "📚".cyan(), db["experts"], db["knowledge_nodes"],
-                            if db["healthy"].as_bool().unwrap_or(false) { "Healthy".green() } else { "Warning".yellow() });
+                        println!(
+                            "{} Knowledge Base: {} experts, {} nodes (Status: {})",
+                            "📚".cyan(),
+                            db["experts"],
+                            db["knowledge_nodes"],
+                            if db["healthy"].as_bool().unwrap_or(false) {
+                                "Healthy".green()
+                            } else {
+                                "Warning".yellow()
+                            }
+                        );
                     }
                 }
                 _ => println!("{} Failed to fetch system metrics", "✘".red()),
@@ -477,12 +553,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Cleanup { dry_run, tables } => {
             let client = reqwest::Client::new();
-            let gateway_url = env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+            let gateway_url =
+                env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
             let payload = json!({ "dry_run": dry_run, "tables": tables });
 
             println!("{}", "Requesting data retention cleanup...".cyan());
 
-            match client.post(format!("{}/api/data-retention/cleanup", gateway_url))
+            match client
+                .post(format!("{}/api/data-retention/cleanup", gateway_url))
                 .json(&payload)
                 .send()
                 .await
@@ -506,16 +584,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-                Ok(res) => println!("{} Error: {} - {}", "✘".red(), res.status(), res.text().await.unwrap_or_default()),
+                Ok(res) => println!(
+                    "{} Error: {} - {}",
+                    "✘".red(),
+                    res.status(),
+                    res.text().await.unwrap_or_default()
+                ),
                 Err(e) => println!("{} Connection error: {}", "✘".red(), e),
             }
         }
         Commands::Describe { image_path, prompt } => {
             let client = reqwest::Client::new();
-            let gateway_url = env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+            let gateway_url =
+                env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
 
             let image_data = fs::read(image_path)?;
-            let base64_image = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, image_data);
+            let base64_image =
+                base64::Engine::encode(&base64::engine::general_purpose::STANDARD, image_data);
 
             let payload = json!({
                 "image_base64": format!("data:image/png;base64,{}", base64_image),
@@ -524,7 +609,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             println!("{}", "Sending image to Vision service...".cyan());
 
-            match client.post(format!("{}/api/multimodal/process-image", gateway_url))
+            match client
+                .post(format!("{}/api/multimodal/process-image", gateway_url))
                 .json(&payload)
                 .send()
                 .await
@@ -532,27 +618,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(res) if res.status().is_success() => {
                     let result: serde_json::Value = res.json().await?;
                     println!("\n{}", "Image Description:".bright_magenta().bold());
-                    println!("{}", result["text"].as_str().unwrap_or("No description returned"));
+                    println!(
+                        "{}",
+                        result["text"].as_str().unwrap_or("No description returned")
+                    );
                 }
-                Ok(res) => println!("{} Error: {} - {}", "✘".red(), res.status(), res.text().await.unwrap_or_default()),
+                Ok(res) => println!(
+                    "{} Error: {} - {}",
+                    "✘".red(),
+                    res.status(),
+                    res.text().await.unwrap_or_default()
+                ),
                 Err(e) => println!("{} Connection error: {}", "✘".red(), e),
             }
         }
         Commands::Apply { file_path, patch } => {
             let patches = parse_patch_blocks(patch);
             if patches.is_empty() {
-                println!("{} No SEARCH/REPLACE blocks found in the patch string.", "✘".red());
+                println!(
+                    "{} No SEARCH/REPLACE blocks found in the patch string.",
+                    "✘".red()
+                );
                 return Ok(());
             }
             apply_patches(&file_path.to_string_lossy(), &patches)?;
         }
         Commands::Git { subcommand } => {
-            let gateway_url = env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
+            let gateway_url =
+                env::var("GATEWAY_URL").unwrap_or_else(|_| "http://localhost:8081".to_string());
             let client = reqwest::Client::new();
 
             match subcommand {
                 GitCommand::Status => {
-                    match client.get(format!("{}/api/git/status", gateway_url)).send().await {
+                    match client
+                        .get(format!("{}/api/git/status", gateway_url))
+                        .send()
+                        .await
+                    {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
                             let empty_vec = vec![];
@@ -565,60 +667,102 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("  {} working tree clean", "✔".green());
                             }
                         }
-                        Ok(res) => println!("{} {}", "✘".red(), res.text().await.unwrap_or_else(|_| "Error".into())),
+                        Ok(res) => println!(
+                            "{} {}",
+                            "✘".red(),
+                            res.text().await.unwrap_or_else(|_| "Error".into())
+                        ),
                         Err(e) => println!("{} {}", "✘".red(), e),
                     }
                 }
                 GitCommand::Diff { path } => {
-                    let url = path.as_ref()
-                        .map(|p| format!("{}/api/git/diff?path={}", gateway_url, urlencoding::encode(p)))
+                    let url = path
+                        .as_ref()
+                        .map(|p| {
+                            format!(
+                                "{}/api/git/diff?path={}",
+                                gateway_url,
+                                urlencoding::encode(p)
+                            )
+                        })
                         .unwrap_or_else(|| format!("{}/api/git/diff", gateway_url));
                     match client.get(&url).send().await {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
                             println!("{}", data["stdout"].as_str().unwrap_or(""));
                         }
-                        Ok(res) => println!("{} {}", "✘".red(), res.text().await.unwrap_or_else(|_| "Error".into())),
+                        Ok(res) => println!(
+                            "{} {}",
+                            "✘".red(),
+                            res.text().await.unwrap_or_else(|_| "Error".into())
+                        ),
                         Err(e) => println!("{} {}", "✘".red(), e),
                     }
                 }
                 GitCommand::Log { n } => {
-                    match client.get(format!("{}/api/git/log?n={}", gateway_url, n)).send().await {
+                    match client
+                        .get(format!("{}/api/git/log?n={}", gateway_url, n))
+                        .send()
+                        .await
+                    {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
                             let empty_vec = vec![];
                             let commits = data["commits"].as_array().unwrap_or(&empty_vec);
                             println!("{}", "Git Log:".bright_magenta().bold());
                             for c in commits {
-                                println!("  {} {} {}  {}",
+                                println!(
+                                    "  {} {} {}  {}",
                                     c["hash"].as_str().unwrap_or("").yellow(),
                                     c["date"].as_str().unwrap_or(""),
                                     c["author"].as_str().unwrap_or(""),
-                                    c["subject"].as_str().unwrap_or(""));
+                                    c["subject"].as_str().unwrap_or("")
+                                );
                             }
                         }
-                        Ok(res) => println!("{} {}", "✘".red(), res.text().await.unwrap_or_else(|_| "Error".into())),
+                        Ok(res) => println!(
+                            "{} {}",
+                            "✘".red(),
+                            res.text().await.unwrap_or_else(|_| "Error".into())
+                        ),
                         Err(e) => println!("{} {}", "✘".red(), e),
                     }
                 }
                 GitCommand::Branch => {
-                    match client.get(format!("{}/api/git/branch", gateway_url)).send().await {
+                    match client
+                        .get(format!("{}/api/git/branch", gateway_url))
+                        .send()
+                        .await
+                    {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
-                            println!("{} current: {}", "Git Branch:".bright_magenta().bold(), data["current"].as_str().unwrap_or(""));
+                            println!(
+                                "{} current: {}",
+                                "Git Branch:".bright_magenta().bold(),
+                                data["current"].as_str().unwrap_or("")
+                            );
                             if let Some(branches) = data["branches"].as_array() {
                                 for b in branches {
                                     println!("  {}", b.as_str().unwrap_or(""));
                                 }
                             }
                         }
-                        Ok(res) => println!("{} {}", "✘".red(), res.text().await.unwrap_or_else(|_| "Error".into())),
+                        Ok(res) => println!(
+                            "{} {}",
+                            "✘".red(),
+                            res.text().await.unwrap_or_else(|_| "Error".into())
+                        ),
                         Err(e) => println!("{} {}", "✘".red(), e),
                     }
                 }
                 GitCommand::Commit { message, paths } => {
                     let payload = json!({ "message": message, "paths": paths });
-                    match client.post(format!("{}/api/git/commit", gateway_url)).json(&payload).send().await {
+                    match client
+                        .post(format!("{}/api/git/commit", gateway_url))
+                        .json(&payload)
+                        .send()
+                        .await
+                    {
                         Ok(res) if res.status().is_success() => {
                             let data: serde_json::Value = res.json().await?;
                             if data["success"].as_bool().unwrap_or(false) {
@@ -627,10 +771,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     println!("{}", s);
                                 }
                             } else {
-                                println!("{} {}", "✘".red(), data["stderr"].as_str().unwrap_or("git commit failed"));
+                                println!(
+                                    "{} {}",
+                                    "✘".red(),
+                                    data["stderr"].as_str().unwrap_or("git commit failed")
+                                );
                             }
                         }
-                        Ok(res) => println!("{} {}", "✘".red(), res.text().await.unwrap_or_else(|_| "Error".into())),
+                        Ok(res) => println!(
+                            "{} {}",
+                            "✘".red(),
+                            res.text().await.unwrap_or_else(|_| "Error".into())
+                        ),
                         Err(e) => println!("{} {}", "✘".red(), e),
                     }
                 }

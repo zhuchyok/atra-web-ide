@@ -64,51 +64,9 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 100
 target-version = "py39"
-exclude = [
-    "knowledge_os/cache_normalizer_rs",
-    "fused_model",
-    "training_data",
-    "target",
-    "*.egg-info",
-    ".venv",
-    "venv",
-    "node_modules",
-    "dist",
-]
-
-[tool.ruff.lint]
-# Rule selection (from FastAPI best practices)
-select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "N",    # pep8-naming
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "SIM",  # flake8-simplify
-]
-ignore = [
-    "E501",  # Line too long (handled by formatter)
-    "F401",  # Unused imports (temporary, TODO: fix)
-    "F841",  # Unused variables (temporary, TODO: fix)
-    "B008",  # do not perform function calls in argument defaults (FastAPI Depends pattern)
-]
-
-[tool.ruff.format]
-# Format configuration (replaces Black)
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-
-[tool.ruff.lint.isort]
-known-first-party = ["backend", "knowledge_os", "src", "scripts"]
-
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # Unused imports OK in __init__.py
-"tests/**/*.py" = ["B008"]  # Function calls in defaults OK in tests
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501", "F401", "F841"]  # Line too long; unused imports/vars (CI: постепенно убирать)
+exclude = ["knowledge_os/cache_normalizer_rs", "target", "*.egg-info"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "scripts"]

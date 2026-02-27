@@ -115,18 +115,8 @@ def render_wisdom_tab():
     # 5. Цифровая Конституция (Constitutional AI)
     st.markdown("### 📜 Цифровая Конституция Корпорации")
     try:
-        try:
-            from digital_constitution import CONSTITUTION_PRINCIPLES
-        except ImportError:
-            import os as _os
-            import sys
+        from digital_constitution import CONSTITUTION_PRINCIPLES
 
-            _app_dir = _os.path.join(
-                _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "app"
-            )
-            if _app_dir not in sys.path:
-                sys.path.insert(0, _app_dir)
-            from digital_constitution import CONSTITUTION_PRINCIPLES
         cols = st.columns(len(CONSTITUTION_PRINCIPLES))
         for i, p in enumerate(CONSTITUTION_PRINCIPLES):
             with cols[i]:

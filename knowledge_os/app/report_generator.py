@@ -37,12 +37,10 @@ class ReportGenerator:
     async def generate_daily_report(self) -> str:
         """
         Генерирует ежедневный отчет.
-
-        Returns:
-            Текст отчета в Markdown формате
+        [SINGULARITY 24.0] Включает аудит SOP и инсайтов.
         """
         report_lines = []
-        report_lines.append("# 📊 Ежедневный отчет Singularity 8.0")
+        report_lines.append("# 📊 Ежедневный отчет Singularity 24.0")
         report_lines.append(f"Дата: {datetime.now().strftime('%Y-%m-%d')}\n")
 
         try:
@@ -76,8 +74,23 @@ class ReportGenerator:
                     report_lines.append("## 🚀 Cache Hit Rate")
                     report_lines.append(f"- Hit rate: {cache_stats['hit_rate']:.2%}\n")
 
-                # 3. Топ проблемы (если есть)
-                # Можно добавить анализ ошибок из real_time_metrics
+                # [SINGULARITY 24.0] 3. Аудит новых знаний и SOP
+                sop_stats = await conn.fetchrow("""
+                    SELECT
+                        COUNT(*) as total_nodes,
+                        COUNT(*) FILTER (WHERE is_verified = true) as verified_nodes,
+                        COUNT(*) FILTER (WHERE metadata->>'type' = 'evolution_log') as evolution_nodes
+                    FROM knowledge_nodes
+                    WHERE created_at > CURRENT_DATE
+                """)
+
+                if sop_stats:
+                    report_lines.append("## 🧠 Эволюция знаний")
+                    report_lines.append(f"- Новых узлов знаний: {sop_stats['total_nodes']}")
+                    report_lines.append(f"- Верифицировано: {sop_stats['verified_nodes']}")
+                    report_lines.append(
+                        f"- Внедрено улучшений (Evolution): {sop_stats['evolution_nodes']}\n"
+                    )
 
                 # 4. Топ эксперты
                 expert_stats = await conn.fetch("""

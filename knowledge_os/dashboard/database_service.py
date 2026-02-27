@@ -71,31 +71,11 @@ def db_session():
 
 
 def get_db_connection():
-    """Обратная совместимость. Для with используйте db_connection() чтобы вернуть соединение в пул."""
+    """Обратная совместимость."""
     p = _get_connection_pool()
     if p:
         return p.getconn()
     return None
-
-
-@contextlib.contextmanager
-def db_connection():
-    """Контекстный менеджер: получает соединение из пула и возвращает его при выходе (без утечки)."""
-    p = _get_connection_pool()
-    conn = None
-    if not p:
-        yield None
-        return
-    try:
-        conn = p.getconn()
-        _set_query_timeout(conn)
-        yield conn
-    finally:
-        if conn:
-            try:
-                p.putconn(conn)
-            except Exception:
-                pass
 
 
 @st.cache_data(ttl=60, max_entries=100)

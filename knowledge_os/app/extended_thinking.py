@@ -118,6 +118,53 @@ class ExtendedThinkingEngine:
         """Получить скрытые рассуждения для сессии (Summary Reader)"""
         return _hidden_thoughts_cache.get(session_id)
 
+    async def pulse_warmup(self):
+        """[SINGULARITY 24.0] Предиктивный прогрев моделей для Metal (Pulse)"""
+        try:
+            models = ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat"]
+            for model in models:
+                logger.debug(f"💓 [PULSE] Warming up {model}...")
+                await self._generate_response("ping", max_tokens=5, category="fast")
+        except Exception as e:
+            logger.debug(f"Pulse warmup failed: {e}")
+
+    async def semantic_heartbeat(self):
+        """[SINGULARITY 24.0] Семантический пульс: проверка здоровья через легкую модель"""
+        try:
+            # Анализируем последние 500 символов лога супервизора (если есть)
+            log_path = "victoria_bot_supervisor.log"
+            log_context = ""
+            if os.path.exists(log_path):
+                with open(log_path) as f:
+                    f.seek(0, os.SEEK_END)
+                    size = f.tell()
+                    f.seek(max(0, size - 500))
+                    log_context = f.read()
+
+            prompt = f"""### ROLE: System Health Monitor
+### TASK: Analyze logs and report status.
+### LOGS:
+{log_context}
+
+### FORMAT: 1 sentence, concise.
+STATUS REPORT:"""
+
+            report = await self._generate_response(prompt, max_tokens=50, category="fast")
+            if report:
+                logger.info(f"💓 [HEARTBEAT] {report}")
+                # Здесь можно добавить отправку в Telegram через TelegramAlerter
+                try:
+                    from app.telegram_alerter import get_telegram_alerter
+
+                    alerter = get_telegram_alerter()
+                    await alerter.send_alert(
+                        f"💓 *HEARTBEAT:* {report}", priority="low", source="Pulse Check"
+                    )
+                except:
+                    pass
+        except Exception as e:
+            logger.debug(f"Semantic heartbeat failed: {e}")
+
     async def think(
         self,
         prompt: str,
@@ -192,7 +239,7 @@ class ExtendedThinkingEngine:
         # Тяжёлые 70B/104B удалены из-за Apple Silicon Metal limits
         fallback_models = [
             "victoria-wisdom-30b",
-            "qwen3-coder:30b",
+            "victoria-wisdom-30b",
             "phi3.5:3.8b",
             "phi3:mini-4k",
             "tinyllama:1.1b-chat",
@@ -215,6 +262,18 @@ class ExtendedThinkingEngine:
         thinking_prompt = self._build_thinking_prompt(prompt, ctx_str, step=1)
 
         for step_num in range(1, self.max_steps + 1):
+            # [SINGULARITY 24.0] Meta-Cognitive Reflection: detect logic loops
+            if step_num > 3:
+                recent_thoughts = "\n".join([s.thought for s in thinking_steps[-3:]])
+                if len(recent_thoughts) > 100:
+                    # Простая проверка на повторение (логические петли)
+                    reflection_prompt = f"### [META-REFLECTION]\nПроверь последние шаги на зацикливание или топтание на месте:\n{recent_thoughts}\n\nЕсли есть петля, предложи новый вектор мысли. Если нет, напиши 'CONTINUE'."
+                    reflection = await self._generate_response(
+                        reflection_prompt, max_tokens=100, category="fast"
+                    )
+                    if reflection and "CONTINUE" not in reflection.upper():
+                        current_understanding += f"\n[META-CORRECTION]: {reflection}\n"
+
             # Генерируем шаг рассуждения
             step_thought = await self._generate_thinking_step(
                 thinking_prompt, step_num, current_understanding, category
