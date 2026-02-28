@@ -1237,14 +1237,19 @@ class LocalAIRouter:
                                     # Если ошибка — считываем текст ошибки
                                     error_text = await response.aread()
                                     logger.error(f"Streaming error: {response.status_code}")
-                        else:
-                            # Обычный запрос для легких задач
-                            response = await client.post(
-                                node_url,
-                                json=payload,
-                                headers=headers,
-                                timeout=httpx.Timeout(_node_timeout, connect=30.0),
-                            )
+                        # Обычный запрос для легких задач
+                        # [SINGULARITY 24.0] Increased timeout for heavy models to prevent ReadTimeout
+                        _final_timeout = _node_timeout
+                        if is_heavy_model:
+                            _final_timeout = max(_final_timeout, 600.0)
+                            logger.info(f"🚀 [TIMEOUT] Heavy model detected ({model}), increasing timeout to {_final_timeout}s")
+
+                        response = await client.post(
+                            node_url,
+                            json=payload,
+                            headers=headers,
+                            timeout=httpx.Timeout(_final_timeout, connect=30.0),
+                        )
                         latency_ms = (time.time() - request_start) * 1000
 
                         # Load Balancing: обновляем метрики загрузки
