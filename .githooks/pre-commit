@@ -20,7 +20,20 @@ if git diff --cached --name-only | grep -q 'configs/experts/employees.json'; the
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# STEP 2: Pre-commit framework (ruff, prettier, security)
+# STEP 2: Local Git-Guardian (AI Pre-commit Auditor)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "[pre-commit] Запуск Local Git-Guardian (Victoria AI Audit)..."
+export PYTHONPATH="$PYTHONPATH:$ROOT/knowledge_os/app:$ROOT/knowledge_os"
+if ! $ROOT/knowledge_os/.venv/bin/python scripts/git_guardian.py; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "❌ AI Audit failed! Commit rejected by Victoria."
+  echo "   Fix the issues or use 'git commit --no-verify' if you are sure."
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  exit 1
+fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STEP 3: Pre-commit framework (ruff, prettier, security)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # Check if pre-commit is installed
