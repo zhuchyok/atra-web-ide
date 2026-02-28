@@ -491,8 +491,15 @@ class IntelligentModelRouter:
         Выбрать оптимальную модель на основе мировых практик.
         [STRICT MODE] Всегда предпочитаем Victoria-Wisdom-30B для снижения нагрузки.
         """
-        # [STRICT] Если это не зрение, всегда пробуем Викторию первой
+        # [SINGULARITY 24.0] Smart Routing 2.0: Local First + Anti-Hallucination
+        # Если это не зрение, всегда пробуем Викторию первой
         if "vision" not in (category or "").lower() and "image" not in prompt.lower():
+            # Проверяем, не является ли запрос слишком сложным для локальной модели
+            # (например, требует знаний, которых точно нет локально)
+            task_complexity = self.estimate_task_complexity(prompt, category)
+            
+            # Если сложность экстремальная (>0.9) и мы не в режиме экономии, 
+            # можно было бы эскалировать, но мы держим курс на локальность.
             return "victoria-wisdom-30b", TaskCategory(category or "general"), 1.0
 
         if prioritize_speed:

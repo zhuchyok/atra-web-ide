@@ -115,14 +115,8 @@ class AntiHallucinationSystem:
         self, response: str, context: List[Dict]
     ) -> Tuple[bool, float, List[str]]:
         """
-        Валидировать ответ на наличие галлюцинаций
-
-        Args:
-            response: Ответ модели
-            context: Контекст из базы знаний
-
-        Returns:
-            (is_valid, confidence, issues)
+        Валидировать ответ на наличие галлюцинаций.
+        [SINGULARITY 24.0] Глубокая проверка на соответствие контексту.
         """
         issues = []
         confidence = 1.0
@@ -132,22 +126,34 @@ class AntiHallucinationSystem:
             issues.append("Ответ слишком короткий")
             confidence *= 0.5
 
-        # Проверка 2: Нет фраз типа "я не знаю" в контексте с высоким confidence
+        # Проверка 2: Проверка фактов против контекста (Grounding)
+        if context:
+            # Если модель говорит о технологиях, которых нет в контексте
+            # (упрощенная логика для примера, можно расширить через NLP)
+            context_text = " ".join([c["content"].lower() for c in context])
+            
+            # Список критических терминов, которые часто галлюцинируют
+            tech_keywords = ["database", "api", "function", "class", "module"]
+            for kw in tech_keywords:
+                if kw in response.lower() and kw not in context_text:
+                    # Это может быть не галлюцинация, а общие знания, 
+                    # но мы снижаем уверенность, если этого нет в SOP
+                    confidence *= 0.9
+
+        # Проверка 3: Фразы-маркеры неуверенности
         if "не знаю" in response.lower() or "не уверен" in response.lower():
-            if context and all(c["confidence"] >= 0.9 for c in context):
-                issues.append("Модель говорит 'не знаю' при наличии проверенного контекста")
+            if context and any(c["confidence"] >= 0.9 for c in context):
+                issues.append("Модель игнорирует проверенный контекст")
                 confidence *= 0.7
 
-        # Проверка 3: Проверка на явные галлюцинации (можно расширить)
+        # Проверка 4: Явные галлюцинации
         hallucination_phrases = ["точно помню", "я уверен что", "это факт", "100%"]
-
         for phrase in hallucination_phrases:
             if phrase in response.lower():
                 issues.append(f"Подозрительная фраза: '{phrase}'")
                 confidence *= 0.8
 
         is_valid = confidence >= 0.7 and len(issues) < 2
-
         return is_valid, confidence, issues
 
     async def enhance_response_with_rag(

@@ -39,9 +39,17 @@ class PerpetualEvolution:
         except Exception as asr:
             logger.debug(f"Autonomous skill refinement failed: {asr}")
 
-        while True:
+        try:
+            # [SINGULARITY 24.0] Autonomous Tester Phase
+            # В тихие часы запускаем самотестирование и исправление ошибок.
             try:
-                # [SINGULARITY 24.0] Wisdom Injection Phase
+                from autonomous_tester import AutonomousTester
+                tester = AutonomousTester()
+                await tester.run_cycle()
+            except Exception as te:
+                logger.debug(f"Autonomous tester failed: {te}")
+
+            # [SINGULARITY 24.0] Wisdom Injection Phase
                 # Automatically turn successful insights into skills
                 try:
                     from wisdom_injection import WisdomInjectionEngine
