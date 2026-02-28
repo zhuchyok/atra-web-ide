@@ -203,6 +203,7 @@ MODEL_PATHS = {
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
     "victoria-wisdom-30b": os.path.join(MLX_BASE, "qwen3-coder-30b-mlx"),
+    "victoria-draft-3b": os.path.join(MLX_BASE, "qwen2.5-3b"), # [SINGULARITY 24.0] Draft model
     "phi3:mini-4k": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "qwen2.5:3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "tinyllama:1.1b-chat": os.path.join(MLX_BASE, "tinyllama-1.1b-chat"),
@@ -352,6 +353,7 @@ class GenerateRequest(BaseModel):
     max_tokens: int = 512
     temperature: float = 0.7
     stream: bool = False
+    turbo: bool = False  # [SINGULARITY 24.0] Speculative Decoding flag
 
 
 # Anthropic-compatible API models
@@ -1108,11 +1110,22 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                     def generate_with_lock():
                         """Генерация с блокировкой модели для защиты от Metal конфликтов"""
                         with model_lock:
+                            # [SINGULARITY 24.0] Speculative Decoding support
+                            draft_model = None
+                            if request.turbo and model_key == "victoria-wisdom-30b":
+                                try:
+                                    draft_data = get_model("victoria-draft-3b")
+                                    draft_model = draft_data["model"]
+                                    logger.info("🚀 [TURBO] Using speculative decoding with 3B draft model")
+                                except Exception as de:
+                                    logger.warning(f"⚠️ [TURBO] Failed to load draft model: {de}")
+
                             return generate(
                                 model,
                                 tokenizer,
                                 prompt=request.prompt,
                                 max_tokens=request.max_tokens,
+                                draft_model=draft_model
                             )
 
                     response_text = await asyncio.wait_for(

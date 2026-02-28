@@ -12,6 +12,7 @@ from datetime import datetime
 
 import asyncpg
 from ai_core import run_smart_agent_async
+from expert_synthesizer import ExpertSynthesizer
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +29,32 @@ class ExpertCouncil:
             {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"},
         ]
 
-    async def start_debate(self, topic: str, initial_proposal: str) -> str:
-        """Starts a multi-agent debate on a specific topic."""
+    async def start_debate(self, topic: str, initial_proposal: str, beautiful_mode: bool = True) -> str:
+        """
+        Starts a multi-agent debate on a specific topic.
+        [SINGULARITY 24.0] beautiful_mode is now TRUE by default.
+        Includes Autonomous HR: Synthesizes a specialist if needed.
+        """
         logger.info(f"🏛️ [COUNCIL] Starting debate on: {topic[:50]}...")
 
         try:
             conn = await asyncpg.connect(DB_URL)
+
+            # [SINGULARITY 24.0] Autonomous HR: Check if we need a specialist for this topic
+            try:
+                hr = ExpertSynthesizer()
+                specialist = await hr.find_or_synthesize_expert(f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}")
+                if specialist and specialist.get("needs_new_expert"):
+                    new_expert = {
+                        "name": specialist["name"], 
+                        "role": specialist["role"], 
+                        "focus": specialist["metadata"].get("focus", specialist["role"])
+                    }
+                    if new_expert not in self.experts:
+                        self.experts.append(new_expert)
+                        logger.info(f"🧬 [COUNCIL] Added synthesized specialist: {new_expert['name']}")
+            except Exception as hre:
+                logger.debug(f"HR synthesis skipped: {hre}")
 
             # 1. Create session if not exists
             if not self.session_id:
@@ -54,19 +75,39 @@ class ExpertCouncil:
             for expert in self.experts:
                 logger.info(f"🗣️ [COUNCIL] Calling expert: {expert['name']} ({expert['role']})")
 
-                prompt = f"""
-                ТЫ - {expert["name"]}, эксперт в области {expert["focus"]}.
-                ИДЕТ СОВЕТ ЭКСПЕРТОВ КОРПОРАЦИИ.
+                if beautiful_mode:
+                    # [SINGULARITY 24.0] Immersive dialogue generation using TEAM_PERSONALITIES.md
+                    prompt = f"""
+                    ТЫ - {expert["name"]}, эксперт в области {expert["focus"]}.
+                    ИДЕТ СОВЕТ ЭКСПЕРТОВ КОРПОРАЦИИ.
+                    
+                    ИСПОЛЬЗУЙ СВОЙ ХАРАКТЕР ИЗ TEAM_PERSONALITIES.md:
+                    - Стиль общения, ключевые фразы, эмодзи.
+                    - Твоя роль: {expert["role"]}.
+                    
+                    ТЕМА: {topic}
+                    ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ: {initial_proposal}
+                    ИСТОРИЯ ДЕБАТОВ:
+                    {debate_history}
 
-                ТЕМА: {topic}
-                ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ: {initial_proposal}
-                ИСТОРИЯ ДЕБАТОВ:
-                {debate_history}
+                    ЗАДАЧА: Выскажи свое мнение. Будь живым персонажем, как в реальном чате.
+                    Найди слабые места или предложи улучшения.
+                    ОТВЕТЬ КРАТКО (1-3 предложения), сохранив стиль.
+                    """
+                else:
+                    prompt = f"""
+                    ТЫ - {expert["name"]}, эксперт в области {expert["focus"]}.
+                    ИДЕТ СОВЕТ ЭКСПЕРТОВ КОРПОРАЦИИ.
 
-                ЗАДАЧА: Проанализируй предложение со своей колокольни.
-                Найди слабые места, предложи улучшения или подтверди надежность.
-                Будь краток, профессионален и конструктивен.
-                """
+                    ТЕМА: {topic}
+                    ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ: {initial_proposal}
+                    ИСТОРИЯ ДЕБАТОВ:
+                    {debate_history}
+
+                    ЗАДАЧА: Проанализируй предложение со своей колокольни.
+                    Найди слабые места, предложи улучшения или подтверди надежность.
+                    Будь краток, профессионален и конструктивен.
+                    """
 
                 opinion = await run_smart_agent_async(
                     prompt, expert_name=expert["name"], category="reasoning"
@@ -108,16 +149,33 @@ class ExpertCouncil:
 
             # 3. Final Synthesis by Victoria
             logger.info("👑 [COUNCIL] Victoria is synthesizing final decision...")
-            synthesis_prompt = f"""
-            ТЫ - ВИКТОРИЯ, Team Lead.
-            ПРОАНАЛИЗИРУЙ итоги дебатов экспертов и вынеси ФИНАЛЬНОЕ РЕШЕНИЕ.
+            if beautiful_mode:
+                synthesis_prompt = f"""
+                ТЫ - ВИКТОРИЯ, Team Lead.
+                ПРОАНАЛИЗИРУЙ итоги дебатов экспертов и вынеси ФИНАЛЬНОЕ РЕШЕНИЕ.
+                
+                ИСПОЛЬЗУЙ СВОЙ ХАРАКТЕР ИЗ TEAM_PERSONALITIES.md:
+                - Спокойный координатор, видит общую картину.
+                - Используй эмодзи для структурирования.
+                - Краткое резюме и четкий план.
 
-            ТЕМА: {topic}
-            ИТОГИ ДЕБАТОВ:
-            {debate_history}
+                ТЕМА: {topic}
+                ИТОГИ ДЕБАТОВ:
+                {debate_history}
 
-            ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
-            """
+                ВЕРНИ КРАСИВОЕ ОБСУЖДЕНИЕ КОМАНДЫ И ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
+                """
+            else:
+                synthesis_prompt = f"""
+                ТЫ - ВИКТОРИЯ, Team Lead.
+                ПРОАНАЛИЗИРУЙ итоги дебатов экспертов и вынеси ФИНАЛЬНОЕ РЕШЕНИЕ.
+
+                ТЕМА: {topic}
+                ИТОГИ ДЕБАТОВ:
+                {debate_history}
+
+                ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
+                """
             final_decision = await run_smart_agent_async(
                 synthesis_prompt, expert_name="Виктория", category="reasoning"
             )

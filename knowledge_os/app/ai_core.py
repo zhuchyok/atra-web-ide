@@ -26,6 +26,7 @@ except ImportError:
 # Local project imports with fallbacks
 try:
     from semantic_cache import SemanticAICache, get_embedding  # type: ignore
+    from vector_cache import vector_cache  # [SINGULARITY 24.0] Local Vector Cache
 except ImportError:
     SemanticAICache = None  # type: ignore
 
@@ -413,6 +414,25 @@ async def _retry_llm_with_backoff(coro):
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
 _DB_POOL = None
 
+async def _periodic_vector_cache_sync():
+    """[SINGULARITY 24.0] Background task to keep vector cache fresh."""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # Sync every 30 minutes
+            pool = await _get_db_pool()
+            if pool:
+                from vector_cache import vector_cache
+                await vector_cache.sync_from_db(pool)
+        except Exception as e:
+            logger.error("Error in periodic vector cache sync: %s", e)
+            await asyncio.sleep(60)
+
+# Start periodic sync in background
+try:
+    asyncio.create_task(_periodic_vector_cache_sync())
+except Exception:
+    pass
+
 
 async def _get_db_pool():
     """Lazy initialization of the PostgreSQL connection pool."""
@@ -657,9 +677,71 @@ async def _run_cloud_agent_async(prompt: str):
         return f"❌ Ошибка связи с облаком: {exc}"
 
 
-async def _get_knowledge_context(query: str) -> str:
-    """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
-    return await _get_knowledge_context_impl(query)
+async def _adversarial_verification(prompt: str, response: str) -> Tuple[bool, str]:
+    """
+    [SINGULARITY 24.0] Digital Twin: Adversarial Verification.
+    Challenges the primary response to find flaws or hallucinations.
+    """
+    try:
+        challenge_prompt = f"""### ЗАДАЧА: АДВЕРСАРНАЯ ПРОВЕРКА (Digital Twin)
+Ты — Критик-Архитектор. Твоя задача — найти ошибки, галлюцинации или слабые места в ответе другого ИИ.
+
+ИСХОДНЫЙ ЗАПРОС:
+{prompt}
+
+ОТВЕТ ДЛЯ ПРОВЕРКИ:
+{response}
+
+ЗАДАНИЕ:
+1. Найди логические ошибки или несоответствия коду.
+2. Проверь на наличие галлюцинаций.
+3. Оцени безопасность и стабильность предложенного решения.
+
+ОТВЕТЬ В ФОРМАТЕ JSON:
+{{
+    "is_valid": true/false,
+    "flaws": ["список ошибок"],
+    "improvement_suggestion": "как исправить"
+}}
+"""
+        # Используем ту же модель, но с другим промптом
+        challenge_response = await run_smart_agent_async(challenge_prompt, expert_name="Критик", category="reasoning")
+        
+        import re
+        match = re.search(r"\{.*\}", challenge_response, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return data.get("is_valid", True), data.get("improvement_suggestion", "")
+        return True, ""
+    except Exception as e:
+        logger.error(f"Adversarial verification failed: {e}")
+        return True, ""
+
+async def _verify_and_refine(prompt: str, response: str, max_refinements: int = 1) -> str:
+    """
+    Refines the response using adversarial verification.
+    """
+    current_response = response
+    for i in range(max_refinements):
+        is_valid, suggestion = await _adversarial_verification(prompt, current_response)
+        if is_valid:
+            break
+        
+        logger.info(f"🔄 [DIGITAL TWIN] Refining response based on critique: {suggestion[:50]}...")
+        refine_prompt = f"""### ЗАДАЧА: ИСПРАВЛЕНИЕ ОШИБОК (Self-Correction)
+Твой предыдущий ответ был подвергнут критике. Исправь его на основе следующих замечаний.
+
+КРИТИКА:
+{suggestion}
+
+ТВОЙ ПРЕДЫДУЩИЙ ОТВЕТ:
+{current_response}
+
+ВЕРНИ ИСПРАВЛЕННЫЙ ОТВЕТ ПОЛНОСТЬЮ.
+"""
+        current_response = await run_smart_agent_async(refine_prompt, category="reasoning")
+    
+    return current_response
 
 
 @profile_function("ai_core")
@@ -681,10 +763,41 @@ async def _get_knowledge_context_impl(query: str) -> str:
         except Exception as ge:
             logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
 
-        # 2. Fallback на стандартный векторный RAG
+        # 2. Пробуем локальный векторный кэш в RAM (Singularity 24.0)
         embedding = await get_embedding(query)
         if not embedding:
             return ""
+
+        try:
+            # Инициализируем кэш если пуст
+            if vector_cache.embeddings is None:
+                pool = await _get_db_pool()
+                if pool:
+                    asyncio.create_task(vector_cache.sync_from_db(pool))
+            
+            rows = await vector_cache.search(embedding, limit=8, threshold=0.5)
+            if rows:
+                logger.info(f"⚡ [VECTOR CACHE] Найдено {len(rows)} узлов в RAM")
+                context = "\n📚 [KNOWLEDGE CONTEXT (Local RAM Cache)]:\n"
+                for row in rows:
+                    if row["similarity"] >= 0.55:
+                        meta = row["metadata"] or {}
+                        source = meta.get("source", "unknown")
+                        file_path = meta.get("file_path", "N/A")
+                        
+                        if source == "external_docs_indexer":
+                            context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                        elif meta.get("type") == "corporate_system":
+                            context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
+                        else:
+                            context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
+                        
+                        context += f"{row['content'][:1200]}\n"
+                return context
+        except Exception as ve:
+            logger.debug(f"Vector cache search failed, falling back to DB: {ve}")
+
+        # 3. Fallback на стандартный векторный RAG в БД
         pool = await _get_db_pool()
         if not pool:
             return ""
