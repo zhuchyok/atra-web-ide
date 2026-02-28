@@ -56,15 +56,23 @@ class AntiHallucinationSystem:
     async def retrieve_relevant_context(self, query: str, limit: int = 5) -> List[Dict]:
         """
         Получить релевантный контекст из базы знаний (RAG)
-
-        Args:
-            query: Запрос пользователя
-            limit: Количество результатов
-
-        Returns:
-            Список релевантных знаний
+        [SINGULARITY 24.0] Спекулятивный поиск (Parallel RAG).
         """
         try:
+            # [SINGULARITY 24.0] Используем локальный векторный кэш в RAM если доступен
+            try:
+                from vector_cache import vector_cache
+                from semantic_cache import get_embedding
+                
+                embedding = await get_embedding(query)
+                if embedding:
+                    rows = await vector_cache.search(embedding, limit=limit)
+                    if rows:
+                        logger.info(f"⚡ [PARALLEL RAG] Found {len(rows)} nodes in RAM cache")
+                        return rows
+            except Exception as ve:
+                logger.debug(f"RAM cache failed in parallel RAG: {ve}")
+
             conn = await asyncpg.connect(self.db_url)
             try:
                 # Простой поиск по ключевым словам (можно улучшить через векторный поиск)

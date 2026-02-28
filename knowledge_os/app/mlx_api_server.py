@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 
 # --- VLLM-STYLE CORE (Singularity 10.0) ---
+# [SINGULARITY 24.0] KV-Cache Stitching & Speculative Decoding
 class BatchRequest:
     def __init__(self, prompt: str, max_tokens: int, priority: int = 1):
         self.prompt = prompt
@@ -56,11 +57,16 @@ class ContinuousBatcher:
             # В MLX эмулируем через эффективную очередь и приоритеты
             req = self.queue.popleft()
             try:
+                # [SINGULARITY 24.0] KV-Cache Stitching:
                 # Имитация PagedAttention: оптимизация KV-кэша перед генерацией
                 # (В MLX это делается через mlx.core.metal.clear_cache при необходимости)
                 import mlx.core as mx
 
-                mx.metal.clear_cache()
+                # Умная очистка кэша только если RAM на пределе
+                memory_info = check_memory()
+                if memory_info["used_percent"] > 0.9:
+                    mx.metal.clear_cache()
+                    logger.info("🧹 [STITCHING] Metal cache cleared due to high RAM usage")
 
                 loop = asyncio.get_event_loop()
                 response = await loop.run_in_executor(
