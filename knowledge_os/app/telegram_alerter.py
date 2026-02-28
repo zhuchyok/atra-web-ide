@@ -48,6 +48,12 @@ class TelegramAlerter:
         emoji = self._get_priority_emoji(priority)
         priority_text = priority.upper()
 
+        # [SINGULARITY 24.0] Улучшенное форматирование для отчетов
+        if "Report Generator" in (source or ""):
+            return f"{emoji} *{message.splitlines()[0].replace('# ', '')}*\n\n" + "\n".join(
+                message.splitlines()[1:]
+            )
+
         formatted = f"{emoji} *{priority_text} ALERT*\n\n"
 
         if source:
@@ -80,7 +86,25 @@ class TelegramAlerter:
         if not self.token or not self.chat_id:
             logger.debug("TG_TOKEN/CHAT_ID не заданы, пропуск Telegram алерта")
             return False
-        formatted_message = self._format_alert(message, priority, source)
+
+        # [SINGULARITY 24.0] Используем HTML parse_mode для лучшей поддержки Markdown-подобных отчетов
+        # Telegram Markdown часто ломается на спецсимволах, HTML надежнее для длинных текстов
+        is_report = "Report Generator" in (source or "")
+        parse_mode = "HTML" if is_report else "Markdown"
+
+        if is_report:
+            # Конвертируем Markdown заголовки в HTML для отчета
+            import re
+
+            formatted_message = message.replace("# ", "<b>").replace(
+                "\n", "</b>\n", 1
+            )  # Первый заголовок
+            formatted_message = re.sub(r"## (.*?)\n", r"\n<b>\1</b>\n", formatted_message)
+            formatted_message = re.sub(r"### (.*?)\n", r"\n<i>\1</i>\n", formatted_message)
+            formatted_message = formatted_message.replace("- **", "• <b>").replace("**:", "</b>:")
+            formatted_message = formatted_message.replace("- ", "• ")
+        else:
+            formatted_message = self._format_alert(message, priority, source)
 
         # Rate limiting
         current_time = asyncio.get_event_loop().time()
@@ -90,13 +114,13 @@ class TelegramAlerter:
 
         for attempt in range(retry_count):
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with httpx.AsyncClient(timeout=15.0) as client:
                     response = await client.post(
                         f"{self.base_url}/sendMessage",
                         data={
                             "chat_id": self.chat_id,
-                            "text": formatted_message,
-                            "parse_mode": "Markdown",
+                            "text": formatted_message[:4096],
+                            "parse_mode": parse_mode,
                             "disable_web_page_preview": True,
                         },
                     )
@@ -108,6 +132,21 @@ class TelegramAlerter:
                         )
                         return True
                     else:
+                        # Если HTML/Markdown не прошел, пробуем обычный текст
+                        logger.warning(
+                            f"⚠️ [TELEGRAM ALERT] HTTP {response.status_code} ({parse_mode}), пробуем Plain Text: {response.text[:100]}"
+                        )
+                        response = await client.post(
+                            f"{self.base_url}/sendMessage",
+                            data={
+                                "chat_id": self.chat_id,
+                                "text": message[:4096],
+                                "disable_web_page_preview": True,
+                            },
+                        )
+                        if response.status_code == 200:
+                            return True
+
                         logger.warning(
                             f"⚠️ [TELEGRAM ALERT] HTTP {response.status_code}: {response.text[:100]}"
                         )

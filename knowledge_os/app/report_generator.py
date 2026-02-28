@@ -37,7 +37,7 @@ class ReportGenerator:
     async def generate_daily_report(self) -> str:
         """
         Генерирует ежедневный отчет.
-        [SINGULARITY 24.0] Включает аудит SOP и инсайтов.
+        [SINGULARITY 24.0] Включает аудит SOP, инсайтов и системные метрики.
         """
         report_lines = []
         report_lines.append("# 📊 Ежедневный отчет Singularity 24.0")
@@ -46,6 +46,39 @@ class ReportGenerator:
         try:
             conn = await asyncpg.connect(self.db_url)
             try:
+                # 0. Статус систем (Mac Studio)
+                report_lines.append("## 🖥 Статус систем (Mac Studio)")
+                try:
+                    from resource_monitor import ResourceMonitor
+
+                    monitor = ResourceMonitor()
+                    res = await monitor.get_system_resources()
+                    ram = res.get("ram", {})
+                    cpu = res.get("cpu", {})
+                    report_lines.append(
+                        f"- **RAM:** {ram.get('used_percent', 0):.1f}% ({ram.get('used_gb', 0):.1f}/{ram.get('total_gb', 0):.1f} GB)"
+                    )
+                    report_lines.append(
+                        f"- **CPU:** {cpu.get('percent', 0):.1f}% ({cpu.get('count', 0)} cores)"
+                    )
+                    if res.get("temperature"):
+                        report_lines.append(f"- **Температура:** {res['temperature']}°C")
+                except Exception as re:
+                    report_lines.append(f"- ⚠️ Ошибка мониторинга ресурсов: {re}")
+
+                # Проверка моделей
+                try:
+                    from available_models_scanner import scan_models
+
+                    models = await scan_models()
+                    report_lines.append(f"- **Модели Ollama:** {len(models.ollama_models)} активны")
+                    report_lines.append(f"- **Модели MLX:** {len(models.mlx_models)} активны")
+                    if "victoria-wisdom-30b" in models.mlx_models:
+                        report_lines.append("  - ✅ Victoria Wisdom 30B (MLX) доступна")
+                except Exception as me:
+                    report_lines.append(f"- ⚠️ Ошибка сканирования моделей: {me}")
+                report_lines.append("")
+
                 # 1. Статистика запросов за день
                 stats = await conn.fetchrow("""
                     SELECT
@@ -79,18 +112,22 @@ class ReportGenerator:
                     SELECT
                         COUNT(*) as total_nodes,
                         COUNT(*) FILTER (WHERE is_verified = true) as verified_nodes,
-                        COUNT(*) FILTER (WHERE metadata->>'type' = 'evolution_log') as evolution_nodes
+                        COUNT(*) FILTER (WHERE metadata->>'type' = 'evolution_log') as evolution_nodes,
+                        COUNT(*) FILTER (WHERE metadata->>'injected_as_sop' = 'true') as injected_sops
                     FROM knowledge_nodes
                     WHERE created_at > CURRENT_DATE
                 """)
 
                 if sop_stats:
-                    report_lines.append("## 🧠 Эволюция знаний")
+                    report_lines.append("## 🧠 Эволюция мудрости")
                     report_lines.append(f"- Новых узлов знаний: {sop_stats['total_nodes']}")
-                    report_lines.append(f"- Верифицировано: {sop_stats['verified_nodes']}")
                     report_lines.append(
-                        f"- Внедрено улучшений (Evolution): {sop_stats['evolution_nodes']}\n"
+                        f"- Верифицировано экспертами: {sop_stats['verified_nodes']}"
                     )
+                    report_lines.append(
+                        f"- Логи эволюции (Evolution): {sop_stats['evolution_nodes']}"
+                    )
+                    report_lines.append(f"- Новых SOP внедрено: {sop_stats['injected_sops']}\n")
 
                 # 4. Топ эксперты
                 expert_stats = await conn.fetch("""
@@ -103,12 +140,28 @@ class ReportGenerator:
                 """)
 
                 if expert_stats:
-                    report_lines.append("## 👥 Топ эксперты")
+                    report_lines.append("## 👥 Активность экспертов")
                     for row in expert_stats:
-                        report_lines.append(
-                            f"- {row['expert_name']}: {row['request_count']} запросов"
-                        )
+                        report_lines.append(f"- {row['expert_name']}: {row['request_count']} задач")
                     report_lines.append("")
+
+                # 5. Ошибки и аномалии (из логов аудитора)
+                report_lines.append("## 🛡 Самодиагностика")
+                try:
+                    # Ищем последний отчет аудитора
+                    import glob
+
+                    audit_files = sorted(glob.glob("docs/log_audit_*.md"), reverse=True)
+                    if audit_files:
+                        with open(audit_files[0]) as f:
+                            audit_content = f.read()
+                            # Берем только краткое саммари (первые 5 строк после заголовка)
+                            summary = "\n".join(audit_content.split("\n")[2:7])
+                            report_lines.append(f"Последний аудит логов:\n{summary}")
+                    else:
+                        report_lines.append("- Критических ошибок в логах не обнаружено.")
+                except Exception:
+                    report_lines.append("- Статус аудита логов недоступен.")
 
             finally:
                 await conn.close()
@@ -187,6 +240,14 @@ class ReportGenerator:
         Ежедневные отчеты в 8:00, еженедельные в понедельник в 9:00.
         """
         logger.info("📊 [REPORT GENERATOR] Запуск периодической генерации отчетов...")
+
+        # [SINGULARITY 24.0] Сразу шлем тестовый отчет при запуске, чтобы убедиться в работе
+        try:
+            logger.info("📊 [REPORT GENERATOR] Отправка стартового отчета...")
+            daily_report = await self.generate_daily_report()
+            await self.send_report_to_telegram(daily_report, "startup")
+        except Exception as se:
+            logger.error(f"❌ [REPORT GENERATOR] Ошибка стартового отчета: {se}")
 
         while True:
             try:
