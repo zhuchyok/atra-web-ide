@@ -744,6 +744,11 @@ async def _verify_and_refine(prompt: str, response: str, max_refinements: int = 
     return current_response
 
 
+async def _get_knowledge_context(query: str) -> str:
+    """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
+    return await _get_knowledge_context_impl(query)
+
+
 @profile_function("ai_core")
 async def _get_knowledge_context_impl(query: str) -> str:
     """Implementation of knowledge retrieval."""

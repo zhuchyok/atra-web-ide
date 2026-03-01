@@ -45,7 +45,7 @@ class Settings(BaseSettings):
         os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
     )
     default_model: str = os.getenv("DEFAULT_MODEL", "victoria-wisdom-30b")
-    ollama_timeout: float = float(os.getenv("OLLAMA_TIMEOUT", "120.0"))
+    ollama_timeout: float = float(os.getenv("OLLAMA_TIMEOUT", "600.0"))
 
     # Database (Knowledge OS)
     database_url: str = os.getenv(
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # Files
     workspace_root: str = os.getenv("WORKSPACE_ROOT", "/tmp/atra-workspace")
     max_file_size: int = int(os.getenv("MAX_FILE_SIZE", "10485760"))  # 10MB
-    allowed_file_extensions: List[str] = [
+    allowed_file_extensions: list[str] = [
         ".py",
         ".js",
         ".ts",
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     ]
 
     # CORS - Безопасность
-    cors_origins: List[str] = [
+    cors_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3002",
         "http://localhost:5173",
@@ -87,8 +87,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
     cors_allow_credentials: bool = True
-    cors_allow_methods: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    cors_allow_headers: List[str] = ["*"]
+    cors_allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    cors_allow_headers: list[str] = ["*"]
 
     # Rate Limiting
     rate_limit_enabled: bool = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"

@@ -65,9 +65,13 @@ services:
     user: root
     networks:
       - atra-network
+    deploy:
+      resources:
+        limits:
+          memory: 12g
+        reservations:
+          memory: 6g
     # [SINGULARITY 14.1] Increased memory for heavy reasoning tasks
-    # mem_limit: 16g
-    # mem_reservation: 8g
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app
@@ -84,8 +88,8 @@ services:
       VICTORIA_PLANNER_MODEL: "victoria-wisdom-30b"
       # 🐛 Debug mode: set to "true" to enable verbose logging
       VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
-      # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
-      OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
+      # Таймаут одного вызова LLM (Ollama): 600 с — чтобы не обрывать ответ на тяжёлых моделях
+      OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-600}
       # Руки Виктории: держать victoria-wisdom-30b в Ollama (86400 = 24ч; -1 = бессрочно в Ollama API)
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-86400}
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
@@ -556,6 +560,12 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_orchestrator
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+        reservations:
+          memory: 4g
     networks:
       - atra-network
     environment:
@@ -616,6 +626,7 @@ services:
       TELEGRAM_REPORTS_ENABLED: ${TELEGRAM_REPORTS_ENABLED:-true}
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "telegram_notifications_worker.py"]
     depends_on:
