@@ -29,15 +29,20 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 # ==============================================================================
 
 # Приоритет для OLLAMA (порт 11434) - по мощности
+# ВАЖНО: victoria-wisdom-30b:latest — мозг и руки Виктории (всегда приоритет №1), дообучаем и заменяем в будущем
 OLLAMA_BEST_FIRST: List[str] = [
-    "victoria-wisdom-30b",  # 30B Wisdom Era (Fine-tuned) - ПРИОРИТЕТ №1
-    "tinyllama:1.1b-chat",  # Tiny fallback (всегда в памяти)
-    "lfm2.5-thinking:1.2b",  # Logic check (всегда в памяти)
-    "moondream:latest",  # Vision small (всегда в памяти)
-    "deepseek-r1:14b",  # 14B Fast Reasoning (Medium) - РЕЗЕРВ
+    "victoria-wisdom-30b:latest",  # 30B Wisdom Era (мозг и руки) - ПРИОРИТЕТ №1
+    "victoria-wisdom-30b",
+    "qwen3.5:35b",  # 35B Coding/Reasoning - резерв для сложных задач
+    "deepseek-r1:32b",
+    "qwq:32b",
+    "gemma3n:e4b",  # 4B быстрые задачи (SEO, грамматика, Telegram)
+    "tinyllama:1.1b-chat",  # Tiny fallback
+    "lfm2.5-thinking:1.2b",  # Logic check
+    "moondream:latest",  # Vision small
+    "qwen3-coder:30b",  # РЕЗЕРВ (база для Victoria)
+    "deepseek-r1:14b",  # РЕЗЕРВ
     "minicpm-v:latest",  # Vision medium - РЕЗЕРВ
-    "deepseek-r1:32b",  # РЕЗЕРВ
-    "qwq:32b",  # РЕЗЕРВ
     "glm-4.7-flash:latest",  # РЕЗЕРВ
 ]
 
@@ -51,15 +56,17 @@ MLX_BEST_FIRST: List[str] = [
 ]
 
 # Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
+# victoria-wisdom-30b:latest — основной мозг/руки; qwen3.5:35b — тяжёлые coding/reasoning; gemma3n:e4b — быстрые задачи
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
-    "fast": ["tinyllama:1.1b-chat", "lfm2.5-thinking:1.2b", "victoria-wisdom-30b"],
-    "default": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
-    "general": ["victoria-wisdom-30b", "tinyllama:1.1b-chat"],
-    "coding": ["victoria-wisdom-30b"],
-    "reasoning": ["victoria-wisdom-30b", "deepseek-r1:14b", "deepseek-r1:32b"],
-    "complex": ["victoria-wisdom-30b", "deepseek-r1:32b", "qwq:32b"],
+    "fast": ["tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
+    "default": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b", "gemma3n:e4b", "tinyllama:1.1b-chat"],
+    "general": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b", "gemma3n:e4b", "tinyllama:1.1b-chat"],
+    "coding": ["qwen3.5:35b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b", "qwen3-coder:30b"],
+    "reasoning": ["deepseek-r1:32b", "qwq:32b", "qwen3.5:35b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
+    "complex": ["qwen3.5:35b", "deepseek-r1:32b", "qwq:32b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
     "vision": ["moondream:latest", "minicpm-v:latest"],
-    "vip": ["victoria-wisdom-30b"],
+    "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat"],
+    "vip": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
     "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest"],
 }
 
@@ -68,9 +75,9 @@ MLX_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
     "default": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
     "general": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "coding": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "reasoning": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-    "complex": ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "coding": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "reasoning": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+    "complex": ["phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
 }
 
 

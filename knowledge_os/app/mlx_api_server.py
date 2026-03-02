@@ -5,22 +5,24 @@ FastAPI сервер для обслуживания запросов от аг�
 """
 
 import asyncio
-import logging
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any, Deque
-import json
-import os
-import time
-import threading
-from datetime import datetime, timezone
-from collections import defaultdict, deque
-from mlx_lm import load, generate
-import sys
 import gc
+import json
+import logging
+import os
+import sys
+import threading
+import time
+from collections import defaultdict, deque
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from typing import Any, Deque, Dict, List, Optional
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from mlx_lm import generate, load
+from pydantic import BaseModel
+
 
 # --- VLLM-STYLE CORE (Singularity 10.0) ---
 class BatchRequest:
@@ -45,26 +47,30 @@ class ContinuousBatcher:
         if not self.is_running:
             asyncio.create_task(self._process_loop())
 
-    async def _process_loop(self):
-        self.is_running = True
-        while self.queue:
-            # В реальном vLLM здесь идет объединение тензоров
-            # В MLX эмулируем через эффективную очередь и приоритеты
-            req = self.queue.popleft()
-            try:
-                # Имитация PagedAttention: оптимизация KV-кэша перед генерацией
-                # (В MLX это делается через mlx.core.metal.clear_cache при необходимости)
-                import mlx.core as mx
-                mx.metal.clear_cache()
-                
-                loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(None, 
-                    lambda: generate(self.model, self.tokenizer, prompt=req.prompt, max_tokens=req.max_tokens)
-                )
-                req.future.set_result(response)
-            except Exception as e:
-                req.future.set_exception(e)
-        self.is_running = False
+    # Глобальная блокировка для Metal (Apple GPU)
+# Metal не поддерживает одновременную генерацию даже для разных моделей в одном процессе
+# без специальной настройки command buffers.
+_metal_global_lock = threading.Lock()
+
+async def _process_loop(self):
+    self.is_running = True
+    while self.queue:
+        req = self.queue.popleft()
+        try:
+            import mlx.core as mx
+            mx.metal.clear_cache()
+
+            loop = asyncio.get_event_loop()
+
+            def generate_with_global_lock():
+                with _metal_global_lock:
+                    return generate(self.model, self.tokenizer, prompt=req.prompt, max_tokens=req.max_tokens)
+
+            response = await loop.run_in_executor(None, generate_with_global_lock)
+            req.future.set_result(response)
+        except Exception as e:
+            req.future.set_exception(e)
+    self.is_running = False
 
 # --- END VLLM-STYLE CORE ---
 
@@ -134,6 +140,11 @@ _max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "2"))
 _concurrent_semaphore = asyncio.Semaphore(_max_concurrent_requests)
 # VIP Семафор для Виктории (Dual-Channel Priority)
 _vip_semaphore = asyncio.Semaphore(1)
+
+# Глобальная блокировка для Metal (Apple GPU)
+# Metal не поддерживает одновременную генерацию даже для разных моделей в одном процессе
+# без специальной настройки command buffers.
+_metal_global_lock = threading.Lock()
 # Таймаут ожидания слота: из env или макс по оценкам моделей (загрузка + инференс + запас)
 _queue_wait_timeout = None  # задаётся через _max_queue_wait_timeout() после определения MODEL_TIME_ESTIMATES
 _request_lock = threading.Lock()
@@ -143,11 +154,18 @@ _rate_limit_max = int(os.getenv("MLX_RATE_LIMIT_MAX", "500"))  # макс зап
 
 # Очередь запросов с приоритетами
 try:
-    from app.mlx_request_queue import get_request_queue, RequestPriority
+    from app.mlx_request_queue import RequestPriority, get_request_queue
     REQUEST_QUEUE_AVAILABLE = True
 except ImportError:
     REQUEST_QUEUE_AVAILABLE = False
     logger.debug("ℹ️ MLX Request Queue не доступна, используем прямую обработку")
+
+# Класс-заглушка для RequestPriority, если модуль не найден
+if not REQUEST_QUEUE_AVAILABLE:
+    class RequestPriority:
+        HIGH = 0
+        MEDIUM = 1
+        LOW = 2
 
 # Отслеживание активных запросов к моделям (защита от выгрузки используемых моделей)
 _active_model_requests = defaultdict(int)  # {model_key: count} - сколько запросов обрабатывается для каждой модели
@@ -208,7 +226,7 @@ _MLX_ONLY_LIGHT = os.getenv("MLX_ONLY_LIGHT", "true").lower() == "true"
 _VICTORIA_MLX_BRAIN = os.getenv("VICTORIA_MLX_BRAIN", "false").lower() == "true"
 if _VICTORIA_MLX_BRAIN:
     CATEGORY_TO_MODEL = {"reasoning": "victoria-wisdom-30b", "coding": "victoria-wisdom-30b", "code": "victoria-wisdom-30b", "fast": "fast", "tiny": "tiny", "default": "victoria-wisdom-30b"}
-    _preload_models = ["victoria-wisdom-30b"]
+    _preload_models = ["victoria-wisdom-30b", "phi3.5:3.8b", "qwen2.5:3b"]
 elif _MLX_ONLY_LIGHT:
     CATEGORY_TO_MODEL = {"reasoning": "fast", "coding": "fast", "code": "fast", "fast": "fast", "tiny": "tiny", "default": "fast"}
     _preload_models = ["fast"] if _preload_models else []  # при only_light предзагружаем только лёгкую
@@ -233,15 +251,17 @@ OLLAMA_TO_MLX_MAP = {
 
 # Оценки времени по моделям (только лёгкие в MLX). Fallback по размеру в имени — в _get_estimates_for_model.
 MODEL_TIME_ESTIMATES = {
-    "default": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
-    "fast": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
-    "phi3.5:3.8b": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
-    "phi3:mini-4k": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 30},
-    "qwen2.5:3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
-    "qwen_3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 25},
-    "tinyllama:1.1b-chat": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20},
-    "tiny": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 20},
-    "victoria-wisdom-30b": {"load_sec": 90, "inference_sec_per_1k": 45, "margin_sec": 60},
+    "default": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 120},
+    "fast": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 120},
+    "phi3.5:3.8b": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 120},
+    "phi3:mini-4k": {"load_sec": 25, "inference_sec_per_1k": 15, "margin_sec": 120},
+    "qwen2.5:3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 120},
+    "qwen_3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 120},
+    "tinyllama:1.1b-chat": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 120},
+    "tiny": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 120},
+    "victoria-wisdom-30b": {"load_sec": 90, "inference_sec_per_1k": 45, "margin_sec": 300},
+    "qwen3.5:35b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
+    "deepseek-r1:32b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
 }
 
 
@@ -409,7 +429,8 @@ def evict_lru_to_limit(keep_max: int):
 def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
     """Очистка неиспользуемых моделей при нехватке памяти (LRU стратегия)"""
     memory_info = check_memory()
-    
+    initial_used = memory_info["used_percent"]
+
     # [SINGULARITY 21.0] Dynamic Memory Guard 2.0
     # Вместо жесткого лимита используем динамический расчет
     available_gb = memory_info.get("available_gb", 0)
@@ -419,19 +440,19 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
         target_keep = 2  # Средне - 2 модели
     else:
         target_keep = 1  # Мало - только 1 модель
-        
+
     keep_count = max(keep_count, target_keep)
-    
+
     if memory_info["used_percent"] > _memory_critical_threshold or aggressive:
         logger.warning(f"🚨 Критическая нехватка памяти: {memory_info['used_percent']*100:.1f}%")
-        
+
         # Проверяем, какие модели используются прямо сейчас
         with _request_lock:
             active_models = {k for k, v in _active_model_requests.items() if v > 0}
             loading_models = _loading_models.copy()
-        
+
         protected_models = active_models | loading_models
-        
+
         # КРИТИЧНО: Также защищаем модели, которые недавно использовались (в последние 30 секунд)
         # Это предотвращает выгрузку модели сразу после завершения генерации (конфликт Metal)
         now = datetime.now()
@@ -441,7 +462,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
         except (RuntimeError, AttributeError) as e:
             logger.warning(f"⚠️ Ошибка при получении ключей кэша: {e}")
             cache_keys = []
-        
+
         for key in cache_keys:
             try:
                 model_data = _models_cache.get(key)
@@ -455,19 +476,19 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
             except (KeyError, AttributeError, TypeError) as e:
                 logger.warning(f"⚠️ Ошибка при проверке модели {key}: {e}, пропускаем")
                 continue
-        
+
         if protected_models:
             logger.info(f"🛡️ Защищены от выгрузки (используются/недавно использовались): {protected_models}")
-        
+
         if aggressive or memory_info["used_percent"] > 0.98:  # 98% - экстренная ситуация
             # Экстренная очистка: выгружаем только НЕИСПОЛЬЗУЕМЫЕ модели
-            logger.error(f"🚨 ЭКСТРЕННАЯ ОЧИСТКА: выгружаем неиспользуемые модели из памяти")
+            logger.error("🚨 ЭКСТРЕННАЯ ОЧИСТКА: выгружаем неиспользуемые модели из памяти")
             keys_to_remove = [k for k in _models_cache.keys() if k not in protected_models]
-            
+
             if not keys_to_remove and protected_models:
                 logger.warning(f"⚠️ Все модели используются! Нельзя выгрузить ни одну модель. Активные: {protected_models}")
                 return  # Не можем ничего выгрузить
-            
+
             for key in keys_to_remove:
                 # КРИТИЧНО: Проверяем, нет ли активных генераций для этой модели
                 try:
@@ -476,7 +497,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                         if active_count > 0:
                             logger.warning(f"⚠️ Пропускаем выгрузку модели {key} - есть активные генерации ({active_count})")
                             continue
-                    
+
                     # КРИТИЧНО: Проверяем, что модель все еще в кэше перед удалением
                     if key in _models_cache:
                         del _models_cache[key]
@@ -493,13 +514,13 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
             except (RuntimeError, AttributeError) as e:
                 logger.warning(f"⚠️ Ошибка при получении items кэша: {e}")
                 cache_items = []
-            
+
             sorted_models = sorted(
                 cache_items,
                 key=lambda x: (x[1].get("use_count", 0) if x[1] else 0, x[1].get("last_used", datetime.min) if x[1] else datetime.min),
                 reverse=True
             )
-            
+
             # Оставляем keep_count самых используемых + все защищенные
             models_to_keep_keys = set()
             for k, v in sorted_models:
@@ -507,13 +528,13 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                     models_to_keep_keys.add(k)
                 elif len(models_to_keep_keys) < keep_count:
                     models_to_keep_keys.add(k)
-            
+
             keys_to_remove = [k for k in _models_cache.keys() if k not in models_to_keep_keys]
-            
+
             if not keys_to_remove:
-                logger.info(f"✅ Все модели защищены или необходимы, очистка не требуется")
+                logger.info("✅ Все модели защищены или необходимы, очистка не требуется")
                 return
-            
+
             for key in keys_to_remove:
                 # КРИТИЧНО: Проверяем, нет ли активных генераций для этой модели
                 try:
@@ -522,7 +543,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                         if active_count > 0:
                             logger.warning(f"⚠️ Пропускаем выгрузку модели {key} - есть активные генерации ({active_count})")
                             continue
-                    
+
                     # КРИТИЧНО: Проверяем, что модель все еще в кэше перед удалением
                     if key in _models_cache:
                         model_data = _models_cache[key]
@@ -533,12 +554,12 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
                 except (KeyError, RuntimeError) as e:
                     logger.warning(f"⚠️ Ошибка при выгрузке модели {key}: {e}, пропускаем")
                     continue
-            
+
             logger.info(f"✅ Оставлены модели: {list(models_to_keep_keys)} (защищены: {list(protected_models)})")
-        
+
         # Принудительная сборка мусора
         gc.collect()
-        
+
         # Проверяем результат
         memory_info_after = check_memory()
         freed_percent = (initial_used - memory_info_after["used_percent"]) * 100
@@ -548,7 +569,7 @@ def cleanup_unused_models(aggressive: bool = False, keep_count: int = 1):
 def get_model(model_key: str):
     """Получает или загружает модель с защитой от OOM и защитой от выгрузки"""
     model_lock = _model_locks[model_key]
-    
+
     # КРИТИЧНО: Проверяем кэш ПЕРЕД блокировкой (быстрая проверка)
     if model_key in _models_cache:
         with model_lock:
@@ -557,7 +578,7 @@ def get_model(model_key: str):
             _models_cache[model_key]["use_count"] = _models_cache[model_key].get("use_count", 0) + 1
             logger.debug(f"📦 Модель {model_key} уже в кэше (использована {_models_cache[model_key]['use_count']} раз)")
             return _models_cache[model_key]
-    
+
     with model_lock:
         # Проверяем кэш еще раз после получения блокировки (на случай, если модель загрузилась пока ждали)
         if model_key in _models_cache:
@@ -565,7 +586,7 @@ def get_model(model_key: str):
             _models_cache[model_key]["use_count"] = _models_cache[model_key].get("use_count", 0) + 1
             logger.debug(f"📦 Модель {model_key} появилась в кэше пока ждали блокировку")
             return _models_cache[model_key]
-        
+
         # Проверяем, не загружается ли модель уже другим запросом
         if model_key in _loading_models:
             # Модель уже загружается другим запросом - ждем
@@ -584,27 +605,27 @@ def get_model(model_key: str):
                     _models_cache[model_key]["use_count"] = _models_cache[model_key].get("use_count", 0) + 1
                     logger.info(f"✅ Модель {model_key} загружена другим запросом, используем из кэша")
                     return _models_cache[model_key]
-            
+
             # Если модель все еще не загружена, проверяем еще раз
             if model_key in _models_cache:
                 _models_cache[model_key]["last_used"] = datetime.now()
                 _models_cache[model_key]["use_count"] = _models_cache[model_key].get("use_count", 0) + 1
                 return _models_cache[model_key]
-            
+
             if model_key in _loading_models:
                 raise RuntimeError(f"Модель {model_key} не загрузилась за {max_wait} секунд")
-        
+
         # КРИТИЧНО: Metal (Apple GPU) не поддерживает одновременную загрузку и генерацию
         # Проверяем, нет ли активных генераций ДРУГИХ моделей (не той, которую загружаем)
         # Если активная генерация использует ту же модель - это нормально (модель уже загружена)
         with _request_lock:
             # Активные генерации ДРУГИХ моделей (не той, которую загружаем)
             other_models_active = {
-                k: v for k, v in _active_model_requests.items() 
+                k: v for k, v in _active_model_requests.items()
                 if k != model_key and v > 0
             }
             active_other_count = sum(other_models_active.values())
-            
+
             if active_other_count > 0:
                 # Есть активные генерации ДРУГИХ моделей - откладываем загрузку
                 other_models = list(other_models_active.keys())
@@ -628,40 +649,40 @@ def get_model(model_key: str):
                         return _models_cache[model_key]
                     # Обновляем счетчик активных генераций других моделей
                     other_models_active = {
-                        k: v for k, v in _active_model_requests.items() 
+                        k: v for k, v in _active_model_requests.items()
                         if k != model_key and v > 0
                     }
                     active_other_count = sum(other_models_active.values())
-                
+
                 if active_other_count > 0:
                     other_models = list(other_models_active.keys())
                     raise RuntimeError(
                         f"Не удалось загрузить модель {model_key}: активные генерации других моделей "
                         f"({other_models}) не завершились за {max_wait_metal}с"
                     )
-        
+
         # Перед загрузкой новой модели — выгружаем по LRU, чтобы в кэше было не больше MLX_MAX_CACHED_MODELS
         evict_lru_to_limit(_max_cached_models - 1)
-        
+
         # Отмечаем, что модель загружается (защита от выгрузки и от параллельной загрузки)
         _loading_models.add(model_key)
-        
+
         try:
             # Проверка памяти перед загрузкой
             memory_info = check_memory()
             if memory_info["used_percent"] > _memory_warning_threshold:
                 logger.warning(f"⚠️ Высокое использование памяти: {memory_info['used_percent']*100:.1f}%")
                 cleanup_unused_models()
-            
+
             model_path = MODEL_PATHS.get(model_key)
             if not model_path:
                 # Пробуем найти в MLX_MODELS_DIR
                 model_path = os.path.join(MLX_MODELS_DIR, model_key)
-            
+
             if not model_path or not os.path.exists(model_path):
                 logger.error(f"❌ Модель {model_key} не найдена по пути {model_path}")
                 raise ValueError(f"Model {model_key} not found at {model_path}")
-            
+
             # Проверка памяти перед загрузкой новой модели
             memory_info = check_memory()
             if memory_info["used_percent"] > _memory_critical_threshold:
@@ -669,12 +690,12 @@ def get_model(model_key: str):
                 memory_info = check_memory()
                 if memory_info["used_percent"] > _memory_critical_threshold:
                     raise RuntimeError(f"Недостаточно памяти для загрузки модели: {memory_info['used_percent']*100:.1f}% используется")
-            
+
             logger.info(f"🔄 Загрузка модели: {model_key} из {model_path} (память: {memory_info['used_percent']*100:.1f}%)")
             load_start = time.time()
             model, tokenizer = load(model_path)
             load_duration = time.time() - load_start
-            
+
             _models_cache[model_key] = {
                 "model": model,
                 "tokenizer": tokenizer,
@@ -683,7 +704,7 @@ def get_model(model_key: str):
                 "use_count": 1,
                 "load_time_seconds": load_duration
             }
-            
+
             logger.info(f"✅ Модель загружена: {model_key} (загрузка заняла {load_duration:.2f}с)")
             return _models_cache[model_key]
         except MemoryError as e:
@@ -692,7 +713,7 @@ def get_model(model_key: str):
             cleanup_unused_models(aggressive=True)
             memory_info = check_memory()
             raise HTTPException(
-                status_code=503, 
+                status_code=503,
                 detail=f"Insufficient memory to load model: {str(e)}. Memory usage: {memory_info['used_percent']*100:.1f}%"
             )
         except Exception as e:
@@ -708,18 +729,18 @@ def get_model(model_key: str):
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limiting и мониторинг запросов"""
     global _active_requests, _request_times
-    
+
     # Проверка rate limit
     now = time.time()
     client_ip = request.client.host if request.client else "unknown"
-    
+
     with _request_lock:
         # Очистка старых запросов
         _request_times[client_ip] = [
-            t for t in _request_times[client_ip] 
+            t for t in _request_times[client_ip]
             if now - t < _rate_limit_window
         ]
-        
+
         # Проверка лимита
         if len(_request_times[client_ip]) >= _rate_limit_max:
             logger.warning(f"⚠️ Rate limit превышен для {client_ip}")
@@ -727,39 +748,31 @@ async def rate_limit_middleware(request: Request, call_next):
                 status_code=429,
                 content={"error": f"Rate limit exceeded. Max {_rate_limit_max} requests per {_rate_limit_window} seconds"}
             )
-        
+
         _request_times[client_ip].append(now)
-    
+
     # Health/read-only не занимают слот генерации — иначе при одной долгой генерации 70b все проверки ждут и падают по таймауту
     path = request.url.path or ""
     skip_semaphore = path in ("/", "/health", "/api/tags") or path.rstrip("/") in ("", "/health", "/api/tags")
-    
+
     if skip_semaphore:
         return await call_next(request)
-    
+
     # Определяем приоритет и выбираем семафор
     priority_header = request.headers.get("X-Request-Priority", "medium").lower()
-    
-    # Извлекаем модель из тела запроса (если возможно)
+
+    # [vLLM-Style] Headers-only VIP detection (безопасно при обрывах связи)
     is_vip = priority_header == "high"
-    
-    # Пытаемся заглянуть в тело запроса для проверки модели victoria-wisdom-30b
-    # Это может быть накладно, поэтому приоритет отдаем заголовку
-    if not is_vip and request.method == "POST":
-        try:
-            # Читаем тело запроса без потребления стрима
-            body = await request.json()
-            model_name = body.get("model", "")
-            if model_name == "victoria-wisdom-30b":
-                is_vip = True
-        except:
-            pass
+
+    if is_vip:
+        logger.info("🌟 [VIP DETECTED] Priority elevated due to X-Request-Priority header")
 
     target_semaphore = _vip_semaphore if is_vip else _concurrent_semaphore
     queue_wait = _get_queue_wait_timeout()
-    
+
     try:
         await asyncio.wait_for(target_semaphore.acquire(), timeout=queue_wait)
+        logger.info(f"✅ [SEMAPHORE] {'VIP ' if is_vip else ''}slot acquired")
     except asyncio.TimeoutError:
         logger.warning(f"⚠️ Ожидание {'VIP ' if is_vip else ''}слота превысило {queue_wait}с, отклоняем запрос")
         return JSONResponse(
@@ -771,6 +784,14 @@ async def rate_limit_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         return response
+    except RuntimeError as e:
+        if "Unexpected message received: http.request" in str(e):
+            logger.warning(f"📡 [NETWORK] Сетевой обрыв во время запроса: {e}")
+            return JSONResponse(status_code=499, content={"error": "Client closed connection"})
+        raise
+    except Exception as e:
+        logger.error(f"❌ [MIDDLEWARE ERROR] {type(e).__name__}: {e}")
+        raise
     finally:
         with _request_lock:
             _active_requests -= 1
@@ -841,7 +862,7 @@ async def generate_text(
     - low: Фоновые задачи - заголовок X-Request-Priority: low
     """
     start_time = time.time()
-    
+
     # Определяем приоритет из заголовка X-Request-Priority
     priority_header = http_request.headers.get("X-Request-Priority", "medium").lower()
     priority_map = {
@@ -850,9 +871,9 @@ async def generate_text(
         "low": RequestPriority.LOW
     }
     request_priority = priority_map.get(priority_header, RequestPriority.MEDIUM)
-    
+
     logger.debug(f"📥 Запрос на генерацию (приоритет: {request_priority.name}, модель: {request.model})")
-    
+
     # Оценка таймаута по модели (загрузка + инференс + запас) для очереди и ожидания результата
     if request.model:
         _queue_model_key = OLLAMA_TO_MLX_MAP.get(request.model, request.model)
@@ -863,14 +884,14 @@ async def generate_text(
     else:
         _queue_model_key = "default"
     timeout_estimate = get_model_timeout_estimate(_queue_model_key, request.max_tokens, load_time_actual=None)
-    
+
     # Если очередь доступна, используем её
     if REQUEST_QUEUE_AVAILABLE:
         queue = get_request_queue()
-        
+
         # Создаем Future для получения результата
         result_future = asyncio.Future()
-        
+
         async def _execute_generation():
             try:
                 result = await _generate_text_internal(request, start_time)
@@ -881,7 +902,7 @@ async def generate_text(
                 if not result_future.done():
                     result_future.set_exception(e)
                 raise
-        
+
         # Добавляем в очередь (таймаут по модели: загрузка + инференс + запас)
         success, request_id, queue_position = await queue.add_request(
             priority=request_priority,
@@ -889,13 +910,13 @@ async def generate_text(
             timeout=timeout_estimate,
             metadata={"model": request.model, "category": request.category}
         )
-        
+
         if not success:
             raise HTTPException(
                 status_code=503,
                 detail="Queue is full. Please try again later."
             )
-        
+
         # Если запрос выполняется сразу (queue_position = 0), ждем результат
         # Если в очереди (queue_position > 0), также ждем результат
         try:
@@ -910,7 +931,7 @@ async def generate_text(
         except Exception as e:
             logger.error(f"❌ Ошибка выполнения запроса {request_id}: {e}")
             raise
-    
+
     # Fallback: прямая обработка (старый способ)
     return await _generate_text_internal(request, start_time)
 
@@ -935,23 +956,23 @@ async def chat(
         elif msg.role == "assistant":
             # Пропускаем assistant messages при формировании промпта
             pass
-    
+
     # Объединяем system и user в один prompt
     prompt_parts = []
     if system_parts:
         prompt_parts.append("\n".join(system_parts))
     if user_parts:
         prompt_parts.append("\n".join(user_parts))
-    
+
     prompt = "\n\n".join(prompt_parts)
-    
+
     # Извлекаем параметры из options
     temperature = 0.7
     max_tokens = 512
     if request.options:
         temperature = request.options.get("temperature", 0.7)
         max_tokens = request.options.get("num_predict", 512)
-    
+
     # Создаём GenerateRequest
     gen_request = GenerateRequest(
         prompt=prompt,
@@ -960,10 +981,10 @@ async def chat(
         temperature=temperature,
         stream=request.stream
     )
-    
+
     # Вызываем /api/generate
     response = await generate_text(gen_request, http_request)
-    
+
     # Преобразуем ответ в формат /api/chat
     if isinstance(response, dict) and "response" in response:
         return {
@@ -996,7 +1017,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                     status_code=503,
                     detail=f"Insufficient memory: {memory_info['used_percent']*100:.1f}% used"
                 )
-        
+
         # Определяем модель
         if request.model:
             # Проверяем, есть ли маппинг из Ollama имени в MLX
@@ -1009,11 +1030,11 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             model_key = CATEGORY_TO_MODEL.get(request.category, "default")
         else:
             model_key = "default"
-        
+
         # Отмечаем, что модель используется (защита от выгрузки)
         with _request_lock:
             _active_model_requests[model_key] += 1
-        
+
         try:
             # Получаем модель (с защитой от OOM)
             try:
@@ -1023,23 +1044,23 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             except (MemoryError, RuntimeError) as e:
                 logger.error(f"❌ Ошибка загрузки модели {model_key}: {e}")
                 raise HTTPException(status_code=503, detail=f"Model loading failed: {str(e)}")
-            
+
             # Таймаут генерации: загрузка (факт или оценка) + инференс по max_tokens + запас
             gen_timeout = get_model_timeout_estimate(
                 model_key,
                 request.max_tokens,
                 load_time_actual=model_data.get("load_time_seconds"),
             )
-            
+
             # КРИТИЧНО: Metal не поддерживает одновременные операции с одним command buffer
             # Сериализуем все операции генерации для одной модели через блокировку
             # Разные модели могут работать параллельно, но одна модель - последовательно
             model_lock = _model_locks[model_key]
-            
+
             # Генерация с таймаутом
             if request.stream:
                 return StreamingResponse(
-                    generate_stream(model, tokenizer, request.prompt, request.max_tokens, model_lock),
+                    generate_stream(model, tokenizer, request.prompt, request.max_tokens, _metal_global_lock),
                     media_type="application/json"
                 )
             else:
@@ -1049,18 +1070,18 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 loop = asyncio.get_event_loop()
                 try:
                     def generate_with_lock():
-                        """Генерация с блокировкой модели для защиты от Metal конфликтов"""
-                        with model_lock:
+                        """Генерация с глобальной блокировкой Metal для защиты от конфликтов"""
+                        with _metal_global_lock:
                             return generate(model, tokenizer, prompt=request.prompt, max_tokens=request.max_tokens)
-                    
+
                     response_text = await asyncio.wait_for(
                         loop.run_in_executor(None, generate_with_lock),
                         timeout=gen_timeout
                     )
-                    
+
                     duration = time.time() - start_time
                     logger.info(f"✅ Генерация завершена за {duration:.2f}с (модель: {model_key}, токенов: {request.max_tokens})")
-                    
+
                     return {
                         "model": model_key,
                         "response": response_text,
@@ -1078,7 +1099,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                     cleanup_unused_models(aggressive=True)
                     memory_info = check_memory()
                     raise HTTPException(
-                        status_code=503, 
+                        status_code=503,
                         detail=f"Out of memory during generation: {str(e)}. Memory usage: {memory_info['used_percent']*100:.1f}%"
                     )
         except HTTPException:
@@ -1107,28 +1128,28 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             logger.warning(f"⚠️ Ошибка при обновлении счетчика активных запросов для {model_key}: {e}")
 
 
-async def generate_stream(model, tokenizer, prompt: str, max_tokens: int, model_lock: threading.Lock = None):
+async def generate_stream(model, tokenizer, prompt: str, max_tokens: int, metal_lock: threading.Lock = None):
     """Streaming генерация с защитой от Metal конфликтов"""
     # MLX не поддерживает streaming напрямую, эмулируем
-    # КРИТИЧНО: Используем блокировку модели для защиты от Metal конфликтов
-    if model_lock is None:
+    # КРИТИЧНО: Используем глобальную блокировку Metal
+    if metal_lock is None:
         # Если блокировка не передана, создаем временную (не должно происходить)
-        logger.warning("⚠️ generate_stream вызван без блокировки модели, создаем временную")
-        model_lock = threading.Lock()
-    
+        logger.warning("⚠️ generate_stream вызван без блокировки Metal, создаем временную")
+        metal_lock = threading.Lock()
+
     loop = asyncio.get_event_loop()
-    
+
     def generate_with_lock():
-        """Генерация с блокировкой модели"""
-        with model_lock:
+        """Генерация с блокировкой Metal"""
+        with metal_lock:
             return generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens)
-    
+
     response = await loop.run_in_executor(None, generate_with_lock)
-    
+
     # Разбиваем на токены для эмуляции streaming
     for char in response:
         yield json.dumps({"response": char, "done": False}) + "\n"
-    
+
     yield json.dumps({"response": "", "done": True}) + "\n"
 
 
@@ -1137,10 +1158,10 @@ async def get_model_info(model_name: str):
     """Информация о модели"""
     if model_name not in MODEL_PATHS:
         raise HTTPException(status_code=404, detail="Model not found")
-    
+
     model_path = MODEL_PATHS[model_name]
     exists = os.path.exists(model_path)
-    
+
     return {
         "name": model_name,
         "path": model_path,
@@ -1181,14 +1202,14 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
                 prompt_parts.append(f"User: {msg.content}")
             elif msg.role == "assistant":
                 prompt_parts.append(f"Assistant: {msg.content}")
-        
+
         combined_prompt = "\n".join(prompt_parts)
-        
+
         # Определяем модель (маппинг из Anthropic имен в MLX)
         model_key = request.model
         if model_key in OLLAMA_TO_MLX_MAP:
             model_key = OLLAMA_TO_MLX_MAP[model_key]
-        
+
         # Создаем запрос в формате Ollama для внутренней функции
         internal_request = GenerateRequest(
             prompt=combined_prompt,
@@ -1197,7 +1218,7 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
             temperature=request.temperature or 0.7,
             stream=request.stream or False
         )
-        
+
         if request.stream:
             # Streaming response (эмулируем через разбиение ответа)
             async def generate_stream_response():
@@ -1205,23 +1226,23 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
                     # Используем внутреннюю функцию генерации
                     result = await _generate_text_internal(internal_request, time.time())
                     response_text = result.get("response", "")
-                    
+
                     # Форматируем в Anthropic streaming format
                     for char in response_text:
                         yield f"data: {json.dumps({'type': 'content_block_delta', 'delta': {'type': 'text_delta', 'text': char}})}\n\n"
-                    
+
                     yield f"data: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': 'end_turn'}})}\n\n"
                     yield f"data: {json.dumps({'type': 'message_stop'})}\n\n"
                 except Exception as e:
                     logger.error(f"❌ Ошибка streaming генерации: {e}", exc_info=True)
                     yield f"data: {json.dumps({'type': 'error', 'error': {'message': str(e)}})}\n\n"
-            
+
             return StreamingResponse(generate_stream_response(), media_type="text/event-stream")
         else:
             # Non-streaming response
             result = await _generate_text_internal(internal_request, time.time())
             response_text = result.get("response", "")
-            
+
             # Форматируем в Anthropic format
             return {
                 "id": f"msg_{int(time.time() * 1000)}",
@@ -1241,7 +1262,7 @@ async def anthropic_messages(request: AnthropicMessagesRequest):
                     "output_tokens": len(response_text.split())   # Примерная оценка
                 }
             }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1254,18 +1275,18 @@ async def health_check():
     """Health check endpoint с детальной диагностикой и автоматической очисткой памяти"""
     try:
         memory_info = check_memory()
-        
+
         # Автоматическая очистка при критической нехватке памяти
         if memory_info["used_percent"] > _memory_critical_threshold:
             logger.warning(f"⚠️ Health check: критическая нехватка памяти ({memory_info['used_percent']*100:.1f}%), запускаем очистку...")
             cleanup_unused_models(aggressive=memory_info["used_percent"] > 0.98)
             memory_info = check_memory()  # Обновляем после очистки
-        
+
         is_healthy = (
             memory_info["used_percent"] < _memory_critical_threshold and
             _active_requests < _max_concurrent_requests
         )
-        
+
         # Определяем статус
         status = "healthy"
         if memory_info["used_percent"] > _memory_critical_threshold:
@@ -1274,13 +1295,13 @@ async def health_check():
             status = "warning"
         elif not is_healthy:
             status = "degraded"
-        
+
         warnings = []
         if memory_info["used_percent"] > _memory_warning_threshold:
             warnings.append(f"High memory usage: {memory_info['used_percent']*100:.1f}%")
         if _active_requests >= _max_concurrent_requests:
             warnings.append(f"Too many concurrent requests: {_active_requests}/{_max_concurrent_requests}")
-        
+
         return {
             "status": status,
             "service": "MLX API Server",
@@ -1340,65 +1361,69 @@ async def preload_models():
     if not _preload_models:
         logger.info("ℹ️ Предзагрузка моделей отключена (MLX_PRELOAD_MODELS пусто)")
         return
-    
-    logger.info(f"🔄 Предзагрузка моделей: {_preload_models}")
-    
+
+    # [SINGULARITY 21.3] Cold Boot Loader for God Mode
+    is_cold_boot = os.getenv("MLX_COLD_BOOT", "false").lower() == "true"
+
+    logger.info(f"🔄 Предзагрузка моделей: {_preload_models} (Cold Boot: {is_cold_boot})")
+
     # Проверяем память перед предзагрузкой
     memory_info = check_memory()
-    if memory_info["used_percent"] > 0.7:  # 70% - слишком много уже используется
+    if not is_cold_boot and memory_info["used_percent"] > 0.7:
         logger.warning(f"⚠️ Высокое использование памяти ({memory_info['used_percent']*100:.1f}%), пропускаем предзагрузку")
         return
-    
+
     preloaded = []
     failed = []
-    
+
     for model_key in _preload_models:
         # Маппинг категорий на реальные модели
         actual_model = PRELOAD_MODEL_MAP.get(model_key, model_key)
-        
+
         # Пропускаем, если модель уже в кэше
         if actual_model in _models_cache:
             logger.info(f"✅ Модель {actual_model} уже в кэше, пропускаем")
             preloaded.append(actual_model)
             continue
-        
+
         try:
             logger.info(f"🔄 Предзагрузка модели: {actual_model}...")
             start_time = time.time()
-            
+
             # Загружаем модель (get_model сам управляет выгрузкой LRU если нужно)
             model_data = get_model(actual_model)
-            
+
             duration = time.time() - start_time
             logger.info(f"✅ Модель {actual_model} предзагружена за {duration:.2f}с")
             preloaded.append(actual_model)
-            
+
             # Проверяем память после каждой загрузки, но не останавливаемся жестко,
             # так как get_model выгрузит старые если нужно.
             memory_info = check_memory()
             if memory_info["used_percent"] > 0.90:  # 90% - критический порог для остановки предзагрузки
                 logger.warning(f"⚠️ Использование памяти достигло {memory_info['used_percent']*100:.1f}%, останавливаем предзагрузку")
                 break
-                
+
         except Exception as e:
             logger.error(f"❌ Ошибка предзагрузки модели {actual_model}: {e}")
             failed.append(actual_model)
-    
+
     if preloaded:
         logger.info(f"✅ Предзагружено моделей: {len(preloaded)} ({', '.join(preloaded)})")
     if failed:
         logger.warning(f"⚠️ Не удалось предзагрузить: {len(failed)} ({', '.join(failed)})")
-    
+
     # Финальная проверка памяти
     memory_info = check_memory()
     logger.info(f"📊 Использование памяти после предзагрузки: {memory_info['used_percent']*100:.1f}% ({memory_info['available_gb']:.1f}GB свободно)")
 
 
 if __name__ == "__main__":
-    import uvicorn
     import signal
     import sys
-    
+
+    import uvicorn
+
     # Обработка сигналов для graceful shutdown
     def signal_handler(sig, frame):
         logger.info("🛑 Получен сигнал завершения, выполняю graceful shutdown...")
@@ -1406,19 +1431,19 @@ if __name__ == "__main__":
         _models_cache.clear()
         logger.info("✅ Кэш моделей очищен")
         sys.exit(0)
-    
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     try:
         # Исправление порта: 11435 вместо 11434 (критическая проблема!)
         PORT = int(os.getenv("MLX_API_PORT", 11435))
         WORKERS = int(os.getenv("MLX_API_WORKERS", 1))  # MLX не поддерживает multiprocessing
-        
+
         logger.info(f"🚀 Запуск MLX API Server на порту {PORT} (workers: {WORKERS})")
         logger.info(f"📊 Лимиты: {_max_concurrent_requests} параллельных запросов, {_rate_limit_max} запросов/{_rate_limit_window}с")
         logger.info(f"📦 Предзагрузка моделей: {_preload_models if _preload_models else 'отключена'}")
-        
+
         uvicorn.run(
             app,
             host="0.0.0.0",
