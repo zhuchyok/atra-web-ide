@@ -29,10 +29,10 @@ _PROBE_NEW_MODELS = os.getenv("MODEL_PROBE_ON_SCAN", "true").lower() in ("true",
 # ==============================================================================
 
 # Приоритет для OLLAMA (порт 11434) - по мощности
-# ВАЖНО: victoria-wisdom-30b:latest — мозг и руки Виктории (всегда приоритет №1), дообучаем и заменяем в будущем
+# ВАЖНО: victoria-wisdom-v3.5:latest — мозг и руки Виктории (всегда приоритет №1), дообучаем и заменяем в будущем
 OLLAMA_BEST_FIRST: List[str] = [
-    "victoria-wisdom-30b:latest",  # 30B Wisdom Era (мозг и руки) - ПРИОРИТЕТ №1
-    "victoria-wisdom-30b",
+    "victoria-wisdom-v3.5:latest",  # 30B Wisdom Era (мозг и руки) - ПРИОРИТЕТ №1
+    "victoria-wisdom-v3.5",
     "qwen3.5:35b",  # 35B Coding/Reasoning - резерв для сложных задач
     "deepseek-r1:32b",
     "qwq:32b",
@@ -48,7 +48,7 @@ OLLAMA_BEST_FIRST: List[str] = [
 
 # Приоритет для MLX (порт 11435)
 MLX_BEST_FIRST: List[str] = [
-    "victoria-wisdom-30b",  # Local exported model - ПРИОРИТЕТ №1
+    "victoria-wisdom-v3.5",  # Local exported model - ПРИОРИТЕТ №1
     "phi3.5:3.8b",  # 3.8B light
     "qwen2.5:3b",  # 3B light
     "phi3:mini-4k",  # Mini
@@ -56,17 +56,44 @@ MLX_BEST_FIRST: List[str] = [
 ]
 
 # Приоритеты моделей Ollama по категории (первый доступный из списка будет выбран)
-# victoria-wisdom-30b:latest — основной мозг/руки; qwen3.5:35b — тяжёлые coding/reasoning; gemma3n:e4b — быстрые задачи
+# victoria-wisdom-v3.5:latest — основной мозг/руки; qwen3.5:35b — тяжёлые coding/reasoning; gemma3n:e4b — быстрые задачи
 OLLAMA_PRIORITY_BY_CATEGORY: Dict[str, List[str]] = {
     "fast": ["tinyllama:1.1b-chat", "gemma3n:e4b", "lfm2.5-thinking:1.2b"],
-    "default": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b", "gemma3n:e4b", "tinyllama:1.1b-chat"],
-    "general": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b", "gemma3n:e4b", "tinyllama:1.1b-chat"],
-    "coding": ["qwen3.5:35b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b", "qwen3-coder:30b"],
-    "reasoning": ["deepseek-r1:32b", "qwq:32b", "qwen3.5:35b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
-    "complex": ["qwen3.5:35b", "deepseek-r1:32b", "qwq:32b", "victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
+    "default": [
+        "victoria-wisdom-v3.5:latest",
+        "victoria-wisdom-v3.5",
+        "gemma3n:e4b",
+        "tinyllama:1.1b-chat",
+    ],
+    "general": [
+        "victoria-wisdom-v3.5:latest",
+        "victoria-wisdom-v3.5",
+        "gemma3n:e4b",
+        "tinyllama:1.1b-chat",
+    ],
+    "coding": [
+        "victoria-wisdom-v3.5:latest",
+        "victoria-wisdom-v3.5",
+        "qwen3.5:35b",
+        "qwen3-coder:30b",
+    ],
+    "reasoning": [
+        "victoria-wisdom-v3.5:latest",
+        "victoria-wisdom-v3.5",
+        "deepseek-r1:32b",
+        "qwq:32b",
+        "qwen3.5:35b",
+    ],
+    "complex": [
+        "victoria-wisdom-v3.5:latest",
+        "victoria-wisdom-v3.5",
+        "qwen3.5:35b",
+        "deepseek-r1:32b",
+        "qwq:32b",
+    ],
     "vision": ["moondream:latest", "minicpm-v:latest"],
     "thinking": ["lfm2.5-thinking:1.2b", "tinyllama:1.1b-chat"],
-    "vip": ["victoria-wisdom-30b:latest", "victoria-wisdom-30b"],
+    "vip": ["victoria-wisdom-v3.5:latest", "victoria-wisdom-v3.5"],
     "fallback": ["deepseek-r1:32b", "qwq:32b", "glm-4.7-flash:latest"],
 }
 

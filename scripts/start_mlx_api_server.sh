@@ -41,6 +41,14 @@ fi
 echo "✅ MLX API Server найден"
 echo ""
 
+# Загрузка переменных из .env если файл существует
+if [ -f "$ROOT_DIR/.env" ]; then
+  echo "📝 Загрузка конфигурации из .env"
+  set -a
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
 # MLX API Server работает на порту 11435 (можно изменить через MLX_API_PORT)
 MLX_PORT=${MLX_API_PORT:-11435}
 

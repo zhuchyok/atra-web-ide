@@ -22,7 +22,7 @@ DISTILLATION_BATCH_SIZE = 10
 
 class KnowledgeDistiller:
     def __init__(self):
-        self.teacher_model = "victoria-wisdom-30b"
+        self.teacher_model = "victoria-wisdom-v3.5"
 
     async def distill_knowledge_batch(self):
         """

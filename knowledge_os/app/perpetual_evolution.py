@@ -159,13 +159,13 @@ class PerpetualEvolution:
         """
 
         try:
-            # Используем victoria-wisdom-30b для максимальной мудрости в эволюции
+            # Используем victoria-wisdom-v3.5 для максимальной мудрости в эволюции
             # ВАЖНО: Роутер возвращает (content_string, node_name)
             from local_router import LocalAIRouter
 
             router = LocalAIRouter()
             response_data = await router.run_local_llm(
-                prompt, category="reasoning", model="victoria-wisdom-30b"
+                prompt, category="reasoning", model="victoria-wisdom-v3.5"
             )
 
             # Роутер возвращает (response, routing_source)

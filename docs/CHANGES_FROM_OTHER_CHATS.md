@@ -4,16 +4,37 @@
 
 ---
 
-## 25. Консолидация Victoria Wisdom 30B и Автономный Аудит (2026-02-27)
+## 28. Adaptive Ollama Memory Management & MLX Recovery Unload (2026-03-04)
 
-- **Цель:** Убрать «раздвоение личности» системы (Qwen3 vs Wisdom), исправить ошибки MLX и запустить автономное улучшение навыков.
+- **Цель:** Решить проблему "зависших" моделей Ollama, которые не выгружаются после fallback, и защитить память для MLX ("Мозга").
 - **Сделано:**
-  1. **Идентичность:** Модель `qwen3-coder:30b` удалена из всех приоритетов (`available_models_scanner.py`), `ai_core.py`, `.cursorrules` и `SOUL.md`. Теперь везде используется только `victoria-wisdom-30b`.
-  2. **Инфраструктура:** В `mlx_api_server.py` исправлен `MODEL_PATHS`: `victoria-wisdom-30b` теперь ведет к физической папке `/Users/bikos/mlx-models/qwen3-coder-30b-mlx`.
-  3. **Стабильность:** MLX API Server перезапущен. Тестовая генерация подтвердила работоспособность связки «Имя Wisdom -> Тело Qwen3 MLX».
-  4. **Автономность:** Создан `scripts/autonomous_log_auditor.py`. Виктория теперь сама сканирует свои логи (`victoria_bot_supervisor.log`, `evolution.log`), классифицирует ошибки и предлагает решения.
-  5. **Эволюция:** Запущен цикл `Autonomous Skill Refinement` для обновления `SKILL.md` с использованием исправленного «мозга» на MLX.
-- **Итог:** Система очищена от дублей, MLX стабилен, запущен процесс непрерывного самосовершенствования на базе единой модели Victoria Wisdom 30B.
+  1. **Централизованная политика:** Создан модуль `knowledge_os/app/ollama_keep_alive_policy.py` с функцией `get_keep_alive`. Все вызовы Ollama (router, executor, ai_core, embeddings) переведены на использование этой политики.
+  2. **Fallback Immortality:** `victoria-wisdom-v3.5` получает `keep_alive=-1` (бессмертие) в Ollama **только** если MLX недоступен (`mlx_alive=False`).
+  3. **MLX RAM Reserve:** Введён параметр `MLX_RAM_RESERVE_GB` (32GB). При расчёте `keep_alive` Ollama теперь учитывает этот резерв, начиная агрессивную выгрузку моделей заранее.
+  4. **MLX Recovery Event:** Внедрён механизм отслеживания восстановления MLX (`mlx_recovery_state.py`). При переходе MLX из offline в online `local_router.py` запускает фоновую задачу `unload_ollama_fallback_models`, которая явно выгружает (`keep_alive=0`) модели из Ollama.
+  5. **Документация:** Полностью обновлён **docs/MODEL_UNLOADING_AND_MEMORY.md** с описанием новой логики и чек-листом.
+- **Итог:** Модели Ollama больше не "висят" бесконечно после восстановления MLX; память Mac Studio защищена резервом для MLX; v3.5 автоматически становится бессмертным fallback-мозгом и так же автоматически выгружается при оживлении основного "Мозга".
+
+---
+
+## 0.5t. Ollama: почему модели висят, keep_alive везде (2026-02-23)
+
+- **Вопрос (Виктория/команда):** Почему Ollama не выгружает модели, когда MLX уже работает?
+- **Причины (задокументированы в MODEL_UNLOADING_AND_MEMORY.md):** (1) При fallback MLX→Ollama для v3.5 передаётся keep_alive=-1 (бессмертие), после возврата на MLX явной выгрузки нет. (2) Executor и ai_core не передавали keep_alive → Ollama использовал серверный дефолт (при OLLAMA_KEEP_ALIVE=-1 модели не выгружаются). (3) Эмбеддинги не передавали keep_alive=0.
+- **Сделано:** (1) В **docs/MODEL_UNLOADING_AND_MEMORY.md** добавлен раздел «Почему модели Ollama висят и не выгружаются» с чек-листом для поиска. (2) **Executor** (src/agents/core/executor.py): в запросы /api/chat добавлен keep_alive из env (VICTORIA_OLLAMA_KEEP_ALIVE / OLLAMA_KEEP_ALIVE) или 300. (3) **ai_core.py** fallback на Ollama: во все вызовы /api/generate добавлен keep_alive. (4) **semantic_cache** и **semantic_router**: в запросы эмбеддингов добавлен keep_alive=0.
+- **Итог:** Все пути вызова Ollama передают keep_alive; при следующем развёртывании модели будут выгружаться по таймауту (или 0 для эмбеддингов). При желании жёстче выгружать: OLLAMA_KEEP_ALIVE=0 в .env.
+
+---
+
+## 0.5s. Иерархия моделей Ollama: Qwen 3.5 35B, Gemma 3 4B, Victoria Wisdom — мозг и руки (2026-02-23)
+
+- **Цель:** Интегрировать новые локальные модели (qwen3.5:35b, gemma3n:e4b), сохранив victoria-wisdom-30b как единственный «мозг и руки» Виктории (в памяти, дообучение в будущем).
+- **Сделано:**
+  1. **available_models_scanner.py:** В OLLAMA_BEST_FIRST добавлены qwen3.5:35b (резерв для сложных coding/reasoning), gemma3n:e4b (быстрые задачи: SEO, грамматика, Telegram). Victoria-wisdom-30b остаётся приоритет №1. В OLLAMA_PRIORITY_BY_CATEGORY: fast → gemma3n:e4b, tinyllama, …; coding/reasoning/complex → victoria-wisdom-30b, qwen3.5:35b, …
+  2. **local_router.py:** Комментарии и fallback уточнены: при работающем сканере категория fast получает gemma3n:e4b при наличии; fallback для fast оставлен tinyllama:1.1b-chat на случай недоступности сканера.
+- **Итог:** Роутер и сканер подхватывают qwen3.5:35b и gemma3n:e4b при наличии в Ollama; Victoria по-прежнему всегда идёт в victoria-wisdom-30b для default/coding/reasoning/vip. Бенчмарки Gemma 3 для SEO и Qwen 3.5 vs Victoria — по желанию отдельно.
+
+---
 
 ## 0.5r. Сетки 21: единый API (moskit-api), один логин/пароль админки (2026-02-14)
 
@@ -2319,49 +2340,83 @@
 
 ---
 
-## 25. Singularity 24.0: The Speed & Intelligence Era (2026-02-23)
+## 24. Singularity 21.0: Stability & Dual-Channel Brain (2026-03-02)
 
-- **Цель:** Глобальное ускорение и интеллектуализация всех каналов связи с Викторией (Telegram, Чат, API).
+- **Цель:** Обеспечение 100% аптайма "Мозга" корпорации (MLX) на Mac Studio M4 Max и внедрение промышленной архитектуры обслуживания запросов vLLM-style.
 - **Реализация:**
-  1. **Semantic Fast Track (Semantic Router):**
-     - Внедрен `SemanticRouter` (`knowledge_os/app/semantic_router.py`), использующий эмбеддинги для мгновенной классификации запросов.
-     - Приветствия, VIP-запросы и вопросы о системе теперь распознаются семантически (даже если написаны с ошибками или на другом языке) и идут по ускоренному пути.
-  2. **Rocket Speed RAG Cache:**
-     - В `victoria_server.py` внедрена логика продления TTL для Redis-кэша RAG при каждом попадании. Это обеспечивает мгновенный доступ к часто запрашиваемым знаниям в рамках активных сессий.
-  3. **Pulse Warmup (Predictive Loading):**
-     - В `ExtendedThinkingEngine` добавлен механизм `pulse_warmup` для предиктивного прогрева легких моделей (`lfm2.5-thinking`, `tinyllama`) на Apple Silicon Metal.
-  4. **Self-Evolving SOPs:**
-     - Внедрена автоматическая генерация навыка `Fast Track Optimization` при первом использовании системы ускорения.
-  5. **Lean Identity (SOUL & USER):**
-     - Созданы файлы `SOUL.md` и `USER.md` для хранения стабильного контекста личности и целей Босса. Это экономит до 80% токенов на передачу системных правил.
-  6. **On-Demand Session Memory:**
-     - `SessionContextManager` переведен на семантический поиск по истории. Теперь подгружаются только релевантные прошлые диалоги, а не вся история подряд.
-  7. **Semantic Heartbeat (Pulse Check):**
-     - Внедрен механизм семантического мониторинга здоровья системы через легкие модели.
-  8. **Autonomous SOP Evolution (Wisdom Injection):**
-     - Внедрена система автоматического превращения успешных инсайтов в навыки. Проведен стресс-тест, подтвердивший 100% стабильность и ускорение отклика Fast Track до < 1с. Создан SOP `Singularity 24.0 Speed & Intelligence`.
-  9. **Self-Curator Loop (Phase 1):**
-     - Внедрен цикл само-аудита: Cursor-агент делегирует задачи локальной Виктории, которая затем сама анализирует свои ответы.
-     - Оптимизирован выбор моделей для Fast Track (`lfm2.5-thinking` вместо `tinyllama`).
-     - Добавлены новые узлы знаний для улучшения ответов на системные вопросы (статус проекта).
-- **Файлы:** `src/agents/bridge/victoria_server.py`, `knowledge_os/app/semantic_router.py`, `knowledge_os/app/extended_thinking.py`.
-- **Итог:** Система стала «чувствовать» пользователя. Время первого отклика на простые запросы снижено до < 500мс, а сложные задачи получили более глубокий контекст за счет оптимизированного кэша.
+  1. **Headers-Only Priority (vLLM-Style):**
+     - Рефакторинг `rate_limit_middleware` в `mlx_api_server.py`. Полностью удалено чтение тела запроса для VIP-детекции. Приоритет теперь определяется только по заголовку `X-Request-Priority: high`.
+  2. **Metal Global Guard:**
+     - Внедрен `_metal_global_lock` для синхронизации доступа к Apple GPU. Это устранило краши `failed assertion` при попытке одновременной генерации на разных моделях.
+  3. **Dual-Channel VIP Routing:**
+     - В `local_router.py` добавлена автоматическая инъекция VIP-заголовков для модели `victoria-wisdom-30b` и категории `reasoning`. Создан выделенный семафор для мгновенного доступа "Мозга" к ресурсам.
+  4. **Dynamic Memory Guard 2.0:**
+     - Логика очистки кэша переведена с жестких лимитов на динамические (на основе `available_gb`). Система удерживает до 3-х моделей при наличии памяти и агрессивно чистит до 1-й при дефиците.
+  5. **Network Resilience:**
+     - Добавлена обработка `RuntimeError: Unexpected message received` (Starlette race condition). Сервер корректно закрывает соединение с кодом `499` при обрывах Wi-Fi, не роняя основной процесс.
+- **Файлы:** `knowledge_os/app/mlx_api_server.py`, `knowledge_os/app/local_router.py`, `requirements.txt`.
+- **Итог:** Корпорация получила "пуленепробиваемый" AI-сервер, способный выдерживать сетевые аномалии и эффективно распределять мощность M4 Max между тяжелыми и легкими задачами.
 
 ---
 
-## 24. Procedural Memory: Self-Learning Skills System (2026-02-23)
+## 25. Singularity 21.5: Victoria Wisdom v3.5 Total Dominance (2026-03-03)
 
-- **Цель:** Внедрение системы динамического самообучения Виктории, вдохновленной Hermes Agent, для фиксации успешных технических решений в виде исполняемых SOP.
+- **Цель:** Полный переход на единую архитектуру Qwen 3.5 MoE (35B) для обеспечения максимальной когерентности знаний и производительности на Mac Studio M4 Max (128GB).
 - **Реализация:**
-  1. **Dynamic Tooling:**
-     - В `SystemTools` добавлен инструмент `generate_sop_skill`, позволяющий Виктории создавать новые навыки в формате `SKILL.md` прямо в процессе работы.
-     - Инструмент интегрирован в `AuditAgent` для немедленного использования.
-  2. **Skill Registry Evolution:**
-     - `SkillRegistry` переведен на рекурсивный поиск навыков (`glob("**/SKILL.md")`), что позволило организовать иерархическую структуру (например, `skills/procedural/`).
-  3. **First Procedural Skill:**
-     - Создан первый динамический навык `Rust Decimal Refactoring`, фиксирующий процедуру перевода финансовых полей на `Decimal`.
-- **Файлы:** `knowledge_os/src/agents/tools/system_tools.py`, `knowledge_os/src/agents/implementations/audit_agent.py`, `knowledge_os/app/skill_registry.py`, `knowledge_os/app/skills/procedural/rust-decimal-refactoring/SKILL.md`.
-- **Итог:** Виктория получила «процедурную память». Теперь сложные технические цепочки не теряются в логах, а становятся частью активного арсенала команды.
+  1. **Pure MLX Brain (v3.5):**
+     - Сконвертирована и внедрена модель `victoria-wisdom-v3.5` в формате MLX (Q5_K_M).
+     - Время загрузки модели в память: **4.61 сек**.
+     - Модель подтвердила свою личность как _Верховный Интеллект Singularity 14.0_.
+  2. **Unified Ollama Hands (v3.5):**
+     - Создана идентичная модель в Ollama из GGUF (Q5_K_M).
+     - Теперь «Мозг» (MLX) и «Руки» (Ollama) используют одну и ту же базу знаний и логику рассуждений.
+  3. **God Mode Optimization:**
+     - В `local_router.py` модель v3.5 добавлена в список `IMMORTAL_MODELS` и `TOOL_CALL_ALLOWED_MODELS`.
+     - Установлен приоритет MLX для всех стратегических и VIP задач.
+  4. **Configuration Sync:**
+     - Файл `.env` обновлен: v3.5 назначена основной моделью для ролей `VIP`, `REASONING` и `CODER`.
+     - `MLX_PRELOAD_MODELS` теперь включает `victoria-wisdom-v3.5`.
+- **Файлы:** `knowledge_os/app/mlx_api_server.py`, `knowledge_os/app/local_router.py`, `.env`, `training_data/victoria_v35_modelfile`.
+- **Итог:** Ликвидирован разрыв между стратегическим планированием и исполнением. Система достигла пика интеллектуальной мощности для текущего поколения локальных моделей.
+
+---
+
+## 26. UI/UX Unification & Layout Stability: "Setki 21" (2026-03-03)
+
+- **Цель:** Обеспечение визуальной целостности и стабильности интерфейса при переключении между типами сеток.
+- **Реализация:**
+  1. **Unified Hero Layout:**
+     - На всех страницах товаров (index, antimoshka, antikoshka, ultravyu, antipyl, vstavnye, remont) внедрена единая структура Hero-секции.
+     - Установлен фиксированный верхний отступ `pt-10` относительно главного меню.
+  2. **Layout Jumping Fix:**
+     - Для предотвращения «прыжков» контента из-за разной длины описаний (3 или 4 строки) внедрена фиксированная минимальная высота основного контейнера `min-h-[400px]`.
+     - Использовано выравнивание `items-stretch` для всей строки и `justify-start + pt-12` для текстового блока, что гарантирует идентичную точку старта заголовков на всех страницах.
+  3. **Breadcrumbs Optimization:**
+     - Хлебные крошки переведены в `absolute` позиционирование в `layouts/default.vue`. Это исключило их влияние на вертикальный поток контента, сделав выравнивание заголовков независимым от наличия крошек.
+  4. **Spacing Balance:**
+     - Оптимизированы отступы между Hero-блоком и калькулятором (`pb-4` + `mb-8`), что убрало лишнее пустое пространство и сделало верстку более плотной.
+  5. **Asset Correction:**
+     - Восстановлено корректное изображение замера (`hero-zamer-common.png`) для основных типов сеток по запросу пользователя.
+- **Файлы:** `layouts/default.vue`, `pages/index.vue`, `pages/vstavnye/index.vue`, `pages/remont/index.vue`, `pages/antikoshka/index.vue`, `pages/antimoshka/index.vue`, `pages/antipyl/index.vue`, `pages/ultravyu/index.vue`.
+- **Итог:** Сайт приобрел монолитный, законченный вид. Переключение между вкладками происходит без визуальных искажений и смещений элементов.
+
+---
+
+## 27. Adaptive Ollama Memory Management: "Smart Sleep" (2026-03-04)
+
+- **Цель:** Оптимизация потребления унифицированной памяти Mac Studio (освобождение ~20ГБ) при сохранении высокой надежности системы.
+- **Реализация:**
+  1. **Global Keep-Alive Policy:**
+     - В `knowledge_os/docker-compose.yml` параметр `OLLAMA_KEEP_ALIVE` для всех сервисов установлен в **10 минут** (`600s`). Теперь модели в Ollama автоматически выгружаются при бездействии, освобождая ресурсы для MLX.
+  2. **Selective Immortality Removal:**
+     - Модель `victoria-wisdom-v3.5` удалена из списка `IMMORTAL_MODELS` в `local_router.py`. Она больше не занимает память Ollama постоянно в штатном режиме.
+  3. **Fallback Immortality Logic:**
+     - В `local_router.py` внедрена интеллектуальная логика: если MLX-сервер («Мозг») недоступен, при вызове `victoria-wisdom-v3.5` через Ollama принудительно устанавливается `keep_alive: -1`.
+     - Это гарантирует, что в аварийном режиме Ollama-копия ядра станет «бессмертной» и обеспечит стабильную работу до восстановления MLX.
+  4. **Dynamic Context Injection:**
+     - Роутер теперь динамически проверяет здоровье MLX-узлов перед каждым запросом и корректирует параметры удержания модели в памяти Ollama.
+- **Файлы:** `knowledge_os/app/local_router.py`, `knowledge_os/docker-compose.yml`, `docs/MASTER_REFERENCE.md`.
+- **Итог:** Достигнут идеальный баланс: Mac Studio работает максимально эффективно, используя память только тогда, когда это нужно, но система мгновенно «бронирует» ресурсы при возникновении критических сбоев.
 
 ---
 

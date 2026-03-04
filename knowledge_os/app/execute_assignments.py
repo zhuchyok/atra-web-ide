@@ -8,6 +8,7 @@
 
 import asyncio
 import logging
+import os
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -166,78 +167,105 @@ async def execute_assignments_async(
                     except ImportError:
                         from ai_core import run_smart_agent_async
 
-                    logger.info(
-                        f"⏳ [MONSTER] Запуск run_smart_agent_async для {expert_name}, timeout={timeout_per_expert}"
-                    )
-                    report = await asyncio.wait_for(
-                        run_smart_agent_async(
-                            subtask_desc,
-                            expert_name=expert_name,
-                            category="orchestrator_assignment",
-                        ),
-                        timeout=timeout_per_expert,
-                    )
+                    max_retries = 3
+                    retry_delay = 5  # Начальная задержка в секундах
+                    last_error = None
 
-                    # Обновляем задачу в БД как завершенную
-                    report_text = str(report.get("result") if isinstance(report, dict) else report)
-                    await expert_conn.execute(
-                        """
-                        UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()
-                        WHERE id = $1
-                    """,
-                        task_id,
-                        report_text,
-                    )
-
-                    # МОНСТР-ЛОГИКА: Сохраняем результат в knowledge_nodes, чтобы эксперты учились друг у друга
-                    try:
-                        # Пытаемся получить эмбеддинг для RAG
-                        embedding = None
+                    for attempt in range(max_retries + 1):
                         try:
-                            from app.semantic_cache import get_embedding
+                            if attempt > 0:
+                                logger.info(
+                                    f"🔄 [SELF-HEALING] Попытка {attempt}/{max_retries} для {expert_name} (задержка {retry_delay}с)"
+                                )
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2  # Экспоненциальная задержка
 
-                            embedding = await get_embedding(report_text[:1000])
-                        except Exception:
-                            pass
+                            logger.info(
+                                f"⏳ [MONSTER] Запуск run_smart_agent_async для {expert_name}, timeout={timeout_per_expert}"
+                            )
+                            report = await asyncio.wait_for(
+                                run_smart_agent_async(
+                                    subtask_desc,
+                                    expert_name=expert_name,
+                                    category="orchestrator_assignment",
+                                ),
+                                timeout=timeout_per_expert,
+                            )
 
-                        await expert_conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (content, domain_id, confidence_score, embedding, is_verified, metadata)
-                            VALUES ($1, (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1), 0.9, $2, TRUE, $3::jsonb)
-                            ON CONFLICT DO NOTHING
-                        """,
-                            report_text[:2000],
-                            embedding,
-                            json.dumps(
-                                {
-                                    "source": "expert_subtask",
-                                    "expert": expert_name,
-                                    "task_id": str(task_id),
-                                    "parent_goal": goal[:200],
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                }
-                            ),
-                        )
-                        logger.info(
-                            f"📚 [LEARNING] Знание от {expert_name} сохранено в базу знаний"
-                        )
-                    except Exception as le:
-                        logger.warning(
-                            f"⚠️ [LEARNING] Не удалось сохранить знание от {expert_name}: {le}"
-                        )
+                            # Если дошли сюда, значит успех
+                            # Обновляем задачу в БД как завершенную
+                            report_text = str(
+                                report.get("result") if isinstance(report, dict) else report
+                            )
+                            await expert_conn.execute(
+                                """
+                                UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()
+                                WHERE id = $1
+                            """,
+                                task_id,
+                                report_text,
+                            )
 
-                    return (key, expert_name, report_text[:800])
+                            # МОНСТР-ЛОГИКА: Сохраняем результат в knowledge_nodes, чтобы эксперты учились друг у друга
+                            try:
+                                # Пытаемся получить эмбеддинг для RAG
+                                embedding = None
+                                try:
+                                    from app.semantic_cache import get_embedding
+
+                                    embedding = await get_embedding(report_text[:1000])
+                                except Exception:
+                                    pass
+
+                                await expert_conn.execute(
+                                    """
+                                    INSERT INTO knowledge_nodes (content, domain_id, confidence_score, embedding, is_verified, metadata)
+                                    VALUES ($1, (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1), 0.9, $2, TRUE, $3::jsonb)
+                                    ON CONFLICT DO NOTHING
+                                """,
+                                    report_text[:2000],
+                                    embedding,
+                                    json.dumps(
+                                        {
+                                            "source": "expert_subtask",
+                                            "expert": expert_name,
+                                            "task_id": str(task_id),
+                                            "parent_goal": goal[:200],
+                                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                                        }
+                                    ),
+                                )
+                                logger.info(
+                                    f"📚 [LEARNING] Знание от {expert_name} сохранено в базу знаний"
+                                )
+                            except Exception as le:
+                                logger.warning(
+                                    f"⚠️ [LEARNING] Не удалось сохранить знание от {expert_name}: {le}"
+                                )
+
+                            return (key, expert_name, report_text[:800])
+
+                        except Exception as e:
+                            last_error = e
+                            logger.error(
+                                f"❌ [MONSTER] Ошибка в попытке {attempt} для {expert_name}: {e}"
+                            )
+                            if attempt == max_retries:
+                                raise e
+
                 except Exception as e:
                     import traceback
 
-                    error_msg = f"EXCEPTION: {type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-                    logger.error(f"❌ [MONSTER] Ошибка выполнения для {expert_name}: {error_msg}")
+                    error_msg = f"FATAL EXCEPTION after retries: {type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+                    logger.error(
+                        f"💀 [MONSTER] Фатальная ошибка выполнения для {expert_name}: {error_msg}"
+                    )
                     await expert_conn.execute(
                         "UPDATE tasks SET status = 'failed', result = $2 WHERE id = $1",
                         task_id,
                         error_msg,
                     )
-                    return (key, expert_name, f"(ошибка: {e})")
+                    return (key, expert_name, f"(фатальная ошибка: {e})")
                 finally:
                     await expert_conn.close()
 

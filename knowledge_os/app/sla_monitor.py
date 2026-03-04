@@ -17,6 +17,7 @@ SLA_DEFINITIONS = {
     "availability": 0.995,  # 99.5%
     "cache_hit_rate": 0.70,  # 70%
     "token_savings": 0.40,  # 40%
+    "max_ram_usage": 0.85,  # 85%
 }
 
 

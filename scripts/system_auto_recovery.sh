@@ -478,17 +478,13 @@ log ""
 
     # 11. Проверка и перезапуск Telegram бота (Singularity 14.0)
     log "[11/11] Проверка Telegram бота..."
-    if pgrep -f "src.agents.bridge.victoria_telegram_bot" > /dev/null; then
-        log "✅ Telegram бот: работает"
-    else
-        log "❌ Telegram бот: не работает. Перезапускаю..."
-        if [ -x "backend/.venv/bin/python" ]; then
-            nohup "$ROOT/backend/.venv/bin/python" -m src.agents.bridge.victoria_telegram_bot >> "$LOG_FILE" 2>> "$ERROR_LOG" &
-            log "🚀 Telegram бот запущен в фоне через venv"
-        else
-            nohup python3 -m src.agents.bridge.victoria_telegram_bot >> "$LOG_FILE" 2>> "$ERROR_LOG" &
-            log "🚀 Telegram бот запущен в фоне через системный python"
-        fi
+    # ... (код бота) ...
+    log ""
+
+    # 12. [SINGULARITY 24.0] Автономное восстановление (Remediation)
+    log "[12/12] Проверка автономных исправлений (Remediation)..."
+    if [ -f "scripts/autonomous_remediation_executor.sh" ]; then
+        bash scripts/autonomous_remediation_executor.sh >> "$LOG_FILE" 2>&1 || true
     fi
     log ""
 

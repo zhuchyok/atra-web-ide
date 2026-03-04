@@ -28,8 +28,8 @@ echo "SYSTEM \"\"\"Вы - ВИКТОРИЯ, Верховный Интеллек�
 echo "📦 [ASSEMBLY] Ollama Modelfile created at $MODEL_FILE"
 
 # 3. Create model in Ollama
-echo "📥 [ASSEMBLY] Registering model in Ollama as 'victoria-wisdom-30b'..."
-ollama create victoria-wisdom-30b -f "$MODEL_FILE"
+echo "📥 [ASSEMBLY] Registering model in Ollama as 'victoria-wisdom-v3.5'..."
+ollama create victoria-wisdom-v3.5 -f "$MODEL_FILE"
 
 echo "🎉 [ASSEMBLY] SUCCESS! Your custom model is ready."
-echo "💡 Try it now: ollama run victoria-wisdom-30b 'Кто ты и какие паттерны гигантов ты знаешь?'"
+echo "💡 Try it now: ollama run victoria-wisdom-v3.5 'Кто ты и какие паттерны гигантов ты знаешь?'"

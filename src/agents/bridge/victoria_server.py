@@ -2,6 +2,7 @@
 Victoria Agent — Team Lead ATRA. HTTP API для задач.
 Отдельный сервер: контейнер victoria-agent запускает именно Викторию, а не Веронику.
 """
+
 import asyncio
 import hashlib
 import json
@@ -30,6 +31,7 @@ try:
     sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
     from emotion_detector import EmotionDetector
     from query_orchestrator import QueryOrchestrator, QueryType
+
     EMOTION_DETECTOR_AVAILABLE = True
 except ImportError:
     EmotionDetector = None
@@ -38,29 +40,105 @@ except ImportError:
 
 # Простые сообщения для которых не нужен агент Victoria (быстрый путь через MLX/Ollama)
 SIMPLE_PATTERNS = [
-    "привет", "hello", "hi", "здравствуй", "добрый день", "добрый вечер",
-    "как дела", "как ты", "что умеешь", "кто ты", "помоги", "расскажи",
-    "спасибо", "thanks", "пока", "bye", "good", "объясни", "explain",
-    "напиши", "write", "покажи", "show", "код", "code",
-    "функци", "function", "класс", "class", "python", "javascript", "rust",
-    "что такое", "what is", "как работает", "how does", "зачем", "почему",
-    "где", "when", "какой", "which", "сколько", "тест", "test", "ping", "pong"
+    "привет",
+    "hello",
+    "hi",
+    "здравствуй",
+    "добрый день",
+    "добрый вечер",
+    "как дела",
+    "как ты",
+    "что умеешь",
+    "кто ты",
+    "помоги",
+    "расскажи",
+    "спасибо",
+    "thanks",
+    "пока",
+    "bye",
+    "good",
+    "объясни",
+    "explain",
+    "напиши",
+    "write",
+    "покажи",
+    "show",
+    "код",
+    "code",
+    "функци",
+    "function",
+    "класс",
+    "class",
+    "python",
+    "javascript",
+    "rust",
+    "что такое",
+    "what is",
+    "как работает",
+    "how does",
+    "зачем",
+    "почему",
+    "где",
+    "when",
+    "какой",
+    "which",
+    "сколько",
+    "тест",
+    "test",
+    "ping",
+    "pong",
 ]
 
 # Паттерны для мгновенного ответа (Fast Track), игнорируя USE_VICTORIA_ENHANCED
 FAST_TRACK_PATTERNS = [
-    "привет", "hello", "hi", "здравствуй", "добрый день", "добрый вечер",
-    "как дела", "как ты", "кто ты", "что ты умеешь", "спасибо", "thanks", "пока", "bye",
-    "ping", "pong", "тест", "test"
+    "привет",
+    "hello",
+    "hi",
+    "здравствуй",
+    "добрый день",
+    "добрый вечер",
+    "как дела",
+    "как ты",
+    "кто ты",
+    "что ты умеешь",
+    "спасибо",
+    "thanks",
+    "пока",
+    "bye",
+    "ping",
+    "pong",
+    "тест",
+    "test",
 ]
 
 # Паттерны для Victoria Agent (сложные задачи, корпорация, сервера)
 VICTORIA_PATTERNS = [
-    "файл на сервере", "ssh", "подключись", "запусти на", "выполни команду",
-    "создай проект", "разверни", "deploy", "docker", "контейнер",
-    "корпорац", "сервер", "статус", "проверь", "victoria", "виктория",
-    "агент", "задач", "mac studio", "макстудио", "mlx", "rag", "знани", "база"
+    "файл на сервере",
+    "ssh",
+    "подключись",
+    "запусти на",
+    "выполни команду",
+    "создай проект",
+    "разверни",
+    "deploy",
+    "docker",
+    "контейнер",
+    "корпорац",
+    "сервер",
+    "статус",
+    "проверь",
+    "victoria",
+    "виктория",
+    "агент",
+    "задач",
+    "mac studio",
+    "макстудио",
+    "mlx",
+    "rag",
+    "знани",
+    "база",
 ]
+
 
 def is_simple_message(content: str) -> bool:
     """Проверить, является ли сообщение простым (не требует агента)"""
@@ -75,13 +153,14 @@ def is_simple_message(content: str) -> bool:
         if pattern in lower:
             return False
 
-    if len(lower) < 100: # Снизили порог с 200 до 100 для большей уверенности
+    if len(lower) < 100:  # Снизили порог с 200 до 100 для большей уверенности
         return True
 
     for pattern in SIMPLE_PATTERNS:
         if pattern in lower:
             return True
     return False
+
 
 def is_fast_track_message(content: str) -> bool:
     """Проверить, нужно ли отвечать мгновенно (приветствия и т.д.)"""
@@ -95,30 +174,52 @@ def is_fast_track_message(content: str) -> bool:
             return True
     return False
 
+
 def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> str:
     """Автоматический выбор модели на основе содержания сообщения и эксперта"""
     content_lower = content.lower()
 
     # [VIP ROUTE] Если в чате Иван (CEO) или запрос стратегический
-    if any(word in content_lower for word in ["стратег", "корпорац", "совет", "директор", "иван", "ceo"]):
-        return "victoria-wisdom-30b"
+    if any(
+        word in content_lower
+        for word in ["стратег", "корпорац", "совет", "директор", "иван", "ceo"]
+    ):
+        return "victoria-wisdom-v3.5"
 
-    if any(word in content_lower for word in ["подумай", "логика", "планир", "reasoning", "анализ", "объясни", "почему"]):
-        return "victoria-wisdom-30b"
+    if any(
+        word in content_lower
+        for word in ["подумай", "логика", "планир", "reasoning", "анализ", "объясни", "почему"]
+    ):
+        return "victoria-wisdom-v3.5"
 
-    if any(word in content_lower for word in ["код", "программир", "рефактор", "функци", "класс", "python", "javascript", "typescript", "алгоритм"]):
-        return "victoria-wisdom-30b"
+    if any(
+        word in content_lower
+        for word in [
+            "код",
+            "программир",
+            "рефактор",
+            "функци",
+            "класс",
+            "python",
+            "javascript",
+            "typescript",
+            "алгоритм",
+        ]
+    ):
+        return "victoria-wisdom-v3.5"
 
     if len(content) > 500:
-        return "victoria-wisdom-30b"
+        return "victoria-wisdom-v3.5"
 
     if len(content) < 200:
-        return "tinyllama:1.1b-chat" # Быстрая модель для коротких вопросов
+        return "tinyllama:1.1b-chat"  # Быстрая модель для коротких вопросов
 
-    return "victoria-wisdom-30b"
+    return "victoria-wisdom-v3.5"
+
 
 # Загружаем .env при старте
 load_dotenv()
+
 
 def _refresh_knowledge_os_availability():
     global KNOWLEDGE_OS_AVAILABLE, asyncpg, USE_KNOWLEDGE_OS
@@ -126,21 +227,37 @@ def _refresh_knowledge_os_availability():
     if USE_KNOWLEDGE_OS:
         try:
             import asyncpg
+
             KNOWLEDGE_OS_AVAILABLE = True
         except ImportError:
-            logging.warning("asyncpg не установлен, Knowledge OS недоступна. Установите: pip install asyncpg")
+            logging.warning(
+                "asyncpg не установлен, Knowledge OS недоступна. Установите: pip install asyncpg"
+            )
             KNOWLEDGE_OS_AVAILABLE = False
+
 
 _refresh_knowledge_os_availability()
 
 # Canary: оркестрация V2 (A/B по проценту трафика)
-ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in ("1", "true", "yes")
+ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10"))
+
 
 def _refresh_orchestration_v2_settings():
     global ORCHESTRATION_V2_ENABLED, ORCHESTRATION_V2_PERCENTAGE
-    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in ("1", "true", "yes")
-    ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "100")) # Принудительно 100 для монстра
+    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    ORCHESTRATION_V2_PERCENTAGE = float(
+        os.getenv("ORCHESTRATION_V2_PERCENTAGE", "100")
+    )  # Принудительно 100 для монстра
+
 
 _refresh_orchestration_v2_settings()
 
@@ -157,15 +274,18 @@ except ImportError:
 _run_task_store: Dict[str, Dict[str, Any]] = {}
 _RUN_TASK_STORE_TTL = 86400  # 24 часа для God Mode
 
+
 async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
     """Сохранить состояние задачи в БД для Task Persistence"""
     if not KNOWLEDGE_OS_AVAILABLE:
         return
     try:
         pool = await agent._get_db_pool()
-        if not pool: return
+        if not pool:
+            return
         async with pool.acquire() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT INTO tasks (id, goal, status, result, metadata, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (id) DO UPDATE SET
@@ -173,11 +293,18 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
                     result = EXCLUDED.result,
                     metadata = tasks.metadata || EXCLUDED.metadata,
                     updated_at = EXCLUDED.updated_at
-            """, task_id, data.get("goal", ""), data.get("status"),
-               data.get("output"), json.dumps(data.get("metadata", {})),
-               data.get("created_at", datetime.now(timezone.utc)), datetime.now(timezone.utc))
+            """,
+                task_id,
+                data.get("goal", ""),
+                data.get("status"),
+                data.get("output"),
+                json.dumps(data.get("metadata", {})),
+                data.get("created_at", datetime.now(timezone.utc)),
+                datetime.now(timezone.utc),
+            )
     except Exception as e:
         logger.debug(f"Task persistence save failed: {e}")
+
 
 async def _load_tasks_from_db():
     """Загрузить незавершенные задачи из БД при старте"""
@@ -185,7 +312,8 @@ async def _load_tasks_from_db():
         return
     try:
         pool = await agent._get_db_pool()
-        if not pool: return
+        if not pool:
+            return
         async with pool.acquire() as conn:
             rows = await conn.fetch("""
                 SELECT id, goal, status, result, metadata, created_at
@@ -194,34 +322,39 @@ async def _load_tasks_from_db():
                 AND updated_at > NOW() - INTERVAL '24 hours'
             """)
             for row in rows:
-                _run_task_store[row['id']] = {
-                    "goal": row['goal'],
-                    "status": row['status'],
-                    "output": row['result'],
-                    "metadata": json.loads(row['metadata'] or '{}'),
-                    "created_at": row['created_at']
+                _run_task_store[row["id"]] = {
+                    "goal": row["goal"],
+                    "status": row["status"],
+                    "output": row["result"],
+                    "metadata": json.loads(row["metadata"] or "{}"),
+                    "created_at": row["created_at"],
                 }
                 # Если задача была in_progress, пробуем её перезапустить в фоне
-                if row['status'] == 'in_progress':
-                    asyncio.create_task(resume_task_execution(row['id']))
+                if row["status"] == "in_progress":
+                    asyncio.create_task(resume_task_execution(row["id"]))
             if rows:
                 logger.info(f"♻️ Восстановлено {len(rows)} задач из БД")
     except Exception as e:
         logger.debug(f"Task persistence load failed: {e}")
 
+
 async def resume_task_execution(task_id: str):
     """Перезапуск прерванной задачи"""
     task = _run_task_store.get(task_id)
-    if not task: return
+    if not task:
+        return
     logger.info(f"🔄 Перезапуск задачи {task_id}: {task['goal'][:50]}...")
     # Здесь логика вызова agent.run() с сохранением промежуточных результатов
     # Для простоты пока просто логируем, в будущем добавим полноценный resume
+
 
 # Кэш контекста RAG по query_hash (RAG_PLUS_ROCKET_SPEED): key -> (context_str, expiry_ts)
 # RAG_CACHE_BACKEND=memory|redis (по умолчанию memory). При redis — общий кэш между инстансами (NEXT_STEPS §2).
 _rag_ctx_cache: Dict[str, Tuple[str, float]] = {}
 _RAG_CTX_CACHE_MAX = 500
-RAG_CACHE_BACKEND = (os.getenv("RAG_CACHE_BACKEND", "redis") or "redis").strip().lower() # По умолчанию теперь redis
+RAG_CACHE_BACKEND = (
+    (os.getenv("RAG_CACHE_BACKEND", "redis") or "redis").strip().lower()
+)  # По умолчанию теперь redis
 _RAG_REDIS_AVAILABLE = True
 
 
@@ -260,7 +393,9 @@ _rag_latency_last_slow_at: Optional[str] = None
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
 # Длинный контекст (план «умнее быстрее»): лимиты истории и цели; 0 = без обрезки
-VICTORIA_CHAT_HISTORY_MAX_MESSAGES = max(1, int(os.getenv("VICTORIA_CHAT_HISTORY_MAX_MESSAGES", "30")))
+VICTORIA_CHAT_HISTORY_MAX_MESSAGES = max(
+    1, int(os.getenv("VICTORIA_CHAT_HISTORY_MAX_MESSAGES", "30"))
+)
 VICTORIA_HISTORY_MAX_CHARS = int(os.getenv("VICTORIA_HISTORY_MAX_CHARS", "0"))  # 0 = не обрезать
 VICTORIA_GOAL_MAX_CHARS = int(os.getenv("VICTORIA_GOAL_MAX_CHARS", "0"))  # 0 = не обрезать
 
@@ -285,23 +420,40 @@ KNOWLEDGE_OS_AVAILABLE = False
 asyncpg = None
 
 # Canary: оркестрация V2 (A/B по проценту трафика)
-ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in ("1", "true", "yes")
+ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10"))
+
 
 def _refresh_orchestration_v2_settings():
     global ORCHESTRATION_V2_ENABLED, ORCHESTRATION_V2_PERCENTAGE
-    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in ("1", "true", "yes")
+    ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10"))
 
+
 # Долгосрочная память по пользователю/проекту (План «Логика мысли» Фаза 2)
-LONG_TERM_MEMORY_ENABLED = os.getenv("LONG_TERM_MEMORY_ENABLED", "false").lower() in ("1", "true", "yes")
+LONG_TERM_MEMORY_ENABLED = os.getenv("LONG_TERM_MEMORY_ENABLED", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 if USE_KNOWLEDGE_OS:
     try:
         import asyncpg
+
         KNOWLEDGE_OS_AVAILABLE = True
     except ImportError:
-        logging.warning("asyncpg не установлен, Knowledge OS недоступна. Установите: pip install asyncpg")
+        logging.warning(
+            "asyncpg не установлен, Knowledge OS недоступна. Установите: pip install asyncpg"
+        )
         KNOWLEDGE_OS_AVAILABLE = False
 
 # Настройка логирования с поддержкой ELK
@@ -309,7 +461,9 @@ if USE_KNOWLEDGE_OS:
 _log_level = logging.DEBUG if VICTORIA_DEBUG else logging.INFO
 logging.basicConfig(
     level=_log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s' if VICTORIA_DEBUG else '%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    if VICTORIA_DEBUG
+    else "%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("victoria_bridge")
 if VICTORIA_DEBUG:
@@ -332,8 +486,11 @@ if os.getenv("USE_ELK", "false").lower() in ("true", "1", "yes"):
                     sys.path.insert(0, elk_path)
                 try:
                     from elk_handler import create_elk_handler
+
                     elk_url = os.getenv("ELASTICSEARCH_URL", "http://atra-elasticsearch:9200")
-                    elk_handler = create_elk_handler(elasticsearch_url=elk_url, log_level=logging.INFO)
+                    elk_handler = create_elk_handler(
+                        elasticsearch_url=elk_url, log_level=logging.INFO
+                    )
                     if elk_handler:
                         root_logger = logging.getLogger()
                         root_logger.addHandler(elk_handler)
@@ -359,6 +516,7 @@ _RAG_PRELOAD_QUERIES = [
     "что ты умеешь",
 ]
 
+
 # Единый источник: configs/victoria_common + configs/victoria_capabilities.txt (куратор + аудит 2026-02-08)
 def _load_capabilities():
     _root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -366,6 +524,7 @@ def _load_capabilities():
         sys.path.insert(0, _root)
     try:
         from configs.victoria_common import get_capabilities_text
+
         return get_capabilities_text()
     except Exception:
         return (
@@ -385,13 +544,18 @@ def _load_thinking_context():
         sys.path.insert(0, _root)
     try:
         from configs.victoria_common import get_thinking_context
+
         out = get_thinking_context()
         if not out or len(out.strip()) < 20:
-            logger.warning("[VICTORIA] Логика корпорации (thinking_context) пуста или слишком короткая, используем встроенный fallback")
+            logger.warning(
+                "[VICTORIA] Логика корпорации (thinking_context) пуста или слишком короткая, используем встроенный fallback"
+            )
             return "ПРИНЦИПЫ: Делать как нужно; один источник истины (библия); уточнять при неясности; проверять результат; обновлять библию."
         return out
     except Exception as e:
-        logger.warning("[VICTORIA] Не удалось загрузить corporation_thinking: %s, используем fallback", e)
+        logger.warning(
+            "[VICTORIA] Не удалось загрузить corporation_thinking: %s, используем fallback", e
+        )
         return "ПРИНЦИПЫ: Делать как нужно; один источник истины (библия); уточнять при неясности; проверять результат; обновлять библию."
 
 
@@ -414,7 +578,9 @@ async def _preload_rag_cache():
                 await agent._get_knowledge_context(goal, precomputed_embedding=precomputed)
             except Exception as e:
                 logger.debug("RAG preload %r: %s", goal[:30], e)
-        logger.info("[RAG+] Предзагрузка кэша типовых запросов выполнена (%s шт)", len(_RAG_PRELOAD_QUERIES))
+        logger.info(
+            "[RAG+] Предзагрузка кэша типовых запросов выполнена (%s шт)", len(_RAG_PRELOAD_QUERIES)
+        )
     except Exception as e:
         logger.warning("[RAG+] Предзагрузка кэша не выполнена: %s", e)
 
@@ -426,7 +592,9 @@ async def warmup_victoria():
     models_to_warm = [
         os.getenv("VICTORIA_PLANNER_MODEL", "").strip(),
         os.getenv("VICTORIA_MODEL", "").strip(),
-        os.getenv("VICTORIA_WARMUP_EXTRA_MODELS", "").strip(),  # через запятую: nomic-embed-text и др.
+        os.getenv(
+            "VICTORIA_WARMUP_EXTRA_MODELS", ""
+        ).strip(),  # через запятую: nomic-embed-text и др.
     ]
     # Собираем уникальный список непустых моделей + fallback
     seen = set()
@@ -454,7 +622,12 @@ async def warmup_victoria():
                 if r.status_code == 200:
                     logger.info("✅ [VICTORIA] Модель %s загружена", model)
                 else:
-                    logger.warning("[VICTORIA] Прогрев %s вернул %s: %s", model, r.status_code, (r.text or "")[:150])
+                    logger.warning(
+                        "[VICTORIA] Прогрев %s вернул %s: %s",
+                        model,
+                        r.status_code,
+                        (r.text or "")[:150],
+                    )
             except Exception as e:
                 logger.warning("[VICTORIA] Ошибка прогрева модели %s (продолжаем): %s", model, e)
     if os.getenv("VICTORIA_WARMUP_BLOCK_STARTUP", "false").lower() in ("true", "1", "yes"):
@@ -469,16 +642,21 @@ async def lifespan(app: FastAPI):
     global victoria_enhanced_instance, victoria_enhanced_monitoring_started
 
     def _env_bool(key: str, default: bool = False) -> bool:
-        v = (os.getenv(key) or "").strip().strip('"\'')
+        v = (os.getenv(key) or "").strip().strip("\"'")
         return v.lower() in ("true", "1", "yes")
 
     use_enhanced = _env_bool("USE_VICTORIA_ENHANCED", False)
-    enable_monitoring = _env_bool("ENABLE_EVENT_MONITORING", True)  # по умолчанию true — Initiative (Event Bus, File Watcher и т.д.)
-    logger.info(f"Victoria lifespan: USE_VICTORIA_ENHANCED={use_enhanced}, ENABLE_EVENT_MONITORING={enable_monitoring}")
+    enable_monitoring = _env_bool(
+        "ENABLE_EVENT_MONITORING", True
+    )  # по умолчанию true — Initiative (Event Bus, File Watcher и т.д.)
+    logger.info(
+        f"Victoria lifespan: USE_VICTORIA_ENHANCED={use_enhanced}, ENABLE_EVENT_MONITORING={enable_monitoring}"
+    )
     # Глобальный экземпляр создаём при USE_VICTORIA_ENHANCED=true, чтобы /status показывал "enabled"; мониторинг внутри start() при ENABLE_EVENT_MONITORING=false не запускается
     if use_enhanced:
         try:
             import sys
+
             logger.info("Victoria Enhanced: инициализация при старте сервера...")
             # Только /app/knowledge_os — иначе "from app.victoria_enhanced" не резолвится
             ko_paths = [
@@ -492,11 +670,14 @@ async def lifespan(app: FastAPI):
                     sys.path.insert(0, ko_root)
                 try:
                     from app.victoria_enhanced import VictoriaEnhanced
+
                     logger.info("🚀 Инициализация Victoria Enhanced при старте сервера...")
                     victoria_enhanced_instance = VictoriaEnhanced()
                     await victoria_enhanced_instance.start()
                     victoria_enhanced_monitoring_started = True
-                    logger.info("✅ Victoria Enhanced запущен при старте сервера (мониторинг по ENABLE_EVENT_MONITORING)")
+                    logger.info(
+                        "✅ Victoria Enhanced запущен при старте сервера (мониторинг по ENABLE_EVENT_MONITORING)"
+                    )
                     break
                 except ImportError as e:
                     logger.debug(f"Не удалось импортировать VictoriaEnhanced из {ko_root}: {e}")
@@ -516,9 +697,14 @@ async def lifespan(app: FastAPI):
         try:
             _start_experts = time.monotonic()
             await asyncio.wait_for(agent._load_expert_team(), timeout=_experts_timeout)
-            logger.info("[VICTORIA] Предзагрузка экспертов заняла %.2f с", time.monotonic() - _start_experts)
+            logger.info(
+                "[VICTORIA] Предзагрузка экспертов заняла %.2f с", time.monotonic() - _start_experts
+            )
         except asyncio.TimeoutError:
-            logger.warning("Предзагрузка экспертов при старте: таймаут %.0f с (продолжаем без экспертов)", _experts_timeout)
+            logger.warning(
+                "Предзагрузка экспертов при старте: таймаут %.0f с (продолжаем без экспертов)",
+                _experts_timeout,
+            )
         except Exception as e:
             logger.warning("Предзагрузка экспертов при старте: %s", e)
 
@@ -528,7 +714,10 @@ async def lifespan(app: FastAPI):
         await asyncio.wait_for(get_projects_registry(), timeout=_registry_timeout)
         logger.info("Реестр проектов загружен при старте Victoria")
     except asyncio.TimeoutError:
-        logger.warning("Загрузка реестра проектов при старте: таймаут %.0f с (используем fallback)", _registry_timeout)
+        logger.warning(
+            "Загрузка реестра проектов при старте: таймаут %.0f с (используем fallback)",
+            _registry_timeout,
+        )
     except Exception as e:
         logger.warning("Загрузка реестра проектов при старте: %s", e)
 
@@ -556,6 +745,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️ Ошибка остановки мониторинга: {e}")
 
+
 app = FastAPI(title="Victoria ATRA Bridge API", lifespan=lifespan)
 
 
@@ -574,7 +764,9 @@ class VictoriaAgent(BaseAgent):
         logger.info("[VICTORIA_INIT] ENV VICTORIA_PLANNER_MODEL: '%s'", env_planner_model)
 
         if model_name is None:
-            model_name = env_victoria_model or "qwen2.5-coder:32b"  # fallback до первого сканирования
+            model_name = (
+                env_victoria_model or "qwen2.5-coder:32b"
+            )  # fallback до первого сканирования
 
         logger.info("[VICTORIA_INIT] Initial model_name: %s", model_name)
 
@@ -595,10 +787,15 @@ class VictoriaAgent(BaseAgent):
             try:
                 # Пытаемся импортировать LocalAIRouter из knowledge_os
                 import sys
+
                 router_paths = [
                     "/app/app/local_router.py",
-                    os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app/local_router.py"),
-                    os.path.join(os.path.dirname(__file__), "../../knowledge_os/app/local_router.py"),
+                    os.path.join(
+                        os.path.dirname(__file__), "../../../knowledge_os/app/local_router.py"
+                    ),
+                    os.path.join(
+                        os.path.dirname(__file__), "../../knowledge_os/app/local_router.py"
+                    ),
                 ]
                 for path in router_paths:
                     if os.path.exists(path):
@@ -606,14 +803,19 @@ class VictoriaAgent(BaseAgent):
                             sys.path.insert(0, os.path.dirname(path))
                         try:
                             from local_router import LocalAIRouter
+
                             self.local_router = LocalAIRouter()
                             logger.info("[VICTORIA_INIT] ✅ LocalAIRouter (MLX support) загружен")
                             break
                         except ImportError as ie:
-                            logger.debug(f"[VICTORIA_INIT] LocalAIRouter import failed from {path}: {ie}")
+                            logger.debug(
+                                f"[VICTORIA_INIT] LocalAIRouter import failed from {path}: {ie}"
+                            )
                             continue
             except Exception as e:
-                logger.debug(f"[VICTORIA_INIT] LocalAIRouter недоступен: {e}, используем только Ollama")
+                logger.debug(
+                    f"[VICTORIA_INIT] LocalAIRouter недоступен: {e}, используем только Ollama"
+                )
 
         # По умолчанию planner = та же модель, что и executor: от понимания зависит всё, меньше галлюцинаций
         # VICTORIA_PLANNER_MODEL можно задать отдельно (например быстрая модель для планов)
@@ -644,7 +846,9 @@ class VictoriaAgent(BaseAgent):
 
         if USE_KNOWLEDGE_OS and KNOWLEDGE_OS_AVAILABLE:
             # Инициализация будет выполнена асинхронно при первом использовании
-            logger.info("✅ Knowledge OS интеграция включена (инициализация при первом использовании)")
+            logger.info(
+                "✅ Knowledge OS интеграция включена (инициализация при первом использовании)"
+            )
 
     async def _get_db_pool(self):
         """Получить или создать pool соединений с Knowledge OS"""
@@ -653,7 +857,9 @@ class VictoriaAgent(BaseAgent):
 
         if self.db_pool is None:
             try:
-                db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+                db_url = os.getenv(
+                    "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                )
                 _pool_cmd_timeout = int(os.getenv("VICTORIA_DB_POOL_COMMAND_TIMEOUT", "25"))
                 self.db_pool = await asyncpg.create_pool(
                     db_url,
@@ -689,7 +895,7 @@ class VictoriaAgent(BaseAgent):
                     FROM experts
                     ORDER BY name
                 """)
-                self.expert_team = {row['name']: dict(row) for row in rows}
+                self.expert_team = {row["name"]: dict(row) for row in rows}
                 self._expert_team_loaded = True
                 self._last_expert_sync = datetime.now(timezone.utc)
                 logger.info(f"✅ Загружено {len(self.expert_team)} экспертов из Knowledge OS")
@@ -699,13 +905,15 @@ class VictoriaAgent(BaseAgent):
 
     async def _get_embedding_for_rag(self, text: str) -> Optional[List[float]]:
         """Один эмбеддинг для RAG (Ollama nomic-embed-text). Таймаут короткий для скорости."""
-        embed_url = os.getenv("OLLAMA_EMBED_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings")
+        embed_url = os.getenv(
+            "OLLAMA_EMBED_URL",
+            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings",
+        )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 r = await client.post(
-                    embed_url,
-                    json={"model": model, "prompt": text[:8000], "keep_alive": 0}
+                    embed_url, json={"model": model, "prompt": text[:8000], "keep_alive": 0}
                 )
                 r.raise_for_status()
                 return r.json().get("embedding")
@@ -720,13 +928,16 @@ class VictoriaAgent(BaseAgent):
         if len(texts) == 1:
             emb = await self._get_embedding_for_rag(texts[0])
             return [emb]
-        embed_url = os.getenv("OLLAMA_EMBED_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings")
+        embed_url = os.getenv(
+            "OLLAMA_EMBED_URL",
+            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/embeddings",
+        )
         model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
         try:
             async with httpx.AsyncClient(timeout=min(5.0 + len(texts), 30.0)) as client:
                 r = await client.post(
                     embed_url,
-                    json={"model": model, "input": [t[:8000] for t in texts], "keep_alive": 0}
+                    json={"model": model, "input": [t[:8000] for t in texts], "keep_alive": 0},
                 )
                 r.raise_for_status()
                 data = r.json()
@@ -736,7 +947,9 @@ class VictoriaAgent(BaseAgent):
             logger.debug("Batch embeddings недоступен, fallback на одиночные: %s", e)
         return [await self._get_embedding_for_rag(t) for t in texts]
 
-    async def _get_knowledge_context(self, goal: str, limit: int = 5, precomputed_embedding: Optional[List[float]] = None) -> str:
+    async def _get_knowledge_context(
+        self, goal: str, limit: int = 5, precomputed_embedding: Optional[List[float]] = None
+    ) -> str:
         """Релевантные знания из Knowledge OS: векторный поиск (RAG+) при наличии эмбеддингов, иначе ILIKE.
         Длина сниппета настраивается через RAG_SNIPPET_CHARS (по умолчанию 500).
         Для топ-1 по similarity передаётся полный контент до RAG_TOP1_FULL_MAX_CHARS (0 = отключено).
@@ -751,7 +964,9 @@ class VictoriaAgent(BaseAgent):
         top1_full_max = int(os.getenv("RAG_TOP1_FULL_MAX_CHARS", "2000"))
         ttl_sec = int(os.getenv("RAG_CACHE_TTL_SEC", "120"))
         rerank_enabled = os.getenv("RAG_RERANK_ENABLED", "false").lower() in ("true", "1", "yes")
-        rag_cache_key = hashlib.md5(goal.strip().lower().encode()).hexdigest() if ttl_sec > 0 else None
+        rag_cache_key = (
+            hashlib.md5(goal.strip().lower().encode()).hexdigest() if ttl_sec > 0 else None
+        )
 
         if ttl_sec > 0 and rag_cache_key:
             if RAG_CACHE_BACKEND != "redis":
@@ -767,7 +982,9 @@ class VictoriaAgent(BaseAgent):
             if cached is not None:
                 return cached
 
-        def _format_content(row_content: str, index: int, is_vector: bool, similarity: float) -> str:
+        def _format_content(
+            row_content: str, index: int, is_vector: bool, similarity: float
+        ) -> str:
             raw = row_content or ""
             if not raw:
                 return ""
@@ -784,18 +1001,26 @@ class VictoriaAgent(BaseAgent):
 
         try:
             # RAG+: векторный поиск — используем переданный эмбеддинг или один запрос к Ollama (один эмбеддинг на запрос)
-            embedding = precomputed_embedding if precomputed_embedding is not None else await self._get_embedding_for_rag(goal)
+            embedding = (
+                precomputed_embedding
+                if precomputed_embedding is not None
+                else await self._get_embedding_for_rag(goal)
+            )
             if embedding is not None:
                 fetch_limit = (limit * 2) if rerank_enabled else limit
                 async with pool.acquire() as conn:
-                    rows = await conn.fetch("""
+                    rows = await conn.fetch(
+                        """
                         SELECT content, metadata, (1 - (embedding <=> $1::vector)) AS similarity,
                                COALESCE(kn.usage_count, 0) AS usage_count
                         FROM knowledge_nodes kn
                         WHERE kn.embedding IS NOT NULL AND kn.confidence_score >= 0.3
                         ORDER BY kn.embedding <=> $1::vector, kn.usage_count DESC NULLS LAST
                         LIMIT $2
-                    """, str(embedding), fetch_limit)
+                    """,
+                        str(embedding),
+                        fetch_limit,
+                    )
                     if rows:
                         if rerank_enabled and len(rows) > limit:
                             # Реранкинг по флагу: бонус за оптимальную длину контента, топ limit
@@ -804,6 +1029,7 @@ class VictoriaAgent(BaseAgent):
                                 ln = len((r["content"] or "").strip())
                                 bonus = 1.1 if 100 <= ln <= 1000 else 1.0
                                 return sim * bonus
+
                             rows = sorted(rows, key=_rerank_score, reverse=True)[:limit]
                         context = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ (RAG) ---\n"
                         for i, row in enumerate(rows):
@@ -819,14 +1045,18 @@ class VictoriaAgent(BaseAgent):
                             return context
             # Fallback: текстовый поиск (без similarity — все сниппеты)
             async with pool.acquire() as conn:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT content, confidence_score
                     FROM knowledge_nodes
                     WHERE confidence_score > 0.3
                     AND content ILIKE $1
                     ORDER BY confidence_score DESC NULLS LAST, usage_count DESC NULLS LAST, created_at DESC
                     LIMIT $2
-                """, f"%{goal[:50]}%", limit)
+                """,
+                    f"%{goal[:50]}%",
+                    limit,
+                )
                 if rows:
                     context = "\n--- РЕЛЕВАНТНЫЕ ЗНАНИЯ ИЗ БАЗЫ ---\n"
                     for i, row in enumerate(rows):
@@ -851,7 +1081,15 @@ class VictoriaAgent(BaseAgent):
             "backend": ["api", "сервер", "база данных", "postgresql", "sql", "docker", "fastapi"],
             "frontend": ["интерфейс", "ui", "ux", "веб", "браузер", "react", "vue", "frontend"],
             "ml": ["модель", "обучение", "нейросеть", "ml", "ai", "машинное обучение", "ollama"],
-            "devops": ["развертывание", "deploy", "ci/cd", "мониторинг", "grafana", "prometheus", "docker"],
+            "devops": [
+                "развертывание",
+                "deploy",
+                "ci/cd",
+                "мониторинг",
+                "grafana",
+                "prometheus",
+                "docker",
+            ],
             "security": ["безопасность", "security", "уязвимость", "аудит"],
             "database": ["база данных", "миграция", "схема", "индекс", "postgresql", "sqlite"],
             "performance": ["производительность", "оптимизация", "скорость", "latency"],
@@ -863,13 +1101,15 @@ class VictoriaAgent(BaseAgent):
 
         return "general"
 
-    async def select_expert_for_task(self, goal: str, use_multiple: bool = False) -> Tuple[Optional[str], Optional[Dict], Optional[List[Tuple[str, Dict]]]]:
+    async def select_expert_for_task(
+        self, goal: str, use_multiple: bool = False
+    ) -> Tuple[Optional[str], Optional[Dict], Optional[List[Tuple[str, Dict]]]]:
         """Автоматически выбрать лучшего эксперта(ов) для задачи с учетом специализации и загрузки
-        
+
         Args:
             goal: Текст задачи
             use_multiple: Если True, возвращает несколько экспертов для сложных задач
-        
+
         Returns:
             Tuple[primary_expert_name, primary_expert_data, additional_experts_list]
         """
@@ -889,14 +1129,28 @@ class VictoriaAgent(BaseAgent):
 
             # Маппинг категорий на роли экспертов (расширенный)
             category_to_roles = {
-                "backend": ["Backend Developer", "Full-stack Developer", "Principal Backend Architect"],
+                "backend": [
+                    "Backend Developer",
+                    "Full-stack Developer",
+                    "Principal Backend Architect",
+                ],
                 "frontend": ["Frontend Developer", "UI/UX Designer", "Full-stack Developer"],
-                "ml": ["ML Engineer", "Data Analyst", "Principal AI Systems Architect", "Principal Machine Learning Architect"],
-                "devops": ["DevOps Engineer", "Security Engineer", "Performance Engineer", "Lead DevOps Architect"],
+                "ml": [
+                    "ML Engineer",
+                    "Data Analyst",
+                    "Principal AI Systems Architect",
+                    "Principal Machine Learning Architect",
+                ],
+                "devops": [
+                    "DevOps Engineer",
+                    "Security Engineer",
+                    "Performance Engineer",
+                    "Lead DevOps Architect",
+                ],
                 "security": ["Security Engineer", "DevOps Engineer", "Code Reviewer"],
                 "database": ["Database Engineer", "Backend Developer", "DevOps Engineer"],
                 "performance": ["Performance Engineer", "Backend Developer", "DevOps Engineer"],
-                "general": ["Team Lead", "Product Manager", "Technical Writer"]
+                "general": ["Team Lead", "Product Manager", "Technical Writer"],
             }
 
             target_roles = category_to_roles.get(category, ["Team Lead"])
@@ -907,7 +1161,7 @@ class VictoriaAgent(BaseAgent):
             # Найти ВСЕХ экспертов с подходящими ролями
             candidates = []
             for expert_name, expert_data in self.expert_team.items():
-                expert_role = expert_data.get('role', '')
+                expert_role = expert_data.get("role", "")
                 if expert_role in target_roles:
                     candidates.append((expert_name, expert_data))
 
@@ -924,11 +1178,15 @@ class VictoriaAgent(BaseAgent):
                 score = 0.0
 
                 # 1. Базовый score по соответствию роли (приоритет основной роли)
-                role_priority = target_roles.index(expert_data.get('role', '')) if expert_data.get('role', '') in target_roles else 999
+                role_priority = (
+                    target_roles.index(expert_data.get("role", ""))
+                    if expert_data.get("role", "") in target_roles
+                    else 999
+                )
                 score += (10.0 - role_priority) * 2  # Основная роль = 20, дополнительные = меньше
 
                 # 2. Релевантность специализации (department)
-                department = expert_data.get('department', '').lower()
+                department = expert_data.get("department", "").lower()
                 goal_lower = goal.lower()
                 if department and any(keyword in goal_lower for keyword in department.split()):
                     score += 5.0
@@ -939,44 +1197,54 @@ class VictoriaAgent(BaseAgent):
                         async with pool.acquire() as conn:
                             # Получить статистику эксперта из БД
                             expert_id = await conn.fetchval(
-                                "SELECT id FROM experts WHERE name = $1",
-                                expert_name
+                                "SELECT id FROM experts WHERE name = $1", expert_name
                             )
 
                             if expert_id:
                                 # Количество выполненных задач
-                                completed_tasks = await conn.fetchval(
-                                    """
-                                    SELECT COUNT(*) 
-                                    FROM tasks 
-                                    WHERE assignee_expert_id = $1 
+                                completed_tasks = (
+                                    await conn.fetchval(
+                                        """
+                                    SELECT COUNT(*)
+                                    FROM tasks
+                                    WHERE assignee_expert_id = $1
                                     AND status = 'completed'
                                     """,
-                                    expert_id
-                                ) or 0
+                                        expert_id,
+                                    )
+                                    or 0
+                                )
 
                                 # Успешность (процент завершенных задач)
-                                total_tasks = await conn.fetchval(
-                                    """
-                                    SELECT COUNT(*) 
-                                    FROM tasks 
+                                total_tasks = (
+                                    await conn.fetchval(
+                                        """
+                                    SELECT COUNT(*)
+                                    FROM tasks
                                     WHERE assignee_expert_id = $1
                                     """,
-                                    expert_id
-                                ) or 1
+                                        expert_id,
+                                    )
+                                    or 1
+                                )
 
-                                success_rate = (completed_tasks / total_tasks) if total_tasks > 0 else 0.5
+                                success_rate = (
+                                    (completed_tasks / total_tasks) if total_tasks > 0 else 0.5
+                                )
 
                                 # Активные задачи (загрузка)
-                                active_tasks = await conn.fetchval(
-                                    """
-                                    SELECT COUNT(*) 
-                                    FROM tasks 
-                                    WHERE assignee_expert_id = $1 
+                                active_tasks = (
+                                    await conn.fetchval(
+                                        """
+                                    SELECT COUNT(*)
+                                    FROM tasks
+                                    WHERE assignee_expert_id = $1
                                     AND status IN ('pending', 'in_progress')
                                     """,
-                                    expert_id
-                                ) or 0
+                                        expert_id,
+                                    )
+                                    or 0
+                                )
 
                                 # Score на основе опыта и загрузки
                                 score += completed_tasks * 0.5  # Опыт
@@ -986,12 +1254,12 @@ class VictoriaAgent(BaseAgent):
                         logger.debug(f"Не удалось получить статистику для {expert_name}: {e}")
 
                 # 4. Релевантность по metadata (если есть)
-                metadata = expert_data.get('metadata', {})
+                metadata = expert_data.get("metadata", {})
                 if isinstance(metadata, dict):
                     # Проверка специализации в metadata
-                    if 'specialization' in metadata:
-                        spec = str(metadata['specialization']).lower()
-                        if any(keyword in goal_lower for keyword in spec.split(',')):
+                    if "specialization" in metadata:
+                        spec = str(metadata["specialization"]).lower()
+                        if any(keyword in goal_lower for keyword in spec.split(",")):
                             score += 3.0
 
                 # Обновить лучшего кандидата
@@ -1001,8 +1269,12 @@ class VictoriaAgent(BaseAgent):
                     best_data = expert_data
 
             if best_expert:
-                logger.info(f"✅ Выбран лучший эксперт: {best_expert} ({best_data.get('role')}) для задачи: {goal[:50]} (score: {best_score:.1f})")
-                logger.info(f"📊 Рассмотрено кандидатов: {len(candidates)} из {len(self.expert_team)} экспертов")
+                logger.info(
+                    f"✅ Выбран лучший эксперт: {best_expert} ({best_data.get('role')}) для задачи: {goal[:50]} (score: {best_score:.1f})"
+                )
+                logger.info(
+                    f"📊 Рассмотрено кандидатов: {len(candidates)} из {len(self.expert_team)} экспертов"
+                )
 
             # Дополнительные эксперты для сложных задач
             additional_experts = []
@@ -1013,7 +1285,11 @@ class VictoriaAgent(BaseAgent):
                 remaining_scores = []
                 for name, data in remaining:
                     # Простая оценка для дополнительных
-                    role_idx = target_roles.index(data.get('role', '')) if data.get('role', '') in target_roles else 999
+                    role_idx = (
+                        target_roles.index(data.get("role", ""))
+                        if data.get("role", "") in target_roles
+                        else 999
+                    )
                     score = (10.0 - role_idx) * 1
                     remaining_scores.append((score, name, data))
 
@@ -1025,8 +1301,10 @@ class VictoriaAgent(BaseAgent):
             # Логируем статистику команды
             if self._expert_team_loaded:
                 total_experts = len(self.expert_team)
-                unique_roles = len(set(e.get('role', '') for e in self.expert_team.values()))
-                logger.info(f"📊 Команда экспертов: {total_experts} экспертов, {unique_roles} уникальных ролей")
+                unique_roles = len(set(e.get("role", "") for e in self.expert_team.values()))
+                logger.info(
+                    f"📊 Команда экспертов: {total_experts} экспертов, {unique_roles} уникальных ролей"
+                )
 
             additional_list = additional_experts if use_multiple and additional_experts else None
             return best_expert, best_data, additional_list
@@ -1034,6 +1312,7 @@ class VictoriaAgent(BaseAgent):
         except Exception as e:
             logger.error(f"❌ Ошибка выбора эксперта: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
             return None, None, None
 
@@ -1050,9 +1329,9 @@ class VictoriaAgent(BaseAgent):
         task_hash = self._task_hash(goal)
         if task_hash in self.task_cache:
             cached_data = self.task_cache[task_hash]
-            if datetime.now() - cached_data['timestamp'] < self.cache_ttl:
+            if datetime.now() - cached_data["timestamp"] < self.cache_ttl:
                 logger.info(f"✅ Использован кэш для задачи: {goal[:50]}")
-                return cached_data['result']
+                return cached_data["result"]
             else:
                 del self.task_cache[task_hash]
 
@@ -1065,10 +1344,7 @@ class VictoriaAgent(BaseAgent):
 
         task_hash = self._task_hash(goal)
         if result and "ошибка" not in result.lower() and "error" not in result.lower():
-            self.task_cache[task_hash] = {
-                'result': result,
-                'timestamp': datetime.now()
-            }
+            self.task_cache[task_hash] = {"result": result, "timestamp": datetime.now()}
             logger.debug(f"💾 Сохранено в кэш: {goal[:50]}")
 
     async def _learn_from_task(self, goal: str, result: str):
@@ -1081,43 +1357,58 @@ class VictoriaAgent(BaseAgent):
             async with pool.acquire() as conn:
                 # Проверяем схему таблицы
                 columns = await conn.fetch("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
+                    SELECT column_name
+                    FROM information_schema.columns
                     WHERE table_name = 'knowledge_nodes'
                 """)
-                column_names = [row['column_name'] for row in columns]
+                column_names = [row["column_name"] for row in columns]
 
                 # Формируем запрос в зависимости от схемы
-                if 'source' in column_names and 'metadata' in column_names:
+                if "source" in column_names and "metadata" in column_names:
                     # Полная схема с source и metadata
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (content, domain_id, confidence_score, source, metadata)
                         VALUES ($1, (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1), 0.8, 'victoria_agent', $2::jsonb)
                         ON CONFLICT DO NOTHING
-                    """, result[:500], json.dumps({
-                        "task": goal[:200],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "expert": "Виктория"
-                    }))
-                elif 'metadata' in column_names:
+                    """,
+                        result[:500],
+                        json.dumps(
+                            {
+                                "task": goal[:200],
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "expert": "Виктория",
+                            }
+                        ),
+                    )
+                elif "metadata" in column_names:
                     # Схема без source, но с metadata
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (content, domain_id, confidence_score, metadata)
                         VALUES ($1, (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1), 0.8, $2::jsonb)
                         ON CONFLICT DO NOTHING
-                    """, result[:500], json.dumps({
-                        "task": goal[:200],
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "expert": "Виктория",
-                        "source": "victoria_agent"
-                    }))
+                    """,
+                        result[:500],
+                        json.dumps(
+                            {
+                                "task": goal[:200],
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "expert": "Виктория",
+                                "source": "victoria_agent",
+                            }
+                        ),
+                    )
                 else:
                     # Минимальная схема
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO knowledge_nodes (content, domain_id, confidence_score)
                         VALUES ($1, (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1), 0.8)
                         ON CONFLICT DO NOTHING
-                    """, result[:500])
+                    """,
+                        result[:500],
+                    )
 
                 logger.debug(f"📚 Сохранено знание из задачи: {goal[:50]}")
         except Exception as e:
@@ -1125,10 +1416,10 @@ class VictoriaAgent(BaseAgent):
 
     async def orchestrate_task(self, goal: str) -> str:
         """Главный метод оркестрации: анализирует задачу, выбирает стратегию, координирует выполнение
-        
+
         Args:
             goal: Текст задачи
-            
+
         Returns:
             Финальный результат выполнения задачи
         """
@@ -1143,7 +1434,9 @@ class VictoriaAgent(BaseAgent):
         # 2. Выбор стратегии
         if complexity == "simple":
             # Простая задача → один эксперт или Veronica
-            expert_name, expert_data, _ = await self.select_expert_for_task(goal, use_multiple=False)
+            expert_name, expert_data, _ = await self.select_expert_for_task(
+                goal, use_multiple=False
+            )
 
             if expert_name:
                 logger.info(f"✅ Простая задача → делегируем {expert_name}")
@@ -1158,7 +1451,9 @@ class VictoriaAgent(BaseAgent):
         elif complexity == "complex":
             # Сложная задача → Swarm (3-5 экспертов параллельно)
             logger.info("🐝 Сложная задача → Swarm подход")
-            primary_expert, primary_data, additional_experts = await self.select_expert_for_task(goal, use_multiple=True)
+            primary_expert, primary_data, additional_experts = await self.select_expert_for_task(
+                goal, use_multiple=True
+            )
 
             if not primary_expert:
                 # Fallback: выполняем сами
@@ -1167,7 +1462,9 @@ class VictoriaAgent(BaseAgent):
             # Собираем команду экспертов
             expert_team = [primary_expert]
             if additional_experts:
-                expert_team.extend([name for name, _ in additional_experts[:2]])  # Максимум 3 эксперта
+                expert_team.extend(
+                    [name for name, _ in additional_experts[:2]]
+                )  # Максимум 3 эксперта
 
             logger.info(f"👥 Swarm команда: {expert_team}")
 
@@ -1176,6 +1473,7 @@ class VictoriaAgent(BaseAgent):
                 # Импортируем ai_core для параллельной обработки
                 import os
                 import sys
+
                 ai_core_paths = [
                     "/app/app/ai_core.py",
                     "/app/knowledge_os/app/ai_core.py",
@@ -1190,6 +1488,7 @@ class VictoriaAgent(BaseAgent):
                             sys.path.insert(0, os.path.dirname(path))
                         try:
                             from ai_core import run_smart_agent_async
+
                             ai_core_imported = True
                             break
                         except ImportError:
@@ -1199,19 +1498,31 @@ class VictoriaAgent(BaseAgent):
                     # Услуги сотрудников: краткая справка для экспертов (кто ещё в корпорации)
                     expert_services_line = ""
                     try:
-                        for _p in [os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
-                                  os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"), "/app/knowledge_os/app"]:
+                        for _p in [
+                            os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+                            os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"),
+                            "/app/knowledge_os/app",
+                        ]:
                             if os.path.isdir(_p) and _p not in sys.path:
                                 sys.path.insert(0, _p)
                         from expert_services import get_expert_services_text
-                        expert_services_line = "\n\nКоллеги корпорации (при необходимости согласуй с ними): " + get_expert_services_text(12) + "\n"
+
+                        expert_services_line = (
+                            "\n\nКоллеги корпорации (при необходимости согласуй с ними): "
+                            + get_expert_services_text(12)
+                            + "\n"
+                        )
                     except ImportError:
                         expert_services_line = "\n"
                     # Параллельный сбор ответов
                     tasks = []
                     for expert_name in expert_team:
                         prompt = f"ВЫ - {expert_name}. Проанализируйте задачу и дайте экспертное заключение.{expert_services_line}\nЗАДАЧА:\n{goal}"
-                        tasks.append(run_smart_agent_async(prompt, expert_name=expert_name, category="swarm_expert"))
+                        tasks.append(
+                            run_smart_agent_async(
+                                prompt, expert_name=expert_name, category="swarm_expert"
+                            )
+                        )
 
                     responses = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1224,7 +1535,7 @@ class VictoriaAgent(BaseAgent):
                         if isinstance(resp, tuple):
                             resp = resp[0] if resp[0] else (resp[1] if len(resp) > 1 else None)
                         if isinstance(resp, dict):
-                            resp = resp.get('response', resp.get('text', str(resp)))
+                            resp = resp.get("response", resp.get("text", str(resp)))
                         if resp and isinstance(resp, str) and len(resp.strip()) > 10:
                             valid_responses.append((expert_team[i], resp))
 
@@ -1240,7 +1551,11 @@ class VictoriaAgent(BaseAgent):
                                 sys.path.insert(0, _path)
                         try:
                             from expert_services import get_expert_services_text
-                            expert_services_line = "\n\nУслуги сотрудников корпорации (для справки при синтезе): " + get_expert_services_text(20)
+
+                            expert_services_line = (
+                                "\n\nУслуги сотрудников корпорации (для справки при синтезе): "
+                                + get_expert_services_text(20)
+                            )
                         except ImportError:
                             expert_services_line = "\n\n(Список экспертов: Павел — стратегия, Мария — риск, Максим — данные, Игорь — код, Виктория — координация.)"
                         # Синтез консенсуса через Victoria
@@ -1267,6 +1582,7 @@ class VictoriaAgent(BaseAgent):
             except Exception as e:
                 logger.error(f"❌ Ошибка в Swarm оркестрации: {e}")
                 import traceback
+
                 logger.error(traceback.format_exc())
                 # Fallback: выполняем сами
                 return await self.run(goal, max_steps=500)
@@ -1279,7 +1595,7 @@ class VictoriaAgent(BaseAgent):
 
     def _assess_complexity(self, goal: str) -> str:
         """Оценить сложность задачи
-        
+
         Returns:
             "simple", "complex", или "multi_department"
         """
@@ -1287,16 +1603,34 @@ class VictoriaAgent(BaseAgent):
 
         # Ключевые слова для сложных задач (П.5: критично/стратегия → Swarm/Consensus)
         complex_keywords = [
-            "проанализируй", "оптимизируй", "разработай", "создай систему",
-            "архитектура", "дизайн", "стратегия", "комплексное",
-            "несколько", "множество", "интеграция", "миграция",
-            "критично", "критический", "критическая", "срочно", "urgent", "critical",
+            "проанализируй",
+            "оптимизируй",
+            "разработай",
+            "создай систему",
+            "архитектура",
+            "дизайн",
+            "стратегия",
+            "комплексное",
+            "несколько",
+            "множество",
+            "интеграция",
+            "миграция",
+            "критично",
+            "критический",
+            "критическая",
+            "срочно",
+            "urgent",
+            "critical",
         ]
 
         # Ключевые слова для межотдельных задач
         multi_dept_keywords = [
-            "backend и frontend", "ml и backend", "devops и security",
-            "несколько отделов", "межотдельный", "комплексное решение"
+            "backend и frontend",
+            "ml и backend",
+            "devops и security",
+            "несколько отделов",
+            "межотдельный",
+            "комплексное решение",
         ]
 
         # Проверка межотдельных
@@ -1315,7 +1649,9 @@ class VictoriaAgent(BaseAgent):
         # По умолчанию - сложная (для безопасности)
         return "complex"
 
-    async def understand_goal(self, raw_goal: str, *, last_tasks_context: Optional[str] = None) -> dict:
+    async def understand_goal(
+        self, raw_goal: str, *, last_tasks_context: Optional[str] = None
+    ) -> dict:
         """
         Мировая практика: сначала понять и переформулировать запрос под модули.
         Один быстрый вызов LLM: что хочет пользователь (одно предложение), категория, первый шаг.
@@ -1326,9 +1662,7 @@ class VictoriaAgent(BaseAgent):
         # Маркеры неоднозначности: короткая формулировка или отсылка к прошлому (план «умнее быстрее» §1.1)
         goal_lower = (raw_goal or "").strip().lower()
         ambiguous_markers = ("как вчера", "как тогда", "как с ", "повтори", "то же что", "как с x")
-        use_smart_for_goal = (
-            len(goal_lower) < 60 or any(m in goal_lower for m in ambiguous_markers)
-        )
+        use_smart_for_goal = len(goal_lower) < 60 or any(m in goal_lower for m in ambiguous_markers)
         smart_model = (os.getenv("VICTORIA_UNDERSTAND_GOAL_SMART_MODEL") or "").strip()
 
         context_block = ""
@@ -1349,7 +1683,9 @@ JSON:"""
                 base = _ollama_base_url()
                 smart_planner = OllamaExecutor(model=smart_model, base_url=base)
                 out = await smart_planner.ask(prompt, raw_response=True, phase="understand_goal")
-                logger.debug("[UNDERSTAND_GOAL] used smart model %s for short/ambiguous goal", smart_model)
+                logger.debug(
+                    "[UNDERSTAND_GOAL] used smart model %s for short/ambiguous goal", smart_model
+                )
             else:
                 out = await self.planner.ask(prompt, raw_response=True, phase="understand_goal")
             if not out or not isinstance(out, str):
@@ -1378,10 +1714,19 @@ JSON:"""
             self.executed_commands_hash = []
 
         # Определить сложность задачи (для выбора нескольких экспертов)
-        is_complex = any(keyword in goal.lower() for keyword in [
-            "проанализируй", "оптимизируй", "разработай стратегию", "создай архитектуру",
-            "комплексное", "полное решение", "несколько", "команда"
-        ])
+        is_complex = any(
+            keyword in goal.lower()
+            for keyword in [
+                "проанализируй",
+                "оптимизируй",
+                "разработай стратегию",
+                "создай архитектуру",
+                "комплексное",
+                "полное решение",
+                "несколько",
+                "команда",
+            ]
+        )
 
         # Параллельно: эксперт + контекст RAG (один эмбеддинг на запрос, затем параллель — ракетная скорость)
         expert_name = None
@@ -1402,7 +1747,9 @@ JSON:"""
             t_embed_ms = (time.perf_counter() - _t0) * 1000
             _t1 = time.perf_counter()
             expert_fut = self.select_expert_for_task(goal, use_multiple=is_complex)
-            context_fut = self._get_knowledge_context(goal, precomputed_embedding=precomputed_embedding)
+            context_fut = self._get_knowledge_context(
+                goal, precomputed_embedding=precomputed_embedding
+            )
             expert_result, knowledge_context = await asyncio.gather(expert_fut, context_fut)
             t_prepare_ms = (time.perf_counter() - _t1) * 1000
             expert_name, expert_data, additional_experts = expert_result
@@ -1411,8 +1758,10 @@ JSON:"""
 
         # Формировать промпт с учетом эксперта(ов)
         if expert_name and expert_data:
-            expert_info = f"\nЭКСПЕРТ ДЛЯ ЗАДАЧИ: {expert_name} ({expert_data.get('role', 'Expert')})"
-            if expert_data.get('system_prompt'):
+            expert_info = (
+                f"\nЭКСПЕРТ ДЛЯ ЗАДАЧИ: {expert_name} ({expert_data.get('role', 'Expert')})"
+            )
+            if expert_data.get("system_prompt"):
                 expert_info += f"\nЗНАНИЯ ЭКСПЕРТА: {expert_data['system_prompt'][:300]}..."
 
             # Добавить информацию о дополнительных экспертах для сложных задач
@@ -1464,14 +1813,30 @@ Q: "покажи файлы в текущей директории" → План
             _rag_latency_last_slow_at = datetime.now(timezone.utc).isoformat()
             logger.warning(
                 "[RAG+_latency] SLOW embed_ms=%.0f prepare_ms=%.0f llm_plan_ms=%.0f (thresholds embed<=%.0f prepare<=%.0f llm_plan<=%.0f)",
-                t_embed_ms, t_prepare_ms, t_llm_plan_ms, thresh_embed, thresh_prepare, thresh_llm,
+                t_embed_ms,
+                t_prepare_ms,
+                t_llm_plan_ms,
+                thresh_embed,
+                thresh_prepare,
+                thresh_llm,
             )
         if os.getenv("RAG_LATENCY_LOG", "false").lower() in ("true", "1", "yes") or VICTORIA_DEBUG:
-            logger.info("[RAG+_latency] embed_ms=%.0f prepare_ms=%.0f llm_plan_ms=%.0f", t_embed_ms, t_prepare_ms, t_llm_plan_ms)
+            logger.info(
+                "[RAG+_latency] embed_ms=%.0f prepare_ms=%.0f llm_plan_ms=%.0f",
+                t_embed_ms,
+                t_prepare_ms,
+                t_llm_plan_ms,
+            )
         return result
 
     async def _select_model_for_task(self, goal: str) -> str:
         """Выбрать оптимальную модель для задачи на основе категории"""
+        # [SINGULARITY 21.6] Force Wisdom 30B for all tasks if configured
+        _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+        if _force_model:
+            logger.info(f"🎯 [GOD MODE] Forcing model {_force_model} for task")
+            return _force_model
+
         try:
             # Определяем категорию задачи
             category = self._categorize_task(goal)
@@ -1479,14 +1844,29 @@ Q: "покажи файлы в текущей директории" → План
 
             # Маппинг категорий на модели из PLAN.md
             model_map = {
-                "backend": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
-                "frontend": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"],
+                "backend": [
+                    "qwen2.5-coder:32b",
+                    "phi3.5:3.8b",
+                    "qwen2.5:3b",
+                    "tinyllama:1.1b-chat",
+                ],
+                "frontend": [
+                    "qwen2.5-coder:32b",
+                    "phi3.5:3.8b",
+                    "qwen2.5:3b",
+                    "tinyllama:1.1b-chat",
+                ],
                 "ml": ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"],
                 "devops": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
                 "security": ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"],
                 "database": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
                 "performance": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
-                "general": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b", "tinyllama:1.1b-chat"]
+                "general": [
+                    "qwen2.5-coder:32b",
+                    "phi3.5:3.8b",
+                    "qwen2.5:3b",
+                    "tinyllama:1.1b-chat",
+                ],
             }
 
             # Определяем тип задачи для выбора модели
@@ -1497,7 +1877,9 @@ Q: "покажи файлы в текущей директории" → План
                 priorities = ["qwq:32b", "glm-4.7-flash:q8_0", "qwen2.5-coder:32b", "phi3.5:3.8b"]
             elif any(word in goal_lower for word in ["сложн", "комплекс", "complex", "enterprise"]):
                 priorities = ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"]
-            elif len(goal.split()) <= 5:  # Простые задачи — всё равно берём из general (меньше галлюцинаций)
+            elif (
+                len(goal.split()) <= 5
+            ):  # Простые задачи — всё равно берём из general (меньше галлюцинаций)
                 priorities = model_map.get("general", model_map["general"])
             else:
                 priorities = model_map.get(category, model_map["general"])
@@ -1505,10 +1887,15 @@ Q: "покажи файлы в текущей директории" → План
             # Проверяем доступность моделей
             try:
                 import sys
+
                 selector_paths = [
                     "/app/app/model_selector.py",
-                    os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app/model_selector.py"),
-                    os.path.join(os.path.dirname(__file__), "../../knowledge_os/app/model_selector.py"),
+                    os.path.join(
+                        os.path.dirname(__file__), "../../../knowledge_os/app/model_selector.py"
+                    ),
+                    os.path.join(
+                        os.path.dirname(__file__), "../../knowledge_os/app/model_selector.py"
+                    ),
                 ]
                 for path in selector_paths:
                     if os.path.exists(path):
@@ -1516,9 +1903,14 @@ Q: "покажи файлы в текущей директории" → План
                             sys.path.insert(0, os.path.dirname(path))
                         try:
                             from app.model_selector import select_available_model
-                            selected = await select_available_model(priorities, self.executor.base_url, category)
+
+                            selected = await select_available_model(
+                                priorities, self.executor.base_url, category
+                            )
                             if selected:
-                                logger.info(f"🎯 Выбрана модель для категории '{category}': {selected}")
+                                logger.info(
+                                    f"🎯 Выбрана модель для категории '{category}': {selected}"
+                                )
                                 return selected
                         except ImportError:
                             continue
@@ -1531,7 +1923,38 @@ Q: "покажи файлы в текущей директории" → План
             logger.warning(f"⚠️ Ошибка выбора модели: {e}, используем {self.executor.model}")
             return self.executor.model
 
-    async def step(self, prompt: str, step_number: int = 1, blocked_tools: Optional[List[str]] = None):
+    async def _select_model_for_step(self, category: str) -> str:
+        """Выбирает модель для конкретного шага агента (с учетом God Mode и принудительных настроек)"""
+        # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
+        _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+        if _force_model:
+            logger.info(
+                f"🎯 [GOD MODE] Forcing model {_force_model} for step category '{category}'"
+            )
+            return _force_model
+
+        # [SINGULARITY 21.5] Disable model selector for God Mode consistency
+        if os.getenv("VICTORIA_USE_MODEL_SELECTOR", "true").lower() == "false":
+            return self.executor.model
+
+        try:
+            from app.available_models_scanner import OLLAMA_PRIORITY_BY_CATEGORY
+            from app.model_selector import get_best_model_for_category
+
+            # Используем селектор для выбора оптимальной модели
+            best_model = await get_best_model_for_category(category, OLLAMA_PRIORITY_BY_CATEGORY)
+            if best_model:
+                return best_model
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Ошибка выбора модели для шага: {e}, используем {self.executor.model}"
+            )
+
+        return self.executor.model
+
+    async def step(
+        self, prompt: str, step_number: int = 1, blocked_tools: Optional[List[str]] = None
+    ):
         context_memory = self.memory[-10:] if len(self.memory) > 10 else self.memory
         phase = f"step_{step_number}"
         blocked_tools = blocked_tools or []
@@ -1539,10 +1962,17 @@ Q: "покажи файлы в текущей директории" → План
         # Попытка использовать LocalAIRouter (MLX) если доступен
         if self.local_router:
             try:
+                # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
+                _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+                _model_to_use = (
+                    _force_model if _force_model else getattr(self.executor, "model", None)
+                )
+
                 # Формируем system_prompt из executor; передаём модель — роутер попробует MLX и Ollama
                 system_prompt = self.executor.system_prompt
                 if blocked_tools:
                     from src.agents.core.executor import ALLOWED_TOOLS
+
                     allowed = sorted(ALLOWED_TOOLS - set(blocked_tools))
                     system_prompt += (
                         f"\n\n⚠️ ЗАПРЕЩЕНО использовать (заблокированы из-за цикла): {', '.join(sorted(blocked_tools))}. "
@@ -1554,7 +1984,7 @@ Q: "покажи файлы в текущей директории" → План
                     prompt=prompt,
                     system_prompt=system_prompt,
                     category=None,  # автоопределение как в ai_core и worker
-                    model=getattr(self.executor, "model", None)
+                    model=_model_to_use,
                 )
                 if result and routing_source:
                     logger.debug(f"✅ Victoria использовала {routing_source} через LocalAIRouter")
@@ -1565,13 +1995,22 @@ Q: "покажи файлы в текущей директории" → План
                 logger.debug(f"⚠️ LocalAIRouter недоступен в step(): {e}, используем Ollama")
 
         # Fallback: используем стандартный OllamaExecutor
-        return await self.executor.ask(prompt, history=context_memory, phase=phase, blocked_tools=blocked_tools)
+        # [SINGULARITY 21.6] Force Wisdom 30B even in fallback if configured
+        _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+        _model_to_ask = _force_model if _force_model else self.executor.model
+        return await self.executor.ask(
+            prompt,
+            history=context_memory,
+            phase=phase,
+            blocked_tools=blocked_tools,
+            model=_model_to_ask,
+        )
 
     async def _ensure_best_available_models(self) -> None:
         """
         Один раз за сессию: сканируем Ollama и MLX РАЗДЕЛЬНО.
-        
-        ВАЖНО: 
+
+        ВАЖНО:
         - Ollama и MLX модели НЕ смешиваются!
         - Executor/Planner ходят в Ollama API → выбираем только из Ollama
         - LocalAIRouter может использовать оба → для него MLX модели тоже важны
@@ -1582,13 +2021,18 @@ Q: "покажи файлы в текущей директории" → План
 
         if getattr(self, "_models_resolved", True):
             logger.info("[MODEL_SELECT] Models already resolved. Current:")
-            logger.info("[MODEL_SELECT]    Planner: %s", getattr(self.planner, 'model', 'unknown'))
-            logger.info("[MODEL_SELECT]    Executor: %s", getattr(self.executor, 'model', 'unknown'))
+            logger.info("[MODEL_SELECT]    Planner: %s", getattr(self.planner, "model", "unknown"))
+            logger.info(
+                "[MODEL_SELECT]    Executor: %s", getattr(self.executor, "model", "unknown")
+            )
             return
 
         try:
             # Определяем URLs
-            is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+            is_docker = (
+                os.path.exists("/.dockerenv")
+                or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+            )
             if is_docker:
                 mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
                 ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
@@ -1600,7 +2044,11 @@ Q: "покажи файлы в текущей директории" → План
             logger.info("[MODEL_SELECT] MLX URL: %s", mlx_url)
 
             # Добавляем путь к knowledge_os
-            for path in ["/app/knowledge_os/app", os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"), os.path.join(os.path.dirname(__file__), "../../knowledge_os/app")]:
+            for path in [
+                "/app/knowledge_os/app",
+                os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+                os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"),
+            ]:
                 if path and os.path.exists(path) and path not in sys.path:
                     sys.path.insert(0, path)
 
@@ -1641,28 +2089,44 @@ Q: "покажи файлы в текущей директории" → План
             env_planner = os.getenv("VICTORIA_PLANNER_MODEL", "").strip()
 
             # Проверяем env модели в Ollama списке
-            ollama_lower_to_exact = {m.strip().lower(): m.strip() for m in selection.ollama_models if m}
+            ollama_lower_to_exact = {
+                m.strip().lower(): m.strip() for m in selection.ollama_models if m
+            }
 
             # Executor model
             executor_model = None
             if env_model:
                 if env_model.strip().lower() in ollama_lower_to_exact:
                     executor_model = ollama_lower_to_exact[env_model.strip().lower()]
-                    logger.info("[MODEL_SELECT] ✅ VICTORIA_MODEL='%s' найдена в Ollama", executor_model)
+                    logger.info(
+                        "[MODEL_SELECT] ✅ VICTORIA_MODEL='%s' найдена в Ollama", executor_model
+                    )
                 else:
-                    logger.warning("[MODEL_SELECT] ⚠️ VICTORIA_MODEL='%s' НЕ НАЙДЕНА в Ollama!", env_model)
-                    logger.warning("[MODEL_SELECT]    Доступные Ollama модели: %s", list(ollama_lower_to_exact.keys()))
+                    logger.warning(
+                        "[MODEL_SELECT] ⚠️ VICTORIA_MODEL='%s' НЕ НАЙДЕНА в Ollama!", env_model
+                    )
+                    logger.warning(
+                        "[MODEL_SELECT]    Доступные Ollama модели: %s",
+                        list(ollama_lower_to_exact.keys()),
+                    )
 
             if not executor_model:
                 # Предпочитаем qwen3-coder-next:latest (Senior Architect) или qwen2.5-coder:32b
-                preferred_executor = ["qwen3-coder-next:latest", "qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "qwq:32b"]
+                preferred_executor = [
+                    "qwen3-coder-next:latest",
+                    "qwen2.5-coder:32b",
+                    "glm-4.7-flash:q8_0",
+                    "qwq:32b",
+                ]
                 for pref in preferred_executor:
                     if pref.lower() in ollama_lower_to_exact:
                         executor_model = ollama_lower_to_exact[pref.lower()]
                         break
                 if not executor_model:
                     executor_model = selection.ollama_best
-                logger.info("[MODEL_SELECT] Используем Ollama модель для executor: %s", executor_model)
+                logger.info(
+                    "[MODEL_SELECT] Используем Ollama модель для executor: %s", executor_model
+                )
 
             # Planner model - используем БЫСТРУЮ модель для планирования!
             # Это критично для отзывчивости Victoria
@@ -1670,9 +2134,15 @@ Q: "покажи файлы в текущей директории" → План
             if env_planner:
                 if env_planner.strip().lower() in ollama_lower_to_exact:
                     planner_model = ollama_lower_to_exact[env_planner.strip().lower()]
-                    logger.info("[MODEL_SELECT] ✅ VICTORIA_PLANNER_MODEL='%s' найдена в Ollama", planner_model)
+                    logger.info(
+                        "[MODEL_SELECT] ✅ VICTORIA_PLANNER_MODEL='%s' найдена в Ollama",
+                        planner_model,
+                    )
                 else:
-                    logger.warning("[MODEL_SELECT] ⚠️ VICTORIA_PLANNER_MODEL='%s' НЕ НАЙДЕНА в Ollama!", env_planner)
+                    logger.warning(
+                        "[MODEL_SELECT] ⚠️ VICTORIA_PLANNER_MODEL='%s' НЕ НАЙДЕНА в Ollama!",
+                        env_planner,
+                    )
 
             if not planner_model:
                 # Предпочитаем БЫСТРУЮ модель для planner (отзывчивость важнее качества для планирования)
@@ -1681,15 +2151,17 @@ Q: "покажи файлы в текущей директории" → План
                 for pref in preferred_planner:
                     if pref.lower() in ollama_lower_to_exact:
                         planner_model = ollama_lower_to_exact[pref.lower()]
-                        logger.info("[MODEL_SELECT] Используем модель для planner: %s", planner_model)
+                        logger.info(
+                            "[MODEL_SELECT] Используем модель для planner: %s", planner_model
+                        )
                         break
                 if not planner_model:
                     planner_model = executor_model  # Fallback на executor
 
             # Применяем выбранные модели
             if executor_model:
-                old_executor = getattr(self.executor, 'model', 'unknown')
-                old_planner = getattr(self.planner, 'model', 'unknown')
+                old_executor = getattr(self.executor, "model", "unknown")
+                old_planner = getattr(self.planner, "model", "unknown")
 
                 self.executor.model = executor_model
                 self.planner.model = planner_model
@@ -1698,7 +2170,10 @@ Q: "покажи файлы в текущей директории" → План
                 logger.info("[MODEL_SELECT] ✅ МОДЕЛИ ВЫБРАНЫ:")
                 logger.info("[MODEL_SELECT]    Executor: %s → %s", old_executor, executor_model)
                 logger.info("[MODEL_SELECT]    Planner: %s → %s", old_planner, planner_model)
-                logger.info("[MODEL_SELECT]    (Для LocalAIRouter доступна MLX: %s)", selection.mlx_best or "нет")
+                logger.info(
+                    "[MODEL_SELECT]    (Для LocalAIRouter доступна MLX: %s)",
+                    selection.mlx_best or "нет",
+                )
                 logger.info("[MODEL_SELECT] " + "=" * 60)
             else:
                 logger.error("[MODEL_SELECT] ❌ Нет доступных моделей в Ollama!")
@@ -1709,6 +2184,7 @@ Q: "покажи файлы в текущей директории" → План
         except Exception as e:
             logger.error("[MODEL_SELECT] ❌ Ошибка при сканировании моделей: %s", e)
             import traceback
+
             logger.error(traceback.format_exc())
             self._models_resolved = True
 
@@ -1728,15 +2204,39 @@ Q: "покажи файлы в текущей директории" → План
         goal_lower = (goal or "").strip().lower()
         try:
             # Быстрый путь: простые приветствия — сразу ответ (полный цикл без зависания на LLM)
-            if goal_lower in ("привет", "скажи привет", "здравствуй", "здравствуйте", "как дела", "что нового"):
-                logger.info("[AGENT_RUN] Fast path: greeting detected, returning hardcoded response")
+            if goal_lower in (
+                "привет",
+                "скажи привет",
+                "здравствуй",
+                "здравствуйте",
+                "как дела",
+                "что нового",
+            ):
+                logger.info(
+                    "[AGENT_RUN] Fast path: greeting detected, returning hardcoded response"
+                )
                 return "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
             # Быстрый путь: «что ты умеешь» — конкретный список возможностей (куратор: FINDINGS_2026-02-08)
-            if any(p in goal_lower for p in ("что ты умеешь", "что умеешь", "твои возможности", "чем можешь помочь", "кто ты")):
-                logger.info("[AGENT_RUN] Fast path: capabilities question, returning hardcoded response")
+            if any(
+                p in goal_lower
+                for p in (
+                    "что ты умеешь",
+                    "что умеешь",
+                    "твои возможности",
+                    "чем можешь помочь",
+                    "кто ты",
+                )
+            ):
+                logger.info(
+                    "[AGENT_RUN] Fast path: capabilities question, returning hardcoded response"
+                )
                 return VICTORIA_CAPABILITIES_RESPONSE
             # Быстрый путь: покажи файлы — одна команда ls и ответ
-            if "покажи файлы" in goal_lower or "выведи список файлов" in goal_lower or "список файлов" in goal_lower:
+            if (
+                "покажи файлы" in goal_lower
+                or "выведи список файлов" in goal_lower
+                or "список файлов" in goal_lower
+            ):
                 logger.info("[AGENT_RUN] Fast path: file listing detected")
                 tool = self.tools.get("run_terminal_cmd")
                 if tool:
@@ -1749,8 +2249,11 @@ Q: "покажи файлы в текущей директории" → План
         # Один раз: подставить лучшую доступную модель из Ollama+MLX (актуальный список)
         logger.info("[AGENT_RUN] Calling _ensure_best_available_models()...")
         await self._ensure_best_available_models()
-        logger.info("[AGENT_RUN] After model selection: executor=%s, planner=%s",
-                   self.executor.model, self.planner.model)
+        logger.info(
+            "[AGENT_RUN] After model selection: executor=%s, planner=%s",
+            self.executor.model,
+            self.planner.model,
+        )
 
         # Фаза 1: понять и переформулировать запрос под модули (мировая практика)
         logger.info("[AGENT_RUN] Phase 1: Understanding goal via planner...")
@@ -1777,24 +2280,36 @@ Q: "покажи файлы в текущей директории" → План
         is_short = len(words) <= 12
         is_simple_phrase = any(task in goal_lower for task in simple_tasks) and len(words) <= 10
         is_info_question = is_short and any(
-            w in goal_lower for w in ["сколько", "какой", "какая", "когда", "статус", "задач", "в работе", "что сейчас"]
+            w in goal_lower
+            for w in [
+                "сколько",
+                "какой",
+                "какая",
+                "когда",
+                "статус",
+                "задач",
+                "в работе",
+                "что сейчас",
+            ]
         )
 
         if is_simple_phrase or is_info_question or category == "simple":
             logger.info("[AGENT_RUN] Simple task path (no planner)")
             hint = f"\nПервый шаг (если нужен): {first_step_hint}." if first_step_hint else ""
-            enhanced = f"ВЫПОЛНИ ЗАДАЧУ: {restated}{hint}\n\nВАЖНО: Ответь кратко. Только JSON: {{\"thought\": \"...\", \"tool\": \"finish\" или один инструмент, \"tool_input\": {{...}}}}."
+            enhanced = f'ВЫПОЛНИ ЗАДАЧУ: {restated}{hint}\n\nВАЖНО: Ответь кратко. Только JSON: {{"thought": "...", "tool": "finish" или один инструмент, "tool_input": {{...}}}}.'
         else:
             logger.info("[AGENT_RUN] Complex task path (with planner)")
             raw_plan = await self.plan(restated)
-            _rp = (raw_plan if isinstance(raw_plan, str) else str(raw_plan) if raw_plan is not None else "") or ""
+            _rp = (
+                raw_plan
+                if isinstance(raw_plan, str)
+                else str(raw_plan)
+                if raw_plan is not None
+                else ""
+            ) or ""
             _rp = _rp.strip()
             logger.info("[AGENT_RUN] Raw plan length: %d chars", len(_rp))
-            if (
-                len(_rp) > 600
-                or "Дополнительная сложность" in _rp
-                or "Ollama HTTP" in _rp
-            ):
+            if len(_rp) > 600 or "Дополнительная сложность" in _rp or "Ollama HTTP" in _rp:
                 raw_plan = f"Выполнить: {restated}"
                 logger.info("[AGENT_RUN] Plan rejected (too long or garbage), using simple plan")
             else:
@@ -1807,7 +2322,10 @@ Q: "покажи файлы в текущей директории" → План
 
         result = await super().run(enhanced, max_steps)
 
-        logger.info("[AGENT_RUN] super().run() returned, result length: %d chars", len(str(result)) if result else 0)
+        logger.info(
+            "[AGENT_RUN] super().run() returned, result length: %d chars",
+            len(str(result)) if result else 0,
+        )
         logger.info("[AGENT_RUN] Result preview: %s...", str(result)[:200] if result else "(empty)")
 
         # Сохранить в кэш
@@ -1857,6 +2375,7 @@ agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРП�
 def _extract_last_answer_from_long(s: str) -> str:
     """Из длинного вывода извлечь последний осмысленный результат: answer или output."""
     import re
+
     last_m = None
     for pattern in (r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"', r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"'):
         for m in re.finditer(pattern, s):
@@ -1879,15 +2398,22 @@ def _strip_internal_monologue(text: str) -> str:
     Служебные action/tool (file_read, general_knowledge и т.п.) не показывать пользователю.
     """
     import re
+
     s = text.strip()
     # Сырые шаги агента (action/tool) — не отдавать пользователю как ответ (в т.ч. короткий вывод)
     action_tool_markers = (
-        '"action": "file_read"', '"action": "general_knowledge"',
-        '"tool": "read_file"', '"tool": "list_directory"',
-        '"file_path": "example.txt"', 'action": "file_read"',
-        'general_knowledge', 'Для общих знаний (без конкретного инструмента)',
+        '"action": "file_read"',
+        '"action": "general_knowledge"',
+        '"tool": "read_file"',
+        '"tool": "list_directory"',
+        '"file_path": "example.txt"',
+        'action": "file_read"',
+        "general_knowledge",
+        "Для общих знаний (без конкретного инструмента)",
     )
-    if any(m in s for m in action_tool_markers) and ("FINAL ANSWER" not in s and "Итог:" not in s and "Вот краткий" not in s):
+    if any(m in s for m in action_tool_markers) and (
+        "FINAL ANSWER" not in s and "Итог:" not in s and "Вот краткий" not in s
+    ):
         return (
             "Виктория обработала запрос, но вернула служебные шаги вместо итогового ответа. "
             "Попробуйте задать вопрос чётко: например «что ты умеешь?», «кто ты?» или конкретную задачу (одним предложением)."
@@ -1895,10 +2421,17 @@ def _strip_internal_monologue(text: str) -> str:
     if not s or len(s) < 200:
         return s
     # Извлечь блок после последнего «FINAL ANSWER» / «Итог:» / «Вот краткий отчёт:»
-    for marker in ("FINAL ANSWER:", "FINAL ANSWER：", "Итог:", "Вот краткий отчёт:", "Кратко:", "Ответ:"):
+    for marker in (
+        "FINAL ANSWER:",
+        "FINAL ANSWER：",
+        "Итог:",
+        "Вот краткий отчёт:",
+        "Кратко:",
+        "Ответ:",
+    ):
         idx = s.rfind(marker)
         if idx != -1:
-            out = s[idx + len(marker):].strip()
+            out = s[idx + len(marker) :].strip()
             # Убрать повторяющиеся абзацы (одинаковые строки подряд)
             lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
             seen = set()
@@ -1931,7 +2464,9 @@ def _strip_internal_monologue(text: str) -> str:
     return s
 
 
-async def _try_corporation_data_quick_response(goal: str, correlation_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+async def _try_corporation_data_quick_response(
+    goal: str, correlation_id: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
     """
     Если goal — вопрос о данных (метрики Mac Studio, корпорация), сразу отвечаем через corporation_data_tool.
     Используется до выбора enhanced/agent, чтобы не упираться в лимит 500 шагов на старом агенте.
@@ -1961,10 +2496,14 @@ async def _try_corporation_data_quick_response(goal: str, correlation_id: Option
                 is_data_question,
                 query_corporation_data,
             )
+
             q = _extract_latest_user_message(goal) or goal
             if not is_data_question(goal) and not is_data_question(q):
                 return None
-            logger.info("[CORP_DATA] Ранний ответ через corporation_data_tool (goal=%s...)", (goal or "")[:60])
+            logger.info(
+                "[CORP_DATA] Ранний ответ через corporation_data_tool (goal=%s...)",
+                (goal or "")[:60],
+            )
             corp_result = await query_corporation_data(q)
             answer = corp_result.get("answer") or ""
             if not answer:
@@ -1989,7 +2528,12 @@ def _normalize_output_for_user(raw: Any) -> str:
         return ""
     # Пустой успех: не отдавать подставную строку (план п.4 — TASK_ARCHITECTURE_WHY_EMPTY_RESULT)
     _s = (raw.get("result") if isinstance(raw, dict) else raw) if raw else ""
-    if isinstance(_s, str) and _s.strip() and "Задача выполнена экспертом" in _s and "(статус: finish)" in _s:
+    if (
+        isinstance(_s, str)
+        and _s.strip()
+        and "Задача выполнена экспертом" in _s
+        and "(статус: finish)" in _s
+    ):
         return (
             "Эксперт завершил задачу без вывода (модель вызвала finish без результата). "
             "Система при следующем запросе может повторить попытку с разбивкой на подзадачи. Рекомендуется уточнить задачу."
@@ -2009,13 +2553,40 @@ def _normalize_output_for_user(raw: Any) -> str:
             )
         # Признаки вымысла/шлака: длинный текст с планами, несуществующими инструментами, галлюцинациями
         garbage_markers = (
-            "Дополнительная сложность", "ТВОЙ ПЛАН:", "ПРИСТУПАЙ К ВЫПОЛНЕНИЮ",
-            "СОБИРЕХТ", "Python для школьников", "Collective Memory", "ReCAP Framework",
-            "Tree of Thoughts", "Swarm Intelligence", "/path/to/", "web_edit", "git_run", "web_review", "action: {",
-            "tool_execution", "final_output", "git_search", "web_check", "git_commit", "websocket",
-            "Врачебная задача", "СЕДАРДАН", "CMP", "ЗАПИТАНЯ", "ОБРАТУРЫ",
-            "psych_assessment", "patient_interview", "therapy_technique", "ethical_dilemma", "empathetic_communication",
-            "web_search", "swarm_intelligence", "consensus", "tree_of_thoughts",
+            "Дополнительная сложность",
+            "ТВОЙ ПЛАН:",
+            "ПРИСТУПАЙ К ВЫПОЛНЕНИЮ",
+            "СОБИРЕХТ",
+            "Python для школьников",
+            "Collective Memory",
+            "ReCAP Framework",
+            "Tree of Thoughts",
+            "Swarm Intelligence",
+            "/path/to/",
+            "web_edit",
+            "git_run",
+            "web_review",
+            "action: {",
+            "tool_execution",
+            "final_output",
+            "git_search",
+            "web_check",
+            "git_commit",
+            "websocket",
+            "Врачебная задача",
+            "СЕДАРДАН",
+            "CMP",
+            "ЗАПИТАНЯ",
+            "ОБРАТУРЫ",
+            "psych_assessment",
+            "patient_interview",
+            "therapy_technique",
+            "ethical_dilemma",
+            "empathetic_communication",
+            "web_search",
+            "swarm_intelligence",
+            "consensus",
+            "tree_of_thoughts",
         )
         is_likely_garbage = len(s) > 800 and any(m in s for m in garbage_markers)
         if is_likely_garbage:
@@ -2046,18 +2617,35 @@ def _normalize_output_for_user(raw: Any) -> str:
             except json.JSONDecodeError:
                 try:
                     import ast
+
                     data = ast.literal_eval(s)
                 except Exception:
                     return raw
             if isinstance(data, dict):
                 ti = data.get("tool_input") if isinstance(data.get("tool_input"), dict) else {}
-                out = (ti.get("output") if ti else None) or data.get("thought") or data.get("response") or data.get("message") or data.get("output")
+                out = (
+                    (ti.get("output") if ti else None)
+                    or data.get("thought")
+                    or data.get("response")
+                    or data.get("message")
+                    or data.get("output")
+                )
                 return (out if isinstance(out, str) else str(out)) if out else raw
         return raw
     if isinstance(raw, dict):
         ti = raw.get("tool_input") if isinstance(raw.get("tool_input"), dict) else {}
-        out = (ti.get("output") if ti else None) or raw.get("thought") or raw.get("response") or raw.get("message") or raw.get("output")
-        return (out if isinstance(out, str) else str(out)) if out else json.dumps(raw, ensure_ascii=False)
+        out = (
+            (ti.get("output") if ti else None)
+            or raw.get("thought")
+            or raw.get("response")
+            or raw.get("message")
+            or raw.get("output")
+        )
+        return (
+            (out if isinstance(out, str) else str(out))
+            if out
+            else json.dumps(raw, ensure_ascii=False)
+        )
     return str(raw)
 
 
@@ -2108,7 +2696,9 @@ def _orchestrator_recommends_veronica(bridge_result: Optional[Dict[str, Any]]) -
     if not isinstance(assignments, dict):
         return False
     # main или любой другой эксперт
-    for key in ("main", "developer") + tuple(k for k in assignments if k not in ("main", "developer")):
+    for key in ("main", "developer") + tuple(
+        k for k in assignments if k not in ("main", "developer")
+    ):
         v = assignments.get(key)
         if isinstance(v, dict):
             name = (v.get("expert_name") or v.get("expert_id") or "").lower()
@@ -2127,10 +2717,21 @@ def _sanitize_goal_for_prompt(goal: str) -> str:
         return goal
     # Упоминания инструментов-галлюцинаций заменяем на нейтральное
     hallucinated = [
-        "web_search", "swarm_intelligence", "consensus", "tree_of_thoughts",
-        "psych_assessment", "patient_interview", "therapy_technique",
-        "ethical_dilemma", "empathetic_communication", "web_edit", "git_run",
-        "web_review", "web_check", "git_commit", "websocket",
+        "web_search",
+        "swarm_intelligence",
+        "consensus",
+        "tree_of_thoughts",
+        "psych_assessment",
+        "patient_interview",
+        "therapy_technique",
+        "ethical_dilemma",
+        "empathetic_communication",
+        "web_edit",
+        "git_run",
+        "web_review",
+        "web_check",
+        "git_commit",
+        "websocket",
     ]
     s = goal
     for tool in hallucinated:
@@ -2143,10 +2744,16 @@ def _sanitize_goal_for_prompt(goal: str) -> str:
 _strategy_cache: Dict[str, Tuple[Dict[str, Any], float]] = {}
 _STRATEGY_CACHE_MAX = 200
 STRATEGY_CACHE_TTL = int(os.getenv("STRATEGY_CACHE_TTL_SEC", "120") or "120")
-VICTORIA_STRATEGY_ENABLED = os.getenv("VICTORIA_STRATEGY_ENABLED", "true").strip().lower() in ("true", "1", "yes")
+VICTORIA_STRATEGY_ENABLED = os.getenv("VICTORIA_STRATEGY_ENABLED", "true").strip().lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 
-def _inject_strategy_into_knowledge(knowledge: Optional[Dict[str, Any]], strategy_result: Optional[Dict[str, Any]]) -> None:
+def _inject_strategy_into_knowledge(
+    knowledge: Optional[Dict[str, Any]], strategy_result: Optional[Dict[str, Any]]
+) -> None:
     """Добавить strategy, strategy_reason, confidence, uncertainty_reason в knowledge (контракт логика мысли Фаза 4). Изменяет knowledge in-place."""
     if not knowledge or not strategy_result:
         return
@@ -2183,11 +2790,12 @@ async def _select_strategy(
     now = time.time()
     if redis_manager:
         cached = await redis_manager.get_cache(f"strategy:{key}")
-        if cached: return cached
+        if cached:
+            return cached
     elif key in _strategy_cache and _strategy_cache[key][1] > now:
         return _strategy_cache[key][0]
     prompt = f'''По цели пользователя определи стратегию ответа. Цель: "{goal[:400]}"
-{f'Контекст сессии (кратко): {session_summary[:200]}' if session_summary else ''}
+{f"Контекст сессии (кратко): {session_summary[:200]}" if session_summary else ""}
 
 Варианты стратегии:
 - quick_answer — быстрый короткий ответ (приветствие, факт, что умеешь, светская беседа типа "как дела?", "кто ты?").
@@ -2212,7 +2820,12 @@ async def _select_strategy(
             return fallback
         data = json.loads(out[start:end])
         strategy = (data.get("strategy") or "").strip().lower()
-        if strategy not in ("quick_answer", "deep_analysis", "need_clarification", "decline_or_redirect"):
+        if strategy not in (
+            "quick_answer",
+            "deep_analysis",
+            "need_clarification",
+            "decline_or_redirect",
+        ):
             strategy = None
         reason = (data.get("reason") or "fallback")[:300]
         uncertainty_reason = (data.get("uncertainty_reason") or "").strip()[:500] or None
@@ -2255,16 +2868,33 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
     goal_lower = goal.lower().strip()
     # Явно простые команды — никогда не запрашивать уточнение (полный цикл без остановки)
     simple_phrases = [
-        "скажи привет", "привет", "здравствуй", "как дела", "что нового",
-        "покажи файлы", "выведи список файлов", "список файлов", "покажи файлы в",
-        "что ты умеешь", "что умеешь", "кто ты", "твои возможности", "чем можешь помочь",
-        "да", "нет", "ты тут", "как сам", "как жизнь",
+        "скажи привет",
+        "привет",
+        "здравствуй",
+        "как дела",
+        "что нового",
+        "покажи файлы",
+        "выведи список файлов",
+        "список файлов",
+        "покажи файлы в",
+        "что ты умеешь",
+        "что умеешь",
+        "кто ты",
+        "твои возможности",
+        "чем можешь помочь",
+        "да",
+        "нет",
+        "ты тут",
+        "как сам",
+        "как жизнь",
     ]
     # Очищаем от знаков препинания для сравнения
     clean_goal = goal_lower.replace("?", "").replace("!", "").replace(".", "").strip()
     if any(phrase in clean_goal or clean_goal in phrase for phrase in simple_phrases):
         return False
-    if len(goal_lower.split()) <= 3 and any(w in goal_lower for w in ["привет", "файл", "список", "скажи", "покажи"]):
+    if len(goal_lower.split()) <= 3 and any(
+        w in goal_lower for w in ["привет", "файл", "список", "скажи", "покажи"]
+    ):
         return False
     ambiguity_indicators = [
         len(goal.split()) < 3,
@@ -2276,7 +2906,9 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
     return sum(ambiguity_indicators) >= 2
 
 
-async def _generate_clarification_questions(agent: "VictoriaAgent", goal: str, restated: str) -> List[str]:
+async def _generate_clarification_questions(
+    agent: "VictoriaAgent", goal: str, restated: str
+) -> List[str]:
     """Генерация 1–3 уточняющих вопросов через planner LLM."""
     prompt = f'''Пользователь просит: "{goal[:300]}"
 Переформулировка системы: "{restated[:200]}"
@@ -2314,65 +2946,74 @@ _UNDERSTAND_GOAL_CACHE_MAX = 200
 async def _understand_goal_with_clarification(
     self, goal: str, *, last_tasks_context: Optional[str] = None
 ) -> dict:
-        """
-        Понимание цели с проверкой неоднозначности.
-        last_tasks_context: план «умнее быстрее» §2.1 — контекст последних завершённых задач при «как вчера»/«повтори».
-        Возвращает dict с restated, category, first_step и при необходимости needs_clarification + clarification_questions.
-        """
-        key = hashlib.md5((goal + "|" + (last_tasks_context or "")).encode()).hexdigest()
-        now = time.time()
-        if redis_manager:
-            cached = await redis_manager.get_cache(f"understand_goal:{key}")
-            if cached: return cached
-        elif key in _understand_goal_cache and _understand_goal_cache[key][1] > now:
-            return _understand_goal_cache[key][0]
+    """
+    Понимание цели с проверкой неоднозначности.
+    last_tasks_context: план «умнее быстрее» §2.1 — контекст последних завершённых задач при «как вчера»/«повтори».
+    Возвращает dict с restated, category, first_step и при необходимости needs_clarification + clarification_questions.
+    """
+    key = hashlib.md5((goal + "|" + (last_tasks_context or "")).encode()).hexdigest()
+    now = time.time()
+    if redis_manager:
+        cached = await redis_manager.get_cache(f"understand_goal:{key}")
+        if cached:
+            return cached
+    elif key in _understand_goal_cache and _understand_goal_cache[key][1] > now:
+        return _understand_goal_cache[key][0]
 
-        # План «как я» п.1.1: вычисляем эмбеддинг один раз для всей цепочки (LTM + RAG)
-        self._last_query_embedding = await self._get_embedding_for_rag(goal)
+    # План «как я» п.1.1: вычисляем эмбеддинг один раз для всей цепочки (LTM + RAG)
+    self._last_query_embedding = await self._get_embedding_for_rag(goal)
 
-        _t_ug = time.monotonic()
-        understood = await self.understand_goal(goal, last_tasks_context=last_tasks_context)
-        logger.info("🕒 [SYNC] agent.understand_goal() took %.2fs", time.monotonic() - _t_ug)
-        _r = understood.get("restated") or goal
-        restated = (_r if isinstance(_r, str) else str(_r) or goal).strip()
-        _c = understood.get("category") or "multi_step"
-        category = (_c if isinstance(_c, str) else str(_c)).strip().lower()
-        _f = understood.get("first_step") or ""
-        first_step = (_f if isinstance(_f, str) else str(_f)).strip()
-        if _check_ambiguity(goal, category, restated):
-            _t_clar = time.monotonic()
-            questions = await _generate_clarification_questions(self, goal, restated)
-            logger.info("🕒 [SYNC] _generate_clarification_questions took %.2fs", time.monotonic() - _t_clar)
-            result = {
-                "needs_clarification": True,
-                "clarification_questions": questions,
-                "original_goal": goal,
-                "restated": restated,
-                "category": category,
-                "first_step": first_step[:200],
-            }
-            if redis_manager:
-                await redis_manager.set_cache(f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL)
-            else:
-                _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
-                while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
-                    k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
-                    del _understand_goal_cache[k_old]
-            return result
+    _t_ug = time.monotonic()
+    understood = await self.understand_goal(goal, last_tasks_context=last_tasks_context)
+    logger.info("🕒 [SYNC] agent.understand_goal() took %.2fs", time.monotonic() - _t_ug)
+    _r = understood.get("restated") or goal
+    restated = (_r if isinstance(_r, str) else str(_r) or goal).strip()
+    _c = understood.get("category") or "multi_step"
+    category = (_c if isinstance(_c, str) else str(_c)).strip().lower()
+    _f = understood.get("first_step") or ""
+    first_step = (_f if isinstance(_f, str) else str(_f)).strip()
+    if _check_ambiguity(goal, category, restated):
+        _t_clar = time.monotonic()
+        questions = await _generate_clarification_questions(self, goal, restated)
+        logger.info(
+            "🕒 [SYNC] _generate_clarification_questions took %.2fs", time.monotonic() - _t_clar
+        )
         result = {
-            "needs_clarification": False,
+            "needs_clarification": True,
+            "clarification_questions": questions,
+            "original_goal": goal,
             "restated": restated,
             "category": category,
             "first_step": first_step[:200],
         }
         if redis_manager:
-            await redis_manager.set_cache(f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL)
+            await redis_manager.set_cache(
+                f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
+            )
         else:
             _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
             while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
-                k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
+                k_old = min(
+                    _understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1]
+                )
                 del _understand_goal_cache[k_old]
         return result
+    result = {
+        "needs_clarification": False,
+        "restated": restated,
+        "category": category,
+        "first_step": first_step[:200],
+    }
+    if redis_manager:
+        await redis_manager.set_cache(
+            f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
+        )
+    else:
+        _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
+        while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
+            k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
+            del _understand_goal_cache[k_old]
+    return result
 
 
 async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Optional[str]:
@@ -2392,6 +3033,7 @@ async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Opti
                 sys.path.insert(0, p)
         try:
             from app.vision_processor import VisionProcessor
+
             processor = VisionProcessor()
             prompt = "Опиши это изображение подробно: что на нём изображено, текст если есть, структура. Ответ на русском."
             for i, b64 in enumerate(images_base64[:5], 1):  # макс. 5 изображений
@@ -2403,7 +3045,11 @@ async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Opti
                 else:
                     descriptions.append(f"[Изображение {i}]: не удалось распознать")
             if descriptions:
-                return (goal + "\n\n[Распознанное содержимое приложенных изображений]:\n" + "\n".join(descriptions))
+                return (
+                    goal
+                    + "\n\n[Распознанное содержимое приложенных изображений]:\n"
+                    + "\n".join(descriptions)
+                )
             return goal
         except ImportError as e:
             logger.debug("VisionProcessor not available: %s", e)
@@ -2416,13 +3062,21 @@ async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Opti
 
 class TaskRequest(BaseModel):
     goal: str
-    max_steps: Optional[int] = None  # None = использовать DEFAULT_MAX_STEPS (env VICTORIA_MAX_STEPS, по умолчанию 500)
+    max_steps: Optional[int] = (
+        None  # None = использовать DEFAULT_MAX_STEPS (env VICTORIA_MAX_STEPS, по умолчанию 500)
+    )
     project_context: Optional[str] = None  # Контекст проекта (atra-web-ide, atra, и т.д.)
     session_id: Optional[str] = None  # ID сессии для памяти чата
     chat_history: Optional[List[Dict[str, str]]] = None  # История чата
-    verbose: Optional[bool] = None  # True = вернуть в knowledge.verbose_steps пошаговые шаги агента (thought, tool, tool_input)
-    images_base64: Optional[List[str]] = None  # Изображения от Telegram/UI: распознаются через VisionProcessor (Moondream), описание подставляется в goal
-    use_enhanced: Optional[bool] = None  # Принудительно включить/выключить оркестрацию (Victoria Enhanced)
+    verbose: Optional[bool] = (
+        None  # True = вернуть в knowledge.verbose_steps пошаговые шаги агента (thought, tool, tool_input)
+    )
+    images_base64: Optional[List[str]] = (
+        None  # Изображения от Telegram/UI: распознаются через VisionProcessor (Moondream), описание подставляется в goal
+    )
+    use_enhanced: Optional[bool] = (
+        None  # Принудительно включить/выключить оркестрацию (Victoria Enhanced)
+    )
 
 
 class TaskResponse(BaseModel):
@@ -2432,7 +3086,9 @@ class TaskResponse(BaseModel):
     correlation_id: Optional[str] = None
 
 
-async def _record_orchestration_task_start(agent, goal: str, orchestrator_version: str) -> Optional[str]:
+async def _record_orchestration_task_start(
+    agent, goal: str, orchestrator_version: str
+) -> Optional[str]:
     """Записать старт задачи в knowledge_os.tasks для A/B метрик. Возвращает task_id (UUID) или None."""
     if not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
         return None
@@ -2487,6 +3143,7 @@ async def _save_session_exchange(session_id: str, goal: str, output: str) -> Non
                     sys.path.insert(0, p)
             try:
                 from app.session_context_manager import get_session_context_manager
+
                 mgr = get_session_context_manager()
                 await mgr.save_to_context(
                     user_id=session_id,
@@ -2494,7 +3151,9 @@ async def _save_session_exchange(session_id: str, goal: str, output: str) -> Non
                     query=(goal or "")[:500],
                     response=(output or "")[:2000],
                 )
-                logger.debug("[SESSION] Сохранён обмен в session_context для session_id=%s", session_id[:8])
+                logger.debug(
+                    "[SESSION] Сохранён обмен в session_context для session_id=%s", session_id[:8]
+                )
                 return
             except ImportError:
                 continue
@@ -2520,6 +3179,7 @@ async def _get_task_memory_from_db(session_id: str) -> str:
                     sys.path.insert(0, p)
             try:
                 from app.session_context_manager import get_session_context_manager
+
                 mgr = get_session_context_manager()
                 summary = await mgr.get_session_memory_summary(
                     user_id=session_id,
@@ -2535,7 +3195,9 @@ async def _get_task_memory_from_db(session_id: str) -> str:
     return ""
 
 
-async def _get_long_term_memory_context(session_id: str, project_context: str, limit: int = 5) -> str:
+async def _get_long_term_memory_context(
+    session_id: str, project_context: str, limit: int = 5
+) -> str:
     """Долгосрочная память по (session_id, project_context) для блока «Ранее по этому проекту/пользователю». При ошибке — пустая строка."""
     if not LONG_TERM_MEMORY_ENABLED or not project_context:
         return ""
@@ -2554,6 +3216,7 @@ async def _get_long_term_memory_context(session_id: str, project_context: str, l
                     sys.path.insert(0, p)
             try:
                 from app.long_term_memory import get_long_term_memory_manager
+
                 mgr = get_long_term_memory_manager()
 
                 # План «как я» п.1.1: семантический поиск по LTM при наличии эмбеддинга
@@ -2562,9 +3225,13 @@ async def _get_long_term_memory_context(session_id: str, project_context: str, l
                     embedding = self._last_query_embedding
 
                 if embedding:
-                    ctx = await mgr.get_relevant_threads(embedding, project_context, user_key=user_key, limit=limit, max_chars=600)
+                    ctx = await mgr.get_relevant_threads(
+                        embedding, project_context, user_key=user_key, limit=limit, max_chars=600
+                    )
                 else:
-                    ctx = await mgr.get_recent_threads(user_key, project_context, limit=limit, max_chars=600)
+                    ctx = await mgr.get_recent_threads(
+                        user_key, project_context, limit=limit, max_chars=600
+                    )
 
                 return (ctx or "").strip()
             except ImportError:
@@ -2574,7 +3241,9 @@ async def _get_long_term_memory_context(session_id: str, project_context: str, l
     return ""
 
 
-async def _save_long_term_memory(agent: "VictoriaAgent", session_id: str, project_context: str, goal: str, output: str) -> None:
+async def _save_long_term_memory(
+    agent: "VictoriaAgent", session_id: str, project_context: str, goal: str, output: str
+) -> None:
     """Сохранить краткое резюме обмена в долгосрочную память (Фаза 2). При ошибке — тихо пропуск."""
     if not LONG_TERM_MEMORY_ENABLED or not project_context:
         return
@@ -2597,6 +3266,7 @@ async def _save_long_term_memory(agent: "VictoriaAgent", session_id: str, projec
                     sys.path.insert(0, p)
             try:
                 from app.long_term_memory import get_long_term_memory_manager
+
                 mgr = get_long_term_memory_manager()
 
                 # План «как я» п.1.2: сохранение с эмбеддингом для семантического поиска в будущем
@@ -2604,7 +3274,9 @@ async def _save_long_term_memory(agent: "VictoriaAgent", session_id: str, projec
                 if hasattr(agent, "_last_query_embedding") and agent._last_query_embedding:
                     embedding = agent._last_query_embedding
 
-                await mgr.save_thread(user_key, project_context, goal_summary, outcome_summary, embedding=embedding)
+                await mgr.save_thread(
+                    user_key, project_context, goal_summary, outcome_summary, embedding=embedding
+                )
                 return
             except ImportError:
                 continue
@@ -2632,6 +3304,7 @@ async def _get_session_context_from_db(session_id: str, goal: str) -> str:
                     sys.path.insert(0, p)
             try:
                 from app.session_context_manager import get_session_context_manager
+
                 mgr = get_session_context_manager()
                 ctx = await mgr.get_session_context(
                     user_id=session_id,  # session_id используется как user_id для lookup
@@ -2639,7 +3312,10 @@ async def _get_session_context_from_db(session_id: str, goal: str) -> str:
                     current_query=goal,
                 )
                 if ctx:
-                    logger.debug("📝 [SESSION_CONTEXT] Добавлен контекст сессии из БД (%d символов)", len(ctx))
+                    logger.debug(
+                        "📝 [SESSION_CONTEXT] Добавлен контекст сессии из БД (%d символов)",
+                        len(ctx),
+                    )
                 return ctx or ""
             except ImportError:
                 continue
@@ -2715,7 +3391,9 @@ async def _run_task_background(
         store["correlation_id"] = correlation_id
     # Сразу переводим в processing, иначе клиент при polling видит только queued до завершения
     if redis_manager:
-        await redis_manager.update_task_status(task_id, "processing", metadata={"stage": "strategy"})
+        await redis_manager.update_task_status(
+            task_id, "processing", metadata={"stage": "strategy"}
+        )
     else:
         store["status"] = "processing"
         store["stage"] = "strategy"
@@ -2734,42 +3412,89 @@ async def _run_task_background(
             ideal_model = _select_model_for_chat(goal)
             content, source = await _generate_via_mlx_or_ollama(goal, ideal_model)
             if content:
-                knowledge = {"strategy": "quick_answer", "confidence": 1.0, "fast_path": True, "source": source}
+                knowledge = {
+                    "strategy": "quick_answer",
+                    "confidence": 1.0,
+                    "fast_path": True,
+                    "source": source,
+                }
                 if redis_manager:
-                    await redis_manager.update_task_status(task_id, "completed", result=content, metadata={"knowledge": knowledge, "stage": "completed"})
+                    await redis_manager.update_task_status(
+                        task_id,
+                        "completed",
+                        result=content,
+                        metadata={"knowledge": knowledge, "stage": "completed"},
+                    )
                 else:
                     store["status"] = "completed"
                     store["output"] = content
                     store["knowledge"] = knowledge
                     store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=absolute_fast_track", task_id[:8])
+                logger.info(
+                    "[VICTORIA_CYCLE] background completed task_id=%s route=absolute_fast_track",
+                    task_id[:8],
+                )
                 return
 
         # Ранний выход для приветствий и «что умеешь» — без вызова LLM (как в agent.run fast path). Интеграционные тесты и UI не зависают.
         goal_lower = (goal or "").strip().lower()
-        if goal_lower in ("привет", "скажи привет", "здравствуй", "здравствуйте", "как дела", "что нового", "как дела?", "как у тебя дела?"):
+        if goal_lower in (
+            "привет",
+            "скажи привет",
+            "здравствуй",
+            "здравствуйте",
+            "как дела",
+            "что нового",
+            "как дела?",
+            "как у тебя дела?",
+        ):
             output = "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
             knowledge = {"strategy": "quick_answer", "confidence": 1.0}
             if redis_manager:
-                await redis_manager.update_task_status(task_id, "completed", result=output, metadata={"knowledge": knowledge, "stage": "completed"})
+                await redis_manager.update_task_status(
+                    task_id,
+                    "completed",
+                    result=output,
+                    metadata={"knowledge": knowledge, "stage": "completed"},
+                )
             else:
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
-            logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_greeting", task_id[:8])
+            logger.info(
+                "[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_greeting",
+                task_id[:8],
+            )
             return
-        if any(p in goal_lower for p in ("что ты умеешь", "что умеешь", "твои возможности", "чем можешь помочь", "кто ты")):
+        if any(
+            p in goal_lower
+            for p in (
+                "что ты умеешь",
+                "что умеешь",
+                "твои возможности",
+                "чем можешь помочь",
+                "кто ты",
+            )
+        ):
             output = VICTORIA_CAPABILITIES_RESPONSE
             knowledge = {"strategy": "quick_answer", "confidence": 1.0}
             if redis_manager:
-                await redis_manager.update_task_status(task_id, "completed", result=output, metadata={"knowledge": knowledge, "stage": "completed"})
+                await redis_manager.update_task_status(
+                    task_id,
+                    "completed",
+                    result=output,
+                    metadata={"knowledge": knowledge, "stage": "completed"},
+                )
             else:
                 store["status"] = "completed"
                 store["output"] = output
                 store["knowledge"] = knowledge
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
-            logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_capabilities", task_id[:8])
+            logger.info(
+                "[VICTORIA_CYCLE] background completed task_id=%s route=quick_answer_capabilities",
+                task_id[:8],
+            )
             return
 
         session_summary = ""
@@ -2778,7 +3503,9 @@ async def _run_task_background(
         strategy_result = await _select_strategy(agent, goal, session_summary or None)
         if strategy_result.get("strategy") == "need_clarification":
             questions = await _generate_clarification_questions(agent, goal, goal)
-            clarification_text = "Victoria уточняет: " + ("; ".join(questions) if questions else "Нужно уточнение.")
+            clarification_text = "Victoria уточняет: " + (
+                "; ".join(questions) if questions else "Нужно уточнение."
+            )
             knowledge = {
                 "needs_clarification": True,
                 "clarification_questions": questions,
@@ -2786,7 +3513,12 @@ async def _run_task_background(
             }
             _inject_strategy_into_knowledge(knowledge, strategy_result)
             if redis_manager:
-                await redis_manager.update_task_status(task_id, "completed", result=clarification_text, metadata={"knowledge": knowledge, "stage": "clarification"})
+                await redis_manager.update_task_status(
+                    task_id,
+                    "completed",
+                    result=clarification_text,
+                    metadata={"knowledge": knowledge, "stage": "clarification"},
+                )
             else:
                 store["status"] = "completed"
                 store["output"] = clarification_text
@@ -2794,7 +3526,10 @@ async def _run_task_background(
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
             return
         if strategy_result.get("strategy") == "decline_or_redirect":
-            reason = strategy_result.get("reason") or "Запрос вне моей компетенции. Уточните задачу или обратитесь к документации."
+            reason = (
+                strategy_result.get("reason")
+                or "Запрос вне моей компетенции. Уточните задачу или обратитесь к документации."
+            )
             output = f"Виктория: {reason}"
             knowledge = {
                 "strategy": "decline_or_redirect",
@@ -2802,7 +3537,12 @@ async def _run_task_background(
                 "confidence": strategy_result.get("confidence", 0.5),
             }
             if redis_manager:
-                await redis_manager.update_task_status(task_id, "completed", result=output, metadata={"knowledge": knowledge, "stage": "decline"})
+                await redis_manager.update_task_status(
+                    task_id,
+                    "completed",
+                    result=output,
+                    metadata={"knowledge": knowledge, "stage": "decline"},
+                )
             else:
                 store["status"] = "completed"
                 store["output"] = output
@@ -2818,16 +3558,23 @@ async def _run_task_background(
             ]:
                 if (_path not in sys.path) and (os.path.exists(_path) or _path.startswith("/app")):
                     sys.path.insert(0, _path)
-                _app = os.path.join(_path, "app") if os.path.exists(_path) or _path.startswith("/app") else None
+                _app = (
+                    os.path.join(_path, "app")
+                    if os.path.exists(_path) or _path.startswith("/app")
+                    else None
+                )
                 if _app and _app not in sys.path:
                     sys.path.insert(0, _app)
                 try:
                     from app.recent_tasks_context import (
                         get_recent_completed_tasks_context as _get_recent,
                     )
+
                     last_tasks_context = await _get_recent(project_context, limit=5) or ""
                     if last_tasks_context:
-                        logger.info("[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда» (фон)")
+                        logger.info(
+                            "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда» (фон)"
+                        )
                     break
                 except ImportError:
                     continue
@@ -2839,7 +3586,9 @@ async def _run_task_background(
             )
             if understanding.get("needs_clarification"):
                 questions = understanding.get("clarification_questions") or []
-                clarification_text = "Victoria уточняет: " + ("; ".join(questions) if questions else "Нужно уточнение.")
+                clarification_text = "Victoria уточняет: " + (
+                    "; ".join(questions) if questions else "Нужно уточнение."
+                )
                 store["status"] = "completed"
                 store["output"] = clarification_text
                 store["knowledge"] = {
@@ -2862,12 +3611,16 @@ async def _run_task_background(
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
         if session_id:
             await _save_session_exchange(session_id, goal, quick_data.get("output") or "")
-        logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=corporation_data_tool", task_id)
+        logger.info(
+            "[VICTORIA_CYCLE] background completed task_id=%s route=corporation_data_tool", task_id
+        )
         return
     goal_for_exec = (restated_goal or goal).strip() or goal
     knowledge_os_task_id = None
     orchestration_plan_bg = None
-    logger.info(f"[ORCHESTRATOR_DEBUG] V2_ENABLED={ORCHESTRATION_V2_ENABLED}, KO_AVAILABLE={KNOWLEDGE_OS_AVAILABLE}")
+    logger.info(
+        f"[ORCHESTRATOR_DEBUG] V2_ENABLED={ORCHESTRATION_V2_ENABLED}, KO_AVAILABLE={KNOWLEDGE_OS_AVAILABLE}"
+    )
     if ORCHESTRATION_V2_ENABLED and KNOWLEDGE_OS_AVAILABLE:
         logger.info("[ORCHESTRATOR_DEBUG] Entering orchestration block")
         try:
@@ -2885,17 +3638,26 @@ async def _run_task_background(
                 if ko_root not in sys.path:
                     sys.path.insert(0, ko_root)
                 try:
-                    logger.info(f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={sys.path}")
+                    logger.info(
+                        f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={sys.path}"
+                    )
                     from app.task_orchestration.integration_bridge import IntegrationBridge
+
                     logger.info(f"[ORCHESTRATOR_DEBUG] POST-IMPORT from {ko_root}")
                     bridge = IntegrationBridge()
-                    logger.info(f"[ORCHESTRATOR] Calling bridge.process_task for goal: {goal_for_exec[:50]}...")
-                    bridge_result = await bridge.process_task(goal_for_exec, project_context=project_context)
+                    logger.info(
+                        f"[ORCHESTRATOR] Calling bridge.process_task for goal: {goal_for_exec[:50]}..."
+                    )
+                    bridge_result = await bridge.process_task(
+                        goal_for_exec, project_context=project_context
+                    )
                     logger.info(f"[ORCHESTRATOR] Bridge result: {bridge_result}")
                     orchestration_plan_bg = bridge_result
                     version = bridge_result.get("orchestrator", "existing")
                     try:
-                        knowledge_os_task_id = await _record_orchestration_task_start(agent, goal_for_exec, version)
+                        knowledge_os_task_id = await _record_orchestration_task_start(
+                            agent, goal_for_exec, version
+                        )
                         if knowledge_os_task_id:
                             store["knowledge_os_task_id"] = knowledge_os_task_id
                     except Exception as db_e:
@@ -2905,19 +3667,37 @@ async def _run_task_background(
                     _exec_env = os.getenv("EXECUTE_ASSIGNMENTS_IN_RUN", "").strip().lower()
                     logger.info(f"[ORCHESTRATOR_DEBUG] EXECUTE_ASSIGNMENTS_IN_RUN={_exec_env}")
                     if _exec_env in ("true", "1", "yes"):
-                        _assignments = (orchestration_plan_bg or {}).get("assignments") if isinstance(orchestration_plan_bg, dict) else {}
-                        logger.info(f"[ORCHESTRATOR_DEBUG] Found {len(_assignments) if _assignments else 0} assignments")
+                        _assignments = (
+                            (orchestration_plan_bg or {}).get("assignments")
+                            if isinstance(orchestration_plan_bg, dict)
+                            else {}
+                        )
+                        logger.info(
+                            f"[ORCHESTRATOR_DEBUG] Found {len(_assignments) if _assignments else 0} assignments"
+                        )
                         # МОНСТР-ЛОГИКА: всегда выполняем assignments, если их больше 1, даже если там есть Вероника
                         force_execute = len(_assignments) > 1 if _assignments else False
-                        recommends_veronica = _orchestrator_recommends_veronica(orchestration_plan_bg)
-                        logger.info(f"[ORCHESTRATOR_DEBUG] force_execute={force_execute}, recommends_veronica={recommends_veronica}")
-                        if _assignments and isinstance(_assignments, dict) and (force_execute or not recommends_veronica):
+                        recommends_veronica = _orchestrator_recommends_veronica(
+                            orchestration_plan_bg
+                        )
+                        logger.info(
+                            f"[ORCHESTRATOR_DEBUG] force_execute={force_execute}, recommends_veronica={recommends_veronica}"
+                        )
+                        if (
+                            _assignments
+                            and isinstance(_assignments, dict)
+                            and (force_execute or not recommends_veronica)
+                        ):
                             try:
-                                logger.info("[ORCHESTRATOR_DEBUG] Calling execute_assignments_async (фон)")
+                                logger.info(
+                                    "[ORCHESTRATOR_DEBUG] Calling execute_assignments_async (фон)"
+                                )
                                 try:
                                     from app.execute_assignments import execute_assignments_async
                                 except ImportError:
-                                    logger.warning("[ORCHESTRATOR_DEBUG] app.execute_assignments not found, trying execute_assignments")
+                                    logger.warning(
+                                        "[ORCHESTRATOR_DEBUG] app.execute_assignments not found, trying execute_assignments"
+                                    )
                                     from execute_assignments import execute_assignments_async
 
                                 _exec_results = await execute_assignments_async(
@@ -2928,26 +3708,45 @@ async def _run_task_background(
                                 )
                                 if _exec_results:
                                     orchestration_context_bg = _exec_results
-                                    logger.info("[ORCHESTRATOR] Исполнение по assignments выполнено (фон), контекст подставлен")
+                                    logger.info(
+                                        "[ORCHESTRATOR] Исполнение по assignments выполнено (фон), контекст подставлен"
+                                    )
                             except Exception as _e:
-                                logger.warning("[ORCHESTRATOR] execute_assignments_async failed (фон): %s", _e)
+                                logger.warning(
+                                    "[ORCHESTRATOR] execute_assignments_async failed (фон): %s", _e
+                                )
                     break
                 except Exception as inner_e:
-                    logger.error(f"[ORCHESTRATOR_DEBUG] Inner exception in ko_root loop: {inner_e}", exc_info=True)
+                    logger.error(
+                        f"[ORCHESTRATOR_DEBUG] Inner exception in ko_root loop: {inner_e}",
+                        exc_info=True,
+                    )
                     continue
         except Exception as e:
-            logger.error(f"[ORCHESTRATOR_DEBUG] Outer exception in orchestration block: {e}", exc_info=True)
+            logger.error(
+                f"[ORCHESTRATOR_DEBUG] Outer exception in orchestration block: {e}", exc_info=True
+            )
     orchestration_context_bg = _build_orchestration_context(orchestration_plan_bg)
     try:
         store["status"] = "running"
         store["stage"] = "running"
         store["updated_at"] = datetime.now(timezone.utc).isoformat()
-        logger.info("[VICTORIA_CYCLE] background start task_id=%s goal_preview=%s", task_id, (goal or "")[:60])
-        logger.info("[TRACE] _run_task_background: start task_id=%s goal_preview=%s", task_id, (goal or "")[:60])
+        logger.info(
+            "[VICTORIA_CYCLE] background start task_id=%s goal_preview=%s",
+            task_id,
+            (goal or "")[:60],
+        )
+        logger.info(
+            "[TRACE] _run_task_background: start task_id=%s goal_preview=%s",
+            task_id,
+            (goal or "")[:60],
+        )
         use_enhanced_actual = should_use_enhanced(goal, project_context, use_enhanced)
         veronica_tried_and_failed = False
         # Кураторские эталоны (статус проекта, что умеешь, дашборд) — только Enhanced + RAG, не Veronica
-        prefer_veronica_bg = (task_type == "veronica" or _orchestrator_recommends_veronica(orchestration_plan_bg)) and not is_curator_standard_goal(goal or "")
+        prefer_veronica_bg = (
+            task_type == "veronica" or _orchestrator_recommends_veronica(orchestration_plan_bg)
+        ) and not is_curator_standard_goal(goal or "")
         if prefer_veronica_bg and use_enhanced_actual:
             store["stage"] = "delegate_veronica"
             veronica_result = await delegate_to_veronica(
@@ -2982,26 +3781,47 @@ async def _run_task_background(
                     store["output"] = str(store["output"]) if store["output"] is not None else ""
                 store["knowledge"] = knowledge
                 if session_id:
-                    await _save_session_exchange(session_id, goal_for_exec, veronica_result.get("output") or "")
+                    await _save_session_exchange(
+                        session_id, goal_for_exec, veronica_result.get("output") or ""
+                    )
                     if LONG_TERM_MEMORY_ENABLED:
-                        await _save_long_term_memory(agent, session_id, project_context, goal_for_exec, veronica_result.get("output") or "")
+                        await _save_long_term_memory(
+                            agent,
+                            session_id,
+                            project_context,
+                            goal_for_exec,
+                            veronica_result.get("output") or "",
+                        )
                 store["updated_at"] = datetime.now(timezone.utc).isoformat()
-                logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=veronica", task_id)
-                logger.info("[TRACE] _run_task_background: completed via Veronica task_id=%s", task_id)
+                logger.info(
+                    "[VICTORIA_CYCLE] background completed task_id=%s route=veronica", task_id
+                )
+                logger.info(
+                    "[TRACE] _run_task_background: completed via Veronica task_id=%s", task_id
+                )
                 return
             veronica_tried_and_failed = True
-            logger.info("[%s] Veronica недоступна или ошибка (фон) — выполняю через Enhanced/Victoria", (correlation_id or "")[:8])
+            logger.info(
+                "[%s] Veronica недоступна или ошибка (фон) — выполняю через Enhanced/Victoria",
+                (correlation_id or "")[:8],
+            )
         enhanced = victoria_enhanced_instance
         if use_enhanced_actual and not veronica_tried_and_failed and enhanced is None:
             try:
                 import sys
-                for path in ["/app/knowledge_os/app", os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"), os.path.join(os.path.dirname(__file__), "../../knowledge_os/app")]:
+
+                for path in [
+                    "/app/knowledge_os/app",
+                    os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+                    os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"),
+                ]:
                     if (os.path.exists(path) or path.startswith("/app")) and path not in sys.path:
                         sys.path.insert(0, path)
                     if "/app/knowledge_os" not in sys.path:
                         sys.path.insert(0, "/app/knowledge_os")
                     try:
                         from app.victoria_enhanced import VictoriaEnhanced
+
                         enhanced = VictoriaEnhanced()
                         break
                     except ImportError:
@@ -3014,12 +3834,20 @@ async def _run_task_background(
             context_with_history = {}
             if chat_history:
                 max_msgs = min(len(chat_history), VICTORIA_CHAT_HISTORY_MAX_MESSAGES)
-                history_text = "\n".join([
-                    f"Пользователь: {msg.get('user', '')}\nVictoria: {msg.get('assistant', '')}"
-                    for msg in chat_history[-max_msgs:]
-                ])
-                if VICTORIA_HISTORY_MAX_CHARS > 0 and len(history_text) > VICTORIA_HISTORY_MAX_CHARS:
-                    history_text = history_text[-VICTORIA_HISTORY_MAX_CHARS:] + "\n[... обрезано по лимиту контекста ...]"
+                history_text = "\n".join(
+                    [
+                        f"Пользователь: {msg.get('user', '')}\nVictoria: {msg.get('assistant', '')}"
+                        for msg in chat_history[-max_msgs:]
+                    ]
+                )
+                if (
+                    VICTORIA_HISTORY_MAX_CHARS > 0
+                    and len(history_text) > VICTORIA_HISTORY_MAX_CHARS
+                ):
+                    history_text = (
+                        history_text[-VICTORIA_HISTORY_MAX_CHARS:]
+                        + "\n[... обрезано по лимиту контекста ...]"
+                    )
                 context_with_history["chat_history"] = history_text
             elif session_id:
                 session_ctx = await _get_session_context_from_db(session_id, goal_for_exec)
@@ -3029,7 +3857,9 @@ async def _run_task_background(
                 if task_mem:
                     context_with_history["task_memory"] = task_mem
                 if LONG_TERM_MEMORY_ENABLED:
-                    long_term = await _get_long_term_memory_context(session_id, project_context, limit=5)
+                    long_term = await _get_long_term_memory_context(
+                        session_id, project_context, limit=5
+                    )
                     if long_term:
                         context_with_history["long_term_memory"] = long_term
             if orchestration_context_bg:
@@ -3039,7 +3869,9 @@ async def _run_task_background(
             if VICTORIA_GOAL_MAX_CHARS > 0 and len(goal_for_enhanced_bg) > VICTORIA_GOAL_MAX_CHARS:
                 goal_for_enhanced_bg = goal_for_enhanced_bg[:VICTORIA_GOAL_MAX_CHARS] + " [...]"
             if orchestration_context_bg:
-                goal_for_enhanced_bg = orchestration_context_bg + "\n\nЗАДАЧА: " + goal_for_enhanced_bg
+                goal_for_enhanced_bg = (
+                    orchestration_context_bg + "\n\nЗАДАЧА: " + goal_for_enhanced_bg
+                )
             enhanced_result = await enhanced.solve(
                 goal_for_enhanced_bg,
                 use_enhancements=True,
@@ -3047,7 +3879,9 @@ async def _run_task_background(
             )
             if enhanced_result is None or not isinstance(enhanced_result, dict):
                 store["status"] = "completed"
-                store["output"] = "Victoria Enhanced не вернула результат (solve вернул None или не dict)."
+                store["output"] = (
+                    "Victoria Enhanced не вернула результат (solve вернул None или не dict)."
+                )
                 store["knowledge"] = {
                     "method": "unknown",
                     "metadata": {"model_used": "Victoria Enhanced", "source": "local"},
@@ -3079,15 +3913,23 @@ async def _run_task_background(
                 try:
                     store["output"] = _normalize_output_for_user(raw_result)
                     if not isinstance(store["output"], str):
-                        store["output"] = str(store["output"]) if store["output"] is not None else ""
+                        store["output"] = (
+                            str(store["output"]) if store["output"] is not None else ""
+                        )
                 except Exception as norm_e:
                     logger.warning("Нормализация вывода Enhanced: %s", norm_e)
-                    store["output"] = str(raw_result) if raw_result is not None else "Результат не удалось нормализовать."
+                    store["output"] = (
+                        str(raw_result)
+                        if raw_result is not None
+                        else "Результат не удалось нормализовать."
+                    )
                 store["knowledge"] = knowledge
                 if session_id:
                     await _save_session_exchange(session_id, goal_for_exec, raw_result)
                     if LONG_TERM_MEMORY_ENABLED:
-                        await _save_long_term_memory(agent, session_id, project_context, goal_for_exec, raw_result)
+                        await _save_long_term_memory(
+                            agent, session_id, project_context, goal_for_exec, raw_result
+                        )
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
             logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=enhanced", task_id)
             logger.info("[TRACE] _run_task_background: after enhanced.solve task_id=%s", task_id)
@@ -3106,10 +3948,14 @@ async def _run_task_background(
                 try:
                     store["output"] = _normalize_output_for_user(result)
                     if not isinstance(store["output"], str):
-                        store["output"] = str(store["output"]) if store["output"] is not None else ""
+                        store["output"] = (
+                            str(store["output"]) if store["output"] is not None else ""
+                        )
                 except Exception as norm_e:
                     logger.warning("Нормализация вывода agent.run: %s", norm_e)
-                    store["output"] = str(result) if result is not None else "Результат не удалось нормализовать."
+                    store["output"] = (
+                        str(result) if result is not None else "Результат не удалось нормализовать."
+                    )
                 knowledge = {**agent.project_knowledge, "project_context": project_context}
                 model_used = getattr(agent.executor, "model", None) or "unknown"
                 knowledge.setdefault("metadata", {})["model_used"] = model_used
@@ -3130,7 +3976,9 @@ async def _run_task_background(
                 if session_id:
                     await _save_session_exchange(session_id, goal_for_exec, str(result) or "")
                     if LONG_TERM_MEMORY_ENABLED:
-                        await _save_long_term_memory(agent, session_id, project_context, goal_for_exec, str(result) or "")
+                        await _save_long_term_memory(
+                            agent, session_id, project_context, goal_for_exec, str(result) or ""
+                        )
             finally:
                 agent.executor.system_prompt = original_prompt
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -3164,9 +4012,12 @@ async def _run_task_background(
         status_final = store.get("status") or "unknown"
         if redis_manager:
             # Синхронизируем финальное состояние
-            await redis_manager.update_task_status(task_id, status_final,
-                                                 result=store.get("output") or store.get("error"),
-                                                 metadata={"knowledge": store.get("knowledge"), "stage": status_final})
+            await redis_manager.update_task_status(
+                task_id,
+                status_final,
+                result=store.get("output") or store.get("error"),
+                metadata={"knowledge": store.get("knowledge"), "stage": status_final},
+            )
         else:
             store["stage"] = status_final
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -3215,7 +4066,9 @@ async def get_run_status(task_id: str):
     if len(out) > 8000:
         out = out[:8000].rstrip() + "\n\n[... ответ обрезан ...]"
     status_val = rec.get("status", "queued")
-    logger.info("[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out))
+    logger.info(
+        "[VICTORIA_CYCLE] GET /run/status/%s status=%s output_len=%s", task_id, status_val, len(out)
+    )
     resp = {
         "task_id": task_id,
         "status": status_val,
@@ -3248,10 +4101,10 @@ async def _generate_via_mlx_or_ollama(
                         "model": ideal_model,
                         "messages": [
                             {"role": "system", "content": system},
-                            {"role": "user", "content": full_prompt}
+                            {"role": "user", "content": full_prompt},
                         ],
-                        "stream": False
-                    }
+                        "stream": False,
+                    },
                 )
                 if r.status_code == 200:
                     data = r.json()
@@ -3269,6 +4122,7 @@ async def _generate_via_mlx_or_ollama(
 
     return (None, None)
 
+
 @app.post("/stream")
 async def run_task_stream(body: TaskRequest, request: Request):
     """
@@ -3276,7 +4130,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
     Цепочка выбора: Fast Path (MLX/Ollama) → Expert Path (Victoria Enhanced).
     """
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
-    logger.info("[STREAM] correlation_id=%s goal_preview=%s", correlation_id[:8], (body.goal or "")[:50])
+    logger.info(
+        "[STREAM] correlation_id=%s goal_preview=%s", correlation_id[:8], (body.goal or "")[:50]
+    )
 
     async def sse_generator():
         emotion_data = {"emotion": "calm", "confidence": 1.0}
@@ -3284,7 +4140,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
             try:
                 detector = EmotionDetector()
                 res = detector.detect_emotion(body.goal)
-                emotion_data = {"emotion": res.detected_emotion, "confidence": round(res.confidence, 2)}
+                emotion_data = {
+                    "emotion": res.detected_emotion,
+                    "confidence": round(res.confidence, 2),
+                }
             except Exception as e:
                 logger.debug("Emotion detection failed: %s", e)
 
@@ -3298,10 +4157,15 @@ async def run_task_stream(body: TaskRequest, request: Request):
         is_fast_track = is_fast_track_message(body.goal)
 
         # [VIP ROUTE] Проверка на VIP-запрос (Иван/Совет)
-        is_vip = any(word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"])
+        is_vip = any(
+            word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"]
+        )
 
         # [FAST TRACK] Проверка на вопросы об обучении и способностях
-        is_info_query = any(word in (body.goal or "").lower() for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"])
+        is_info_query = any(
+            word in (body.goal or "").lower()
+            for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"]
+        )
 
         # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
         if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
@@ -3318,6 +4182,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
             ai_research_context = ""
             try:
                 from app.victoria_enhanced import VictoriaEnhanced
+
                 temp_enhanced = VictoriaEnhanced()
                 ai_research_context = await temp_enhanced._get_ai_research_context(body.goal)
             except Exception as e:
@@ -3331,7 +4196,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
             if content:
                 words = content.split()
                 for i in range(0, len(words), 5):
-                    chunk = " ".join(words[i:i+5]) + " "
+                    chunk = " ".join(words[i : i + 5]) + " "
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                     await asyncio.sleep(0.05)
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
@@ -3346,7 +4211,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     if content:
                         words = content.split()
                         for i in range(0, len(words), 5):
-                            chunk = " ".join(words[i:i+5]) + " "
+                            chunk = " ".join(words[i : i + 5]) + " "
                             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                             await asyncio.sleep(0.02)
                 elif isinstance(result, JSONResponse):
@@ -3360,11 +4225,14 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
+
 @app.post("/run", response_model=TaskResponse)
 async def run_task(
     body: TaskRequest,
     request: Request,
-    async_mode: bool = Query(False, description="True = 202, задача в фоне, результат через GET /run/status/{task_id}"),
+    async_mode: bool = Query(
+        False, description="True = 202, задача в фоне, результат через GET /run/status/{task_id}"
+    ),
 ):
     """
     Выполнить задачу через Victoria.
@@ -3374,16 +4242,20 @@ async def run_task(
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
 
     # === REQUEST FLOW TRACING ===
-    logger.info("[VICTORIA_CYCLE] accept POST /run correlation_id=%s goal_preview=%s async_mode=%s",
-                correlation_id, (body.goal or "")[:80], async_mode)
+    logger.info(
+        "[VICTORIA_CYCLE] accept POST /run correlation_id=%s goal_preview=%s async_mode=%s",
+        correlation_id,
+        (body.goal or "")[:80],
+        async_mode,
+    )
     logger.info("[REQUEST] ========== POST /run ==========")
     logger.info("[REQUEST] Correlation ID: %s", correlation_id)
     logger.info("[REQUEST] Goal: %s", body.goal[:200] if body.goal else "(empty)")
     logger.info("[REQUEST] Async mode: %s", async_mode)
     logger.info("[REQUEST] Project context: %s", body.project_context)
     logger.info("[REQUEST] Max steps: %s", body.max_steps)
-    logger.info("[REQUEST] Current executor model: %s", getattr(agent.executor, 'model', 'unknown'))
-    logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, 'model', 'unknown'))
+    logger.info("[REQUEST] Current executor model: %s", getattr(agent.executor, "model", "unknown"))
+    logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
     if body.images_base64:
@@ -3395,20 +4267,28 @@ async def run_task(
     project_context = body.project_context or main_project
     allowed_list, project_configs = await get_projects_registry()
     if project_context not in allowed_list:
-        logger.warning(f"⚠️ Invalid project_context: {project_context}, using default: {main_project}")
+        logger.warning(
+            f"⚠️ Invalid project_context: {project_context}, using default: {main_project}"
+        )
         project_context = main_project
-    project_config = project_configs.get(project_context, project_configs.get(main_project, {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"}))
+    project_config = project_configs.get(
+        project_context,
+        project_configs.get(
+            main_project,
+            {"name": main_project, "description": "", "workspace": f"/workspace/{main_project}"},
+        ),
+    )
     main_config = project_configs.get(main_project, project_config)
 
     # Обновляем системный промпт с безопасным контекстом проекта
     project_prompt = f"""
-🏢 КОНТЕКСТ ПРОЕКТА: {project_config['name']}
-🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config['name']}
+🏢 КОНТЕКСТ ПРОЕКТА: {project_config["name"]}
+🏢 ОСНОВНОЙ ПРОЕКТ КОРПОРАЦИИ: {main_config["name"]}
 
 ВАЖНО:
-- Ты работаешь в контексте проекта: {project_config['name']}
-- Основной проект корпорации: {main_config['name']}
-- Все файлы, команды и операции должны быть в контексте проекта {project_config['name']}
+- Ты работаешь в контексте проекта: {project_config["name"]}
+- Основной проект корпорации: {main_config["name"]}
+- Все файлы, команды и операции должны быть в контексте проекта {project_config["name"]}
 - При работе с файлами используй пути относительно корня проекта
 
 🧠 БАЗА ЗНАНИЙ (ВСЕГДА ДОСТУПНА ДЛЯ ВСЕХ ПРОЕКТОВ):
@@ -3425,7 +4305,11 @@ async def run_task(
 {VICTORIA_THINKING_CONTEXT}
 """
     if VICTORIA_DEBUG:
-        logger.debug("[VICTORIA] project_prompt length=%s, thinking_context length=%s", len(project_prompt), len(VICTORIA_THINKING_CONTEXT))
+        logger.debug(
+            "[VICTORIA] project_prompt length=%s, thinking_context length=%s",
+            len(project_prompt),
+            len(VICTORIA_THINKING_CONTEXT),
+        )
 
     use_enhanced = body.use_enhanced
     if use_enhanced is None:
@@ -3439,8 +4323,12 @@ async def run_task(
     is_vip = any(word in goal.lower() for word in ["иван", "ceo", "стратег", "совет"])
 
     if is_fast_track or (is_simple and not use_enhanced) or is_vip:
-        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=unified_fast_path fast_track=%s vip=%s",
-                    correlation_id[:8], is_fast_track, is_vip)
+        logger.info(
+            "[VICTORIA_CYCLE] sync 200 correlation_id=%s route=unified_fast_path fast_track=%s vip=%s",
+            correlation_id[:8],
+            is_fast_track,
+            is_vip,
+        )
 
         ideal_model = _select_model_for_chat(goal)
         content, source = await _generate_via_mlx_or_ollama(goal, ideal_model)
@@ -3461,7 +4349,12 @@ async def run_task(
             return TaskResponse(
                 status="success",
                 output=content,
-                knowledge={"strategy": "quick_answer", "confidence": 1.0, "fast_path": True, "source": source},
+                knowledge={
+                    "strategy": "quick_answer",
+                    "confidence": 1.0,
+                    "fast_path": True,
+                    "source": source,
+                },
                 correlation_id=correlation_id,
             )
     # ===========================================================================
@@ -3511,7 +4404,11 @@ async def run_task(
             try:
                 exc = fut.exception()
                 if exc is not None:
-                    logger.exception("[VICTORIA_CYCLE] Фоновая задача %s завершилась с необработанным исключением: %s", task_id, exc)
+                    logger.exception(
+                        "[VICTORIA_CYCLE] Фоновая задача %s завершилась с необработанным исключением: %s",
+                        task_id,
+                        exc,
+                    )
                     store = _run_task_store.get(task_id)
                     if store is not None:
                         store["status"] = "failed"
@@ -3519,10 +4416,14 @@ async def run_task(
                         store["stage"] = "failed"
                         store["updated_at"] = datetime.now(timezone.utc).isoformat()
             except Exception as cb_e:
-                logger.warning("[VICTORIA_CYCLE] Ошибка в done_callback для задачи %s: %s", task_id, cb_e)
+                logger.warning(
+                    "[VICTORIA_CYCLE] Ошибка в done_callback для задачи %s: %s", task_id, cb_e
+                )
 
         asyncio.create_task(task_coro).add_done_callback(_done_callback)
-        logger.info("[VICTORIA_CYCLE] async 202 task_id=%s status_url=/run/status/%s", task_id, task_id)
+        logger.info(
+            "[VICTORIA_CYCLE] async 202 task_id=%s status_url=/run/status/%s", task_id, task_id
+        )
         return JSONResponse(
             status_code=202,
             content={
@@ -3553,8 +4454,15 @@ async def run_task(
         _inject_strategy_into_knowledge(content["knowledge"], strategy_result)
         return JSONResponse(status_code=200, content=content)
     if strategy_result.get("strategy") == "decline_or_redirect":
-        reason = strategy_result.get("reason") or "Запрос вне моей компетенции. Уточните задачу или обратитесь к документации."
-        knowledge_decline = {"strategy": "decline_or_redirect", "strategy_reason": reason, "confidence": strategy_result.get("confidence", 0.5)}
+        reason = (
+            strategy_result.get("reason")
+            or "Запрос вне моей компетенции. Уточните задачу или обратитесь к документации."
+        )
+        knowledge_decline = {
+            "strategy": "decline_or_redirect",
+            "strategy_reason": reason,
+            "confidence": strategy_result.get("confidence", 0.5),
+        }
         return TaskResponse(
             status="success",
             output=f"Виктория: {reason}",
@@ -3572,16 +4480,23 @@ async def run_task(
         ]:
             if (_path not in sys.path) and (os.path.exists(_path) or _path.startswith("/app")):
                 sys.path.insert(0, _path)
-            _app = os.path.join(_path, "app") if os.path.exists(_path) or _path.startswith("/app") else None
+            _app = (
+                os.path.join(_path, "app")
+                if os.path.exists(_path) or _path.startswith("/app")
+                else None
+            )
             if _app and _app not in sys.path:
                 sys.path.insert(0, _app)
             try:
                 from app.recent_tasks_context import (
                     get_recent_completed_tasks_context as _get_recent,
                 )
+
                 last_tasks_context = await _get_recent(body.project_context, limit=5) or ""
                 if last_tasks_context:
-                    logger.info("[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда»")
+                    logger.info(
+                        "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда»"
+                    )
                 break
             except ImportError:
                 continue
@@ -3598,9 +4513,20 @@ async def run_task(
             timeout=understand_timeout,
         )
     except asyncio.TimeoutError:
-        logger.warning("🕒 [SYNC] _understand_goal_with_clarification timeout (%.0fs), используем goal как restated", understand_timeout)
-        understanding = {"needs_clarification": False, "restated": goal, "category": "multi_step", "first_step": ""}
-    logger.info("🕒 [SYNC] _understand_goal_with_clarification took %.2fs", time.monotonic() - _t_understand_0)
+        logger.warning(
+            "🕒 [SYNC] _understand_goal_with_clarification timeout (%.0fs), используем goal как restated",
+            understand_timeout,
+        )
+        understanding = {
+            "needs_clarification": False,
+            "restated": goal,
+            "category": "multi_step",
+            "first_step": "",
+        }
+    logger.info(
+        "🕒 [SYNC] _understand_goal_with_clarification took %.2fs",
+        time.monotonic() - _t_understand_0,
+    )
     logger.info("🕒 [SYNC] strategy + understand_goal total %.2fs", time.monotonic() - _t_sync_0)
     if understanding.get("needs_clarification"):
         return JSONResponse(
@@ -3626,7 +4552,11 @@ async def run_task(
                 "/app/knowledge_os",
             ]
             for ko_root in ko_paths:
-                app_path = os.path.join(ko_root, "app") if os.path.exists(ko_root) or ko_root.startswith("/app") else None
+                app_path = (
+                    os.path.join(ko_root, "app")
+                    if os.path.exists(ko_root) or ko_root.startswith("/app")
+                    else None
+                )
                 if not app_path and not ko_root.startswith("/app"):
                     continue
                 if ko_root not in sys.path:
@@ -3635,21 +4565,33 @@ async def run_task(
                     sys.path.insert(0, app_path)
                 try:
                     import sys as _sys
-                    logger.info(f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={_sys.path}")
+
+                    logger.info(
+                        f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={_sys.path}"
+                    )
                     from app.task_orchestration.integration_bridge import IntegrationBridge
+
                     logger.info(f"[ORCHESTRATOR_DEBUG] POST-IMPORT from {ko_root}")
                     bridge = IntegrationBridge()
-                    logger.info(f"[ORCHESTRATOR] Calling bridge.process_task (sync path) for goal: {restated_goal[:50]}...")
-                    bridge_result = await bridge.process_task(restated_goal, project_context=project_context)
+                    logger.info(
+                        f"[ORCHESTRATOR] Calling bridge.process_task (sync path) for goal: {restated_goal[:50]}..."
+                    )
+                    bridge_result = await bridge.process_task(
+                        restated_goal, project_context=project_context
+                    )
                     logger.info(f"[ORCHESTRATOR] Bridge result (sync path): {bridge_result}")
                     orchestration_plan = bridge_result  # Сохраняем план и назначения для использования при выполнении (контекст в промпт; исполнение — Victoria Enhanced/Veronica/agent_run, см. docs/VICTORIA_TASK_CHAIN_FULL.md)
                     version = bridge_result.get("orchestrator", "existing")
                     try:
-                        knowledge_os_task_id = await _record_orchestration_task_start(agent, restated_goal, version)
+                        knowledge_os_task_id = await _record_orchestration_task_start(
+                            agent, restated_goal, version
+                        )
                     except Exception as db_e:
                         logger.warning("[ORCHESTRATOR] DB record failed (non-critical): %s", db_e)
                     if bridge_result.get("assignments") or bridge_result.get("strategy"):
-                        logger.info("[ORCHESTRATOR] План и назначения получены, передаём Victoria для выполнения")
+                        logger.info(
+                            "[ORCHESTRATOR] План и назначения получены, передаём Victoria для выполнения"
+                        )
                     break
                 except ImportError as imp_e:
                     logger.warning(f"[ORCHESTRATOR] ImportError in bridge (sync path): {imp_e}")
@@ -3659,15 +4601,25 @@ async def run_task(
     orchestration_context_str = _build_orchestration_context(orchestration_plan)
     # План «как я» п.12.2 п.1: при EXECUTE_ASSIGNMENTS_IN_RUN=true — выполнить назначения и подставить результаты в контекст
     if os.getenv("EXECUTE_ASSIGNMENTS_IN_RUN", "").strip().lower() in ("true", "1", "yes"):
-        _assignments = (orchestration_plan or {}).get("assignments") if isinstance(orchestration_plan, dict) else {}
-        if _assignments and isinstance(_assignments, dict) and not _orchestrator_recommends_veronica(orchestration_plan):
+        _assignments = (
+            (orchestration_plan or {}).get("assignments")
+            if isinstance(orchestration_plan, dict)
+            else {}
+        )
+        if (
+            _assignments
+            and isinstance(_assignments, dict)
+            and not _orchestrator_recommends_veronica(orchestration_plan)
+        ):
             try:
                 for _path in [
                     "/app/knowledge_os",
                     os.path.join(os.path.dirname(__file__), "../../knowledge_os"),
                     os.path.join(os.path.dirname(__file__), "../../../knowledge_os"),
                 ]:
-                    if _path not in sys.path and (os.path.exists(_path) or _path.startswith("/app")):
+                    if _path not in sys.path and (
+                        os.path.exists(_path) or _path.startswith("/app")
+                    ):
                         sys.path.insert(0, _path)
                 try:
                     from app.execute_assignments import execute_assignments_async
@@ -3677,16 +4629,22 @@ async def run_task(
                 _exec_results = await execute_assignments_async(
                     _assignments,
                     restated_goal or "",
-                    strategy=(orchestration_plan or {}).get("strategy") if isinstance(orchestration_plan, dict) else None,
+                    strategy=(orchestration_plan or {}).get("strategy")
+                    if isinstance(orchestration_plan, dict)
+                    else None,
                     project_context=project_context,
                 )
                 if _exec_results:
                     orchestration_context_str = _exec_results
-                    logger.info("[ORCHESTRATOR] Исполнение по assignments выполнено, контекст подставлен")
+                    logger.info(
+                        "[ORCHESTRATOR] Исполнение по assignments выполнено, контекст подставлен"
+                    )
             except Exception as _e:
                 logger.warning("[ORCHESTRATOR] execute_assignments_async failed: %s", _e)
     # Маршрутизация: простой чат (привет и т.п.) — без Enhanced для скорости. Логика мысли: стратегия перебивает.
-    use_enhanced_for_request = should_use_enhanced(restated_goal, body.project_context, use_enhanced)
+    use_enhanced_for_request = should_use_enhanced(
+        restated_goal, body.project_context, use_enhanced
+    )
     if strategy_result.get("strategy") == "quick_answer":
         use_enhanced_for_request = False
     elif strategy_result.get("strategy") == "deep_analysis":
@@ -3703,9 +4661,14 @@ async def run_task(
         # Маршрутизация: Veronica если task_type=veronica ИЛИ оркестратор рекомендует Veronica (мировая практика)
         # Кураторские эталоны (статус проекта, что умеешь, дашборд) — только Enhanced + RAG, не Veronica
         veronica_tried_and_failed = False
-        prefer_veronica = (task_type == "veronica" or _orchestrator_recommends_veronica(orchestration_plan)) and not is_curator_standard_goal(restated_goal or "")
+        prefer_veronica = (
+            task_type == "veronica" or _orchestrator_recommends_veronica(orchestration_plan)
+        ) and not is_curator_standard_goal(restated_goal or "")
         if prefer_veronica and use_enhanced_for_request:
-            logger.info("[TRACE] run_task: before delegate_to_veronica correlation_id=%s", correlation_id[:8])
+            logger.info(
+                "[TRACE] run_task: before delegate_to_veronica correlation_id=%s",
+                correlation_id[:8],
+            )
             veronica_result = await delegate_to_veronica(
                 _sanitize_goal_for_prompt(restated_goal),
                 body.project_context or project_context,
@@ -3735,11 +4698,23 @@ async def run_task(
                 orch_ctx["status"] = "completed"
                 orch_ctx["result"] = (veronica_result.get("output") or "")[:5000]
                 out_len = len(veronica_result.get("output") or "")
-                logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=veronica output_len=%s", correlation_id[:8], out_len)
+                logger.info(
+                    "[VICTORIA_CYCLE] sync 200 correlation_id=%s route=veronica output_len=%s",
+                    correlation_id[:8],
+                    out_len,
+                )
                 if body.session_id:
-                    await _save_session_exchange(body.session_id, restated_goal or goal, veronica_result.get("output") or "")
+                    await _save_session_exchange(
+                        body.session_id, restated_goal or goal, veronica_result.get("output") or ""
+                    )
                     if LONG_TERM_MEMORY_ENABLED:
-                        await _save_long_term_memory(agent, body.session_id, project_context, restated_goal or goal, veronica_result.get("output") or "")
+                        await _save_long_term_memory(
+                            agent,
+                            body.session_id,
+                            project_context,
+                            restated_goal or goal,
+                            veronica_result.get("output") or "",
+                        )
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
                 return TaskResponse(
                     status="success",
@@ -3748,7 +4723,10 @@ async def run_task(
                     correlation_id=correlation_id,
                 )
             veronica_tried_and_failed = True
-            logger.info("[%s] Veronica недоступна или ошибка — выполняю задачу через Victoria (инструменты)", correlation_id[:8])
+            logger.info(
+                "[%s] Veronica недоступна или ошибка — выполняю задачу через Victoria (инструменты)",
+                correlation_id[:8],
+            )
     except Exception as e:
         logger.warning("[run_task] Ошибка при делегировании Veronica, fallback на Victoria: %s", e)
         veronica_tried_and_failed = True
@@ -3758,6 +4736,7 @@ async def run_task(
         # Используем Victoria Enhanced с новыми компонентами
         try:
             import sys
+
             enhanced_paths = [
                 "/app/knowledge_os/app",  # Путь в Docker контейнере
                 os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
@@ -3777,35 +4756,58 @@ async def run_task(
                             logger.debug("♻️ Используем существующий экземпляр Victoria Enhanced")
                         else:
                             from app.victoria_enhanced import VictoriaEnhanced
+
                             logger.info("🚀 Victoria Enhanced активирован!")
                             enhanced = VictoriaEnhanced()
 
                         # Формируем контекст с историей чата
                         context_with_history = {}
                         if body.chat_history:
-                            max_msgs = min(len(body.chat_history), VICTORIA_CHAT_HISTORY_MAX_MESSAGES)
-                            history_text = "\n".join([
-                                f"Пользователь: {msg.get('user', '')}\nVictoria: {msg.get('assistant', '')}"
-                                for msg in body.chat_history[-max_msgs:]
-                            ])
-                            if VICTORIA_HISTORY_MAX_CHARS > 0 and len(history_text) > VICTORIA_HISTORY_MAX_CHARS:
-                                history_text = history_text[-VICTORIA_HISTORY_MAX_CHARS:] + "\n[... обрезано по лимиту контекста ...]"
+                            max_msgs = min(
+                                len(body.chat_history), VICTORIA_CHAT_HISTORY_MAX_MESSAGES
+                            )
+                            history_text = "\n".join(
+                                [
+                                    f"Пользователь: {msg.get('user', '')}\nVictoria: {msg.get('assistant', '')}"
+                                    for msg in body.chat_history[-max_msgs:]
+                                ]
+                            )
+                            if (
+                                VICTORIA_HISTORY_MAX_CHARS > 0
+                                and len(history_text) > VICTORIA_HISTORY_MAX_CHARS
+                            ):
+                                history_text = (
+                                    history_text[-VICTORIA_HISTORY_MAX_CHARS:]
+                                    + "\n[... обрезано по лимиту контекста ...]"
+                                )
                             context_with_history["chat_history"] = history_text
-                            logger.debug(f"📝 Передана история чата ({len(body.chat_history)} сообщений)")
+                            logger.debug(
+                                f"📝 Передана история чата ({len(body.chat_history)} сообщений)"
+                            )
                         elif body.session_id:
                             # Подмешивание session_context при session_id без chat_history (Telegram, скрипты)
-                            session_ctx = await _get_session_context_from_db(body.session_id, restated_goal)
+                            session_ctx = await _get_session_context_from_db(
+                                body.session_id, restated_goal
+                            )
                             if session_ctx:
                                 context_with_history["chat_history"] = session_ctx
                             task_mem = await _get_task_memory_from_db(body.session_id)
                             if task_mem:
                                 context_with_history["task_memory"] = task_mem
                             if LONG_TERM_MEMORY_ENABLED:
-                                long_term = await _get_long_term_memory_context(body.session_id or "", project_context, limit=5)
+                                long_term = await _get_long_term_memory_context(
+                                    body.session_id or "", project_context, limit=5
+                                )
                                 if long_term:
                                     context_with_history["long_term_memory"] = long_term
-                        if LONG_TERM_MEMORY_ENABLED and project_context and "long_term_memory" not in context_with_history:
-                            long_term = await _get_long_term_memory_context(body.session_id or "", project_context, limit=5)
+                        if (
+                            LONG_TERM_MEMORY_ENABLED
+                            and project_context
+                            and "long_term_memory" not in context_with_history
+                        ):
+                            long_term = await _get_long_term_memory_context(
+                                body.session_id or "", project_context, limit=5
+                            )
                             if long_term:
                                 context_with_history["long_term_memory"] = long_term
                         if orchestration_context_str:
@@ -3814,17 +4816,29 @@ async def run_task(
 
                         # Передаем контекст проекта, историю и план оркестратора в Enhanced (мировая практика: оркестратор распределил — Victoria выполняет по плану)
                         goal_for_enhanced = _sanitize_goal_for_prompt(restated_goal)
-                        if VICTORIA_GOAL_MAX_CHARS > 0 and len(goal_for_enhanced) > VICTORIA_GOAL_MAX_CHARS:
-                            goal_for_enhanced = goal_for_enhanced[:VICTORIA_GOAL_MAX_CHARS] + " [...]"
+                        if (
+                            VICTORIA_GOAL_MAX_CHARS > 0
+                            and len(goal_for_enhanced) > VICTORIA_GOAL_MAX_CHARS
+                        ):
+                            goal_for_enhanced = (
+                                goal_for_enhanced[:VICTORIA_GOAL_MAX_CHARS] + " [...]"
+                            )
                         if orchestration_context_str:
-                            goal_for_enhanced = orchestration_context_str + "\n\nЗАДАЧА: " + goal_for_enhanced
-                        logger.info("[TRACE] run_task: before enhanced.solve correlation_id=%s", correlation_id[:8])
+                            goal_for_enhanced = (
+                                orchestration_context_str + "\n\nЗАДАЧА: " + goal_for_enhanced
+                            )
+                        logger.info(
+                            "[TRACE] run_task: before enhanced.solve correlation_id=%s",
+                            correlation_id[:8],
+                        )
                         enhanced_result = await enhanced.solve(
                             goal_for_enhanced,
                             use_enhancements=True,
-                            context=context_with_history if context_with_history else None
+                            context=context_with_history if context_with_history else None,
                         )
-                        logger.info(f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]")
+                        logger.info(
+                            f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
+                        )
                         knowledge = {
                             "method": enhanced_result.get("method"),
                             "metadata": dict(enhanced_result.get("metadata") or {}),
@@ -3848,11 +4862,25 @@ async def run_task(
                         orch_ctx["status"] = "completed"
                         orch_ctx["result"] = (enhanced_result.get("result") or "")[:5000]
                         out_len = len(enhanced_result.get("result") or "")
-                        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=enhanced output_len=%s", correlation_id[:8], out_len)
+                        logger.info(
+                            "[VICTORIA_CYCLE] sync 200 correlation_id=%s route=enhanced output_len=%s",
+                            correlation_id[:8],
+                            out_len,
+                        )
                         if body.session_id:
-                            await _save_session_exchange(body.session_id, restated_goal or goal, enhanced_result.get("result") or "")
+                            await _save_session_exchange(
+                                body.session_id,
+                                restated_goal or goal,
+                                enhanced_result.get("result") or "",
+                            )
                             if LONG_TERM_MEMORY_ENABLED:
-                                await _save_long_term_memory(agent, body.session_id, project_context, restated_goal or goal, enhanced_result.get("result") or "")
+                                await _save_long_term_memory(
+                                    agent,
+                                    body.session_id,
+                                    project_context,
+                                    restated_goal or goal,
+                                    enhanced_result.get("result") or "",
+                                )
                         _inject_strategy_into_knowledge(knowledge, strategy_result)
                         return TaskResponse(
                             status="success",
@@ -3864,7 +4892,9 @@ async def run_task(
                         logger.warning(f"⚠️ Не удалось импортировать VictoriaEnhanced: {e}")
                         break
         except Exception as e:
-            logger.warning(f"⚠️ Ошибка использования VictoriaEnhanced, fallback на стандартный режим: {e}")
+            logger.warning(
+                f"⚠️ Ошибка использования VictoriaEnhanced, fallback на стандартный режим: {e}"
+            )
 
     # Стандартный режим: цель + план оркестратора (если есть), чтобы LLM следовал назначениям
     try:
@@ -3877,9 +4907,16 @@ async def run_task(
         logger.info("[EXECUTE] Correlation ID: %s", correlation_id[:8])
         logger.info("[EXECUTE] Goal (sanitized): %s", goal_for_run[:100])
         logger.info("[EXECUTE] Task type: %s", task_type)
-        logger.info("[EXECUTE] Executor model BEFORE run: %s", getattr(agent.executor, 'model', 'unknown'))
-        logger.info("[EXECUTE] Planner model BEFORE run: %s", getattr(agent.planner, 'model', 'unknown'))
-        logger.info("[EXECUTE] Max steps: %s", body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS)
+        logger.info(
+            "[EXECUTE] Executor model BEFORE run: %s", getattr(agent.executor, "model", "unknown")
+        )
+        logger.info(
+            "[EXECUTE] Planner model BEFORE run: %s", getattr(agent.planner, "model", "unknown")
+        )
+        logger.info(
+            "[EXECUTE] Max steps: %s",
+            body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+        )
 
         # Временно обновляем системный промпт с контекстом проекта
         original_prompt = agent.executor.system_prompt
@@ -3887,9 +4924,13 @@ async def run_task(
         agent.memory = []
 
         import time as _time
+
         _exec_start = _time.time()
 
-        result = await agent.run(goal_for_run, max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS)
+        result = await agent.run(
+            goal_for_run,
+            max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+        )
 
         _exec_elapsed = _time.time() - _exec_start
 
@@ -3923,11 +4964,21 @@ async def run_task(
             knowledge["verbose_steps"] = _get_verbose_steps(agent)
         orch_ctx["status"] = "completed"
         orch_ctx["result"] = (str(result) or "")[:5000]
-        logger.info("[VICTORIA_CYCLE] sync 200 correlation_id=%s route=agent_run output_len=%s", correlation_id[:8], len(str(result) or ""))
+        logger.info(
+            "[VICTORIA_CYCLE] sync 200 correlation_id=%s route=agent_run output_len=%s",
+            correlation_id[:8],
+            len(str(result) or ""),
+        )
         if body.session_id:
             await _save_session_exchange(body.session_id, restated_goal or goal, str(result) or "")
             if LONG_TERM_MEMORY_ENABLED:
-                await _save_long_term_memory(agent, body.session_id, project_context, restated_goal or goal, str(result) or "")
+                await _save_long_term_memory(
+                    agent,
+                    body.session_id,
+                    project_context,
+                    restated_goal or goal,
+                    str(result) or "",
+                )
         _inject_strategy_into_knowledge(knowledge, strategy_result)
         return TaskResponse(
             status="success",
@@ -3942,7 +4993,9 @@ async def run_task(
         raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         if knowledge_os_task_id:
-            await _record_orchestration_task_complete(agent, knowledge_os_task_id, orch_ctx["status"], orch_ctx["result"])
+            await _record_orchestration_task_complete(
+                agent, knowledge_os_task_id, orch_ctx["status"], orch_ctx["result"]
+            )
 
 
 @app.post("/orchestrate", response_model=TaskResponse)
@@ -3960,6 +5013,7 @@ async def orchestrate_task(request: TaskRequest):
 
 class PlanRequest(BaseModel):
     """Запрос только плана (без выполнения)."""
+
     goal: str
 
 
@@ -3988,7 +5042,7 @@ def _normalize_plan_display(raw: Any) -> str:
     # Убрать обёртки markdown/code
     for wrap in ("```json", "```", "```text"):
         if text.startswith(wrap):
-            text = text[len(wrap):].strip()
+            text = text[len(wrap) :].strip()
         if text.endswith("```"):
             text = text[:-3].strip()
     return text or "План не сформирован."
@@ -4014,6 +5068,7 @@ class ChatMessage(BaseModel):
     role: str
     content: str
 
+
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
@@ -4021,11 +5076,14 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = None
 
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, req: Request):
     """OpenAI-совместимый эндпоинт для Open WebUI, Chatbox и др. (поддерживает стриминг)"""
     correlation_id = str(uuid.uuid4())
-    logger.info(f"🔗 [OPENAI-API] Request received. Model: {request.model}, Stream: {request.stream}")
+    logger.info(
+        f"🔗 [OPENAI-API] Request received. Model: {request.model}, Stream: {request.stream}"
+    )
 
     # Извлекаем последнее сообщение пользователя как цель (goal)
     user_messages = [m for m in request.messages if m.role == "user"]
@@ -4051,20 +5109,21 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         project_context=os.getenv("MAIN_PROJECT", "atra-web-ide"),
         session_id=f"openai-{correlation_id[:8]}",
         chat_history=chat_history,
-        async_mode=False, # Open WebUI ожидает синхронный ответ или стрим
-        use_enhanced=True # Всегда используем Enhanced для OpenAI API (Open WebUI)
+        async_mode=False,  # Open WebUI ожидает синхронный ответ или стрим
+        use_enhanced=True,  # Всегда используем Enhanced для OpenAI API (Open WebUI)
     )
 
     # [SINGULARITY 15.0] Интеграция LongTermMemory
     memory_context = ""
     try:
         from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+
         ltm = get_long_term_memory_manager()
         # Ищем последние 5 обменов для этого пользователя/проекта
         memory_context = await ltm.get_recent_threads(
             user_key=f"openai-{correlation_id[:8]}",
             project_context=task_req.project_context,
-            limit=5
+            limit=5,
         )
         if memory_context:
             logger.info(f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars")
@@ -4076,6 +5135,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
     # --- РЕАЛИЗАЦИЯ СТРИМИНГА (OPENAI COMPATIBLE) ---
     if request.stream:
+
         async def openai_stream_generator():
             full_response_content = ""
             try:
@@ -4085,7 +5145,13 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": request.model,
-                    "choices": [{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": ""},
+                            "finish_reason": None,
+                        }
+                    ],
                 }
                 yield f"data: {json.dumps(initial_chunk)}\n\n"
                 await asyncio.sleep(0.01)
@@ -4102,7 +5168,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                             "object": "chat.completion.chunk",
                             "created": int(time.time()),
                             "model": request.model,
-                            "choices": [{"index": 0, "delta": {"content": ""}, "finish_reason": None}]
+                            "choices": [
+                                {"index": 0, "delta": {"content": ""}, "finish_reason": None}
+                            ],
                         }
                         yield f"data: {json.dumps(hb_chunk)}\n\n"
                 try:
@@ -4126,7 +5194,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                         full_response_content = body_data.get("output", str(body_data))
                 elif isinstance(result, TaskResponse):
                     full_response_content = result.output if result.output is not None else ""
-                elif hasattr(result, 'output'):
+                elif hasattr(result, "output"):
                     full_response_content = result.output if result.output is not None else ""
                 else:
                     full_response_content = str(result) if result is not None else ""
@@ -4136,13 +5204,15 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     # Разбиваем на мелкие части для плавности
                     chunk_size = 20
                     for i in range(0, len(full_response_content), chunk_size):
-                        part = full_response_content[i:i+chunk_size]
+                        part = full_response_content[i : i + chunk_size]
                         chunk = {
                             "id": f"chatcmpl-{correlation_id}",
                             "object": "chat.completion.chunk",
                             "created": int(time.time()),
                             "model": request.model,
-                            "choices": [{"index": 0, "delta": {"content": part}, "finish_reason": None}]
+                            "choices": [
+                                {"index": 0, "delta": {"content": part}, "finish_reason": None}
+                            ],
                         }
                         yield f"data: {json.dumps(chunk)}\n\n"
                         await asyncio.sleep(0.01)
@@ -4153,7 +5223,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": request.model,
-                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
                 yield f"data: {json.dumps(final_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -4161,14 +5231,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 # Сохраняем в память (фоном)
                 try:
                     from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+
                     ltm = get_long_term_memory_manager()
                     await ltm.save_thread(
                         user_key=f"openai-{correlation_id[:8]}",
                         project_context=task_req.project_context,
                         goal_summary=user_messages[-1].content[:200],
-                        outcome_summary=(full_response_content or "")[:200]
+                        outcome_summary=(full_response_content or "")[:200],
                     )
-                except: pass
+                except:
+                    pass
 
             except Exception as e:
                 logger.error(f"❌ [OPENAI-STREAM] Error: {e}")
@@ -4178,7 +5250,9 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
                     "model": request.model,
-                    "choices": [{"index": 0, "delta": {"content": error_msg}, "finish_reason": "stop"}]
+                    "choices": [
+                        {"index": 0, "delta": {"content": error_msg}, "finish_reason": "stop"}
+                    ],
                 }
                 yield f"data: {json.dumps(err_chunk)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -4190,8 +5264,8 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 "Transfer-Encoding": "chunked",
-                "X-Accel-Buffering": "no"
-            }
+                "X-Accel-Buffering": "no",
+            },
         )
 
     # --- ОБЫЧНЫЙ СИНХРОННЫЙ ОТВЕТ ---
@@ -4211,7 +5285,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 output_text = body_data.get("output", body_data.get("message", str(body_data)))
         elif isinstance(result, TaskResponse):
             output_text = result.output
-        elif hasattr(result, 'output'):
+        elif hasattr(result, "output"):
             output_text = result.output
         else:
             output_text = str(result)
@@ -4219,13 +5293,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
         try:
             from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+
             ltm = get_long_term_memory_manager()
             # Сохраняем краткую версию (первые 200 символов)
             await ltm.save_thread(
                 user_key=f"openai-{correlation_id[:8]}",
                 project_context=task_req.project_context,
                 goal_summary=user_messages[-1].content[:200],
-                outcome_summary=output_text[:200]
+                outcome_summary=output_text[:200],
             )
         except Exception as e:
             logger.debug(f"Memory save failed: {e}")
@@ -4239,23 +5314,17 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             "choices": [
                 {
                     "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": output_text
-                    },
-                    "finish_reason": "stop"
+                    "message": {"role": "assistant", "content": output_text},
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "total_tokens": 0
-            }
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
         return JSONResponse(content=response_data)
     except Exception as e:
         logger.error(f"❌ [OPENAI-API] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/v1/models")
 async def list_models():
@@ -4264,9 +5333,15 @@ async def list_models():
         "object": "list",
         "data": [
             {"id": "Victoria", "object": "model", "created": int(time.time()), "owned_by": "atra"},
-            {"id": "Victoria-Enhanced", "object": "model", "created": int(time.time()), "owned_by": "atra"}
-        ]
+            {
+                "id": "Victoria-Enhanced",
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "atra",
+            },
+        ],
     }
+
 
 @app.get("/status")
 async def get_status():
@@ -4277,14 +5352,12 @@ async def get_status():
         except Exception:
             pass
     # Получить статистику экспертов из БД
-    experts_stats = {
-        "total": len(agent.expert_team),
-        "unique_roles": 0,
-        "departments": 0
-    }
+    experts_stats = {"total": len(agent.expert_team), "unique_roles": 0, "departments": 0}
     if agent._expert_team_loaded and agent.expert_team:
-        unique_roles = set(e.get('role', '') for e in agent.expert_team.values() if e.get('role'))
-        unique_departments = set(e.get('department', '') for e in agent.expert_team.values() if e.get('department'))
+        unique_roles = set(e.get("role", "") for e in agent.expert_team.values() if e.get("role"))
+        unique_departments = set(
+            e.get("department", "") for e in agent.expert_team.values() if e.get("department")
+        )
         experts_stats["unique_roles"] = len(unique_roles)
         experts_stats["departments"] = len(unique_departments)
 
@@ -4326,7 +5399,9 @@ async def get_status():
                 "skill_registry_available": enhanced_status.get("skill_registry_available", False),
                 "skills_count": enhanced_status.get("skills_count", 0),
                 "file_watcher_available": enhanced_status.get("file_watcher_available", False),
-                "service_monitor_available": enhanced_status.get("service_monitor_available", False)
+                "service_monitor_available": enhanced_status.get(
+                    "service_monitor_available", False
+                ),
             }
         except Exception as e:
             logger.debug(f"Ошибка получения статуса Enhanced: {e}")
@@ -4341,16 +5416,27 @@ async def get_status():
 async def available_models():
     """Сканирует доступные модели в MLX и Ollama (прогрев кэша при запуске чата)."""
     import os
+
     is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "").lower() == "true"
-    mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435" if is_docker else "http://localhost:11435")
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434" if is_docker else "http://localhost:11434")
+    mlx_url = os.getenv(
+        "MLX_API_URL",
+        "http://host.docker.internal:11435" if is_docker else "http://localhost:11435",
+    )
+    ollama_url = os.getenv(
+        "OLLAMA_BASE_URL",
+        "http://host.docker.internal:11434" if is_docker else "http://localhost:11434",
+    )
     try:
-        for path in ["/app/knowledge_os/app", os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app")]:
+        for path in [
+            "/app/knowledge_os/app",
+            os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+        ]:
             if path and os.path.exists(path) and path not in sys.path:
                 sys.path.insert(0, path)
         if "/app/knowledge_os" not in sys.path:
             sys.path.insert(0, "/app/knowledge_os")
         from app.available_models_scanner import get_available_models  # type: ignore
+
         mlx_list, ollama_list = await get_available_models(mlx_url, ollama_url)
         return {"mlx": mlx_list, "ollama": ollama_list}
     except Exception as e:
@@ -4393,11 +5479,7 @@ async def telegram_health():
     # Проверяем кэшированный статус в Victoria Server
     global _telegram_bot_last_report
 
-    report = {
-        "status": "error",
-        "bot_process": "unknown",
-        "pids": []
-    }
+    report = {"status": "error", "bot_process": "unknown", "pids": []}
 
     if _telegram_bot_last_report:
         report["last_report"] = _telegram_bot_last_report
@@ -4406,6 +5488,7 @@ async def telegram_health():
         if last_ts:
             try:
                 from datetime import datetime, timezone
+
                 last_dt = datetime.fromisoformat(last_ts)
                 diff = (datetime.now(timezone.utc) - last_dt).total_seconds()
                 report["heartbeat_age_seconds"] = diff
@@ -4425,11 +5508,13 @@ async def telegram_health():
 
 _telegram_bot_last_report = {}
 
+
 @app.post("/api/telegram/register")
 async def register_telegram(data: dict):
     global _telegram_bot_last_report
     _telegram_bot_last_report["registered_at"] = datetime.now(timezone.utc).isoformat()
     return {"status": "registered"}
+
 
 @app.post("/api/telegram/heartbeat")
 async def telegram_heartbeat(data: dict):
@@ -4443,6 +5528,7 @@ async def telegram_heartbeat(data: dict):
 
     # Используем импортированный datetime
     from datetime import datetime, timezone
+
     _telegram_bot_last_report["server_received_at"] = datetime.now(timezone.utc).isoformat()
 
     # Обновляем Prometheus метрики
@@ -4467,7 +5553,7 @@ async def telegram_heartbeat(data: dict):
                 TELEGRAM_BOT_STATUS,
             )
 
-        if 'TELEGRAM_BOT_STATUS' in locals():
+        if "TELEGRAM_BOT_STATUS" in locals():
             TELEGRAM_BOT_STATUS.set(1 if data.get("status") == "running" else 0)
 
             new_messages = data.get("processed_messages", 0)
@@ -4496,13 +5582,17 @@ async def get_hidden_thoughts(session_id: str):
     """Получить скрытые рассуждения для сессии (Summary Reader)"""
     try:
         # Пытаемся импортировать VictoriaEnhanced и вызвать статический метод
-        for path in ["/app/knowledge_os/app", os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app")]:
+        for path in [
+            "/app/knowledge_os/app",
+            os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+        ]:
             if path and os.path.exists(path) and path not in sys.path:
                 sys.path.insert(0, path)
         if "/app/knowledge_os" not in sys.path:
             sys.path.insert(0, "/app/knowledge_os")
 
         from app.victoria_enhanced import VictoriaEnhanced
+
         thoughts = VictoriaEnhanced.get_hidden_thoughts(session_id)
 
         if thoughts:
@@ -4515,9 +5605,15 @@ async def get_hidden_thoughts(session_id: str):
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("VICTORIA_PORT", "8010"))  # 8010 — как в Docker (host), 8000 — внутри контейнера
-    workers = int(os.getenv("UVICORN_WORKERS", "1"))  # 1 = один event loop; при workers>1 нужен общий store для /run/status
-    timeout_keep_alive = int(os.getenv("UVICORN_TIMEOUT_KEEP_ALIVE", "600"))  # долгие sync-запросы (стратегия + LLM)
+    port = int(
+        os.getenv("VICTORIA_PORT", "8010")
+    )  # 8010 — как в Docker (host), 8000 — внутри контейнера
+    workers = int(
+        os.getenv("UVICORN_WORKERS", "1")
+    )  # 1 = один event loop; при workers>1 нужен общий store для /run/status
+    timeout_keep_alive = int(
+        os.getenv("UVICORN_TIMEOUT_KEEP_ALIVE", "600")
+    )  # долгие sync-запросы (стратегия + LLM)
     uvicorn.run(
         app,
         host="0.0.0.0",

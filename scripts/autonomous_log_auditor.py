@@ -12,7 +12,8 @@ logger = logging.getLogger("log_auditor")
 LOG_FILES = [
     Path("victoria_bot_supervisor.log"),
     Path("knowledge_os/logs/evolution.log"),
-    # Можно добавить другие логи
+    Path("logs/mlx_api_server.log"),
+    Path("logs/remediation.log"),
 ]
 
 async def audit_logs():
@@ -50,20 +51,38 @@ async def audit_logs():
 ЗАДАНИЕ:
 1. Классифицируй ошибки (инфраструктурные, логические, синтаксические).
 2. Найди повторяющиеся паттерны.
-3. Предложи исправления (код, конфиг или команды).
-4. Если ошибка уже исправлена в ходе текущей сессии, отметь это.
+3. Предложи исправления.
+4. ВАЖНО: Если ошибку можно исправить командой (bash), выдели её в блоке ```bash ... ```.
+   Примеры команд:
+   - Перезапуск MLX: `bash scripts/system_auto_recovery.sh`
+   - Очистка логов: `rm logs/*.log`
+   - Проверка контейнеров: `docker ps`
 
-ОТВЕТЬ КРАТКО И ПО ДЕЛУ.
+ОТВЕТЬ КРАТКО И ПО ДЕЛУ. ВЕРНИ ТОЛЬКО АНАЛИЗ И КОМАНДЫ.
 """
 
         analysis = await run_smart_agent_async(audit_prompt, category="reasoning")
 
         if analysis:
             logger.info(f"📊 [LOG AUDITOR] Analysis complete:\n{analysis}")
-            # Сохраняем отчет в базу знаний или файл
+
+            # Извлекаем команды для автономного исполнения
+            import re
+            commands = re.findall(r"```bash\n(.*?)\n```", analysis, re.DOTALL)
+
+            # Сохраняем отчет
             report_path = Path(f"docs/log_audit_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md")
             with open(report_path, "w", encoding="utf-8") as f:
                 f.write(f"# Autonomous Log Audit Report ({datetime.now().isoformat()})\n\n{analysis}")
+
+            # Сохраняем команды для executor
+            if commands:
+                cmd_path = Path("scripts/pending_remediation.sh")
+                with open(cmd_path, "w", encoding="utf-8") as f:
+                    f.write("#!/bin/bash\n" + "\n".join(commands))
+                os.chmod(cmd_path, 0o755)
+                logger.info(f"⚡ [LOG AUDITOR] Found {len(commands)} remediation commands. Saved to {cmd_path}")
+
             logger.info(f"💾 [LOG AUDITOR] Report saved to {report_path}")
 
     except Exception as e:

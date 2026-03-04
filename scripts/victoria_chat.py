@@ -45,7 +45,7 @@ VICTORIA_SYNC_TIMEOUT = 600
 def send_message(url: str, goal: str, chat_history: Optional[list] = None) -> Optional[dict]:
     """Отправить сообщение к Rust Gateway (OpenAI compatible)."""
     payload = {
-        "model": "victoria-wisdom-30b:latest",
+        "model": "victoria-wisdom-v3.5:latest",
         "messages": [{"role": "user", "content": goal}],
         "use_rag": True,
         "stream": False

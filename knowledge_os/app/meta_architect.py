@@ -214,7 +214,7 @@ class MetaArchitect:
                 audit_prompt,
                 expert_name="Виктория",
                 category="safety_audit",
-                model="victoria-wisdom-30b",
+                model="victoria-wisdom-v3.5",
             )
 
             try:

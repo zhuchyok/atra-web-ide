@@ -5,7 +5,9 @@
   "description": "ATRA Web IDE - Browser-based IDE for AI Corporation",
   "scripts": {
     "commit": "cz",
-    "prepare": "husky || echo 'Husky not installed yet'"
+    "prepare": "husky || echo 'Husky not installed yet'",
+    "setki21:dev": "bash scripts/dev_setki21.sh",
+    "setki21:preview": "bash scripts/preview_setki21.sh"
   },
   "config": {
     "commitizen": {

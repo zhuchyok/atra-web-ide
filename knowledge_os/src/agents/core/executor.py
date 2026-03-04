@@ -1,6 +1,18 @@
 import json
 import logging
+import os
+import sys
 from typing import Any, Dict, List, Optional
+
+# Добавляем путь к корню приложения для импорта app.*
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+try:
+    from app.ollama_keep_alive_policy import get_keep_alive
+except ImportError:
+    # Fallback если запуск не из той директории
+    def get_keep_alive(model, mlx_alive=True):
+        return 300
+
 
 import aiohttp
 from pydantic import ValidationError
@@ -37,8 +49,8 @@ class OllamaExecutor:
 ФОРМАТ ОТВЕТА (СТРОГО JSON):
 {
   "thought": "рассуждение",
-  "tool": "ssh_run",
-  "tool_input": { "host": "185.177.216.15", "command": "команда" }
+  "tool": "write_file",
+  "tool_input": { "file_path": "путь", "old_text": "что заменить", "new_text": "на что" }
 }
 
 ЗАПРЕЩЕНО:
@@ -46,6 +58,8 @@ class OllamaExecutor:
 2. Давать советы Боссу. Сначала делай — потом докладывай результат.
 
 ИНСТРУМЕНТЫ:
+- read_file(file_path): Чтение файла.
+- write_file(file_path, old_text, new_text): Точечная замена текста.
 - ssh_run(host, command): Пароль подставляется сам.
 - web_search(query): Поиск в интернете.
 """
@@ -68,11 +82,15 @@ class OllamaExecutor:
             messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
+        # keep_alive: используем централизованную политику (MODEL_UNLOADING_AND_MEMORY)
+        keep_alive = get_keep_alive(self.model, mlx_alive=True)
+
         payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
             "options": {"temperature": 0.1},
+            "keep_alive": keep_alive,
         }
 
         async with aiohttp.ClientSession() as session:

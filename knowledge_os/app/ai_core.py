@@ -26,7 +26,6 @@ except ImportError:
 # Local project imports with fallbacks
 try:
     from semantic_cache import SemanticAICache, get_embedding  # type: ignore
-    from vector_cache import vector_cache  # [SINGULARITY 24.0] Local Vector Cache
 except ImportError:
     SemanticAICache = None  # type: ignore
 
@@ -38,6 +37,14 @@ try:
     from local_router import LocalAIRouter  # type: ignore
 except ImportError:
     LocalAIRouter = None  # type: ignore
+
+try:
+    from app.ollama_keep_alive_policy import get_keep_alive
+except ImportError:
+
+    def get_keep_alive(model, mlx_alive=True):
+        return 300
+
 
 try:
     from distillation_engine import KnowledgeDistiller  # type: ignore
@@ -208,10 +215,7 @@ class ContextSwapper:
     """
 
     def __init__(self, redis_mgr=None, max_tokens: int = 8000):
-        try:
-            from redis_manager import redis_manager
-        except ImportError:
-            from app.redis_manager import redis_manager
+        from redis_manager import redis_manager
 
         self.redis = redis_mgr or redis_manager
         self.max_tokens = max_tokens
@@ -414,25 +418,6 @@ async def _retry_llm_with_backoff(coro):
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
 _DB_POOL = None
 
-async def _periodic_vector_cache_sync():
-    """[SINGULARITY 24.0] Background task to keep vector cache fresh."""
-    while True:
-        try:
-            await asyncio.sleep(1800)  # Sync every 30 minutes
-            pool = await _get_db_pool()
-            if pool:
-                from vector_cache import vector_cache
-                await vector_cache.sync_from_db(pool)
-        except Exception as e:
-            logger.error("Error in periodic vector cache sync: %s", e)
-            await asyncio.sleep(60)
-
-# Start periodic sync in background
-try:
-    asyncio.create_task(_periodic_vector_cache_sync())
-except Exception:
-    pass
-
 
 async def _get_db_pool():
     """Lazy initialization of the PostgreSQL connection pool."""
@@ -454,7 +439,9 @@ async def _get_db_pool():
     return _DB_POOL
 
 
-async def _run_cloud_agent_async(prompt: str):
+async def _run_cloud_agent_async(
+    prompt: str, category: Optional[str] = "general", is_vip: bool = False
+):
     """Приоритет: локальные модели (Ollama/MLX) → cursor-agent. Локальные модели корпорации используются первыми."""
     # ПРИОРИТЕТ 1: локальные модели (Ollama/MLX) — политика корпорации
     # Health check перед запросом (2.3 плана): пропускаем заведомо недоступные узлы
@@ -472,7 +459,7 @@ async def _run_cloud_agent_async(prompt: str):
 
         async def _try_local():
             router = LocalAIRouter()
-            result = await router.run_local_llm(prompt, category="general")
+            result = await router.run_local_llm(prompt, category=category, is_vip=is_vip)
             if isinstance(result, tuple):
                 response, _ = result
             else:
@@ -520,7 +507,7 @@ async def _run_cloud_agent_async(prompt: str):
                     router = LocalAIRouter()
                     # Быстрый fallback на локальные модели с таймаутом 15 секунд
                     result = await asyncio.wait_for(
-                        router.run_local_llm(prompt, category="general"), timeout=15
+                        router.run_local_llm(prompt, category=category, is_vip=is_vip), timeout=15
                     )
                     if isinstance(result, tuple):
                         response, _ = result
@@ -593,6 +580,8 @@ async def _run_cloud_agent_async(prompt: str):
                     "http://host.docker.internal:11434" if _is_docker else "http://localhost:11434"
                 )
             ollama_urls = [_ollama_base]
+            # keep_alive: используем централизованную политику (MODEL_UNLOADING_AND_MEMORY)
+            # В ai_core fallback вызывается когда MLX недоступен
             async with aiohttp.ClientSession() as session:
                 # Mac Studio: используем локальные модели (Ollama и MLX)
                 for ollama_url in ollama_urls:
@@ -602,11 +591,7 @@ async def _run_cloud_agent_async(prompt: str):
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
                         if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
                             # Mac Studio - лучшие модели
-                            models_to_try = [
-                                "victoria-wisdom-30b",
-                                "glm-4.7-flash:q8_0",
-                                "phi3.5:3.8b",
-                            ]
+                            models_to_try = ["qwen3-coder:30b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)
                             models_to_try = [
@@ -623,9 +608,15 @@ async def _run_cloud_agent_async(prompt: str):
 
                         for model_name in models_to_try:
                             try:
+                                _keep_alive = get_keep_alive(model_name, mlx_alive=False)
                                 async with session.post(
                                     f"{ollama_url}/api/generate",
-                                    json={"model": model_name, "prompt": prompt, "stream": False},
+                                    json={
+                                        "model": model_name,
+                                        "prompt": prompt,
+                                        "stream": False,
+                                        "keep_alive": _keep_alive,
+                                    },
                                     timeout=aiohttp.ClientTimeout(total=_ollama_timeout),
                                 ) as resp:
                                     if resp.status == 200:
@@ -644,9 +635,15 @@ async def _run_cloud_agent_async(prompt: str):
                             )
                             return response
                         else:
+                            _keep_alive = get_keep_alive(model_used, mlx_alive=False)
                             async with session.post(
                                 f"{ollama_url}/api/generate",
-                                json={"model": model_used, "prompt": prompt, "stream": False},
+                                json={
+                                    "model": model_used,
+                                    "prompt": prompt,
+                                    "stream": False,
+                                    "keep_alive": _keep_alive,
+                                },
                                 timeout=aiohttp.ClientTimeout(total=_ollama_timeout),
                             ) as resp:
                                 if resp.status == 200:
@@ -677,73 +674,6 @@ async def _run_cloud_agent_async(prompt: str):
         return f"❌ Ошибка связи с облаком: {exc}"
 
 
-async def _adversarial_verification(prompt: str, response: str) -> Tuple[bool, str]:
-    """
-    [SINGULARITY 24.0] Digital Twin: Adversarial Verification.
-    Challenges the primary response to find flaws or hallucinations.
-    """
-    try:
-        challenge_prompt = f"""### ЗАДАЧА: АДВЕРСАРНАЯ ПРОВЕРКА (Digital Twin)
-Ты — Критик-Архитектор. Твоя задача — найти ошибки, галлюцинации или слабые места в ответе другого ИИ.
-
-ИСХОДНЫЙ ЗАПРОС:
-{prompt}
-
-ОТВЕТ ДЛЯ ПРОВЕРКИ:
-{response}
-
-ЗАДАНИЕ:
-1. Найди логические ошибки или несоответствия коду.
-2. Проверь на наличие галлюцинаций.
-3. Оцени безопасность и стабильность предложенного решения.
-
-ОТВЕТЬ В ФОРМАТЕ JSON:
-{{
-    "is_valid": true/false,
-    "flaws": ["список ошибок"],
-    "improvement_suggestion": "как исправить"
-}}
-"""
-        # Используем ту же модель, но с другим промптом
-        challenge_response = await run_smart_agent_async(challenge_prompt, expert_name="Критик", category="reasoning")
-        
-        import re
-        match = re.search(r"\{.*\}", challenge_response, re.DOTALL)
-        if match:
-            data = json.loads(match.group())
-            return data.get("is_valid", True), data.get("improvement_suggestion", "")
-        return True, ""
-    except Exception as e:
-        logger.error(f"Adversarial verification failed: {e}")
-        return True, ""
-
-async def _verify_and_refine(prompt: str, response: str, max_refinements: int = 1) -> str:
-    """
-    Refines the response using adversarial verification.
-    """
-    current_response = response
-    for i in range(max_refinements):
-        is_valid, suggestion = await _adversarial_verification(prompt, current_response)
-        if is_valid:
-            break
-        
-        logger.info(f"🔄 [DIGITAL TWIN] Refining response based on critique: {suggestion[:50]}...")
-        refine_prompt = f"""### ЗАДАЧА: ИСПРАВЛЕНИЕ ОШИБОК (Self-Correction)
-Твой предыдущий ответ был подвергнут критике. Исправь его на основе следующих замечаний.
-
-КРИТИКА:
-{suggestion}
-
-ТВОЙ ПРЕДЫДУЩИЙ ОТВЕТ:
-{current_response}
-
-ВЕРНИ ИСПРАВЛЕННЫЙ ОТВЕТ ПОЛНОСТЬЮ.
-"""
-        current_response = await run_smart_agent_async(refine_prompt, category="reasoning")
-    
-    return current_response
-
-
 async def _get_knowledge_context(query: str) -> str:
     """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
     return await _get_knowledge_context_impl(query)
@@ -768,71 +698,29 @@ async def _get_knowledge_context_impl(query: str) -> str:
         except Exception as ge:
             logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
 
-        # 2. Пробуем локальный векторный кэш в RAM (Singularity 24.0)
+        # 2. Fallback на стандартный векторный RAG
         embedding = await get_embedding(query)
         if not embedding:
             return ""
-
-        try:
-            # Инициализируем кэш если пуст
-            if vector_cache.embeddings is None:
-                pool = await _get_db_pool()
-                if pool:
-                    asyncio.create_task(vector_cache.sync_from_db(pool))
-            
-            rows = await vector_cache.search(embedding, limit=8, threshold=0.5)
-            if rows:
-                logger.info(f"⚡ [VECTOR CACHE] Найдено {len(rows)} узлов в RAM")
-                context = "\n📚 [KNOWLEDGE CONTEXT (Local RAM Cache)]:\n"
-                for row in rows:
-                    if row["similarity"] >= 0.55:
-                        meta = row["metadata"] or {}
-                        source = meta.get("source", "unknown")
-                        file_path = meta.get("file_path", "N/A")
-                        
-                        if source == "external_docs_indexer":
-                            context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
-                        elif meta.get("type") == "corporate_system":
-                            context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
-                        else:
-                            context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
-                        
-                        context += f"{row['content'][:1200]}\n"
-                return context
-        except Exception as ve:
-            logger.debug(f"Vector cache search failed, falling back to DB: {ve}")
-
-        # 3. Fallback на стандартный векторный RAG в БД
         pool = await _get_db_pool()
         if not pool:
             return ""
 
         async with pool.acquire() as conn:
-            # [SINGULARITY 24.0] Hybrid RAG: Semantic + Keyword Search
-            keywords = [w for w in query.lower().split() if len(w) > 3]
-            keyword_filter = ""
-            if keywords:
-                # Формируем ILIKE условие для ключевых слов
-                keyword_filter = (
-                    "OR (" + " OR ".join([f"content ILIKE '%{k}%'" for k in keywords[:3]]) + ")"
-                )
-
             # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
             rows = await conn.fetch(
-                f"""
+                """
                 SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
                 FROM knowledge_nodes
-                WHERE (embedding IS NOT NULL OR content IS NOT NULL)
+                WHERE embedding IS NOT NULL
                 AND (
                     domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
                     OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
                     OR metadata->>'source' = 'external_docs_indexer'
                     OR source_ref = 'autonomous_worker'
-                    OR metadata->>'type' = 'corporate_standard'
                 )
                 AND confidence_score >= 0.3
-                AND ((1 - (embedding <=> $1::vector)) >= 0.5 {keyword_filter})
-                ORDER BY similarity DESC NULLS LAST LIMIT 8
+                ORDER BY similarity DESC LIMIT 8
             """,
                 str(embedding),
             )
@@ -924,35 +812,11 @@ async def run_smart_agent_async_impl(
     project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
 
-    # [SINGULARITY 24.0] Lean Identity: Load SOUL.md and USER.md
-    soul_context = ""
-    user_context = ""
-    try:
-        # Пытаемся найти файлы в разных локациях (Docker vs Local)
-        possible_paths = [
-            os.path.dirname(__file__),
-            os.path.join(os.getcwd(), "knowledge_os"),
-            "/app/knowledge_os",
-            os.getcwd(),  # Для вызова из корня
-        ]
-        for p in possible_paths:
-            soul_p = os.path.join(p, "SOUL.md")
-            user_p = os.path.join(p, "USER.md")
-            if os.path.exists(soul_p) and not soul_context:
-                with open(soul_p) as f:
-                    soul_context = f"\n### 👩‍💼 MY SOUL (IDENTITY):\n{f.read()}\n"
-            if os.path.exists(user_p) and not user_context:
-                with open(user_p) as f:
-                    user_context = f"\n### 👤 USER CONTEXT (BOSS):\n{f.read()}\n"
-    except Exception as e:
-        logger.debug(f"Lean Identity load failed: {e}")
-
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
     meta_wisdom_context = ""
     mentorship_context = ""
     experience_context = ""
     constitution_context = ""
-    cross_pollination_context = ""  # [SINGULARITY 24.0]
     try:
         # 0. Digital Constitution
         from digital_constitution import get_constitution_context
@@ -962,38 +826,6 @@ async def run_smart_agent_async_impl(
         pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
-                # [SINGULARITY 24.0] Cross-Pollination Wisdom
-                # Ищем инсайты из ДРУГИХ доменов, которые могут быть полезны
-                try:
-                    # Avoid circular import by using local import
-                    from app.skill_registry import get_skill_registry
-
-                    registry = get_skill_registry()
-
-                    cross_nodes = await conn.fetch(
-                        """
-                        SELECT content, metadata->>'category' as cat FROM knowledge_nodes
-                        WHERE is_verified = TRUE
-                        AND metadata->>'category' != $1
-                        AND confidence_score >= 0.8
-                        ORDER BY created_at DESC LIMIT 2
-                    """,
-                        category or "general",
-                    )
-                    if cross_nodes:
-                        cross_pollination_context = (
-                            "\n### 🧬 CROSS-DOMAIN INSIGHTS (POLLINATION):\n"
-                        )
-                        for cn in cross_nodes:
-                            cross_pollination_context += (
-                                f"- [{cn['cat'].upper()}]: {cn['content'][:300]}\n"
-                            )
-                        logger.info(
-                            f"🧬 [CROSS-POLLINATION] Injected {len(cross_nodes)} cross-domain insights"
-                        )
-                except Exception as cpe:
-                    logger.debug(f"Cross-pollination failed: {cpe}")
-
                 # 1. Meta-Strategies
                 meta_nodes = await conn.fetch("""
                     SELECT content FROM knowledge_nodes
@@ -1047,20 +879,11 @@ async def run_smart_agent_async_impl(
 
         logger.info(f"🧠 [ENSEMBLE] Запуск верификации для {expert_name} (глубина {depth})")
 
-        # [SINGULARITY 24.0] Empathetic Verification: Check against SOUL.md
-        verify_prompt = f"""Ты - AI-аудитор и хранитель 'Души' корпорации.
-Проверь ответ на наличие критических ошибок, галлюцинаций и соответствие стандартам SOUL.md.
-
-СТАНДАРТЫ SOUL.md:
-- Тон: Профессиональный, умный, но живой (не как робот).
-- Идентичность: Виктория, Team Lead (я, мы).
-- Принципы: First Principles, Root Cause.
-
+        verify_prompt = f"""Ты - AI-аудитор. Проверь ответ на наличие критических ошибок, галлюцинаций или нарушения логики.
 ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {initial_prompt}
 ОТВЕТ ДЛЯ ПРОВЕРКИ: {initial_response}
 
-Если всё верно и тон соответствует Виктории, напиши 'OK'.
-Если есть ошибка или ответ слишком 'сухой/роботизированный', опиши проблему и предложи исправление в стиле Виктории."""
+Если всё верно, напиши 'OK'. Если есть ошибка, опиши её кратко и предложи исправление."""
 
         # Используем lfm2.5-thinking как самого быстрого и логичного критика
         try:
@@ -1074,14 +897,12 @@ async def run_smart_agent_async_impl(
                 )
 
                 if verify_text and "OK" not in verify_text.upper()[:10]:
-                    logger.warning(
-                        f"⚠️ [ENSEMBLE] Критик нашел проблему (логика или тон): {verify_text[:100]}..."
-                    )
+                    logger.warning(f"⚠️ [ENSEMBLE] Критик нашел ошибку: {verify_text[:100]}...")
 
-                    refine_prompt = f"""Исправь ответ, учитывая замечания критика по логике или тону (стиль Виктории).
+                    refine_prompt = f"""Основная модель выдала ответ с ошибкой. Исправь его, учитывая замечания критика.
 ЗАМЕЧАНИЯ КРИТИКА: {verify_text}
 ИСХОДНЫЙ ЗАПРОС: {initial_prompt}
-ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ В СТИЛЕ ВИКТОРИИ:"""
+ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ:"""
 
                     refined_result = await router.run_local_llm(refine_prompt, category="coding")
                     return (
@@ -1169,6 +990,20 @@ async def run_smart_agent_async_impl(
 
     if cached_response:
         logger.info(f"🎯 [CACHE HIT] Found similar query for expert {expert_name}")
+
+        # [SINGULARITY 21.3] Record tokens saved for local provider on cache hit
+        try:
+            tokens_saved = len(str(cached_response)) // 4
+            record_llm_request(
+                provider="local",
+                model="semantic-cache",
+                input_tokens=len(user_part) // 4,
+                output_tokens=tokens_saved,
+            )
+            logger.info(f"💰 [CACHE SAVINGS] Recorded ~{tokens_saved} tokens saved in Prometheus")
+        except Exception as metrics_err:
+            logger.debug(f"Failed to record cache hit metrics: {metrics_err}")
+
         return cached_response
 
     # Воркер передаёт роутер явно (local_router) или через _current_router.
@@ -1214,22 +1049,6 @@ async def run_smart_agent_async_impl(
 
     # 1.1. RAG: Поиск знаний в базе (учимся у коллег)
     kb_context = ""
-
-    # [SINGULARITY 24.0] Predictive Context Prefetching
-    # Проверяем, нет ли заранее подгруженных SOP в Redis
-    try:
-        import hashlib
-
-        from app.redis_manager import RedisManager
-
-        redis_manager = RedisManager()
-        prefetch_key = f"prefetch:{hashlib.md5(user_part.encode()).hexdigest()}"
-        prefetched_sop = await redis_manager.get_cache(prefetch_key)
-        if prefetched_sop:
-            kb_context = f"\n### ПРЕДЗАГРУЖЕННЫЕ СТАНДАРТЫ (SOP):\n{prefetched_sop}\n---\n"
-            logger.info("🔮 [PREFETCH] Injected prefetched context from Redis")
-    except Exception as pe:
-        logger.debug(f"Prefetch injection failed: {pe}")
 
     # [SINGULARITY 20.0] Proactive Knowledge Utilization
     # Force RAG for all tasks to increase knowledge usage from 0.04%
@@ -1312,12 +1131,10 @@ async def run_smart_agent_async_impl(
         or mentorship_context
         or experience_context
         or constitution_context
-        or soul_context
-        or user_context
     ):
         # [SINGULARITY 14.2] Use ContextSwapper for kb_context
         swapper = ContextSwapper()
-        full_context = f"{constitution_context}\n{soul_context}\n{user_context}\n{cross_pollination_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
+        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
         kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
 
@@ -1542,8 +1359,8 @@ async def run_smart_agent_async_impl(
     # If the task is coding or audit, we use Strategist (Wisdom) to plan and Executor (Qwen3) to execute
 
     # [SINGULARITY 20.0] Load hybrid models from .env
-    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-30b")
-    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-30b")
+    strategist_model = os.getenv("VICTORIA_STRATEGIST_MODEL", "victoria-wisdom-v3.5")
+    executor_model = os.getenv("VICTORIA_EXECUTOR_MODEL", "victoria-wisdom-v3.5")
 
     # Track token savings
     tokens_saved = 0
@@ -1596,7 +1413,7 @@ async def run_smart_agent_async_impl(
         # Fallback to cloud if strategist failed
         if not spec or spec.startswith(("❌", "⚠️")):
             logger.warning("⚠️ [STRATEGIST FAILED] Falling back to cloud for planning...")
-            spec = await _run_cloud_agent_async(spec_prompt)
+            spec = await _run_cloud_agent_async(spec_prompt, category="reasoning", is_vip=is_vip)
 
         if spec and not spec.startswith(("❌", "⚠️")):
             # Phase 2: Executor executes the spec (Ollama call)
@@ -1609,7 +1426,7 @@ async def run_smart_agent_async_impl(
             else:
                 # Inject few-shot examples from distillation engine
                 examples = ""
-                if distiller and hasattr(distiller, "get_relevant_examples"):
+                if distiller:
                     try:
                         if db_breaker:
                             examples = await db_breaker.call(
@@ -1638,20 +1455,7 @@ async def run_smart_agent_async_impl(
                         local_result = None
                 except Exception as e:
                     logger.warning(f"⚠️ [EXECUTOR FAILED] {e}")
-                    # [SINGULARITY 24.0] Self-Healing: Check for context overflow
-                    if "context" in str(e).lower() or "too long" in str(e).lower():
-                        logger.info("🩹 [SELF-HEALING] Context overflow detected. Compacting...")
-                        # Агрессивное сжатие: берем только ТЗ и последние факты
-                        worker_prompt = f"### [SELF-HEALING MODE: COMPACTED CONTEXT]\n\nТЗ ОТ СТРАТЕГА:\n{spec[:2000]}\n\nВЫПОЛНИТЕ ЗАДАНИЕ:"
-                        try:
-                            local_result = await router.run_local_llm(
-                                worker_prompt, category="coding", model_hint=executor_model
-                            )
-                        except Exception as e2:
-                            logger.error(f"❌ [SELF-HEALING FAILED] Retry also failed: {e2}")
-                            local_result = None
-                    else:
-                        local_result = None
+                    local_result = None
             local_resp, routing_source = (
                 local_result if isinstance(local_result, tuple) else (local_result, None)
             )
@@ -1715,7 +1519,9 @@ async def run_smart_agent_async_impl(
                     "⚠️ [LOCAL FAILED] Local model returned None, falling back to cloud..."
                 )
                 # Use cloud for execution if local failed
-                local_resp = await _run_cloud_agent_async(worker_prompt)
+                local_resp = await _run_cloud_agent_async(
+                    worker_prompt, category="coding", is_vip=is_vip
+                )
                 if local_resp and not local_resp.startswith(("❌", "⚠️")):
                     logger.info("✅ [CLOUD FALLBACK] Cloud executed the task successfully")
                     if cache:
@@ -1772,11 +1578,16 @@ async def run_smart_agent_async_impl(
                     # Используем Strategist (Wisdom) на MLX для аудита
                     if router:
                         audit_res = await router.run_local_llm(
-                            audit_prompt, category="reasoning", model_hint=strategist_model
+                            audit_prompt,
+                            category="reasoning",
+                            model_hint=strategist_model,
+                            is_vip=is_vip,
                         )
                         audit_result = audit_res[0] if isinstance(audit_res, tuple) else audit_res
                     else:
-                        audit_result = await _run_cloud_agent_async(audit_prompt)
+                        audit_result = await _run_cloud_agent_async(
+                            audit_prompt, category="reasoning", is_vip=is_vip
+                        )
 
                     if audit_result and "APPROVED" not in audit_result.upper():
                         logger.warning(
@@ -2365,7 +2176,7 @@ async def run_smart_agent_async_impl(
             compressed_prompt = ContextCompressor.compress_all(full_prompt)
 
     cloud_start_time = time.time()
-    response = await _run_cloud_agent_async(compressed_prompt)
+    response = await _run_cloud_agent_async(compressed_prompt, category=category, is_vip=is_vip)
     cloud_latency_ms = (time.time() - cloud_start_time) * 1000
 
     # Сохраняем данные о роутинге в облако для ML-обучения
@@ -2429,7 +2240,7 @@ async def run_smart_agent_async_impl(
     # Offline fallback
     if response and (response.startswith("❌") or response.startswith("⚠️")) and router:
         logger.warning("🛡️ [BUNKER MODE] Cloud failed, switching to Local.")
-        return await router.run_local_llm(prompt)
+        return await router.run_local_llm(prompt, category=category, is_vip=is_vip)
 
     # Дополнение ответа внешними данными (Singularity 8.0)
     if response and not response.startswith(("⚠️", "❌")):

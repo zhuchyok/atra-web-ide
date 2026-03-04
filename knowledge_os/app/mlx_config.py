@@ -30,19 +30,19 @@ logger = logging.getLogger(__name__)
 class QuantProfile(str, Enum):
     """Профили выбора модели MLX (ключи из mlx_api_server.MODEL_PATHS)."""
 
-    REASONING = "reasoning"  # victoria-wisdom-30b — сложные задачи, рассуждения
-    CODING = "coding"  # victoria-wisdom-30b — код, рефакторинг
+    REASONING = "reasoning"  # victoria-wisdom-v3.5 — сложные задачи, рассуждения
+    CODING = "coding"  # victoria-wisdom-v3.5 — код, рефакторинг
     FAST = "fast"  # phi3.5-mini-4k — быстрые ответы
-    DEFAULT = "default"  # victoria-wisdom-30b — по умолчанию
+    DEFAULT = "default"  # victoria-wisdom-v3.5 — по умолчанию
 
 
 # Model registry by quantization profile (ключи из mlx_api_server.MODEL_PATHS / CATEGORY_TO_MODEL)
-# См. knowledge_os/app/mlx_api_server.py: fast=phi3.5-mini-4k, victoria-wisdom-30b=exported_model
+# См. knowledge_os/app/mlx_api_server.py: fast=phi3.5-mini-4k, victoria-wisdom-v3.5=exported_model
 QUANT_PROFILE_MODELS = {
-    QuantProfile.REASONING: "victoria-wisdom-30b",
-    QuantProfile.CODING: "victoria-wisdom-30b",
+    QuantProfile.REASONING: "victoria-wisdom-v3.5",
+    QuantProfile.CODING: "victoria-wisdom-v3.5",
     QuantProfile.FAST: "fast",
-    QuantProfile.DEFAULT: "victoria-wisdom-30b",
+    QuantProfile.DEFAULT: "victoria-wisdom-v3.5",
 }
 
 # Memory thresholds (%)
@@ -62,7 +62,7 @@ def get_model_by_profile(profile: str = "default") -> str:
 
     Example:
         >>> get_model_by_profile("reasoning")
-        'victoria-wisdom-30b'
+        'victoria-wisdom-v3.5'
     """
     try:
         profile_enum = QuantProfile(profile.lower())

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Проверка цепочки Open WebUI → Ollama (модель victoria-wisdom-30b).
+# Проверка цепочки Open WebUI → Ollama (модель victoria-wisdom-v3.5).
 # Загрузка модели полностью локальная, интернет не используется.
 # Запуск из корня репозитория: ./scripts/verify_openwebui_ollama.sh [--warmup]
 
@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
-MODEL_NAME="${OLLAMA_MODEL:-victoria-wisdom-30b}"
+MODEL_NAME="${OLLAMA_MODEL:-victoria-wisdom-v3.5}"
 WARMUP=false
 [[ "${1:-}" == "--warmup" ]] && WARMUP=true
 

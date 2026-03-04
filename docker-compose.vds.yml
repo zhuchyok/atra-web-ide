@@ -64,6 +64,7 @@ services:
   # Образ собирается на VDS из исходников setki-21: docker build -f moskit-api/Dockerfile -t moskit-api:latest .
   # Перед первым запуском: скрипт create_moskit_db_vds.sh (создаёт БД moskit и пользователя moskit).
   # ============================================
+  # Загрузки (логотип, файлы) храним в moskit_uploads — не слетают при пересоздании контейнера.
   moskit-api:
     image: moskit-api:latest
     container_name: moskit-api
@@ -73,6 +74,8 @@ services:
       POSTGRES_PASSWORD: ${MOSKIT_DB_PASSWORD:-moskit_secret}
       JWT_SECRET: ${JWT_SECRET:-setki21_jwt_secret_change_me}
       PORT: "8080"
+    volumes:
+      - ./moskit_uploads:/app/uploads
     depends_on:
       - postgres
     networks:

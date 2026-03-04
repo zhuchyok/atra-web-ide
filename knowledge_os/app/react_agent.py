@@ -649,15 +649,12 @@ class ReActAgent:
             # Если тег <think> открыт, но не закрыт (бывает при обрыве генерации)
             response_clean = re.sub(r"<think>.*", "", response_clean, flags=re.DOTALL).strip()
 
-        # УЛУЧШЕННЫЙ ПАРСИНГ (Singularity 10.0): Ищем JSON в markdown блоках или просто в тексте
-
-        # 1. Пробуем найти JSON в markdown блоках ```json ... ```
-        # Сингулярность 10.0: Максимально жадный поиск до конца блока или ответа
-        json_blocks = re.findall(r'```(?:json)?\s*(\{.*?"action"\s*:.*)', response_clean, re.DOTALL)
+        # [SINGULARITY 21.6] Fix: Try to find ANY JSON block if the specific "action" pattern fails
+        json_blocks = re.findall(r"```(?:json)?\s*(\{.*)", response_clean, re.DOTALL)
 
         # Если не нашли в блоках, ищем просто по тексту
         if not json_blocks:
-            json_blocks = re.findall(r'(\{\s*"action"\s*:.*)', response_clean, re.DOTALL)
+            json_blocks = re.findall(r"(\{.*)", response_clean, re.DOTALL)
 
         if json_blocks:
             # Пробуем парсить блоки с конца (обычно финальное действие в конце)
@@ -785,6 +782,75 @@ class ReActAgent:
     async def _execute_action(self, action: str, action_input: Dict) -> Any:
         """Выполнить действие с реальными инструментами"""
         logger.info(f"🔧 [{self.agent_name}] Выполняю действие: {action}")
+
+        # [SINGULARITY 21.6] Прямое выполнение системных команд через Shell (Cursor-like)
+        if action in [
+            "run_terminal_cmd",
+            "execute_command",
+            "shell_run",
+            "code-analysis",
+            "code-documentation",
+            "internal-comms",
+        ]:
+            command = action_input.get("command") or action_input.get("cmd") or ""
+
+            # Если это псевдо-инструменты, преобразуем их в реальные действия или логи
+            if action == "code-analysis":
+                command = f"ls -R {action_input.get('file_path', '.')}"
+            elif action == "code-documentation":
+                command = f"cat {action_input.get('file_path', 'README.md')}"
+            elif action == "internal-comms":
+                return f"Internal Communication Sent: {action_input.get('message', '')}"
+
+            if not command:
+                return "Error: command не указан"
+
+            logger.info(f"💻 [SYSTEM] Выполнение системной команды: {command}")
+            try:
+                import subprocess
+
+                # Используем zsh для соответствия среде пользователя
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    executable="/bin/zsh",
+                )
+                output = f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nEXIT CODE: {result.returncode}"
+                logger.info(f"✅ [SYSTEM] Команда выполнена (code {result.returncode})")
+                return output
+            except Exception as e:
+                logger.error(f"❌ [SYSTEM] Ошибка выполнения команды: {e}")
+                return f"Error executing command: {str(e)}"
+
+        # [SINGULARITY 21.6] Прямое чтение файлов
+        if action == "read_file":
+            file_path = action_input.get("file_path", action_input.get("path", ""))
+            if not file_path:
+                return "Error: file_path не указан"
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    return f.read()
+            except Exception as e:
+                return f"Error reading file {file_path}: {str(e)}"
+
+        # [SINGULARITY 21.6] Прямое создание/запись файлов
+        if action in ["create_file", "write_file"]:
+            file_path = action_input.get("file_path", "")
+            content = action_input.get("content", "")
+            if not file_path:
+                return "Error: file_path не указан"
+            try:
+                os.makedirs(os.path.dirname(file_path), exist_ok=True) if os.path.dirname(
+                    file_path
+                ) else None
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
+                return f"Файл '{file_path}' успешно создан/обновлен"
+            except Exception as e:
+                return f"Error writing file {file_path}: {str(e)}"
 
         # --- SMART PATCH IMPLEMENTATION (Singularity 10.0) ---
         if action == "smart-patch" or action == "patch_file":
@@ -956,53 +1022,59 @@ class ReActAgent:
         """Генерировать ответ через модель с динамическим выбором из доступных"""
         import httpx
 
-        # Динамический выбор моделей через сканер
-        is_docker = (
-            os.path.exists("/.dockerenv")
-            or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
-        )
-        ollama_url = os.getenv(
-            "OLLAMA_BASE_URL",
-            "http://host.docker.internal:11434" if is_docker else "http://localhost:11434",
-        )
-        mlx_url = os.getenv(
-            "MLX_API_URL",
-            "http://host.docker.internal:11435" if is_docker else "http://localhost:11435",
-        )
+        # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
+        _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+        if _force_model:
+            logger.info(f"🎯 [GOD MODE] Forcing model {_force_model} for ReAct step")
+            models_to_try = [_force_model]
+        else:
+            # Динамический выбор моделей через сканер
+            is_docker = (
+                os.path.exists("/.dockerenv")
+                or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+            )
+            ollama_url = os.getenv(
+                "OLLAMA_BASE_URL",
+                "http://host.docker.internal:11434" if is_docker else "http://localhost:11434",
+            )
+            mlx_url = os.getenv(
+                "MLX_API_URL",
+                "http://host.docker.internal:11435" if is_docker else "http://localhost:11435",
+            )
 
-        # КЭШИРОВАНИЕ СПИСКА МОДЕЛЕЙ (Сингулярность 10.0: Оптимизация скорости)
-        if not hasattr(self, "_models_to_try_cache"):
-            models_to_try = [self.model_name]
-            try:
+            # КЭШИРОВАНИЕ СПИСКА МОДЕЛЕЙ (Сингулярность 10.0: Оптимизация скорости)
+            if not hasattr(self, "_models_to_try_cache"):
+                models_to_try = [self.model_name]
                 try:
-                    from available_models_scanner import scan_and_select_models
-                except ImportError:
-                    from app.available_models_scanner import scan_and_select_models
-                selection = await scan_and_select_models(mlx_url, ollama_url)
+                    try:
+                        from available_models_scanner import scan_and_select_models
+                    except ImportError:
+                        from app.available_models_scanner import scan_and_select_models
+                    selection = await scan_and_select_models(mlx_url, ollama_url)
 
-                # Добавляем лучшие модели из Ollama и MLX в список попыток
-                if selection.ollama_best and selection.ollama_best not in models_to_try:
-                    models_to_try.append(selection.ollama_best)
+                    # Добавляем лучшие модели из Ollama и MLX в список попыток
+                    if selection.ollama_best and selection.ollama_best not in models_to_try:
+                        models_to_try.append(selection.ollama_best)
 
-                # Добавляем остальные доступные модели из Ollama
-                for m in selection.ollama_models:
-                    if m not in models_to_try:
-                        models_to_try.append(m)
-            except Exception as e:
-                logger.warning(f"⚠️ Ошибка сканирования моделей в ReActAgent: {e}")
-                # Fallback на статический список если сканер не сработал
-                fallback_models = [
-                    "qwen2.5-coder:32b",
-                    "glm-4.7-flash:q8_0",
-                    "qwq:32b",
-                    "tinyllama:1.1b-chat",
-                ]
-                for m in fallback_models:
-                    if m not in models_to_try:
-                        models_to_try.append(m)
-            self._models_to_try_cache = models_to_try
+                    # Добавляем остальные доступные модели из Ollama
+                    for m in selection.ollama_models:
+                        if m not in models_to_try:
+                            models_to_try.append(m)
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка сканирования моделей в ReActAgent: {e}")
+                    # Fallback на статический список если сканер не сработал
+                    fallback_models = [
+                        "qwen2.5-coder:32b",
+                        "glm-4.7-flash:q8_0",
+                        "qwq:32b",
+                        "tinyllama:1.1b-chat",
+                    ]
+                    for m in fallback_models:
+                        if m not in models_to_try:
+                            models_to_try.append(m)
+                self._models_to_try_cache = models_to_try
 
-        models_to_try = self._models_to_try_cache
+            models_to_try = self._models_to_try_cache
 
         # Таймаут 1200с для тяжелых локальных моделей (qwq:32b, qwen3-coder-next:latest)
         request_timeout_sec = 1200.0

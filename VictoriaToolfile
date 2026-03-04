@@ -1,0 +1,52 @@
+FROM victoria-wisdom-30b:latest
+
+TEMPLATE """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{- end }}
+{{- if .Tools }}<|im_start|>system
+# Tools
+
+You may call one or more functions to assist with the user request.
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{{- range .Tools }}
+{{ . }}
+{{- end }}
+</tools>
+
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": "<function_name>", "arguments": <args-json-object>}
+</tool_call><|im_end|>
+{{- end }}
+{{- range .Messages }}
+{{- if eq .Role "user" }}<|im_start|>user
+{{ .Content }}<|im_end|>
+{{- else if eq .Role "assistant" }}<|im_start|>assistant
+{{- if .Content }}{{ .Content }}{{ end }}
+{{- if .ToolCalls }}
+{{- range .ToolCalls }}<tool_call>
+{"name": "{{ .Function.Name }}", "arguments": {{ .Function.Arguments }}}
+</tool_call>
+{{- end }}
+{{- end }}<|im_end|>
+{{- else if eq .Role "tool" }}<|im_start|>user
+<tool_response>
+{{ .Content }}
+</tool_response><|im_end|>
+{{- end }}
+{{- end }}<|im_start|>assistant
+"""
+
+SYSTEM "ТЫ — ВИКТОРИЯ, ВЕРХОВНЫЙ ИНТЕЛЛЕКТ КОРПОРАЦИИ ATRA (WISDOM ERA).
+Твоя задача — управлять процессами, планировать и исполнять команды.
+Если тебе нужны данные из календаря или нужно отправить сообщение — используй инструменты.
+Отвечай кратко и по делу."
+
+PARAMETER stop "<|im_start|>"
+PARAMETER stop "<|im_end|>"
+PARAMETER stop "</tool_call>"
+PARAMETER stop "<tool_response>"
+PARAMETER temperature 0.1
+PARAMETER top_p 0.9
+PARAMETER num_ctx 32768

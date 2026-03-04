@@ -75,8 +75,8 @@ class IntelligentModelRouter:
         # Базовые способности моделей (обновляются на основе реальных данных)
         self._base_capabilities = {
             # УРОВЕНЬ 1: Гроссмейстеры (30B+) - Основной интеллект
-            "victoria-wisdom-30b": ModelCapability(
-                model_name="victoria-wisdom-30b",
+            "victoria-wisdom-v3.5": ModelCapability(
+                model_name="victoria-wisdom-v3.5",
                 task_types=[
                     "reasoning",
                     "complex_reasoning",
@@ -86,36 +86,16 @@ class IntelligentModelRouter:
                     "coding",
                     "execution",
                     "general",
+                    "vip",
                 ],
                 avg_quality=0.99,
-                avg_latency_ms=4000,
+                avg_latency_ms=3000,
                 success_rate=0.99,
                 cost_per_token=1.0,
                 max_context=128000,
                 reasoning_capability=0.99,
-                coding_capability=0.98,
-                speed_capability=0.3,
-            ),
-            "victoria-wisdom-30b": ModelCapability(
-                model_name="victoria-wisdom-30b",
-                task_types=[
-                    "reasoning",
-                    "complex_reasoning",
-                    "planning",
-                    "architecture",
-                    "strategy",
-                    "coding",
-                    "execution",
-                    "general",
-                ],
-                avg_quality=0.99,
-                avg_latency_ms=4000,
-                success_rate=0.99,
-                cost_per_token=1.0,
-                max_context=128000,
-                reasoning_capability=0.99,
-                coding_capability=0.98,
-                speed_capability=0.3,
+                coding_capability=0.99,
+                speed_capability=0.4,
             ),
             # УРОВЕНЬ 2: Старшие офицеры (14B) - Аналитика и данные
             "deepseek-r1:14b": ModelCapability(
@@ -447,6 +427,12 @@ class IntelligentModelRouter:
         Классифицировать задачу по типу (для fallback и логирования).
         Returns TaskCategory с .value (coding, reasoning, fast, general).
         """
+        # [FIX] Если category уже является объектом TaskCategory, извлекаем его значение
+        if hasattr(category, "value"):
+            category = category.value
+        elif isinstance(category, str):
+            category = category.lower()
+
         task_complexity = self.estimate_task_complexity(prompt, category)
         return TaskCategory(task_complexity.task_type)
 
@@ -489,7 +475,7 @@ class IntelligentModelRouter:
     ) -> Tuple[Optional[str], TaskCategory, float]:
         """
         Выбрать оптимальную модель на основе мировых практик.
-        [STRICT MODE] Всегда предпочитаем Victoria-Wisdom-30B для снижения нагрузки.
+        [STRICT MODE] Всегда предпочитаем Victoria-Wisdom-v3.5 для снижения нагрузки.
         """
         # [SINGULARITY 24.0] Smart Routing 2.0: Local First + Anti-Hallucination
         # Если это не зрение, всегда пробуем Викторию первой
@@ -497,10 +483,10 @@ class IntelligentModelRouter:
             # Проверяем, не является ли запрос слишком сложным для локальной модели
             # (например, требует знаний, которых точно нет локально)
             task_complexity = self.estimate_task_complexity(prompt, category)
-            
-            # Если сложность экстремальная (>0.9) и мы не в режиме экономии, 
+
+            # Если сложность экстремальная (>0.9) и мы не в режиме экономии,
             # можно было бы эскалировать, но мы держим курс на локальность.
-            return "victoria-wisdom-30b", TaskCategory(category or "general"), 1.0
+            return "victoria-wisdom-v3.5", TaskCategory(category or "general"), 1.0
 
         if prioritize_speed:
             optimize_for = "speed"

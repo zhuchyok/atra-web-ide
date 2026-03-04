@@ -14,7 +14,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    command: ["postgres", "-c", "max_connections=300"]  # 200 было мало при воркере+дашборд+Victoria+rest+оркестраторы (эксперты: docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
+    command: ["postgres", "-c", "max_connections=300"] # 200 было мало при воркере+дашборд+Victoria+rest+оркестраторы (эксперты: docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
@@ -40,7 +40,7 @@ services:
     container_name: knowledge_os_redis
     restart: always
     ports:
-      - "6381:6379"  # 6381 на хосте (6380 может быть занят atra в отдельном проекте)
+      - "6381:6379" # 6381 на хосте (6380 может быть занят atra в отдельном проекте)
     volumes:
       - redis_data:/data
     networks:
@@ -62,6 +62,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: victoria-agent
     restart: always
+    oom_kill_disable: true
     user: root
     networks:
       - atra-network
@@ -71,7 +72,7 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app
-      VICTORIA_PORT: "8000"  # внутри контейнера 8000, снаружи 8010
+      VICTORIA_PORT: "8000" # внутри контейнера 8000, снаружи 8010
       ATRA_ENV: prod
       DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -80,14 +81,18 @@ services:
       # MLX API Server: используем нашу новую обученную модель
       MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
       MLX_HEALTH_URL: http://host.docker.internal:11435/health
-      VICTORIA_MODEL: ${VICTORIA_MODEL:-"victoria-wisdom-30b:latest"}
-      VICTORIA_PLANNER_MODEL: ${VICTORIA_PLANNER_MODEL:-"victoria-wisdom-30b:latest"}
+      VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
+      VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5:latest"
+      # [SINGULARITY 21.5] Disable model selector for God Mode consistency
+      VICTORIA_USE_MODEL_SELECTOR: "false"
+      # [SINGULARITY 21.6] Force Wisdom 3.5 for all steps
+      VICTORIA_FORCE_STEP_MODEL: "victoria-wisdom-v3.5:latest"
       # 🐛 Debug mode: set to "true" to enable verbose logging
       VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
       # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
       OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
-      # Руки Виктории: держать victoria-wisdom-30b в Ollama (86400 = 24ч; -1 = бессрочно в Ollama API)
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-86400}
+      # Руки Виктории: держать victoria-wisdom-v3.5 в Ollama (600 = 10 мин; -1 = бессрочно в Ollama API)
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-600}
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
       UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-600}
       # Таймаут вызова LLM для выбора стратегии (с); 30 — чтобы не уходить в fallback при холодной модели
@@ -106,7 +111,7 @@ services:
       USE_ELK: "false"
       ELASTICSEARCH_URL: http://atra-elasticsearch:9200
       USE_KNOWLEDGE_OS: "true"
-      VICTORIA_USE_CACHE: "true"
+      VICTORIA_USE_CACHE: "false"
       # Redis: для RAG_CACHE_BACKEND=redis (масштабирование). По умолчанию кэш memory.
       REDIS_URL: redis://knowledge_os_redis:6379/0
       RAG_CACHE_BACKEND: redis
@@ -134,10 +139,10 @@ services:
       USE_HITL: ${USE_HITL:-"false"}
       HITL_CONFIDENCE_THRESHOLD: ${HITL_CONFIDENCE_THRESHOLD:-"0.7"}
       # 🏢 Основной проект корпорации
-      MAIN_PROJECT: "atra-web-ide"  # Основной проект корпорации и агентов
-      WORKSPACE_ROOT: /app  # Корень для SafeFileWriter (create_file/write_file)
-      AGENT_BACKUP_ENABLED: "true"  # Бэкапы перед перезаписью
-      AGENT_APPROVAL_REQUIRED: "false"  # true = отказ в записи в package.json, .env, Dockerfile и т.п.
+      MAIN_PROJECT: "atra-web-ide" # Основной проект корпорации и агентов
+      WORKSPACE_ROOT: /app # Корень для SafeFileWriter (create_file/write_file)
+      AGENT_BACKUP_ENABLED: "true" # Бэкапы перед перезаписью
+      AGENT_APPROVAL_REQUIRED: "false" # true = отказ в записи в package.json, .env, Dockerfile и т.п.
       # Лимит шагов агента (сложные задачи — анализ, исправления; без этой переменной в контейнере мог остаться 80)
       VICTORIA_MAX_STEPS: ${VICTORIA_MAX_STEPS:-500}
       # Логика мысли: выбор стратегии ответа (quick_answer / deep_analysis / need_clarification / decline_or_redirect), docs/PLAN_REASONING_LOGIC_VICTORIA.md
@@ -163,7 +168,7 @@ services:
       ORCHESTRATION_V2_ENABLED: ${ORCHESTRATION_V2_ENABLED:-true}
       ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-10}
     ports:
-      - "8010:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
+      - "8010:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
@@ -240,7 +245,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       # Тяжелая модель для кода и архитектуры
-      VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-victoria-wisdom-30b}
+      VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-victoria-wisdom-v3.5}
       ENABLE_COLLECTIVE_LEARNING: "true"
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "1"
@@ -326,7 +331,7 @@ services:
       USE_HITL: ${USE_HITL:-"false"}
       HITL_CONFIDENCE_THRESHOLD: ${HITL_CONFIDENCE_THRESHOLD:-"0.7"}
       # 🏢 Основной проект корпорации
-      MAIN_PROJECT: "atra-web-ide"  # Основной проект корпорации и агентов
+      MAIN_PROJECT: "atra-web-ide" # Основной проект корпорации и агентов
       # 🔄 АВТОВЫБОР МОДЕЛЕЙ для Veronica (как для Victoria)
       # Пустые значения = автоматический выбор лучшей доступной модели из Ollama
       # Для явного указания: VERONICA_MODEL=qwen2.5-coder:32b
@@ -338,7 +343,7 @@ services:
       # Victoria Operator: Veronica acts as eyes and hands
       VICTORIA_OPERATOR_ENABLED: "true"
     ports:
-      - "8011:8000"  # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
+      - "8011:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
@@ -357,16 +362,16 @@ services:
     image: prom/prometheus:latest
     container_name: atra-prometheus
     ports:
-      - "9092:9090"   # 9092 на хосте (9090/9091 могут быть заняты другими Prometheus)
+      - "9092:9090" # 9092 на хосте (9090/9091 могут быть заняты другими Prometheus)
     volumes:
       - ../infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--storage.tsdb.retention.time=30d"
     networks:
       - atra-network
     restart: unless-stopped
@@ -408,7 +413,8 @@ services:
       - atra-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -512,7 +518,12 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["sh", "-c", "while true; do python -u nightly_learner.py; echo '✅ Цикл завершён. Следующий запуск через 24ч'; sleep 86400; done"]
+    command:
+      [
+        "sh",
+        "-c",
+        "while true; do python -u nightly_learner.py; echo '✅ Цикл завершён. Следующий запуск через 24ч'; sleep 86400; done",
+      ]
 
   # Knowledge OS REST API (порт 8002) — логирование чата в interaction_logs (Singularity 10.0)
   knowledge_rest:
@@ -578,7 +589,16 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["python", "enhanced_orchestrator.py", "--continuous", "--interval", "60", "--quick-poll", "30"]
+    command:
+      [
+        "python",
+        "enhanced_orchestrator.py",
+        "--continuous",
+        "--interval",
+        "60",
+        "--quick-poll",
+        "30",
+      ]
 
   # Отправка уведомлений и отчётов в Telegram: таблица notifications → Telegram; ежедневный отчёт 8:00, еженедельный понедельник 9:00
   telegram-notifications:
@@ -656,7 +676,17 @@ services:
       - ..:/app/project:ro
       - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/project/knowledge_os/dashboard
-    command: ["python", "-m", "streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+    command:
+      [
+        "python",
+        "-m",
+        "streamlit",
+        "run",
+        "app.py",
+        "--server.port=8501",
+        "--server.address=0.0.0.0",
+        "--server.headless=true",
+      ]
 
 volumes:
   open-webui-data:

@@ -47,12 +47,12 @@ class ConstitutionalCourt:
         }}
         """
 
-        # Используем victoria-wisdom-30b для строгого следования формату
+        # Используем victoria-wisdom-v3.5 для строгого следования формату
         from local_router import LocalAIRouter
 
         router = LocalAIRouter()
         response_data = await router.run_local_llm(
-            prompt, category="reasoning", model="victoria-wisdom-30b"
+            prompt, category="reasoning", model="victoria-wisdom-v3.5"
         )
 
         if isinstance(response_data, (list, tuple)) and len(response_data) >= 1:

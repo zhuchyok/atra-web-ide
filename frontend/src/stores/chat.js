@@ -129,7 +129,7 @@ export async function sendMessage(content, mode = null) {
         messages: [
           { role: 'user', content: content }
         ],
-        model: "victoria-wisdom-30b:latest",
+        model: "victoria-wisdom-v3.5:latest",
         stream: false, // Наш Rust Gateway пока не поддерживает SSE стриминг напрямую в OpenAI формате
         use_rag: true
       })

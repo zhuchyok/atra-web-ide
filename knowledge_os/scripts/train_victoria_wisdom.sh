@@ -1,5 +1,5 @@
 #!/bin/bash
-# [SINGULARITY 20.0] Fine-tuning script for victoria-wisdom-30b
+# [SINGULARITY 20.0] Fine-tuning script for victoria-wisdom-v3.5
 # Uses MLX-LM for efficient QLoRA on Apple Silicon
 
 # Пути к данным и модели

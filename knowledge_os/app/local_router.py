@@ -43,10 +43,14 @@ except ImportError:
         # Fallback for knowledge_os structure
         import os
         import sys
+
         sys.path.append(os.path.join(os.path.dirname(__file__), "../../backend/app/metrics"))
         from prometheus_metrics import record_llm_request
     except ImportError:
-        def record_llm_request(*args, **kwargs): pass
+
+        def record_llm_request(*args, **kwargs):
+            pass
+
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +61,12 @@ if VICTORIA_DEBUG:
     logging.getLogger().setLevel(logging.DEBUG)
 
 # Config - Mac Studio (локальная обработка). OLLAMA_BASE_URL используется Victoria/Veronica
-_is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
-_default_ollama = 'http://host.docker.internal:11434' if _is_docker else 'http://localhost:11434'
+_is_docker = (
+    os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+)
+_default_ollama = "http://host.docker.internal:11434" if _is_docker else "http://localhost:11434"
+
+
 def _valid_http_url(url: str) -> bool:
     """True если url — валидный http(s) URL (не 'disabled' и не пустой)."""
     if not url or not isinstance(url, str):
@@ -67,81 +75,54 @@ def _valid_http_url(url: str) -> bool:
     return u.startswith("http://") or u.startswith("https://")
 
 
-OLLAMA_API_URL = os.getenv('OLLAMA_API_URL') or os.getenv('OLLAMA_BASE_URL') or os.getenv('SERVER_LLM_URL') or _default_ollama
-_raw_mlx = os.getenv('MLX_API_URL') or os.getenv('MAC_LLM_URL') or ('http://host.docker.internal:11435' if _is_docker else 'http://localhost:11435')
-MLX_API_URL = _raw_mlx if _valid_http_url(_raw_mlx) else None  # MLX_API_URL=disabled → None, только Ollama
+OLLAMA_API_URL = (
+    os.getenv("OLLAMA_API_URL")
+    or os.getenv("OLLAMA_BASE_URL")
+    or os.getenv("SERVER_LLM_URL")
+    or _default_ollama
+)
+_raw_mlx = (
+    os.getenv("MLX_API_URL")
+    or os.getenv("MAC_LLM_URL")
+    or ("http://host.docker.internal:11435" if _is_docker else "http://localhost:11435")
+)
+MLX_API_URL = (
+    _raw_mlx if _valid_http_url(_raw_mlx) else None
+)  # MLX_API_URL=disabled → None, только Ollama
 
+
+from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
+from app.ollama_keep_alive_policy import get_keep_alive, unload_ollama_fallback_models
 
 # [SINGULARITY 21.3] God Mode 128GB: Immortal models and zero-swap
-IMMORTAL_MODELS = {
-    "nomic-embed-text",
-    "nomic-embed-text:latest",
-    "victoria-wisdom-30b",
-    "victoria-wisdom-30b:latest",
-    "moondream",
-    "moondream:latest"
-}
+IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
+# [SINGULARITY 21.4] Tool Guard: Only these models can execute tools
+TOOL_CALL_ALLOWED_MODELS = [
+    "victoria-wisdom-v3.5",
+    "victoria-wisdom-v3.5:latest",
+    "victoria-wisdom-v3.5",
+    "victoria-wisdom-v3.5:latest",
+    "qwen3.5:35b",
+    "deepseek-r1:32b",
+    "qwq:32b",
+]
+
+
+def can_delegate_tool(model_name: str, tool_name: str) -> bool:
+    """Проверяет, может ли модель выполнять инструменты (God Mode Guard)"""
+    if tool_name in ["run_terminal_cmd", "write_file", "execute_code", "ssh_run"]:
+        return any(m in model_name.lower() for m in TOOL_CALL_ALLOWED_MODELS)
+    return True
+
+
 SWAP_THRESHOLD = float(os.getenv("SWAP_THRESHOLD", "0"))
-RAM_RESERVE_GB = float(os.getenv("RAM_RESERVE_GB", "18"))
+RAM_RESERVE_GB = float(os.getenv("RAM_RESERVE_GB", "24"))
 
-def _get_keep_alive(model_name: Optional[str] = None):
-    """
-    Ollama keep_alive из env или адаптивный расчет.
-    God Mode: -1 (всегда в памяти) для бессмертных моделей.
-    """
-    # 1. Проверяем явные настройки в env
-    raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
-    if raw == "-1":
-        return -1
-
-    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        return -1
-
-    if raw:
-        try:
-            return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
-        except (ValueError, AttributeError):
-            return raw
-
-    # 2. Адаптивная логика если имя модели известно
-    if model_name:
-        try:
-            # Пытаемся получить размер из кэша сканера
-            from available_models_scanner import _scan_cache
-            if _scan_cache and "ollama_sizes" in _scan_cache:
-                size_bytes = _scan_cache["ollama_sizes"].get(model_name, 0)
-                if size_bytes > 0:
-                    size_gb = size_bytes / (1024**3)
-                    # [SINGULARITY 21.3] Агрессивная выгрузка тяжелых моделей при нехватке памяти
-                    try:
-                        import psutil
-                        ram_percent = psutil.virtual_memory().percent
-                        if ram_percent > 80:
-                            if size_gb > 15: return 60  # 1 мин для тяжелых при RAM > 80%
-                            if size_gb > 5: return 300  # 5 мин для средних
-                    except ImportError:
-                        pass
-
-                    if size_gb > 30: return 60
-                    if size_gb > 15: return 300
-                    if size_gb > 5: return 600
-                    return 3600
-        except Exception:
-            pass
-
-        # Fallback на эвристику по имени
-        key = model_name.lower()
-        if "70b" in key or "104b" in key or "next" in key: return 60
-        if "32b" in key or "30b" in key or "qwq" in key: return 300
-        if "7b" in key or "8b" in key or "14b" in key: return 600
-        if "3b" in key or "1b" in key or "tiny" in key or "embedding" in key: return 3600
-
-    return 300  # Дефолт 5 мин
 # Обратная совместимость (legacy)
 MAC_LLM_URL = MLX_API_URL
 SERVER_LLM_URL = OLLAMA_API_URL
-USE_LOCAL_LLM = os.getenv('USE_LOCAL_LLM', 'true').lower() == 'true'
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secret@localhost:5432/knowledge_os')
+USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM", "true").lower() == "true"
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 
 # Health check cache (120 seconds TTL - увеличен для снижения нагрузки на /api/tags)
 _health_cache = {"nodes": [], "timestamp": 0}
@@ -159,6 +140,7 @@ try:
         pick_mlx_for_category,
         pick_ollama_for_category,
     )
+
     _HAS_MODEL_SCANNER = True
 except ImportError:
     _HAS_MODEL_SCANNER = False
@@ -170,27 +152,28 @@ _cached_ollama_models: list = []
 _models_cache_time: float = 0
 _MODELS_CACHE_TTL = 120  # 2 минуты
 
-# Fallback модели (используются если scanner недоступен).
-# MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
-MLX_MODELS_FALLBACK = {
-    "reasoning": "phi3.5:3.8b",
-    "coding": "phi3.5:3.8b",
-    "chat": "phi3.5:3.8b",
-    "fast": "phi3.5:3.8b",
-    "default": "phi3.5:3.8b",
-}
-
-# Мозг и руки — victoria-wisdom-30b.
+# Мозг и руки — victoria-wisdom-v3.5.
 OLLAMA_MODELS_FALLBACK = {
-    "reasoning": os.getenv("MODEL_REASONING", "deepseek-r1:32b"),
-    "coding": os.getenv("MODEL_CODER", "qwen3.5:35b"),
-    "chat": "victoria-wisdom-30b",
+    "reasoning": os.getenv("MODEL_REASONING", "victoria-wisdom-v3.5:latest"),
+    "coding": os.getenv("MODEL_CODER", "victoria-wisdom-v3.5:latest"),
+    "chat": "victoria-wisdom-v3.5",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
     "vision": os.getenv("MODEL_VISION", "moondream:latest"),
     "vision_hd": "minicpm-v:latest",
+    "vision_pdf": "llava:7b",
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
-    "default": "victoria-wisdom-30b",
-    "vip": "victoria-wisdom-30b"
+    "default": "victoria-wisdom-v3.5",
+    "vip": "victoria-wisdom-v3.5",
+}
+
+# MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
+# [SINGULARITY 21.5] Victoria v3.5 Total Dominance: v3.5 is now the primary brain in MLX
+MLX_MODELS_FALLBACK = {
+    "reasoning": "victoria-wisdom-v3.5",
+    "coding": "victoria-wisdom-v3.5",
+    "chat": "victoria-wisdom-v3.5",
+    "fast": "phi3.5:3.8b",
+    "default": "victoria-wisdom-v3.5",
 }
 
 # Для обратной совместимости
@@ -199,12 +182,12 @@ OLLAMA_MODELS = OLLAMA_MODELS_FALLBACK
 
 # Legacy MODEL_MAP для обратной совместимости
 MODEL_MAP = {
-    "coding": os.getenv('MODEL_CODING', OLLAMA_MODELS["coding"]),
-    "reasoning": os.getenv('MODEL_REASONING', MLX_MODELS["reasoning"]),
+    "coding": os.getenv("MODEL_CODING", OLLAMA_MODELS["coding"]),
+    "reasoning": os.getenv("MODEL_REASONING", MLX_MODELS["reasoning"]),
     "fast": "tinyllama:1.1b-chat",
     "vision": OLLAMA_MODELS["vision"],
     "vision_pdf": OLLAMA_MODELS["vision_pdf"],
-    "default": os.getenv('MODEL_DEFAULT', OLLAMA_MODELS["default"])
+    "default": os.getenv("MODEL_DEFAULT", OLLAMA_MODELS["default"]),
 }
 
 # List of task categories that can be handled locally (L1)
@@ -215,30 +198,53 @@ LOCAL_TASK_CATEGORIES = [
     "text_summarization",
     "simple_query",
     "grammar_correction",
-    "logic_check"
+    "logic_check",
 ]
 
 
 class LocalAIRouter:
     def __init__(self):
         self.use_local = USE_LOCAL_LLM
-        is_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER', 'false').lower() == 'true'
+        is_docker = (
+            os.path.exists("/.dockerenv")
+            or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+        )
         # Используем URL из env (docker-compose). MLX_API_URL=disabled → только Ollama (не добавляем MLX node)
-        ollama_url = OLLAMA_API_URL or ("http://host.docker.internal:11434" if is_docker else "http://localhost:11434")
+        ollama_url = OLLAMA_API_URL or (
+            "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
+        )
         if not _valid_http_url(ollama_url):
-            ollama_url = "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
-        mlx_url = MLX_API_URL or ("http://host.docker.internal:11435" if is_docker else "http://localhost:11435")
+            ollama_url = (
+                "http://host.docker.internal:11434" if is_docker else "http://localhost:11434"
+            )
+        mlx_url = MLX_API_URL or (
+            "http://host.docker.internal:11435" if is_docker else "http://localhost:11435"
+        )
         self.nodes = []
         if _valid_http_url(mlx_url):
-            self.nodes.append({"name": "Mac Studio (MLX)", "url": mlx_url, "priority": 0, "routing_key": "mlx_studio"})
-        self.nodes.append({"name": "Mac Studio (Ollama)", "url": ollama_url, "priority": 1, "routing_key": "ollama_studio"})
+            self.nodes.append(
+                {
+                    "name": "Mac Studio (MLX)",
+                    "url": mlx_url,
+                    "priority": 0,
+                    "routing_key": "mlx_studio",
+                }
+            )
+        self.nodes.append(
+            {
+                "name": "Mac Studio (Ollama)",
+                "url": ollama_url,
+                "priority": 1,
+                "routing_key": "ollama_studio",
+            }
+        )
         self._active_node = None
         self._performance_cache = {}  # Cache for node performance metrics
         self._cache_ttl = 300  # 5 minutes
 
         # ML Model for intelligent routing
         self.ml_model = None
-        self.ml_model_path = os.path.join(os.path.dirname(__file__), 'ml_router_model.pkl')
+        self.ml_model_path = os.path.join(os.path.dirname(__file__), "ml_router_model.pkl")
         self._load_ml_model()
 
         # Model Memory Manager для оптимизации памяти (ленивая инициализация)
@@ -264,13 +270,17 @@ class LocalAIRouter:
             return
         now = time.time()
         # Удаляем истёкшие
-        expired = [k for k, ts in self._prompt_cache_meta.items() if (now - ts) >= self._prompt_cache_ttl]
+        expired = [
+            k for k, ts in self._prompt_cache_meta.items() if (now - ts) >= self._prompt_cache_ttl
+        ]
         for k in expired:
             self._prompt_cache.pop(k, None)
             self._prompt_cache_meta.pop(k, None)
         if len(self._prompt_cache) >= self._prompt_cache_max:
             # Удаляем самые старые по timestamp
-            sorted_keys = sorted(self._prompt_cache_meta.keys(), key=lambda x: self._prompt_cache_meta[x])
+            sorted_keys = sorted(
+                self._prompt_cache_meta.keys(), key=lambda x: self._prompt_cache_meta[x]
+            )
             for k in sorted_keys[: max(0, len(self._prompt_cache) - self._prompt_cache_max + 1)]:
                 self._prompt_cache.pop(k, None)
                 self._prompt_cache_meta.pop(k, None)
@@ -281,7 +291,10 @@ class LocalAIRouter:
     def _load_ml_model(self):
         """Загружает ML-модель если доступна. Переиспользует кэш на уровне класса (один раз на процесс)."""
         if MLRouterModel and os.path.exists(self.ml_model_path):
-            if LocalAIRouter._cached_ml_model_path == self.ml_model_path and LocalAIRouter._cached_ml_model is not None:
+            if (
+                LocalAIRouter._cached_ml_model_path == self.ml_model_path
+                and LocalAIRouter._cached_ml_model is not None
+            ):
                 self.ml_model = LocalAIRouter._cached_ml_model
                 return
             try:
@@ -296,18 +309,14 @@ class LocalAIRouter:
         else:
             logger.debug("ℹ️ [ML ROUTER] ML model not available, using heuristic routing")
 
-    async def predict_optimal_route(
-        self,
-        prompt: str,
-        category: Optional[str] = None
-    ) -> tuple:
+    async def predict_optimal_route(self, prompt: str, category: Optional[str] = None) -> tuple:
         """
         Предсказывает оптимальный маршрут используя ML-модель.
-        
+
         Args:
             prompt: Промпт пользователя
             category: Категория задачи
-        
+
         Returns:
             (predicted_route, confidence) или (None, None) если модель недоступна
         """
@@ -326,10 +335,12 @@ class LocalAIRouter:
                 task_type=task_type,
                 prompt_length=len(prompt),
                 category=category,
-                node_metrics=node_metrics
+                node_metrics=node_metrics,
             )
 
-            logger.info(f"🤖 [ML ROUTER] Predicted route: {predicted_route} (confidence: {confidence:.2f})")
+            logger.info(
+                f"🤖 [ML ROUTER] Predicted route: {predicted_route} (confidence: {confidence:.2f})"
+            )
             return predicted_route, confidence
         except Exception as e:
             logger.warning(f"⚠️ [ML ROUTER] Prediction error: {e}")
@@ -355,11 +366,7 @@ class LocalAIRouter:
                         response = await client.get(health_url, timeout=2.0)
                         if response.status_code == 200:
                             latency = time.time() - start_time
-                            healthy_nodes.append({
-                                **node,
-                                "latency": latency,
-                                "status": "online"
-                            })
+                            healthy_nodes.append({**node, "latency": latency, "status": "online"})
                             continue  # Успешно, переходим к следующему узлу
                     except Exception:
                         pass  # /health недоступен, пробуем /api/tags
@@ -368,17 +375,15 @@ class LocalAIRouter:
                     response = await client.get(f"{node['url']}/api/tags", timeout=2.0)
                     latency = time.time() - start_time
                     if response.status_code == 200:
-                        healthy_nodes.append({
-                            **node,
-                            "latency": latency,
-                            "status": "online"
-                        })
+                        healthy_nodes.append({**node, "latency": latency, "status": "online"})
                 except Exception as e:
                     logger.warning(f"⚠️ Node {node['name']} is offline: {e}")
 
         # Не кэшируем пустой результат — следующая попытка сразу перепроверит
         if not healthy_nodes:
-            logger.warning("⚠️ [HEALTH] Нет здоровых узлов, не кэшируем (повторная проверка при следующем запросе)")
+            logger.warning(
+                "⚠️ [HEALTH] Нет здоровых узлов, не кэшируем (повторная проверка при следующем запросе)"
+            )
             return []
 
         # Get performance metrics from cache for each node
@@ -386,19 +391,30 @@ class LocalAIRouter:
 
         # Enhance nodes with performance data
         for node in healthy_nodes:
-            routing_key = node.get('routing_key', '')
+            routing_key = node.get("routing_key", "")
             if routing_key in performance_metrics:
-                node['performance_score'] = performance_metrics[routing_key].get('avg_performance', 0.8)
-                node['success_rate'] = performance_metrics[routing_key].get('success_rate', 0.9)
+                node["performance_score"] = performance_metrics[routing_key].get(
+                    "avg_performance", 0.8
+                )
+                node["success_rate"] = performance_metrics[routing_key].get("success_rate", 0.9)
             else:
-                node['performance_score'] = 0.8  # Default
-                node['success_rate'] = 0.9  # Default
+                node["performance_score"] = 0.8  # Default
+                node["success_rate"] = 0.9  # Default
 
         # Sort by: performance_score (higher is better), then priority, then latency
         sorted_nodes = sorted(
             healthy_nodes,
-            key=lambda x: (-x.get('performance_score', 0.8), x['priority'], x['latency'])
+            key=lambda x: (-x.get("performance_score", 0.8), x["priority"], x["latency"]),
         )
+
+        # [SINGULARITY 21.8] MLX Recovery Event: unload fallback models in Ollama
+        if is_mlx_recovery_event(sorted_nodes) and should_run_unload_on_recovery():
+            ollama_node = next(
+                (n for n in sorted_nodes if "11434" in n["url"] or "ollama" in n["url"].lower()),
+                None,
+            )
+            if ollama_node:
+                asyncio.create_task(unload_ollama_fallback_models(ollama_node["url"]))
 
         # Update cache
         _health_cache = {"nodes": sorted_nodes, "timestamp": current_time}
@@ -410,10 +426,10 @@ class LocalAIRouter:
         try:
             # Check cache first
             current_time = time.time()
-            if hasattr(self, '_performance_cache') and self._performance_cache:
-                cache_time = self._performance_cache.get('timestamp', 0)
+            if hasattr(self, "_performance_cache") and self._performance_cache:
+                cache_time = self._performance_cache.get("timestamp", 0)
                 if (current_time - cache_time) < self._cache_ttl:
-                    return self._performance_cache.get('metrics', {})
+                    return self._performance_cache.get("metrics", {})
 
             # Try to connect to DB
             try:
@@ -423,11 +439,14 @@ class LocalAIRouter:
 
             try:
                 # Check if columns exist
-                columns_exist = await conn.fetchval("""
-                    SELECT COUNT(*) FROM information_schema.columns 
-                    WHERE table_name = 'semantic_ai_cache' 
+                columns_exist = (
+                    await conn.fetchval("""
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_name = 'semantic_ai_cache'
                     AND column_name IN ('routing_source', 'performance_score')
-                """) == 2
+                """)
+                    == 2
+                )
 
                 if not columns_exist:
                     await conn.close()
@@ -435,7 +454,7 @@ class LocalAIRouter:
 
                 # Get performance metrics for each routing source (last 24 hours)
                 metrics = await conn.fetch("""
-                    SELECT 
+                    SELECT
                         routing_source,
                         AVG(performance_score) as avg_performance,
                         COUNT(*) as total_requests,
@@ -449,22 +468,19 @@ class LocalAIRouter:
 
                 result = {}
                 for row in metrics:
-                    routing_key = row['routing_source']
-                    total = row['total_requests'] or 0
-                    successful = row['successful_requests'] or 0
+                    routing_key = row["routing_source"]
+                    total = row["total_requests"] or 0
+                    successful = row["successful_requests"] or 0
                     result[routing_key] = {
-                        'avg_performance': float(row['avg_performance'] or 0.8),
-                        'success_rate': (successful / total) if total > 0 else 0.9,
-                        'total_requests': total
+                        "avg_performance": float(row["avg_performance"] or 0.8),
+                        "success_rate": (successful / total) if total > 0 else 0.9,
+                        "total_requests": total,
                     }
 
                 await conn.close()
 
                 # Update cache
-                self._performance_cache = {
-                    'metrics': result,
-                    'timestamp': current_time
-                }
+                self._performance_cache = {"metrics": result, "timestamp": current_time}
 
                 return result
             except Exception as e:
@@ -480,8 +496,8 @@ class LocalAIRouter:
         Условие ослаблено: короткий ответ (<200 символов) считаем эхо только при явном совпадении
         или если ответ почти полностью совпадает с началом промпта (≥80% длины ответа), чтобы
         не отбрасывать легитимные короткие ответы («Да», «Готово»).
-        
-        [SINGULARITY 21.1] Для длинных ответов (>500 символов) эхо-детектор отключен, 
+
+        [SINGULARITY 21.1] Для длинных ответов (>500 символов) эхо-детектор отключен,
         так как вероятность случайного эха крайне мала, а риск ложного срабатывания в дебатах высок.
         """
         if not result or not prompt:
@@ -524,7 +540,14 @@ class LocalAIRouter:
             return True
 
         # Простой чат (без сложных ключевых слов)
-        complex_keywords = ["подумай", "логика", "архитектура", "стратегия", "анализ", "планирование"]
+        complex_keywords = [
+            "подумай",
+            "логика",
+            "архитектура",
+            "стратегия",
+            "анализ",
+            "планирование",
+        ]
         if not any(keyword in prompt_lower for keyword in complex_keywords):
             return True
 
@@ -542,20 +565,30 @@ class LocalAIRouter:
             try:
                 mlx_url = MLX_API_URL or ""
                 ollama_url = OLLAMA_API_URL or "http://localhost:11434"
-                mlx_models, ollama_models = await get_available_models(mlx_url, ollama_url, force_refresh=force)
+                mlx_models, ollama_models = await get_available_models(
+                    mlx_url, ollama_url, force_refresh=force
+                )
                 _cached_mlx_models = mlx_models
                 _cached_ollama_models = ollama_models
                 _models_cache_time = now
-                logger.info(f"🔄 [MODEL SCAN] Обновлены модели: MLX={len(mlx_models)}, Ollama={len(ollama_models)}")
+                logger.info(
+                    f"🔄 [MODEL SCAN] Обновлены модели: MLX={len(mlx_models)}, Ollama={len(ollama_models)}"
+                )
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка сканирования моделей: {e}, используем fallback")
 
-    def _select_model(self, prompt: str, category: Optional[str] = None, use_ollama: bool = False, node_type: Optional[str] = None) -> str:
+    def _select_model(
+        self,
+        prompt: str,
+        category: Optional[str] = None,
+        use_ollama: bool = False,
+        node_type: Optional[str] = None,
+    ) -> str:
         """Select the best local model for the task.
-        
+
         ДИНАМИЧЕСКИЙ ВЫБОР: Если available_models_scanner доступен, выбирает из реально доступных моделей.
         Если модель удалена/добавлена, система автоматически адаптируется (кэш обновляется каждые 2 мин).
-        
+
         Args:
             prompt: User prompt
             category: Task category
@@ -636,6 +669,7 @@ class LocalAIRouter:
         """Проверяет, перегружен ли MLX API Server"""
         try:
             from app.mlx_request_queue import get_request_queue
+
             queue = get_request_queue()
             stats = queue.get_stats()
 
@@ -643,8 +677,8 @@ class LocalAIRouter:
             # - Все слоты заняты (active_requests >= max_concurrent)
             # - Есть очередь (queue_size > 0)
             is_overloaded = (
-                stats.get("active_requests", 0) >= stats.get("max_concurrent", 5) or
-                stats.get("queue_size", 0) > 0
+                stats.get("active_requests", 0) >= stats.get("max_concurrent", 5)
+                or stats.get("queue_size", 0) > 0
             )
 
             if is_overloaded:
@@ -658,7 +692,9 @@ class LocalAIRouter:
             logger.debug(f"⚠️ Не удалось проверить загрузку MLX: {e}")
             return False  # Если не можем проверить, считаем что не перегружен
 
-    def should_use_local(self, prompt: str, category: Optional[str] = None, images: Optional[list] = None) -> bool:
+    def should_use_local(
+        self, prompt: str, category: Optional[str] = None, images: Optional[list] = None
+    ) -> bool:
         """Determine if the task should be routed to local LLM. По умолчанию предпочитаем локальные модели (Ollama/MLX)."""
         if not self.use_local:
             logger.debug("[LOCAL ROUTER] should_use_local=False: USE_LOCAL_LLM отключен")
@@ -671,16 +707,37 @@ class LocalAIRouter:
         # Если категория задана — предпочитаем локальные модели (оркестратор, воркер, кодинг и т.д.)
         if category in LOCAL_TASK_CATEGORIES or category in MODEL_MAP:
             return True
-        if category in ("autonomous_worker", "orchestrator", "general", "research", "reasoning", "coding", "fast"):
+        if category in (
+            "autonomous_worker",
+            "orchestrator",
+            "general",
+            "research",
+            "reasoning",
+            "coding",
+            "fast",
+        ):
             return True
 
         # Heuristic based on prompt content
         prompt_lower = prompt.lower()
-        if any(keyword in prompt_lower for keyword in ["анализ логов", "проверь код", "напиши тест", "суммаризируй", "исправь опечатку"]):
+        if any(
+            keyword in prompt_lower
+            for keyword in [
+                "анализ логов",
+                "проверь код",
+                "напиши тест",
+                "суммаризируй",
+                "исправь опечатку",
+            ]
+        ):
             return True
 
         # If the prompt is very large (context-heavy) and doesn't require high-level reasoning
-        if len(prompt) > 2000 and "архитектура" not in prompt_lower and "стратегия" not in prompt_lower:
+        if (
+            len(prompt) > 2000
+            and "архитектура" not in prompt_lower
+            and "стратегия" not in prompt_lower
+        ):
             return True
 
         # По умолчанию для неизвестных категорий — всё равно пробуем локальные модели (приоритет корпорации)
@@ -689,14 +746,24 @@ class LocalAIRouter:
 
         return False
 
-    async def run_local_llm(self, prompt: str, system_prompt: str = "", category: Optional[str] = None, images: Optional[list] = None, max_retries: int = 2, model: Optional[str] = None, model_hint: Optional[str] = None, is_vip: bool = False) -> Optional[tuple]:
+    async def run_local_llm(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        category: Optional[str] = None,
+        images: Optional[list] = None,
+        max_retries: int = 2,
+        model: Optional[str] = None,
+        model_hint: Optional[str] = None,
+        is_vip: bool = False,
+    ) -> Optional[tuple]:
         """
         Запускает локальную LLM модель.
         Приоритет: MLX API Server (HTTP) и Ollama — оба используются (балансировка).
         model: если задан — используем эту модель и перебираем узлы (MLX/Ollama) пока один не ответит.
         model_hint: подсказка для выбора модели (для совместимости с ансамблем).
         is_vip: если True, запрос идет через VIP-коридор (приоритет и лучшие модели).
-        
+
         Returns:
             tuple: (response, routing_source)
         """
@@ -710,7 +777,7 @@ class LocalAIRouter:
             model = model_hint
 
         # МОНСТР-ЛОГИКА: Поддержка форсированного локального роутинга
-        if getattr(self, 'force_local', False):
+        if getattr(self, "force_local", False):
             logger.info("🚀 [MONSTER] Форсирован локальный роутинг для этого запроса.")
         logger.info("[ROUTER] ========== LocalAIRouter.run_local_llm() ==========")
         logger.info("[ROUTER] Input model: %s", model)
@@ -728,7 +795,7 @@ class LocalAIRouter:
         """Call local LLM (Ollama style) with automatic failover, retry logic and node selection."""
 
         # Модель: параметр вызова, или _preferred_model от воркера (батчи по модели — меньше load/unload)
-        initial_model = model or getattr(self, '_preferred_model', None)
+        initial_model = model or getattr(self, "_preferred_model", None)
 
         if images and MODEL_MAP.get("vision"):
             model = MODEL_MAP["vision"]
@@ -764,7 +831,9 @@ class LocalAIRouter:
         if use_ml_routing and self.ml_model:
             ml_predicted_route, ml_confidence = await self.predict_optimal_route(prompt, category)
             if ml_predicted_route and ml_confidence > 0.7:
-                logger.info(f"🤖 [ML ROUTER] Using ML prediction: {ml_predicted_route} (confidence: {ml_confidence:.2f})")
+                logger.info(
+                    f"🤖 [ML ROUTER] Using ML prediction: {ml_predicted_route} (confidence: {ml_confidence:.2f})"
+                )
         elif self.ml_model:
             logger.debug("📊 [HEURISTIC ROUTER] A/B test: using heuristic routing")
 
@@ -772,6 +841,7 @@ class LocalAIRouter:
         if self._memory_manager is None and self._memory_manager_url:
             try:
                 from model_memory_manager import get_memory_manager
+
                 self._memory_manager = get_memory_manager(self._memory_manager_url)
                 logger.debug("✅ ModelMemoryManager инициализирован (ленивая инициализация)")
             except Exception as e:
@@ -782,7 +852,9 @@ class LocalAIRouter:
         if self._memory_manager:
             available_mb = await self._memory_manager.get_available_memory_mb()
             if available_mb < 200:  # MIN_FREE_MEMORY_MB
-                logger.warning(f"⚠️ [MEMORY] Критическая нехватка памяти: {available_mb}MB, запускаем очистку...")
+                logger.warning(
+                    f"⚠️ [MEMORY] Критическая нехватка памяти: {available_mb}MB, запускаем очистку..."
+                )
                 await self._memory_manager.emergency_memory_cleanup()
 
         # Discover healthy nodes (with caching)
@@ -798,7 +870,7 @@ class LocalAIRouter:
                     category=category,
                     selected_route="cloud",  # Fallback в облако
                     success=False,
-                    features={"reason": "no_healthy_nodes", "ml_predicted": ml_predicted_route}
+                    features={"reason": "no_healthy_nodes", "ml_predicted": ml_predicted_route},
                 )
             return None
 
@@ -811,7 +883,9 @@ class LocalAIRouter:
                 # Перемещаем лучший узел в начало
                 healthy_nodes.remove(best_node)
                 healthy_nodes.insert(0, best_node)
-                logger.info(f"⚖️ [LOAD BALANCER] Выбран узел: {best_node['name']} на основе загрузки")
+                logger.info(
+                    f"⚖️ [LOAD BALANCER] Выбран узел: {best_node['name']} на основе загрузки"
+                )
 
         # 2. ML Prediction: если ML предсказал маршрут, учитываем его
         if ml_predicted_route and ml_predicted_route != "cloud":
@@ -819,7 +893,7 @@ class LocalAIRouter:
             predicted_node = None
             other_nodes = []
             for node in healthy_nodes:
-                if node.get('routing_key') == ml_predicted_route:
+                if node.get("routing_key") == ml_predicted_route:
                     predicted_node = node
                 else:
                     other_nodes.append(node)
@@ -834,13 +908,18 @@ class LocalAIRouter:
         # Это уже делается в _select_model на основе node_type
 
         # 4. БАЛАНСИРОВКА: Перемешиваем узлы для равномерного использования MLX и Ollama
-        mlx_nodes = [n for n in healthy_nodes if "11435" in n['url'] or "mlx" in n['url'].lower()]
-        ollama_nodes = [n for n in healthy_nodes if "11434" in n['url'] or "ollama" in n['url'].lower()]
+        mlx_nodes = [n for n in healthy_nodes if "11435" in n["url"] or "mlx" in n["url"].lower()]
+        ollama_nodes = [
+            n for n in healthy_nodes if "11434" in n["url"] or "ollama" in n["url"].lower()
+        ]
         other_nodes = [n for n in healthy_nodes if n not in mlx_nodes and n not in ollama_nodes]
         # Логируем раз в 5 мин, если MLX недоступен — чтобы было видно, что задачи идут только в Ollama
         if not mlx_nodes and ollama_nodes:
             _t = time.time()
-            if not hasattr(LocalAIRouter, "_last_no_mlx_log") or (_t - LocalAIRouter._last_no_mlx_log) > 300:
+            if (
+                not hasattr(LocalAIRouter, "_last_no_mlx_log")
+                or (_t - LocalAIRouter._last_no_mlx_log) > 300
+            ):
                 logger.warning(
                     "⚠️ [ROUTER] MLX API Server (порт 11435) недоступен — все задачи обрабатываются через Ollama. "
                     "Запуск: scripts/start_mlx_api_server.sh; проверка: curl -s http://localhost:11435/health"
@@ -879,7 +958,9 @@ class LocalAIRouter:
                     balanced_nodes.remove(first_node)
                     balanced_nodes.insert(0, first_node)
                 healthy_nodes = balanced_nodes
-                logger.info(f"⚖️ [BALANCED] Перемешаны узлы для равномерного использования MLX ({len(mlx_nodes)}) и Ollama ({len(ollama_nodes)})")
+                logger.info(
+                    f"⚖️ [BALANCED] Перемешаны узлы для равномерного использования MLX ({len(mlx_nodes)}) и Ollama ({len(ollama_nodes)})"
+                )
 
         # Умный выбор узла на основе задачи и загрузки
         # Система сама выберет лучший источник (MLX или Ollama) на основе:
@@ -889,31 +970,43 @@ class LocalAIRouter:
         # 4. Балансировки между MLX и Ollama
 
         # УЛУЧШЕНИЕ: Если есть предпочтительный источник (из worker'а), пробуем его первым
-        preferred_source = getattr(self, '_preferred_source', None)
+        preferred_source = getattr(self, "_preferred_source", None)
 
         # [SINGULARITY 21.3] God Mode: Victoria Brain always prefers MLX
-        if model and "victoria-wisdom-30b" in model.lower():
-            preferred_source = 'mlx'
+        if model and (
+            "victoria-wisdom-v3.5" in model.lower() or "victoria-wisdom-v3.5" in model.lower()
+        ):
+            preferred_source = "mlx"
             logger.info("🧠 [GOD MODE] Victoria model detected, forcing MLX priority")
 
         if preferred_source:
             # Перемещаем предпочтительный узел в начало
-            preferred_nodes = [n for n in healthy_nodes if
-                              (preferred_source == 'mlx' and ("11435" in n['url'] or "mlx" in n['url'].lower())) or
-                              (preferred_source == 'ollama' and ("11434" in n['url'] or "ollama" in n['url'].lower()))]
+            preferred_nodes = [
+                n
+                for n in healthy_nodes
+                if (
+                    preferred_source == "mlx" and ("11435" in n["url"] or "mlx" in n["url"].lower())
+                )
+                or (
+                    preferred_source == "ollama"
+                    and ("11434" in n["url"] or "ollama" in n["url"].lower())
+                )
+            ]
             if preferred_nodes:
                 for node in preferred_nodes:
                     if node in healthy_nodes:
                         healthy_nodes.remove(node)
                         healthy_nodes.insert(0, node)
-                logger.info(f"🎯 [PREFERRED] Используем предпочтительный источник: {preferred_source}")
+                logger.info(
+                    f"🎯 [PREFERRED] Используем предпочтительный источник: {preferred_source}"
+                )
 
         # Try each node with retry logic
         start_time = time.time()
         for node in healthy_nodes:
             # Определяем, это Ollama или MLX API Server
-            is_ollama = "11434" in node['url'] or "ollama" in node['url'].lower()
-            is_mlx = "11435" in node['url'] or "mlx" in node['url'].lower()
+            is_ollama = "11434" in node["url"] or "ollama" in node["url"].lower()
+            is_mlx = "11435" in node["url"] or "mlx" in node["url"].lower()
 
             # ИНТЕЛЛЕКТУАЛЬНЫЙ ВЫБОР МОДЕЛИ на основе мировых практик
             # ВАЖНО: MLX и Ollama имеют РАЗНЫЕ модели! Выбираем для КАЖДОГО узла отдельно!
@@ -929,7 +1022,9 @@ class LocalAIRouter:
                     if initial_model in (list(MLX_MODELS.values()) + list(OLLAMA_MODELS.values())):
                         current_model = initial_model
                     else:
-                        logger.debug(f"⚠️ Модель {initial_model} не в fallback для {node_type}, выбираем автоматически")
+                        logger.debug(
+                            f"⚠️ Модель {initial_model} не в fallback для {node_type}, выбираем автоматически"
+                        )
                         current_model = None
 
             # 2. Если модель не задана или не совместима - выбираем для этого узла
@@ -938,15 +1033,29 @@ class LocalAIRouter:
                 if is_ollama:
                     try:
                         import psutil
+
                         ram = psutil.virtual_memory()
-                        # В God Mode выгрузка только если RAM реально кончается (запас RAM_RESERVE_GB)
-                        if ram.available < (RAM_RESERVE_GB * 1024**3):
-                            logger.warning(f"⚠️ [MEMORY GUARD] Low RAM ({ram.available / 1024**3:.1f}GB), cleaning up...")
+                        # [SINGULARITY 21.8] God Mode 128GB: учитываем резерв MLX (MLX_RAM_RESERVE_GB)
+                        from app.ollama_keep_alive_policy import MLX_RAM_RESERVE_GB
+
+                        effective_reserve = MLX_RAM_RESERVE_GB + RAM_RESERVE_GB
+
+                        if ram.available < (effective_reserve * 1024**3):
+                            logger.warning(
+                                f"⚠️ [MEMORY GUARD] Low RAM ({ram.available / 1024**3:.1f}GB < {effective_reserve}GB reserve), cleaning up..."
+                            )
                             async with httpx.AsyncClient(timeout=5.0) as unload_client:
                                 # Выгружаем только если это не VIP и не Reasoning
                                 if category not in ("reasoning", "vip") and not is_vip:
                                     # Выгружаем самую тяжелую не-бессмертную модель
-                                    await unload_client.post(f"{node['url']}/api/generate", json={"model": "qwen3.5:35b", "keep_alive": 0})
+                                    await unload_client.post(
+                                        f"{node['url']}/api/generate",
+                                        json={"model": "qwen3.5:35b", "keep_alive": 0},
+                                    )
+                                    await unload_client.post(
+                                        f"{node['url']}/api/generate",
+                                        json={"model": "deepseek-r1:32b", "keep_alive": 0},
+                                    )
                     except Exception as mem_err:
                         logger.debug(f"Memory cleanup failed: {mem_err}")
 
@@ -954,14 +1063,21 @@ class LocalAIRouter:
                 # Выбор модели по категории (scanner или fallback; MLX только лёгкие)
                 if category == "reasoning":
                     current_model = self._select_model(prompt, category, node_type=node_type)
-                    logger.info(f"🎯 [REASONING] Узел: {node_type} | Модель: {current_model} (принудительный выбор для reasoning)")
+                    logger.info(
+                        f"🎯 [REASONING] Узел: {node_type} | Модель: {current_model} (принудительный выбор для reasoning)"
+                    )
                 else:
                     # Используем простой выбор модели по приоритетам (быстрые модели первыми)
                     # Intelligent router отключён — он выбирает тяжёлые модели и перегружает систему
-                    use_intelligent = os.getenv('USE_INTELLIGENT_ROUTER', 'false').lower() in ('true', '1', 'yes')
+                    use_intelligent = os.getenv("USE_INTELLIGENT_ROUTER", "false").lower() in (
+                        "true",
+                        "1",
+                        "yes",
+                    )
                     if use_intelligent:
                         try:
                             from intelligent_model_router import get_intelligent_router
+
                             intelligent_router = get_intelligent_router()
 
                             available_models = []
@@ -971,60 +1087,78 @@ class LocalAIRouter:
                                 available_models = list(OLLAMA_MODELS.values())
 
                             if available_models:
-                                optimize_mode = os.getenv('INTELLIGENT_ROUTER_OPTIMIZE', 'speed')
-                                optimal_model, _task_cat, confidence = await intelligent_router.select_optimal_model(
+                                optimize_mode = os.getenv("INTELLIGENT_ROUTER_OPTIMIZE", "speed")
+                                (
+                                    optimal_model,
+                                    _task_cat,
+                                    confidence,
+                                ) = await intelligent_router.select_optimal_model(
                                     prompt=prompt,
                                     category=category or "",
                                     available_models=available_models,
-                                    optimize_for=optimize_mode
+                                    optimize_for=optimize_mode,
                                 )
 
                                 if optimal_model and confidence > 0.5:
                                     current_model = optimal_model
-                                    logger.info(f"🧠 [INTELLIGENT ROUTER] Узел: {node_type} | Модель: {current_model} (confidence: {confidence:.2f})")
+                                    logger.info(
+                                        f"🧠 [INTELLIGENT ROUTER] Узел: {node_type} | Модель: {current_model} (confidence: {confidence:.2f})"
+                                    )
                                 else:
-                                    current_model = self._select_model(prompt, category, node_type=node_type)
+                                    current_model = self._select_model(
+                                        prompt, category, node_type=node_type
+                                    )
                             else:
-                                current_model = self._select_model(prompt, category, node_type=node_type)
+                                current_model = self._select_model(
+                                    prompt, category, node_type=node_type
+                                )
                         except Exception as e:
                             logger.debug(f"Intelligent router failed: {e}, using fallback")
-                            current_model = self._select_model(prompt, category, node_type=node_type)
+                            current_model = self._select_model(
+                                prompt, category, node_type=node_type
+                            )
                     else:
                         # Простой выбор по приоритетам (лёгкие модели первыми)
                         current_model = self._select_model(prompt, category, node_type=node_type)
 
             # Финальная модель для этого узла
             model = current_model
-            logger.info(f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}")
+            logger.info(
+                f"🎯 [SMART SELECTION] Узел: {node['name']} | Модель: {model} | Тип задачи: {category or 'auto'}"
+            )
 
             # Используем /api/chat для Ollama (более современный endpoint)
             if is_ollama or is_mlx:
                 node_url = f"{node['url']}/api/chat"
-                logger.info(f"🏠 [LOCAL ROUTE] Node: {node['name']} | Model: {model} | Endpoint: /api/chat")
+                logger.info(
+                    f"🏠 [LOCAL ROUTE] Node: {node['name']} | Model: {model} | Endpoint: /api/chat"
+                )
 
                 messages = []
                 if system_prompt:
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": prompt})
 
-                payload = {
-                    "model": model,
-                    "messages": messages,
-                    "stream": False
-                }
-                payload["keep_alive"] = _get_keep_alive(model)
+                payload = {"model": model, "messages": messages, "stream": False}
+                mlx_alive = any(
+                    "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
+                    for n in healthy_nodes
+                )
+                payload["keep_alive"] = get_keep_alive(model, mlx_alive=mlx_alive)
             else:
                 # Для других сервисов используем /api/generate
                 node_url = f"{node['url']}/api/generate"
-                logger.info(f"🏠 [LOCAL ROUTE] Node: {node['name']} | Model: {model} | Endpoint: /api/generate")
+                logger.info(
+                    f"🏠 [LOCAL ROUTE] Node: {node['name']} | Model: {model} | Endpoint: /api/generate"
+                )
 
                 full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
-                payload = {
-                    "model": model,
-                    "prompt": full_prompt,
-                    "stream": False
-                }
-                payload["keep_alive"] = _get_keep_alive(model)
+                payload = {"model": model, "prompt": full_prompt, "stream": False}
+                mlx_alive = any(
+                    "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
+                    for n in healthy_nodes
+                )
+                payload["keep_alive"] = get_keep_alive(model, mlx_alive=mlx_alive)
             if images:
                 payload["images"] = images
 
@@ -1032,6 +1166,7 @@ class LocalAIRouter:
             if is_mlx:
                 try:
                     from resource_monitor import get_resource_monitor
+
                     monitor = get_resource_monitor()
                     mlx_health = await monitor.get_mlx_health()
 
@@ -1050,7 +1185,7 @@ class LocalAIRouter:
             # Load Balancing: отмечаем начало запроса
             if get_load_balancer:
                 load_balancer = get_load_balancer()
-                load_balancer.start_request(node.get('routing_key', ''))
+                load_balancer.start_request(node.get("routing_key", ""))
 
             # Retry logic with exponential backoff
             for attempt in range(max_retries + 1):
@@ -1058,9 +1193,15 @@ class LocalAIRouter:
                     async with httpx.AsyncClient() as client:
                         request_start = time.time()
                         headers = {}
-                        if category == "reasoning" or is_vip or str(model).lower() == "victoria-wisdom-30b":
+                        if (
+                            category == "reasoning"
+                            or is_vip
+                            or str(model).lower() == "victoria-wisdom-v3.5"
+                        ):
                             headers["X-Request-Priority"] = "high"
-                            logger.info(f"🌟 [VIP HEADER] Added X-Request-Priority: high for {category or model or 'VIP'}")
+                            logger.info(
+                                f"🌟 [VIP HEADER] Added X-Request-Priority: high for {category or model or 'VIP'}"
+                            )
                         else:
                             headers["X-Request-Priority"] = "normal"
                         # Таймаут по метрикам этой модели (load/processing с запасом); у каждой модели свои значения
@@ -1072,16 +1213,21 @@ class LocalAIRouter:
                             logger.info(f"🕒 [REASONING] Увеличен таймаут до {_node_timeout}с")
 
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг, увеличиваем таймаут до 10 минут
-                        if getattr(self, 'force_local', False):
+                        if getattr(self, "force_local", False):
                             _node_timeout = 600.0
-                            logger.info("🚀 [MONSTER] Увеличен таймаут HTTP до 600с для форсированного локального роутинга.")
+                            logger.info(
+                                "🚀 [MONSTER] Увеличен таймаут HTTP до 600с для форсированного локального роутинга."
+                            )
 
                         try:
                             from app.model_performance_probe import (
                                 get_timeout_estimate_from_metrics_dict,
                             )
                             from available_models_scanner import get_model_metrics
-                            _source = "ollama" if node.get("routing_key") == "ollama_studio" else "mlx"
+
+                            _source = (
+                                "ollama" if node.get("routing_key") == "ollama_studio" else "mlx"
+                            )
                             if model:
                                 _m = get_model_metrics(model, _source)
                                 if _m:
@@ -1092,21 +1238,41 @@ class LocalAIRouter:
                             pass
 
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, или используется тяжелая модель, используем стриминг для предотвращения ReadTimeout
-                        is_heavy_model = any(heavy in str(model).lower() for heavy in ["32b", "30b", "70b", "104b", "qwq"])
-                        if getattr(self, 'force_local', False) or category in ("reasoning", "vip") or is_heavy_model:
-                            logger.info(f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]...")
+                        is_heavy_model = any(
+                            heavy in str(model).lower()
+                            for heavy in ["32b", "30b", "70b", "104b", "qwq"]
+                        )
+                        if (
+                            getattr(self, "force_local", False)
+                            or category in ("reasoning", "vip")
+                            or is_heavy_model
+                        ):
+                            logger.info(
+                                f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]..."
+                            )
                             full_response = []
 
                             # Включаем стриминг в полезной нагрузке
                             payload["stream"] = True
                             # Таймаут стриминга: read до 20 мин (первый токен у 30B+ может быть 2–5 мин), connect 60 с
-                            _stream_timeout = float(os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1200"))
-                            _stream_connect = float(os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60"))
+                            _stream_timeout = float(
+                                os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1200")
+                            )
+                            _stream_connect = float(
+                                os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60")
+                            )
 
-                            async with client.stream("POST", node_url, json=payload, headers=headers, timeout=httpx.Timeout(_stream_timeout, connect=_stream_connect)) as response:
+                            async with client.stream(
+                                "POST",
+                                node_url,
+                                json=payload,
+                                headers=headers,
+                                timeout=httpx.Timeout(_stream_timeout, connect=_stream_connect),
+                            ) as response:
                                 if response.status_code == 200:
                                     async for line in response.aiter_lines():
-                                        if not line: continue
+                                        if not line:
+                                            continue
                                         try:
                                             chunk = json.loads(line)
                                             # Обработка разных форматов Ollama/MLX
@@ -1120,16 +1286,19 @@ class LocalAIRouter:
                                             if content:
                                                 full_response.append(content)
 
-                                            if chunk.get("done"): break
+                                            if chunk.get("done"):
+                                                break
                                         except Exception:
                                             continue
 
                                     result = "".join(full_response)
+
                                     # Создаем фиктивный объект ответа для совместимости с кодом ниже
                                     class MockResponse:
                                         def __init__(self, text, status_code):
                                             self.text = text
                                             self.status_code = status_code
+
                                         def json(self):
                                             return {"message": {"content": self.text}}
 
@@ -1144,7 +1313,7 @@ class LocalAIRouter:
                                 node_url,
                                 json=payload,
                                 headers=headers,
-                                timeout=httpx.Timeout(_node_timeout, connect=30.0)
+                                timeout=httpx.Timeout(_node_timeout, connect=30.0),
                             )
                         latency_ms = (time.time() - request_start) * 1000
 
@@ -1152,14 +1321,18 @@ class LocalAIRouter:
                         if get_load_balancer:
                             load_balancer = get_load_balancer()
                             load_balancer.update_node_load(
-                                node['name'],
-                                node.get('routing_key', ''),
+                                node["name"],
+                                node.get("routing_key", ""),
                                 latency_ms / 1000.0,  # Конвертируем в секунды
-                                success=(response.status_code == 200)
+                                success=(response.status_code == 200),
                             )
-                            load_balancer.end_request(node.get('routing_key', ''))
+                            load_balancer.end_request(node.get("routing_key", ""))
 
-                        logger.info("[ROUTER] HTTP response status: %d from %s", response.status_code, node['name'])
+                        logger.info(
+                            "[ROUTER] HTTP response status: %d from %s",
+                            response.status_code,
+                            node["name"],
+                        )
 
                         if response.status_code == 200:
                             result_data = response.json()
@@ -1167,31 +1340,55 @@ class LocalAIRouter:
                             if "message" in result_data:
                                 # Формат /api/chat
                                 result = result_data["message"].get("content", "")
-                                logger.info("[ROUTER] Response format: /api/chat, content length: %d", len(result))
+                                logger.info(
+                                    "[ROUTER] Response format: /api/chat, content length: %d",
+                                    len(result),
+                                )
                             elif "response" in result_data:
                                 # Формат /api/generate
                                 result = result_data.get("response", "")
-                                logger.info("[ROUTER] Response format: /api/generate, content length: %d", len(result))
+                                logger.info(
+                                    "[ROUTER] Response format: /api/generate, content length: %d",
+                                    len(result),
+                                )
                             else:
                                 result = str(result_data)
-                                logger.info("[ROUTER] Response format: unknown, raw data length: %d", len(result))
+                                logger.info(
+                                    "[ROUTER] Response format: unknown, raw data length: %d",
+                                    len(result),
+                                )
 
                             result = result if isinstance(result, str) else str(result)
-                            logger.info("[ROUTER] Response preview: %s...", result[:200] if result else "(empty)")
+                            logger.info(
+                                "[ROUTER] Response preview: %s...",
+                                result[:200] if result else "(empty)",
+                            )
 
                             # Защита от эхо: если сервер/модель вернула промпт как ответ — не считаем успехом, пробуем следующий узел
                             if result and self._is_echo_response(result, prompt):
-                                logger.warning("[ROUTER] ⚠️ Эхо-ответ от %s (модель вернула промпт), пробуем следующий узел", node['name'])
+                                logger.warning(
+                                    "[ROUTER] ⚠️ Эхо-ответ от %s (модель вернула промпт), пробуем следующий узел",
+                                    node["name"],
+                                )
                                 continue
 
                             if result:
-                                routing_source = node.get('routing_key', 'ollama_studio')
-                                performance_score = node.get('performance_score', 0.8)
-                                logger.info("[ROUTER] ✅ [SUCCESS] Node: %s, Model: %s, Latency: %.2fms, Performance: %.2f",
-                                           node['name'], model, latency_ms, performance_score)
+                                routing_source = node.get("routing_key", "ollama_studio")
+                                performance_score = node.get("performance_score", 0.8)
+                                logger.info(
+                                    "[ROUTER] ✅ [SUCCESS] Node: %s, Model: %s, Latency: %.2fms, Performance: %.2f",
+                                    node["name"],
+                                    model,
+                                    latency_ms,
+                                    performance_score,
+                                )
 
                                 # Отмечаем использование модели для менеджера памяти
-                                if self._memory_manager and node.get('routing_key') == 'local_server' and model:
+                                if (
+                                    self._memory_manager
+                                    and node.get("routing_key") == "local_server"
+                                    and model
+                                ):
                                     await self._memory_manager.mark_model_used(model)
 
                                 # Сохраняем решение роутера для обучения ML
@@ -1207,19 +1404,20 @@ class LocalAIRouter:
                                         success=True,
                                         features={
                                             "model": model,
-                                            "node_name": node['name'],
-                                            "node_priority": node.get('priority', 0),
-                                            "attempt": attempt + 1
-                                        }
+                                            "node_name": node["name"],
+                                            "node_priority": node.get("priority", 0),
+                                            "attempt": attempt + 1,
+                                        },
                                     )
 
                                 # Сохраняем информацию об использованной модели для отслеживания
                                 # Это будет использовано в worker'е для записи производительности
-                                if hasattr(self, '_current_task_id'):
+                                if hasattr(self, "_current_task_id"):
                                     try:
                                         from model_performance_tracker import (
                                             get_performance_tracker,
                                         )
+
                                         tracker = get_performance_tracker()
                                         # Сохраняем в metadata задачи (будет использовано в worker'е)
                                         self._used_model = model
@@ -1229,7 +1427,10 @@ class LocalAIRouter:
                                 # Сохраняем в кэш при успехе (короткий ответ)
                                 if prompt_cache_key and len(result) < 5000:
                                     self._evict_prompt_cache_if_needed()
-                                    self._prompt_cache[prompt_cache_key] = (str(result), str(routing_source))
+                                    self._prompt_cache[prompt_cache_key] = (
+                                        str(result),
+                                        str(routing_source),
+                                    )
                                     self._prompt_cache_meta[prompt_cache_key] = time.time()
                                 # Return (response, routing_source) tuple
 
@@ -1241,40 +1442,65 @@ class LocalAIRouter:
                                         provider="local",
                                         model=model or "unknown",
                                         input_tokens=in_tokens,
-                                        output_tokens=out_tokens
+                                        output_tokens=out_tokens,
                                     )
                                 except Exception as metrics_err:
                                     logger.debug(f"Failed to record local metrics: {metrics_err}")
 
                                 return result, routing_source
                             else:
-                                logger.warning("[ROUTER] ⚠️ Node %s returned empty response for model %s", node['name'], model)
+                                logger.warning(
+                                    "[ROUTER] ⚠️ Node %s returned empty response for model %s",
+                                    node["name"],
+                                    model,
+                                )
                         else:
                             # Log error response body for debugging
                             try:
                                 error_text = response.text[:500]
-                                logger.error("[ROUTER] ❌ Node %s returned HTTP %d: %s", node['name'], response.status_code, error_text)
+                                logger.error(
+                                    "[ROUTER] ❌ Node %s returned HTTP %d: %s",
+                                    node["name"],
+                                    response.status_code,
+                                    error_text,
+                                )
                             except:
-                                logger.error("[ROUTER] ❌ Node %s returned HTTP %d", node['name'], response.status_code)
+                                logger.error(
+                                    "[ROUTER] ❌ Node %s returned HTTP %d",
+                                    node["name"],
+                                    response.status_code,
+                                )
                 except asyncio.TimeoutError:
-                    logger.warning("[ROUTER] ⏱️ Timeout: Node %s, Model %s (attempt %d/%d)",
-                                  node['name'], model, attempt + 1, max_retries + 1)
+                    logger.warning(
+                        "[ROUTER] ⏱️ Timeout: Node %s, Model %s (attempt %d/%d)",
+                        node["name"],
+                        model,
+                        attempt + 1,
+                        max_retries + 1,
+                    )
                     if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        await asyncio.sleep(2**attempt)  # Exponential backoff
                     continue
                 except httpx.ConnectError as e:
                     logger.error("[ROUTER] ❌ Connection failed to %s: %s", node_url, e)
                     if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)
+                        await asyncio.sleep(2**attempt)
                     continue
                 except Exception as e:
-                    logger.error("[ROUTER] ❌ Exception calling Node %s: %s: %s", node['name'], type(e).__name__, e)
+                    logger.error(
+                        "[ROUTER] ❌ Exception calling Node %s: %s: %s",
+                        node["name"],
+                        type(e).__name__,
+                        e,
+                    )
                     if attempt < max_retries:
-                        await asyncio.sleep(2 ** attempt)
+                        await asyncio.sleep(2**attempt)
                     continue
 
             # If we exhausted retries for this node, try next
-            logger.warning(f"⚠️ Node {node['name']} failed after {max_retries + 1} attempts, trying next...")
+            logger.warning(
+                f"⚠️ Node {node['name']} failed after {max_retries + 1} attempts, trying next..."
+            )
 
         # Все узлы не сработали - сохраняем неудачное решение
         total_latency = (time.time() - start_time) * 1000
@@ -1287,7 +1513,7 @@ class LocalAIRouter:
                 selected_route="cloud",  # Fallback в облако
                 latency_ms=total_latency,
                 success=False,
-                features={"reason": "all_nodes_failed"}
+                features={"reason": "all_nodes_failed"},
             )
 
         return None, None
@@ -1299,12 +1525,12 @@ class LocalAIRouter:
         category: Optional[str] = None,
         images: Optional[list] = None,
         model: Optional[str] = None,
-        is_vip: bool = False
+        is_vip: bool = False,
     ) -> AsyncGenerator[str, None]:
         """
         Call local LLM with streaming support.
         Returns AsyncGenerator that yields response chunks.
-        
+
         Args:
             prompt: User prompt
             system_prompt: System prompt
@@ -1312,7 +1538,7 @@ class LocalAIRouter:
             images: List of images (for vision models)
             model: Specific model to use (if None, selected automatically)
             is_vip: If True, request goes through VIP corridor
-        
+
         Yields:
             Response chunks as strings
         """
@@ -1337,7 +1563,9 @@ class LocalAIRouter:
         # Для VIP/Reasoning задач в стриминге тоже предпочитаем MLX если он есть
         node = None
         if category == "reasoning" or is_vip:
-            mlx_nodes = [n for n in healthy_nodes if "11435" in n['url'] or "mlx" in n['url'].lower()]
+            mlx_nodes = [
+                n for n in healthy_nodes if "11435" in n["url"] or "mlx" in n["url"].lower()
+            ]
             if mlx_nodes:
                 node = mlx_nodes[0]
                 logger.info(f"🎯 [VIP STREAM] Выбран MLX узел: {node['name']}")
@@ -1349,28 +1577,27 @@ class LocalAIRouter:
         logger.info(f"🌊 [STREAMING] Node: {node['name']} | Model: {model}")
 
         full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
-        payload = {
-            "model": model,
-            "prompt": full_prompt,
-            "stream": True
-        }
-        payload["keep_alive"] = _get_keep_alive(model)
+        payload = {"model": model, "prompt": full_prompt, "stream": True}
+        mlx_alive = any(
+            "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
+            for n in healthy_nodes
+        )
+        payload["keep_alive"] = get_keep_alive(model, mlx_alive=mlx_alive)
         if images:
             payload["images"] = images
 
         # VIP Header
         headers = {}
-        if category == "reasoning" or is_vip or str(model).lower() == "victoria-wisdom-30b":
+        if category == "reasoning" or is_vip or str(model).lower() == "victoria-wisdom-v3.5":
             headers["X-Request-Priority"] = "high"
-            logger.info(f"🌟 [VIP HEADER] Added X-Request-Priority: high for streaming {category or model or 'VIP'}")
+            logger.info(
+                f"🌟 [VIP HEADER] Added X-Request-Priority: high for streaming {category or model or 'VIP'}"
+            )
 
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
                 async with client.stream(
-                    'POST',
-                    node_url,
-                    json=payload,
-                    headers=headers
+                    "POST", node_url, json=payload, headers=headers
                 ) as response:
                     if response.status_code != 200:
                         logger.error(f"❌ [STREAMING] Error: {response.status_code}")
@@ -1382,9 +1609,9 @@ class LocalAIRouter:
 
                         try:
                             chunk_data = json.loads(line)
-                            if 'response' in chunk_data:
-                                yield chunk_data['response']
-                            if chunk_data.get('done', False):
+                            if "response" in chunk_data:
+                                yield chunk_data["response"]
+                            if chunk_data.get("done", False):
                                 break
                         except json.JSONDecodeError:
                             continue

@@ -19,7 +19,7 @@ class AuditAgent(AtraBaseAgent):
         super().__init__(name="AuditAgent", model_name=model_name)
 
         # [SINGULARITY 20.0] Mirror Wisdom Architecture
-        self.model_name = model_name or os.getenv("VICTORIA_MODEL", "victoria-wisdom-30b")
+        self.model_name = model_name or os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5")
         self.executor = OllamaExecutor(model=self.model_name)
 
         # Регистрация инструментов

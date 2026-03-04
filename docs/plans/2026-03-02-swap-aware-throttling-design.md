@@ -1,35 +1,43 @@
 # Дизайн-документ: Swap-Aware Throttling (Этап 23.0)
 
 ## 1. Проблема
+
 macOS начинает использовать Swap (подкачку на диск) еще до того, как RAM заполнится на 100%. Это приводит к резкому снижению производительности (latency) всей системы ATRA, так как дисковые операции медленнее оперативной памяти. Текущий `Memory Guard` реагирует только на RAM, игнорируя состояние Swap.
 
 ## 2. Цель
+
 Внедрить механизм «умного торможения» (Throttling), который будет ограничивать параллельную нагрузку на Ollama при обнаружении активного использования Swap, предотвращая деградацию системы.
 
 ## 3. Архитектурное решение
 
 ### 3.1. Мониторинг Swap
+
 В `LocalAIRouter` добавляется регулярная проверка состояния подкачки через `psutil.swap_memory()`.
 
 ### 3.2. Логика Throttling (Пороги)
-*   **SWAP_THRESHOLD_WARNING (1 GB):** Если `swap.used > 1GB`, роутер переходит в режим **Soft Throttling**.
-    *   `max_concurrent_requests` для Ollama снижается до **1**.
-    *   Новые запросы ставятся в очередь с увеличенным таймаутом.
-*   **SWAP_THRESHOLD_CRITICAL (3 GB):** Если `swap.used > 3GB`, роутер переходит в режим **Hard Throttling**.
-    *   Все новые запросы к Ollama отклоняются с ошибкой 503 (Retry-After), пока Swap не очистится.
-    *   Запускается `emergency_memory_cleanup()` (выгрузка всех моделей Ollama).
+
+- **SWAP_THRESHOLD_WARNING (1 GB):** Если `swap.used > 1GB`, роутер переходит в режим **Soft Throttling**.
+  - `max_concurrent_requests` для Ollama снижается до **1**.
+  - Новые запросы ставятся в очередь с увеличенным таймаутом.
+- **SWAP_THRESHOLD_CRITICAL (3 GB):** Если `swap.used > 3GB`, роутер переходит в режим **Hard Throttling**.
+  - Все новые запросы к Ollama отклоняются с ошибкой 503 (Retry-After), пока Swap не очистится.
+  - Запускается `emergency_memory_cleanup()` (выгрузка всех моделей Ollama).
 
 ### 3.3. Метрики (Prometheus)
+
 Добавление новой метрики:
-*   `local_swap_usage_bytes` (Gauge) — текущий объем используемого Swap.
+
+- `local_swap_usage_bytes` (Gauge) — текущий объем используемого Swap.
 
 ## 4. План реализации
+
 1.  **knowledge_os/app/prometheus_metrics.py:** Добавить метрику `local_swap_usage_bytes`.
 2.  **knowledge_os/app/local_router.py:**
-    *   Интегрировать проверку `psutil.swap_memory()` в метод `run_local_llm`.
-    *   Реализовать динамическое изменение лимитов параллелизма.
+    - Интегрировать проверку `psutil.swap_memory()` в метод `run_local_llm`.
+    - Реализовать динамическое изменение лимитов параллелизма.
 3.  **infrastructure/monitoring/grafana/...:** Добавить отображение Swap на основной дашборд (уже частично сделано, усилить алертингом).
 
 ---
+
 **Статус:** Ожидает реализации
 **Эксперты:** Виктория (Lead), Игорь (Backend)

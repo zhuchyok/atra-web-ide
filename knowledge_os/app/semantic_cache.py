@@ -115,7 +115,11 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
     try:
         response = await client.post(
             OLLAMA_EMBED_URL,
-            json={"model": OLLAMA_MODEL, "prompt": text},
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": text,
+                "keep_alive": 0,
+            },  # выгрузить сразу (MODEL_UNLOADING_AND_MEMORY)
             timeout=30.0,  # Увеличено с 10.0 до 30.0 для стабильности на Mac Studio
         )
         if response.status_code == 503:
@@ -297,15 +301,38 @@ class SemanticAICache:
 
             # 3. [SINGULARITY 10.0+] Подгружаем связанные узлы знаний напрямую
             if cache_info.get("knowledge_node_ids"):
-                from app.semantic_cache import get_http_client
+                from app.redis_manager import redis_manager
 
-                # Здесь могла бы быть логика прогрева кэша Redis для конкретных узлов
+                # [SINGULARITY 21.3] Предиктивный прогрев Redis для связанных узлов
+                for node_id in cache_info["knowledge_node_ids"][:10]:
+                    # Фоновая задача на подгрузку контента узла в Redis
+                    asyncio.create_task(self._warmup_node_to_redis(node_id))
+
                 logger.info(
                     f"🔮 [PREFETCH] Warming up {len(cache_info['knowledge_node_ids'])} specific knowledge nodes."
                 )
 
         except Exception as e:
             logger.debug(f"Prefetching failed: {e}")
+
+    async def _warmup_node_to_redis(self, node_id: str):
+        """Вспомогательный метод для прогрева конкретного узла в Redis."""
+        try:
+            from app.redis_manager import redis_manager
+
+            conn, _ = await self._get_conn()
+            if not conn:
+                return
+
+            content = await conn.fetchval(
+                "SELECT content FROM knowledge_nodes WHERE id = $1", node_id
+            )
+            await conn.close()
+
+            if content:
+                await redis_manager.set_cache(f"node:{node_id}", content, ttl=3600)
+        except Exception:
+            pass
 
     async def get_cached_response(self, query: str, expert_name: str) -> str:
         """Try to find a similar query in the semantic cache."""

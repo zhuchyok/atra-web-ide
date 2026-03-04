@@ -470,6 +470,14 @@ class VictoriaEnhanced:
         """
         Получить модель для категории задачи (динамический выбор из доступных в Ollama/MLX).
         """
+        # [SINGULARITY 21.6] Force Wisdom 30B for all tasks if configured
+        _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
+        if _force_model:
+            logger.info(
+                f"🎯 [GOD MODE] Forcing model {_force_model} for category '{category}' (Enhanced)"
+            )
+            return _force_model
+
         if not MODEL_SELECTOR_AVAILABLE:
             return self.model_name
 

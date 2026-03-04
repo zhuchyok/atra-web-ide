@@ -2,10 +2,12 @@
 Prometheus метрики для мониторинга ATRA Web IDE (День 5).
 RAG, Plan Cache, LLM, запросы, ошибки.
 """
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY
-import time
+
 import logging
+import time
 from functools import wraps
+
+from prometheus_client import REGISTRY, Counter, Gauge, Histogram, generate_latest
 
 logger = logging.getLogger(__name__)
 
@@ -270,6 +272,7 @@ metrics = MetricsCollector()
 
 # === Утилиты ===
 
+
 def record_cache_hit(cache_type: str) -> None:
     """Запись попадания в кэш."""
     RAG_CACHE_HITS.labels(cache_type=cache_type).inc()
@@ -292,6 +295,12 @@ def record_llm_request(
         LLM_TOKENS.labels(provider=provider, direction="input").inc(input_tokens)
     if output_tokens > 0:
         LLM_TOKENS.labels(provider=provider, direction="output").inc(output_tokens)
+
+    # Логируем для отладки Victoria Efficiency
+    if provider == "local":
+        logger.debug(
+            f"📊 [METRICS] Local LLM request: model={model}, in={input_tokens}, out={output_tokens}"
+        )
 
 
 def update_queue_size(queue_name: str, size: int) -> None:

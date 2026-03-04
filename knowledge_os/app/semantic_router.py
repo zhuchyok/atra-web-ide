@@ -77,7 +77,8 @@ class SemanticRouter:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
-                    self.embed_url, json={"model": self.embed_model, "prompt": text}
+                    self.embed_url,
+                    json={"model": self.embed_model, "prompt": text, "keep_alive": 0},
                 )
                 if response.status_code == 200:
                     emb = response.json().get("embedding")

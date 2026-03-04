@@ -29,7 +29,9 @@ class ExpertCouncil:
             {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"},
         ]
 
-    async def start_debate(self, topic: str, initial_proposal: str, beautiful_mode: bool = True) -> str:
+    async def start_debate(
+        self, topic: str, initial_proposal: str, beautiful_mode: bool = True
+    ) -> str:
         """
         Starts a multi-agent debate on a specific topic.
         [SINGULARITY 24.0] beautiful_mode is now TRUE by default.
@@ -43,16 +45,20 @@ class ExpertCouncil:
             # [SINGULARITY 24.0] Autonomous HR: Check if we need a specialist for this topic
             try:
                 hr = ExpertSynthesizer()
-                specialist = await hr.find_or_synthesize_expert(f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}")
+                specialist = await hr.find_or_synthesize_expert(
+                    f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}"
+                )
                 if specialist and specialist.get("needs_new_expert"):
                     new_expert = {
-                        "name": specialist["name"], 
-                        "role": specialist["role"], 
-                        "focus": specialist["metadata"].get("focus", specialist["role"])
+                        "name": specialist["name"],
+                        "role": specialist["role"],
+                        "focus": specialist["metadata"].get("focus", specialist["role"]),
                     }
                     if new_expert not in self.experts:
                         self.experts.append(new_expert)
-                        logger.info(f"🧬 [COUNCIL] Added synthesized specialist: {new_expert['name']}")
+                        logger.info(
+                            f"🧬 [COUNCIL] Added synthesized specialist: {new_expert['name']}"
+                        )
             except Exception as hre:
                 logger.debug(f"HR synthesis skipped: {hre}")
 
@@ -80,11 +86,11 @@ class ExpertCouncil:
                     prompt = f"""
                     ТЫ - {expert["name"]}, эксперт в области {expert["focus"]}.
                     ИДЕТ СОВЕТ ЭКСПЕРТОВ КОРПОРАЦИИ.
-                    
+
                     ИСПОЛЬЗУЙ СВОЙ ХАРАКТЕР ИЗ TEAM_PERSONALITIES.md:
                     - Стиль общения, ключевые фразы, эмодзи.
                     - Твоя роль: {expert["role"]}.
-                    
+
                     ТЕМА: {topic}
                     ТЕКУЩЕЕ ПРЕДЛОЖЕНИЕ: {initial_proposal}
                     ИСТОРИЯ ДЕБАТОВ:
@@ -110,7 +116,7 @@ class ExpertCouncil:
                     """
 
                 opinion = await run_smart_agent_async(
-                    prompt, expert_name=expert["name"], category="reasoning"
+                    prompt, expert_name=expert["name"], category="reasoning", is_vip=True
                 )
 
                 # Save to DB
@@ -153,7 +159,7 @@ class ExpertCouncil:
                 synthesis_prompt = f"""
                 ТЫ - ВИКТОРИЯ, Team Lead.
                 ПРОАНАЛИЗИРУЙ итоги дебатов экспертов и вынеси ФИНАЛЬНОЕ РЕШЕНИЕ.
-                
+
                 ИСПОЛЬЗУЙ СВОЙ ХАРАКТЕР ИЗ TEAM_PERSONALITIES.md:
                 - Спокойный координатор, видит общую картину.
                 - Используй эмодзи для структурирования.
@@ -177,7 +183,7 @@ class ExpertCouncil:
                 ВЕРНИ ФИНАЛЬНЫЙ ПЛАН ДЕЙСТВИЙ.
                 """
             final_decision = await run_smart_agent_async(
-                synthesis_prompt, expert_name="Виктория", category="reasoning"
+                synthesis_prompt, expert_name="Виктория", category="reasoning", is_vip=True
             )
 
             # Update session status

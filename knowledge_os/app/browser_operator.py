@@ -56,7 +56,7 @@ class BrowserOperator:
 
             # For now, we use a generic ChatOpenAI config pointing to our local brain
             llm = ChatOpenAI(
-                model=os.getenv("VICTORIA_MODEL", "victoria-wisdom-30b"),
+                model=os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5"),
                 base_url=f"{llm_url}/v1",
                 api_key="not-needed",
             )

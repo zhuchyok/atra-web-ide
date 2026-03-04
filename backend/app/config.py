@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     ollama_url: str = (
         os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434"
     )
-    default_model: str = os.getenv("DEFAULT_MODEL", "victoria-wisdom-30b")
+    default_model: str = os.getenv("DEFAULT_MODEL", "victoria-wisdom-v3.5")
     ollama_timeout: float = float(os.getenv("OLLAMA_TIMEOUT", "600.0"))
 
     # Database (Knowledge OS)

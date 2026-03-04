@@ -43,11 +43,32 @@ class ReportGenerator:
         report_lines.append("# 📊 Ежедневный отчет Singularity 24.0")
         report_lines.append(f"Дата: {datetime.now().strftime('%Y-%m-%d')}\n")
 
+        # [SINGULARITY 24.0] Ожидание готовности БД (Retry Logic)
+        max_retries = 5
+        retry_delay = 5
+        conn = None
+
+        for attempt in range(max_retries):
+            try:
+                conn = await asyncpg.connect(self.db_url)
+                break
+            except Exception as e:
+                if "starting up" in str(e) or "connection refused" in str(e).lower():
+                    logger.info(
+                        f"⏳ [REPORT GENERATOR] БД еще запускается (попытка {attempt + 1}/{max_retries})..."
+                    )
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise e
+
+        if not conn:
+            report_lines.append("❌ Ошибка: Не удалось подключиться к БД после нескольких попыток.")
+            return "\n".join(report_lines)
+
         try:
-            conn = await asyncpg.connect(self.db_url)
             try:
                 # 0. Статус систем (Mac Studio)
-                report_lines.append("## 🖥 Статус систем (Mac Studio)")
+                report_lines.append("## 🖥 Статус Docker (Виртуальный)")
                 try:
                     from resource_monitor import ResourceMonitor
 
@@ -56,24 +77,120 @@ class ReportGenerator:
                     ram = res.get("ram", {})
                     cpu = res.get("cpu", {})
                     report_lines.append(
-                        f"- **RAM:** {ram.get('used_percent', 0):.1f}% ({ram.get('used_gb', 0):.1f}/{ram.get('total_gb', 0):.1f} GB)"
+                        f"- **RAM Docker:** {ram.get('used_percent', 0):.1f}% ({ram.get('used_gb', 0):.1f}/{ram.get('total_gb', 0):.1f} GB)"
                     )
                     report_lines.append(
-                        f"- **CPU:** {cpu.get('percent', 0):.1f}% ({cpu.get('count', 0)} cores)"
+                        f"- **CPU Docker:** {cpu.get('percent', 0):.1f}% ({cpu.get('count', 0)} cores)"
                     )
-                    if res.get("temperature"):
-                        report_lines.append(f"- **Температура:** {res['temperature']}°C")
                 except Exception as re:
-                    report_lines.append(f"- ⚠️ Ошибка мониторинга ресурсов: {re}")
+                    report_lines.append(f"- ⚠️ Ошибка мониторинга ресурсов Docker: {re}")
+
+                # [SINGULARITY 24.0] Реальный статус Mac Studio (Хост через Resource Monitor)
+                report_lines.append("\n## 💻 Хост (Mac Studio M4 Max)")
+                try:
+                    import httpx
+
+                    # Попробуем получить данные от MLX API Server, который видит реальное железо
+                    # host.docker.internal — это мост к хосту Mac
+                    mlx_url = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        r = await client.get(f"{mlx_url}/")
+                        if r.status_code == 200:
+                            data = r.json()
+                            host_mem = data.get("memory", {})
+                            # В MLX API Server root memory: {"used_percent": ..., "available_gb": ...}
+                            if host_mem:
+                                # Мы знаем, что у пользователя 128 ГБ
+                                total_gb = 128.0
+                                used_percent = host_mem.get("used_percent", 0)
+                                used_gb = (used_percent / 100.0) * total_gb
+                                report_lines.append(
+                                    f"- **Общая RAM:** {used_percent:.1f}% ({used_gb:.1f}/{total_gb:.1f} GB)"
+                                )
+                                # CPU в корневом эндпоинте MLX пока нет, но мы можем добавить его в будущем
+                            else:
+                                report_lines.append(
+                                    "- ⚠️ Данные хоста временно недоступны через MLX"
+                                )
+                        else:
+                            report_lines.append(
+                                f"- ⚠️ MLX API вернул {r.status_code}, данные хоста скрыты"
+                            )
+                except Exception as he:
+                    report_lines.append(f"- ⚠️ Ошибка мониторинга хоста: {he}")
+
+                # [SINGULARITY 24.0] Глубокий аудит контейнеров через Docker API
+                report_lines.append("\n## 🐳 Аудит контейнеров Docker")
+                try:
+                    import json
+                    import subprocess
+
+                    # Используем curl для общения с Docker Socket напрямую (без docker cli)
+                    # [SINGULARITY 24.0] Обновлена версия API до v1.44 (требование Docker Desktop 4.27+)
+                    cmd = 'curl -s --unix-socket /var/run/docker.sock "http://localhost/v1.44/containers/json?all=1"'
+                    try:
+                        output = subprocess.check_output(cmd, shell=True).decode().strip()
+                        if not output or "client version" in output:
+                            # Пробуем без указания версии (Docker сам подберет актуальную)
+                            cmd = 'curl -s --unix-socket /var/run/docker.sock "http://localhost/containers/json?all=1"'
+                            output = subprocess.check_output(cmd, shell=True).decode().strip()
+
+                        containers_data = json.loads(output)
+
+                        up_count = 0
+                        down_count = 0
+                        restarting_count = 0
+
+                        for c in containers_data:
+                            state = c.get("State", "")
+                            if state == "running":
+                                up_count += 1
+                            elif state == "restarting":
+                                restarting_count += 1
+                            else:
+                                down_count += 1
+
+                        report_lines.append(f"- **Всего контейнеров:** {len(containers_data)}")
+                        report_lines.append(f"- ✅ **Работают (Up):** {up_count}")
+                        if restarting_count > 0:
+                            report_lines.append(
+                                f"- 🔄 **Перезагружаются (Restarting):** {restarting_count}"
+                            )
+                        if down_count > 0:
+                            report_lines.append(f"- 💤 **Выключены (Exited):** {down_count}")
+
+                        # Проверка критических сервисов
+                        critical_services = [
+                            "victoria-agent",
+                            "knowledge_os_orchestrator",
+                            "knowledge_postgres",
+                            "telegram-notifications",
+                        ]
+                        for svc in critical_services:
+                            # Ищем сервис по имени в списке имен контейнеров (они начинаются с /)
+                            is_up = any(
+                                c.get("State") == "running"
+                                and any(svc in name for name in c.get("Names", []))
+                                for c in containers_data
+                            )
+                            svc_status = "✅" if is_up else "❌"
+                            report_lines.append(f"  {svc_status} {svc}")
+
+                    except Exception as e:
+                        report_lines.append(f"- ⚠️ Ошибка Docker API: {e}")
+
+                except Exception as de:
+                    report_lines.append(f"- ⚠️ Ошибка аудита Docker: {de}")
+                report_lines.append("")
 
                 # Проверка моделей
                 try:
-                    from available_models_scanner import scan_models
+                    from available_models_scanner import scan_and_select_models
 
-                    models = await scan_models()
+                    models = await scan_and_select_models()
                     report_lines.append(f"- **Модели Ollama:** {len(models.ollama_models)} активны")
                     report_lines.append(f"- **Модели MLX:** {len(models.mlx_models)} активны")
-                    if "victoria-wisdom-30b" in models.mlx_models:
+                    if "victoria-wisdom-v3.5" in models.mlx_models:
                         report_lines.append("  - ✅ Victoria Wisdom 30B (MLX) доступна")
                 except Exception as me:
                     report_lines.append(f"- ⚠️ Ошибка сканирования моделей: {me}")

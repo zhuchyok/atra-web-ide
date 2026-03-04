@@ -38,7 +38,7 @@ class MCTSPlanner:
 
     def __init__(
         self,
-        model_name: str = "victoria-wisdom-30b",
+        model_name: str = "victoria-wisdom-v3.5",
         exploration_weight: float = 1.41,
         max_iterations: int = 10,
         max_depth: int = 5,

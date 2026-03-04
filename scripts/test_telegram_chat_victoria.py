@@ -50,7 +50,7 @@ def _parse_output(data: dict) -> str:
 async def ask_victoria(goal: str, timeout_sec: int) -> tuple[bool, str]:
     """Один запрос к Rust Gateway (OpenAI compatible)."""
     payload = {
-        "model": "victoria-wisdom-30b:latest",
+        "model": "victoria-wisdom-v3.5:latest",
         "messages": [{"role": "user", "content": goal}],
         "use_rag": true,
         "stream": false
