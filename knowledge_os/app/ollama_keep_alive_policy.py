@@ -107,9 +107,13 @@ def get_keep_alive(
     7. Дефолт 300
     """
     # 1. Fallback-мозг: пока MLX недоступен, v3.5 в Ollama не выгружается
-    if not mlx_alive and model_name and any(m in model_name for m in FALLBACK_BRAIN_MODELS):
-        logger.info("🧠 [FALLBACK IMMORTALITY] MLX is down, making v3.5 immortal in Ollama")
-        return -1
+    if model_name and any(m in model_name for m in FALLBACK_BRAIN_MODELS):
+        if not mlx_alive:
+            logger.info("🧠 [FALLBACK IMMORTALITY] MLX is down, making v3.5 immortal in Ollama")
+            return -1
+        else:
+            # Если MLX жив, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
+            return 60
 
     # 2. Эмбеддинги — выгрузить сразу (до бессмертных, чтобы nomic возвращал 0)
     if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):

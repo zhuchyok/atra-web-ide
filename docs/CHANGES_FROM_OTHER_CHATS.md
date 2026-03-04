@@ -1988,7 +1988,7 @@
 ## 0.3f. Порядок в папках: архив корневых отчётов (2026-02-04)
 
 - **Цель:** убрать лишнее из корня, навести порядок (рекомендации специалистов: структура проекта, мировые практики).
-- **Изменения:** (1) Одноразовые отчёты и статусы из корня перенесены в **docs/archive/root_reports/** (исторические COMPLETE*\*, FINAL*_, VICTORIA\__, TELEGRAM\__ и др.). (2) В корне оставлены: README.md, PLAN.md, VICTORIA.md, VERONICA.md, requirements.txt и конфиги/скрипты. (3) В .gitignore добавлены артефакты сборки: target/, _.o, _.rlib, _.dylib, \*.a. (4) docs/archive/README.md — описание архива; MASTER_REFERENCE §8 — ссылка на архив.
+- **Изменения:** (1) Одноразовые отчёты и статусы из корня перенесены в **docs/archive/root_reports/** (исторические COMPLETE*\*, FINAL*\_, VICTORIA\_\_, TELEGRAM\__ и др.). (2) В корне оставлены: README.md, PLAN.md, VICTORIA.md, VERONICA.md, requirements.txt и конфиги/скрипты. (3) В .gitignore добавлены артефакты сборки: target/, _.o, _.rlib, _.dylib, \*.a. (4) docs/archive/README.md — описание архива; MASTER_REFERENCE §8 — ссылка на архив.
 - **Верификация:** тесты knowledge_os — 15 passed. Ссылки из .cursorrules (VICTORIA.md, VERONICA.md) не тронуты.
 
 ---
@@ -2417,6 +2417,44 @@
      - Роутер теперь динамически проверяет здоровье MLX-узлов перед каждым запросом и корректирует параметры удержания модели в памяти Ollama.
 - **Файлы:** `knowledge_os/app/local_router.py`, `knowledge_os/docker-compose.yml`, `docs/MASTER_REFERENCE.md`.
 - **Итог:** Достигнут идеальный баланс: Mac Studio работает максимально эффективно, используя память только тогда, когда это нужно, но система мгновенно «бронирует» ресурсы при возникновении критических сбоев.
+
+---
+
+## 28. Server-Side Pricing & Advanced Order Mapping: "Setki 21" (2026-03-04)
+
+- **Цель:** Обеспечение 100% точности финансовых расчетов и детальной аналитики заказов за счет переноса логики ценообразования на бэкенд (Rust).
+- **Реализация:**
+  1. **Decimal Precision:**
+     - В `moskit-core` внедрена библиотека `rust_decimal` для всех финансовых полей. Это исключило ошибки округления, характерные для `f64`.
+  2. **Dynamic Pricing Service:**
+     - Создан `PricingService`, использующий конфигурацию из БД (`GlobalPricing`). Логика учитывает площадь, периметр, тип сетки, профиля, наценки дилера и клиента.
+  3. **Structured Order Items:**
+     - Таблица `order_items` расширена полем `dealer_cost`. Теперь при создании заказа бэкенд автоматически рассчитывает себестоимость каждого изделия на момент покупки.
+  4. **Centralized Settings Repository:**
+     - Реализован `SettingsRepository` для хранения глобальных настроек (цены, коэффициенты) в формате JSONB в PostgreSQL.
+  5. **Cross-Platform Deployment:**
+     - Настроен Docker-билд с поддержкой кросс-компиляции OpenSSL для x86_64 (VDS) на Apple Silicon (ARM64).
+- **Файлы:** `moskit-core/src/core/service/pricing.rs`, `moskit-api/src/handlers/dealer.rs`, `moskit-api/src/handlers/pricing.rs`, `moskit-core/Cargo.toml`.
+- **Итог:** Система перешла от "доверия фронтенду" к строгой серверной валидации цен. Дилеры получили прозрачный расчет прибыли, а производство — точные данные по себестоимости.
+
+---
+
+## 29. Advanced Ollama Memory Management 2.0: "Aggressive Unload" (2026-03-04)
+
+- **Цель:** Решение проблемы "зависания" моделей в Ollama и оптимизация ресурсов Mac Studio при работающем MLX.
+- **Реализация:**
+  1. **Centralized Policy Module:**
+     - Создан `knowledge_os/app/ollama_keep_alive_policy.py` как единая точка правды для всех параметров `keep_alive`.
+  2. **MLX-Aware Unloading:**
+     - Внедрена логика: если MLX («Мозг») активен, то fallback-модели (v3.5) в Ollama выгружаются принудительно через **60 секунд** (вместо 5-10 минут).
+  3. **Immediate Embedding Unload:**
+     - Для моделей эмбеддингов (`nomic-embed-text`) установлен `keep_alive: 0`. Они выгружаются мгновенно после генерации вектора.
+  4. **MLX Recovery Trigger:**
+     - В `local_router.py` добавлен слушатель событий восстановления MLX. При оживании MLX система отправляет сигнал Ollama на немедленную выгрузку всех тяжелых моделей.
+  5. **Memory Guard 2.1:**
+     - Обновлен расчет свободной памяти: теперь учитывается резерв под MLX (`MLX_RAM_RESERVE_GB`), что предотвращает свопинг при одновременной работе обеих систем.
+- **Файлы:** `knowledge_os/app/ollama_keep_alive_policy.py`, `knowledge_os/app/local_router.py`, `knowledge_os/app/mlx_recovery_state.py`.
+- **Итог:** Оллама больше не "держит" память без необходимости. Ресурсы Mac Studio динамически перераспределяются в пользу основного движка (MLX) сразу после его восстановления.
 
 ---
 

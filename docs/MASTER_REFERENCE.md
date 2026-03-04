@@ -30,6 +30,10 @@
 
 ---
 
+Последние изменения (2026-03-04): **Server-Side Pricing & Advanced Order Mapping.** (1) В `moskit-core` внедрена библиотека `rust_decimal` для 100% точности финансовых расчетов. (2) Создан `PricingService` для серверного расчета цен на основе `GlobalPricing` из БД. (3) В таблицу `order_items` добавлено поле `dealer_cost` для фиксации себестоимости в момент заказа. (4) Настроен Docker-билд с кросс-компиляцией OpenSSL для x86_64. См. CHANGES §28.
+
+Последние изменения (2026-03-04): **Aggressive Ollama Unload Policy.** (1) Внедрена централизованная политика `app.ollama_keep_alive_policy`. (2) При активном MLX модели в Ollama выгружаются через **60 секунд**. (3) Эмбеддинги выгружаются мгновенно (`keep_alive=0`). (4) Реализован Memory Guard 2.1 с учетом резерва MLX. См. CHANGES §29.
+
 Последние изменения (2026-03-04): **Adaptive Ollama Memory Management & MLX Recovery Unload.** (1) Внедрена централизованная политика `app.ollama_keep_alive_policy` для всех вызовов Ollama (router, executor, ai_core, embeddings). (2) Реализован `MLX_RAM_RESERVE_GB` (32GB) для защиты памяти "Мозга" при работе Ollama. (3) Добавлена автоматическая выгрузка fallback-моделей из Ollama (`keep_alive=0`) при восстановлении MLX (событие "MLX Recovery") с дебаунсом 60с. (4) `victoria-wisdom-v3.5` в Ollama становится бессмертной (`-1`) только при падении MLX. См. CHANGES §28.
 
 Последние изменения (2026-03-04): **Adaptive Ollama Memory Management.** (1) Глобальный `OLLAMA_KEEP_ALIVE` установлен в 10 минут (600с) для всех моделей. (2) `victoria-wisdom-v3.5` удалена из `IMMORTAL_MODELS` для экономии памяти Mac Studio. (3) В `local_router.py` внедрена логика «Fallback Immortality»: ядро v3.5 становится бессмертным в Ollama только если MLX-сервер («Мозг») недоступен. См. CHANGES §27.
