@@ -163,15 +163,15 @@ async def victoria_execute_plan(
     max_steps: Optional[int] = 500,
 ) -> str:
     """Получить execution_plan от Victoria и выполнить его автоматически.
-    
+
     Виктория создаст план (read_file, edit, run), который будет выполнен через MCP filesystem.
     Это аналог "рук в IDE" — Victoria решает ЧТО делать, IDE выполняет КАК.
-    
+
     Args:
         goal: Задача для Victoria (например, "добавь функцию X в файл Y")
         workspace_path: Путь к рабочему каталогу проекта
         max_steps: Максимальное количество шагов планирования (по умолчанию 500)
-        
+
     Returns:
         Результат выполнения плана (список шагов с результатами)
     """
@@ -188,25 +188,27 @@ async def victoria_execute_plan(
             )
             resp.raise_for_status()
             data = resp.json()
-            
+
         execution_plan = data.get("execution_plan")
         if not execution_plan:
             return f"⚠️ Victoria не вернула execution_plan. Ответ:\n{data.get('output', '')}"
-            
+
         logger.info(f"[victoria_execute_plan] Получен план из {len(execution_plan)} шагов")
-        
+
         # 2. Выполнить plan через ExecutionPlanExecutor
         # Для простоты пока выполним вручную через httpx к user-filesystem MCP
         results = []
         filesystem_mcp_url = os.getenv("FILESYSTEM_MCP_URL", "http://localhost:8013")
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             for i, step in enumerate(execution_plan, 1):
                 action = step.get("action")
                 description = step.get("description", "")
-                
-                logger.info(f"[victoria_execute_plan] Шаг {i}/{len(execution_plan)}: {action} - {description}")
-                
+
+                logger.info(
+                    f"[victoria_execute_plan] Шаг {i}/{len(execution_plan)}: {action} - {description}"
+                )
+
                 try:
                     if action == "read_file":
                         path = step.get("path", "")
@@ -216,7 +218,7 @@ async def victoria_execute_plan(
                         # Пока просто читаем через httpx (позже можно через CallMcpTool)
                         result_text = f"[Прочитан файл {path}]"
                         results.append(f"✅ Шаг {i}: {action} - {result_text}")
-                        
+
                     elif action == "edit":
                         path = step.get("path", "")
                         content = step.get("content", "")
@@ -224,23 +226,23 @@ async def victoria_execute_plan(
                             path = f"{workspace_path}/{path}"
                         result_text = f"[Изменён файл {path}]"
                         results.append(f"✅ Шаг {i}: {action} - {result_text}")
-                        
+
                     elif action == "run":
                         command = step.get("command", "")
                         result_text = f"[Выполнена команда: {command}]"
                         results.append(f"✅ Шаг {i}: {action} - {result_text}")
-                        
+
                     else:
                         results.append(f"⚠️ Шаг {i}: Неизвестное действие {action}")
-                        
+
                 except Exception as e:
                     logger.exception(f"Ошибка на шаге {i}")
                     results.append(f"❌ Шаг {i}: {action} - Ошибка: {e}")
-                    
+
         summary = f"Выполнен план из {len(execution_plan)} шагов:\n\n" + "\n".join(results)
         summary += f"\n\nОтвет Victoria:\n{data.get('output', '')}"
         return summary
-        
+
     except httpx.TimeoutException:
         return f"⏱️ Таймаут: Victoria не ответила за {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с."
     except httpx.RequestError as e:
@@ -260,10 +262,10 @@ async def victoria_run_with_context(
     max_steps: Optional[int] = 500,
 ) -> str:
     """Запустить Victoria с полным IDE-контекстом (как в Cursor assistant).
-    
+
     Victoria получит информацию об открытых файлах, git status, применимых правилах —
     это даёт ей понимание текущего состояния проекта как у Cursor assistant.
-    
+
     Args:
         goal: Задача для Victoria
         open_files_json: JSON массив открытых файлов [{"path": "...", "content": "...", "cursor_line": 42}, ...]
@@ -271,7 +273,7 @@ async def victoria_run_with_context(
         cursor_rules_json: JSON массив применимых правил ["@backend_developer", "@qa_engineer"]
         workspace_path: Путь к workspace
         max_steps: Максимальное количество шагов (по умолчанию 500)
-        
+
     Returns:
         Результат выполнения задачи от Victoria с учётом IDE-контекста
     """
@@ -281,23 +283,23 @@ async def victoria_run_with_context(
             "max_steps": max_steps,
             "workspace_path": workspace_path,
         }
-        
+
         # Парсинг JSON параметров
         if open_files_json:
             try:
                 payload["open_files"] = json.loads(open_files_json)
             except json.JSONDecodeError:
                 logger.warning("Failed to parse open_files_json")
-        
+
         if git_status:
             payload["git_status"] = git_status
-        
+
         if cursor_rules_json:
             try:
                 payload["cursor_rules"] = json.loads(cursor_rules_json)
             except json.JSONDecodeError:
                 logger.warning("Failed to parse cursor_rules_json")
-        
+
         async with httpx.AsyncClient(timeout=VICTORIA_MCP_RUN_TIMEOUT_SEC) as client:
             resp = await client.post(
                 f"{VICTORIA_URL}/run",
@@ -306,7 +308,7 @@ async def victoria_run_with_context(
             resp.raise_for_status()
             data = resp.json()
             return _parse_run_result(data)
-            
+
     except httpx.TimeoutException:
         return f"⏱️ Таймаут: Victoria не ответила за {int(VICTORIA_MCP_RUN_TIMEOUT_SEC)} с."
     except httpx.RequestError as e:
@@ -323,21 +325,21 @@ async def victoria_batch_read(
     max_concurrent: Optional[int] = 10,
 ) -> str:
     """Параллельное чтение множества файлов (быстрое сканирование проекта).
-    
+
     Читает несколько файлов одновременно — полезно для задач типа
     \"покажи содержимое этих 20 файлов\" или \"найди все файлы с X\".
-    
+
     Args:
         file_paths_json: JSON массив путей ["src/utils.py", "src/main.py", ...]
         workspace_path: Путь к workspace
         max_concurrent: Максимум одновременных чтений (по умолчанию 10)
-        
+
     Returns:
         Результаты чтения всех файлов (успешные + ошибки)
     """
     try:
         file_paths = json.loads(file_paths_json)
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{VICTORIA_URL}/batch_read",
@@ -349,36 +351,35 @@ async def victoria_batch_read(
             )
             resp.raise_for_status()
             data = resp.json()
-            
+
         results = data.get("results", [])
         summary = data.get("summary", {})
-        
+
         # Форматируем результат
         output_lines = [
             f"✅ Прочитано {summary.get('success', 0)}/{summary.get('total', 0)} файлов\n"
         ]
-        
+
         for result in results[:20]:  # Показываем первые 20
             path = result["path"]
             status = result["status"]
-            
+
             if status == "success":
                 content_preview = result.get("content", "")[:200]
                 lines = result.get("lines", 0)
                 size_kb = result.get("size_kb", 0)
                 output_lines.append(
-                    f"\n📄 {path} ({size_kb} KB, {lines} lines)\n"
-                    f"   Preview: {content_preview}..."
+                    f"\n📄 {path} ({size_kb} KB, {lines} lines)\n   Preview: {content_preview}..."
                 )
             else:
                 error = result.get("error", "unknown error")
                 output_lines.append(f"\n❌ {path}: {error}")
-        
+
         if len(results) > 20:
             output_lines.append(f"\n... и ещё {len(results) - 20} файл(ов)")
-        
+
         return "\n".join(output_lines)
-        
+
     except json.JSONDecodeError:
         return "❌ Ошибка: file_paths_json должен быть валидным JSON массивом"
     except httpx.RequestError as e:
@@ -396,22 +397,22 @@ async def victoria_batch_grep(
     case_sensitive: Optional[bool] = False,
 ) -> str:
     """Параллельный поиск паттерна в множестве файлов (аналог grep).
-    
+
     Ищет регулярное выражение в нескольких файлах одновременно — полезно для
     \"найди все упоминания функции X в проекте\".
-    
+
     Args:
         pattern: Регулярное выражение для поиска (например, "validate_email|check_email")
         file_paths_json: JSON массив путей ["src/**/*.py"] (можно использовать glob)
         workspace_path: Путь к workspace
         case_sensitive: Учитывать регистр (по умолчанию False)
-        
+
     Returns:
         Список всех совпадений с номерами строк
     """
     try:
         file_paths = json.loads(file_paths_json)
-        
+
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f"{VICTORIA_URL}/batch_grep",
@@ -424,38 +425,38 @@ async def victoria_batch_grep(
             )
             resp.raise_for_status()
             data = resp.json()
-            
+
         results = data.get("results", [])
         summary = data.get("summary", {})
-        
+
         # Форматируем результат
         output_lines = [
             f"🔍 Найдено {summary.get('total_matches', 0)} совпадений "
             f"в {summary.get('files_with_matches', 0)}/{summary.get('total_files', 0)} файлах\n"
         ]
-        
+
         for result in results:
             if result["match_count"] == 0:
                 continue
-                
+
             path = result["path"]
             matches = result.get("matches", [])[:10]  # Первые 10 совпадений
             match_count = result["match_count"]
-            
+
             output_lines.append(f"\n📄 {path} ({match_count} совпадений):")
-            
+
             for match in matches:
                 line_num = match["line"]
                 content = match["content"]
                 matched_text = match["match"]
                 output_lines.append(f"   {line_num}: {content}")
                 output_lines.append(f"        ^^^ '{matched_text}'")
-            
+
             if match_count > 10:
                 output_lines.append(f"   ... и ещё {match_count - 10} совпадений")
-        
+
         return "\n".join(output_lines)
-        
+
     except json.JSONDecodeError:
         return "❌ Ошибка: file_paths_json должен быть валидным JSON массивом"
     except httpx.RequestError as e:

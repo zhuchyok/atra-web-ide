@@ -38,9 +38,11 @@
 
 Использует `scripts/curator_tasks.txt` и `--max-wait 600`; переопределение: `CURATOR_TASKS_FILE`, `CURATOR_MAX_WAIT`, `VICTORIA_URL`.
 
-- **Cron (Linux/macOS):** ежедневно в 9:00  
-  `0 9 * * * cd /path/to/atra-web-ide && ./scripts/run_curator_scheduled.sh >> logs/curator.log 2>&1`
-- **launchd (macOS):** один раз выполнить `bash scripts/setup_curator_launchd.sh` — создаётся задание `com.atra.curator-scheduled`, запуск ежедневно в 9:00. Логи: `~/Library/Logs/atra-curator.log`.
+- **launchd (macOS), полная автоматизация:** один раз выполнить `bash scripts/setup_curator_launchd.sh` — создаётся задание `com.atra.curator-scheduled`. Ежедневно в 9:00 запускается **полный автономный цикл**: `run_curator_autonomous.sh --full --sync-rag` (прогон → сравнение с эталонами → при расхождении задачи в БД → синхронизация эталонов в RAG). VICTORIA_URL и DATABASE_URL подхватываются из `$ROOT/.env`. Логи: `~/Library/Logs/atra-curator.log`.
+- **Cron (Linux):** ежедневно в 9:00 — автономный цикл:  
+  `0 9 * * * cd /path/to/atra-web-ide && ./scripts/run_curator_autonomous.sh --full --sync-rag >> docs/curator_reports/curator-cron.log 2>&1`  
+  (в crontab при необходимости задать DATABASE_URL и VICTORIA_URL или положить их в .env в каталоге проекта.)
+- **Только прогон без сравнения (старый вариант):** `./scripts/run_curator_scheduled.sh` — по-прежнему доступен при необходимости.
 
 Требуется: Victoria доступна (`http://localhost:8010/health` → 200). При обрыве соединения (Connection reset by peer): до двух повторов всей задачи (всего до 3 попыток) и до 3 повторов каждого GET /run/status по одному task_id.
 
@@ -192,7 +194,57 @@ docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 
 ---
 
-## 6. Ссылки
+## 6. Путь к автономности (без Cursor и внешних сайтов)
+
+**Цель:** куратор должен работать полностью у вас — свои скрипты, своя Victoria, своя БД; без доступа к Cursor и без обращения к иностранным/внешним сайтам.
+
+**Что уже не зависит от Cursor:**
+
+- Все скрипты куратора обращаются только к **VICTORIA_URL** (localhost или ваш внутренний хост) и к локальной БД (DATABASE_URL). Никаких вызовов в Cursor или во внешние API.
+- **Запуск по расписанию:** cron или launchd (`run_curator_scheduled.sh`, `setup_curator_launchd.sh`) — прогон и отчёт выполняются на вашей стороне.
+- Victoria при ответах может работать только на **локальных моделях** (Ollama/MLX) и **локальной БД** — тогда и интернет для ответов не нужен (эмбеддинги и LLM — локально).
+
+**Чего не хватает для полной автономности:**
+
+- Сейчас **решение при расхождении с эталоном** (добавить в RAG, поправить эталон) принимает человек или Cursor-агент. В автономном режиме это нужно автоматизировать.
+
+**Варианты «автономный куратор»:**
+
+| Вариант                                  | Описание                                                                                                                                                                                            | Плюсы / минусы                                                                                  |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **A. Обёртка-скрипт**                    | После `run_curator` → `curator_compare_to_standard`; при падении скоринга ниже порога автоматически вызывать `curator_add_standard_to_knowledge.py` (или только писать в FINDINGS). Запуск по cron. | Минимум изменений; риск «накачать» RAG шумом при ложных расхождениях.                           |
+| **B. Задача в БД вместо правки вручную** | При расхождении создавать задачу в `tasks` (assignee_hint: Technical Writer или Victoria), чтобы «кто-то» в системе потом поправил эталон или RAG. Куратор только детектирует и ставит задачу.      | Не требует доверия к полной авто-правке RAG; логика «обнаружил → поставил задачу» универсальна. |
+| **C. Сервис в Knowledge OS**             | Небольшой воркер/демон: по расписанию прогон → сравнение → при расхождении либо запись в RAG с логом, либо создание задачи в БД (как B).                                                            | Единая среда, мониторинг, логи; больше кода и поддержки.                                        |
+
+**Рекомендация:** сначала **B** (при расхождении — создавать задачу в БД), при необходимости добавить осторожную авто-правку RAG (A) только для заранее выбранных эталонов и с порогом/лимитами.
+
+**Реализовано «под ключ» (вариант B + запись в FINDINGS):**
+
+- **Скрипт** `./scripts/run_curator_autonomous.sh` — один запуск: проверка Victoria → прогон куратора → сравнение по всем эталонам → при расхождении запись в FINDINGS и **создание задачи в таблице tasks** (metadata.assignee_hint: Technical Writer). Без Cursor: только VICTORIA_URL и при необходимости DATABASE_URL.
+- **Флаги:** `--full` — полный прогон; `--sync-rag` — в конце выполнить `curator_add_standard_to_knowledge.py` (синхронизация эталонов в RAG, идемпотентно).
+- **Сравнение с эталоном:** в `curator_compare_to_standard.py` добавлен флаг `--create-task-on-divergence`: при падении скоринга создаётся запись в tasks (нужен DATABASE_URL). Запуск по cron/launchd: `./scripts/run_curator_autonomous.sh` (таймаут среды ≥ 10 мин для быстрого, ≥ 30 мин для `--full`).
+
+**Изолированная среда (без внешних сайтов):**
+
+- `VICTORIA_URL` — внутренний хост (например `http://victoria-agent:8000` в Docker или `http://10.0.0.5:8010`).
+- Модели и эмбеддинги — только Ollama/MLX на своих серверах; в конфиге Victoria/Knowledge OS не указывать внешние API для LLM/embeddings.
+- Эталоны и скрипты — в своём репозитории; обновления репо — внутренний зеркал или копия без выхода в интернет.
+
+**Полная автоматизация:** один раз настроить расписание — дальше всё идёт без участия человека (без Cursor):
+
+- **macOS:** `bash scripts/setup_curator_launchd.sh` — ежедневно в 9:00 полный автономный цикл с созданием задач в БД и синхронизацией эталонов в RAG.
+- **Linux:** добавить в crontab строку для `run_curator_autonomous.sh --full --sync-rag` (см. §1 выше).
+  В обоих случаях в `.env` в каталоге проекта должны быть заданы VICTORIA_URL и DATABASE_URL (скрипт подхватывает их при запуске). Задачи по расхождениям попадают в БД; исполнитель (Victoria или человек) может править эталоны и RAG по задаче.
+
+**После перезагрузки (чтобы всё работало без ручного запуска):**
+
+- **Launchd (macOS):** задание загружается при входе пользователя в систему (LaunchAgents). После перезагрузки достаточно войти в учётную запись — к 9:00 куратор запустится сам. При необходимости проверить: `launchctl list | grep curator`.
+- **Victoria и БД:** скрипт `run_curator_autonomous.sh` при отсутствии Victoria сам поднимает контейнеры (`docker-compose -f knowledge_os/docker-compose.yml up -d`) и ждёт /health до 90 с. Чтобы после перезагрузки Victoria и PostgreSQL были доступны до запуска куратора, включите автозапуск Docker (Docker Desktop → Settings → General → «Start Docker Desktop when you sign in») или настройте запуск стека при загрузке системы (cron @reboot или отдельный launchd для `docker-compose up -d`).
+- **Итог:** после перезагрузки при входе в систему launchd уже загружен; в 9:00 куратор запустится; если Victoria не отвечает — скрипт попытается поднять контейнеры. Для полностью «руки прочь» после перезагрузки включите автозапуск Docker.
+
+---
+
+## 7. Ссылки
 
 - План и роль: [VICTORIA_CURATOR_PLAN.md](VICTORIA_CURATOR_PLAN.md)
 - Чеклист: [curator_reports/CURATOR_CHECKLIST.md](curator_reports/CURATOR_CHECKLIST.md)
@@ -202,3 +254,4 @@ docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent
 - Эталоны: [curator_reports/standards/](curator_reports/standards/)
 - Следующие шаги: [NEXT_STEPS_CORPORATION.md](NEXT_STEPS_CORPORATION.md)
 - Чеклист верификации: [VERIFICATION_CHECKLIST_OPTIMIZATIONS.md](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) §5 «При следующих изменениях».
+- Автономность: §6 этого runbook (без Cursor и внешних сайтов).

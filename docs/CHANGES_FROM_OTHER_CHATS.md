@@ -49,13 +49,14 @@
        - Отправляет POST в `/batch_grep`, форматирует результат: "🔍 Найдено X совпадений в Y/Z файлах" + список совпадений с номерами строк.
        - Для каждого файла с совпадениями: показывает первые 10 совпадений (line, content, matched_text).
        - Пример использования из Cursor:
+
          ```python
          # Прочитать 20 файлов параллельно
          victoria_batch_read(
            file_paths_json='["src/utils.py", "src/main.py", "tests/test_utils.py", ...]',
            workspace_path="/Users/bikos/Documents/atra-web-ide"
          )
-         
+
          # Найти все упоминания функции validate_email
          victoria_batch_grep(
            pattern="validate_email",
@@ -162,7 +163,7 @@
   - ✅ B.2 — Skill Discipline (жёсткая дисциплина скиллов)
   - ✅ B.3 — IDE Context (контекст в формате Cursor)
   - ✅ B.4 — Batch Read (параллельное чтение файлов)
-  **Victoria теперь функционально эквивалентна Cursor assistant!** Она может планировать (execution_plan), следовать дисциплине (skill_mapper), видеть контекст IDE (open_files, git, rules) и быстро сканировать проект (batch_read). См. MASTER_REFERENCE (Batch Read), `.cursor/plans/plan-b-*.md`.
+    **Victoria теперь функционально эквивалентна Cursor assistant!** Она может планировать (execution_plan), следовать дисциплине (skill_mapper), видеть контекст IDE (open_files, git, rules) и быстро сканировать проект (batch_read). См. MASTER_REFERENCE (Batch Read), `.cursor/plans/plan-b-*.md`.
 
 ---
 
@@ -176,39 +177,41 @@
      - `git_status: Optional[str]` — git status (измененные файлы, текущая ветка): `"On branch main\nModified: src/utils.py\n..."`.
      - `cursor_rules: Optional[List[str]]` — применимые правила/эксперты из .cursor/rules/: `["@backend_developer", "@qa_engineer"]`.
      - `workspace_path: Optional[str]` — путь к workspace (для относительных путей): `"/Users/bikos/Documents/atra-web-ide"`.
-     Все поля опциональные (для обратной совместимости).
+       Все поля опциональные (для обратной совместимости).
   2. **Форматирование контекста** (`_format_ide_context(request)` в victoria_server.py):
      - Функция преобразует IDE-контекст в читаемый текст для промпта Victoria:
+
        ```
        📋 IDE CONTEXT (как в Cursor):
        ============================================================
-       
+
        🗂️ Workspace: /Users/bikos/Documents/atra-web-ide
-       
+
        📊 Git Status:
        On branch main
        Modified: src/utils.py
-       
+
        📂 Open Files (2):
          1. src/utils.py
             Cursor at line 42
             Lines 37-47:
               def validate_email(email: str) -> bool:
                   ...
-       
+
          2. tests/test_utils.py
             First 10 lines:
               import pytest
               from src.utils import validate_email
               ...
-       
+
        👥 Applicable Rules/Experts (2):
          • @backend_developer
          • @qa_engineer
-       
+
        ============================================================
        Используй этот контекст для понимания текущего состояния проекта.
        ```
+
      - Для открытых файлов показывается либо первые 10 строк, либо окрестность cursor_line (±5 строк).
      - Лимит: максимум 5 файлов (если больше — сообщение "... и ещё N файл(ов)").
   3. **Инъекция в prompt** (`run_task_stream`, функция `sse_generator()`):
@@ -253,6 +256,7 @@
     }
   ]
   ```
+
   - `path` (обязательно): путь к файлу (относительный или абсолютный)
   - `content` (опционально): содержимое файла (для контекста, показывается частично в промпте)
   - `cursor_line` (опционально): строка, где находится курсор (для показа окрестности в промпте)
@@ -285,13 +289,14 @@
        - Если скилл найден (`skill_info != None`):
          - Логирование: `[SKILL_DISCIPLINE] Обнаружен скилл '{skill_info['skill']}': {skill_info['description']}`.
          - Формирование `skill_context`: инструкции скилла из `mapper.get_skill_instructions(skill_info['skill'])` в формате:
+
            ```
            🎯 ПРИМЕНЯЕТСЯ СКИЛЛ: {skill_type.upper()}
-           
+
            {инструкции (чеклист)}
-           
+
            ВАЖНО: Следуй чеклисту скилла СТРОГО. Это не рекомендация — это обязательный workflow.
-           
+
            ---
            ЗАДАЧА:
            ```
@@ -338,12 +343,13 @@
      - Markdown-список:
        ```markdown
        **Execution Plan:**
+
        - read_file: path/to/file
        - edit: path/to/file (description)
        - run: command
        ```
        (парсинг через regex по строкам с `-` или `*`; извлечение action, path/command, description).
-     Возвращает `List[Dict]` с полями: `action`, `path`/`command`, `description`.
+       Возвращает `List[Dict]` с полями: `action`, `path`/`command`, `description`.
   3. **Промпт Victoria:** В `agent.executor.system_prompt` добавлена секция **«EXECUTION PLAN (руки в IDE)»** после «ПРАВИЛО МОНСТРА»:
      - Инструкции: если задача требует изменений в коде, добавить в конец ответа execution_plan в формате JSON.
      - Формат шага: `{"action": "read_file"|"edit"|"run", "path": "...", "command": "...", "description": "..."}`.
@@ -366,17 +372,21 @@
   - `description`: что делает шаг (для логов, UI)
   - `critical` (опционально, default false): прервать выполнение при ошибке
 - **Пример использования:**
+
   ```bash
   curl -X POST http://localhost:8010/orchestrate \
     -H "Content-Type: application/json" \
     -d '{"goal": "Добавь validate_email в utils/validators.py", "return_execution_plan": true}'
   ```
+
   Ответ: `{"status": "success", "output": "...", "execution_plan": [{...}, ...]}`
-  
+
   Через MCP (Cursor):
+
   ```python
   victoria_execute_plan(goal="Добавь validate_email", workspace_path="/path/to/project")
   ```
+
 - **Документация:** обновлены `.cursor/rules/victoria.mdc` (§6 — Execution Plan), `docs/MASTER_REFERENCE.md` (новый раздел «Execution Plan — руки в IDE»), `docs/CHANGES_FROM_OTHER_CHATS.md` (§44).
 - **Статус:** ✅ Базовая архитектура (API, парсинг, промпт, MCP tool, executor заготовка). 🚧 Полная интеграция `victoria_execute_plan` с user-filesystem MCP server (реальное чтение/запись файлов, diff/patch для правок).
 - **Следующие шаги (План B):** B.2 — жёсткая дисциплина скиллов (автовызов скиллов по типу задачи, как в Cursor); B.3 — контекст в формате Cursor (открытые файлы, git status, правила); B.4 — параллельные чтения batch_read (множественные read_file/grep за один запрос).
@@ -391,7 +401,7 @@
 - **Сделано (План A: STRICT_LOCAL, шаги 1-8):**
   1. **Переменная окружения:** добавлена `STRICT_LOCAL=false` (дефолт) в `.env.example` с pre-flight checklist (MLX 11435, Ollama 11434, Recovery 9099) и в `docker-compose.yml` для сервиса victoria-agent.
   2. **Централизованная проверка:** создан модуль `knowledge_os/app/env_flags.py` с функцией `is_strict_local()` — единый источник истины (12-Factor App).
-  3. **ai_core.py — _run_cloud_agent_async:** при `is_strict_local()` не вызывается cursor-agent subprocess; вместо этого — retry через локальные модели с backoff (`_retry_llm_with_backoff`), затем явная ошибка с подсказкой про Recovery; добавлено логирование `[STRICT_LOCAL]` и `[GRACEFUL DEGRADATION]` при частичной недоступности (MLX down, Ollama работает).
+  3. **ai_core.py — \_run_cloud_agent_async:** при `is_strict_local()` не вызывается cursor-agent subprocess; вместо этого — retry через локальные модели с backoff (`_retry_llm_with_backoff`), затем явная ошибка с подсказкой про Recovery; добавлено логирование `[STRICT_LOCAL]` и `[GRACEFUL DEGRADATION]` при частичной недоступности (MLX down, Ollama работает).
   4. **ai_core.py — run_smart_agent_async:** при `is_strict_local()` обработка QA/safety reroutes: если QA рекомендует `reroute_to_cloud` или `safety_checker.should_reroute_to_cloud() == True`, то вместо fallback на облако выполняется **один retry** локально с изменённым промптом (улучшение качества/безопасности); при неудаче — reject с явным сообщением «STRICT_LOCAL блокирует fallback, задача отклонена»; добавлены метрики `strict_local_qa_skip_count` и `strict_local_safety_skip_count` (атрибуты функции).
   5. **safety_checker.py — should_reroute_to_cloud:** при `is_strict_local()` возвращает `False` (никогда не перенаправлять в облако); логирует предупреждение о проблемах безопасности/качества.
   6. **quality_assurance.py — recommendation:** при `is_strict_local()` рекомендация `reroute_to_cloud` заменяется на `retry_local` (2 места в коде); логируется `[STRICT_LOCAL] ... recommendation changed to retry_local`.
@@ -401,7 +411,7 @@
 - **Безопасность (критическое из экспертного обзора):** в STRICT_LOCAL **не отдаются** небезопасные или низкокачественные ответы — при срабатывании safety/QA выполняется retry с безопасным/улучшенным промптом, затем reject, если retry не помог. Никогда не возвращается «сырой» небезопасный ответ.
 - **Метрики:** `strict_local_enabled` (gauge, 0 или 1), `strict_local_safety_skip_count` (counter), `strict_local_qa_skip_count` (counter). Алерт в Grafana: если `strict_local_enabled == 1` и (`mlx_health == down` или `ollama_health == down`) — критический алерт «STRICT_LOCAL ON, но локальные модели недоступны → система полностью недоступна».
 - **Документация:** добавлен раздел **STRICT_LOCAL** в `docs/MASTER_REFERENCE.md` (pre-flight checklist, 12-Factor, adaptive concurrency, pre-mortem, graceful degradation, метрики, алерты); запись в `docs/CHANGES_FROM_OTHER_CHATS.md` §43.
-- **Итог:** при `STRICT_LOCAL=true` Victoria работает полностью автономно на локальных моделях; при недоступности локальных — явная ошибка с подсказкой, без fallback на облако; безопасность и качество соблюдены (reject небезопасного/низкокачественного контента); graceful degradation при частичной недоступности. Дефолт: `STRICT_LOCAL=false` (рекомендуется для повседневной работы). См. MASTER_REFERENCE (STRICT_LOCAL), план в `.cursor/plans/strict_local_implementation_*.plan.md`.
+- **Итог:** при `STRICT_LOCAL=true` Victoria работает полностью автономно на локальных моделях; при недоступности локальных — явная ошибка с подсказкой, без fallback на облако; безопасность и качество соблюдены (reject небезопасного/низкокачественного контента); graceful degradation при частичной недоступности. Дефолт: `STRICT_LOCAL=false` (рекомендуется для повседневной работы). См. MASTER*REFERENCE (STRICT_LOCAL), план в `.cursor/plans/strict_local_implementation*\*.plan.md`.
 
 ---
 
@@ -488,8 +498,8 @@
 
 ## 40. Самообучение Виктории (Victoria Tasks): домен victoria_tasks (2026-03-05)
 
-- **Проблема:** Домен `victoria_tasks` отсутствовал в БД; _learn_from_task писал с domain_id NULL, RAG не подхватывал.
-- **Сделано:** В БД создан домен `victoria_tasks` (миграция add_victoria_tasks_domain.sql). Существующие узлы с expert=Виктория привязаны к домену. Новые записи _learn_from_task получают корректный domain_id.
+- **Проблема:** Домен `victoria_tasks` отсутствовал в БД; \_learn_from_task писал с domain_id NULL, RAG не подхватывал.
+- **Сделано:** В БД создан домен `victoria_tasks` (миграция add_victoria_tasks_domain.sql). Существующие узлы с expert=Виктория привязаны к домену. Новые записи \_learn_from_task получают корректный domain_id.
 - **Итог:** Самообучение снова участвует в RAG и планировании. На новом инстансе: применить миграцию add_victoria_tasks_domain.sql.
 
 ---
@@ -3008,6 +3018,7 @@
 ---
 
 ## 31. Multi-Level Dealer Platform & Financial Ledger (2026-03-04)
+
 - **Hierarchy:** Introduced `Owner`, `Director`, `Manager`, `Sub-Dealer` roles with parent-child relationships.
 - **Branches:** Added support for multiple branches (sites) per Director with individual domain binding and markups.
 - **Financial Ledger:** Implemented `transactions` table and balance tracking. Orders now check balance/credit limits.

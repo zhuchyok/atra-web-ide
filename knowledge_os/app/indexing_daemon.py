@@ -124,16 +124,44 @@ class IndexingDaemon:
                     "DELETE FROM knowledge_nodes WHERE metadata->>'file_path' = $1", path
                 )
 
+                # [SINGULARITY 21.8] project_slug для фильтрации RAG по проекту (аудит setki-21)
+                project_slug = None
+                try:
+                    rows = await conn.fetch(
+                        "SELECT slug, workspace_path FROM projects WHERE is_active = true"
+                    )
+                    path_norm = os.path.normpath(path)
+                    for row in rows:
+                        wp = (row["workspace_path"] or "").strip()
+                        if not wp:
+                            continue
+                        wp_norm = os.path.normpath(wp)
+                        if path_norm.startswith(wp_norm) or row["slug"] in path_norm:
+                            project_slug = row["slug"]
+                            break
+                except Exception as e:
+                    logger.debug(f"Project slug resolution: {e}")
+
+                import json as _json
+
+                metadata_obj = {
+                    "file_path": path,
+                    "source": "indexing_daemon",
+                }
+                if project_slug:
+                    metadata_obj["project_slug"] = project_slug
+                metadata_json = _json.dumps(metadata_obj, ensure_ascii=False)
+
                 # Вставляем новую запись
                 await conn.execute(
                     """
                     INSERT INTO knowledge_nodes (content, domain_id, confidence_score, embedding, is_verified, metadata)
-                    VALUES ($1, $2, 1.0, $3, TRUE, $4)
+                    VALUES ($1, $2, 1.0, $3, TRUE, $4::jsonb)
                 """,
                     content[:10000],
                     domain_id,
                     embedding,
-                    f'{{"file_path": "{path}", "source": "indexing_daemon"}}',
+                    metadata_json,
                 )
 
                 self.processed_hashes[path] = content_hash

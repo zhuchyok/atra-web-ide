@@ -72,7 +72,7 @@
 - **Откуда в БД попадают «гиганты»:**
   - Скрипт **index_external_docs.py** качает репозитории (например system_prompts_leaks) в `knowledge_base/ai_research/` и пишет чанки в `knowledge_nodes` (домен AI Research). Запуск — вручную или по крону.
   - Эталоны куратора → домен **curator_standards**.
-  - Ручная индексация `docs/COGNITIVE_CODE.md` и других доков (при наличии скрипта/пайплайна) тоже пополняет knowledge_nodes.
+  - **index_cognitive_code.py** — индексирует `docs/COGNITIVE_CODE.md` (и опционально другие доки) в knowledge_nodes (домен AI Research). Запуск: `cd knowledge_os && .venv/bin/python scripts/index_cognitive_code.py`; см. HOW_TO_INDEX «Знания гигантов в RAG».
 
 - **Самообучение и самосовершенствование:** Да, настроено, но без отдельного шага «каждую ночь читать COGNITIVE_CODE».
   - **Victoria** — `_learn_from_task`: после задач пишет в knowledge_nodes (домен **victoria_tasks**); эти узлы потом подтягиваются в RAG.

@@ -6,7 +6,7 @@
 - **PROJECT_ARCHITECTURE_AND_GUIDE**, **ARCHITECTURE_FULL**, **CURRENT_STATE_WORKER_AND_LLM**.
 - **CHANGES_FROM_OTHER_CHATS.md** (Лог изменений).
 - **VERIFICATION_CHECKLIST**, **DASHBOARDS_AND_AGENTS_FULL_PICTURE**.
-Закреплено в **.cursorrules** (раздел «Библия проекта»).
+  Закреплено в **.cursorrules** (раздел «Библия проекта»).
 
 **Назначение:** при любых вопросах по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
 
@@ -24,7 +24,7 @@
 
 Последние изменения (2026-03-06): **Execution Plan — руки в IDE (План B.1).** (1) Victoria теперь может генерировать структурированный `execution_plan` (список шагов: read_file, edit, run) для выполнения в IDE/клиенте. (2) Расширены `TaskRequest` (`return_execution_plan: bool`) и `TaskResponse` (`execution_plan: List[Dict]`). (3) Добавлен парсер `_extract_execution_plan()` (поддержка JSON и markdown). (4) Промпт Victoria дополнен секцией «EXECUTION PLAN» с примерами. (5) MCP tool `victoria_execute_plan` создан для автоматического выполнения плана. (6) Executor `execution_plan_executor.py` для интеграции с filesystem MCP. (7) Это решает проблему «мозг и руки разделены» — Victoria планирует, клиент выполняет. Статус: ✅ базовая архитектура, 🚧 полная интеграция с MCP. См. CHANGES §44, victoria.mdc §6, `.cursor/plans/plan-b-*.md`.
 
-Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT_LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation_*.plan.md`.
+Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT*LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation*\*.plan.md`.
 
 Последние изменения (2026-03-05): **Библия обновлена по сессии: Victoria Tasks, инвентаризация, самовосстановление MLX.** (1) Домен **victoria_tasks** создан в БД — самообучение Виктории снова попадает в RAG и планирование (CHANGES §40). (2) **Инвентаризация возможностей** — отчёт docs/audits/INVENTORY_VICTORIA_CAPABILITIES_2026.md (Initiative, OTEL, Recovery, знания гигантов, реестр проектов, чеклисты §10–11); CHANGES §41. (3) **Recovery Listener (9099):** доработка host_recovery_listener.py (GET /recover, безопасный Content-Length), чеклист в INVENTORY §11, перезапуск через launchd; CHANGES §42. При любых изменениях — обновлять MASTER_REFERENCE и CHANGES (правило библии).
 
@@ -40,7 +40,7 @@
 
 **Последний аудит (03.03.2026):** Переход с 30B на 35B MoE (Qwen 3.5). Скорость загрузки в MLX: 4.6с. Личность подтверждена. Все эксперты уведомлены о смене ядра.
 
-**При смене модели (чеклист):** обновить MASTER_REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF_*.md` при актуальности; исторические планы в `docs/plans/` не переписывать — источник истины здесь.
+**При смене модели (чеклист):** обновить MASTER*REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF*\*.md`при актуальности; исторические планы в`docs/plans/` не переписывать — источник истины здесь.
 
 ---
 
@@ -49,11 +49,13 @@
 **Назначение:** Полная автономность от облачных API. При `STRICT_LOCAL=true` все запросы обслуживаются только локальными моделями (MLX + Ollama); при недоступности локальных моделей возвращается явная ошибка, без fallback на cursor-agent или облачные API.
 
 **Когда использовать:**
+
 - Закрытые сети (closed network)
 - Конфиденциальные данные (GDPR, regulatory compliance)
 - Полная изоляция от внешних API
 
 **Когда НЕ использовать:**
+
 - Повседневная работа (на сложных reasoning-задачах качество может быть ниже)
 - Первичная настройка (требуется доступность локальных моделей)
 
@@ -81,6 +83,7 @@ docker-compose up -d  # backend
 ### Adaptive Concurrency:
 
 STRICT_LOCAL увеличивает нагрузку на локальные модели (вся нагрузка на MLX/Ollama, без облачного fallback). При высоком трафике рассмотрите:
+
 - Снижение `MAX_CONCURRENT_VICTORIA` (с 50 до 30-40)
 - Горизонтальное масштабирование MLX/Ollama
 
@@ -100,6 +103,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 ### Graceful Degradation:
 
 При частичной недоступности (например MLX down, но Ollama работает):
+
 - Логируется `[GRACEFUL DEGRADATION] MLX недоступен, используется только Ollama`
 - В ответ пользователю добавляется подсказка: «⚠️ Работаем в ограниченном режиме: основной интеллект (MLX) недоступен. Качество ответов может быть ниже. Проверьте порт 11435 или Recovery (9099).»
 
@@ -143,6 +147,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 ### Использование
 
 1. **Запрос с `return_execution_plan=true`:**
+
    ```bash
    curl -X POST http://localhost:8010/orchestrate \
      -H "Content-Type: application/json" \
@@ -153,6 +158,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
    ```
 
 2. **Ответ содержит `execution_plan`:**
+
    ```json
    {
      "status": "success",
@@ -179,6 +185,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
    ```
 
 3. **MCP tool для автоматического выполнения (Cursor):**
+
    ```python
    # Вызов через MCP VictoriaATRA (порт 8012)
    victoria_execute_plan(
@@ -186,7 +193,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
      workspace_path="/Users/bikos/Documents/atra-web-ide"
    )
    ```
-   
+
    Инструмент `victoria_execute_plan` в MCP server (`src/agents/bridge/victoria_mcp_server.py`) автоматически:
    - Запрашивает plan от Victoria через `/orchestrate` с `return_execution_plan=true`
    - Выполняет каждый шаг плана (read/edit/run)
@@ -196,37 +203,55 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 
 Каждый шаг — это объект с полями:
 
-| Поле | Тип | Описание | Для action |
-|------|-----|----------|------------|
-| `action` | string | Тип действия: `read_file`, `edit`, `run` | Все |
-| `path` | string | Путь к файлу (относительный или абсолютный) | `read_file`, `edit` |
-| `command` | string | Команда для терминала | `run` |
-| `content` | string | Новое содержимое файла (опционально) | `edit` |
-| `description` | string | Что делает этот шаг (для логов и UI) | Все |
-| `critical` | boolean | Прервать выполнение при ошибке (опционально, default: false) | Все |
+| Поле          | Тип     | Описание                                                     | Для action          |
+| ------------- | ------- | ------------------------------------------------------------ | ------------------- |
+| `action`      | string  | Тип действия: `read_file`, `edit`, `run`                     | Все                 |
+| `path`        | string  | Путь к файлу (относительный или абсолютный)                  | `read_file`, `edit` |
+| `command`     | string  | Команда для терминала                                        | `run`               |
+| `content`     | string  | Новое содержимое файла (опционально)                         | `edit`              |
+| `description` | string  | Что делает этот шаг (для логов и UI)                         | Все                 |
+| `critical`    | boolean | Прервать выполнение при ошибке (опционально, default: false) | Все                 |
 
 **Пример:**
+
 ```json
 [
-  {"action": "read_file", "path": "src/utils.py", "description": "Изучить текущий код"},
-  {"action": "edit", "path": "src/utils.py", "content": "...", "description": "Добавить функцию X"},
-  {"action": "run", "command": "pytest src/tests/", "description": "Проверить изменения", "critical": true}
+  {
+    "action": "read_file",
+    "path": "src/utils.py",
+    "description": "Изучить текущий код"
+  },
+  {
+    "action": "edit",
+    "path": "src/utils.py",
+    "content": "...",
+    "description": "Добавить функцию X"
+  },
+  {
+    "action": "run",
+    "command": "pytest src/tests/",
+    "description": "Проверить изменения",
+    "critical": true
+  }
 ]
 ```
 
 ### Реализация (внедрено 2026-03-06)
 
 **1. API расширение (`victoria_server.py`):**
+
 - `TaskRequest.return_execution_plan: bool = False` — флаг для запроса плана
 - `TaskResponse.execution_plan: Optional[List[Dict]]` — поле с планом
 - `/orchestrate` endpoint — извлекает plan из ответа модели через `_extract_execution_plan()`
 
 **2. Парсинг (`_extract_execution_plan()` в `victoria_server.py`):**
 Поддерживает два формата в ответе модели:
+
 - JSON-блок в тройных бэктиках: ` ```json\n[{...}]\n``` `
 - Markdown-список:
   ```markdown
   **Execution Plan:**
+
   - read_file: path/to/file.py
   - edit: path/to/file.py (описание)
   - run: pytest tests/
@@ -234,16 +259,19 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 
 **3. Промпт Victoria (`agent.executor.system_prompt`):**
 Добавлена секция **«EXECUTION PLAN (руки в IDE)»** с инструкциями:
+
 - Когда генерировать plan (задачи с изменением кода)
 - Формат JSON для execution_plan
 - Примеры шагов (read_file, edit, run)
 
 **4. MCP tool (`victoria_mcp_server.py`):**
+
 - `victoria_execute_plan(goal, workspace_path)` — получает plan от Victoria и выполняет через MCP filesystem
 - Пока упрощённая версия (логирование шагов без реального выполнения)
 - Полная интеграция с `user-filesystem` MCP server в разработке
 
 **5. Executor (`execution_plan_executor.py`):**
+
 - `ExecutionPlanExecutor` — класс для выполнения плана через MCP tools
 - Методы: `_execute_read_file`, `_execute_edit`, `_execute_run`
 - Поддержка относительных путей (workspace_path)
@@ -252,6 +280,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 ### Статус и Next Steps
 
 **✅ Завершено (2026-03-06):**
+
 - TaskRequest/TaskResponse расширены
 - Парсинг execution_plan из ответа модели (JSON + markdown)
 - Промпт Victoria обучен генерировать plan
@@ -259,11 +288,13 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 - Документация обновлена (victoria.mdc, MASTER_REFERENCE)
 
 **🚧 В разработке:**
+
 - Полная интеграция `victoria_execute_plan` с `user-filesystem` MCP server (реальное чтение/запись файлов)
 - Поддержка diff/patch для точечных правок (сейчас edit перезаписывает файл целиком)
 - UI для отображения execution_plan в Web IDE (показать шаги перед выполнением)
 
 **🔜 Следующие задачи (План B):**
+
 - **B.2: Жёсткая дисциплина скиллов** — автоматический вызов скиллов по типу задачи (как в Cursor) — ✅ **ЗАВЕРШЕНО 2026-03-06**
 - **B.3: Контекст в формате Cursor** — передача открытых файлов, git status, правил в запросах к Victoria
 - **B.4: Параллельные чтения (batch_read)** — множественные read_file/grep за один запрос через Veronica
@@ -297,20 +328,22 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
    - Victoria получает `enriched_goal = skill_context + original_goal`
 
 4. **Формат инструкций скилла:**
+
    ```
    🎯 ПРИМЕНЯЕТСЯ СКИЛЛ: BRAINSTORMING
-   
+
    1. Изучи контекст проекта
    2. Задай 1 уточняющий вопрос (цель, ограничения)
    3. Предложи 2-3 подхода с плюсами/минусами
    4. Представь дизайн по секциям, спрашивай одобрение после каждой
    5. Запиши утверждённый дизайн в docs/plans/YYYY-MM-DD-<topic>-design.md
    6. Следующий шаг — writing-plans (план внедрения), НЕ код
-   
+
    ВАЖНО: Следуй чеклисту скилла СТРОГО. Это не рекомендация — это обязательный workflow.
    ```
 
 **Примеры триггеров:**
+
 - "Создай новый компонент X" → `brainstorming` (паттерн: `созда.*новый.*компонент`)
 - "Напиши тест для функции Y" → `tdd` (паттерн: `напиш.*тест`)
 - "Исправь ошибку в модуле Z" → `debugging` (паттерн: `исправ.*ошибк`)
@@ -334,33 +367,34 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 
 2. **Форматирование контекста** (`_format_ide_context(request)`):
    - Преобразует IDE-контекст в читаемый текст для промпта:
+
      ```
      📋 IDE CONTEXT (как в Cursor):
      ============================================================
-     
+
      🗂️ Workspace: /Users/bikos/Documents/atra-web-ide
-     
+
      📊 Git Status:
      On branch main
      Modified: src/utils.py
-     
+
      📂 Open Files (2):
        1. src/utils.py
           Cursor at line 42
           Lines 37-47:
             def validate_email(email: str) -> bool:
                 ...
-     
+
        2. tests/test_utils.py
           First 10 lines:
             import pytest
             from src.utils import validate_email
             ...
-     
+
      👥 Applicable Rules/Experts (2):
        • @backend_developer
        • @qa_engineer
-     
+
      ============================================================
      Используй этот контекст для понимания текущего состояния проекта.
      ```
@@ -385,6 +419,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
      ```
 
 **Формат open_files:**
+
 ```json
 [
   {
@@ -398,6 +433,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 **Статус:** ✅ Полная реализация (TaskRequest, форматирование, инъекция, MCP tool). Victoria теперь видит тот же контекст, что и Cursor assistant.
 
 **Следующие шаги (План B):**
+
 - **B.4: Параллельные чтения (batch_read)** — ✅ **ЗАВЕРШЕНО 2026-03-06**
 
 ---
@@ -426,7 +462,6 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
      }
      ```
      Возвращает: `{"status": "success", "results": [{...}], "summary": {...}}`
-   
    - `POST /batch_grep` — поиск паттерна:
      ```json
      {
@@ -442,13 +477,14 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
    - `victoria_batch_read(file_paths_json, workspace_path, max_concurrent=10)`
    - `victoria_batch_grep(pattern, file_paths_json, workspace_path, case_sensitive=False)`
    - Пример:
+
      ```python
      # Прочитать 20 файлов параллельно
      victoria_batch_read(
        file_paths_json='["src/utils.py", "src/main.py", ...]',
        workspace_path="/Users/bikos/Documents/atra-web-ide"
      )
-     
+
      # Найти все упоминания функции
      victoria_batch_grep(
        pattern="validate_email",
@@ -458,6 +494,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
      ```
 
 **Формат результата batch_read:**
+
 ```json
 {
   "status": "success",
@@ -485,6 +522,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 ```
 
 **Формат результата batch_grep:**
+
 ```json
 {
   "status": "success",
@@ -513,6 +551,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 ```
 
 **Производительность:**
+
 - 10 файлов (по 1 КБ каждый) — ~0.1 сек
 - 50 файлов (средний размер 50 КБ) — ~0.5 сек
 - 100 файлов — ~1 сек

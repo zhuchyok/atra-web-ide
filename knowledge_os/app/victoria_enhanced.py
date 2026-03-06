@@ -1380,6 +1380,8 @@ class VictoriaEnhanced:
             elif memory_context:
                 context = memory_context
             # Если context передан, используем его (история чата важнее)
+            # [SINGULARITY 21.8] Для RAG и промптов: project_context по запросу (аудит setki-21)
+            self._request_project_context = (context or {}).get("project_context")
 
             # Проверяем кэш
             if self.use_cache and self.cache:
@@ -1684,8 +1686,12 @@ class VictoriaEnhanced:
                 # Fallback
                 from app.ai_core import run_smart_agent_async
 
+                _pc = getattr(self, "_request_project_context", None)
                 thinking_result = await run_smart_agent_async(
-                    thinking_prompt, expert_name="Виктория", category="planning"
+                    thinking_prompt,
+                    expert_name="Виктория",
+                    category="planning",
+                    project_context=_pc,
                 )
                 try:
                     from app.task_trace_hooks import log_model_selection
@@ -2094,8 +2100,12 @@ class VictoriaEnhanced:
 
 Выполните задачу профессионально и предоставьте результат на русском языке."""
 
+                        _pc = (context or {}).get("project_context")
                         result = await run_smart_agent_async(
-                            prompt, expert_name=expert_name, category="execution"
+                            prompt,
+                            expert_name=expert_name,
+                            category="execution",
+                            project_context=_pc,
                         )
 
                         if result:
@@ -2213,10 +2223,12 @@ class VictoriaEnhanced:
 
             logger.info(f"✅ Распределено {len(assignments)} задач")
 
-            # Этап 2: Параллельное выполнение задач сотрудниками
+            # Этап 2: Параллельное выполнение задач сотрудниками (project_context для RAG/промпта — аудит setki-21)
+            _pc = getattr(self, "_request_project_context", None)
             logger.info("👥 [EMPLOYEES] Сотрудники выполняют задачи параллельно...")
             execution_tasks = [
-                task_dist.execute_task_assignment(assignment) for assignment in assignments
+                task_dist.execute_task_assignment(assignment, project_context=_pc)
+                for assignment in assignments
             ]
             completed_assignments = await asyncio.gather(*execution_tasks, return_exceptions=True)
 
@@ -2392,8 +2404,12 @@ class VictoriaEnhanced:
             else:
                 from app.ai_core import run_smart_agent_async
 
+                _pc = getattr(self, "_request_project_context", None)
                 synthesis = await run_smart_agent_async(
-                    synthesis_prompt, expert_name="Виктория", category="synthesis"
+                    synthesis_prompt,
+                    expert_name="Виктория",
+                    category="synthesis",
+                    project_context=_pc,
                 )
 
             # Извлекаем строку из ExtendedThinkingResult если нужно

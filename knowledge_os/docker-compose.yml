@@ -119,7 +119,7 @@ services:
       USE_VICTORIA_ENHANCED: "true"
       # Эксперты первыми: execution-задачи идут в Victoria Enhanced (86 экспертов в БД), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
       PREFER_EXPERTS_FIRST: ${PREFER_EXPERTS_FIRST:-true}
-      
+
       # 🔒 Строго локальный режим (STRICT_LOCAL): без fallback на cursor-agent/облачные API
       # При true: все запросы обслуживаются только MLX/Ollama; при недоступности локальных моделей — явная ошибка
       # Pre-flight checklist (обязательно перед включением): docs/MASTER_REFERENCE.md, раздел STRICT_LOCAL

@@ -24,13 +24,17 @@ class KnowledgeService:
     def __init__(self):
         self.db_url = os.getenv("DATABASE_URL")
 
-    async def _get_knowledge_context(self, query: str, limit: int = 7) -> str:
-        """Retrieve relevant knowledge nodes (RAG) - знания корпорации + AI Research (Singularity 10.0)."""
+    async def _get_knowledge_context(
+        self, query: str, limit: int = 7, project_context: Optional[str] = None
+    ) -> str:
+        """Retrieve relevant knowledge nodes (RAG). If project_context is set, project_files are filtered by project."""
         try:
             # План «умнее быстрее» §1.1: Кэш контекста RAG (уровень 1)
             import hashlib
 
-            query_hash = hashlib.md5(query.strip().lower().encode()).hexdigest()
+            query_hash = hashlib.md5(
+                (query.strip().lower() + (project_context or "")).encode()
+            ).hexdigest()
 
             # Попытка получить из Redis если доступен
             try:
@@ -50,13 +54,20 @@ class KnowledgeService:
                 return ""
             pool = await get_pool()
 
-            async with pool.acquire() as conn:
-                # Поиск по основным доменам с приоритетом недавних и часто используемых
-                rows = await conn.fetch(
-                    """
-                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL
+            # Фильтр по проекту: project_files/indexing_daemon только по project_slug или file_path
+            project_filter = ""
+            if project_context and project_context.strip():
+                project_filter = """
+                    AND (
+                        domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
+                        OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
+                        OR metadata->>'source' = 'external_docs_indexer'
+                        OR ( (domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1) OR metadata->>'source' = 'indexing_daemon')
+                             AND (metadata->>'project_slug' = $3 OR metadata->>'file_path' LIKE '%' || $3 || '%') )
+                    )
+                """
+            else:
+                project_filter = """
                     AND (
                         domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
                         OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
@@ -64,13 +75,42 @@ class KnowledgeService:
                         OR metadata->>'source' = 'external_docs_indexer'
                         OR metadata->>'source' = 'indexing_daemon'
                     )
-                    AND confidence_score >= 0.3
-                    ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
-                    LIMIT $2
-                """,
-                    embedding,
-                    limit,
-                )
+                """
+
+            async with pool.acquire() as conn:
+                if project_context and project_context.strip():
+                    rows = await conn.fetch(
+                        """
+                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        FROM knowledge_nodes
+                        WHERE embedding IS NOT NULL
+                        AND confidence_score >= 0.3
+                        """
+                        + project_filter
+                        + """
+                        ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
+                        LIMIT $2
+                        """,
+                        embedding,
+                        limit,
+                        project_context.strip(),
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        FROM knowledge_nodes
+                        WHERE embedding IS NOT NULL
+                        AND confidence_score >= 0.3
+                        """
+                        + project_filter
+                        + """
+                        ORDER BY similarity DESC, usage_count DESC NULLS LAST, created_at DESC
+                        LIMIT $2
+                        """,
+                        embedding,
+                        limit,
+                    )
 
                 if not rows:
                     return ""

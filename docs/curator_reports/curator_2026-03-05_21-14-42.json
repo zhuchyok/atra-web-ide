@@ -1,0 +1,24 @@
+{
+  "ts": "2026-03-05T21:14:43.436948+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+      "output_length": 222,
+      "correlation_id": "e6e14218-0467-4e2b-ae67-8b0962cb7cc1",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 0.81
+    }
+  ]
+}

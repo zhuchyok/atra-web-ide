@@ -1,7 +1,8 @@
 #!/bin/bash
-# Настройка регулярного прогона куратора через launchd (macOS)
+# Настройка автоматического прогона куратора через launchd (macOS).
 # Запускать один раз: bash scripts/setup_curator_launchd.sh
-# После установки куратор будет запускаться ежедневно в 9:00.
+# После установки ежедневно в 9:00: полный автономный цикл (прогон → сравнение с эталонами → при расхождении задачи в БД → опционально синхронизация эталонов в RAG).
+# DATABASE_URL и VICTORIA_URL подхватываются из $ROOT/.env при каждом запуске скрипта.
 
 set -e
 
@@ -9,11 +10,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "=============================================="
-echo "📋 НАСТРОЙКА КУРАТОРА ПО РАСПИСАНИЮ (launchd)"
+echo "📋 АВТОМАТИЗАЦИЯ КУРАТОРА (launchd)"
 echo "=============================================="
 echo ""
 
-# Создание launchd plist (ежедневно в 9:00)
+# Создание launchd plist (ежедневно в 9:00) — полный автономный прогон
 echo "[1/3] Создание launchd plist..."
 LAUNCHD_FILE="${HOME}/Library/LaunchAgents/com.atra.curator-scheduled.plist"
 
@@ -27,7 +28,9 @@ cat > "$LAUNCHD_FILE" << EOF
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>${ROOT}/scripts/run_curator_scheduled.sh</string>
+        <string>${ROOT}/scripts/run_curator_autonomous.sh</string>
+        <string>--full</string>
+        <string>--sync-rag</string>
     </array>
     <key>WorkingDirectory</key>
     <string>${ROOT}</string>
@@ -35,8 +38,6 @@ cat > "$LAUNCHD_FILE" << EOF
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-        <key>CURATOR_MAX_WAIT</key>
-        <string>900</string>
     </dict>
     <key>StartCalendarInterval</key>
     <dict>
@@ -54,7 +55,8 @@ cat > "$LAUNCHD_FILE" << EOF
 EOF
 
 echo "✅ LaunchAgent создан: $LAUNCHD_FILE"
-echo "   Расписание: ежедневно в 9:00"
+echo "   Расписание: ежедневно в 9:00 (полный прогон + сравнение + задачи в БД + синхронизация эталонов в RAG)"
+echo "   Переменные (VICTORIA_URL, DATABASE_URL): из $ROOT/.env при каждом запуске"
 echo ""
 
 # Загрузка в launchd
@@ -69,4 +71,4 @@ launchctl list | grep -i curator || echo "(задание в списке)"
 echo ""
 echo "Готово. Логи: ~/Library/Logs/atra-curator.log"
 echo "Отключить: launchctl unload $LAUNCHD_FILE"
-echo "См. docs/CURATOR_RUNBOOK.md — регулярный прогон."
+echo "См. docs/CURATOR_RUNBOOK.md §1, §6 — автоматизация и автономность."

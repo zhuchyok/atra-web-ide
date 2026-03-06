@@ -6,7 +6,7 @@
 
 ## Текущее состояние системы (Эра Мудрости)
 
-- **Victoria Agent:** Мозг (MLX, порт 11435) + Руки (Ollama, victoria-wisdom-30b, KEEP_ALIVE=-1). Оба уровня активны.
+- **Victoria Agent:** Мозг (MLX, порт 11435) + Руки (Ollama, **victoria-wisdom-v3.5**). Оба уровня активны. Актуальное состояние — docs/MASTER_REFERENCE.md (Wisdom Era Status).
 - **Дефибриллятор:** `scripts/host_recovery_listener.py` слушает порт 9099; при POST /recover запускает `scripts/system_auto_recovery.sh` (в т.ч. поднимает MLX). Запускать вручную: `nohup python3 scripts/host_recovery_listener.py &`
 - **Совет Директоров:** Последняя директива — 21.02 20:32; два дня тишины. Причина: застрявшие сессии дебатов (HAN, active), последняя запись ушла в обсуждение орфографии. Нужно: закрыть висящие strategy_sessions, запустить новый run_board_meeting.
 - **Проверка восстановления:** `./scripts/verify_full_recovery_readiness.sh`
@@ -24,14 +24,14 @@
 
 ## Ключевые файлы
 
-| Назначение | Путь |
-|------------|------|
-| Автовосстановление | `scripts/system_auto_recovery.sh` |
-| Проверка готовности к перезагрузке | `scripts/verify_full_recovery_readiness.sh` |
-| Слушатель восстановления (дефибриллятор) | `scripts/host_recovery_listener.py` |
-| Запуск MLX (мозг) | `scripts/start_mlx_api_server.sh` |
-| Совет экспертов | `knowledge_os/app/expert_council_discussion.py` |
-| Совет директоров / доска | `knowledge_os/app/strategic_board.py`, `knowledge_os/app/board_scheduler.py` |
+| Назначение                               | Путь                                                                         |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| Автовосстановление                       | `scripts/system_auto_recovery.sh`                                            |
+| Проверка готовности к перезагрузке       | `scripts/verify_full_recovery_readiness.sh`                                  |
+| Слушатель восстановления (дефибриллятор) | `scripts/host_recovery_listener.py`                                          |
+| Запуск MLX (мозг)                        | `scripts/start_mlx_api_server.sh`                                            |
+| Совет экспертов                          | `knowledge_os/app/expert_council_discussion.py`                              |
+| Совет директоров / доска                 | `knowledge_os/app/strategic_board.py`, `knowledge_os/app/board_scheduler.py` |
 
 ---
 

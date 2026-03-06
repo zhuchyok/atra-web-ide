@@ -353,7 +353,43 @@ def render_singularity_metrics():
             template="plotly_dark",
         )
         st.plotly_chart(fig, use_container_width=True)
-    else:
+
+    # П.4 пушка: виджет «ответил эксперт» vs fallback (из backend /metrics/summary)
+    backend_url = os.environ.get("ATRA_BACKEND_URL") or os.environ.get("BACKEND_URL")
+    if backend_url:
+        try:
+            import httpx
+
+            r = httpx.get(f"{backend_url.rstrip('/')}/metrics/summary", timeout=5.0)
+            if r.status_code == 200:
+                data = r.json()
+                expert_t = data.get("chat_expert_answer_total", 0)
+                fallback_t = data.get("chat_fallback_total", 0)
+                ratio = data.get("chat_fallback_ratio")
+                alert = data.get("alert_fallback_high", False)
+                if isinstance(expert_t, (int, float)) and isinstance(fallback_t, (int, float)):
+                    total_chat = expert_t + fallback_t
+                    pct_expert = (expert_t / total_chat * 100) if total_chat else 0
+                    st.markdown("---")
+                    st.markdown("**💬 Чат: ответил эксперт** (backend)")
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.metric("Через эксперта", int(expert_t), f"{pct_expert:.1f}%")
+                    with c2:
+                        st.metric(
+                            "Fallback",
+                            int(fallback_t),
+                            f"{(ratio or 0) * 100:.1f}%" if ratio is not None else "",
+                        )
+                    with c3:
+                        if alert:
+                            st.error("⚠️ Доля fallback > 30%")
+                        else:
+                            st.success("Доля fallback в норме")
+        except Exception:
+            pass
+
+    if not orch_stats:
         st.info("Метрики оркестрации V2 и A/B тестирования пока не накоплены.")
 
 

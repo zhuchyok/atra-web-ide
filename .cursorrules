@@ -1,7 +1,7 @@
 # ATRA Web IDE - Cursor Rules
 
 ## Проект
-ATRA Web IDE - браузерная оболочка для ИИ-корпорации Singularity 14.0
+ATRA Web IDE - браузерная оболочка для ИИ-корпорации Singularity 21.5 (Wisdom Era)
 
     # ПРАВИЛА ПРОЕКТА: ATRA Web IDE
     ## 👋 ВИКТОРИЯ И КОМАНДА
@@ -11,7 +11,7 @@ ATRA Web IDE - браузерная оболочка для ИИ-корпора�
 ## Библия проекта
 **«Библия»** — закреплённое понятие: это **связка документов** во главе с **`docs/MASTER_REFERENCE.md`**.
 
-**Правило Единого Источника:** В корпорации Singularity 14.0 используется глобальная Библия и .cursorrules.
+**Правило Единого Источника:** В корпорации Singularity 21.5 используется глобальная Библия и .cursorrules.
 1. Основной файл: `/Users/bikos/Documents/atra-web-ide/docs/MASTER_REFERENCE.md`
 2. Основные правила: `/Users/bikos/Documents/atra-web-ide/.cursorrules`
 3. В других проектах (`setki-21`, `atra`) эти файлы подключены через **символические ссылки**.
@@ -37,7 +37,7 @@ ATRA Web IDE - браузерная оболочка для ИИ-корпора�
 
 ## 🛡 СТАНДАРТЫ БЕЗОПАСНОСТИ (VICTORIA SPECIAL)
 - **Экранирование HTML:** Всегда использовать `escapeHtml` для любых данных, вставляемых в HTML-шаблоны или письма.
-- **Локальный интеллект:** Для задач аудита безопасности и сложной логики ПРИОРИТЕТНО использовать локальную модель `qwen3-coder:30b` (Ollama).
+- **Локальный интеллект:** Для задач аудита безопасности и сложной логики — та же модель **victoria-wisdom-v3.5** (мозг в MLX, руки в Ollama `victoria-wisdom-v3.5:latest`).
 - **Валидация:** Любая форма должна иметь визуальную индикацию ошибок (border-red-500) и текстовые подсказки.
 - **Телефоны:** Использовать единый регулярный выражений для российских форматов (поддержка +7 и кодов 3-4 знака).
 
@@ -63,7 +63,7 @@ ATRA Web IDE - браузерная оболочка для ИИ-корпора�
 - `src/` - Исходный код агентов (Victoria, Veronica)
 
 ## Компоненты
-- **Victoria** — один сервис `victoria-agent` на порту **8010** (Team Lead, ОБЩИЙ для всех проектов; запускается через knowledge_os/docker-compose.yml). Три уровня возможностей в одном процессе:
+- **Victoria** — один сервис `victoria-agent` на порту **8010** (Team Lead, ОБЩИЙ для всех проектов; модель **victoria-wisdom-v3.5** MLX/Ollama; запускается через knowledge_os/docker-compose.yml). Три уровня возможностей в одном процессе:
   - **Victoria Agent** — базовый: чат с LLM, ответы на запросы (всегда активен).
   - **Victoria Enhanced** — ReAct, Extended Thinking, Swarm, Consensus, оркестрация (USE_VICTORIA_ENHANCED=true).
   - **Victoria Initiative** — проактивность: Event Bus, File Watcher, Service Monitor, Skill Registry (ENABLE_EVENT_MONITORING=true).

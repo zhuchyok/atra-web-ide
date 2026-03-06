@@ -20,10 +20,24 @@ PORT = 9099
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class RecoveryHandler(BaseHTTPRequestHandler):
+    def _send_json(self, status: int, body: dict):
+        import json
+        self.send_response(status)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(body).encode())
+
+    def do_GET(self):
+        if self.path == '/recover' or self.path == '/':
+            self._send_json(200, {"status": "ok", "service": "recovery-listener", "port": PORT})
+            return
+        self.send_response(404)
+        self.end_headers()
+
     def do_POST(self):
         if self.path == '/recover':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length).decode('utf-8')
+            content_length = int(self.headers.get('Content-Length', 0) or 0)
+            post_data = self.rfile.read(content_length).decode('utf-8', errors='ignore') if content_length else ''
             logger.info(f"📥 Получен сигнал на восстановление: {post_data}")
 
             try:
@@ -34,15 +48,10 @@ class RecoveryHandler(BaseHTTPRequestHandler):
                 # Запускаем в фоне, чтобы не блокировать HTTP ответ
                 subprocess.Popen(["bash", script_path], start_new_session=True)
 
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(b'{"status": "recovery_initiated"}')
+                self._send_json(200, {"status": "recovery_initiated"})
             except Exception as e:
                 logger.error(f"❌ Ошибка при запуске восстановления: {e}")
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(str(e).encode())
+                self._send_json(500, {"status": "error", "message": str(e)})
         else:
             self.send_response(404)
             self.end_headers()

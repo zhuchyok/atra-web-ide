@@ -274,8 +274,10 @@ class OllamaClient:
 # В STRICT_LOCAL режиме принудительно use_cloud=False
 _use_cloud_default = False if _is_strict_local() else False  # Дефолт всегда False
 if _is_strict_local() and os.getenv("OLLAMA_API_KEY"):
-    logger.info("[STRICT_LOCAL] Ollama Cloud API заблокирован, используется только локальный Ollama")
-    
+    logger.info(
+        "[STRICT_LOCAL] Ollama Cloud API заблокирован, используется только локальный Ollama"
+    )
+
 ollama_client = OllamaClient(use_cloud=_use_cloud_default)
 
 

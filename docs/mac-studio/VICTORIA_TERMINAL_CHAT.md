@@ -7,8 +7,12 @@
 ## 🚀 Быстрый старт
 
 ```bash
-python3 scripts/victoria_chat.py
+bash scripts/chat_victoria.sh
+# или
+python3 scripts/victoria_chat_standalone.py
 ```
+
+Скрипт `chat_victoria.sh` запускает полнофункциональный чат (команды `/project`, `/health`, `/status`, авто-подключение к локальной или удалённой Victoria).
 
 ---
 
@@ -23,18 +27,21 @@ python3 scripts/victoria_chat.py
 ### Базовое использование
 
 ```bash
-# Запуск чата
-python3 scripts/victoria_chat.py
+# Запуск чата (рекомендуется)
+bash scripts/chat_victoria.sh
+
+# или напрямую
+python3 scripts/victoria_chat_standalone.py
 ```
 
 ### С переменными окружения
 
 ```bash
 # Использовать удаленную Victoria
-VICTORIA_REMOTE_URL=http://185.177.216.15:8010 python3 scripts/victoria_chat.py
+VICTORIA_REMOTE_URL=http://185.177.216.15:8010 bash scripts/chat_victoria.sh
 
-# Использовать локальную Victoria
-VICTORIA_URL=http://localhost:8010 python3 scripts/victoria_chat.py
+# Использовать локальную Victoria (по умолчанию)
+VICTORIA_URL=http://localhost:8010 bash scripts/chat_victoria.sh
 ```
 
 ---

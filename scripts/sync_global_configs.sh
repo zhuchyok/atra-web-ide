@@ -54,4 +54,8 @@ for project in "${PROJECTS[@]}"; do
     sync_file "${MAIN_PROJECT_PATH}/${CURSORRULES_REL_PATH}" "${project}" ".cursorrules"
 done
 
-echo "✨ Синхронизация завершена. Теперь все проекты используют единую Библию и правила!"
+# 2. Автоматическая индексация всех проектов в RAG
+echo "🧠 Запуск автоматического изучения проектов Викторией..."
+docker exec victoria-agent python3 knowledge_os/scripts/auto_index_all_projects.py
+
+echo "✨ Синхронизация и обучение завершены. Теперь все проекты используют единую Библию и Виктория знает о них всё!"

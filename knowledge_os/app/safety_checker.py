@@ -19,6 +19,7 @@ except ImportError:
     def is_strict_local():
         return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
 
+
 # Опасные паттерны в коде
 DANGEROUS_PATTERNS = [
     r"eval\s*\(",
@@ -121,7 +122,7 @@ class SafetyChecker:
                     f"is_safe={is_safe}, score={score:.2f}, warning={warning}"
                 )
             return False
-        
+
         # Обычный режим
         is_safe, warning, score = self.check_response(response, response_type)
 

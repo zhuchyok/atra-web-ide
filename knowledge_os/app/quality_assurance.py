@@ -138,14 +138,18 @@ class QualityAssurance:
                 # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local или reject
                 if is_strict_local():
                     recommendation = "retry_local"  # Попытка улучшить безопасность локально
-                    logger.warning("[STRICT_LOCAL] Safety issue, recommendation changed to retry_local")
+                    logger.warning(
+                        "[STRICT_LOCAL] Safety issue, recommendation changed to retry_local"
+                    )
                 else:
                     recommendation = "reroute_to_cloud"  # Критично - перенаправляем в облако
             elif overall < 0.5:
                 # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local
                 if is_strict_local():
                     recommendation = "retry_local"  # Попытка улучшить качество локально
-                    logger.warning("[STRICT_LOCAL] Low quality, recommendation changed to retry_local")
+                    logger.warning(
+                        "[STRICT_LOCAL] Low quality, recommendation changed to retry_local"
+                    )
                 else:
                     recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
             elif overall < self.min_quality_threshold:
@@ -278,7 +282,9 @@ class QualityAssurance:
                 # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local
                 if is_strict_local():
                     recommendation = "retry_local"  # Попытка улучшить качество локально
-                    logger.warning("[STRICT_LOCAL] Low quality, recommendation changed to retry_local")
+                    logger.warning(
+                        "[STRICT_LOCAL] Low quality, recommendation changed to retry_local"
+                    )
                 else:
                     recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
             elif overall < self.min_quality_threshold:

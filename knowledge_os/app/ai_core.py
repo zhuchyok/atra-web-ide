@@ -482,12 +482,12 @@ async def _run_cloud_agent_async(
                 )
                 return response
         except Exception as e:
-            logger.warning(
-                "⚠️ [LOCAL FIRST] Локальный роутер недоступен: %s", e
-            )
+            logger.warning("⚠️ [LOCAL FIRST] Локальный роутер недоступен: %s", e)
             # В STRICT_LOCAL режиме не переходим на cursor-agent
             if is_strict_local():
-                logger.error("[STRICT_LOCAL] Локальные модели недоступны, cursor-agent заблокирован")
+                logger.error(
+                    "[STRICT_LOCAL] Локальные модели недоступны, cursor-agent заблокирован"
+                )
                 logger.info("[GRACEFUL DEGRADATION] Попытка повторного вызова локальных моделей...")
                 # Ещё одна попытка retry с backoff (уже есть в _try_local, но это последний шанс)
                 try:
@@ -497,7 +497,7 @@ async def _run_cloud_agent_async(
                         return response
                 except Exception as retry_err:
                     logger.error(f"[STRICT_LOCAL] ❌ Повторный вызов также неудачен: {retry_err}")
-                
+
                 # Локальные модели недоступны даже после retry — возвращаем явную ошибку
                 return (
                     "⚠️ Локальные модели недоступны (STRICT_LOCAL). "
@@ -511,9 +511,10 @@ async def _run_cloud_agent_async(
         logger.warning("[STRICT_LOCAL] cursor-agent заблокирован, возвращаем ошибку")
         return (
             "⚠️ Локальные модели недоступны (STRICT_LOCAL). "
-            "cursor-agent заблокирован. Проверьте MLX/Ollama или отключите STRICT_LOCAL."
+            "cursor-agent заблокирован. Проверьте MLX (11435), Ollama (11434) и Recovery (9099): "
+            "curl -X POST http://localhost:9099/recover или отключите STRICT_LOCAL."
         )
-    
+
     try:
         env = os.environ.copy()
         agent_path = "cursor-agent"
@@ -709,17 +710,13 @@ async def _run_cloud_agent_async(
         return f"❌ Ошибка связи с облаком: {exc}"
 
 
-async def _get_knowledge_context(
-    query: str, project_context: Optional[str] = None
-) -> str:
+async def _get_knowledge_context(query: str, project_context: Optional[str] = None) -> str:
     """Retrieve relevant knowledge nodes (GraphRAG). If project_context set, project_files filtered by project."""
     return await _get_knowledge_context_impl(query, project_context)
 
 
 @profile_function("ai_core")
-async def _get_knowledge_context_impl(
-    query: str, project_context: Optional[str] = None
-) -> str:
+async def _get_knowledge_context_impl(query: str, project_context: Optional[str] = None) -> str:
     """Implementation of knowledge retrieval. project_context scopes project_files RAG to that project."""
     if get_traffic_mirror:
         tm = get_traffic_mirror()
@@ -887,7 +884,9 @@ async def run_smart_agent_async_impl(
     request_id = f"{expert_name}_{int(time.time())}"
     # Единый user_key/project_context: из аргумента, иначе MAIN_PROJECT (в т.ч. execute_assignments)
     user_key = session_id or "orchestrator"
-    project_context = (project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")).strip() or os.getenv("MAIN_PROJECT", "atra-web-ide")
+    project_context = (
+        project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")
+    ).strip() or os.getenv("MAIN_PROJECT", "atra-web-ide")
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
 
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
@@ -1563,27 +1562,37 @@ async def run_smart_agent_async_impl(
 
                     if recommendation == "reroute_to_cloud":
                         logger.warning("🔄 [QUALITY GATE] Rerouting to cloud due to low quality")
-                        
+
                         # В STRICT_LOCAL режиме не отдаём низкокачественный ответ
                         if is_strict_local():
                             logger.error("[STRICT_LOCAL] QA reroute_to_cloud заблокирован")
                             # Метрика
-                            strict_local_qa_skip_count = getattr(run_smart_agent_async, '_strict_local_qa_skip_count', 0)
-                            run_smart_agent_async._strict_local_qa_skip_count = strict_local_qa_skip_count + 1
-                            
+                            strict_local_qa_skip_count = getattr(
+                                run_smart_agent_async, "_strict_local_qa_skip_count", 0
+                            )
+                            run_smart_agent_async._strict_local_qa_skip_count = (
+                                strict_local_qa_skip_count + 1
+                            )
+
                             # Один retry с изменённым промптом для улучшения качества
-                            logger.info("[STRICT_LOCAL] Попытка retry локально с улучшенным промптом")
+                            logger.info(
+                                "[STRICT_LOCAL] Попытка retry локально с улучшенным промптом"
+                            )
                             improved_prompt = (
                                 "ВАЖНО: Улучши качество ответа — будь точнее, конкретнее, структурируй информацию. "
                                 "Избегай неточностей и общих фраз.\n\n" + worker_prompt
                             )
                             try:
-                                retry_resp = await router.run_local_llm(improved_prompt, category=category, is_vip=is_vip)
+                                retry_resp = await router.run_local_llm(
+                                    improved_prompt, category=category, is_vip=is_vip
+                                )
                                 if isinstance(retry_resp, tuple):
                                     retry_resp = retry_resp[0]
-                                
+
                                 if retry_resp and len(retry_resp) > 10:
-                                    logger.info("[STRICT_LOCAL] ✅ Retry с улучшенным промптом успешен")
+                                    logger.info(
+                                        "[STRICT_LOCAL] ✅ Retry с улучшенным промптом успешен"
+                                    )
                                     local_resp = retry_resp
                                 else:
                                     logger.error("[STRICT_LOCAL] ❌ Retry также низкого качества")
@@ -1594,9 +1603,7 @@ async def run_smart_agent_async_impl(
                                     )
                             except Exception as retry_err:
                                 logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
-                                local_resp = (
-                                    "⚠️ Локальный ответ не прошёл проверку качества. STRICT_LOCAL блокирует fallback."
-                                )
+                                local_resp = "⚠️ Локальный ответ не прошёл проверку качества. STRICT_LOCAL блокирует fallback."
                         else:
                             # Обычный режим — fallback на облако
                             local_resp = None  # Force cloud fallback
@@ -1624,14 +1631,18 @@ async def run_smart_agent_async_impl(
                             rerouted_to_cloud=True,
                             reroute_reason="safety_check_failed",
                         )
-                    
+
                     # В STRICT_LOCAL режиме не отдаём небезопасный ответ
                     if is_strict_local():
                         logger.error("[STRICT_LOCAL] Safety reroute_to_cloud заблокирован")
                         # Метрика
-                        strict_local_safety_skip_count = getattr(run_smart_agent_async, '_strict_local_safety_skip_count', 0)
-                        run_smart_agent_async._strict_local_safety_skip_count = strict_local_safety_skip_count + 1
-                        
+                        strict_local_safety_skip_count = getattr(
+                            run_smart_agent_async, "_strict_local_safety_skip_count", 0
+                        )
+                        run_smart_agent_async._strict_local_safety_skip_count = (
+                            strict_local_safety_skip_count + 1
+                        )
+
                         # Один retry с изменённым промптом для улучшения безопасности
                         logger.info("[STRICT_LOCAL] Попытка retry локально с безопасным промптом")
                         safe_prompt = (
@@ -1640,17 +1651,25 @@ async def run_smart_agent_async_impl(
                             + worker_prompt
                         )
                         try:
-                            retry_resp = await router.run_local_llm(safe_prompt, category=category, is_vip=is_vip)
+                            retry_resp = await router.run_local_llm(
+                                safe_prompt, category=category, is_vip=is_vip
+                            )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
-                            
+
                             # Проверяем retry на безопасность
                             if retry_resp and len(retry_resp) > 10:
-                                if not checker.should_reroute_to_cloud(retry_resp, response_type="code"):
-                                    logger.info("[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен")
+                                if not checker.should_reroute_to_cloud(
+                                    retry_resp, response_type="code"
+                                ):
+                                    logger.info(
+                                        "[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен"
+                                    )
                                     local_resp = retry_resp
                                 else:
-                                    logger.error("[STRICT_LOCAL] ❌ Retry также небезопасен, отклоняем")
+                                    logger.error(
+                                        "[STRICT_LOCAL] ❌ Retry также небезопасен, отклоняем"
+                                    )
                                     local_resp = (
                                         "⚠️ Локальный ответ не прошёл проверку безопасности. "
                                         "STRICT_LOCAL блокирует fallback на облако. Задача отклонена. "
@@ -2104,14 +2123,20 @@ async def run_smart_agent_async_impl(
                 local_resp, response_type="code" if category == "coding" else "text"
             ):
                 logger.warning("🛡️ [SAFETY CHECK] Local response failed, using cloud")
-                
+
                 # В STRICT_LOCAL режиме не отдаём небезопасный ответ
                 if is_strict_local():
-                    logger.error("[STRICT_LOCAL] Safety reroute_to_cloud заблокирован (direct local)")
+                    logger.error(
+                        "[STRICT_LOCAL] Safety reroute_to_cloud заблокирован (direct local)"
+                    )
                     # Метрика
-                    strict_local_safety_skip_count = getattr(run_smart_agent_async, '_strict_local_safety_skip_count', 0)
-                    run_smart_agent_async._strict_local_safety_skip_count = strict_local_safety_skip_count + 1
-                    
+                    strict_local_safety_skip_count = getattr(
+                        run_smart_agent_async, "_strict_local_safety_skip_count", 0
+                    )
+                    run_smart_agent_async._strict_local_safety_skip_count = (
+                        strict_local_safety_skip_count + 1
+                    )
+
                     # Один retry с безопасным промптом
                     logger.info("[STRICT_LOCAL] Попытка retry локально с безопасным промптом")
                     safe_prompt = (
@@ -2120,13 +2145,20 @@ async def run_smart_agent_async_impl(
                     )
                     try:
                         if router:
-                            retry_resp = await router.run_local_llm(safe_prompt, category=category, is_vip=is_vip)
+                            retry_resp = await router.run_local_llm(
+                                safe_prompt, category=category, is_vip=is_vip
+                            )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
-                            
+
                             if retry_resp and len(retry_resp) > 10:
-                                if not checker.should_reroute_to_cloud(retry_resp, response_type="code" if category == "coding" else "text"):
-                                    logger.info("[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен")
+                                if not checker.should_reroute_to_cloud(
+                                    retry_resp,
+                                    response_type="code" if category == "coding" else "text",
+                                ):
+                                    logger.info(
+                                        "[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен"
+                                    )
                                     local_resp = retry_resp
                                 else:
                                     logger.error("[STRICT_LOCAL] ❌ Retry также небезопасен")
@@ -2134,10 +2166,14 @@ async def run_smart_agent_async_impl(
                             else:
                                 local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. STRICT_LOCAL блокирует fallback."
                         else:
-                            local_resp = "⚠️ Локальный роутер недоступен. STRICT_LOCAL блокирует fallback."
+                            local_resp = (
+                                "⚠️ Локальный роутер недоступен. STRICT_LOCAL блокирует fallback."
+                            )
                     except Exception as retry_err:
                         logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
-                        local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
+                        local_resp = (
+                            "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
+                        )
                 else:
                     # Обычный режим — fallback на облако
                     local_resp = None

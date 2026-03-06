@@ -4,9 +4,10 @@ Provides semantic caching for AI agent responses using PostgreSQL vector storage
 """
 
 import asyncio
+import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 # Third-party imports with fallbacks
 try:
@@ -144,7 +145,7 @@ class SemanticAICache:
     Handles semantic caching of agent interactions using vector similarity.
     """
 
-    def __init__(self, db_url: str = None):
+    def __init__(self, db_url: Optional[str] = None):
         """Initialize cache. Uses DATABASE_URL (local DB on Mac Studio) so cache and dashboard share one DB."""
         primary = db_url or DATABASE_URL or DB_URL_PRIMARY
         self.db_url_remote = primary  # основной URL (локальная БД)
@@ -205,8 +206,24 @@ class SemanticAICache:
 
         # Fallback на старую логику (для обратной совместимости); ключ = хэш нормализованного текста
         try:
-            from cache_normalizer import normalize_and_hash as _rust_nh
+            # Попытка импорта из cache_normalizer (может быть в другом месте или отсутствовать)
+            # Используем Any для подавления ошибок типизации при динамическом импорте
+            _rust_nh: Any = None
+            try:
+                from cache_normalizer import normalize_and_hash as _rn  # type: ignore
 
+                _rust_nh = _rn
+            except ImportError:
+                # Попытка найти в текущем пакете или соседних
+                try:
+                    from .cache_normalizer import normalize_and_hash as _rn_local  # type: ignore
+
+                    _rust_nh = _rn_local
+                except ImportError:
+                    raise ImportError("cache_normalizer not found")
+
+            if _rust_nh is None:
+                raise ImportError("normalize_and_hash not found")
             text_hash = _rust_nh(text)
         except ImportError:
             import hashlib
@@ -253,10 +270,11 @@ class SemanticAICache:
             )
 
             if not rows:
-                await conn.close()
+                if conn:
+                    await conn.close()
                 return None
 
-            result = {
+            result: dict[str, Any] = {
                 "knowledge_node_ids": [],
                 "related_queries": [r["query_text"] for r in rows[1:]],
                 "top_similarity": rows[0]["similarity"],
@@ -334,7 +352,7 @@ class SemanticAICache:
         except Exception:
             pass
 
-    async def get_cached_response(self, query: str, expert_name: str) -> str:
+    async def get_cached_response(self, query: str, expert_name: str) -> Optional[str]:
         """Try to find a similar query in the semantic cache."""
         # Определяем, является ли это стратегическим вопросом
         is_strategic = any(keyword in query.lower() for keyword in STRATEGIC_KEYWORDS)
@@ -426,11 +444,11 @@ class SemanticAICache:
         query: str,
         response: str,
         expert_name: str,
-        routing_source: str = None,
-        performance_score: float = None,
+        routing_source: Optional[str] = None,
+        performance_score: Optional[float] = None,
         tokens_saved: int = 0,
         priority: str = "medium",
-        ttl_seconds: int = None,
+        ttl_seconds: Optional[int] = None,
     ):
         """Save a new interaction to the semantic cache with routing metrics."""
         embedding = await get_embedding(query)

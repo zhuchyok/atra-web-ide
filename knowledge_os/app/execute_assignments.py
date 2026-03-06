@@ -188,6 +188,7 @@ async def execute_assignments_async(
                                     subtask_desc,
                                     expert_name=expert_name,
                                     category="orchestrator_assignment",
+                                    project_context=project_context,
                                 ),
                                 timeout=timeout_per_expert,
                             )

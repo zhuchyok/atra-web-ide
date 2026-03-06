@@ -2,9 +2,10 @@
 Skill Mapper — автоматический маппинг типа задачи на соответствующий скилл.
 Реализует "жёсткую дисциплину скиллов" как в Cursor assistant.
 """
-import re
-from typing import Optional, List, Dict
+
 import logging
+import re
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -81,23 +82,23 @@ SKILL_PATTERNS = {
 
 class SkillMapper:
     """Определяет, какой скилл нужен для задачи."""
-    
+
     def __init__(self):
         self.patterns = SKILL_PATTERNS
-        
+
     def classify_task(self, goal: str) -> Optional[Dict[str, str]]:
         """
         Классифицирует задачу и возвращает соответствующий скилл.
-        
+
         Args:
             goal: текст задачи
-            
+
         Returns:
             {"skill": "brainstorming", "path": "...", "description": "..."}
             или None если скилл не нужен
         """
         goal_lower = goal.lower()
-        
+
         # Проверяем каждый тип скилла
         for skill_type, config in self.patterns.items():
             for pattern in config["patterns"]:
@@ -110,7 +111,7 @@ class SkillMapper:
                         "path": config["skill_path"],
                         "description": config["description"],
                     }
-                    
+
         # Дополнительная эвристика: если упоминается "new" + существительное
         if re.search(r"\bnew\s+\w+(ion|ent|ure|ity)\b", goal_lower):
             logger.info("[SKILL_MAPPER] Эвристика: 'new + noun' → brainstorming")
@@ -119,26 +120,26 @@ class SkillMapper:
                 "path": self.patterns["brainstorming"]["skill_path"],
                 "description": self.patterns["brainstorming"]["description"],
             }
-            
+
         return None
-        
+
     def should_invoke_skill(self, goal: str, force: bool = False) -> bool:
         """
         Правило "1% шанс = вызывать скилл".
-        
+
         Args:
             goal: текст задачи
             force: принудительный вызов (для тестов)
-            
+
         Returns:
             True если нужно вызвать скилл
         """
         if force:
             return True
-            
+
         skill_info = self.classify_task(goal)
         return skill_info is not None
-        
+
     def get_skill_instructions(self, skill_type: str) -> str:
         """
         Возвращает краткие инструкции для скилла.

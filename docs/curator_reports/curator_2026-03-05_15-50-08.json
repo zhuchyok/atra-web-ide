@@ -1,0 +1,48 @@
+{
+  "ts": "2026-03-05T15:50:35.119252+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "e1333c8e-f2d8-43a3-b27b-33cc389e3e95",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 1.35
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ec6adf3c-3654-4734-841b-b5bac2ce2a3b",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "Какой именно проект вас интересует?",
+          "Какой аспект статуса вам нужен (срок, бюджет, прогресс, риски)?",
+          "Нужен общий обзор или детализация по конкретным задачам?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Неясно, о каком проекте идет речь",
+        "confidence": 0.9,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 25.11
+    }
+  ]
+}

@@ -705,6 +705,13 @@ class ReActAgent:
                     action = action_data.get("action")
                     action_input = action_data.get("input", {})
 
+                    # [SINGULARITY 21.8] Модель может вернуть action "answer" с input.text вместо finish с output
+                    if action == "answer":
+                        text = (action_input or {}) if isinstance(action_input, dict) else {}
+                        out = (text.get("text") or "").strip()
+                        logger.info("✅ Парсинг действия: answer → finish с output из input.text")
+                        return "finish", {"output": out or "(пустой ответ)"}
+
                     if action and action in available_tools:
                         logger.info(f"✅ Парсинг действия (улучшенный баланс): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
@@ -750,6 +757,12 @@ class ReActAgent:
                     action = action_data.get("action", "finish")
                     action_input = action_data.get("input", {})
 
+                    if action == "answer":
+                        text = (action_input or {}) if isinstance(action_input, dict) else {}
+                        out = (text.get("text") or "").strip()
+                        logger.info("✅ Парсинг действия: answer → finish с output из input.text")
+                        return "finish", {"output": out or "(пустой ответ)"}
+
                     if action in available_tools:
                         logger.info(f"✅ Парсинг действия (полный JSON): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
@@ -760,6 +773,22 @@ class ReActAgent:
         action_match = re.search(r'"action"\s*:\s*"([^"]+)"', response_clean)
         if action_match:
             action = action_match.group(1)
+            if action == "answer":
+                input_match = re.search(r'"input"\s*:\s*(\{.*?\})', response_clean, re.DOTALL)
+                if input_match:
+                    try:
+                        action_input = json.loads(input_match.group(1))
+                        out = (
+                            (action_input or {}).get("text", "")
+                            if isinstance(action_input, dict)
+                            else ""
+                        )
+                        logger.info(
+                            "✅ Парсинг действия (fallback): answer → finish с output из input.text"
+                        )
+                        return "finish", {"output": (out or "").strip() or "(пустой ответ)"}
+                    except Exception:
+                        pass
             if action in available_tools:
                 # Пытаемся найти input рядом
                 input_match = re.search(r'"input"\s*:\s*(\{.*?\})', response_clean, re.DOTALL)
@@ -768,13 +797,27 @@ class ReActAgent:
                         action_input = json.loads(input_match.group(1))
                         logger.info(f"✅ Парсинг действия (простой fallback): {action}")
                         return action, action_input if isinstance(action_input, dict) else {}
-                    except:
+                    except Exception:
                         pass
                 return action, {}
 
         # По умолчанию - finish
         if "finish" in response_clean.lower() or "final answer" in response_clean.lower():
             return "finish", {"output": response_clean}
+
+        # [SINGULARITY 21.8] Последняя попытка: извлечь "answer" с input.text по шаблону
+        try:
+            input_match = re.search(
+                r'"input"\s*:\s*\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                response_clean,
+                re.DOTALL,
+            )
+            if input_match and '"action"' in response_clean and '"answer"' in response_clean:
+                text = input_match.group(1).encode("utf-8").decode("unicode_escape")
+                logger.info("✅ Парсинг действия (regex): answer → finish с output из input.text")
+                return "finish", {"output": (text or "").strip() or "(пустой ответ)"}
+        except Exception:
+            pass
 
         logger.warning(f"⚠️ Не удалось распарсить действие из ответа: {response_clean[:200]}...")
         return "finish", {"output": f"Ошибка парсинга ответа модели. Ответ: {response_clean[:500]}"}

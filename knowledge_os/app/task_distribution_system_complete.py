@@ -275,8 +275,11 @@ class TaskDistributionSystem:
                 }
             ]
 
-    async def execute_task_assignment(self, assignment: TaskAssignment) -> TaskAssignment:
-        """Выполнить назначенную задачу"""
+    async def execute_task_assignment(
+        self, assignment: TaskAssignment, project_context: Optional[str] = None
+    ) -> TaskAssignment:
+        """Выполнить назначенную задачу. project_context передаётся в RAG и промпт (аудит setki-21)."""
+        self._project_context = project_context
         try:
             # Получаем эксперта из БД
             expert = await self._get_expert_by_name(assignment.employee_name)
@@ -296,7 +299,10 @@ class TaskDistributionSystem:
                     f"📋 [TASK] Выполняю подзадачу: эксперт={expert['name']}, рекомендуемая модель/категория={category}"
                 )
             result = await run_smart_agent_async(
-                prompt=assignment.subtask, expert_name=expert["name"], category=category
+                prompt=assignment.subtask,
+                expert_name=expert["name"],
+                category=category,
+                project_context=project_context,
             )
 
             assignment.status = TaskStatus.COMPLETED
@@ -445,7 +451,10 @@ class TaskDistributionSystem:
             from app.ai_core import run_smart_agent_async
 
             synthesis_result = await run_smart_agent_async(
-                prompt=synthesis_prompt, expert_name=dept_head["name"], category=None
+                prompt=synthesis_prompt,
+                expert_name=dept_head["name"],
+                category=None,
+                project_context=getattr(self, "_project_context", None),
             )
 
             aggregated = (

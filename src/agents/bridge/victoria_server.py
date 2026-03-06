@@ -2426,8 +2426,8 @@ def _extract_execution_plan(response_text: str) -> Optional[List[Dict[str, Any]]
     Возвращает список шагов в формате:
     [{"action": "read_file", "path": "...", "description": "..."}, ...]
     """
-    import re
     import json
+    import re
 
     # 1. Попытка парсинга JSON-блока
     json_match = re.search(r"```json\s*(\[.*?\])\s*```", response_text, re.DOTALL)
@@ -2442,40 +2442,40 @@ def _extract_execution_plan(response_text: str) -> Optional[List[Dict[str, Any]]
     # 2. Парсинг markdown-списка
     # Ищем секцию "Execution Plan:" или "Plan:" с последующим списком
     plan_section = re.search(
-        r"\*\*Execution Plan:\*\*|Plan:|Execution Plan:",
-        response_text,
-        re.IGNORECASE
+        r"\*\*Execution Plan:\*\*|Plan:|Execution Plan:", response_text, re.IGNORECASE
     )
     if not plan_section:
         return None
 
     # Парсим список после секции
-    lines = response_text[plan_section.end():].split("\n")
+    lines = response_text[plan_section.end() :].split("\n")
     steps = []
     for line in lines:
         line = line.strip()
         if not line.startswith("-") and not line.startswith("*"):
             continue
         line = line.lstrip("- *").strip()
-        
+
         # Форматы: "read_file: path", "edit: path (description)", "run: command"
         if ": " in line:
             action, rest = line.split(": ", 1)
             action = action.strip().lower()
-            
+
             # Извлечь path и description
             path = rest.strip()
             description = ""
             if " (" in path and path.endswith(")"):
                 path, description = path.rsplit(" (", 1)
                 description = description.rstrip(")")
-            
-            steps.append({
-                "action": action,
-                "path": path if action in ("read_file", "edit") else None,
-                "command": path if action == "run" else None,
-                "description": description
-            })
+
+            steps.append(
+                {
+                    "action": action,
+                    "path": path if action in ("read_file", "edit") else None,
+                    "command": path if action == "run" else None,
+                    "description": description,
+                }
+            )
 
     return steps if steps else None
 
@@ -2487,20 +2487,20 @@ def _format_ide_context(request: TaskRequest) -> str:
     """
     if not any([request.open_files, request.git_status, request.cursor_rules]):
         return ""
-    
+
     parts = []
     parts.append("\n📋 IDE CONTEXT (как в Cursor):")
     parts.append("=" * 60)
-    
+
     # 1. Workspace path
     if request.workspace_path:
         parts.append(f"\n🗂️ Workspace: {request.workspace_path}")
-    
+
     # 2. Git status
     if request.git_status:
         parts.append("\n📊 Git Status:")
         parts.append(request.git_status.strip())
-    
+
     # 3. Open files
     if request.open_files:
         parts.append(f"\n📂 Open Files ({len(request.open_files)}):")
@@ -2508,11 +2508,11 @@ def _format_ide_context(request: TaskRequest) -> str:
             path = file_info.get("path", "unknown")
             cursor_line = file_info.get("cursor_line")
             content = file_info.get("content", "")
-            
+
             parts.append(f"\n  {i}. {path}")
             if cursor_line:
                 parts.append(f"     Cursor at line {cursor_line}")
-            
+
             # Показываем первые 10 строк или около cursor_line
             if content:
                 lines = content.split("\n")
@@ -2520,28 +2520,28 @@ def _format_ide_context(request: TaskRequest) -> str:
                     start = max(0, cursor_line - 5)
                     end = min(len(lines), cursor_line + 5)
                     snippet = "\n".join(lines[start:end])
-                    parts.append(f"     Lines {start+1}-{end}:")
+                    parts.append(f"     Lines {start + 1}-{end}:")
                 else:
                     snippet = "\n".join(lines[:10])
-                    parts.append(f"     First 10 lines:")
-                
+                    parts.append("     First 10 lines:")
+
                 # Добавляем отступ для сниппета
                 indented = "\n".join(f"       {line}" for line in snippet.split("\n"))
                 parts.append(indented)
-        
+
         if len(request.open_files) > 5:
             parts.append(f"\n  ... и ещё {len(request.open_files) - 5} файл(ов)")
-    
+
     # 4. Cursor rules (применимые эксперты)
     if request.cursor_rules:
         parts.append(f"\n👥 Applicable Rules/Experts ({len(request.cursor_rules)}):")
         for rule in request.cursor_rules:
             parts.append(f"  • {rule}")
-    
+
     parts.append("\n" + "=" * 60)
     parts.append("Используй этот контекст для понимания текущего состояния проекта.")
     parts.append("")
-    
+
     return "\n".join(parts)
 
 
@@ -4316,10 +4316,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     f"[SKILL_DISCIPLINE] Обнаружен скилл '{skill_info['skill']}': {skill_info['description']}"
                 )
                 # Добавляем инструкции скилла в начало goal
-                instructions = mapper.get_skill_instructions(skill_info['skill'])
+                instructions = mapper.get_skill_instructions(skill_info["skill"])
                 if instructions:
                     skill_context = f"""
-🎯 ПРИМЕНЯЕТСЯ СКИЛЛ: {skill_info['skill'].upper()}
+🎯 ПРИМЕНЯЕТСЯ СКИЛЛ: {skill_info["skill"].upper()}
 
 {instructions}
 
@@ -4328,7 +4328,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
 ---
 ЗАДАЧА:
 """
-                    logger.debug(f"[SKILL_DISCIPLINE] Добавлен контекст скилла в goal")
+                    logger.debug("[SKILL_DISCIPLINE] Добавлен контекст скилла в goal")
         except Exception as e:
             logger.warning(f"[SKILL_DISCIPLINE] Ошибка при определении скилла: {e}")
 
@@ -4338,7 +4338,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
         if skill_context:
             enriched_goal = skill_context + body.goal
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Применяется скилл', 'content': skill_info['description']})}\n\n"
-        
+
         # ✅ B.3: IDE Context (как в Cursor)
         ide_context = _format_ide_context(body)
         if ide_context:
@@ -4349,7 +4349,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
             if body.git_status:
                 context_summary += " | Git status included"
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'IDE Context', 'content': context_summary})}\n\n"
-        
+
         emotion_data = {"emotion": "calm", "confidence": 1.0}
         if EMOTION_DETECTOR_AVAILABLE and EmotionDetector:
             try:
@@ -5231,7 +5231,7 @@ async def orchestrate_task(request: TaskRequest):
         logger.info("🎯 Получена задача для оркестрации: %s", request.goal[:80])
         agent.memory = []
         result = await agent.orchestrate_task(request.goal)
-        
+
         # Извлечение execution_plan, если запрошено
         execution_plan = None
         if request.return_execution_plan:
@@ -5241,12 +5241,12 @@ async def orchestrate_task(request: TaskRequest):
                 logger.info("✅ Извлечён execution_plan (%d шагов)", len(execution_plan))
             else:
                 logger.debug("⚠️ execution_plan не найден в ответе модели")
-        
+
         return TaskResponse(
             status="success",
             output=result,
             knowledge=agent.project_knowledge,
-            execution_plan=execution_plan
+            execution_plan=execution_plan,
         )
     except Exception as e:
         logger.exception("Ошибка оркестрации задачи")
@@ -5255,6 +5255,7 @@ async def orchestrate_task(request: TaskRequest):
 
 class BatchReadRequest(BaseModel):
     """Запрос параллельного чтения файлов."""
+
     file_paths: List[str]  # Список путей к файлам
     workspace_path: Optional[str] = "/Users/bikos/Documents/atra-web-ide"
     max_concurrent: Optional[int] = 10
@@ -5263,6 +5264,7 @@ class BatchReadRequest(BaseModel):
 
 class BatchGrepRequest(BaseModel):
     """Запрос параллельного поиска в файлах."""
+
     pattern: str  # Регулярное выражение
     file_paths: List[str]
     workspace_path: Optional[str] = "/Users/bikos/Documents/atra-web-ide"
@@ -5280,16 +5282,16 @@ async def batch_read_endpoint(request: BatchReadRequest):
         # Импортируем batch_read функцию
         sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
         from batch_read import batch_read_files
-        
+
         results = await batch_read_files(
             file_paths=request.file_paths,
             workspace_path=request.workspace_path,
             max_concurrent=request.max_concurrent,
             max_file_size_mb=request.max_file_size_mb,
         )
-        
+
         success_count = sum(1 for r in results if r["status"] == "success")
-        
+
         return {
             "status": "success",
             "results": results,
@@ -5297,7 +5299,7 @@ async def batch_read_endpoint(request: BatchReadRequest):
                 "total": len(results),
                 "success": success_count,
                 "errors": len(results) - success_count,
-            }
+            },
         }
     except Exception as e:
         logger.exception("Ошибка batch_read")
@@ -5313,7 +5315,7 @@ async def batch_grep_endpoint(request: BatchGrepRequest):
     try:
         sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
         from batch_read import batch_grep_files
-        
+
         results = await batch_grep_files(
             pattern=request.pattern,
             file_paths=request.file_paths,
@@ -5321,10 +5323,10 @@ async def batch_grep_endpoint(request: BatchGrepRequest):
             case_sensitive=request.case_sensitive,
             max_concurrent=request.max_concurrent,
         )
-        
+
         total_matches = sum(r["match_count"] for r in results)
         files_with_matches = sum(1 for r in results if r["match_count"] > 0)
-        
+
         return {
             "status": "success",
             "results": results,
@@ -5332,7 +5334,7 @@ async def batch_grep_endpoint(request: BatchGrepRequest):
                 "total_files": len(results),
                 "files_with_matches": files_with_matches,
                 "total_matches": total_matches,
-            }
+            },
         }
     except Exception as e:
         logger.exception("Ошибка batch_grep")
