@@ -5,10 +5,19 @@ Singularity 5.0: Predictive & Adaptive Intelligence
 """
 
 import logging
+import os
 import re
 from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Environment flags
+try:
+    from env_flags import is_strict_local  # type: ignore
+except ImportError:
+    # Fallback если модуль не найден
+    def is_strict_local():
+        return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
 
 # Опасные паттерны в коде
 DANGEROUS_PATTERNS = [
@@ -101,7 +110,19 @@ class SafetyChecker:
     def should_reroute_to_cloud(self, response: str, response_type: str = "code") -> bool:
         """
         Определяет, нужно ли перенаправить ответ в облако для перегенерации.
+        В STRICT_LOCAL режиме всегда возвращает False (никогда не перенаправлять в облако).
         """
+        # В STRICT_LOCAL режиме никогда не перенаправляем в облако
+        if is_strict_local():
+            is_safe, warning, score = self.check_response(response, response_type)
+            if not is_safe or score < 0.6:
+                logger.warning(
+                    f"[STRICT_LOCAL] Safety/quality issue detected but cloud reroute disabled: "
+                    f"is_safe={is_safe}, score={score:.2f}, warning={warning}"
+                )
+            return False
+        
+        # Обычный режим
         is_safe, warning, score = self.check_response(response, response_type)
 
         # Перенаправляем в облако если:

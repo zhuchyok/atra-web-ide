@@ -29,6 +29,14 @@ try:
 except ImportError:
     SemanticAICache = None  # type: ignore
 
+# Environment flags
+try:
+    from env_flags import is_strict_local  # type: ignore
+except ImportError:
+    # Fallback если модуль не найден
+    def is_strict_local():
+        return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
+
     async def get_embedding(text: str) -> Optional[List[float]]:
         return None
 
@@ -475,10 +483,37 @@ async def _run_cloud_agent_async(
                 return response
         except Exception as e:
             logger.warning(
-                "⚠️ [LOCAL FIRST] Локальный роутер недоступен: %s, пробуем cursor-agent", e
+                "⚠️ [LOCAL FIRST] Локальный роутер недоступен: %s", e
             )
+            # В STRICT_LOCAL режиме не переходим на cursor-agent
+            if is_strict_local():
+                logger.error("[STRICT_LOCAL] Локальные модели недоступны, cursor-agent заблокирован")
+                logger.info("[GRACEFUL DEGRADATION] Попытка повторного вызова локальных моделей...")
+                # Ещё одна попытка retry с backoff (уже есть в _try_local, но это последний шанс)
+                try:
+                    response = await _retry_llm_with_backoff(_try_local)
+                    if response and len(str(response)) > 10:
+                        logger.info("[STRICT_LOCAL] ✅ Повторный вызов локальных моделей успешен")
+                        return response
+                except Exception as retry_err:
+                    logger.error(f"[STRICT_LOCAL] ❌ Повторный вызов также неудачен: {retry_err}")
+                
+                # Локальные модели недоступны даже после retry — возвращаем явную ошибку
+                return (
+                    "⚠️ Локальные модели недоступны (STRICT_LOCAL). "
+                    "Проверьте MLX (11435), Ollama (11434) и Recovery Listener (9099). "
+                    "Для восстановления выполните: curl -s -X POST http://localhost:9099/recover"
+                )
 
     # ПРИОРИТЕТ 2: cursor-agent (облако) — только если локальные модели недоступны
+    # В STRICT_LOCAL режиме cursor-agent заблокирован
+    if is_strict_local():
+        logger.warning("[STRICT_LOCAL] cursor-agent заблокирован, возвращаем ошибку")
+        return (
+            "⚠️ Локальные модели недоступны (STRICT_LOCAL). "
+            "cursor-agent заблокирован. Проверьте MLX/Ollama или отключите STRICT_LOCAL."
+        )
+    
     try:
         env = os.environ.copy()
         agent_path = "cursor-agent"
@@ -674,14 +709,18 @@ async def _run_cloud_agent_async(
         return f"❌ Ошибка связи с облаком: {exc}"
 
 
-async def _get_knowledge_context(query: str) -> str:
-    """Retrieve relevant knowledge nodes (GraphRAG) - знания корпорации + AI Research (Singularity 14.0)."""
-    return await _get_knowledge_context_impl(query)
+async def _get_knowledge_context(
+    query: str, project_context: Optional[str] = None
+) -> str:
+    """Retrieve relevant knowledge nodes (GraphRAG). If project_context set, project_files filtered by project."""
+    return await _get_knowledge_context_impl(query, project_context)
 
 
 @profile_function("ai_core")
-async def _get_knowledge_context_impl(query: str) -> str:
-    """Implementation of knowledge retrieval."""
+async def _get_knowledge_context_impl(
+    query: str, project_context: Optional[str] = None
+) -> str:
+    """Implementation of knowledge retrieval. project_context scopes project_files RAG to that project."""
     if get_traffic_mirror:
         tm = get_traffic_mirror()
         await tm.mirror_request("ai_core", "_get_knowledge_context", query)
@@ -706,36 +745,70 @@ async def _get_knowledge_context_impl(query: str) -> str:
         if not pool:
             return ""
 
-        async with pool.acquire() as conn:
-            # Поиск по трем направлениям: корпоративные знания, AI Research и логи обучения
-            rows = await conn.fetch(
-                """
-                SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                FROM knowledge_nodes
-                WHERE embedding IS NOT NULL
+        pc = (project_context or "").strip()
+        if pc:
+            project_cond = """
                 AND (
                     domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
                     OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
                     OR metadata->>'source' = 'external_docs_indexer'
                     OR source_ref = 'autonomous_worker'
+                    OR ( (domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1) OR metadata->>'source' = 'indexing_daemon')
+                         AND (metadata->>'project_slug' = $2 OR metadata->>'file_path' LIKE '%' || $2 || '%') )
                 )
-                AND confidence_score >= 0.3
-                ORDER BY similarity DESC LIMIT 8
-            """,
-                str(embedding),
-            )
+            """
+        else:
+            project_cond = """
+                AND (
+                    domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
+                    OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
+                    OR domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1)
+                    OR metadata->>'source' = 'external_docs_indexer'
+                    OR metadata->>'source' = 'indexing_daemon'
+                    OR source_ref = 'autonomous_worker'
+                )
+            """
+
+        async with pool.acquire() as conn:
+            if pc:
+                rows = await conn.fetch(
+                    """
+                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                    """
+                    + project_cond
+                    + """
+                    ORDER BY similarity DESC LIMIT 8
+                    """,
+                    str(embedding),
+                    pc,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                    """
+                    + project_cond
+                    + """
+                    ORDER BY similarity DESC LIMIT 8
+                    """,
+                    str(embedding),
+                )
 
             if not rows:
                 return ""
 
             context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
             for row in rows:
-                if row["similarity"] >= 0.55:  # Понизили порог для лучшего охвата AI Research
+                if row["similarity"] >= 0.55:
                     meta = row["metadata"] or {}
                     if isinstance(meta, str):
                         try:
                             meta = json.loads(meta)
-                        except:
+                        except Exception:
                             meta = {}
 
                     source = meta.get("source", "unknown")
@@ -743,6 +816,8 @@ async def _get_knowledge_context_impl(query: str) -> str:
 
                     if source == "external_docs_indexer":
                         context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                    elif source == "indexing_daemon":
+                        context += f"\n[PROJECT FILE: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
                     elif meta.get("type") == "corporate_system":
                         context += (
                             f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
@@ -767,11 +842,12 @@ async def run_smart_agent_async(
     session_id: Optional[str] = None,
     local_router=None,
     is_vip: bool = False,
+    project_context: Optional[str] = None,
 ):
     """
     Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 14.0).
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
-    Critial tasks are cross-verified by lfm2.5-thinking.
+    project_context: scopes RAG and prompt to that project (e.g. setki-21).
     """
     return await run_smart_agent_async_impl(
         prompt,
@@ -783,6 +859,7 @@ async def run_smart_agent_async(
         session_id,
         local_router,
         is_vip,
+        project_context,
     )
 
 
@@ -797,6 +874,7 @@ async def run_smart_agent_async_impl(
     session_id: Optional[str] = None,
     local_router=None,
     is_vip: bool = False,
+    project_context: Optional[str] = None,
 ):
     start_time = time.time()
 
@@ -807,9 +885,9 @@ async def run_smart_agent_async_impl(
             prompt = f"### [SYSTEM: ENFORCED REASONING MODE]\nРЕШИ ЗАДАЧУ ПОШАГОВО (Chain-of-Thought).\n\n{prompt}"
 
     request_id = f"{expert_name}_{int(time.time())}"
-    # Единый user_key/project_context для всех путей (в т.ч. вызов из execute_assignments без session_id)
+    # Единый user_key/project_context: из аргумента, иначе MAIN_PROJECT (в т.ч. execute_assignments)
     user_key = session_id or "orchestrator"
-    project_context = os.getenv("MAIN_PROJECT", "atra-web-ide")
+    project_context = (project_context or os.getenv("MAIN_PROJECT", "atra-web-ide")).strip() or os.getenv("MAIN_PROJECT", "atra-web-ide")
     user_part = prompt.split("Запрос:")[-1].strip() if "Запрос:" in prompt else prompt
 
     # [SINGULARITY 20.0] Wisdom Injection: Meta-Strategies from Knowledge Base
@@ -974,14 +1052,14 @@ async def run_smart_agent_async_impl(
 
     # [SINGULARITY 10.0+] Параллельная проверка кэша, роутинга и контекста
     async def get_cache_and_context():
-        # Запускаем параллельно: проверку кэша и получение контекста знаний
+        # Запускаем параллельно: проверку кэша и получение контекста знаний (RAG с учётом project_context)
         tasks = []
         if cache and not images:
             tasks.append(cache.get_cached_response(user_part, expert_name))
         else:
             tasks.append(asyncio.sleep(0, result=None))
 
-        tasks.append(_get_knowledge_context(user_part))
+        tasks.append(_get_knowledge_context(user_part, project_context))
 
         return await asyncio.gather(*tasks)
 
@@ -1485,7 +1563,43 @@ async def run_smart_agent_async_impl(
 
                     if recommendation == "reroute_to_cloud":
                         logger.warning("🔄 [QUALITY GATE] Rerouting to cloud due to low quality")
-                        local_resp = None  # Force cloud fallback
+                        
+                        # В STRICT_LOCAL режиме не отдаём низкокачественный ответ
+                        if is_strict_local():
+                            logger.error("[STRICT_LOCAL] QA reroute_to_cloud заблокирован")
+                            # Метрика
+                            strict_local_qa_skip_count = getattr(run_smart_agent_async, '_strict_local_qa_skip_count', 0)
+                            run_smart_agent_async._strict_local_qa_skip_count = strict_local_qa_skip_count + 1
+                            
+                            # Один retry с изменённым промптом для улучшения качества
+                            logger.info("[STRICT_LOCAL] Попытка retry локально с улучшенным промптом")
+                            improved_prompt = (
+                                "ВАЖНО: Улучши качество ответа — будь точнее, конкретнее, структурируй информацию. "
+                                "Избегай неточностей и общих фраз.\n\n" + worker_prompt
+                            )
+                            try:
+                                retry_resp = await router.run_local_llm(improved_prompt, category=category, is_vip=is_vip)
+                                if isinstance(retry_resp, tuple):
+                                    retry_resp = retry_resp[0]
+                                
+                                if retry_resp and len(retry_resp) > 10:
+                                    logger.info("[STRICT_LOCAL] ✅ Retry с улучшенным промптом успешен")
+                                    local_resp = retry_resp
+                                else:
+                                    logger.error("[STRICT_LOCAL] ❌ Retry также низкого качества")
+                                    local_resp = (
+                                        "⚠️ Локальный ответ не прошёл проверку качества (QA score < порог). "
+                                        "STRICT_LOCAL блокирует fallback на облако. "
+                                        "Для сложных задач отключите STRICT_LOCAL или переформулируйте запрос."
+                                    )
+                            except Exception as retry_err:
+                                logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
+                                local_resp = (
+                                    "⚠️ Локальный ответ не прошёл проверку качества. STRICT_LOCAL блокирует fallback."
+                                )
+                        else:
+                            # Обычный режим — fallback на облако
+                            local_resp = None  # Force cloud fallback
                     elif recommendation == "retry_local":
                         logger.info("🔄 [QUALITY GATE] Retrying with local model...")
                         # Можно попробовать еще раз с другим промптом
@@ -1510,8 +1624,47 @@ async def run_smart_agent_async_impl(
                             rerouted_to_cloud=True,
                             reroute_reason="safety_check_failed",
                         )
-
-                    local_resp = None  # Force cloud fallback
+                    
+                    # В STRICT_LOCAL режиме не отдаём небезопасный ответ
+                    if is_strict_local():
+                        logger.error("[STRICT_LOCAL] Safety reroute_to_cloud заблокирован")
+                        # Метрика
+                        strict_local_safety_skip_count = getattr(run_smart_agent_async, '_strict_local_safety_skip_count', 0)
+                        run_smart_agent_async._strict_local_safety_skip_count = strict_local_safety_skip_count + 1
+                        
+                        # Один retry с изменённым промптом для улучшения безопасности
+                        logger.info("[STRICT_LOCAL] Попытка retry локально с безопасным промптом")
+                        safe_prompt = (
+                            "СТРОГО: не используй hardcoded secrets, SQL injection, command injection. "
+                            "Генерируй только безопасный код. Используй параметризованные запросы и проверку ввода.\n\n"
+                            + worker_prompt
+                        )
+                        try:
+                            retry_resp = await router.run_local_llm(safe_prompt, category=category, is_vip=is_vip)
+                            if isinstance(retry_resp, tuple):
+                                retry_resp = retry_resp[0]
+                            
+                            # Проверяем retry на безопасность
+                            if retry_resp and len(retry_resp) > 10:
+                                if not checker.should_reroute_to_cloud(retry_resp, response_type="code"):
+                                    logger.info("[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен")
+                                    local_resp = retry_resp
+                                else:
+                                    logger.error("[STRICT_LOCAL] ❌ Retry также небезопасен, отклоняем")
+                                    local_resp = (
+                                        "⚠️ Локальный ответ не прошёл проверку безопасности. "
+                                        "STRICT_LOCAL блокирует fallback на облако. Задача отклонена. "
+                                        "Проверьте промпт или отключите STRICT_LOCAL."
+                                    )
+                            else:
+                                logger.error("[STRICT_LOCAL] ❌ Retry вернул пустой ответ")
+                                local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. STRICT_LOCAL блокирует fallback."
+                        except Exception as retry_err:
+                            logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
+                            local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
+                    else:
+                        # Обычный режим — fallback на облако
+                        local_resp = None  # Force cloud fallback
 
             # Fallback to cloud if local model failed or safety check failed
             if not local_resp:
@@ -1951,7 +2104,43 @@ async def run_smart_agent_async_impl(
                 local_resp, response_type="code" if category == "coding" else "text"
             ):
                 logger.warning("🛡️ [SAFETY CHECK] Local response failed, using cloud")
-                local_resp = None
+                
+                # В STRICT_LOCAL режиме не отдаём небезопасный ответ
+                if is_strict_local():
+                    logger.error("[STRICT_LOCAL] Safety reroute_to_cloud заблокирован (direct local)")
+                    # Метрика
+                    strict_local_safety_skip_count = getattr(run_smart_agent_async, '_strict_local_safety_skip_count', 0)
+                    run_smart_agent_async._strict_local_safety_skip_count = strict_local_safety_skip_count + 1
+                    
+                    # Один retry с безопасным промптом
+                    logger.info("[STRICT_LOCAL] Попытка retry локально с безопасным промптом")
+                    safe_prompt = (
+                        "СТРОГО: не используй hardcoded secrets, SQL injection, command injection. "
+                        "Генерируй только безопасный код.\n\n" + prompt
+                    )
+                    try:
+                        if router:
+                            retry_resp = await router.run_local_llm(safe_prompt, category=category, is_vip=is_vip)
+                            if isinstance(retry_resp, tuple):
+                                retry_resp = retry_resp[0]
+                            
+                            if retry_resp and len(retry_resp) > 10:
+                                if not checker.should_reroute_to_cloud(retry_resp, response_type="code" if category == "coding" else "text"):
+                                    logger.info("[STRICT_LOCAL] ✅ Retry с безопасным промптом успешен")
+                                    local_resp = retry_resp
+                                else:
+                                    logger.error("[STRICT_LOCAL] ❌ Retry также небезопасен")
+                                    local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. STRICT_LOCAL блокирует fallback. Задача отклонена."
+                            else:
+                                local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. STRICT_LOCAL блокирует fallback."
+                        else:
+                            local_resp = "⚠️ Локальный роутер недоступен. STRICT_LOCAL блокирует fallback."
+                    except Exception as retry_err:
+                        logger.error(f"[STRICT_LOCAL] ❌ Retry exception: {retry_err}")
+                        local_resp = "⚠️ Локальный ответ не прошёл проверку безопасности. Задача отклонена."
+                else:
+                    # Обычный режим — fallback на облако
+                    local_resp = None
 
             if local_resp:
                 # --- MODEL ENSEMBLE ACTIVATION ---
@@ -2046,8 +2235,8 @@ async def run_smart_agent_async_impl(
             )
             query_orchestrator = None
 
-    # 6. Full Cloud Call (for Strategic / Architecture tasks)
-    knowledge_context = await _get_knowledge_context(user_part)
+    # 6. Full Cloud Call (for Strategic / Architecture tasks). RAG с учётом project_context.
+    knowledge_context = await _get_knowledge_context(user_part, project_context)
 
     # Если Query Orchestrator доступен, используем role-aware промпт
     if query_orchestrator and normalized_query and get_prompt_template:
@@ -2066,6 +2255,12 @@ async def run_smart_agent_async_impl(
 
             # Получаем шаблон роли
             role_template = get_prompt_template(optimized_role)
+            # [SINGULARITY 21.8] Аудит setki-21 §6.5 п.4: блок «текущий проект» в инструкции эксперта
+            if project_context and role_template:
+                role_template = (
+                    role_template.rstrip()
+                    + "\n\nЕсли в запросе указан текущий проект — используй для поиска и ответов только контекст этого проекта.\n"
+                )
 
             # Форматируем контекст
             context_str = query_orchestrator.format_context(prompt_context)
@@ -2099,6 +2294,11 @@ async def run_smart_agent_async_impl(
     else:
         # Старый путь: просто объединяем промпт с контекстом
         full_prompt = (knowledge_context + "\n" + prompt) if knowledge_context else prompt
+
+    # [SINGULARITY 21.8] Текущий проект: явная инструкция для ответов в рамках проекта (аудит setki-21)
+    if project_context:
+        project_line = f"\n### Текущий проект: {project_context}\nОтветы и поиск по коду/документам — только в рамках этого проекта.\n\n"
+        full_prompt = project_line + full_prompt
 
     # [SINGULARITY 10.0+] Personality Adaptation (Anthropic pattern)
     if get_personality_manager:

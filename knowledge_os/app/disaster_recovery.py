@@ -5,6 +5,7 @@ Disaster Recovery Module для Singularity.
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -13,6 +14,14 @@ import asyncpg
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Environment flags
+try:
+    from env_flags import is_strict_local  # type: ignore
+except ImportError:
+    # Fallback если модуль не найден
+    def is_strict_local():
+        return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
 
 
 class SystemMode(Enum):
@@ -211,7 +220,12 @@ class DisasterRecovery:
         return self.current_mode in [SystemMode.NORMAL, SystemMode.READ_ONLY]
 
     def can_use_cloud(self) -> bool:
-        """Проверить, можно ли использовать облако"""
+        """
+        Проверить, можно ли использовать облако.
+        В STRICT_LOCAL режиме всегда возвращает False.
+        """
+        if is_strict_local():
+            return False
         return self.current_mode != SystemMode.OFFLINE
 
     def get_current_mode(self) -> SystemMode:

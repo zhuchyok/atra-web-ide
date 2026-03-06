@@ -119,6 +119,11 @@ services:
       USE_VICTORIA_ENHANCED: "true"
       # Эксперты первыми: execution-задачи идут в Victoria Enhanced (86 экспертов в БД), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
       PREFER_EXPERTS_FIRST: ${PREFER_EXPERTS_FIRST:-true}
+      
+      # 🔒 Строго локальный режим (STRICT_LOCAL): без fallback на cursor-agent/облачные API
+      # При true: все запросы обслуживаются только MLX/Ollama; при недоступности локальных моделей — явная ошибка
+      # Pre-flight checklist (обязательно перед включением): docs/MASTER_REFERENCE.md, раздел STRICT_LOCAL
+      STRICT_LOCAL: ${STRICT_LOCAL:-false}
       # План → исполнение: при плане от оркестратора вызывать экспертов по assignments и подставлять результаты в контекст (план «как я» п.12.2 п.1)
       EXECUTE_ASSIGNMENTS_IN_RUN: ${EXECUTE_ASSIGNMENTS_IN_RUN:-true}
       # 🎯 Victoria Initiative - Event-Driven Architecture и мониторинг (без кавычек в значении)

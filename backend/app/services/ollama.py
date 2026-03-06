@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
+def _is_strict_local() -> bool:
+    """Проверка режима STRICT_LOCAL (только локальные модели)"""
+    return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
+
+
 class OllamaClient:
     """Клиент для Ollama API с улучшенной обработкой ошибок и поддержкой Cloud Models"""
 
@@ -266,7 +271,12 @@ class OllamaClient:
 
 
 # Singleton instance
-ollama_client = OllamaClient()
+# В STRICT_LOCAL режиме принудительно use_cloud=False
+_use_cloud_default = False if _is_strict_local() else False  # Дефолт всегда False
+if _is_strict_local() and os.getenv("OLLAMA_API_KEY"):
+    logger.info("[STRICT_LOCAL] Ollama Cloud API заблокирован, используется только локальный Ollama")
+    
+ollama_client = OllamaClient(use_cloud=_use_cloud_default)
 
 
 async def get_ollama_client() -> OllamaClient:

@@ -5,11 +5,20 @@ Singularity 5.0: Quality-First Optimizations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+# Environment flags
+try:
+    from env_flags import is_strict_local  # type: ignore
+except ImportError:
+    # Fallback если модуль не найден
+    def is_strict_local():
+        return os.getenv("STRICT_LOCAL", "").lower() in ("1", "true", "yes")
 
 
 class QualityLevel(Enum):
@@ -126,9 +135,19 @@ class QualityAssurance:
         recommendation = None
         if not is_acceptable:
             if not safety_ok:
-                recommendation = "reroute_to_cloud"  # Критично - перенаправляем в облако
+                # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local или reject
+                if is_strict_local():
+                    recommendation = "retry_local"  # Попытка улучшить безопасность локально
+                    logger.warning("[STRICT_LOCAL] Safety issue, recommendation changed to retry_local")
+                else:
+                    recommendation = "reroute_to_cloud"  # Критично - перенаправляем в облако
             elif overall < 0.5:
-                recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
+                # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local
+                if is_strict_local():
+                    recommendation = "retry_local"  # Попытка улучшить качество локально
+                    logger.warning("[STRICT_LOCAL] Low quality, recommendation changed to retry_local")
+                else:
+                    recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
             elif overall < self.min_quality_threshold:
                 recommendation = "retry_local"  # Можно попробовать еще раз локально
 
@@ -256,7 +275,12 @@ class QualityAssurance:
         recommendation = None
         if not is_acceptable:
             if overall < 0.5:
-                recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
+                # В STRICT_LOCAL режиме вместо reroute_to_cloud используем retry_local
+                if is_strict_local():
+                    recommendation = "retry_local"  # Попытка улучшить качество локально
+                    logger.warning("[STRICT_LOCAL] Low quality, recommendation changed to retry_local")
+                else:
+                    recommendation = "reroute_to_cloud"  # Низкое качество - перенаправляем
             elif overall < self.min_quality_threshold:
                 recommendation = "retry_local"  # Можно попробовать еще раз локально
 

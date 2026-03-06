@@ -31,11 +31,13 @@ try:
     sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
     from emotion_detector import EmotionDetector
     from query_orchestrator import QueryOrchestrator, QueryType
+    from skill_mapper import get_skill_mapper
 
     EMOTION_DETECTOR_AVAILABLE = True
 except ImportError:
     EmotionDetector = None
     QueryOrchestrator = None
+    get_skill_mapper = None
     EMOTION_DETECTOR_AVAILABLE = False
 
 # Простые сообщения для которых не нужен агент Victoria (быстрый путь через MLX/Ollama)
@@ -2364,6 +2366,26 @@ agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРП�
 - Hierarchical Orchestration: Иерархическая координация через IntegrationBridge
 - ReCAP Framework: Рефлексия и планирование
 
+🤖 EXECUTION PLAN (руки в IDE):
+Если задача требует изменений в коде (правки файлов, запуск тестов), добавь в конец ответа:
+
+**Execution Plan:**
+```json
+[
+  {"action": "read_file", "path": "path/to/file.py", "description": "Прочитать текущую реализацию"},
+  {"action": "edit", "path": "path/to/file.py", "description": "Добавить новую функцию X"},
+  {"action": "run", "command": "pytest knowledge_os/tests/test_feature.py", "description": "Проверить изменения"}
+]
+```
+
+Формат шага:
+- action: read_file | edit | run
+- path (для read_file, edit): путь к файлу
+- command (для run): команда для терминала
+- description: что делает этот шаг
+
+Это позволит IDE выполнить твой план автоматически.
+
 Доступны ТОЛЬКО инструменты: read_file, list_directory, run_terminal_cmd, ssh_run, finish. НЕТ: web_search, web_edit, git_run, write_file.
 
 ПРАВИЛА:
@@ -2389,6 +2411,138 @@ def _extract_last_answer_from_long(s: str) -> str:
         except Exception:
             pass
     return ""
+
+
+def _extract_execution_plan(response_text: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    Извлекает execution_plan из ответа модели.
+    Поддерживаемые форматы:
+    1. JSON-блок в тройных бэктиках: ```json\n[{...}]\n```
+    2. Markdown-список шагов:
+       **Execution Plan:**
+       - read_file: path/to/file
+       - edit: path/to/file (описание)
+       - run: pytest knowledge_os/tests/
+    Возвращает список шагов в формате:
+    [{"action": "read_file", "path": "...", "description": "..."}, ...]
+    """
+    import re
+    import json
+
+    # 1. Попытка парсинга JSON-блока
+    json_match = re.search(r"```json\s*(\[.*?\])\s*```", response_text, re.DOTALL)
+    if json_match:
+        try:
+            plan = json.loads(json_match.group(1))
+            if isinstance(plan, list):
+                return plan
+        except json.JSONDecodeError:
+            pass
+
+    # 2. Парсинг markdown-списка
+    # Ищем секцию "Execution Plan:" или "Plan:" с последующим списком
+    plan_section = re.search(
+        r"\*\*Execution Plan:\*\*|Plan:|Execution Plan:",
+        response_text,
+        re.IGNORECASE
+    )
+    if not plan_section:
+        return None
+
+    # Парсим список после секции
+    lines = response_text[plan_section.end():].split("\n")
+    steps = []
+    for line in lines:
+        line = line.strip()
+        if not line.startswith("-") and not line.startswith("*"):
+            continue
+        line = line.lstrip("- *").strip()
+        
+        # Форматы: "read_file: path", "edit: path (description)", "run: command"
+        if ": " in line:
+            action, rest = line.split(": ", 1)
+            action = action.strip().lower()
+            
+            # Извлечь path и description
+            path = rest.strip()
+            description = ""
+            if " (" in path and path.endswith(")"):
+                path, description = path.rsplit(" (", 1)
+                description = description.rstrip(")")
+            
+            steps.append({
+                "action": action,
+                "path": path if action in ("read_file", "edit") else None,
+                "command": path if action == "run" else None,
+                "description": description
+            })
+
+    return steps if steps else None
+
+
+def _format_ide_context(request: TaskRequest) -> str:
+    """
+    Форматирует IDE-контекст (open_files, git_status, cursor_rules) в читаемый текст для промпта Victoria.
+    Аналог контекста, который получает Cursor assistant.
+    """
+    if not any([request.open_files, request.git_status, request.cursor_rules]):
+        return ""
+    
+    parts = []
+    parts.append("\n📋 IDE CONTEXT (как в Cursor):")
+    parts.append("=" * 60)
+    
+    # 1. Workspace path
+    if request.workspace_path:
+        parts.append(f"\n🗂️ Workspace: {request.workspace_path}")
+    
+    # 2. Git status
+    if request.git_status:
+        parts.append("\n📊 Git Status:")
+        parts.append(request.git_status.strip())
+    
+    # 3. Open files
+    if request.open_files:
+        parts.append(f"\n📂 Open Files ({len(request.open_files)}):")
+        for i, file_info in enumerate(request.open_files[:5], 1):  # Лимит 5 файлов
+            path = file_info.get("path", "unknown")
+            cursor_line = file_info.get("cursor_line")
+            content = file_info.get("content", "")
+            
+            parts.append(f"\n  {i}. {path}")
+            if cursor_line:
+                parts.append(f"     Cursor at line {cursor_line}")
+            
+            # Показываем первые 10 строк или около cursor_line
+            if content:
+                lines = content.split("\n")
+                if cursor_line and cursor_line > 0:
+                    start = max(0, cursor_line - 5)
+                    end = min(len(lines), cursor_line + 5)
+                    snippet = "\n".join(lines[start:end])
+                    parts.append(f"     Lines {start+1}-{end}:")
+                else:
+                    snippet = "\n".join(lines[:10])
+                    parts.append(f"     First 10 lines:")
+                
+                # Добавляем отступ для сниппета
+                indented = "\n".join(f"       {line}" for line in snippet.split("\n"))
+                parts.append(indented)
+        
+        if len(request.open_files) > 5:
+            parts.append(f"\n  ... и ещё {len(request.open_files) - 5} файл(ов)")
+    
+    # 4. Cursor rules (применимые эксперты)
+    if request.cursor_rules:
+        parts.append(f"\n👥 Applicable Rules/Experts ({len(request.cursor_rules)}):")
+        for rule in request.cursor_rules:
+            parts.append(f"  • {rule}")
+    
+    parts.append("\n" + "=" * 60)
+    parts.append("Используй этот контекст для понимания текущего состояния проекта.")
+    parts.append("")
+    
+    return "\n".join(parts)
 
 
 def _strip_internal_monologue(text: str) -> str:
@@ -3077,6 +3231,22 @@ class TaskRequest(BaseModel):
     use_enhanced: Optional[bool] = (
         None  # Принудительно включить/выключить оркестрацию (Victoria Enhanced)
     )
+    return_execution_plan: Optional[bool] = (
+        False  # True = извлечь execution_plan из ответа модели (для выполнения в IDE)
+    )
+    # ✨ B.3: IDE Context (как в Cursor assistant)
+    open_files: Optional[List[Dict[str, str]]] = (
+        None  # Открытые файлы в IDE: [{"path": "...", "content": "...", "cursor_line": 42}, ...]
+    )
+    git_status: Optional[str] = (
+        None  # Git status (измененные файлы, ветка): "On branch main\nModified: src/utils.py\n..."
+    )
+    cursor_rules: Optional[List[str]] = (
+        None  # Применимые правила из .cursor/rules/: ["@backend_developer", "@qa_engineer"]
+    )
+    workspace_path: Optional[str] = (
+        None  # Путь к workspace (для относительных путей): "/Users/bikos/Documents/atra-web-ide"
+    )
 
 
 class TaskResponse(BaseModel):
@@ -3084,6 +3254,7 @@ class TaskResponse(BaseModel):
     output: Any
     knowledge: Optional[dict] = None
     correlation_id: Optional[str] = None
+    execution_plan: Optional[List[Dict[str, Any]]] = None  # План выполнения для IDE
 
 
 async def _record_orchestration_task_start(
@@ -4134,7 +4305,51 @@ async def run_task_stream(body: TaskRequest, request: Request):
         "[STREAM] correlation_id=%s goal_preview=%s", correlation_id[:8], (body.goal or "")[:50]
     )
 
+    # ✅ SKILL DISCIPLINE: автоопределение и вызов скилла перед выполнением
+    skill_context = None
+    if get_skill_mapper:
+        try:
+            mapper = get_skill_mapper()
+            skill_info = mapper.classify_task(body.goal)
+            if skill_info:
+                logger.info(
+                    f"[SKILL_DISCIPLINE] Обнаружен скилл '{skill_info['skill']}': {skill_info['description']}"
+                )
+                # Добавляем инструкции скилла в начало goal
+                instructions = mapper.get_skill_instructions(skill_info['skill'])
+                if instructions:
+                    skill_context = f"""
+🎯 ПРИМЕНЯЕТСЯ СКИЛЛ: {skill_info['skill'].upper()}
+
+{instructions}
+
+ВАЖНО: Следуй чеклисту скилла СТРОГО. Это не рекомендация — это обязательный workflow.
+
+---
+ЗАДАЧА:
+"""
+                    logger.debug(f"[SKILL_DISCIPLINE] Добавлен контекст скилла в goal")
+        except Exception as e:
+            logger.warning(f"[SKILL_DISCIPLINE] Ошибка при определении скилла: {e}")
+
     async def sse_generator():
+        # Обогащаем goal контекстом скилла (если применим)
+        enriched_goal = body.goal
+        if skill_context:
+            enriched_goal = skill_context + body.goal
+            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Применяется скилл', 'content': skill_info['description']})}\n\n"
+        
+        # ✅ B.3: IDE Context (как в Cursor)
+        ide_context = _format_ide_context(body)
+        if ide_context:
+            enriched_goal = ide_context + "\n" + enriched_goal
+            context_summary = f"Workspace: {body.workspace_path or 'unknown'}"
+            if body.open_files:
+                context_summary += f" | {len(body.open_files)} open file(s)"
+            if body.git_status:
+                context_summary += " | Git status included"
+            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'IDE Context', 'content': context_summary})}\n\n"
+        
         emotion_data = {"emotion": "calm", "confidence": 1.0}
         if EMOTION_DETECTOR_AVAILABLE and EmotionDetector:
             try:
@@ -4262,6 +4477,14 @@ async def run_task(
         goal = await _enhance_goal_with_vision(goal, body.images_base64) or goal
         logger.info("[REQUEST] Goal enhanced with %d image(s) via vision", len(body.images_base64))
 
+    # [SINGULARITY 21.8] Уточнение «библия проекта» — чтобы модель не путала с религиозной Библией
+    if "библи" in (goal or "").lower():
+        goal = (
+            "Пояснение: «библия» здесь — документация проекта (MASTER_REFERENCE, .cursorrules), не религиозный текст.\n\n"
+            + goal
+        )
+        logger.info("[REQUEST] Goal prefixed with project-bible clarification")
+
     # Определяем контекст проекта (реестр из БД с fallback на env/hardcoded)
     main_project = get_main_project()
     project_context = body.project_context or main_project
@@ -4271,6 +4494,9 @@ async def run_task(
             f"⚠️ Invalid project_context: {project_context}, using default: {main_project}"
         )
         project_context = main_project
+    # RAG и ai_core.run_smart_agent_async используют project_context (аргумент или MAIN_PROJECT)
+    _prev_main = os.environ.get("MAIN_PROJECT")
+    os.environ["MAIN_PROJECT"] = project_context
     project_config = project_configs.get(
         project_context,
         project_configs.get(
@@ -5005,9 +5231,111 @@ async def orchestrate_task(request: TaskRequest):
         logger.info("🎯 Получена задача для оркестрации: %s", request.goal[:80])
         agent.memory = []
         result = await agent.orchestrate_task(request.goal)
-        return TaskResponse(status="success", output=result, knowledge=agent.project_knowledge)
+        
+        # Извлечение execution_plan, если запрошено
+        execution_plan = None
+        if request.return_execution_plan:
+            result_text = result if isinstance(result, str) else str(result)
+            execution_plan = _extract_execution_plan(result_text)
+            if execution_plan:
+                logger.info("✅ Извлечён execution_plan (%d шагов)", len(execution_plan))
+            else:
+                logger.debug("⚠️ execution_plan не найден в ответе модели")
+        
+        return TaskResponse(
+            status="success",
+            output=result,
+            knowledge=agent.project_knowledge,
+            execution_plan=execution_plan
+        )
     except Exception as e:
         logger.exception("Ошибка оркестрации задачи")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+class BatchReadRequest(BaseModel):
+    """Запрос параллельного чтения файлов."""
+    file_paths: List[str]  # Список путей к файлам
+    workspace_path: Optional[str] = "/Users/bikos/Documents/atra-web-ide"
+    max_concurrent: Optional[int] = 10
+    max_file_size_mb: Optional[int] = 1
+
+
+class BatchGrepRequest(BaseModel):
+    """Запрос параллельного поиска в файлах."""
+    pattern: str  # Регулярное выражение
+    file_paths: List[str]
+    workspace_path: Optional[str] = "/Users/bikos/Documents/atra-web-ide"
+    case_sensitive: Optional[bool] = False
+    max_concurrent: Optional[int] = 10
+
+
+@app.post("/batch_read")
+async def batch_read_endpoint(request: BatchReadRequest):
+    """
+    Параллельное чтение множества файлов (быстрое сканирование проекта).
+    Используется для задач типа \"найди все файлы с X\" или \"покажи содержимое этих 20 файлов\".
+    """
+    try:
+        # Импортируем batch_read функцию
+        sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
+        from batch_read import batch_read_files
+        
+        results = await batch_read_files(
+            file_paths=request.file_paths,
+            workspace_path=request.workspace_path,
+            max_concurrent=request.max_concurrent,
+            max_file_size_mb=request.max_file_size_mb,
+        )
+        
+        success_count = sum(1 for r in results if r["status"] == "success")
+        
+        return {
+            "status": "success",
+            "results": results,
+            "summary": {
+                "total": len(results),
+                "success": success_count,
+                "errors": len(results) - success_count,
+            }
+        }
+    except Exception as e:
+        logger.exception("Ошибка batch_read")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/batch_grep")
+async def batch_grep_endpoint(request: BatchGrepRequest):
+    """
+    Параллельный поиск паттерна в множестве файлов (аналог grep).
+    Используется для задач типа \"найди все упоминания функции X в проекте\".
+    """
+    try:
+        sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
+        from batch_read import batch_grep_files
+        
+        results = await batch_grep_files(
+            pattern=request.pattern,
+            file_paths=request.file_paths,
+            workspace_path=request.workspace_path,
+            case_sensitive=request.case_sensitive,
+            max_concurrent=request.max_concurrent,
+        )
+        
+        total_matches = sum(r["match_count"] for r in results)
+        files_with_matches = sum(1 for r in results if r["match_count"] > 0)
+        
+        return {
+            "status": "success",
+            "results": results,
+            "summary": {
+                "total_files": len(results),
+                "files_with_matches": files_with_matches,
+                "total_matches": total_matches,
+            }
+        }
+    except Exception as e:
+        logger.exception("Ошибка batch_grep")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
