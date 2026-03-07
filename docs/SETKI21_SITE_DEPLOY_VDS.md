@@ -65,7 +65,7 @@ ssh root@45.10.43.248 "cd /home/atra/app && docker-compose up -d setki21-site"
    - **Location:** `/health` → **Forward** `moskit-api:8080`.
 5. Сохрани.
 
-Образец конфига NPM: **scripts/npm_proxy_setki21.conf**. В итоге: запросы к **/** идут в setki21-site (сайт), к **/api** и **/health** — в moskit-api (вход, цены, админка).
+Образец конфига NPM: **scripts/npm_proxy_setki21.conf**. В итоге: запросы к **/** идут в setki21-site (сайт), к **/api**, **/health** и **/uploads** — в moskit-api (вход, цены, админка, логотипы дилеров). Блок `location /uploads` нужен, чтобы по адресу https://www.setki21.ru/uploads/… отдавались загруженные в админке файлы; при ручной настройке в NPM добавь Custom Location: path **/uploads**, forward **moskit-api:8080**.
 
 ## 6. Проверка
 
@@ -82,3 +82,27 @@ cd /Users/bikos/Documents/dev/setki-21 && npm run generate
 rsync -az --delete /Users/bikos/Documents/dev/setki-21/.output/public/ root@45.10.43.248:/home/atra/app/setki21_site/
 ssh root@45.10.43.248 "cd /home/atra/app && docker-compose restart setki21-site"
 ```
+
+## 7. Диагностика: «деплой прошёл, но сайт не обновился»
+
+Если после деплоя на сайте по-прежнему старая версия (например, старые стили кнопок в админке):
+
+1. **Проверить, что отдаёт VDS:** на сервере в `index.html` должен быть актуальный хэш CSS, например `entry.Bc_fN7v_.css`. Проверка:
+   ```bash
+   ssh root@45.10.43.248 "grep -o 'entry\.[^\"]*\.css' /home/atra/app/setki21_site/index.html"
+   ```
+2. **Проверить, что отдаёт живой сайт:** запрос к https://www.setki21.ru/ не должен возвращать другой хэш (старый `entry.D-omT3Kw.css` и т.п.):
+
+   ```bash
+   curl -sS "https://www.setki21.ru/" | grep -o 'entry\.[^"]*\.css'
+   ```
+
+   Если на VDS — новый хэш, а с живого URL — старый, **трафик www.setki21.ru не идёт на setki21-site** на этом VDS.
+
+3. **Что проверить дальше:**
+   - **DNS:** `www.setki21.ru` должен указывать на IP VDS (45.10.43.248). Проверка: `dig +short www.setki21.ru`.
+   - **NPM:** в панели http://45.10.43.248:81 для Proxy Host с доменом **www.setki21.ru** в Details должно быть **Forward Hostname: setki21-site**, **Forward Port: 80**. Не moskit-api и не другой хост.
+   - **CDN:** если перед сервером стоит Cloudflare или другой CDN — сделать Purge Cache для www.setki21.ru после деплоя, иначе отдаётся закэшированный старый HTML/CSS.
+   - **Другой сервер:** если есть ещё один хост (например, setki21.ru без www или другой IP), убедиться, что пользователь заходит именно на www.setki21.ru и что этот домен ведёт на наш VDS и NPM.
+
+Пошаговый runbook при падении автоматической верификации деплоя: **`docs/runbooks/SETKI21_DEPLOY_VERIFY_FAIL.md`**.
