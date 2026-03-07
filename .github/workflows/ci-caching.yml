@@ -14,7 +14,7 @@ jobs:
       changed_packages: ${{ steps.check.outputs.packages }}
       affected_tasks: ${{ steps.check.outputs.tasks }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.detect-changes.outputs.changed_packages != '[]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Run affected tasks
         run: |
