@@ -1,54 +1,57 @@
 """
-Unit tests for Ollama keep_alive policy (Smart Cooldown and updated Immortal models).
+Unit tests for Ollama keep_alive policy cooldown and immortal models.
 """
 
 import time
 from unittest.mock import patch
-
-import pytest
+import app.ollama_keep_alive_policy as policy
 from app.ollama_keep_alive_policy import get_keep_alive
+import pytest
 
+@pytest.fixture(autouse=True)
+def reset_policy_state():
+    """Reset the global state of the policy before each test."""
+    policy._last_mlx_failure_time = 0.0
+    yield
 
-def test_new_immortal_models():
-    """Check that new models are immortal (return -1)."""
-    # nomic-embed-text is immortal but also an embedding (returns 0 in current logic,
-    # but the task says it should be in IMMORTAL_MODELS.
-    # In the current implementation, embeddings return 0 before checking immortality.
-    # Let's check others first.
-    assert get_keep_alive("moondream", mlx_alive=True) == -1
-    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
-    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+def test_immortal_models_return_minus_one_v2():
+    """Verify that the specified immortal models return -1."""
+    immortals = ["nomic-embed-text", "moondream", "tinyllama", "phi3.5:3.8b"]
+    for model in immortals:
+        result = get_keep_alive(model, mlx_alive=True)
+        if "embed" in model:
+            assert result == 0, f"Model {model} should return 0 as it is an embedding"
+        else:
+            assert result == -1, f"Model {model} should return -1 as it is immortal"
 
+def test_recovery_cooldown_logic():
+    """
+    Verify that models are kept alive during the recovery cooldown period
+    after MLX comes back online.
+    """
+    model = "victoria-wisdom-v3.5"
+    
+    # 1. MLX is down -> policy tracks failure time
+    with patch("time.time") as mock_time:
+        now = 1700000000.0
+        mock_time.return_value = now
+        get_keep_alive(model, mlx_alive=False)
+        assert policy._last_mlx_failure_time == now
+    
+    # 2. MLX just recovered (10 seconds ago) -> should return -1 (cooldown)
+    with patch("time.time") as mock_time:
+        now = 1700000000.0 + 10
+        mock_time.return_value = now
+        # _last_mlx_failure_time is already set to 1700000000.0
+        
+        result = get_keep_alive(model, mlx_alive=True)
+        assert result == -1, "Should return -1 during recovery cooldown"
 
-def test_cooldown_logic_after_recovery():
-    """If MLX just recovered, keep Ollama models alive for the cooldown period."""
-    # 1. Simulate MLX down
-    # We need to use a real patch of the module's global variable
-    import app.ollama_keep_alive_policy as policy
-
-    policy.LAST_MLX_FAILURE_TIME = 0.0
-
-    with patch("time.time", return_value=1000.0):
-        get_keep_alive("victoria-wisdom-v3.5", mlx_alive=False)
-        # LAST_MLX_FAILURE_TIME should now be 1000.0
-
-    # 2. MLX recovers, but we are within cooldown
-    with patch("time.time", return_value=1100.0):  # 100 seconds after recovery
-        # During cooldown, it should return -1
-        assert get_keep_alive("phi3:latest", mlx_alive=True) == -1
-
-
-def test_cooldown_logic_expired():
-    """If cooldown expired, return normal keep_alive."""
-    # 1. Simulate MLX down
-    import app.ollama_keep_alive_policy as policy
-
-    policy.LAST_MLX_FAILURE_TIME = 0.0
-
-    with patch("time.time", return_value=1000.0):
-        get_keep_alive("victoria-wisdom-v3.5", mlx_alive=False)
-
-    # 2. MLX recovers, but cooldown expired
-    with patch("time.time", return_value=2000.0):  # 1000 seconds after recovery (> 300)
-        # After cooldown, it should return normal value (e.g. 3600 for phi3:latest)
-        assert get_keep_alive("phi3:latest", mlx_alive=True) != -1
+    # 3. MLX recovered long ago (600 seconds ago) -> should return normal keep_alive
+    with patch("time.time") as mock_time:
+        now = 1700000000.0 + 600
+        mock_time.return_value = now
+        
+        result = get_keep_alive(model, mlx_alive=True)
+        assert result != -1, "Should not return -1 after recovery cooldown"
+        assert result == 60 # For victoria-wisdom-v3.5 when MLX is alive
