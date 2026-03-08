@@ -14,13 +14,9 @@ logger = logging.getLogger(__name__)
 # Бессмертные модели (держать в памяти всегда) — дублируем список, чтобы не импортировать local_router
 IMMORTAL_MODELS = {
     "nomic-embed-text",
-    "nomic-embed-text:latest",
     "moondream",
-    "moondream:latest",
     "tinyllama",
-    "tinyllama:latest",
-    "phi3.5:3.8b",
-    "phi3.5:3.8b:latest",
+    "phi3.5:3.8b"
 }
 
 # Модели эмбеддингов — выгружать сразу после ответа
