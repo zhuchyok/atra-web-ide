@@ -14,13 +14,10 @@ logger = logging.getLogger(__name__)
 # Бессмертные модели (держать в памяти всегда) — дублируем список, чтобы не импортировать local_router
 IMMORTAL_MODELS = {
     "nomic-embed-text",
-    "nomic-embed-text:latest",
     "moondream",
-    "moondream:latest",
     "tinyllama",
-    "tinyllama:latest",
     "phi3.5:3.8b",
-    "phi3.5:latest",
+    "phi3.5",
 }
 
 # Cooldown при восстановлении MLX: если MLX только что ожил, держим Ollama-модели в памяти ещё 5 минут
@@ -162,8 +159,10 @@ def get_keep_alive(
     # 2. Бессмертные по имени (moondream, phi3.5, tinyllama, nomic-embed-text)
     # ПРИМЕЧАНИЕ: Бессмертные проверяются ПОСЛЕ fallback-brain и env, но ДО RAM.
     # Это гарантирует, что они всегда в памяти, если только это не v3.5 при живом MLX.
-    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        return -1
+    if model_name:
+        key = model_name.lower()
+        if any(m in key for m in IMMORTAL_MODELS):
+            return -1
 
     # 3. Эмбеддинги (nomic и др.) — выгрузить сразу (keep_alive=0)
     # ПРИМЕЧАНИЕ: nomic-embed-text теперь в IMMORTAL, поэтому он вернет -1 выше.

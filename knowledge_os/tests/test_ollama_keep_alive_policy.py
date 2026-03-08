@@ -37,22 +37,18 @@ def test_fallback_brain_mlx_alive_v35_not_minus_one():
 
 def test_immortal_models_return_minus_one():
     """Бессмертные по имени возвращают -1 (включая nomic-embed-text по новой политике)."""
-    # moondream - бессмертный
-    assert get_keep_alive("moondream:latest", mlx_alive=True) == -1
-    # phi3.5 - бессмертный
+    # phi3.5:3.8b - бессмертный
     assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
-    # tinyllama - бессмертный
-    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
-    # nomic - теперь бессмертный по новой политике
-    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
-    # phi3.5 - бессмертный
-    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+    # phi3.5:latest - бессмертный
+    assert get_keep_alive("phi3.5:latest", mlx_alive=True) == -1
     # tinyllama - бессмертный
     assert get_keep_alive("tinyllama", mlx_alive=True) == -1
     # moondream - бессмертный
     assert get_keep_alive("moondream", mlx_alive=True) == -1
-    # phi3.5:latest - бессмертный
-    assert get_keep_alive("phi3.5:latest", mlx_alive=True) == -1
+    # nomic - теперь бессмертный по новой политике
+    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
+    # phix:3.8b - НЕ бессмертный (для теста)
+    assert get_keep_alive("phix:3.8b", mlx_alive=True) != -1
 
 
 def test_cooldown_logic():
@@ -76,11 +72,14 @@ def test_cooldown_logic():
         assert get_keep_alive("victoria-wisdom-v3.5", mlx_alive=True) == 60
 
 
-def test_new_immortal_models():
-    """Новые бессмертные модели должны возвращать -1."""
-    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
-    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
-    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
+def test_cooldown_threshold():
+    """Проверка границы cooldown."""
+    # RECOVERY_COOLDOWN_SECONDS сейчас 300
+    with patch("time.time", return_value=1000.0):
+        policy.LAST_MLX_FAILURE_TIME = 700.0  # 1000 - 700 = 300
+        # Ровно на границе или чуть больше - уже не cooldown
+        # (в коде: elapsed < RECOVERY_COOLDOWN_SECONDS)
+        assert get_keep_alive("llama3", mlx_alive=True) != -1
 
 
 def test_embedding_category_returns_zero():
