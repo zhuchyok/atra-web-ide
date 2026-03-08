@@ -3,11 +3,15 @@ Unit tests for Ollama keep_alive policy (единый источник keep_aliv
 """
 
 import os
+import time
 from unittest.mock import patch
 
 import pytest
-from app.ollama_keep_alive_policy import get_keep_alive, set_mlx_failure_time, RECOVERY_COOLDOWN_SECONDS
-import time
+from app.ollama_keep_alive_policy import (
+    RECOVERY_COOLDOWN_SECONDS,
+    get_keep_alive,
+    set_mlx_failure_time,
+)
 
 
 def test_fallback_brain_mlx_down_v35_returns_minus_one():
@@ -34,10 +38,20 @@ def test_immortal_models_return_minus_one():
     # moondream - бессмертный
     assert get_keep_alive("moondream:latest", mlx_alive=True) == -1
     # nomic - эмбеддинг, поэтому 0 (проверяется раньше бессмертных)
-    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == 0
+    # assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1  # This was actually wrong in existing test, nomic is embedding
     # tinyllama - бессмертный
     assert get_keep_alive("tinyllama", mlx_alive=True) == -1
     # phi3.5:3.8b - бессмертный
+    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+
+
+def test_new_immortal_models_return_minus_one():
+    """Новые бессмертные модели должны возвращать -1."""
+    # nomic-embed-text should return -1 as per task (even if it's an embedding)
+    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
+    # moondream, tinyllama, phi3.5:3.8b are already there but let's re-verify
+    assert get_keep_alive("moondream", mlx_alive=True) == -1
+    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
     assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
 
 
@@ -46,12 +60,10 @@ def test_recovery_cooldown_logic():
     # 1. Симулируем сбой MLX сейчас
     now = time.time()
     set_mlx_failure_time(now)
-    
+
     # 2. MLX 'ожил' (mlx_alive=True), но прошло всего 10 секунд (в пределах 300с кулдауна)
-    # Мы не можем легко замокать time.time() внутри модуля без patch, 
-    # но можем вызвать get_keep_alive сразу после set_mlx_failure_time.
     assert get_keep_alive("victoria-wisdom-v3.5", mlx_alive=True) == -1
-    
+
     # 3. Симулируем старый сбой (более 5 минут назад)
     set_mlx_failure_time(now - RECOVERY_COOLDOWN_SECONDS - 10)
     # Теперь кулдаун прошёл, v3.5 должна возвращать 60 (быстрая выгрузка при живом MLX)
@@ -60,9 +72,8 @@ def test_recovery_cooldown_logic():
 
 def test_embedding_category_returns_zero():
     """Категория embedding или модель эмбеддинга → 0."""
-    assert get_keep_alive("nomic-embed-text", category="embedding", mlx_alive=True) == 0
-    # nomic уже в IMMORTAL, но category=embedding может обработаться раньше в другом порядке
-    # В нашей реализации embedding проверяется после immortal; nomic даёт -1. Проверим другую модель с category
+    # nomic is now immortal, so it should return -1 even if category is embedding (immortal check is first)
+    # We need to check a non-immortal embedding model
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
         os.environ.pop("OLLAMA_KEEP_ALIVE", None)
