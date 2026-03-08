@@ -91,6 +91,7 @@ MLX_API_URL = (
 )  # MLX_API_URL=disabled → None, только Ollama
 
 
+from app.mlx_monitor import get_mlx_monitor
 from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
 from app.ollama_keep_alive_policy import get_keep_alive, unload_ollama_fallback_models
 from app.context_mirror import ContextMirror
@@ -260,7 +261,7 @@ class LocalAIRouter:
         self._prompt_cache_hits = 0
         self._prompt_cache_misses = 0
 
-        # Context Mirroring (Redis)
+        # Context Mirror for failover
         self.context_mirror = ContextMirror()
 
     @property
@@ -760,6 +761,7 @@ class LocalAIRouter:
         model: Optional[str] = None,
         model_hint: Optional[str] = None,
         is_vip: bool = False,
+        session_id: Optional[str] = None,
     ) -> Optional[tuple]:
         """
         Запускает локальную LLM модель.
@@ -908,12 +910,6 @@ class LocalAIRouter:
                 healthy_nodes.insert(1, predicted_node)
                 logger.info(f"🤖 [ML ROUTER] Учитываем ML-предсказание: {predicted_node['name']}")
 
-        # Зеркалирование контекста (Redis) — сохраняем перед запросом
-        session_id = getattr(self, "_current_session_id", "default")
-        if session_id:
-            history = [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}]
-            asyncio.create_task(self.context_mirror.save_context(session_id, history))
-
         # 3. Выбор на основе типа задачи (reasoning → MLX, fast → Ollama, и т.д.)
         # Это уже делается в _select_model на основе node_type
 
@@ -992,7 +988,25 @@ class LocalAIRouter:
             # Упреждающий прогрев Ollama на случай падения MLX
             if ollama_nodes:
                 ollama_model = self._select_model(prompt, category, node_type="ollama")
-                asyncio.create_task(self._trigger_predictive_warmup(ollama_model, ollama_nodes[0]["url"]))
+                # Получаем текущую историю для прогрева KV-Cache
+                current_history = []
+                session_id = session_id or getattr(self, "_current_session_id", "default")
+                if session_id:
+                    current_history = await self.context_mirror.get_context(session_id) or []
+                
+                asyncio.create_task(self._trigger_predictive_warmup(
+                    ollama_model, 
+                    ollama_nodes[0]["url"],
+                    history=current_history
+                ))
+
+        # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks
+        if category in ("reasoning", "complex") and ollama_nodes:
+            ollama_model = self._select_model(prompt, category, node_type="ollama")
+            asyncio.create_task(self._trigger_predictive_warmup(
+                ollama_model, 
+                ollama_nodes[0]["url"]
+            ))
 
         if preferred_source:
             # Перемещаем предпочтительный узел в начало
@@ -1016,12 +1030,24 @@ class LocalAIRouter:
                     f"🎯 [PREFERRED] Используем предпочтительный источник: {preferred_source}"
                 )
 
+        # [SINGULARITY 21.5] Context Mirroring: Save context before call
+        session_id = session_id or getattr(self, "_current_session_id", None)
+        if session_id:
+            current_history = await self.context_mirror.get_context(session_id) or []
+            # Add current prompt to history for mirroring
+            current_history.append({"role": "user", "content": prompt})
+            await self.context_mirror.save_context(session_id, current_history)
+
         # Try each node with retry logic
         start_time = time.time()
         for node in healthy_nodes:
             # Определяем, это Ollama или MLX API Server
             is_ollama = "11434" in node["url"] or "ollama" in node["url"].lower()
             is_mlx = "11435" in node["url"] or "mlx" in node["url"].lower()
+
+            # [FALLBACK_MODE] If MLX failed and we are on Ollama, use mirrored context
+            if is_ollama and any("mlx" in n["url"] for n in healthy_nodes[:healthy_nodes.index(node)]):
+                logger.info("[FALLBACK_MODE] MLX failed, switching to Ollama with mirrored context")
 
             # ИНТЕЛЛЕКТУАЛЬНЫЙ ВЫБОР МОДЕЛИ на основе мировых практик
             # ВАЖНО: MLX и Ollama имеют РАЗНЫЕ модели! Выбираем для КАЖДОГО узла отдельно!
@@ -1150,9 +1176,20 @@ class LocalAIRouter:
                 )
 
                 messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                messages.append({"role": "user", "content": prompt})
+                # Use mirrored history if available
+                if is_ollama and session_id:
+                    mirrored_history = await self.context_mirror.get_context(session_id)
+                    if mirrored_history:
+                        # Create a copy to avoid modifying the original history
+                        messages = list(mirrored_history)
+                        # Check if last message is already the current prompt
+                        if not messages or messages[-1].get("content") != prompt:
+                            messages.append({"role": "user", "content": prompt})
+                
+                if not messages:
+                    if system_prompt:
+                        messages.append({"role": "system", "content": system_prompt})
+                    messages.append({"role": "user", "content": prompt})
 
                 payload = {"model": model, "messages": messages, "stream": False}
                 mlx_alive = any(
@@ -1167,7 +1204,22 @@ class LocalAIRouter:
                     f"🏠 [LOCAL ROUTE] Node: {node['name']} | Model: {model} | Endpoint: /api/generate"
                 )
 
-                full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
+                # Use mirrored history if available for generate endpoint too
+                full_prompt = ""
+                if is_ollama and session_id:
+                    mirrored_history = await self.context_mirror.get_context(session_id)
+                    if mirrored_history:
+                        for msg in mirrored_history:
+                            role = "User" if msg.get("role") == "user" else "Assistant"
+                            full_prompt += f"{role}: {msg.get('content')}\n"
+                        if not mirrored_history or mirrored_history[-1].get("content") != prompt:
+                            full_prompt += f"User: {prompt}\nAssistant:"
+                        else:
+                            full_prompt += "Assistant:"
+                
+                if not full_prompt:
+                    full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
+                
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
                 mlx_alive = any(
                     "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
@@ -1177,8 +1229,14 @@ class LocalAIRouter:
             if images:
                 payload["images"] = images
 
-            # Мониторинг ресурсов перед запросом (особенно для MLX)
+            # 1165. Мониторинг ресурсов перед запросом (особенно для MLX)
             if is_mlx:
+                # Circuit Breaker Check
+                monitor = get_mlx_monitor()
+                if not monitor.is_mlx_available():
+                    logger.warning("🚨 [CIRCUIT BREAKER] MLX is temporarily disabled. Skipping node %s", node['name'])
+                    continue
+
                 try:
                     from resource_monitor import get_resource_monitor
 
@@ -1350,6 +1408,8 @@ class LocalAIRouter:
                         )
 
                         if response.status_code == 200:
+                            if is_mlx:
+                                get_mlx_monitor().record_success()
                             result_data = response.json()
                             # Обрабатываем разные форматы ответов
                             if "message" in result_data:
@@ -1486,6 +1546,8 @@ class LocalAIRouter:
                                     response.status_code,
                                 )
                 except asyncio.TimeoutError:
+                    if is_mlx:
+                        get_mlx_monitor().record_failure()
                     logger.warning(
                         "[ROUTER] ⏱️ Timeout: Node %s, Model %s (attempt %d/%d)",
                         node["name"],
@@ -1497,6 +1559,8 @@ class LocalAIRouter:
                         await asyncio.sleep(2**attempt)  # Exponential backoff
                     continue
                 except httpx.ConnectError as e:
+                    if is_mlx:
+                        get_mlx_monitor().record_failure()
                     logger.error("[ROUTER] ❌ Connection failed to %s: %s", node_url, e)
                     if attempt < max_retries:
                         await asyncio.sleep(2**attempt)
@@ -1634,19 +1698,6 @@ class LocalAIRouter:
             logger.error(f"❌ [STREAMING] Error: {e}")
             return
 
-    async def _trigger_predictive_warmup(self, model_name: str, node_url: str):
-        """Упреждающий прогрев модели в Ollama на случай падения MLX."""
-        try:
-            # Прогрев — это запрос с пустым промптом и keep_alive
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                await client.post(
-                    f"{node_url}/api/generate",
-                    json={"model": model_name, "prompt": " ", "stream": False},
-                )
-            logger.info("🔥 [WARMUP] Triggered predictive warmup for %s in Ollama", model_name)
-        except Exception as e:
-            logger.debug("Predictive warmup failed for %s: %s", model_name, e)
-
     def _determine_task_type(self, prompt: str, category: Optional[str] = None) -> str:
         """Определяет тип задачи для сбора данных"""
         prompt_lower = prompt.lower()
@@ -1657,3 +1708,29 @@ class LocalAIRouter:
             return "reasoning"
         else:
             return "general"
+
+    async def _trigger_predictive_warmup(self, model_name: str, node_url: str, history: Optional[list] = None):
+        """Упреждающий прогрев модели в Ollama на случай падения MLX, включая KV-Cache."""
+        try:
+            # Если есть история, используем её для прогрева KV-Cache
+            prompt = " "
+            if history:
+                # Берем последние 2-3 сообщения для прогрева контекста
+                context_slice = history[-3:] if len(history) > 3 else history
+                prompt = "\n".join([f"{m.get('role', 'user')}: {m.get('content', '')}" for m in context_slice])
+                prompt += "\nassistant: "
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    f"{node_url}/api/generate",
+                    json={
+                        "model": model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"num_predict": 1} # Минимальная генерация только для прогрева
+                    },
+                )
+            logger.info("🔥 [WARMUP] Triggered KV-Cache warmup for %s in Ollama (context len: %d)", 
+                        model_name, len(history) if history else 0)
+        except Exception as e:
+            logger.debug("Predictive warmup failed for %s: %s", model_name, e)
