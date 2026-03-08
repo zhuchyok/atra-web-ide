@@ -11,46 +11,34 @@ from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
+# Track last MLX failure time for recovery cooldown
+_last_mlx_failure_time: float = 0
+
 # Бессмертные модели (держать в памяти всегда) — дублируем список, чтобы не импортировать local_router
 IMMORTAL_MODELS = {
     "nomic-embed-text",
+    "nomic-embed-text:latest",
     "moondream",
+    "moondream:latest",
     "tinyllama",
-    "phi3.5:3.8b"
+    "tinyllama:latest",
+    "phi3.5:3.8b",
+    "phi3.5:3.8b:latest",
 }
+
+# Cooldown constant for recovery
+RECOVERY_COOLDOWN_SECONDS = 300  # 5 minutes
 
 # Модели эмбеддингов — выгружать сразу после ответа
 EMBEDDING_MODELS = {"nomic-embed-text", "nomic-embed-text:latest"}
 
-# Fallback-мозг: имена моделей Victoria v3.5 in Ollama (при падении MLX не выгружать)
+# Fallback-мозг: имена моделей Victoria v3.5 в Ollama (при падении MLX не выгружать)
 FALLBACK_BRAIN_MODELS = ("victoria-wisdom-v3.5",)
 
 # Модели для явной выгрузки при восстановлении MLX
 OLLAMA_FALLBACK_UNLOAD_MODELS = ["victoria-wisdom-v3.5", "victoria-wisdom-v3.5:latest"]
 
 DEFAULT_KEEP_ALIVE = 300
-
-# Кулдаун восстановления (5 минут) — после восстановления MLX держим Ollama-модели живыми
-RECOVERY_COOLDOWN_SECONDS = 300
-
-# Время последнего падения MLX (для кулдауна)
-_last_mlx_failure_time = 0.0
-
-
-def set_mlx_failure_time(timestamp: float) -> None:
-    """Установить время последнего сбоя MLX."""
-    global _last_mlx_failure_time
-    _last_mlx_failure_time = timestamp
-
-
-def _is_in_recovery_cooldown() -> bool:
-    """Находимся ли мы в периоде восстановления после сбоя MLX."""
-
-    if _last_mlx_failure_time <= 0:
-        return False
-    elapsed = time.time() - _last_mlx_failure_time
-    return elapsed < RECOVERY_COOLDOWN_SECONDS
-
 
 # Резерв RAM под MLX (модели всегда в памяти). В GB или в процентах — один из двух.
 MLX_RAM_RESERVE_GB = float(os.getenv("MLX_RAM_RESERVE_GB", "0"))
@@ -122,32 +110,44 @@ def get_keep_alive(
 
     Порядок проверок:
     1. Fallback-мозг: mlx_alive=False и модель v3.5 → -1
-    2. Env VICTORIA_OLLAMA_KEEP_ALIVE / OLLAMA_KEEP_ALIVE
-    3. Бессмертные по имени (nomic, moondream) → -1
-    4. Эмбеддинги → 0
+    2. Бессмертные по имени (nomic, moondream) → -1
+    3. Эмбеддинги → 0
+    4. Env VICTORIA_OLLAMA_KEEP_ALIVE / OLLAMA_KEEP_ALIVE
     5. Адаптация по RAM (с учётом резерва MLX): при высокой занятости → 0 или 60 для тяжёлых
     6. Smart Keep-Alive по размеру модели
     7. Дефолт 300
     """
-    # 1. Fallback-мозг: пока MLX недоступен, v3.5 in Ollama не выгружается
+    # 1. Fallback-мозг: пока MLX недоступен, v3.5 в Ollama не выгружается
     if model_name and any(m in model_name for m in FALLBACK_BRAIN_MODELS):
         if not mlx_alive:
+            global _last_mlx_failure_time
+            _last_mlx_failure_time = time.time()
             logger.info("🧠 [FALLBACK IMMORTALITY] MLX is down, making v3.5 immortal in Ollama")
-            import time
-
-            set_mlx_failure_time(time.time())
             return -1
         else:
-            # Если MLX жив, но мы в периоде кулдауна после сбоя — держим v3.5 живой
-            if _is_in_recovery_cooldown():
-                logger.info(
-                    "🧠 [RECOVERY COOLDOWN] MLX recovered, but keeping v3.5 alive for cooldown"
-                )
-                return -1
-            # Если MLX жив и кулдаун прошёл, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
+            # Если MLX жив, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
             return 60
 
-    # 2. Env (переопределяет всё, кроме fallback-brain)
+    # 1.5. Recovery cooldown: if MLX just recovered, keep Ollama models alive
+    if mlx_alive and _last_mlx_failure_time > 0:
+        elapsed = time.time() - _last_mlx_failure_time
+        if elapsed < RECOVERY_COOLDOWN_SECONDS:
+            logger.info(
+                "🛡️ [RECOVERY COOLDOWN] MLX recovered %.1fs ago, keeping %s alive in Ollama",
+                elapsed,
+                model_name,
+            )
+            return -1
+
+    # 2. Бессмертные по имени (moondream и т.д.)
+    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
+        return -1
+
+    # 3. Эмбеддинги — выгрузить сразу (после бессмертных, чтобы nomic возвращал -1)
+    if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):
+        return 0
+
+    # 4. Env
     raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
     if raw is not None and str(raw).strip() != "":
         if str(raw).strip() == "-1":
@@ -156,14 +156,6 @@ def get_keep_alive(
             return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
         except (ValueError, AttributeError):
             pass
-
-    # 3. Бессмертные по имени (nomic, moondream и т.д.) → -1
-    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        return -1
-
-    # 4. Эмбеддинги — выгрузить сразу (кроме бессмертных и env)
-    if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):
-        return 0
 
     # 5. Адаптация по RAM (с учётом резерва MLX)
     effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
