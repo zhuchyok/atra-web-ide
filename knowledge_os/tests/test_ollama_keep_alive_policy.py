@@ -3,10 +3,19 @@ Unit tests for Ollama keep_alive policy (единый источник keep_aliv
 """
 
 import os
+import time
 from unittest.mock import patch
 
+import app.ollama_keep_alive_policy as policy
 import pytest
 from app.ollama_keep_alive_policy import get_keep_alive
+
+
+@pytest.fixture(autouse=True)
+def reset_cooldown():
+    """Сброс времени падения MLX перед каждым тестом."""
+    policy.LAST_MLX_FAILURE_TIME = 0.0
+    yield
 
 
 def test_fallback_brain_mlx_down_v35_returns_minus_one():
@@ -27,21 +36,56 @@ def test_fallback_brain_mlx_alive_v35_not_minus_one():
 
 
 def test_immortal_models_return_minus_one():
-    """Бессмертные по имени возвращают -1 (кроме эмбеддингов, которые 0)."""
+    """Бессмертные по имени возвращают -1 (включая nomic-embed-text по новой политике)."""
     # moondream - бессмертный
     assert get_keep_alive("moondream:latest", mlx_alive=True) == -1
-    # nomic - эмбеддинг, поэтому 0 (проверяется раньше бессмертных)
-    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == 0
+    # phi3.5 - бессмертный
+    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+    # tinyllama - бессмертный
+    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
+    # nomic - теперь бессмертный по новой политике
+    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
+    # phi3.5 - бессмертный
+    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+    # tinyllama - бессмертный
+    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
+    # moondream - бессмертный
+    assert get_keep_alive("moondream", mlx_alive=True) == -1
+    # phi3.5:latest - бессмертный
+    assert get_keep_alive("phi3.5:latest", mlx_alive=True) == -1
+
+
+def test_cooldown_logic():
+    """Если MLX только что восстановился, модели в Ollama остаются бессмертными на время cooldown."""
+    # 1. MLX упал -> v3.5 бессмертна
+    assert get_keep_alive("victoria-wisdom-v3.5", mlx_alive=False) == -1
+
+    # 2. MLX восстановился (mlx_alive=True), но прошло мало времени (например, 10 сек)
+    # Мы имитируем это, устанавливая LAST_MLX_FAILURE_TIME в "сейчас - 10 сек"
+    with patch("time.time", return_value=1000.0):
+        policy.LAST_MLX_FAILURE_TIME = 990.0
+        # Должно быть -1, так как 10 < 300 (RECOVERY_COOLDOWN_SECONDS)
+        assert get_keep_alive("victoria-wisdom-v3.5", mlx_alive=True) == -1
+        # Любая другая модель (не эмбеддинг) тоже должна быть -1 в кулдауне
+        assert get_keep_alive("llama3", mlx_alive=True) == -1
+
+    # 3. Прошло много времени (например, 400 сек)
+    with patch("time.time", return_value=1400.0):
+        policy.LAST_MLX_FAILURE_TIME = 990.0
+        # Должно быть 60 (обычное поведение для v3.5 при живом MLX)
+        assert get_keep_alive("victoria-wisdom-v3.5", mlx_alive=True) == 60
+
+
+def test_new_immortal_models():
+    """Новые бессмертные модели должны возвращать -1."""
+    assert get_keep_alive("phi3.5:3.8b", mlx_alive=True) == -1
+    assert get_keep_alive("tinyllama", mlx_alive=True) == -1
+    assert get_keep_alive("nomic-embed-text", mlx_alive=True) == -1
 
 
 def test_embedding_category_returns_zero():
-    """Категория embedding или модель эмбеддинга → 0."""
-    assert get_keep_alive("nomic-embed-text", category="embedding", mlx_alive=True) == 0
-    # nomic уже в IMMORTAL, но category=embedding может обработаться раньше в другом порядке
-    # В нашей реализации embedding проверяется после immortal; nomic даёт -1. Проверим другую модель с category
-    with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("VICTORIA_OLLAMA_KEEP_ALIVE", None)
-        os.environ.pop("OLLAMA_KEEP_ALIVE", None)
+    """Категория embedding или модель эмбеддинга (кроме бессмертных) → 0."""
+    # some-embed-model не в IMMORTAL
     assert get_keep_alive("some-embed-model", category="embedding", mlx_alive=True) == 0
 
 

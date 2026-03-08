@@ -91,11 +91,20 @@ MLX_API_URL = (
 )  # MLX_API_URL=disabled → None, только Ollama
 
 
+from app.context_mirror import ContextMirror
+from app.mlx_monitor import get_mlx_monitor
 from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
 from app.ollama_keep_alive_policy import get_keep_alive, unload_ollama_fallback_models
 
 # [SINGULARITY 21.3] God Mode 128GB: Immortal models and zero-swap
-IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
+IMMORTAL_MODELS = {
+    "nomic-embed-text",
+    "nomic-embed-text:latest",
+    "moondream",
+    "moondream:latest",
+    "tinyllama",
+    "phi3.5:3.8b",
+}
 # [SINGULARITY 21.4] Tool Guard: Only these models can execute tools
 TOOL_CALL_ALLOWED_MODELS = [
     "victoria-wisdom-v3.5",
@@ -258,6 +267,13 @@ class LocalAIRouter:
         self._prompt_cache_ttl = 1800  # 30 мин
         self._prompt_cache_hits = 0
         self._prompt_cache_misses = 0
+
+        # Context Mirroring (Redis)
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.context_mirror = ContextMirror(redis_url)
+        
+        # MLX Latency Monitor
+        self.mlx_monitor = get_mlx_monitor()
 
     @property
     def memory_manager(self):
@@ -746,6 +762,22 @@ class LocalAIRouter:
 
         return False
 
+    async def _trigger_predictive_warmup(self, model_name: str, node_url: str):
+        """
+        Упреждающий прогрев модели в Ollama, если она скоро понадобится.
+        """
+        try:
+            # Прогреваем только если это не текущий узел и это Ollama
+            if "11434" in node_url or "ollama" in node_url.lower():
+                logger.info("🔥 [WARMUP] Triggering predictive warmup for %s in Ollama", model_name)
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    await client.post(
+                        f"{node_url}/api/generate",
+                        json={"model": model_name, "prompt": " ", "stream": False, "keep_alive": 300},
+                    )
+        except Exception as e:
+            logger.debug("Predictive warmup failed for %s: %s", model_name, e)
+
     async def run_local_llm(
         self,
         prompt: str,
@@ -756,6 +788,8 @@ class LocalAIRouter:
         model: Optional[str] = None,
         model_hint: Optional[str] = None,
         is_vip: bool = False,
+        session_id: Optional[str] = None,
+        history: Optional[list] = None,
     ) -> Optional[tuple]:
         """
         Запускает локальную LLM модель.
@@ -763,6 +797,8 @@ class LocalAIRouter:
         model: если задан — используем эту модель и перебираем узлы (MLX/Ollama) пока один не ответит.
         model_hint: подсказка для выбора модели (для совместимости с ансамблем).
         is_vip: если True, запрос идет через VIP-коридор (приоритет и лучшие модели).
+        session_id: ID сессии для зеркалирования контекста.
+        history: история сообщений для зеркалирования.
 
         Returns:
             tuple: (response, routing_source)
@@ -771,6 +807,11 @@ class LocalAIRouter:
         if is_vip:
             category = "vip"
             logger.info("🌟 [VIP ROUTE] Запрос через VIP-коридор (Иван/Совет)")
+
+        # Зеркалирование контекста
+        if session_id and history:
+            asyncio.create_task(self.context_mirror.save_context(session_id, history))
+            logger.debug("🪞 [CONTEXT MIRROR] Mirroring context for session %s", session_id)
 
         # Используем подсказку, если модель не задана явно
         if model is None and model_hint:
@@ -976,8 +1017,13 @@ class LocalAIRouter:
         if model and (
             "victoria-wisdom-v3.5" in model.lower() or "victoria-wisdom-v3.5" in model.lower()
         ):
-            preferred_source = "mlx"
-            logger.info("🧠 [GOD MODE] Victoria model detected, forcing MLX priority")
+                preferred_source = "mlx"
+                logger.info("🧠 [GOD MODE] Victoria model detected, forcing MLX priority")
+                
+                # Упреждающий прогрев Ollama на случай падения MLX
+                if ollama_nodes:
+                    ollama_model = self._select_model(prompt, category, node_type="ollama")
+                    asyncio.create_task(self._trigger_predictive_warmup(ollama_model, ollama_nodes[0]["url"]))
 
         if preferred_source:
             # Перемещаем предпочтительный узел в начало
@@ -1251,6 +1297,7 @@ class LocalAIRouter:
                                 f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]..."
                             )
                             full_response = []
+                            request_id = f"req_{int(time.time())}_{hash(prompt) % 10000}"
 
                             # Включаем стриминг в полезной нагрузке
                             payload["stream"] = True
@@ -1275,6 +1322,10 @@ class LocalAIRouter:
                                             continue
                                         try:
                                             chunk = json.loads(line)
+                                            # Мониторинг латентности для MLX
+                                            if is_mlx:
+                                                self.mlx_monitor.record_chunk(request_id)
+
                                             # Обработка разных форматов Ollama/MLX
                                             if "message" in chunk:
                                                 content = chunk["message"].get("content", "")
@@ -1292,6 +1343,8 @@ class LocalAIRouter:
                                             continue
 
                                     result = "".join(full_response)
+                                    if is_mlx:
+                                        self.mlx_monitor.finalize_request(request_id)
 
                                     # Создаем фиктивный объект ответа для совместимости с кодом ниже
                                     class MockResponse:

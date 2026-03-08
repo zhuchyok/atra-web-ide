@@ -6,7 +6,8 @@
 
 import logging
 import os
-from typing import List, Optional, Union
+import time
+from typing import Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,16 @@ IMMORTAL_MODELS = {
     "nomic-embed-text:latest",
     "moondream",
     "moondream:latest",
+    "tinyllama",
+    "tinyllama:latest",
+    "phi3.5:3.8b",
+    "phi3.5:latest",
 }
+
+# Cooldown при восстановлении MLX: если MLX только что ожил, держим Ollama-модели в памяти ещё 5 минут
+RECOVERY_COOLDOWN_SECONDS = 300
+# Время последнего падения MLX (когда mlx_alive было False)
+LAST_MLX_FAILURE_TIME = 0.0
 
 # Модели эмбеддингов — выгружать сразу после ответа
 EMBEDDING_MODELS = {"nomic-embed-text", "nomic-embed-text:latest"}
@@ -98,6 +108,7 @@ def get_keep_alive(
     Единая политика keep_alive для запросов к Ollama.
 
     Порядок проверок:
+    0. Cooldown: если MLX только что ожил, держим модели в памяти
     1. Fallback-мозг: mlx_alive=False и модель v3.5 → -1
     2. Бессмертные по имени (nomic, moondream) → -1
     3. Эмбеддинги → 0
@@ -106,6 +117,28 @@ def get_keep_alive(
     6. Smart Keep-Alive по размеру модели
     7. Дефолт 300
     """
+    global LAST_MLX_FAILURE_TIME
+
+    # 0. Cooldown и трекинг падений MLX
+    if not mlx_alive:
+        LAST_MLX_FAILURE_TIME = time.time()
+    elif LAST_MLX_FAILURE_TIME > 0:
+        elapsed = time.time() - LAST_MLX_FAILURE_TIME
+        if elapsed < RECOVERY_COOLDOWN_SECONDS:
+            # Если это не эмбеддинг и не пустая модель
+            if (
+                model_name
+                and category != "embedding"
+                and not any(m in model_name for m in EMBEDDING_MODELS)
+            ):
+                logger.info(
+                    "🛡️ [COOLDOWN] MLX recovered %.1fs ago (<%ds), keeping %s alive",
+                    elapsed,
+                    RECOVERY_COOLDOWN_SECONDS,
+                    model_name,
+                )
+                return -1
+
     # 1. Fallback-мозг: пока MLX недоступен, v3.5 в Ollama не выгружается
     if model_name and any(m in model_name for m in FALLBACK_BRAIN_MODELS):
         if not mlx_alive:
@@ -115,15 +148,8 @@ def get_keep_alive(
             # Если MLX жив, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
             return 60
 
-    # 2. Эмбеддинги — выгрузить сразу (до бессмертных, чтобы nomic возвращал 0)
-    if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):
-        return 0
-
-    # 3. Бессмертные по имени (moondream и т.д., но не nomic — он уже 0 выше)
-    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        return -1
-
-    # 4. Env
+    # 4. Env (VICTORIA_OLLAMA_KEEP_ALIVE / OLLAMA_KEEP_ALIVE)
+    # Переопределяет RAM и Smart Keep-Alive, но не бессмертных и не fallback-brain.
     raw = os.getenv("VICTORIA_OLLAMA_KEEP_ALIVE") or os.getenv("OLLAMA_KEEP_ALIVE")
     if raw is not None and str(raw).strip() != "":
         if str(raw).strip() == "-1":
@@ -132,6 +158,18 @@ def get_keep_alive(
             return int(raw) if str(raw).strip().lstrip("-").isdigit() else raw
         except (ValueError, AttributeError):
             pass
+
+    # 2. Бессмертные по имени (moondream, phi3.5, tinyllama, nomic-embed-text)
+    # ПРИМЕЧАНИЕ: Бессмертные проверяются ПОСЛЕ fallback-brain и env, но ДО RAM.
+    # Это гарантирует, что они всегда в памяти, если только это не v3.5 при живом MLX.
+    if model_name and any(m in model_name for m in IMMORTAL_MODELS):
+        return -1
+
+    # 3. Эмбеддинги (nomic и др.) — выгрузить сразу (keep_alive=0)
+    # ПРИМЕЧАНИЕ: nomic-embed-text теперь в IMMORTAL, поэтому он вернет -1 выше.
+    # Этот блок сработает для других эмбеддингов.
+    if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):
+        return 0
 
     # 5. Адаптация по RAM (с учётом резерва MLX)
     effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
@@ -167,7 +205,7 @@ def get_keep_alive(
 
 
 async def unload_ollama_fallback_models(
-    ollama_url: str, model_names: Optional[List[str]] = None
+    ollama_url: str, model_names: Optional[list[str]] = None
 ) -> None:
     """
     Явная выгрузка fallback-моделей в Ollama (best effort).
