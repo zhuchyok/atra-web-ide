@@ -1,66 +1,91 @@
-import time
 import logging
-from typing import Dict, List, Optional
+import time
+from collections import deque
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class MLXMonitor:
-    """
-    Мониторинг производительности MLX: TBT (Time Between Tokens), TPS (Tokens Per Second).
-    """
-    def __init__(self):
-        self.stats = {}
-        self.history_limit = 100
+    def __init__(self, window_size: int = 20):
+        self.window_size = window_size
+        self.tbt_history = deque(maxlen=window_size)
+        self.ttft_history = deque(maxlen=window_size)
+        self.tps_history = deque(maxlen=window_size)
+        self.success_history = deque(maxlen=window_size)
+        self.queue_depth = 0
+        self.reachable = True
 
-    def record_chunk(self, request_id: str):
-        """Записать время получения чанка."""
-        now = time.time()
-        if request_id not in self.stats:
-            self.stats[request_id] = {
-                "start_time": now,
-                "last_chunk_time": now,
-                "chunks": 0,
-                "tbt_history": []
-            }
-        
-        stat = self.stats[request_id]
-        tbt = now - stat["last_chunk_time"]
-        if stat["chunks"] > 0:  # Пропускаем первый чанк (время генерации первого токена)
-            stat["tbt_history"].append(tbt)
-            if len(stat["tbt_history"]) > self.history_limit:
-                stat["tbt_history"].pop(0)
-        
-        stat["last_chunk_time"] = now
-        stat["chunks"] += 1
+    def report_metrics(self, ttft: float, tbt: float, tps: float):
+        """Report metrics for a single request."""
+        self.ttft_history.append(ttft)
+        self.tbt_history.append(tbt)
+        self.tps_history.append(tps)
 
-    def get_metrics(self, request_id: str) -> Dict:
-        """Получить метрики для конкретного запроса."""
-        if request_id not in self.stats:
-            return {}
-        
-        stat = self.stats[request_id]
-        total_time = stat["last_chunk_time"] - stat["start_time"]
-        avg_tbt = sum(stat["tbt_history"]) / len(stat["tbt_history"]) if stat["tbt_history"] else 0
-        tps = stat["chunks"] / total_time if total_time > 0 else 0
-        
-        return {
-            "total_time": total_time,
-            "chunks": stat["chunks"],
-            "avg_tbt_ms": avg_tbt * 1000,
-            "tps": tps
-        }
+    def record_success(self):
+        """Record a successful request."""
+        self.success_history.append(True)
+        self.reachable = True
 
-    def finalize_request(self, request_id: str):
-        """Завершить мониторинг запроса и вывести итоги."""
-        metrics = self.get_metrics(request_id)
-        if metrics:
-            logger.info(
-                "📊 [MLX MONITOR] Request %s: %.2f TPS, avg TBT: %.2fms, total chunks: %d",
-                request_id, metrics["tps"], metrics["avg_tbt_ms"], metrics["chunks"]
-            )
-        self.stats.pop(request_id, None)
+    def record_failure(self):
+        """Record a failed request."""
+        self.success_history.append(False)
 
-_monitor = MLXMonitor()
+    def update_queue_depth(self, depth: int):
+        """Update the current queue depth."""
+        self.queue_depth = depth
 
-def get_mlx_monitor():
+    def set_reachable(self, reachable: bool):
+        """Explicitly set reachability status."""
+        self.reachable = reachable
+
+    def get_health_score(self) -> float:
+        """
+        Returns a health score from 0.0 (Dead) to 1.0 (Healthy).
+        Logic:
+        - If not reachable, score = 0.
+        - If TBT > 200ms, reduce score.
+        - If Queue Depth > 5, reduce score.
+        - If Error Rate is high, reduce score.
+        """
+        if not self.reachable:
+            return 0.0
+
+        score = 1.0
+
+        # TBT Penalty: reduce by 0.1 for every 100ms over 200ms, max 0.5 reduction
+        if self.tbt_history:
+            avg_tbt = sum(self.tbt_history) / len(self.tbt_history)
+            if avg_tbt > 0.2:
+                penalty = min(0.5, (avg_tbt - 0.2) * 1.0)  # 0.1 per 100ms
+                score -= penalty
+
+        # Queue Depth Penalty: reduce by 0.1 for every request over 5, max 0.5 reduction
+        if self.queue_depth > 5:
+            penalty = min(0.5, (self.queue_depth - 5) * 0.1)
+            score -= penalty
+
+        # Error Rate Penalty
+        if self.success_history:
+            error_rate = 1.0 - (sum(self.success_history) / len(self.success_history))
+            score -= error_rate  # Direct reduction by error rate
+
+        return max(0.0, score)
+
+    def is_overloaded(self) -> bool:
+        """Check if MLX is considered overloaded based on health score."""
+        return self.get_health_score() < 0.7
+
+    def is_mlx_available(self) -> bool:
+        """Check if MLX is available (score > 0)."""
+        return self.get_health_score() > 0.0
+
+
+_monitor = None
+
+
+def get_mlx_monitor() -> MLXMonitor:
+    global _monitor
+    if _monitor is None:
+        _monitor = MLXMonitor()
     return _monitor

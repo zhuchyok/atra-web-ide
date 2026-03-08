@@ -91,10 +91,10 @@ MLX_API_URL = (
 )  # MLX_API_URL=disabled → None, только Ollama
 
 
+from app.context_mirror import ContextMirror
 from app.mlx_monitor import get_mlx_monitor
 from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
 from app.ollama_keep_alive_policy import get_keep_alive, unload_ollama_fallback_models
-from app.context_mirror import ContextMirror
 
 # [SINGULARITY 21.3] God Mode 128GB: Immortal models and zero-swap
 IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
@@ -979,34 +979,30 @@ class LocalAIRouter:
         preferred_source = getattr(self, "_preferred_source", None)
 
         # [SINGULARITY 21.3] God Mode: Victoria Brain always prefers MLX
-        if model and (
-            "victoria-wisdom-v3.5" in model.lower() or "victoria-wisdom-v3.5" in model.lower()
-        ):
+        is_victoria = model and "victoria-wisdom-v3.5" in model.lower()
+        if is_victoria:
             preferred_source = "mlx"
             logger.info("🧠 [GOD MODE] Victoria model detected, forcing MLX priority")
+            # Warmup is now handled by the unified logic below
 
-            # Упреждающий прогрев Ollama на случай падения MLX
-            if ollama_nodes:
-                ollama_model = self._select_model(prompt, category, node_type="ollama")
-                # Получаем текущую историю для прогрева KV-Cache
-                current_history = []
-                session_id = session_id or getattr(self, "_current_session_id", "default")
-                if session_id:
-                    current_history = await self.context_mirror.get_context(session_id) or []
-                
-                asyncio.create_task(self._trigger_predictive_warmup(
-                    ollama_model, 
-                    ollama_nodes[0]["url"],
-                    history=current_history
-                ))
+        # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks OR MLX overload OR Victoria
+        monitor = get_mlx_monitor()
+        health_score = monitor.get_health_score()
+        should_warmup = category in ("reasoning", "complex") or health_score < 0.5 or is_victoria
 
-        # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks
-        if category in ("reasoning", "complex") and ollama_nodes:
+        if should_warmup and ollama_nodes:
             ollama_model = self._select_model(prompt, category, node_type="ollama")
-            asyncio.create_task(self._trigger_predictive_warmup(
-                ollama_model, 
-                ollama_nodes[0]["url"]
-            ))
+            # Получаем текущую историю для прогрева KV-Cache
+            session_id = session_id or getattr(self, "_current_session_id", "default")
+            current_history = []
+            if session_id:
+                current_history = await self.context_mirror.get_context(session_id) or []
+
+            asyncio.create_task(
+                self._trigger_predictive_warmup(
+                    ollama_model, ollama_nodes[0]["url"], history=current_history
+                )
+            )
 
         if preferred_source:
             # Перемещаем предпочтительный узел в начало
@@ -1046,7 +1042,9 @@ class LocalAIRouter:
             is_mlx = "11435" in node["url"] or "mlx" in node["url"].lower()
 
             # [FALLBACK_MODE] If MLX failed and we are on Ollama, use mirrored context
-            if is_ollama and any("mlx" in n["url"] for n in healthy_nodes[:healthy_nodes.index(node)]):
+            if is_ollama and any(
+                "mlx" in n["url"] for n in healthy_nodes[: healthy_nodes.index(node)]
+            ):
                 logger.info("[FALLBACK_MODE] MLX failed, switching to Ollama with mirrored context")
 
             # ИНТЕЛЛЕКТУАЛЬНЫЙ ВЫБОР МОДЕЛИ на основе мировых практик
@@ -1185,7 +1183,7 @@ class LocalAIRouter:
                         # Check if last message is already the current prompt
                         if not messages or messages[-1].get("content") != prompt:
                             messages.append({"role": "user", "content": prompt})
-                
+
                 if not messages:
                     if system_prompt:
                         messages.append({"role": "system", "content": system_prompt})
@@ -1216,10 +1214,10 @@ class LocalAIRouter:
                             full_prompt += f"User: {prompt}\nAssistant:"
                         else:
                             full_prompt += "Assistant:"
-                
+
                 if not full_prompt:
                     full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
-                
+
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
                 mlx_alive = any(
                     "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
@@ -1234,7 +1232,10 @@ class LocalAIRouter:
                 # Circuit Breaker Check
                 monitor = get_mlx_monitor()
                 if not monitor.is_mlx_available():
-                    logger.warning("🚨 [CIRCUIT BREAKER] MLX is temporarily disabled. Skipping node %s", node['name'])
+                    logger.warning(
+                        "🚨 [CIRCUIT BREAKER] MLX is temporarily disabled. Skipping node %s",
+                        node["name"],
+                    )
                     continue
 
                 try:
@@ -1335,6 +1336,8 @@ class LocalAIRouter:
                                 os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60")
                             )
 
+                            # [SINGULARITY 21.5] Predictive Warmup logic moved up
+
                             async with client.stream(
                                 "POST",
                                 node_url,
@@ -1343,11 +1346,21 @@ class LocalAIRouter:
                                 timeout=httpx.Timeout(_stream_timeout, connect=_stream_connect),
                             ) as response:
                                 if response.status_code == 200:
+                                    first_token_time = None
+                                    token_times = []
+                                    chunk_count = 0
+
                                     async for line in response.aiter_lines():
                                         if not line:
                                             continue
                                         try:
                                             chunk = json.loads(line)
+                                            now = time.time()
+                                            if first_token_time is None:
+                                                first_token_time = now
+                                            else:
+                                                token_times.append(now)
+
                                             # Обработка разных форматов Ollama/MLX
                                             if "message" in chunk:
                                                 content = chunk["message"].get("content", "")
@@ -1358,13 +1371,39 @@ class LocalAIRouter:
 
                                             if content:
                                                 full_response.append(content)
+                                                chunk_count += 1
 
                                             if chunk.get("done"):
                                                 break
-                                        except Exception:
+                                        except (json.JSONDecodeError, KeyError, Exception):
                                             continue
 
                                     result = "".join(full_response)
+
+                                    # Report metrics to MLXMonitor
+                                    if is_mlx and first_token_time:
+                                        ttft = first_token_time - request_start
+                                        tbt = 0.0
+                                        if len(token_times) > 1:
+                                            # Calculate average TBT
+                                            diffs = [
+                                                token_times[i] - token_times[i - 1]
+                                                for i in range(1, len(token_times))
+                                            ]
+                                            if not diffs:  # Only one token after first
+                                                diffs = [token_times[0] - first_token_time]
+                                            tbt = sum(diffs) / len(diffs)
+
+                                        total_duration = time.time() - request_start
+                                        tps = (
+                                            chunk_count / total_duration
+                                            if total_duration > 0
+                                            else 0
+                                        )
+
+                                        get_mlx_monitor().report_metrics(
+                                            ttft=ttft, tbt=tbt, tps=tps
+                                        )
 
                                     # Создаем фиктивный объект ответа для совместимости с кодом ниже
                                     class MockResponse:
@@ -1381,6 +1420,8 @@ class LocalAIRouter:
                                     error_text = await response.aread()
                                     logger.error(f"Streaming error: {response.status_code}")
                         else:
+                            # [SINGULARITY 21.5] Predictive Warmup logic moved up
+
                             # Обычный запрос для легких задач
                             response = await client.post(
                                 node_url,
@@ -1496,7 +1537,7 @@ class LocalAIRouter:
                                         tracker = get_performance_tracker()
                                         # Сохраняем в metadata задачи (будет использовано в worker'е)
                                         self._used_model = model
-                                    except:
+                                    except Exception:
                                         pass
 
                                 # Сохраняем в кэш при успехе (короткий ответ)
@@ -1539,7 +1580,7 @@ class LocalAIRouter:
                                     response.status_code,
                                     error_text,
                                 )
-                            except:
+                            except Exception:
                                 logger.error(
                                     "[ROUTER] ❌ Node %s returned HTTP %d",
                                     node["name"],
@@ -1709,7 +1750,9 @@ class LocalAIRouter:
         else:
             return "general"
 
-    async def _trigger_predictive_warmup(self, model_name: str, node_url: str, history: Optional[list] = None):
+    async def _trigger_predictive_warmup(
+        self, model_name: str, node_url: str, history: Optional[list] = None
+    ):
         """Упреждающий прогрев модели в Ollama на случай падения MLX, включая KV-Cache."""
         try:
             # Если есть история, используем её для прогрева KV-Cache
@@ -1717,7 +1760,9 @@ class LocalAIRouter:
             if history:
                 # Берем последние 2-3 сообщения для прогрева контекста
                 context_slice = history[-3:] if len(history) > 3 else history
-                prompt = "\n".join([f"{m.get('role', 'user')}: {m.get('content', '')}" for m in context_slice])
+                prompt = "\n".join(
+                    [f"{m.get('role', 'user')}: {m.get('content', '')}" for m in context_slice]
+                )
                 prompt += "\nassistant: "
 
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -1727,10 +1772,13 @@ class LocalAIRouter:
                         "model": model_name,
                         "prompt": prompt,
                         "stream": False,
-                        "options": {"num_predict": 1} # Минимальная генерация только для прогрева
+                        "options": {"num_predict": 1},  # Минимальная генерация только для прогрева
                     },
                 )
-            logger.info("🔥 [WARMUP] Triggered KV-Cache warmup for %s in Ollama (context len: %d)", 
-                        model_name, len(history) if history else 0)
+            logger.info(
+                "🔥 [WARMUP] Triggered KV-Cache warmup for %s in Ollama (context len: %d)",
+                model_name,
+                len(history) if history else 0,
+            )
         except Exception as e:
             logger.debug("Predictive warmup failed for %s: %s", model_name, e)
