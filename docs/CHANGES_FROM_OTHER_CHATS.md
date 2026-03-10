@@ -4,6 +4,267 @@
 
 ---
 
+## 68. Nightly: исправление release и saved_count в фазе corporation knowledge (2026-03-11)
+
+- **Симптом:** При ручном прогоне nightly: `AttributeError: 'Connection' object has no attribute 'release'`; `UnboundLocalError: saved_count`; `RuntimeWarning: coroutine 'Pool.release' was never awaited`.
+- **Причина:** asyncpg: соединения из пула возвращаются вызовом `await pool.release(conn)`, а не `conn.release()`. В `_save_corporation_knowledge_to_db` переменная `saved_count` не инициализировалась.
+- **Сделано:** (1) **corporation_knowledge_system.py** — в `_save_corporation_knowledge_to_db` добавлено `saved_count = 0`; все `pool.release(conn)` заменены на `await pool.release(conn)` (в т.ч. для conn_ins). (2) **corporation_complete_knowledge.py** — в `save_all_knowledge` в finally: `await pool.release(conn)` / `await temp_pool.release(conn)`; закрытие temp_pool только при его наличии.
+- **Проверка:** Ручной прогон `docker exec knowledge_nightly python3 -u nightly_learner.py`: фаза corporation knowledge завершается без ошибок (16 узлов + 15 полных знаний).
+
+---
+
+## 67. Setki21: заявки с сайта дилера — на email дилера и рабочие часы в сообщении (2026-02-23)
+
+- **Симптом:** На www.setkimoskitki.ru (и др. дилерских сайтах) заявка «Заказать обратный звонок» уходила на info@setki21.ru; в успешном сообщении была общая фраза «мы свяжемся в ближайшее время» вместо графика из админки.
+- **Сделано (репо setki-21):** (1) **layouts/default.vue** — `callbackToEmail`: приоритет `contacts.emails[0]`, fallback на `tenant.config.email`. (2) **CallbackModal.vue** — после отправки только текст «Перезвоним в рабочее время: {{ workingHoursText }}» из `branding.working_hours`. (3) **stores/tenant.ts** — в начальное состояние конфига добавлено поле `email`. (4) **server/api/callback.post.ts** — без изменений: уже использует `toEmail` из тела или CONTACT_EMAIL.
+- **Документация (atra-web-ide):** В **docs/runbooks/SETKI21_WHITE_SCREEN.md** в разделе «Заявки не приходят» добавлены абзацы: заявки дилера уходят на info@, если у дилера не заполнены Email/Контакты в админке; проверка через `/api/v1/tenant/config`; после правок — пересборка web; текст «рабочее время» из `branding.working_hours`.
+- **Коммиты:** setki-21 `7a4bc46` (fix: dealer callback…); atra-web-ide `2827ff4` (docs(setki21): заявки дилеров в runbook).
+- **Итог:** Для всех дилеров с заполненным email/contacts в админке заявки уходят на их ящик; сообщение после отправки показывает режим работы из админки.
+
+---
+
+## 66. Setki21: заявки (обратный звонок) не приходят — нет SMTP в контейнере web (2026-03-10)
+
+- **Симптом:** Форма «Заказать обратный звонок» отправляется, но письмо на email не приходит.
+- **Цепочка:** Браузер → NPM → setki21-api-new (прокси POST /api/callback) → setki21-web-new (Nuxt callback.post.ts) → nodemailer → SMTP. На VDS в контейнере **web** не были заданы SMTP_USER, SMTP_PASS, поэтому письмо не отправлялось.
+- **Сделано (репо setki-21):** (1) В **docker-compose.yml** для сервиса **web** добавлены переменные SMTP_HOST, SMTP_USER, SMTP_PASS, CONTACT_EMAIL (из env). (2) В **server/api/callback.post.ts** в production при отсутствии SMTP_USER/SMTP_PASS возвращается 503 с сообщением «Сервис отправки заявок временно недоступен» вместо тихого no-op. (3) В **docs/runbooks/SETKI21_WHITE_SCREEN.md** добавлен раздел «Заявки (обратный звонок) не приходят»: проверка прокси API→Web, настройка SMTP в .env на VDS, логи.
+- **Что сделать на VDS:** В `/home/atra/app/setki21_src` создать или дописать **.env** с SMTP_USER, SMTP_PASS (и при необходимости SMTP_HOST, CONTACT_EMAIL), затем `docker compose -f docker-compose.yml -f docker-compose.vds.yml up -d web`. См. runbook.
+
+---
+
+## 65. Setki21: мерцание и белый экран из‑за localhost в бандле (2026-03-10, РЕШЕНО ✅)
+
+- **Симптом:** Сайт мелькает и пропадает; в Network видны запросы к localhost:8081/8083 вместо домена.
+- **Причина:** При сборке образа **web** не передавался `NUXT_PUBLIC_API_URL`; в nuxt.config и в компонентах был fallback `http://localhost:8081` → в клиентский бандл попадал localhost.
+- **Сделано (репо setki-21):** (1) **docker-compose.yml** и **Dockerfile.web** — дефолт `NUXT_PUBLIC_API_URL` заменён на `https://www.setki21.ru`. (2) **nuxt.config.ts** — fallback для apiUrl/apiBase: пустая строка и `/api` (same-origin). (3) Во всех страницах и сторах (tenant, dealers, admin/*, pricing, dealer/settings и т.д.) убран fallback `'http://localhost:8081'`, используется `config.public.apiUrl || ''`.
+- **Документация:** В **docs/runbooks/SETKI21_WHITE_SCREEN.md** добавлен **шаг 0.6** — диагностика и исправление (пересборка web с NUXT_PUBLIC_API_URL на VDS).
+- **Итог:** После обновления кода setki-21 и пересборки образа web на VDS мерцание из‑за localhost не должно возвращаться.
+
+---
+
+## 64. Setki21: белый экран — API не стартовал из‑за «password authentication failed for user moskit» (2026-03-10, РЕШЕНО ✅)
+
+- **Симптом:** Контейнеры setki21-api-new и setki21-web-new Up, но сайты — белый экран; в логах API цикл подключения к Postgres с ошибкой аутентификации.
+- **Причина:** API в двух сетях (setki21_src_default + atra-network). Имя **postgres** резолвилось в **atra-postgres** (172.18.0.5), а не в Postgres стека setki21_src (172.19.0.5); у atra-postgres другие учётные данные.
+- **Сделано:** В **setki-21/docker-compose.vds.yml** для сервиса **api** задан явный хост: `DATABASE_URL=postgres://moskit:password@setki21_src-postgres-1:5432/moskit`. На VDS запущен Postgres стека (`docker compose up -d postgres`), API пересоздан с новым env. В **docs/runbooks/SETKI21_WHITE_SCREEN.md** добавлен шаг 0.5 с диагностикой и исправлением.
+- **Итог:** API успешно поднимается, основные хосты (setki21.ru, xn--..., setkimoskitki.ru) отдают 200. Проверка: `./scripts/verify_setki21_all_sites.sh`.
+
+---
+
+## 63. Omni-RAG — Единый Интеллект (Open WebUI & Telegram) (2026-03-10)
+
+- **Цель:** Обеспечить одинаково высокий уровень знаний Виктории во всех интерфейсах (Web IDE, Open WebUI, Telegram).
+- **Сделано:** 
+  1. **Open WebUI Hook:** В эндпоинт `POST /v1/chat/completions` (OpenAI API) интегрирован вызов `Hybrid Search v2`. Теперь при общении через Open WebUI Виктория автоматически получает контекст из базы знаний.
+  2. **Omni-Search API:** Создан новый эндпоинт `POST /api/omni-rag/search` в `victoria_server.py` для быстрого поиска знаний внешними системами.
+  3. **Telegram Context:** Добавлена логика распознавания Telegram-сессий (`tg-`) для будущей глубокой интеграции уведомлений и персонализации.
+  4. **Unified Knowledge:** Все изменения Hybrid Search v2 и Cross-Encoder Re-ranking теперь доступны "из коробки" для любого внешнего клиента.
+- **Итог:** RAG перестал быть "фишкой только для IDE" и стал ядром всей корпорации Singularity.
+
+---
+
+## 62. Enhanced RAG — Hybrid Search v2 & Re-ranking (2026-03-10)
+
+- **Цель:** Повысить точность поиска и расширить базу знаний актуальными данными от гигантов индустрии.
+- **Сделано:** 
+  1. **Hybrid Search v2:** Внедрен поиск, сочетающий векторную близость и полнотекстовое ранжирование PostgreSQL (`tsvector` + `ts_rank_cd`).
+  2. **Cross-Encoder Re-ranking:** Интегрирована модель `ms-marco-MiniLM-L-6-v2` для финальной перепроверки результатов (выполняется за < 1 сек на Mac Studio).
+  3. **External Docs Indexer:** Реализован парсинг произвольных URL и массовая индексация GitHub (OpenAI, Anthropic, DeepSeek, LangChain, AutoGen).
+  4. **Victoria Enhanced:** Механизм `_get_ai_research_context` переведен на новый гибридный поиск.
+- **Итог:** Виктория теперь видит не только внутренние «узлы знаний», но и свежайшие данные из внешних источников, выбирая самые релевантные через трехступенчатый фильтр.
+
+---
+
+## 61. Nightly: один пул на фазу знаний + 16G RAM (2026-03-10)
+
+- **Цель:** Убрать TooManyConnectionsError и Killed в ночном цикле.
+- **Сделано:** (1) **nightly_learner.py** — один пул (max_size=4) для фазы обновления знаний, передаётся в `update_all_agents_knowledge(pool)`, после фазы пул закрывается. (2) **corporation_knowledge_system.py** — `update_corporation_knowledge(pool=None)` и `update_all_agents_knowledge(pool=None)` используют переданный пул. (3) **corporation_complete_knowledge.py** — `save_all_knowledge(..., pool=None)` и `extract_all(pool=None)` при pool не создают свой пул. (4) **knowledge_nightly** в docker-compose: mem_limit 16G (было 14G).
+- **Итог:** Фаза знаний держит до 4 соединений из одного пула; меньше пик к Postgres. 16G снижает риск OOM.
+
+---
+
+## 61. Ответственный за ошибки контейнеров в Docker — Елена (Monitor) (2026-03-10)
+
+- **Цель:** Явно назначить локального эксперта, который отслеживает ошибки контейнеров и получает задачи от Виктории при падении сервисов.
+- **Сделано:** (1) **configs/experts/team.md** — добавлен раздел «Ответственный за ошибки контейнеров и сервисов (Docker)»: Service Monitor публикует SERVICE_DOWN, Victoria обрабатывает и при неудачном перезапуске передаёт задачу **Елене (Monitor)**; Autonomous Sentinel также направляет анализ **Елене**; при необходимости привлекается Сергей (DevOps). (2) **docs/VICTORIA_USAGE_GUIDE.md** — в «Диагностика логов» добавлен подраздел «Кто отслеживает ошибки контейнеров в Docker» с цепочкой Service Monitor → Victoria → Елена. (3) **knowledge_os/app/victoria_event_handlers.py** — в handle_service_down при неудачном перезапуске создаётся фоновая задача: вызов run_smart_agent_async с expert_name="Елена" для диагностики (причины падения, шаги исправления). (4) **knowledge_os/app/autonomous_sentinel.py** — в handle_service_down заменён expert_name с "SRE" на "Елена", текст запроса на русском.
+- **Итог:** Елена (Monitor) закреплена как ответственная за ошибки контейнеров/сервисов; при SERVICE_DOWN и неудачном перезапуске она получает задачу на анализ и рекомендации.
+
+---
+
+## 60. Диагностика логов Victoria: STRATEGIST FAILED, cursor-agent, TOOL CREATOR (2026-03-10)
+
+- **Цель:** Понятная расшифровка логов и меньше шума при работе в Docker.
+- **Сделано:** (1) **docs/VICTORIA_USAGE_GUIDE.md** — добавлен раздел «Диагностика логов» с таблицей: STRATEGIST FAILED, cursor-agent not found, TOOL CREATOR, таймаут Ollama, облачный маршрут; что значит и что делать. (2) **knowledge_os/app/ai_core.py:** в Docker сообщение «cursor-agent not found» понижено до DEBUG (ожидаемо в контейнере); для вызова стратега в Docker принудительно задаётся приоритет Ollama (`_preferred_source = "ollama"`), чтобы реже срабатывал STRATEGIST FAILED; лог TOOL CREATOR троттлится — INFO не чаще раза в 30 с, иначе DEBUG. (3) **docs/CHANGES_FROM_OTHER_CHATS.md** — этот пункт.
+- **Итог:** В Docker меньше предупреждений в логах, стратег чаще успешно выполняется на Ollama; при необходимости расшифровка — в VICTORIA_USAGE_GUIDE.
+
+---
+
+## 59. Оценка готовности к автономности и работе без интернета (2026-02-23)
+
+- **Цель:** Понять, насколько проект готов к полностью автономной работе и работе без доступа в интернет.
+- **Сделано:** Создан **docs/AUTONOMY_OFFLINE_READINESS.md** с оценкой по компонентам: ядро чата/LLM (STRICT_LOCAL + MLX + Ollama) — готово; эмбеддинги — частично (Ollama/semantic_cache локально, VectorCore 8001 и main.py при недоступности 8001 падают); веб-поиск — требует интернет (DuckDuckGo и ollama.com); external_api (GitHub/Stack Overflow) — опционально; Telegram/SSH — опционально; зависимости — без интернета после setup (исключение: force_worker pip install asyncpg); самовосстановление — локально. Pre-flight чеклист для офлайн и рекомендации (fallback эмбеддингов на Ollama в main.py, отключение веб-поиска при STRICT_LOCAL, убрать pip в force_worker). Итоговая шкала: чат+планирование 9/10, чат+RAG при fallback 8/10, полная автономность после доработок 7/10.
+- **Ссылки:** MASTER_REFERENCE (Quick links, раздел STRICT_LOCAL) — добавлена ссылка на AUTONOMY_OFFLINE_READINESS.
+
+---
+
+## 58. Правило «куратор даёт задание только через скрипт» — везде (2026-02-23)
+
+- **Цель:** Чтобы все (Cursor-агент, человек) знали: при роли куратора задание Виктории даётся **только через скрипт** `scripts/curator_send_tasks_to_victoria.py --file <файл с goal> --async --max-wait 600`; результат в `docs/curator_reports/`. Не использовать голый POST /run без скрипта — отчёт не сохранится.
+- **Сделано:** Правило добавлено в: **docs/VICTORIA_USAGE_GUIDE.md** (§ «Куратор» — блок «Правило (все должны знать)», таблица способов с рекомендацией скрипта); **docs/CURATOR_RUNBOOK.md** (§0 — абзац «Правило: как давать задание Виктории»); **.cursor/rules/victoria.mdc** (§0 — пункт «Куратор даёт задание только через скрипт»); **.cursorrules** (новый буллет «Куратор и Виктория»); **docs/MASTER_REFERENCE.md** (в абзац «Золотой стандарт» — фраза про скрипт куратора и ссылки); **docs/tasks/VICTORIA_TASK_ANALYZE_AND_REWRITE_VICTORIA_MDC.md** (правило в начале, Вариант 1 = скрипт куратора).
+- **Итог:** Единое правило зафиксировано в шести местах; при делегировании Виктории куратор использует скрипт и проверяет результат по файлам в curator_reports.
+
+---
+
+## 57. Золотой стандарт (Plan Mode и делегирование) — закрепление в библии (2026-02-23)
+
+- **Контекст:** Восстановлено и явно зафиксировано определение «Золотого стандарта»: это не просто список дел, а делегирование задачи через инструмент Task (или API Victoria), где пользователь/Cursor — Куратор (Оркестратор), подзадача уходит «локальной Виктории» (субагенту) с полным контекстом Библии; субагент не перечитывает весь чат — экономия токенов.
+- **Сделано:** (1) В **docs/MASTER_REFERENCE.md** добавлен абзац «Золотой стандарт (Plan Mode и делегирование)» с определением и ссылкой на victoria.mdc §0. (2) В **.cursorrules** пункт Plan Mode дополнен формулировкой про делегирование через Task/API Victoria и ссылками на victoria.mdc и MASTER_REFERENCE. (3) В **.cursor/rules/victoria.mdc** §0 определение уже было — без изменений.
+- **Итог:** Единый источник истины по Золотому стандарту: MASTER_REFERENCE + victoria.mdc §0 + .cursorrules. При сложных задачах — план, одобрение, при необходимости делегирование субагенту через Task/API.
+
+---
+
+## 56. Setki21: белый экран у дилеров — отсутствие location /api, /uploads/, /images/works/ в NPM (2026-03-09, РЕШЕНО ✅)
+
+- **Симптом:** После правок фавиконов и Nginx у дилерских сайтов (сеткимоскитки.рф, setkimoskitki.ru) — белый экран. Основной сайт setki21.ru работал.
+- **Причина:** В конфигах Nginx Proxy Manager для дилеров (**8.conf**, **9.conf**) отсутствовали критические блоки `location`, которые есть в основном конфиге (1.conf):
+  - **`location /api`** — запросы к API (в т.ч. `/api/v1/tenant/config`) не проксировались на setki21-api-new:8080 → фронтенд не получал конфиг дилера (название, телефон, логотип) → при SSR/гидрации падал или показывал белый экран.
+  - **`location /uploads/`** — логотипы дилеров не отдавались (alias /app/uploads/).
+  - **`location /images/works/`** — фото в блоке «Наши работы» не загружались (alias /data/images/works/).
+  Регрессия возникла при предыдущих правках фавиконов (удаление/изменение блоков в NPM).
+- **Сделано:** На VDS в конфиги **8.conf** и **9.conf** добавлены те же блоки, что и в 1.conf: `location /api { proxy_pass http://setki21-api-new:8080; ... }`, `location /uploads/ { alias /app/uploads/; ... }`, `location /images/works/ { alias /data/images/works/; ... }`. Выполнены `nginx -t` и `nginx -s reload` в контейнере atra-nginx-proxy.
+- **Итог:** Запросы с дилерских доменов к `/api/*`, `/uploads/*`, `/images/works/*` теперь проксируются/отдаются корректно. Белый экран должен исчезнуть после **жёсткого обновления** (Ctrl+Shift+R) или в режиме инкогнито.
+- **Правило (Pre-mortem):** При изменении NPM-конфигов для Setki21 **всегда** сверяться с **docs/SETKI21_NPM_SOURCE_OF_TRUTH.md** и проверять, что у **каждого** домена (включая дилеров) присутствуют блоки: `/api`, `/uploads/`, `/images/works/`, `/health`. После правок запускать **scripts/verify_setki21_all_sites.sh**. При добавлении нового дилерского домена — копировать структуру location из 1.conf (или из уже работающего дилера), не создавать конфиг без этих блоков.
+- **Связанные доки:** docs/runbooks/SETKI21_WHITE_SCREEN.md, docs/SETKI21_NPM_SOURCE_OF_TRUTH.md, §54, §53.
+
+---
+
+## 56.1. Поручение Виктории: анализ фавиконов дилеров (2026-03-09) + проверка куратора
+
+- **Запрос пользователя:** «Локальная Виктория работает? Поручи ей анализ: почему фавиконки не генерируются под каждого дилера из логотипа.»
+- **Проверка:** `GET http://localhost:8010/health` → 200 (локальная Victoria доступна).
+- **Сделано:** Задача отправлена в Victoria через `POST /run?async_mode=true` с goal: анализ причин, по которым фавикон не генерируется из logo_url дилера; контекст: atra-web-ide, доки CHANGES §56/§54/§53.
+- **Идентификатор задачи:** `task_id=8f14c58e-7367-41c2-b595-1ba4c9962a42`.
+- **Проверка куратора:** Задача завершилась (`status=completed`, route=enhanced), но **поле `output` пустое** (output_len=0). Баг: при прохождении через Victoria Enhanced / Department Heads итоговый текст ответа не всегда попадает в `result` и в статус записывается пустая строка. Результат Виктории по этой задаче в API недоступен.
+- **Исправление бага (2026-03-09):** (1) **victoria_enhanced.py:** перед `return result` в `solve()` добавлена проверка: если `result` — dict и `result.get("result")` пустой, подставляется fallback-текст и пишется warning в лог. (2) **victoria_server.py:** при записи ответа Enhanced в `store["output"]` используется `enhanced_result.get("result") or enhanced_result.get("output")`; если после нормализации `output` всё ещё пустой, подставляется fallback и логируется предупреждение. Итог: при завершении задачи по маршруту enhanced пользователь всегда получает непустое сообщение (либо реальный результат, либо явный fallback).
+- **Итог куратора (анализ по докам и аудиту):** Причина, почему фавикон не генерируется под каждого дилера из логотипа:
+  1. **SSR/HTML:** В Nuxt при генерации HTML в `useHead` подставляется `href="/favicon.ico?v=default&h="` — везде один и тот же путь и `v=default`, конфиг дилера (logo_url) при SSR не используется или приходит позже, поэтому все сайты получают один фавикон.
+  2. **Нет отдельной генерации фавикона из логотипа:** При добавлении дилера в админке сохраняется `logo_url` (PNG/логотип), но **отдельного шага «сгенерировать favicon из логотипа» нет** — ни в бэкенде (moskit-api), ни в админке. Ожидание пользователя «фавикон = из логотипа» не реализовано: либо нужна генерация (ресайз/конвертация логотипа в .ico или маленький PNG для favicon), либо явное поле `favicon_url` в конфиге дилера и загрузка файла вручную.
+  3. **NPM:** Все домены отдают один и тот же файл `/favicon.ico` (один физический файл на NPM/фронте); ранее попытки «жёстко» отдавать логотип дилера как favicon через Nginx приводили к регрессиям (пропадали логотипы в шапке). Нужна схема: либо фронт динамически подставляет `logo_url` (или `favicon_url`) в `useHead` после загрузки конфига, либо отдельный эндпоинт `/api/v1/tenant/favicon` по Host отдаёт нужный файл.
+- **Рекомендации (из аудита 2026-03-10):** (1) В Nuxt использовать `tenantConfig.branding?.favicon_url || tenantConfig.branding?.logo_url` для `link rel="icon"` в useHead (и обеспечить загрузку конфига до/при SSR). (2) Либо добавить в бэкенд генерацию favicon из logo при сохранении дилера (ресайз в 32×32/ico) и поле `favicon_url` в tenant config. (3) OG-image собирать от текущего origin + logo_url. Подробно: **docs/audits/2026-03-10-setki21-favicon-check.md**, **docs/audits/2026-03-10-setki21-logo-favicon-check.md**.
+
+---
+
+## 55. Victoria: OOM Kill — увеличение памяти Docker до 25 GB (2026-03-09, РЕШЕНО ✅)
+
+- **Симптом:** Victoria Agent (`victoria-agent`) постоянно перезапускался с `exitCode 137` (OOM Kill). При запросах `/run` клиент получал `Empty reply from server`. Victoria была недоступна.
+- **Причина:** При старте Victoria Enhanced + Initiative загружается большой объём данных:
+  - **66 скиллов** из `/Users/bikos/.cursor/skills-cursor/` и superpowers
+  - **85 экспертов** из PostgreSQL
+  - **RAG cache preload** для ускорения ответов
+  - **File Watcher** и **Service Monitor** (фоновые сервисы)
+  
+  Пик потребления памяти в момент старта составлял **15-19 GB**, что превышало Docker Desktop Memory Limit **19.5 GB** → OOM Kill.
+- **Диагностика:** `docker logs victoria-agent` показал `exitCode 137` (OOM). `docker stats victoria-agent` показал Memory Usage 9 GB / 19.5 GB (46%), но пики при старте превышали лимит.
+- **Решение:** Увеличить Docker Desktop Memory Limit до **24-32 GB**:
+  1. Docker Desktop → **Settings** → **Resources** → **Memory**
+  2. Установить **25 GB**
+  3. Apply & Restart Docker Desktop
+  4. `docker-compose -f knowledge_os/docker-compose.yml restart victoria-agent`
+- **Результат:** После перезапуска Victoria стабильно работает:
+  ```
+  MEM USAGE: 9.098GiB / 24.42GiB (37.26%)
+  Health: {"status":"ok","agent":"Виктория"}
+  ```
+  OOM Kill отсутствует. **15 GB свободного буфера** для обработки тяжёлых задач.
+- **Pre-mortem (при следующих изменениях):**
+  1. При добавлении новых скиллов, экспертов или фоновых сервисов — **мониторить** `docker stats victoria-agent`.
+  2. Если Memory Usage приближается к **70% лимита (17 GB из 25 GB)** — либо увеличить лимит, либо внедрить **lazy loading** (постепенную загрузку компонентов).
+  3. **Альтернативное решение (долгосрочное):** Модифицировать `src/agents/bridge/victoria_server.py` для lazy loading: загружать скиллы/экспертов по требованию, а не все сразу в `lifespan`. Это позволит снизить пик старта до 9-12 GB.
+- **Связанные доки:** `docs/MASTER_REFERENCE.md`, `knowledge_os/docker-compose.yml`, `src/agents/bridge/victoria_server.py`.
+- **Правило:** Victoria Enhanced + Initiative требует минимум **24 GB памяти Docker Desktop**. При росте количества скиллов/экспертов — пропорционально увеличивать лимит или оптимизировать загрузку.
+
+---
+
+## 54. Setki21: белый экран — сеть NPM, dealers.domain и перезапуск nginx (2026-03-09, РЕШЕНО ✅)
+
+- **Симптом:** На www.setki21.ru и дилерских сайтах — белый экран. Сайт мелькает при загрузке, затем белый экран. Nuxt SSR получал 502 при запросе `/api/v1/tenant/config`.
+- **Причина 1 (сеть):** Контейнер **atra-nginx-proxy** был только в сети **atra-network**. **setki21-api-new** и **setki21-web-new** в сети **setki21_src_default**. NPM не резолвил имя `setki21-api-new` и не достучался до API → health 000, tenant недоступен.
+- **Причина 2 (dealers.domain):** API читает домены из **dealers.domain** (не из dealer_domains!). В БД были записаны домены **с www** (`www.setki21.ru`), с заглавными буквами (`Setkimoskitki.ru`) и неправильный Punycode (`xn--80ajbr...`). API отрезает `www.` перед поиском (§53) → не находил совпадения → 400 «Tenant not found».
+- **Причина 3 (nginx не подхватил сеть):** После `docker network connect` nginx внутри NPM контейнера не перезагрузил DNS/конфиг → продолжал выдавать 502 на HTTPS-запросы к `/api/`. Curl-тесты изнутри контейнера работали (напрямую к setki21-api-new:8080), но внешние HTTPS-запросы через nginx падали.
+- **Сделано:** (1) На VDS выполнено `docker network connect setki21_src_default atra-nginx-proxy` — NPM получил доступ к setki21-api-new. (2) **docker restart atra-nginx-proxy** — перезагрузка nginx для подхвата сети (после рестарта сеть сохраняется). (3) В БД moskit обновлена таблица **dealers.domain** (источник истины для API): `UPDATE dealers SET domain = 'setki21.ru'` (без www), `domain = 'setkimoskitki.ru'` (lowercase), `domain = 'xn--e1agaahbbnszfhh.xn--p1ai'` (правильный Punycode для сеткимоскитки.рф). (4) В **docs/runbooks/SETKI21_WHITE_SCREEN.md** добавлены **Шаг 0** (подключение NPM к setki21_src_default **и перезапуск NPM**) и раздел «Если API возвращает Tenant not found» с проверкой dealers.domain.
+- **Итог:** Все 6 хостов (www.setki21.ru, setki21.ru, дилерские с/без www, Punycode) возвращают HTTP 200 на `/api/v1/tenant/config` через HTTPS. Белого экрана нет. **Правило:** (1) При добавлении нового дилера записывать домен в `dealers.domain` **без www** и **lowercase** (API нормализует Host перед поиском). Таблица `dealer_domains` API не использует. (2) После подключения NPM к новой сети **обязательно перезапустить контейнер** для подхвата DNS. (3) **ГЛАВНОЕ (Pre-mortem):** Добавлена сеть `setki21_src_default` в `docker-compose.vds.yml` для сервиса `nginx-proxy` (external: true) — теперь при `docker-compose up -d` NPM автоматически подключается к обеим сетям, ошибка не повторится. **Root Cause этой сессии:** NPM не был в нужной сети → docker-compose.vds.yml теперь явно указывает обе сети для NPM.
+
+---
+
+## 53. Setki21: дилерский сайт сеткимоскитки.рф — Punycode и префикс www (2026-02-23)
+
+- **Контекст:** На дилерском домене сеткимоскитки.рф (и при заходе через www) — белый экран или «Tenant not found»: API не находил дилера по Host.
+- **Причины:** (1) В БД в `dealers.domain` хранился кириллический домен `сеткимоскитки.рф`, а в запросе приходит Punycode `xn--e1agaahbbnszfhh.xn--p1ai`. (2) При заходе по `www.сеткимоскитки.рф` в Host приходит `www.xn--...` — поиск по домену без учёта www не срабатывал.
+- **Сделано:** (1) В БД (67abd9b4191b_atra-postgres, база moskit) домен дилера «Сетки Москитки» приведён к Punycode: `UPDATE dealers SET domain = 'xn--e1agaahbbnszfhh.xn--p1ai' WHERE domain = 'сеткимоскитки.рф';`. (2) В moskit-api (`content.rs`): в `get_tenant_config` и `get_tenant_favicon` перед `find_by_domain` Host нормализуется — убирается префикс `www.` (`host.strip_prefix("www.").unwrap_or(&host)`), чтобы и `www.xn--...` и `xn--...` находили одного дилера. (3) NPM и docker-compose для setki21_src: корень на setki21-web-new:3000, /api на setki21-api-new:8080; API подключается к основной БД postgres (alias к atra-postgres).
+- **Проверка:** После деплоя API пересобрать и перезапустить: `docker compose build api && docker compose up -d api`. У пользователя при белом экране — жёсткое обновление (Ctrl+F5) или очистка кэша браузера (и Service Worker setki21-v3).
+- **Итог:** Дилерский сайт по кириллическому домену и с www должен стабильно отдавать tenant config и отображать контент. При повторении «Tenant not found» — смотреть логи API и NPM на VDS, убедиться что Host в запросе и значение в `dealers.domain` согласованы (Punycode, без/с www).
+- **Белый экран снова:** Runbook диагностики — **docs/runbooks/SETKI21_WHITE_SCREEN.md** (контейнеры, health, tenant-config, NPM Forward, логи, кэш браузера).
+- **Чтобы белые экраны не возвращались (2026-02-23):** (1) Создан **единый источник истины** **docs/SETKI21_NPM_SOURCE_OF_TRUTH.md** — там зафиксирован текущий продакшен-стек (setki21-web-new:3000 + setki21-api-new:8080) и правила NPM для всех доменов Setki21. (2) Добавлен скрипт **scripts/verify_setki21_all_sites.sh**: проверяет с VDS, что для каждого хоста (www.setki21.ru, setki21.ru, дилеры) API возвращает 200 на `/api/v1/tenant/config`. Запускать после любых изменений NPM или деплоя. (3) В runbook SETKI21_WHITE_SCREEN и в SETKI21_SITE_DEPLOY_VDS добавлены ссылки на источник истины. Правило: перед изменением NPM/деплоем читать SETKI21_NPM_SOURCE_OF_TRUTH; после — запускать verify_setki21_all_sites.sh.
+
+---
+
+## 52. Fix: Strategy Sessions Table Initialization (2026-03-08)
+
+- **Цель:** Устранение ошибки `no such table: strategy_sessions`, возникающей при попытке создания сессии до завершения глобальной инициализации БД.
+- **Реализация:**
+  - В `knowledge_os/app/strategy_session_manager.py` метод `_ensure_tables` переработан. Теперь он не просто логирует предупреждение, а активно проверяет наличие таблицы `strategy_sessions`.
+  - В случае отсутствия таблицы вызывается `Database._init_tables()` для принудительного создания всех необходимых структур (включая `strategy_questions` и `strategy_plans`).
+  - Добавлена логика динамического импорта и настройки `sys.path` для корректной работы `Database` из разных контекстов вызова.
+- **Файлы:** `knowledge_os/app/strategy_session_manager.py`.
+- **Итог:** Ошибка `no such table` устранена. Система автоматически восстанавливает структуру БД при первом обращении к менеджеру сессий. Проверено тестом на чистой БД.
+
+---
+
+## 51. Живая цепочка Victoria — регулярный чек в верификационном чеклисте (2026-03-08)
+
+- **Цель:** Оформить тест на живой цепочке (test_live_chain) как регулярную проверку по рекомендации QA (Анна).
+- **Сделано:**
+  1. В **VERIFICATION_CHECKLIST_OPTIMIZATIONS** добавлен **п.40** «Живая цепочка Victoria (POST /run → status completed)»: когда запускать (после деплоя victoria-agent, при проверке цепочки), команда `VICTORIA_URL=http://localhost:8010 ./scripts/run_tests_with_db.sh tests/test_live_chain.py -v -m integration`, ответственность QA/Backend.
+  2. В **§2** добавлен подраздел **«Живая цепочка Victoria (регулярный чек, п.40)»**: когда запускать (после деплоя, после обновления образа, при изменениях в цепочке; рекомендовано раз в неделю или перед релизом), команда, таймауты (LIVE_CHAIN_POLL_TIMEOUT, LIVE_CHAIN_GOAL), ссылка на test_live_chain.py.
+  3. В **§5** «При следующих изменениях» в пункт «Изменения в маршрутизации или цепочке задачи Victoria» добавлено: при поднятой Victoria дополнительно прогнать живой тест цепочки (п.40, §2).
+- **Итог:** Регулярный чек живой цепочки закреплён в чеклисте; после деплоя или правок цепочки команда знает, что запускать и когда.
+
+---
+
+## 50. Аудит нагрузки и устранение зависших задач (2026-03-08)
+**Проблема:** Высокая нагрузка на Postgres и Оркестратор из-за задач, зависших в статусе `in_progress` более 12 часов.
+**Решение:**
+1.  **Cleanup:** Принудительно завершены (status: failed) 5 задач исследования Trading & Quant и R&D (ID: `fc8a7e45...`, `296ae158...`, `5acf513c...`, `74821c99...`, `d8c5cbe8...`).
+2.  **Recovery:** Перезапущены контейнеры воркеров (`knowledge_os_worker`, `expert-worker-heavy`, `knowledge_os-expert-worker-light-1/2`) для сброса зависших соединений и очистки очередей.
+3.  **Root Cause:** Сбои эмбеддингов Ollama и недоступность MLX приводили к зацикливанию или бесконечному ожиданию в `ExpertWorker`.
+4.  **Action Plan:** Внедрить в `reset_stuck_tasks.py` автоматический сброс для задач `in_progress` > 4ч.
+
+---
+
+## 49. Setki21: кэш nginx возвращён; причина «белых» кнопок — не кэш (2026-02-23)
+
+- **Контекст:** После правок кнопок админки (классы `.admin-btn-primary`, fallback для `.bg-brand-blue`) пользователь не видел изменения даже после жёсткого обновления (Ctrl+Shift+R). Было предположение, что мешает кэш — в nginx добавлены заголовки `Cache-Control: no-cache` для HTML.
+- **Итог:** Жёсткое обновление не помогло → причина не в кэше браузера. Заголовки кэша в nginx для `location /` и для `~* \.html$` **откатены** — конфиг `setki21_nginx/default.conf` возвращён к прежнему виду (без no-cache для HTML).
+- **Где искать реальную причину (проект setki-21, путь по умолчанию `/Users/bikos/Documents/dev/setki-21`):**
+  1. **Пересборка и деплой:** после правок CSS/классов обязательно `npm run generate` в setki-21 и полный деплой скриптом `scripts/deploy_setki21_site_vds.sh` (он копирует `.output/public/` на VDS). Убедиться, что деплой выполнялся именно после сборки.
+  2. **CSS-переменная `--brand-primary`:** в layout’е админки или в корневом компоненте проверить, задаётся ли переменная; если она пустая или переопределена — кнопки могут оставаться белыми.
+  3. **Специфичность стилей:** проверить, не перекрывают ли кнопки более специфичные правила (например scoped-стили в компонентах или классы типа `.admin .btn`) — при необходимости усилить селектор или использовать `!important` для fallback.
+  4. **Класс в билде:** убедиться, что `.admin-btn-primary` попадает в итоговый CSS (файл в `_nuxt/` после `npm run generate`) — при использовании Tailwind/Nuxt проверить, что класс не выкидывается как «неиспользуемый».
+- **Сделано (продолжение):** В setki-21: safelist для `admin-btn-primary` в `nuxt.config.ts`; усилены селекторы и `!important` в `assets/css/main.css`; в `app.vue` на корень добавлены `--brand-primary` и `--brand-blue`. Дальше: `npm run generate` в setki-21, затем `./scripts/deploy_setki21_site_vds.sh` из atra-web-ide.
+- **Диагностика (2026-03-06):** На VDS в `/home/atra/app/setki21_site/` после деплоя лежит новая сборка (index.html с `entry.Bc_fN7v_.css`), но живой https://www.setki21.ru/ отдаёт HTML со старым хэшем (`entry.D-omT3Kw.css`). Вывод: **трафик www.setki21.ru не идёт на setki21-site** на 45.10.43.248. Проверить: DNS, NPM (Forward = setki21-site:80), CDN (Purge Cache), другой сервер впереди. Чеклист в **docs/SETKI21_SITE_DEPLOY_VDS.md** §7.
+- **Внедрено (2026-03-06):** В `scripts/deploy_setki21_site_vds.sh` добавлен шаг 5: сравнение хэша `entry.*.css` на VDS и у живого `https://www.setki21.ru/`; при несовпадении скрипт завершает деплой с `exit 1` и ссылкой на runbook. Добавлен флаг `SKIP_SETKI21_VERIFY=1` для пропуска проверки. Создан runbook `docs/runbooks/SETKI21_DEPLOY_VERIFY_FAIL.md`; в `docs/SETKI21_SITE_DEPLOY_VDS.md` добавлена ссылка на него.
+
+---
+
+## 48. Victoria: UnboundLocalError в orchestration V2 — исправление (2026-03-06)
+
+- **Проблема:** При выполнении задачи в фоне (async_mode=true) Victoria застревала на стадии `strategy`. В логах: `UnboundLocalError: cannot access local variable 'sys' where it is not associated with a value` в блоке orchestration V2 (`victoria_server.py`, строка 3807: `if app_path not in sys.path`).
+- **Причина:** В функции `_run_task_background` Python интерпретировал `sys` как локальную переменную (из-за правил scope), хотя модуль импортирован глобально.
+- **Исправление:** В начало функции `_run_task_background` добавлено `global sys`, чтобы явно использовать глобальный модуль при обращении к `sys.path` в блоке orchestration.
+- **Проверка:** После пересборки образа victoria-agent и перезапуска контейнера задача «Какой статус проекта atra-web-ide?» успешно проходит orchestration → execute_assignments_async → enhanced.solve и завершается с `route=enhanced` (логи: `background completed task_id=... route=enhanced`).
+
+---
+
 ## 47. Batch Read — параллельное чтение файлов (План B.4: Cursor Parity ФИНАЛ, 2026-03-06)
 
 - **Цель:** Реализовать параллельное чтение/поиск в множестве файлов за один запрос. Устранить ограничение «последовательные шаги» — можно сканировать полпроекта (50+ файлов) за секунды вместо минут.
@@ -3074,3 +3335,101 @@
 ---
 
 _Сводка актуализирована с учётом правок из чатов. При добавлении новых изменений — дополнять этот документ и при необходимости .cursorrules._
+
+---
+
+## 53. Оптимизация архитектуры «Мозг и Руки» (MLX & Ollama) — Финал (2026-03-08)
+
+- **Проблема:** Риск «Split Brain» сценария, когда MLX формально жив, но работает крайне медленно, а Ollama выгружена, что приводило к задержкам до 30-60 секунд при переключении.
+- **Реализация (4 этапа):**
+  1. **Smart Memory Guard (Задача 1):**
+     - В `ollama_keep_alive_policy.py` внедрена категория `IMMORTAL_MODELS` (nomic, moondream, tinyllama, phi3.5). Они никогда не выгружаются.
+     - Добавлен `RECOVERY_COOLDOWN_SECONDS = 300` (5 минут) — защита от циклической перегрузки при восстановлении MLX.
+  2. **Context Mirroring (Задача 2):**
+     - Создан `knowledge_os/app/context_mirror.py`. История диалога сохраняется в Redis (`context_list:{session_id}`).
+     - Это позволяет Ollama подхватить задачу с того же места, где произошел сбой MLX.
+  3. **Predictive Warmup & Failover (Задача 3):**
+     - В `local_router.py` интегрирован упреждающий прогрев Ollama для `reasoning` задач.
+     - Добавлена логика `[FALLBACK_MODE]` с использованием зеркалированного контекста.
+  4. **MLX Latency Monitoring (Задача 4):**
+     - Создан `knowledge_os/app/mlx_monitor.py`. Отслеживает TBT (Time Between Tokens), TPS и Queue Depth.
+     - Внедрен **Health Score**. При Health Score < 0.5 роутер принудительно прогревает Ollama для любых задач, предвидя возможный сбой.
+- **Файлы:** `knowledge_os/app/ollama_keep_alive_policy.py`, `knowledge_os/app/context_mirror.py`, `knowledge_os/app/local_router.py`, `knowledge_os/app/mlx_monitor.py`.
+- **Итог:** Достигнута бесшовная работа «Мозга» и «Рук». Время переключения при сбое сокращено с ~30с до <1с (при прогретой модели).
+
+---
+
+## 54. Setki21: Автоматическое получение SSL-сертификатов для дилерских доменов (2026-03-09)
+
+- **Проблема:** При активации домена дилера через админку создавался Proxy Host в NPM, но SSL-сертификат от Let's Encrypt не запрашивался автоматически. В результате:
+  - Кириллические домены (например, `сеткимоскитки.рф`) конвертировались в Punycode (`xn--e1agaahbbnszfhh.xn--p1ai`)
+  - Proxy Host создавался в NPM с корректной маршрутизацией
+  - Но `certificate_id: 0` (без SSL)
+  - Браузеры пытались открыть HTTPS, получали ошибку SSL handshake и перенаправляли запрос в поиск
+  - HTTP работал, но пользователи не могли попасть на сайт через обычный ввод домена в адресную строку
+
+- **Корневая причина:** NPM API требует **два отдельных запроса**:
+  1. Создание/обновление Proxy Host
+  2. Запрос SSL-сертификата от Let's Encrypt и привязка к Proxy Host
+  
+  Старый код выполнял только первый шаг.
+
+- **Решение:**
+  1. **Добавлена структура `CertificateResponse`** для парсинга ответа NPM API при запросе сертификата.
+  2. **Новый метод `request_ssl_certificate()`:**
+     - Отправляет POST-запрос в `/nginx/certificates` с параметрами Let's Encrypt
+     - Запрашивает сертификат для обоих доменов (с `www.` и без)
+     - Возвращает `certificate_id` при успехе
+  3. **Новый метод `update_proxy_host_certificate()`:**
+     - Получает текущую конфигурацию Proxy Host
+     - Обновляет `certificate_id` и `ssl_forced: true`
+     - Отправляет PUT-запрос для применения изменений
+  4. **Обновлён `create_proxy_host()`:**
+     - После создания/обновления Proxy Host автоматически вызывает `request_ssl_certificate()`
+     - При успехе привязывает сертификат через `update_proxy_host_certificate()`
+     - Все этапы логируются (info/warn) для отладки
+     - При ошибке SSL Proxy Host остаётся (HTTP работает), но выводится предупреждение
+  5. **Увеличен timeout** клиента с 30 до 60 секунд (Let's Encrypt может занять время)
+
+- **Обработка ошибок:**
+  - SSL-запрос не удался → Proxy Host создан, HTTP работает, выводится warning в логи
+  - Привязка сертификата не удалась → сертификат получен, но нужна ручная привязка в NPM UI
+  - Домен уже существует → обновление конфигурации и повторный запрос SSL
+
+- **Тестирование:**
+  ```bash
+  # 1. Активировать домен через API
+  curl -X POST https://www.setki21.ru/api/v1/admin/dealers/DEALER_ID/activate_domain
+  
+  # 2. Проверить логи
+  docker logs setki21-api-new --tail 50 | grep -E 'SSL|certificate'
+  
+  # 3. Проверить HTTPS
+  curl -I https://сеткимоскитки.рф/
+  
+  # 4. Открыть в браузере без протокола
+  # Ввести: сеткимоскитки.рф → должен открыться сайт через HTTPS
+  ```
+
+- **Для существующего домена `сеткимоскитки.рф`:**
+  - **Вариант A (быстрый):** Вручную в NPM UI (http://45.10.43.248:81) → SSL → Request Let's Encrypt
+  - **Вариант B (после деплоя):** Повторно нажать "Активировать домен" в админке
+
+- **Деплой на VDS:**
+  ```bash
+  cd /Users/bikos/Documents/dev/setki-21
+  docker buildx build --platform linux/amd64 -t moskit-api:latest -f moskit-api/Dockerfile .
+  docker save moskit-api:latest | gzip > /tmp/moskit-api-latest.tar.gz
+  scp /tmp/moskit-api-latest.tar.gz root@45.10.43.248:/tmp/
+  ssh root@45.10.43.248 "docker load < /tmp/moskit-api-latest.tar.gz && cd /home/atra/app/setki21_src && docker-compose up -d --force-recreate setki21-api-new"
+  ```
+
+- **Файлы:**
+  - `moskit-api/src/npm.rs` — добавлены методы SSL-автоматизации
+  - `docs/SETKI21_AUTO_SSL_FIX.md` — полное описание проблемы, решения и деплоя
+
+- **Итог:** При активации домена дилера теперь автоматически:
+  1. Создаётся Proxy Host с корректной маршрутизацией (Punycode для кириллицы)
+  2. Запрашивается SSL-сертификат от Let's Encrypt
+  3. Сертификат привязывается к Proxy Host
+  4. Домен работает через HTTPS, пользователи могут вводить его в браузер без указания протокола
