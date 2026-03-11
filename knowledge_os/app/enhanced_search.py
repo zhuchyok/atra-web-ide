@@ -14,10 +14,53 @@ from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 import httpx
 import redis.asyncio as redis
+from sentence_transformers import CrossEncoder
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 VECTOR_CORE_URL = "http://localhost:8001"
+
+# [RERANKER v2] Инициализация Cross-Encoder (ленивая загрузка)
+_RERANKER_MODEL = None
+
+def get_reranker():
+    global _RERANKER_MODEL
+    if _RERANKER_MODEL is None:
+        # Используем легкую, но точную модель
+        model_name = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+        print(f"📥 Загрузка Cross-Encoder модели: {model_name}...")
+        _RERANKER_MODEL = CrossEncoder(model_name, max_length=512)
+    return _RERANKER_MODEL
+
+
+async def rerank_results(query: str, results: List[Dict]) -> List[Dict]:
+    """Переранжирование результатов с помощью Cross-Encoder [RERANKER v2]"""
+    if not results:
+        return []
+    
+    try:
+        model = await asyncio.to_thread(get_reranker)
+        
+        # Формируем пары (query, content)
+        pairs = [[query, r["content"]] for r in results]
+        
+        # Получаем скоры (чем выше, тем релевантнее)
+        scores = await asyncio.to_thread(model.predict, pairs)
+        
+        # Обновляем similarity и сортируем
+        for i, result in enumerate(results):
+            # Нормализуем скор (MiniLM выдает логиты, приведем к 0..1 примерно)
+            # Для ms-marco MiniLM скоры обычно в диапазоне [-10, 10]
+            import math
+            sig_score = 1 / (1 + math.exp(-scores[i]))
+            result["rerank_score"] = float(scores[i])
+            result["similarity"] = sig_score
+            
+        sorted_results = sorted(results, key=lambda x: x["similarity"], reverse=True)
+        return sorted_results
+    except Exception as e:
+        print(f"⚠️ Ошибка реранкинга: {e}")
+        return results
 
 
 class SearchMode(Enum):
@@ -45,9 +88,22 @@ class QueryParams:
 
 
 async def get_embedding(text: str) -> List[float]:
-    """Получение эмбеддинга через VectorCore"""
+    """Получение эмбеддинга через Ollama [HYBRID v2]"""
+    try:
+        from app.semantic_cache import get_embedding as get_ollama_embedding
+        emb = await get_ollama_embedding(text)
+        if emb:
+            return emb
+    except Exception as e:
+        print(f"⚠️ Ошибка получения эмбеддинга через semantic_cache: {e}")
+    
+    # Fallback на прямой запрос к Ollama если импорт не сработал
     async with httpx.AsyncClient() as client:
-        response = await client.post(f"{VECTOR_CORE_URL}/encode", json={"text": text}, timeout=30.0)
+        response = await client.post(
+            "http://localhost:11434/api/embeddings", 
+            json={"model": "nomic-embed-text", "prompt": text}, 
+            timeout=30.0
+        )
         response.raise_for_status()
         return response.json()["embedding"]
 
@@ -126,51 +182,23 @@ async def semantic_search(
 async def keyword_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
 ) -> List[Dict]:
-    """Поиск по ключевым словам (full-text search)"""
-    stop_words = {
-        "и",
-        "или",
-        "в",
-        "на",
-        "с",
-        "для",
-        "the",
-        "a",
-        "an",
-        "and",
-        "or",
-        "in",
-        "on",
-        "at",
-    }
-    keywords = [w.lower() for w in query.split() if w.lower() not in stop_words and len(w) > 2]
-
-    if not keywords:
-        return []
-
+    """Поиск по ключевым словам (BM25/FTS) [HYBRID v2]"""
     qp = QueryParams()
-    conditions = []
-
-    # Создаем условия для каждого ключевого слова
-    for keyword in keywords:
-        p = qp.add(f"%{keyword}%")
-        conditions.append(f"(content ILIKE {p} OR metadata::text ILIKE {p})")
-
-    # Placeholder array for similarity ranking
-    keyword_placeholders = []
-    for keyword in keywords:
-        keyword_placeholders.append(qp.add(f"%{keyword}%"))
+    
+    # Очищаем запрос для tsquery
+    clean_query = re.sub(r'[^\w\s]', ' ', query).strip()
+    ts_query = " & ".join(clean_query.split())
+    
+    if not ts_query:
+        return []
 
     sql = f"""
         SELECT id, content, confidence_score, usage_count,
-               CASE
-                   WHEN content ILIKE ANY(ARRAY[{", ".join(keyword_placeholders)}]) THEN 1.0
-                   ELSE 0.8
-               END as similarity,
+               ts_rank_cd(content_tsvector, to_tsquery('russian', {qp.add(ts_query)})) as similarity,
                created_at, domain_id
         FROM knowledge_nodes
         WHERE confidence_score > 0.3
-        AND ({" OR ".join(conditions)})
+        AND content_tsvector @@ to_tsquery('russian', {qp.add(ts_query)})
     """
 
     if domain:
@@ -278,31 +306,55 @@ async def temporal_search(
 async def hybrid_search(
     conn: asyncpg.Connection, query: str, domain: Optional[str] = None, limit: int = 5
 ) -> List[Dict]:
-    """Гибридный поиск: семантический + ключевые слова"""
-    semantic_results = await semantic_search(conn, query, domain, limit * 2)
-    keyword_results = await keyword_search(conn, query, domain, limit * 2)
+    """Гибридный поиск: семантический + BM25 [HYBRID v2]"""
+    # 1. Получаем результаты из обоих источников
+    semantic_results = await semantic_search(conn, query, domain, limit * 3)
+    keyword_results = await keyword_search(conn, query, domain, limit * 3)
 
     combined = {}
 
+    # 2. Нормализуем веса (Reciprocal Rank Fusion или взвешенная сумма)
+    # Используем взвешенную сумму: 0.7 Vector + 0.3 BM25
+    
     for result in semantic_results:
         node_id = str(result["id"])
         similarity = float(result.get("similarity", 0))
         if node_id not in combined:
             combined[node_id] = result.copy()
-            combined[node_id]["similarity"] = similarity * 0.7
+            combined[node_id]["vector_score"] = similarity
+            combined[node_id]["keyword_score"] = 0.0
         else:
-            combined[node_id]["similarity"] += similarity * 0.7
+            combined[node_id]["vector_score"] = similarity
 
     for result in keyword_results:
         node_id = str(result["id"])
         similarity = float(result.get("similarity", 0))
         if node_id not in combined:
             combined[node_id] = result.copy()
-            combined[node_id]["similarity"] = similarity * 0.3
+            combined[node_id]["keyword_score"] = similarity
+            combined[node_id]["vector_score"] = 0.0
         else:
-            combined[node_id]["similarity"] += similarity * 0.3
+            combined[node_id]["keyword_score"] = similarity
+
+    # 3. Финальный скоринг
+    for node_id in combined:
+        v = combined[node_id].get("vector_score", 0)
+        k = combined[node_id].get("keyword_score", 0)
+        # Нормализация BM25 (ts_rank может быть > 1)
+        k_norm = min(1.0, k) 
+        combined[node_id]["similarity"] = (v * 0.7) + (k_norm * 0.3)
 
     sorted_results = sorted(combined.values(), key=lambda x: x.get("similarity", 0), reverse=True)
+
+    # 4. Cross-Encoder Re-ranking [RERANKER v2]
+    # Берем топ-15 кандидатов для уточнения
+    candidates = sorted_results[:15]
+    if len(candidates) > 1:
+        print(f"🔍 [RERANKER] Переранжирование {len(candidates)} кандидатов...")
+        reranked = await rerank_results(query, candidates)
+        # Объединяем с остальными результатами (если были)
+        final_results = reranked + sorted_results[15:]
+        return final_results[:limit]
 
     return sorted_results[:limit]
 
@@ -371,6 +423,11 @@ async def enhanced_search_knowledge(
         else:
             results = await semantic_search(conn, query, domain, limit)
 
+        # [RERANKER v2] Применяем реранкинг для всех режимов кроме HYBRID (там он уже внутри)
+        if mode != SearchMode.HYBRID and results and len(results) > 1:
+            print(f"🔍 [RERANKER] Переранжирование {len(results)} результатов ({mode.value})...")
+            results = await rerank_results(query, results)
+
         if results:
             node_ids = [r["id"] for r in results]
             await conn.execute(
@@ -381,7 +438,7 @@ async def enhanced_search_knowledge(
         result_text = (
             "\n".join(
                 [
-                    f"[{mode.value}] Similarity {r.get('similarity', 0):.2f}: {r['content'][:200]}..."
+                    f"[{mode.value}] Sim {r.get('similarity', 0):.2f} (Rerank {r.get('rerank_score', 0):.2f}): {r['content'][:200]}..."
                     for r in results
                 ]
             )

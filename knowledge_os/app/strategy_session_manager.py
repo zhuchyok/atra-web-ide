@@ -35,9 +35,7 @@ class StrategySessionManager:
         self._ensure_tables()
 
     def _ensure_tables(self):
-        """Проверяет наличие таблиц в БД (они должны быть созданы в db.py)"""
-        # Таблицы создаются в Database._init_tables()
-        # Здесь только проверяем, что они существуют
+        """Проверяет наличие таблиц в БД и инициализирует их при необходимости"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -45,9 +43,41 @@ class StrategySessionManager:
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='strategy_sessions'"
             )
             if not cursor.fetchone():
-                logger.warning(
-                    "⚠️ [SESSION MANAGER] Таблица strategy_sessions не найдена. Таблицы должны быть созданы через Database._init_tables()"
-                )
+                logger.info("🔧 [SESSION MANAGER] Таблица strategy_sessions не найдена. Инициализация...")
+                # Пытаемся импортировать Database для инициализации
+                try:
+                    import sys
+                    import os
+                    # Добавляем пути для поиска db.py (Knowledge OS структура)
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(os.path.dirname(current_dir)) # atra-web-ide
+                    
+                    paths_to_add = [
+                        os.path.join(current_dir, "src/database"),
+                        os.path.join(os.path.dirname(current_dir), "src/database"),
+                        os.path.join(project_root, "knowledge_os/src/database"),
+                        os.path.join(project_root, "src/database"),
+                        "/app/knowledge_os/src/database",
+                        "/app/src/database",
+                    ]
+                    
+                    for p in paths_to_add:
+                        if os.path.exists(p) and p not in sys.path:
+                            sys.path.insert(0, p)
+                    
+                    try:
+                        from db import Database
+                    except ImportError:
+                        try:
+                            from src.database.db import Database
+                        except ImportError:
+                            from knowledge_os.src.database.db import Database
+                    
+                    db = Database(self.db_path)
+                    db._init_tables()
+                    logger.info("✅ [SESSION MANAGER] Таблицы стратегий инициализированы")
+                except Exception as e2:
+                    logger.error(f"❌ [SESSION MANAGER] Не удалось инициализировать таблицы: {e2}")
             conn.close()
         except Exception as e:
             logger.error(f"❌ [SESSION MANAGER] Ошибка проверки таблиц: {e}")

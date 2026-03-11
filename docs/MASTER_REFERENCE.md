@@ -6,15 +6,43 @@
 - **PROJECT_ARCHITECTURE_AND_GUIDE**, **ARCHITECTURE_FULL**, **CURRENT_STATE_WORKER_AND_LLM**.
 - **CHANGES_FROM_OTHER_CHATS.md** (Лог изменений).
 - **VERIFICATION_CHECKLIST**, **DASHBOARDS_AND_AGENTS_FULL_PICTURE**.
-  Закреплено в **.cursorrules** (раздел «Библия проекта»).
+- **docs/VICTORIA_USAGE_GUIDE.md** (руководство по использованию Виктории: режимы Cursor/MCP, терминал, Open WebUI; инструменты, примеры). Связь с правилами: **.cursor/rules/victoria.mdc**.
 
-**Назначение:** при любых вопросах по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
+Закреплено в **.cursorrules** (раздел «Библия проекта»).
+
+**Назначение:** при любых вопросов по разработке, изменениям, архитектуре, логике, портам, компонентам — **ищем здесь**. При добавлении нового или смене подхода — **отражаем здесь**. Документ всегда актуален.
 
 **Правило репо:** правки вносить **в репозиторий того проекта, где живёт код**. setki-21 → репо setki-21; atra → репо atra; код Web IDE / Knowledge OS → atra-web-ide. Не править код setki-21 из atra-web-ide и наоборот.
 
-**Quick links:** [CHANGES](CHANGES_FROM_OTHER_CHATS.md) · [VERIFICATION](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) · [CURATOR_RUNBOOK](CURATOR_RUNBOOK.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [FAQ](FAQ.md) · [HOW_TO_INDEX](HOW_TO_INDEX.md)
+**Золотой стандарт (Plan Mode и делегирование):** Золотой стандарт — это не просто список дел, а **делегирование задачи через инструмент Task** (или API Victoria): вызывающая сторона (пользователь/Cursor) выступает в роли **Куратора (Оркестратора)**, подзадача уходит **«локальной Виктории» (субагенту)** с полным контекстом Библии и чёткими инструкциями. Это экономит токены и время: субагент фокусируется только на выполнении, не перечитывая весь чат. Plan Mode обязателен для задач 3+ шагов: сначала план, одобрение, затем выполнение. **Куратор даёт задание Виктории только через скрипт** `scripts/curator_send_tasks_to_victoria.py --file <файл с goal> --async --max-wait 600`; результат в `docs/curator_reports/`. Подробно: **.cursor/rules/victoria.mdc** §0, **docs/VICTORIA_USAGE_GUIDE.md** § «Куратор», **docs/CURATOR_RUNBOOK.md** §0.
 
-**Обновлено:** 2026-03-06
+**Quick links:** [CHANGES](CHANGES_FROM_OTHER_CHATS.md) · [VERIFICATION](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) · [CURATOR_RUNBOOK](CURATOR_RUNBOOK.md) · [VICTORIA USAGE](VICTORIA_USAGE_GUIDE.md) · [AUTONOMY/OFFLINE](AUTONOMY_OFFLINE_READINESS.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [FAQ](FAQ.md) · [HOW_TO_INDEX](HOW_TO_INDEX.md)
+
+**Обновлено:** 2026-03-10
+
+Последние изменения (2026-03-10): **Omni-RAG — Единый Интеллект (Open WebUI & Telegram).** (1) Внедрена архитектура Omni-RAG: теперь знания из Hybrid Search v2 автоматически инъецируются в запросы из Open WebUI (через OpenAI API эндпоинт). (2) Создан унифицированный эндпоинт `POST /api/omni-rag/search` для внешних систем. (3) Реализована поддержка контекста для Telegram-сессий. (4) База знаний теперь синхронизирована между всеми точками взаимодействия с пользователем. См. CHANGES §63.
+
+Последние изменения (2026-03-10): **Enhanced RAG — Hybrid Search v2 & Re-ranking.** (1) Внедрен Hybrid Search v2 (BM25 + Vector) с использованием PostgreSQL `tsvector` и `ts_rank_cd` для молниеносного поиска по ключевым словам. (2) Интегрирован Cross-Encoder Re-ranking на базе модели `ms-marco-MiniLM-L-6-v2` для финальной фильтрации результатов (точность выросла на порядок). (3) Реализован External Docs Indexer для автоматического парсинга произвольных URL и GitHub репозиториев (OpenAI, Anthropic, DeepSeek, LangChain). (4) Виктория теперь автоматически подтягивает знания из домена «AI Research» через новый гибридный поиск. См. CHANGES §62.
+
+Последние изменения (2026-03-08): **IQ Boost — Consensus v2, Debate & Self-Correction.** (1) Внедрена система `Self-Correction`: Victoria теперь критикует и исправляет свой собственный ответ перед выдачей пользователю (для категорий coding/reasoning). (2) Реализована полноценная интеграция `Multi-Agent Debate`: для сложных задач запускается дискуссия между Архитектором, экспертом по безопасности и Прагматиком. (3) **Consensus v2**: Внедрено взвешенное голосование в `ConsensusAgent` на основе KPI экспертов (`performance_score` из БД) и их уверенности. (4) Метод `complex` в `VictoriaEnhanced` теперь автоматически использует Debate с fallback на Consensus v2. См. CHANGES §60.
+
+Последние изменения (2026-03-08): **Thermal Protection — автоматическое управление нагрузкой.** (1) В `MacStudioMonitor` реализована логика обнаружения перегрева (Thermal Level >= 1) и критической загрузки RAM (> 92%). (2) Внедрен механизм автоматической выгрузки лишних моделей из Ollama при перегрузке (кроме `IMMORTAL_MODELS`). (3) `LocalAIRouter` теперь автоматически переключается на сверхлегкие модели (`phi3.5`, `tinyllama`) при срабатывании термальной защиты, снижая нагрузку на GPU. См. CHANGES §59.
+
+Последние изменения (2026-03-09): **Stuck Tasks Watchdog — автоматический сброс зависших задач.** (1) Реализована интеграция `reset_stuck_tasks.py` в `system_auto_recovery.sh` для автоматической очистки очереди при сбоях. (2) Создан `scripts/setup_stuck_tasks_watchdog.sh` для ежечасного сброса задач через `launchd`. (3) Скрипт теперь гарантированно использует `knowledge_os/.venv` для избежания ошибок импорта `asyncpg`. См. CHANGES §61.
+
+Последние изменения (2026-03-08): **Mac Studio Monitoring — глубокий мониторинг железа.** (1) Создан `MacStudioMonitor` для сбора метрик CPU, RAM, Thermal Level и загруженных моделей (Ollama/MLX). (2) Реализована интеграция с `victoria_server.py`: при запросах о «железе», «нагрузке» или «температуре» Виктория теперь автоматически подтягивает real-time данные Mac Studio. (3) Добавлена поддержка `sysctl` для мониторинга термального состояния. См. CHANGES §58.
+
+Последние изменения (2026-03-08): **Self-Evolution v2 — верификация через Pytest.** (1) `CodebaseMutationEngine` теперь автоматически ищет связанные тесты для исправляемого файла. (2) В `Patch Safety Guard` интегрирован запуск `pytest`: патч применяется только если все тесты пройдены. (3) Реализована логика автоматического отката (Rollback): если тесты провалены, изменения отменяются, и система возвращается к стабильному состоянию. (4) Добавлена поддержка бэкапов файлов при верификации. См. CHANGES §57.
+
+Последние изменения (2026-03-08): **Self-Evolution — автоматические патчи и Self-Healing.** (1) `CodebaseMutationEngine` расширен логикой генерации патчей через Victoria Enhanced (Extended Thinking). (2) Внедрена система `Patch Safety Guard`: автоматическая проверка синтаксиса Python перед применением патча. (3) В `VictoriaEventHandlers` добавлен хук `Syntax Auto-Fix`: при создании файла с синтаксической ошибкой Mutation Engine автоматически пытается её исправить. (4) Реализован полный цикл самоисцеления: Ошибка -> Анализ -> Патч -> Верификация -> Применение. См. CHANGES §56.
+
+Последние изменения (2026-03-08): **Autonomous Core — усиление автономности (Mutation & Shadow).** (1) Создан `CodebaseMutationEngine` для автоматического анализа и исправления ошибок в фоне. (2) Реализован `ShadowExecutionManager` для параллельной проверки оптимизаций («в тени» основного процесса). (3) Внедрена система проактивных предложений в `victoria_server.py`: при запросах статуса Victoria теперь автоматически учитывает недавние ошибки из `Event Bus`. (4) `VictoriaEventHandlers` расширены хуками для Mutation и Shadow систем. См. CHANGES §55.
+
+Последние изменения (2026-03-08): **Skill Discipline v2 — полная загрузка инструкций (План B.2, финал).** (1) В `skill_mapper.py` реализована загрузка полных текстов из `SKILL.md` файлов (через `glob` и кэширование). (2) В `victoria_server.py` исправлена инъекция `enriched_goal` для всех путей (SSE, sync, async) — инструкции скилла теперь попадают в промпт Victoria гарантированно. (3) Это делает Victoria на 100% эквивалентной Cursor assistant по дисциплине и качеству следования workflow. **План B завершён полностью!** См. CHANGES §54.
+
+Последние изменения (2026-03-08): **Оптимизация архитектуры «Мозг и Руки» (MLX & Ollama) — Финал.** (1) Внедрена политика Smart Cooldown (300с) и категория `IMMORTAL_MODELS` (nomic, moondream, tinyllama, phi3.5) в `ollama_keep_alive_policy.py`. (2) Реализован `ContextMirror` (Redis) для бесшовного переноса истории сессий при failover. (3) В `local_router.py` интегрирован упреждающий прогрев (Predictive Warmup) и логика `[FALLBACK_MODE]`. (4) Внедрен `MLXMonitor` с расчетом **Health Score** (на основе TBT > 200ms и очереди > 5), который автоматически триггерит прогрев Ollama при деградации MLX. См. CHANGES §53.
+
+Последние изменения (2026-03-08): **Ночной график эволюции (00:00 - 06:00).** (1) Настроено окно глубокого самообучения и оптимизации ядра. (2) Nightly Learner и Mutation Engine теперь работают исключительно в ночное время для экономии ресурсов Mac Studio днем. (3) Внедрен 'режим тишины' для мониторинга в это время.
 
 Последние изменения (2026-03-06): **Batch Read — параллельное чтение файлов (План B.4, финал).** (1) Создан модуль `batch_read.py` с функциями `batch_read_files()` и `batch_grep_files()` для параллельного чтения/поиска (max_concurrent=10, semaphore). (2) API endpoints `POST /batch_read` и `POST /batch_grep` в victoria_server. (3) MCP tools `victoria_batch_read` и `victoria_batch_grep` для Cursor. (4) Graceful error handling (файл не найден, слишком большой, encoding). (5) Это устраняет ограничение «последовательные шаги» — можно сканировать 50+ файлов за 0.5 сек. **План B завершён на 100%!** См. CHANGES §47, MASTER_REFERENCE (Batch Read).
 
@@ -22,9 +50,9 @@
 
 Последние изменения (2026-03-06): **Skill Discipline — жёсткая дисциплина скиллов (План B.2).** (1) Создан `skill_mapper.py` с классификатором задач (5 скиллов: brainstorming, TDD, debugging, verification, code_review). (2) Автовызов в `victoria_server.py` — при распознавании типа задачи инструкции скилла добавляются в goal. (3) SSE уведомление «Применяется скилл: {description}». (4) Правило «1% шанс = вызвать скилл». Статус: ✅ базовая реализация. См. CHANGES §45, MASTER_REFERENCE (Skill Discipline).
 
-Последние изменения (2026-03-06): **Execution Plan — руки в IDE (План B.1).** (1) Victoria теперь может генерировать структурированный `execution_plan` (список шагов: read_file, edit, run) для выполнения в IDE/клиенте. (2) Расширены `TaskRequest` (`return_execution_plan: bool`) и `TaskResponse` (`execution_plan: List[Dict]`). (3) Добавлен парсер `_extract_execution_plan()` (поддержка JSON и markdown). (4) Промпт Victoria дополнен секцией «EXECUTION PLAN» с примерами. (5) MCP tool `victoria_execute_plan` создан для автоматического выполнения плана. (6) Executor `execution_plan_executor.py` для интеграции с filesystem MCP. (7) Это решает проблему «мозг и руки разделены» — Victoria планирует, клиент выполняет. Статус: ✅ базовая архитектура, 🚧 полная интеграция с MCP. См. CHANGES §44, victoria.mdc §6, `.cursor/plans/plan-b-*.md`.
+Последние изменения (2026-03-06): **Execution Plan — руки в IDE (План B.1).** (1) Victoria теперь может генерировать структурированный `execution_plan` (список шагов: read_file, edit, run) для выполнения в IDE/клиенте. (2) Расширены `TaskRequest` (`return_execution_plan: bool`) и `TaskResponse` (`execution_plan: List[Dict]`). (3) Добавлен парсер `_extract_execution_plan()` (поддержка JSON и markdown). (4) Промпт Victoria дополнен секцией «EXECUTION PLAN» с примерами. (5) MCP tool `victoria_execute_plan` создан для автоматического выполнения плана. (6) Executor `execution_plan_executor.py` для интеграции with filesystem MCP. (7) Это решает проблему «мозг и руки разделены» — Victoria планирует, клиент выполняет. Статус: ✅ базовая архитектура, 🚧 полная интеграция с MCP. См. CHANGES §44, victoria.mdc §6, `.cursor/plans/plan-b-*.md`.
 
-Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT*LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation*\*.plan.md`.
+Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT_LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation_*.plan.md`.
 
 Последние изменения (2026-03-05): **Библия обновлена по сессии: Victoria Tasks, инвентаризация, самовосстановление MLX.** (1) Домен **victoria_tasks** создан в БД — самообучение Виктории снова попадает в RAG и планирование (CHANGES §40). (2) **Инвентаризация возможностей** — отчёт docs/audits/INVENTORY_VICTORIA_CAPABILITIES_2026.md (Initiative, OTEL, Recovery, знания гигантов, реестр проектов, чеклисты §10–11); CHANGES §41. (3) **Recovery Listener (9099):** доработка host_recovery_listener.py (GET /recover, безопасный Content-Length), чеклист в INVENTORY §11, перезапуск через launchd; CHANGES §42. При любых изменениях — обновлять MASTER_REFERENCE и CHANGES (правило библии).
 
@@ -32,15 +60,14 @@
 
 ## Wisdom Era Status (Singularity 21.5: Total Dominance)
 
-**Архитектура:** Единый Интеллект v3.5. Мозг (MLX, порт 11435) — модель **victoria-wisdom-v3.5** (без тега, локальный экспорт). Руки (Ollama, порт 11434) — **victoria-wisdom-v3.5:latest** (GGUF). Эксперты участвуют через оркестратор; v3.5 MoE (35B) обеспечивает бесшовную связь между планом и кодом.
+**Архитектура:** Единый Интеллект v3.5. **Параллельная работа (Parallel Work):** Мозг (MLX, порт 11435) и Руки (Ollama, порт 11434) работают совместно, распределяя нагрузку. Модель **victoria-wisdom-v3.5** (MLX) и **victoria-wisdom-v3.5:latest** (Ollama) идентичны по знаниям.
+**Полноценная Виктория (v3.5):** (1) **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — предзагрузка (Pure MLX). (2) **Ollama (руки):** активны параллельно; становятся бессмертными (`keep_alive=-1`) только при падении MLX. При живом MLX выгружаются через 60с простоя для экономии RAM. (3) **Дефибриллятор:** активен на порту 9099. (4) **Балансировка:** `local_router.py` распределяет задачи между Мозгом и Руками.
 
-**Полноценная Виктория (v3.5):** (1) **MLX (мозг):** `VICTORIA_MLX_BRAIN=true` — предзагрузка `victoria-wisdom-v3.5` (Pure MLX, Q5_K_M). (2) **Ollama (руки):** `victoria-wisdom-v3.5:latest` загружена (GGUF, Q5_K_M), бессмертная только при падении MLX. (3) **Дефибриллятор:** активен на порту 9099. (4) **Victoria-agent:** использует v3.5 для всех критических фаз (Think/Act). Отдельной «модели для аудита» нет — аудит и сложная логика идут в ту же v3.5.
-
-**Самовосстановление:** Система мониторит v3.5 в обоих каналах. При сбое MLX происходит мгновенный fallback на Ollama v3.5 без потери контекста.
+**Самовосстановление и Мониторинг:** Система мониторит v3.5 в обоих каналах через `MLXMonitor`. При деградации производительности (Health Score < 0.5) или сбое MLX происходит упреждающий прогрев Ollama и мгновенный fallback без потери контекста (через Redis Context Mirror).
 
 **Последний аудит (03.03.2026):** Переход с 30B на 35B MoE (Qwen 3.5). Скорость загрузки в MLX: 4.6с. Личность подтверждена. Все эксперты уведомлены о смене ядра.
 
-**При смене модели (чеклист):** обновить MASTER*REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF*\*.md`при актуальности; исторические планы в`docs/plans/` не переписывать — источник истины здесь.
+**При смене модели (чеклист):** обновить MASTER_REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF_*.md` при актуальности; исторические планы в `docs/plans/` не переписывать — источник истины здесь.
 
 ---
 
@@ -69,7 +96,7 @@
 2. **Проверка Ollama:** `curl -s http://localhost:11434/api/tags` → HTTP 200, список содержит `victoria-wisdom-v3.5:latest`
 3. **Проверка Recovery Listener:** `curl -s http://localhost:9099/recover` → HTTP 200 (критично для STRICT_LOCAL; без него при падении MLX система полностью недоступна; см. INVENTORY_VICTORIA_CAPABILITIES_2026.md §11)
 
-Если хотя бы одна проверка не прошла — **не включайте STRICT_LOCAL**, сначала восстановите сервис.
+Если хотя бы одна проверка не прошла — **не включайте STRICT_LOCAL**, сначала восстановите сервис. Полная оценка готовности к автономности и работе без интернета: **docs/AUTONOMY_OFFLINE_READINESS.md**.
 
 ### 12-Factor (Config):
 
@@ -112,6 +139,8 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 - `strict_local_enabled` (gauge, 0 или 1) — флаг режима STRICT_LOCAL
 - `strict_local_safety_skip_count` (counter) — количество срабатываний safety_checker, которые не привели к reroute (потому что STRICT_LOCAL)
 - `strict_local_qa_skip_count` (counter) — количество срабатываний QA с рекомендацией reroute_to_cloud, которые не выполнены
+
+Метрики `strict_local_*` экспортируются в **GET http://localhost:8010/metrics** (Victoria Server).
 
 **Алерт в Grafana:** если `strict_local_enabled == 1` **и** (`mlx_health == down` **или** `ollama_health == down`) — критический алерт «STRICT_LOCAL ON, но локальные модели недоступны → система полностью недоступна».
 
@@ -289,7 +318,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 
 **🚧 В разработке:**
 
-- Полная интеграция `victoria_execute_plan` с `user-filesystem` MCP server (реальное чтение/запись файлов)
+- Полная интеграция `victoria_execute_plan` with `user-filesystem` MCP server (реальное чтение/запись файлов)
 - Поддержка diff/patch для точечных правок (сейчас edit перезаписывает файл целиком)
 - UI для отображения execution_plan в Web IDE (показать шаги перед выполнением)
 

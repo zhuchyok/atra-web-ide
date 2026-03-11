@@ -513,7 +513,7 @@ class ExtendedThinkingEngine:
         return full_text
 
     async def _generate_response(
-        self, prompt: str, max_tokens: int = 2000, category: Optional[str] = None
+        self, prompt: str, max_tokens: int = 2000, category: Any = None
     ) -> str:
         """
         Генерация ответа через MLX API Server или Ollama (fallback)
@@ -528,13 +528,25 @@ class ExtendedThinkingEngine:
                 # Передаем доступные модели из MLX
                 available_models = await self._get_available_models()
 
+                # [FIX] Если category уже является объектом TaskCategory, извлекаем его значение
+                cat_str = category
+                if hasattr(category, "value"):
+                    cat_str = category.value
+                elif not isinstance(category, str) and category is not None:
+                    try:
+                        cat_str = str(category)
+                    except:
+                        cat_str = "general"
+
                 # Классифицируем задачу если категория не задана
-                task_category = category or self.model_router.classify_task(prompt)
+                # ВАЖНО: classify_task теперь возвращает TaskCategory объект
+                task_category_obj = self.model_router.classify_task(prompt, cat_str)
+                task_category_str = task_category_obj.value if hasattr(task_category_obj, "value") else str(task_category_obj)
 
                 # Выбираем оптимальную модель
                 optimal_model, _task_cat, confidence = await self.model_router.select_optimal_model(
                     prompt=prompt,
-                    category=task_category,
+                    category=task_category_obj,
                     available_models=available_models,
                     optimize_for="quality",  # Для рассуждений важно качество
                 )

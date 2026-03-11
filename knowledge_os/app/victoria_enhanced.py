@@ -967,6 +967,7 @@ class VictoriaEnhanced:
         """
         Сингулярность 10.0: Подтянуть знания о гигантах (AI Research) из БД.
         Используется для вопросов об Anthropic, Google, OpenAI, DeepSeek и др.
+        [HYBRID v2] Использует улучшенный поиск.
         """
         if not goal or not goal.strip():
             return ""
@@ -990,40 +991,30 @@ class VictoriaEnhanced:
             return ""
 
         try:
-            import asyncpg
-
-            db_url = os.getenv("DATABASE_URL")
-            if not db_url:
+            from app.enhanced_search import enhanced_search_knowledge, SearchMode
+            
+            # Используем HYBRID режим для AI Research
+            search_res = await enhanced_search_knowledge(
+                query=goal,
+                domain="AI Research",
+                mode=SearchMode.HYBRID,
+                limit=3
+            )
+            
+            if not search_res or not search_res.get("results"):
                 return ""
-            conn = await asyncpg.connect(db_url)
-            try:
-                # Поиск по домену 'AI Research' или метатегу 'external_docs_indexer'
-                rows = await conn.fetch(
-                    """SELECT kn.content, kn.metadata->>'title' as title
-                       FROM knowledge_nodes kn
-                       JOIN domains d ON d.id = kn.domain_id
-                       WHERE (d.name = 'AI Research' OR kn.metadata->>'source' = 'external_docs_indexer')
-                         AND (kn.content ILIKE $1 OR kn.metadata::text ILIKE $1)
-                       ORDER BY kn.confidence_score DESC NULLS LAST, kn.created_at DESC
-                       LIMIT 3""",
-                    f"%{goal_lower[:30]}%",
-                )
-                if not rows:
-                    return ""
 
-                parts = []
-                for r in rows:
-                    title = r.get("title") or "Без названия"
-                    content = (r["content"] or "").strip()[:800]
-                    if content:
-                        parts.append(f"### {title}\n{content}")
+            parts = []
+            for r in search_res["results"]:
+                title = r.get("metadata", {}).get("title") or r.get("metadata", {}).get("source_url") or "Без названия"
+                content = (r["content"] or "").strip()[:800]
+                if content:
+                    parts.append(f"### {title}\n{content}")
 
-                if not parts:
-                    return ""
+            if not parts:
+                return ""
 
-                return "\n---\n**Актуальные знания AI Research:**\n" + "\n\n".join(parts)
-            finally:
-                await conn.close()
+            return "\n---\n**Актуальные знания AI Research:**\n" + "\n\n".join(parts)
         except Exception as e:
             logger.debug("AI Research RAG: %s", e)
         return ""
@@ -1442,10 +1433,61 @@ class VictoriaEnhanced:
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка сохранения в collective memory: {e}")
 
+            # [IQ BOOST] Self-Correction: Проверка ответа перед выдачей
+            if result.get("result") and category in ("coding", "reasoning"):
+                corrected_result = await self._self_correct(goal, result["result"], category)
+                if corrected_result:
+                    logger.info(f"✨ [SELF-CORRECTION] Ответ уточнен и исправлен")
+                    result["result"] = corrected_result
+                    if "metadata" not in result:
+                        result["metadata"] = {}
+                    result["metadata"]["self_corrected"] = True
+
+            # Гарантия непустого result для bridge (пустой output при route=enhanced — баг CHANGES §56.1)
+            if isinstance(result, dict) and not (result.get("result") or "").strip():
+                method_name = result.get("method") or "Victoria Enhanced"
+                fallback = (
+                    f"Задача выполнена через маршрут «{method_name}», но итоговый текст не был сформирован. "
+                    "Рекомендуется уточнить задачу или повторить запрос; при повторении можно запросить ответ в одном сообщении."
+                )
+                result["result"] = fallback
+                logger.warning(
+                    "⚠️ [ENHANCED] Пустой result перед возвратом — подставлен fallback для bridge (method=%s)",
+                    method_name,
+                )
+
             return result
         finally:
             if span_context:
                 span_context.__exit__(None, None, None)
+
+    async def _self_correct(self, goal: str, initial_answer: str, category: str) -> Optional[str]:
+        """Этап самопроверки: Victoria критикует свой же ответ."""
+        correction_prompt = f"""Ты Victoria, Team Lead. Проверь свой предыдущий ответ на наличие ошибок, галлюцинаций или неточностей.
+ЗАДАЧА: {goal}
+ТВОЙ ОТВЕТ: {initial_answer}
+
+КРИТЕРИИ ПРОВЕРКИ:
+1. Соответствует ли ответ всем условиям задачи?
+2. Нет ли в коде синтаксических ошибок?
+3. Насколько ответ лаконичен и точен?
+
+Если ответ идеален, верни его без изменений. Если есть ошибки — исправь их и верни финальную версию.
+ОТВЕТ (только финальный текст):"""
+        
+        try:
+            from app.ai_core import run_smart_agent_async
+            # Используем более мощную модель для критики
+            corrected = await run_smart_agent_async(
+                correction_prompt, 
+                expert_name="Виктория", 
+                category="reasoning"
+            )
+            if corrected and len(corrected.strip()) > 10 and corrected.strip() != initial_answer.strip():
+                return corrected.strip()
+        except Exception as e:
+            logger.debug(f"Self-correction failed: {e}")
+        return None
 
     def _is_casual_chat(self, goal: str) -> bool:
         """
@@ -2750,69 +2792,32 @@ class VictoriaEnhanced:
                     logger.error(f"Ошибка extended thinking: {e}, используем простой режим")
                     method = "simple"
 
-            elif method == "swarm" and self.swarm:
-                # Выбираем модель для complex задач
-                complex_model = await self._get_model_for_category_async("complex")
-                if complex_model and hasattr(self.swarm, "model_name"):
-                    self.swarm.model_name = complex_model
-                    logger.info(f"🎯 Используем модель {complex_model} для swarm")
-
+            elif method == "complex":
+                # [IQ BOOST] Пытаемся использовать Multi-Agent Debate если доступен
                 try:
-                    # Агенты из БД — состав растёт динамически (max swarm_size)
-                    from app.expert_services import get_all_expert_names
-
-                    swarm_agents = get_all_expert_names(
-                        max_count=self.swarm.swarm_size if self.swarm else 16
-                    )
-                    result = await self.swarm.solve(
-                        goal, agent_names=swarm_agents if swarm_agents else None
-                    )
-                    # Правильная обработка SwarmResult
-                    if hasattr(result, "global_best"):
-                        result_text = str(result.global_best)
-                    elif isinstance(result, dict):
-                        result_text = result.get("result", str(result))
-                    else:
-                        result_text = str(result)
-
+                    from app.multi_agent_debate import get_multi_agent_debate
+                    debate_engine = get_multi_agent_debate()
+                    logger.info(f"🗣️ [IQ BOOST] Запуск Multi-Agent Debate для задачи")
+                    debate_result = await debate_engine.run_debate(goal, context=str(context) if context else None)
                     return {
-                        "result": result_text,
-                        "method": "swarm",
-                        "global_best_score": getattr(result, "global_best_score", None),
-                        "iterations": getattr(result, "iterations", None),
-                        "convergence_rate": getattr(result, "convergence_rate", None),
+                        "result": debate_result.final_decision,
+                        "method": "debate",
+                        "consensus_score": debate_result.consensus_score,
                         "metadata": {
-                            "model_used": complex_model or self.model_name,
+                            "history": debate_result.history,
                             "category": category,
-                        },
+                            "model_used": "multi-agent-debate"
+                        }
                     }
                 except Exception as e:
-                    logger.error(f"❌ Ошибка swarm: {e}, используем simple метод")
-                    method = "simple"  # Fallback на simple
+                    logger.error(f"❌ [IQ BOOST] Ошибка Debate: {e}, fallback на swarm/consensus")
 
-            elif method == "consensus" and self.consensus:
-                # Выбираем модель для complex задач
-                complex_model = await self._get_model_for_category_async("complex")
-                if complex_model and hasattr(self.consensus, "model_name"):
-                    self.consensus.model_name = complex_model
-                    logger.info(f"🎯 Используем модель {complex_model} для consensus")
-
-                # Агенты из БД — состав растёт динамически (до 10 для consensus)
-                from app.expert_services import get_all_expert_names
-
-                consensus_agents = get_all_expert_names(max_count=10)
-                if not consensus_agents:
-                    consensus_agents = ["Виктория", "Вероника", "Игорь", "Сергей", "Дмитрий"]
-                result = await self.consensus.reach_consensus(consensus_agents, goal)
-                return {
-                    "result": result.final_answer,
-                    "method": "consensus",
-                    "consensus_score": result.consensus_score,
-                    "model_used": complex_model or self.model_name,
-                    "agreement_level": result.agreement_level,
-                    "iterations": result.iterations,
-                    "metadata": result,
-                }
+                # Fallback на swarm или consensus
+                if self.swarm:
+                    method = "swarm"
+                else:
+                    method = "consensus"
+                return await self._execute_method(method, goal, category, context)
 
             elif method == "tree_of_thoughts" and self.tot:
                 result = await self.tot.solve(goal)

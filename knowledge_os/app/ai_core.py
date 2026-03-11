@@ -346,6 +346,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Throttle TOOL CREATOR log (same message every 30s max at INFO to reduce noise)
+_last_tool_creator_log_time = [0.0]
+
 # Retry config for transient LLM failures (503, timeout, connection)
 RETRY_BACKOFF_DELAYS = (2, 5, 10)  # seconds
 RETRY_MAX_ATTEMPTS = 3
@@ -582,8 +585,17 @@ async def _run_cloud_agent_async(
         except Exception as e:
             logger.debug(f"⚠️ [MLX] Ошибка при использовании MLX: {e}, пробуем Ollama")
 
-            # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
-        logger.warning("⚠️ cursor-agent not found, using direct Ollama API")
+        # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
+        _in_docker = (
+            os.path.exists("/.dockerenv")
+            or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
+        )
+        if _in_docker:
+            logger.debug(
+                "⚠️ cursor-agent not found (expected in Docker), using direct Ollama API"
+            )
+        else:
+            logger.warning("⚠️ cursor-agent not found, using direct Ollama API")
         try:
             import aiohttp
 
@@ -1478,14 +1490,26 @@ async def run_smart_agent_async_impl(
             pm = get_personality_manager()
             spec_prompt = pm.adapt_prompt(user_part, spec_prompt)
 
-        # Используем Strategist (Wisdom) на MLX
+        # Используем Strategist (Wisdom) на MLX/Ollama
         spec = None
         if router:
-            # Форсируем использование Wisdom на MLX для планирования
-            spec_result = await router.run_local_llm(
-                spec_prompt, category="reasoning", model_hint=strategist_model
+            # В Docker MLX часто недоступен из контейнера — предпочитаем Ollama для стратега,
+            # чтобы реже срабатывал STRATEGIST FAILED и fallback на cursor-agent
+            _in_docker_strategist = (
+                os.path.exists("/.dockerenv")
+                or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
             )
-            spec = spec_result[0] if isinstance(spec_result, tuple) else spec_result
+            _saved_preferred = getattr(router, "_preferred_source", None)
+            if _in_docker_strategist:
+                router._preferred_source = "ollama"
+            try:
+                spec_result = await router.run_local_llm(
+                    spec_prompt, category="reasoning", model_hint=strategist_model
+                )
+                spec = spec_result[0] if isinstance(spec_result, tuple) else spec_result
+            finally:
+                if _in_docker_strategist:
+                    router._preferred_source = _saved_preferred
 
         # Fallback to cloud if strategist failed
         if not spec or spec.startswith(("❌", "⚠️")):
@@ -2465,7 +2489,14 @@ async def run_smart_agent_async_impl(
         and (response.startswith("❌") or response.startswith("⚠️"))
         and get_autonomous_tool_creator
     ):
-        logger.info("🛠️ [TOOL CREATOR] Attempting to create a missing tool to fix the failure...")
+        _now = time.time()
+        if _now - _last_tool_creator_log_time[0] >= 30:
+            logger.info("🛠️ [TOOL CREATOR] Attempting to create a missing tool to fix the failure...")
+            _last_tool_creator_log_time[0] = _now
+        else:
+            logger.debug(
+                "🛠️ [TOOL CREATOR] Attempting to create a missing tool (throttled, see previous INFO)"
+            )
         creator = get_autonomous_tool_creator()
         success = await creator.create_tool_on_the_fly(response, user_part)
         if success:

@@ -18,7 +18,7 @@ except ImportError:
     ASYNCPG_AVAILABLE = False
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -422,7 +422,7 @@ class IntelligentModelRouter:
             # Для простых задач стоимость важнее
             return quality_per_cost * 0.7 + model_cap.avg_quality * 0.3
 
-    def classify_task(self, prompt: str, category: str = None) -> TaskCategory:
+    def classify_task(self, prompt: str, category: Any = None) -> TaskCategory:
         """
         Классифицировать задачу по типу (для fallback и логирования).
         Returns TaskCategory с .value (coding, reasoning, fast, general).
@@ -432,6 +432,10 @@ class IntelligentModelRouter:
             category = category.value
         elif isinstance(category, str):
             category = category.lower()
+        elif category is not None:
+            # Если это объект другого типа (например, сам TaskCategory, но без .value, что странно, 
+            # или если мы хотим быть максимально безопасными)
+            category = str(category).lower()
 
         task_complexity = self.estimate_task_complexity(prompt, category)
         return TaskCategory(task_complexity.task_type)
@@ -466,7 +470,7 @@ class IntelligentModelRouter:
     async def select_optimal_model(
         self,
         prompt: str,
-        category: str = None,
+        category: Any = None,
         available_models: List[str] = None,
         optimize_for: str = "quality",  # 'quality', 'speed', 'cost', 'balanced'
         prioritize_quality: bool = False,
@@ -477,16 +481,29 @@ class IntelligentModelRouter:
         Выбрать оптимальную модель на основе мировых практик.
         [STRICT MODE] Всегда предпочитаем Victoria-Wisdom-v3.5 для снижения нагрузки.
         """
+        # [FIX] Если category уже является объектом TaskCategory, извлекаем его значение
+        cat_str = category
+        if hasattr(category, "value"):
+            cat_str = category.value
+        elif not isinstance(category, str) and category is not None:
+            # Если это объект другого типа, пробуем привести к строке безопасно
+            try:
+                cat_str = str(category)
+            except:
+                cat_str = "general"
+
         # [SINGULARITY 24.0] Smart Routing 2.0: Local First + Anti-Hallucination
-        # Если это не зрение, всегда пробуем Викторию первой
-        if "vision" not in (category or "").lower() and "image" not in prompt.lower():
+        # Если это не зрение, всегда предпочитаем Victoria-Wisdom-v3.5 для снижения нагрузки.
+        # ВАЖНО: используем cat_str, который гарантированно является строкой или None
+        cat_str_for_check = (cat_str or "").lower() if isinstance(cat_str, str) else ""
+        if "vision" not in cat_str_for_check and "image" not in prompt.lower():
             # Проверяем, не является ли запрос слишком сложным для локальной модели
             # (например, требует знаний, которых точно нет локально)
-            task_complexity = self.estimate_task_complexity(prompt, category)
+            task_complexity = self.estimate_task_complexity(prompt, cat_str)
 
             # Если сложность экстремальная (>0.9) и мы не в режиме экономии,
             # можно было бы эскалировать, но мы держим курс на локальность.
-            return "victoria-wisdom-v3.5", TaskCategory(category or "general"), 1.0
+            return "victoria-wisdom-v3.5", TaskCategory(cat_str or "general"), 1.0
 
         if prioritize_speed:
             optimize_for = "speed"
@@ -496,7 +513,7 @@ class IntelligentModelRouter:
             available_models = list(self._base_capabilities.keys())
 
         # 1. Оценка сложности задачи
-        task_complexity = self.estimate_task_complexity(prompt, category)
+        task_complexity = self.estimate_task_complexity(prompt, cat_str)
         task_category = TaskCategory(task_complexity.task_type)
 
         logger.info(

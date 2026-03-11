@@ -2480,71 +2480,6 @@ def _extract_execution_plan(response_text: str) -> Optional[List[Dict[str, Any]]
     return steps if steps else None
 
 
-def _format_ide_context(request: TaskRequest) -> str:
-    """
-    Форматирует IDE-контекст (open_files, git_status, cursor_rules) в читаемый текст для промпта Victoria.
-    Аналог контекста, который получает Cursor assistant.
-    """
-    if not any([request.open_files, request.git_status, request.cursor_rules]):
-        return ""
-
-    parts = []
-    parts.append("\n📋 IDE CONTEXT (как в Cursor):")
-    parts.append("=" * 60)
-
-    # 1. Workspace path
-    if request.workspace_path:
-        parts.append(f"\n🗂️ Workspace: {request.workspace_path}")
-
-    # 2. Git status
-    if request.git_status:
-        parts.append("\n📊 Git Status:")
-        parts.append(request.git_status.strip())
-
-    # 3. Open files
-    if request.open_files:
-        parts.append(f"\n📂 Open Files ({len(request.open_files)}):")
-        for i, file_info in enumerate(request.open_files[:5], 1):  # Лимит 5 файлов
-            path = file_info.get("path", "unknown")
-            cursor_line = file_info.get("cursor_line")
-            content = file_info.get("content", "")
-
-            parts.append(f"\n  {i}. {path}")
-            if cursor_line:
-                parts.append(f"     Cursor at line {cursor_line}")
-
-            # Показываем первые 10 строк или около cursor_line
-            if content:
-                lines = content.split("\n")
-                if cursor_line and cursor_line > 0:
-                    start = max(0, cursor_line - 5)
-                    end = min(len(lines), cursor_line + 5)
-                    snippet = "\n".join(lines[start:end])
-                    parts.append(f"     Lines {start + 1}-{end}:")
-                else:
-                    snippet = "\n".join(lines[:10])
-                    parts.append("     First 10 lines:")
-
-                # Добавляем отступ для сниппета
-                indented = "\n".join(f"       {line}" for line in snippet.split("\n"))
-                parts.append(indented)
-
-        if len(request.open_files) > 5:
-            parts.append(f"\n  ... и ещё {len(request.open_files) - 5} файл(ов)")
-
-    # 4. Cursor rules (применимые эксперты)
-    if request.cursor_rules:
-        parts.append(f"\n👥 Applicable Rules/Experts ({len(request.cursor_rules)}):")
-        for rule in request.cursor_rules:
-            parts.append(f"  • {rule}")
-
-    parts.append("\n" + "=" * 60)
-    parts.append("Используй этот контекст для понимания текущего состояния проекта.")
-    parts.append("")
-
-    return "\n".join(parts)
-
-
 def _strip_internal_monologue(text: str) -> str:
     """
     Убрать из вывода «внутренние» рассуждения модели (про finish, output, I will try)
@@ -3257,6 +3192,71 @@ class TaskResponse(BaseModel):
     execution_plan: Optional[List[Dict[str, Any]]] = None  # План выполнения для IDE
 
 
+def _format_ide_context(request: TaskRequest) -> str:
+    """
+    Форматирует IDE-контекст (open_files, git_status, cursor_rules) в читаемый текст для промпта Victoria.
+    Аналог контекста, который получает Cursor assistant.
+    """
+    if not any([request.open_files, request.git_status, request.cursor_rules]):
+        return ""
+
+    parts = []
+    parts.append("\n📋 IDE CONTEXT (как в Cursor):")
+    parts.append("=" * 60)
+
+    # 1. Workspace path
+    if request.workspace_path:
+        parts.append(f"\n🗂️ Workspace: {request.workspace_path}")
+
+    # 2. Git status
+    if request.git_status:
+        parts.append("\n📊 Git Status:")
+        parts.append(request.git_status.strip())
+
+    # 3. Open files
+    if request.open_files:
+        parts.append(f"\n📂 Open Files ({len(request.open_files)}):")
+        for i, file_info in enumerate(request.open_files[:5], 1):  # Лимит 5 файлов
+            path = file_info.get("path", "unknown")
+            cursor_line = file_info.get("cursor_line")
+            content = file_info.get("content", "")
+
+            parts.append(f"\n  {i}. {path}")
+            if cursor_line:
+                parts.append(f"     Cursor at line {cursor_line}")
+
+            # Показываем первые 10 строк или около cursor_line
+            if content:
+                lines = content.split("\n")
+                if cursor_line and cursor_line > 0:
+                    start = max(0, cursor_line - 5)
+                    end = min(len(lines), cursor_line + 5)
+                    snippet = "\n".join(lines[start:end])
+                    parts.append(f"     Lines {start + 1}-{end}:")
+                else:
+                    snippet = "\n".join(lines[:10])
+                    parts.append("     First 10 lines:")
+
+                # Добавляем отступ для сниппета
+                indented = "\n".join(f"       {line}" for line in snippet.split("\n"))
+                parts.append(indented)
+
+        if len(request.open_files) > 5:
+            parts.append(f"\n  ... и ещё {len(request.open_files) - 5} файл(ов)")
+
+    # 4. Cursor rules (применимые эксперты)
+    if request.cursor_rules:
+        parts.append(f"\n👥 Applicable Rules/Experts ({len(request.cursor_rules)}):")
+        for rule in request.cursor_rules:
+            parts.append(f"  • {rule}")
+
+    parts.append("\n" + "=" * 60)
+    parts.append("Используй этот контекст для понимания текущего состояния проекта.")
+    parts.append("")
+
+    return "\n".join(parts)
+
+
 async def _record_orchestration_task_start(
     agent, goal: str, orchestrator_version: str
 ) -> Optional[str]:
@@ -3554,6 +3554,7 @@ async def _run_task_background(
     strategy_result: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Фоновое выполнение задачи (202 + polling). Результат пишется в _run_task_store[task_id]. restated_goal/strategy_result передаются из run_task (логика мысли)."""
+    global sys  # Fix UnboundLocalError при обращении к sys.path в блоке orchestration
     if task_id not in _run_task_store:
         logger.error("❌ [STATUS] Task %s not found in store, skip background", task_id[:8])
         return
@@ -4080,7 +4081,12 @@ async def _run_task_background(
                 }
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
                 store["status"] = "completed"
-                raw_result = enhanced_result.get("result") or ""
+                # Несколько ключей на случай разных путей Enhanced (CHANGES §56.1)
+                raw_result = (
+                    enhanced_result.get("result")
+                    or enhanced_result.get("output")
+                    or ""
+                )
                 try:
                     store["output"] = _normalize_output_for_user(raw_result)
                     if not isinstance(store["output"], str):
@@ -4093,6 +4099,17 @@ async def _run_task_background(
                         str(raw_result)
                         if raw_result is not None
                         else "Результат не удалось нормализовать."
+                    )
+                # Пустой output при route=enhanced — баг CHANGES §56.1: fallback чтобы пользователь видел сообщение
+                if not (store["output"] or "").strip():
+                    method_name = enhanced_result.get("method") or "Victoria Enhanced"
+                    store["output"] = (
+                        f"Задача выполнена (маршрут: {method_name}), но текст ответа не был сохранён в цепочке. "
+                        "Рекомендуется уточнить задачу или повторить запрос."
+                    )
+                    logger.warning(
+                        "[VICTORIA_CYCLE] Пустой output от Enhanced — подставлен fallback (task_id=%s)",
+                        task_id[:8],
                     )
                 store["knowledge"] = knowledge
                 if session_id:
@@ -4230,7 +4247,8 @@ async def get_run_status(task_id: str):
         meta.setdefault("source", "local")
         knowledge = dict(knowledge)
         knowledge["metadata"] = meta
-    out = _normalize_output_for_user(rec.get("output"))
+    # Redis хранит текст в "result", in-memory store — в "output" (CHANGES §73)
+    out = _normalize_output_for_user(rec.get("output") or rec.get("result"))
     if not isinstance(out, str):
         out = str(out) if out is not None else ""
     # Лимит 8000 для Telegram/длинных ответов (раньше 2000 — обрезало сложные ответы)
@@ -4484,6 +4502,41 @@ async def run_task(
             + goal
         )
         logger.info("[REQUEST] Goal prefixed with project-bible clarification")
+
+    # [AUTONOMOUS] Анализ логов и проактивные предложения
+    if "статус" in (goal or "").lower() or "ошибк" in (goal or "").lower():
+        try:
+            from app.event_bus import get_event_bus, EventType
+            bus = get_event_bus()
+            recent_errors = bus.get_event_history(event_type=EventType.ERROR_DETECTED, limit=3)
+            if recent_errors:
+                error_context = "\n".join([f"- {e.payload.get('error_info', {}).get('message')}" for e in recent_errors])
+                goal = f"ВНИМАНИЕ: В системе зафиксированы недавние ошибки:\n{error_context}\n\nУчитывай это при ответе.\n\n" + goal
+                logger.info("[AUTONOMOUS] Добавлен контекст недавних ошибок в запрос")
+        except Exception:
+            pass
+
+    # [AUTONOMOUS] Мониторинг Mac Studio (нагрузка, температура, модели)
+    if any(word in (goal or "").lower() for word in ["mac studio", "железо", "нагрузка", "температур", "ресурс"]):
+        try:
+            from app.mac_studio_monitor import get_mac_studio_monitor
+            monitor = get_mac_studio_monitor()
+            mac_stats = await monitor.get_full_stats()
+            if mac_stats:
+                stats_context = f"""
+🖥️ СТАТУС MAC STUDIO (Real-time):
+- CPU: {mac_stats['hardware']['cpu']['percent']}%
+- RAM: {mac_stats['hardware']['ram']['used_gb']}GB / {mac_stats['hardware']['ram']['total_gb']}GB ({mac_stats['hardware']['ram']['percent']}%)
+- Thermal Level: {mac_stats['hardware']['temperature'].get('thermal_level', 'N/A')}
+- Loaded Models (Ollama): {len(mac_stats['models']['ollama'])}
+- Loaded Models (MLX): {len(mac_stats['models']['mlx'])}
+
+Учитывай эти данные при ответе на вопросы о производительности и ресурсах.
+"""
+                goal = stats_context + "\n" + goal
+                logger.info("[AUTONOMOUS] Добавлен контекст метрик Mac Studio в запрос")
+        except Exception as e:
+            logger.debug(f"Mac Studio monitor error: {e}")
 
     # Определяем контекст проекта (реестр из БД с fallback на env/hardcoded)
     main_project = get_main_project()
@@ -5463,6 +5516,30 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     except Exception as e:
         logger.error(f"❌ [OPENAI-API] Memory error: {e}")
 
+    # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
+    # Подтягиваем релевантные знания через Hybrid Search v2 перед отправкой в Victoria
+    try:
+        from app.enhanced_search import enhanced_search_knowledge, SearchMode
+        logger.info(f"🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
+        rag_res = await enhanced_search_knowledge(
+            query=goal,
+            mode=SearchMode.HYBRID,
+            limit=3
+        )
+        if rag_res and rag_res.get("results"):
+            knowledge_text = rag_res.get("result_text", "")
+            if knowledge_text:
+                logger.info(f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes")
+                # Внедряем знания в начало запроса
+                task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
+    except Exception as e:
+        logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
+
+    # [SINGULARITY 16.1] Omni-RAG: Telegram Notification Hook
+    # Если запрос пришел от Telegram (по session_id или метаданным), можно добавить логику уведомлений
+    if task_req.session_id.startswith("tg-"):
+        logger.info(f"📱 [OMNI-RAG] Telegram request detected: {task_req.session_id}")
+
     # --- РЕАЛИЗАЦИЯ СТРИМИНГА (OPENAI COMPATIBLE) ---
     if request.stream:
 
@@ -5932,6 +6009,34 @@ async def get_hidden_thoughts(session_id: str):
     except Exception as e:
         logger.error(f"Error in get_hidden_thoughts: {e}")
         return {"status": "error", "message": str(e)}
+
+
+class OmniSearchRequest(BaseModel):
+    query: str
+    domain: Optional[str] = None
+    limit: Optional[int] = 3
+
+
+@app.post("/api/omni-rag/search")
+async def omni_rag_search(request: OmniSearchRequest):
+    """
+    Унифицированный поиск Omni-RAG для внешних систем (Telegram, Open WebUI и др.)
+    Использует Hybrid Search v2 + Cross-Encoder Re-ranking.
+    """
+    try:
+        from app.enhanced_search import enhanced_search_knowledge, SearchMode
+        logger.info(f"🔍 [OMNI-RAG] Search request: {request.query} (domain: {request.domain})")
+        
+        results = await enhanced_search_knowledge(
+            query=request.query,
+            domain=request.domain,
+            mode=SearchMode.HYBRID,
+            limit=request.limit
+        )
+        return results
+    except Exception as e:
+        logger.error(f"❌ [OMNI-RAG] Search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

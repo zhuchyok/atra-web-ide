@@ -4,12 +4,86 @@
 
 ---
 
+## 75. Setki21: Фикс маршрутизации API и валидации UUID (2026-03-11)
+
+- **Симптом:** Ошибка «PAGE NOT FOUND: /API//ORDERS» при оформлении заказа. В логах Nuxt: «CRITICAL: Failed to save order to DB: FetchError: 400 Bad Request».
+- **Причина 1 (Nginx):** Слишком широкое правило `location /api` (без слеша) в конфигах Nginx перехватывало запросы к `/api_nuxt/` и отправляло их на Rust API вместо Nuxt.
+- **Причина 2 (Валидация):** Rust API возвращал 400, если `dealer_id` или `branch_id` передавались как пустые строки или невалидные UUID (что случалось при отсутствии дилера в конфиге).
+- **Сделано:** 
+    1. **Nginx:** В файлах `1.conf`, `8.conf`, `9.conf` на VDS 45.10.43.248 правило `location /api` заменено на `location /api/` (со слешем), что гарантирует разделение трафика между Rust (`/api/v1/`) и Nuxt (`/api_nuxt/`).
+    2. **Backend (Nuxt):** В `server/api/orders.post.ts` добавлена жесткая валидация UUID через regex. Если ID невалиден, он передается как `undefined`, что Rust API принимает корректно.
+    3. **Frontend:** В `Calculator.vue` синхронизирован `color_id` в параметрах заказа для соответствия ожиданиям Rust API.
+- **Итог:** Маршрутизация восстановлена, заказы успешно сохраняются в БД и отправляются по Email.
+
+---
+
+## 74. Nightly OOM: причина и сброс памяти (2026-03-11)
+
+- **Симптом:** Контейнер knowledge_nightly падает с **Killed** после фазы corporation knowledge (подтверждено: OOMKilled=true).
+- **Причина не в одной ошибке или зависании:** это типичный OOM — ядро/cgroups убивает процесс при превышении лимита памяти. Накопление идёт из-за: (1) большого объекта **knowledge** (1948+ скриптов, модели, recent_changes) и результатов **extract_all** / save в памяти; (2) множества вызовов эмбеддингов (Ollama); (3) отсутствия явного сброса ссылок до перехода к циклу по экспертам.
+- **Сделано:** В **nightly_learner.py** добавлены два вызова **gc.collect()**: сразу после фазы corporation knowledge и перед циклом по экспертам — чтобы освободить ссылки на knowledge и снизить пик потребления памяти. Лимит контейнера ранее поднят до 20G.
+- **Документ:** **docs/audits/2026-03-11-nightly-oom-analysis.md** — разбор причин и рекомендации (24G при повторном OOM, лёгкий режим, учёт MemoryGuard в контейнере).
+
+---
+
+## 73. Проверка задачи Виктории: дашборд без заглушек + почему не сработало (2026-03-11)
+
+- **Контекст:** Задача по дашборду была передана Виктории через куратор (`curator_send_tasks_to_victoria.py --file docs/tasks/VICTORIA_TASK_DASHBOARD_FIX.txt --async --max-wait 600`). Прогон завершился success (~356 с), но `output_length: 0` и правок в репо нет.
+- **Проверка (Анна, Роман, Игорь):** Сверка репо с пунктами аудита показала: миграция `anomaly_detection_logs` уже была; миграций для `simulations` и для колонок `experts.virtual_budget`/`performance_score` **нет**; блок «Дебаты» в дашборде **не добавлен**; в Синтез Знаний **нет** fallback-импорта VictoriaEnhanced. Финансы и ROI уже показывают «N/A (миграция)» при отсутствии колонок.
+- **Root cause 1 — пустой output:** Redis сохраняет результат в поле **`result`**, а GET /run/status в **victoria_server.py** читал только **`rec.get("output")`**. При ответе из Redis текст не подставлялся. **Исправлено:** в `get_run_status` используется `rec.get("output") or rec.get("result")`.
+- **Root cause 2 — нет правок в файлах:** Запрос пошёл в Victoria Enhanced (routed_to: enhanced). Enhanced умеет write_file (ReAct), но выбранный метод (simple/extended_thinking/consensus и т.д.) не задействовал инструменты записи — задача была обработана как текст/анализ без шагов редактирования репо.
+- **Итог:** Отчёт верификации и разбор причин: **docs/curator_reports/FINDINGS_2026-03-11-dashboard-task-verification.md**. Рекомендация: выполнить недостающие пункты вручную или ставить Виктории задачу с формулировкой «внести правки в файлы репозитория, используй create_file/write_file».
+- **Исправления внесены:** (1) Миграции: `add_simulations_table.sql`, `add_experts_virtual_budget_performance.sql`. (2) В `wisdom_tab.py` добавлен блок «Дебаты экспертов» (запрос по `metadata->>'cycle' LIKE 'nightly_council%'`). (3) В `data_tab.py` — fallback импорт VictoriaEnhanced (сначала app.victoria_enhanced, затем victoria_enhanced). Миграции применить вручную: `psql $DATABASE_URL -f knowledge_os/db/migrations/add_simulations_table.sql` и `add_experts_virtual_budget_performance.sql`.
+
+---
+
+## 72. Задачи для Виктории: дашборд без заглушек (2026-03-11)
+
+- **Цель:** Все пункты аудита дашборда довести до рабочего состояния силами локальной Виктории, без заглушек.
+- **Сделано:** Скрипт **knowledge_os/scripts/create_victoria_dashboard_fix_tasks.py** создаёт в таблице `tasks` одну задачу с приоритетом `urgent`, назначенную на эксперта «Виктория». В описании — ссылка на **docs/audits/2026-03-11-dashboard-tabs-audit.md** и перечень пунктов (миграции simulations, anomaly_detection_logs, experts.virtual_budget/performance_score; блок Дебаты; импорт VictoriaEnhanced; пути Code Mutations; явные сообщения при недоступности сервисов). Виктория сама решает порядок и способ выполнения. Задача также передаётся через куратор: `--file docs/tasks/VICTORIA_TASK_DASHBOARD_FIX.txt --async --max-wait 600` (результат в docs/curator_reports/).
+- **Запуск:** `cd knowledge_os && .venv/bin/python scripts/create_victoria_dashboard_fix_tasks.py`. Либо куратор: `python3 scripts/curator_send_tasks_to_victoria.py --file docs/tasks/VICTORIA_TASK_DASHBOARD_FIX.txt --async --max-wait 600`. После создания задачу подхватывает Smart Worker (knowledge_os_worker) или куратор (API /run).
+
+---
+
+## 71. Nightly: эксперты, оркестраторы, демоны — полный список фаз (2026-03-11)
+
+- **Контекст:** Уточнение: что ещё должно запускаться ночью (эксперты, оркестраторы, агенты, демоны).
+- **Добавлено в ночной цикл:** (1) **Фаза 7.5** — Enhanced Expert Evolution (`run_enhanced_evolution_cycle`: метрики экспертов → эволюция/специализация/удаление неэффективных, обработка задач «Prompt evolution» от knowledge_applicator). (2) **Фаза 13.5** — Autonomous Tester (Self-Healing QA): полный pytest + анализ падений через Анну и создание задач на исправление. (3) **Фаза 17.5** — сброс зависших задач (`scripts/reset_stuck_tasks.py`: in_progress > 4ч → failed, 1–4ч → pending). (4) **Фаза 20.5** — Enhanced Immunity (один цикл за ночь: слабые знания, adversarial testing, очистка устаревших). (5) **Фаза 20.6** — Strategic Board (одно заседание `run_board_meeting` за ночь). (6) **Фаза 20.7** — синхронизация сотрудников (Employees sync: employees.json → БД, `trigger_employees_sync("nightly")`).
+- **Что по-прежнему вне ночного цикла (cron/отдельные демоны):** Enhanced Monitor (каждые 5 мин), Enhanced Orchestrator (каждые 30 мин), Global Scout (12 ч), Auto-Translation (2:00), Performance Optimizer (6 ч), Board Scheduler (каждые 6 ч отдельным процессом), IndexingDaemon (watchdog файлов), Report Generator (8:00), Daily Report (09:00 из main.py), agent_improvements_scheduler (из main.py). Ночной цикл собирает в одном прогоне всё, что логично делать раз в сутки.
+
+---
+
+## 70. Nightly: знания гигантов и постоянное внедрение (External Index + Perpetual Evolution) (2026-03-11)
+
+- **Контекст:** Виктория должна не только самоэволюцию кода (MetaArchitect), но и постоянно улучшать корпорацию и внедрять практики из знаний гигантов (AI Research, внешние доки).
+- **Сделано:** (1) **Обновление знаний гигантов:** добавлена опциональная фаза ночного цикла — индексация внешних документов (OpenAI, Anthropic, LangChain, DeepSeek, AutoGen, URL docs) в домен AI Research. Включается переменной **ENABLE_NIGHTLY_EXTERNAL_INDEX=true** (по умолчанию выключено, т.к. индексация долгая и требует сеть). (2) **Один цикл Perpetual Evolution:** добавлена фаза вызова `PerpetualEvolution().run_one_cycle()` — исследование следующего апгрейда из базы знаний гигантов (research_next_upgrade) → создание задачи на внедрение в `tasks` (execute_upgrade) → запись в knowledge_nodes при успехе. Без council/court в этом цикле, чтобы не перегружать ночь.
+- **Итог:** Каждую ночь Виктория может получать одну задачу «внедрить фичу из гигантов»; при включённом ENABLE_NIGHTLY_EXTERNAL_INDEX периодически обновляется и контент AI Research.
+
+---
+
+## 69. Nightly: фаза самоэволюции Виктории (MetaArchitect) (2026-03-11)
+
+- **Контекст:** В ночном цикле не вызывалась система самоэволюции (Mutation Engine, Shadow Execution, hot-spot анализ) из .cursorrules «СИСТЕМА САМОЭВОЛЮЦИИ».
+- **Сделано:** В **nightly_learner.py** добавлена **Фаза 19.5: MetaArchitect Self-Evolution** — после Shadow Prompt Promotion (19) и перед Wisdom Synthesis (20). Вызывается `MetaArchitect().self_evolution_cycle()`: оптимизация графа, анализ горячих точек профайлера, генерация гипотез мутаций, верификация безопасности, сохранение мутаций для Shadow Execution и при успехе — hot-swap в прод.
+- **Итог:** Ночной цикл теперь включает самосовершенствование кодовой базы по данным профайлера и GraphRAG.
+
+---
+
 ## 68. Nightly: исправление release и saved_count в фазе corporation knowledge (2026-03-11)
 
 - **Симптом:** При ручном прогоне nightly: `AttributeError: 'Connection' object has no attribute 'release'`; `UnboundLocalError: saved_count`; `RuntimeWarning: coroutine 'Pool.release' was never awaited`.
 - **Причина:** asyncpg: соединения из пула возвращаются вызовом `await pool.release(conn)`, а не `conn.release()`. В `_save_corporation_knowledge_to_db` переменная `saved_count` не инициализировалась.
 - **Сделано:** (1) **corporation_knowledge_system.py** — в `_save_corporation_knowledge_to_db` добавлено `saved_count = 0`; все `pool.release(conn)` заменены на `await pool.release(conn)` (в т.ч. для conn_ins). (2) **corporation_complete_knowledge.py** — в `save_all_knowledge` в finally: `await pool.release(conn)` / `await temp_pool.release(conn)`; закрытие temp_pool только при его наличии.
 - **Проверка:** Ручной прогон `docker exec knowledge_nightly python3 -u nightly_learner.py`: фаза corporation knowledge завершается без ошибок (16 узлов + 15 полных знаний).
+
+---
+
+## 67.1. Setki21: ссылки на политику конфиденциальности — из админки дилера (2026-02-23)
+
+- **Контекст:** «Политика под дилера» уже работала в смысле: страница `/privacy` показывала реквизиты и текст из `tenant.config.legal` (юр. данные дилера). В админке есть поле «Ссылка на политику конфиденциальности» (`legal_info.privacy_policy_url`). Пользователь не видел изменений.
+- **Что уже было:** API возвращает `legal` (requisites, privacy_policy_url, privacy_policy_text). Контент страницы `/privacy` — уже по дилеру. Если в админке не заполнена ссылка, API отдаёт `legal.privacy_policy_url: null`.
+- **Что добавлено (коммит d6f13ca, setki-21):** Все ссылки на политику в интерфейсе берут URL из конфига: `tenant.config.legal?.privacy_policy_url || '/privacy'`. Обновлены: **CallbackModal.vue**, **layouts/default.vue** (футер, баннер cookie), **Calculator.vue**, **OrderForm.vue**. Раньше везде было жёстко `to="/privacy"`.
+- **Как увидеть разницу:** В админке у дилера в «Юр. данные» заполнить «Ссылка на политику конфиденциальности» (например внешний URL или `/privacy`) — тогда ссылки в формах и футере поведут на этот URL. Если поле пустое — по-прежнему используется `/privacy` (страница уже показывала контент дилера).
 
 ---
 
