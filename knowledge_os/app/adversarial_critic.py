@@ -105,6 +105,12 @@ async def run_adversarial_cycle(limit: int = 5):
                 elif "```" in clean_json:
                     clean_json = clean_json.split("```")[1].split("```")[0]
 
+                # [FIX] Если модель вернула текст до или после JSON, пробуем найти границы JSON
+                if not clean_json.startswith("{") and "{" in clean_json:
+                    clean_json = clean_json[clean_json.find("{"):]
+                if not clean_json.endswith("}") and "}" in clean_json:
+                    clean_json = clean_json[:clean_json.rfind("}")+1]
+
                 result = json.loads(clean_json)
 
                 # Обновляем знание результатами атаки
