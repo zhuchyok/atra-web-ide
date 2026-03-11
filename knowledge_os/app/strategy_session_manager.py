@@ -44,34 +44,47 @@ class StrategySessionManager:
             )
             if not cursor.fetchone():
                 logger.info("🔧 [SESSION MANAGER] Таблица strategy_sessions не найдена. Инициализация...")
-                # Пытаемся импортировать Database для инициализации
-                try:
-                    import sys
-                    import os
-                    # Добавляем пути для поиска db.py (Knowledge OS структура)
-                    current_dir = os.path.dirname(os.path.abspath(__file__))
-                    project_root = os.path.dirname(os.path.dirname(current_dir)) # atra-web-ide
-                    
-                    paths_to_add = [
-                        os.path.join(current_dir, "src/database"),
-                        os.path.join(os.path.dirname(current_dir), "src/database"),
-                        os.path.join(project_root, "knowledge_os/src/database"),
-                        os.path.join(project_root, "src/database"),
-                        "/app/knowledge_os/src/database",
-                        "/app/src/database",
-                    ]
-                    
-                    for p in paths_to_add:
-                        if os.path.exists(p) and p not in sys.path:
-                            sys.path.insert(0, p)
-                    
                     try:
                         from db import Database
                     except ImportError:
                         try:
-                            from src.database.db import Database
+                            import sys
+                            import os
+                            # Добавляем пути для поиска db.py (Knowledge OS структура)
+                            current_dir = os.path.dirname(os.path.abspath(__file__))
+                            project_root = os.path.dirname(os.path.dirname(current_dir)) # atra-web-ide
+                            
+                            paths_to_add = [
+                                os.path.join(current_dir, "src/database"),
+                                os.path.join(os.path.dirname(current_dir), "src/database"),
+                                os.path.join(project_root, "knowledge_os/src/database"),
+                                os.path.join(project_root, "src/database"),
+                                "/app/knowledge_os/src/database",
+                                "/app/src/database",
+                            ]
+                            
+                            for p in paths_to_add:
+                                if os.path.exists(p) and p not in sys.path:
+                                    sys.path.insert(0, p)
+                            
+                            from db import Database
                         except ImportError:
-                            from knowledge_os.src.database.db import Database
+                            try:
+                                from src.database.db import Database
+                            except ImportError:
+                                try:
+                                    from knowledge_os.src.database.db import Database
+                                except ImportError:
+                                    # Последний шанс: пробуем импортировать через абсолютный путь в контейнере
+                                    import importlib.util
+                                    db_path_abs = "/app/knowledge_os/src/database/db.py"
+                                    if os.path.exists(db_path_abs):
+                                        spec = importlib.util.spec_from_file_location("db", db_path_abs)
+                                        module = importlib.util.module_from_spec(spec)
+                                        spec.loader.exec_module(module)
+                                        Database = module.Database
+                                    else:
+                                        raise ImportError("Could not find db.py in any known location")
                     
                     db = Database(self.db_path)
                     db._init_tables()
