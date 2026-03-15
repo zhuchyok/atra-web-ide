@@ -1,0 +1,84 @@
+PARQUET АНАЛИЗ: Торговый день 2026-03-09
+
+Тебе предоставлен файл с торговыми данными за 9 марта 2026 года.
+Путь внутри контейнера: /data/downloads/2026-03-09.parquet
+Размер: ~690 MB, записи каждые 100ms, несколько миллионов строк.
+
+ИНСТРУМЕНТ: используй python-development с duckdb.
+
+ШАГ 1 — Изучи схему:
+```python
+import duckdb
+conn = duckdb.connect()
+schema = conn.execute("DESCRIBE SELECT * FROM parquet_scan('/data/downloads/2026-03-09.parquet') LIMIT 0").fetchall()
+for col in schema:
+    print(col)
+```
+
+ШАГ 2 — Посмотри на первые строки и структуру payload:
+```python
+sample = conn.execute("SELECT * FROM parquet_scan('/data/downloads/2026-03-09.parquet') LIMIT 5").fetchdf()
+print(sample.dtypes)
+print(sample)
+# Если есть колонка payload — распарси JSON:
+import json
+if 'payload' in sample.columns:
+    first_payload = json.loads(sample['payload'].iloc[0])
+    print("Payload keys:", list(first_payload.keys()))
+```
+
+ШАГ 3 — Найди аномалии цены (скачки >1%):
+```python
+anomalies = conn.execute("""
+    WITH price_changes AS (
+        SELECT time, price,
+               LAG(price) OVER (ORDER BY time) as prev_price
+        FROM parquet_scan('/data/downloads/2026-03-09.parquet')
+    )
+    SELECT time, price, prev_price,
+           ROUND(ABS(price - prev_price) / prev_price * 100, 3) as pct_change
+    FROM price_changes
+    WHERE prev_price IS NOT NULL
+      AND ABS(price - prev_price) / prev_price > 0.01
+    ORDER BY pct_change DESC
+    LIMIT 20
+""").fetchdf()
+print(f"Найдено аномалий: {len(anomalies)}")
+print(anomalies)
+```
+
+ШАГ 4 — Маркет-мейкеры и киты (анализ объёмов):
+```python
+# Статистика по объёмам из payload если есть
+count = conn.execute("SELECT COUNT(*) FROM parquet_scan('/data/downloads/2026-03-09.parquet')").fetchone()[0]
+print(f"Всего записей: {count:,}")
+
+# Временное распределение
+hourly = conn.execute("""
+    SELECT HOUR(CAST(time AS TIMESTAMP)) as hour, COUNT(*) as ticks,
+           MIN(price) as min_price, MAX(price) as max_price
+    FROM parquet_scan('/data/downloads/2026-03-09.parquet')
+    GROUP BY HOUR(CAST(time AS TIMESTAMP))
+    ORDER BY hour
+""").fetchdf()
+print(hourly)
+```
+
+ШАГ 5 — Сохрани финальный отчёт:
+```python
+report = f"""# Анализ торгового дня 2026-03-09
+
+## Общая статистика
+- Всего записей: {count:,}
+- ...
+
+## Аномалии цены
+{anomalies.to_markdown() if len(anomalies) > 0 else "Аномалий не найдено"}
+
+## Почасовое распределение
+{hourly.to_markdown()}
+"""
+with open('/app/data/parquet_analysis_2026-03-09.md', 'w') as f:
+    f.write(report)
+print("Отчёт сохранён в /app/data/parquet_analysis_2026-03-09.md")
+```

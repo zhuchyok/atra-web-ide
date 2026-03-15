@@ -867,7 +867,14 @@ DESC: {task_description}
                         from task_rule_executor import can_handle as rule_can_handle
                         from task_rule_executor import execute_fallback as rule_execute
 
-                        task_dict = dict(task) if not isinstance(task, dict) else task
+                        task_dict = dict(task) if not isinstance(task, dict) else dict(task)
+                        if isinstance(task_dict.get("metadata"), str):
+                            import json as _json
+
+                            try:
+                                task_dict["metadata"] = _json.loads(task_dict["metadata"])
+                            except Exception:
+                                task_dict["metadata"] = {}
                         if rule_can_handle(task_dict):
                             rule_result = await rule_execute(task_dict)
                     except Exception as e:
@@ -1250,7 +1257,14 @@ DESC: {task_description}
                 from task_rule_executor import can_handle as rule_can_handle
                 from task_rule_executor import execute_fallback as rule_execute
 
-                task_dict = dict(task) if not isinstance(task, dict) else task
+                task_dict = dict(task) if not isinstance(task, dict) else dict(task)
+                if isinstance(task_dict.get("metadata"), str):
+                    import json as _json
+
+                    try:
+                        task_dict["metadata"] = _json.loads(task_dict["metadata"])
+                    except Exception:
+                        task_dict["metadata"] = {}
                 if rule_can_handle(task_dict):
                     rule_result = await rule_execute(task_dict)
             except ImportError:
