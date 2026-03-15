@@ -202,7 +202,11 @@ async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
     import re
 
     try:
-        prompt = f"""Разложи задачу на подзадачи по отделам. Задача:
+        prompt = f"""Разложи задачу на подзадачи по отделам.
+ВАЖНО: Если задача требует написания кода или анализа данных из конкретного файла, НЕ разбивай её на мелкие теоретические вопросы.
+Создай ОДНУ или ДВЕ подзадачи для написания и запуска скрипта.
+
+Задача:
 {goal[:2000]}
 
 Верни ТОЛЬКО валидный JSON:
@@ -294,6 +298,12 @@ except ImportError:
 
         async def consolidate_memory(self):
             return "MOCK_CONSOLIDATION_OFFLINE"
+
+
+try:
+    from core.cluster_bridge import MultiClusterBridge
+except ImportError:
+    MultiClusterBridge = None
 
 
 # Add scripts directory to path for sync
@@ -1620,6 +1630,18 @@ async def run_enhanced_orchestration_cycle():
                 logger.info("  %s", consolidation_result)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Consolidation error: %s", exc)
+
+            logger.info("🌐 Phase 14.5: Multi-Cluster Bridge Sync...")
+            if MultiClusterBridge:
+                try:
+                    bridge = MultiClusterBridge()
+                    await bridge.initialize(conn)
+                    await bridge.send_heartbeat()
+                    await bridge.gossip_sync()
+                    await bridge.task_tunneling()
+                    logger.info("  ✅ Multi-cluster sync completed.")
+                except Exception as exc:
+                    logger.error("Multi-cluster bridge error: %s", exc)
 
             logger.info("🌐 Phase 15: Global Team Knowledge Sync...")
             if ServerKnowledgeSync:

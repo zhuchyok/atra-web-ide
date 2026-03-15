@@ -47,7 +47,7 @@ class AdvancedEnsemble:
         self.models = [
             "victoria-wisdom-v3.5",
             "phi3.5:3.8b",
-            "qwq:32b",
+            "glm-4.7-flash:latest",
             "victoria-wisdom-v3.5",
             "phi3.5:3.8b",
         ]

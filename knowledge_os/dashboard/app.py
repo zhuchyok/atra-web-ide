@@ -779,21 +779,21 @@ def main():
         st.markdown("### 💓 Пульс Корпорации")
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-            # Последние алерты безопасности
-            try:
-                threats = fetch_data(
-                    "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3"
-                )
-                if threats:
-                    st.markdown("**🛡️ Безопасность**")
-                    for t in threats:
-                        st.caption(
-                            f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}"
-                        )
-                else:
-                    st.success("🛡️ Угроз не обнаружено")
-            except:
-                pass
+        # Последние алерты безопасности
+        try:
+            threats = fetch_data(
+                "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3"
+            )
+            if threats:
+                st.markdown("**🛡️ Безопасность**")
+                for t in threats:
+                    st.caption(
+                        f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}"
+                    )
+            else:
+                st.success("🛡️ Угроз не обнаружено")
+        except Exception as e:
+            st.caption(f"🛡️ Безопасность: данные недоступны ({str(e)[:30]}...)")
         with col_p2:
             # Последние решения совета
             try:

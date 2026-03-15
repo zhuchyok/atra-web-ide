@@ -37,6 +37,7 @@ class EventType(Enum):
     DEADLINE_APPROACHING = "deadline_approaching"
     DEADLINE_PASSED = "deadline_passed"
     ERROR_DETECTED = "error_detected"
+    LOG_ERROR_DETECTED = "log_error_detected"
     PERFORMANCE_DEGRADED = "performance_degraded"
 
     # События для саморасширения (Skill Registry)
@@ -69,13 +70,14 @@ class EventBus:
     - Event-driven workflow
     """
 
-    def __init__(self):
+    def __init__(self, max_parallel_handlers: int = 20):
         self.subscribers: Dict[EventType, List[Callable]] = defaultdict(list)
         self.event_queue: asyncio.Queue = asyncio.Queue()
         self.event_history: List[Event] = []
         self.max_history: int = 1000
         self.running: bool = False
         self._processor_task: Optional[asyncio.Task] = None
+        self._handler_semaphore = asyncio.Semaphore(max_parallel_handlers)
 
     async def start(self):
         """Запустить обработчик событий"""
@@ -84,7 +86,13 @@ class EventBus:
 
         self.running = True
         self._processor_task = asyncio.create_task(self._process_events())
-        logger.info("🚀 Event Bus запущен")
+        # Используем значение по умолчанию, если семафор не инициализирован (хотя он в __init__)
+        limit = 20
+        if hasattr(self, "_handler_semaphore") and isinstance(
+            self._handler_semaphore, asyncio.Semaphore
+        ):
+            limit = self._handler_semaphore._value
+        logger.info(f"🚀 Event Bus запущен (limit: {limit})")
 
     async def stop(self):
         """Остановить обработчик событий"""
@@ -179,9 +187,17 @@ class EventBus:
                 # Находим подписчиков
                 handlers = self.subscribers.get(event.event_type, [])
 
-                # Вызываем обработчики параллельно
+                # Вызываем обработчики параллельно с ограничением через семафор
                 if handlers:
-                    tasks = [handler(event) for handler in handlers]
+
+                    async def wrapped_handler(h, e):
+                        async with self._handler_semaphore:
+                            try:
+                                return await h(e)
+                            except Exception as ex:
+                                logger.error(f"❌ Ошибка в обработчике {h.__name__}: {ex}")
+
+                    tasks = [wrapped_handler(handler, event) for handler in handlers]
                     await asyncio.gather(*tasks, return_exceptions=True)
 
                 # Обрабатываем request/response

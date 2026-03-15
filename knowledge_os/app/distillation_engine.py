@@ -24,6 +24,42 @@ class KnowledgeDistiller:
     def __init__(self):
         self.teacher_model = "victoria-wisdom-v3.5"
 
+    async def get_relevant_examples(self, query: str, category: str = "coding") -> str:
+        """
+        [SINGULARITY 21.5] Получает релевантные примеры (few-shot) из дистиллированных знаний.
+        """
+        try:
+            # [FIX] Используем внутренний импорт, чтобы избежать циклической зависимости
+            import asyncpg
+
+            conn = await asyncpg.connect(DB_URL)
+            # Ищем дистиллированные знания по категории
+            rows = await conn.fetch(
+                """
+                SELECT metadata->>'wisdom_summary' as summary,
+                       metadata->>'instruction' as instruction
+                FROM knowledge_nodes
+                WHERE metadata->>'distilled' = 'true'
+                AND (metadata->>'category' = $1 OR $1 = 'coding')
+                ORDER BY confidence_score DESC
+                LIMIT 3
+            """,
+                category,
+            )
+            await conn.close()
+
+            if not rows:
+                return ""
+
+            examples = "### РЕЛЕВАНТНЫЕ ПРИМЕРЫ (FEW-SHOT):\n"
+            for row in rows:
+                if row["summary"] and row["instruction"]:
+                    examples += f"- СУТЬ: {row['summary']}\n  ИНСТРУКЦИЯ: {row['instruction']}\n"
+            return examples
+        except Exception as e:
+            logger.warning(f"⚠️ [DISTILLER] Ошибка получения примеров: {e}")
+            return ""
+
     async def distill_knowledge_batch(self):
         """
         Selects raw knowledge and compresses it into structured wisdom.

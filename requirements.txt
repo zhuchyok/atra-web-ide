@@ -35,3 +35,8 @@ sentence-transformers>=3.0.0
 torch>=2.0.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
+
+# Аналитика данных (Parquet, DuckDB)
+duckdb>=1.1.0
+pyarrow>=14.0.0
+pandas>=2.0.0

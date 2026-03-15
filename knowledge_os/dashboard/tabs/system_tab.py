@@ -21,6 +21,7 @@ def render_system_tab():
     tabs_system = st.tabs(
         [
             "🔌 Сервисы",
+            "🧬 Self-Healing",
             "🛡️ Безопасность",
             "🚨 War Room",
             "🧪 Песочница",
@@ -33,17 +34,128 @@ def render_system_tab():
     with tabs_system[0]:
         render_health_status()
     with tabs_system[1]:
-        render_security()
+        render_self_healing()
     with tabs_system[2]:
-        render_war_room()
+        render_security()
     with tabs_system[3]:
-        render_expert_sandbox()
+        render_war_room()
     with tabs_system[4]:
-        render_singularity_metrics()
+        render_expert_sandbox()
     with tabs_system[5]:
-        render_projects()
+        render_singularity_metrics()
     with tabs_system[6]:
+        render_projects()
+    with tabs_system[7]:
         render_agent_logs()
+
+
+def render_self_healing():
+    """🧬 Self-Healing Proposals UI."""
+    st.subheader("🧬 Система Самоисцеления (Self-Healing)")
+    st.markdown("Проактивное исправление ошибок, обнаруженных MutationEngine.")
+
+    # Fetch tasks awaiting approval
+    try:
+        proposals = fetch_data("""
+            SELECT id, title, metadata, created_at
+            FROM tasks
+            WHERE status = 'awaiting_approval'
+            ORDER BY created_at DESC
+        """)
+
+        if proposals:
+            for p in proposals:
+                meta = p.get("metadata") or {}
+                error_info = meta.get("error_info") or {}
+                patch_data = meta.get("patch_data") or {}
+                file_path = (
+                    p.get("title").replace("Self-Healing: ", "")
+                    if "Self-Healing" in p.get("title", "")
+                    else meta.get("file")
+                )
+
+                with st.expander(f"🛠️ Исправление: {file_path} ({format_msk(p['created_at'])})"):
+                    col_info, col_actions = st.columns([3, 1])
+
+                    with col_info:
+                        st.markdown(
+                            f"**Ошибка:** `{error_info.get('type', 'Unknown')}: {error_info.get('message', 'No message')}`"
+                        )
+                        st.markdown(f"**Файл:** `{file_path}:{error_info.get('line', '?')}`")
+                        st.markdown(
+                            f"**Обоснование:** {patch_data.get('explanation', 'Нет описания')}"
+                        )
+
+                        # Diff visualization
+                        st.markdown("**Предложенный патч:**")
+                        old_code = patch_data.get("old_code", "")
+                        new_code = patch_data.get("new_code", "")
+
+                        if old_code and new_code:
+                            st.caption("Старый код:")
+                            st.code(old_code, language="python")
+                            st.caption("Новый код:")
+                            st.code(new_code, language="python")
+                        else:
+                            st.warning("Данные патча неполные.")
+
+                    with col_actions:
+                        if st.button(
+                            "✅ Approve & Apply", key=f"approve_{p['id']}", use_container_width=True
+                        ):
+                            apply_self_healing_patch(p["id"], file_path, patch_data)
+                            st.rerun()
+
+                        if st.button(
+                            "❌ Reject", key=f"reject_{p['id']}", use_container_width=True
+                        ):
+                            reject_self_healing_patch(p["id"])
+                            st.rerun()
+        else:
+            st.info("Нет предложений, ожидающих одобрения.")
+    except Exception as e:
+        st.error(f"Ошибка загрузки предложений: {e}")
+
+
+def apply_self_healing_patch(task_id, file_path, patch_data):
+    """Применить патч и обновить задачу."""
+    try:
+        import asyncio
+
+        from codebase_mutation_engine import get_mutation_engine
+
+        engine = get_mutation_engine()
+        # В Streamlit используем синхронный запуск асинхронного метода
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(engine._apply_patch(file_path, patch_data))
+        loop.close()
+
+        if success:
+            from database_service import run_query
+
+            run_query(
+                "UPDATE tasks SET status = 'completed', updated_at = NOW() WHERE id = %s",
+                (task_id,),
+            )
+            st.session_state["toast_message"] = (f"Патч применен к {file_path}", "✅")
+        else:
+            st.error(f"Не удалось применить патч к {file_path}. Проверьте логи.")
+    except Exception as e:
+        st.error(f"Ошибка при применении патча: {e}")
+
+
+def reject_self_healing_patch(task_id):
+    """Отклонить патч."""
+    try:
+        from database_service import run_query
+
+        run_query(
+            "UPDATE tasks SET status = 'cancelled', updated_at = NOW() WHERE id = %s", (task_id,)
+        )
+        st.session_state["toast_message"] = ("Предложение отклонено", "❌")
+    except Exception as e:
+        st.error(f"Ошибка при отклонении: {e}")
 
 
 def render_expert_sandbox():

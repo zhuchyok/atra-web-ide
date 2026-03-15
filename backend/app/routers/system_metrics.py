@@ -94,6 +94,34 @@ async def system_metrics():
                         "deferred_to_human": tasks_deferred or 0,
                         "failed": tasks_failed or 0,
                     }
+
+                    # [SINGULARITY 21.9] Дополнительные метрики для обнаружения зависших задач
+                    try:
+                        tasks_in_progress = await conn.fetchval(
+                            "SELECT COUNT(*) FROM tasks WHERE status = 'in_progress'"
+                        )
+                        tasks_stuck_4h = await conn.fetchval(
+                            "SELECT COUNT(*) FROM tasks WHERE status = 'in_progress' AND updated_at < NOW() - INTERVAL '4 hours'"
+                        )
+                        result["tasks_current"] = {
+                            "in_progress": tasks_in_progress or 0,
+                            "stuck_4h": tasks_stuck_4h or 0,
+                        }
+                        if (tasks_in_progress or 0) > 15 or (tasks_stuck_4h or 0) > 0:
+                            alert_msg = f"Task overload or stuck tasks: in_progress={tasks_in_progress}, stuck_4h={tasks_stuck_4h}"
+                            result["tasks_current"]["alert"] = alert_msg
+                            logger.warning(alert_msg)
+                            try:
+                                from app.services.telegram_alerts import send_general_alert
+
+                                await send_task_execution_alert(
+                                    0, 0, alert_msg
+                                )  # Reusing existing alert function
+                            except:
+                                pass
+                    except Exception as ce:
+                        logger.debug("Current task metrics: %s", ce)
+
                     total_done = (tasks_ai or 0) + (tasks_rule or 0)
                     total_all = total_done + (tasks_deferred or 0) + (tasks_failed or 0)
                     if total_all > 5:

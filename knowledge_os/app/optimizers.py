@@ -415,9 +415,10 @@ class PredictiveCache:
             pred_query, expert_name = self.prediction_queue.pop(0)
             try:
                 # Генерируем ответ через ai_core
-                from ai_core import run_smart_agent_async
+                # [FIX] Используем внутренний импорт, чтобы избежать циклической зависимости
+                import ai_core
 
-                response = await run_smart_agent_async(pred_query, expert_name=expert_name)
+                response = await ai_core.run_smart_agent_async(pred_query, expert_name=expert_name)
 
                 if response:
                     # Сохраняем в кэш

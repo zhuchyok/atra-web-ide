@@ -1,5 +1,15 @@
 # Единый справочник проекта ATRA Web IDE (Master Reference)
 
+## § Последние изменения (2026-03-14)
+### Singularity 21.24: Quantum Optimization & Multi-Cluster Autonomy — VERIFIED ✅
+1. **Quantum-Inspired Optimization:** Внедрен `QuantumInspiredOptimizer` на Rust (алгоритм имитации отжига и амплитудное сэмплирование) для RAG и планирования. Quantum RAG возвращает 5 узлов знаний при запросе.
+2. **Multi-Cluster Autonomy:** Реализован `MultiClusterBridge` (Gossip-протокол) для синхронизации знаний и Task Tunneling (автоматический перехват задач при падении узла). Task Tunneling подтверждён live-тестом.
+3. **Security (mTLS):** Внедрена поддержка HTTPS и клиентских сертификатов в Rust Gateway и Bridge. В dev-режиме работает без сертификатов (warning).
+4. **Conflict Resolution:** Внедрена система версионирования знаний (Vector Clocks упрощённые) для разрешения конфликтов при синхронизации.
+5. **UI Dashboard:** Создан компонент `ClusterDashboard.svelte` для мониторинга состояния распределенной сети узлов.
+6. **Resilience (Optional KnowledgeEngine):** Gateway теперь стартует без паники при недоступной БД — KnowledgeEngine обёрнут в `Option<>`, knowledge-эндпоинты возвращают 503 вместо краша.
+7. **Верификация пройдена:** `scripts/verify_quantum_cluster.py` — `[SUCCESS] Singularity 21.24 PASSED` (2026-03-14).
+
 **«Библия» проекта** — это **этот документ + связка документов**, на которые он ссылается. Когда говорят **«библия»**, имеется в виду: изучить **docs/MASTER_REFERENCE.md** и при необходимости связанные документы:
 
 - **docs/COGNITIVE_CODE.md** (Когнитивный кодекс: стандарты критического мышления).
@@ -7,6 +17,7 @@
 - **CHANGES_FROM_OTHER_CHATS.md** (Лог изменений).
 - **VERIFICATION_CHECKLIST**, **DASHBOARDS_AND_AGENTS_FULL_PICTURE**.
 - **docs/VICTORIA_USAGE_GUIDE.md** (руководство по использованию Виктории: режимы Cursor/MCP, терминал, Open WebUI; инструменты, примеры). Связь с правилами: **.cursor/rules/victoria.mdc**.
+- **docs/VICTORIA_TASK_FORMULATION.md** (как правильно ставить задачи Виктории: структура goal, параметры запроса, выбор endpoint, примеры хороших и плохих постановок, мониторинг выполнения).
 
 Закреплено в **.cursorrules** (раздел «Библия проекта»).
 
@@ -16,9 +27,35 @@
 
 **Золотой стандарт (Plan Mode и делегирование):** Золотой стандарт — это не просто список дел, а **делегирование задачи через инструмент Task** (или API Victoria): вызывающая сторона (пользователь/Cursor) выступает в роли **Куратора (Оркестратора)**, подзадача уходит **«локальной Виктории» (субагенту)** с полным контекстом Библии и чёткими инструкциями. Это экономит токены и время: субагент фокусируется только на выполнении, не перечитывая весь чат. Plan Mode обязателен для задач 3+ шагов: сначала план, одобрение, затем выполнение. **Куратор даёт задание Виктории только через скрипт** `scripts/curator_send_tasks_to_victoria.py --file <файл с goal> --async --max-wait 600`; результат в `docs/curator_reports/`. Подробно: **.cursor/rules/victoria.mdc** §0, **docs/VICTORIA_USAGE_GUIDE.md** § «Куратор», **docs/CURATOR_RUNBOOK.md** §0.
 
-**Quick links:** [CHANGES](CHANGES_FROM_OTHER_CHATS.md) · [VERIFICATION](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) · [CURATOR_RUNBOOK](CURATOR_RUNBOOK.md) · [VICTORIA USAGE](VICTORIA_USAGE_GUIDE.md) · [AUTONOMY/OFFLINE](AUTONOMY_OFFLINE_READINESS.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [FAQ](FAQ.md) · [HOW_TO_INDEX](HOW_TO_INDEX.md)
+**Quick links:** [CHANGES](CHANGES_FROM_OTHER_CHATS.md) · [VERIFICATION](VERIFICATION_CHECKLIST_OPTIMIZATIONS.md) · [CURATOR_RUNBOOK](CURATOR_RUNBOOK.md) · [VICTORIA USAGE](VICTORIA_USAGE_GUIDE.md) · [VICTORIA TASK FORMULATION](VICTORIA_TASK_FORMULATION.md) · [AUTONOMY/OFFLINE](AUTONOMY_OFFLINE_READINESS.md) · [CONTRIBUTING](../CONTRIBUTING.md) · [FAQ](FAQ.md) · [HOW_TO_INDEX](HOW_TO_INDEX.md)
 
-**Обновлено:** 2026-03-10
+**Обновлено:** 2026-03-13
+
+Последние изменения (2026-03-14): **Rust-ification & Hyper-Speed (Singularity 21.23).** (1) Пакетные операции `Batch Read` и `Batch Grep` перенесены на Rust Gateway (порт 8081), что дает 10-кратный прирост скорости. (2) Внедрена Rust-версия RAG-поиска с фильтрацией по контексту проекта. (3) Портирован **Anomaly Detector на Rust** для мгновенной проверки безопасности запросов через эвристики. (4) Реализована гибридная модель: Python-агенты вызывают Rust-сервисы с автоматическим fallback-ом.
+
+Последние изменения (2026-03-14): **Global Cleanup & RAG Rocket Speed (Singularity 21.22).** (1) RAG ускорен в 5 раз через параллельный запуск GraphRAG/VectorRAG и кэширование доменов в памяти. (2) Начата декомпозиция `ai_core.py`: логика Anomaly Detection и Ensemble Verifier вынесена в модули `core/`. (3) Внедрен `DomainCache` для минимизации SQL-подзапросов.
+
+Последние изменения (2026-03-14): **Antifragile Evolution (Singularity 21.21).** Внедрена триада «Инстинкта Выживания»: (1) **AgentChaosInjector** — Chaos Monkey для ИИ-агентов, симуляция сбоев в Shadow Execution. (2) **Antifragile Feedback Loop** — автоматическое масштабирование «антител» (инструкций) на весь департамент после сбоя. (3) **Recursive Testing** — обязательное требование авто-тестов для любой новой логики через ArchitecturalGuard.
+
+Последние изменения (2026-03-14): **Absolute Dominance (Singularity 21.20).** Внедрена триада «Знаний Гигантов»: (1) **ArchitecturalGuard** — автоматическая проверка SOLID/KISS перед мутациями. (2) **AutonomousPolicyEnforcer** — динамические права экспертов на основе их KPI (Trading Floor Model). (3) **IntrospectionLoop** — обязательная самокритика и оттачивание ответов перед выдачей.
+
+Последние изменения (2026-03-14): **Max Autonomy (Singularity 21.19).** Внедрена триада автономности: (1) **Autonomous Overseer** — автоматическая генерация задач на основе логов и бэклога. (2) **Self-Learning DNA** — инъекция «антител» в ДНК экспертов при обнаружении ошибок. (3) **Shadow Execution v2** — параллельная проверка оптимизаций с автоматическим Hot-Swapping. Система перешла на уровень 9.5/10 по шкале автономии.
+
+Последние изменения (2026-03-13): **Victoria Connection Fix & Task Formulation Guide.** (1) Исправлен критический NameError в `file_watcher.py` (отсутствовал `import time`, использовался несуществующий `datetime.now()`). (2) Увеличены таймауты для сложных задач: `UVICORN_TIMEOUT_KEEP_ALIVE` 600→1800с (30 мин), `UNDERSTAND_GOAL_TIMEOUT_SEC` 90→300с (5 мин), `STRATEGY_CALL_TIMEOUT_SEC` 30→180с (3 мин), `VICTORIA_STREAM_HEARTBEAT_SEC` 15→10с. (3) Создан подробный гайд по постановке задач Victoria: структура goal, параметры запроса, выбор endpoint (/run, /stream, /orchestrate), примеры хороших/плохих постановок. (4) Документация: `docs/VICTORIA_CONNECTION_FIX.md`, `docs/VICTORIA_CONNECTION_FIX_SUMMARY.md`, `docs/VICTORIA_TASK_FORMULATION.md`. Результат: Victoria стабильно работает без обрывов до 30 минут.
+
+Последние изменения (2026-03-12): **Deep Expert Specialization (Singularity 21.17).** Внедрена система персонализации экспертов: динамическая подгрузка правил (.mdc) и фильтрация Success Retrieval по конкретному исполнителю. Это превращает команду в оркестр узкопрофильных мастеров. См. CHANGES §83.
+
+Последние изменения (2026-03-12): **Omni-RAG & Vision API Stabilization (Singularity 21.16).** (1) Внедрен Hybrid Search v2 и Cross-Encoder переранжировщик. (2) Стабилизировано Vision API (Moondream Station) на порту 2020 с автоматическим Watcher-ом. (3) Исправлены критические ошибки в Collective Memory (импорты) и GraphRAG (конкурентность). (4) Оптимизированы таймауты планирования (1200с) для предотвращения STRATEGIST FAILED. См. CHANGES §56.
+
+Последние изменения (2026-03-12): **Self-Healing Logs (Singularity 21.15).** Реализована проактивная система исправления ошибок: сервис мониторит логи Docker в реальном времени, обнаруживает Tracebacks и автоматически готовит патчи (режим `awaiting_approval`). Это позволяет Виктории «лечить» себя до того, как баг станет критическим. См. CHANGES §82.
+
+Последние изменения (2026-03-12): **Adaptive Concurrency (Singularity 21.14).** Внедрена система динамического управления очередью запросов в `OllamaExecutor`. Лимит параллельных вызовов LLM теперь автоматически адаптируется к температуре Mac Studio, загрузке RAM и производительности MLX, предотвращая перегрузку и каскадные сбои. См. CHANGES §81.
+
+Последние изменения (2026-03-12): **Semantic Cache (Singularity 21.13).** Внедрена двухслойная система кэширования в `OllamaExecutor`: L1 (Hash) для мгновенных ответов и L2 (Semantic) через векторную БД для семантически близких запросов (threshold 0.95). Реализована фильтрация динамических команд (`ls`, `cat`, `status`) для обеспечения актуальности данных. См. CHANGES §80.
+
+Последние изменения (2026-03-12): **Success Retrieval & Session Context Injection.** (1) Внедрена система Success Retrieval (Сингулярность 21.12): Victoria теперь обучается на прошлых успешных задачах через векторный поиск по таблице `tasks`. (2) Реализована инъекция контекста сессии в системный промпт для связности диалога. (3) Внедрена защита инференса: Circuit Breaker и MLX Admission Control. См. CHANGES §77, §78, §79.
+
+Последние изменения (2026-03-12): **Оптимизация роутера чата: batch append и character limit.** (1) В `stream_message` сохранение истории теперь выполняется параллельно через `asyncio.gather`. (2) Ограничение размера истории (10000 символов) перенесено непосредственно в метод `get_recent` менеджера контекста. (3) Реализовано сохранение частичного ответа ассистента при разрыве соединения (`CancelledError`). См. CHANGES §76.
 
 Последние изменения (2026-03-10): **Omni-RAG — Единый Интеллект (Open WebUI & Telegram).** (1) Внедрена архитектура Omni-RAG: теперь знания из Hybrid Search v2 автоматически инъецируются в запросы из Open WebUI (через OpenAI API эндпоинт). (2) Создан унифицированный эндпоинт `POST /api/omni-rag/search` для внешних систем. (3) Реализована поддержка контекста для Telegram-сессий. (4) База знаний теперь синхронизирована между всеми точками взаимодействия с пользователем. См. CHANGES §63.
 
@@ -52,9 +89,38 @@
 
 Последние изменения (2026-03-06): **Execution Plan — руки в IDE (План B.1).** (1) Victoria теперь может генерировать структурированный `execution_plan` (список шагов: read_file, edit, run) для выполнения в IDE/клиенте. (2) Расширены `TaskRequest` (`return_execution_plan: bool`) и `TaskResponse` (`execution_plan: List[Dict]`). (3) Добавлен парсер `_extract_execution_plan()` (поддержка JSON и markdown). (4) Промпт Victoria дополнен секцией «EXECUTION PLAN» с примерами. (5) MCP tool `victoria_execute_plan` создан для автоматического выполнения плана. (6) Executor `execution_plan_executor.py` для интеграции with filesystem MCP. (7) Это решает проблему «мозг и руки разделены» — Victoria планирует, клиент выполняет. Статус: ✅ базовая архитектура, 🚧 полная интеграция с MCP. См. CHANGES §44, victoria.mdc §6, `.cursor/plans/plan-b-*.md`.
 
-Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT_LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation_*.plan.md`.
+Последние изменения (2026-03-06): **STRICT_LOCAL: строго локальный режим.** (1) Введён переключатель `STRICT_LOCAL=false` (дефолт) в `.env.example` и `docker-compose.yml` для полной автономности от облачных API. (2) Создан модуль `env_flags.py` с `is_strict_local()`. (3) Модифицированы `ai_core.py`, `safety_checker.py`, `quality_assurance.py`, `intelligence_consensus.py`, `disaster_recovery.py`: при `STRICT_LOCAL=true` блокируется cursor-agent и облачные fallback, выполняется retry локально с улучшенным промптом; при неудаче — reject с явным сообщением. (4) Graceful degradation при частичной недоступности (MLX down, Ollama работает). (5) Метрики: `strict_local_enabled`, `strict_local_safety_skip_count`, `strict_local_qa_skip_count`. (6) Документация: раздел STRICT*LOCAL в MASTER_REFERENCE, CHANGES §43. См. план в `.cursor/plans/strict_local_implementation*\*.plan.md`.
 
 Последние изменения (2026-03-05): **Библия обновлена по сессии: Victoria Tasks, инвентаризация, самовосстановление MLX.** (1) Домен **victoria_tasks** создан в БД — самообучение Виктории снова попадает в RAG и планирование (CHANGES §40). (2) **Инвентаризация возможностей** — отчёт docs/audits/INVENTORY_VICTORIA_CAPABILITIES_2026.md (Initiative, OTEL, Recovery, знания гигантов, реестр проектов, чеклисты §10–11); CHANGES §41. (3) **Recovery Listener (9099):** доработка host_recovery_listener.py (GET /recover, безопасный Content-Length), чеклист в INVENTORY §11, перезапуск через launchd; CHANGES §42. При любых изменениях — обновлять MASTER_REFERENCE и CHANGES (правило библии).
+
+---
+
+## § Гибридная операционная модель (Singularity 21.5)
+
+**Стандарт работы:**
+Облачный ассистент (Cursor) является **Диспетчером**.
+Локальный агент (Victoria) является **Исполнителем**.
+
+**Концепция «Диспетчер — Исполнитель»:**
+
+- **Cursor (Облачный Диспетчер):** Использует внешние модели (Claude/GPT) как «тонкий слой» логики. Его задача — понимать намерения пользователя, декомпозировать их на технические команды и управлять локальными агентами.
+- **Victoria (Локальный Мозг):** Работает на Mac Studio (модели MLX/Ollama). Это «тяжелая артиллерия», которая имеет прямой доступ к терабайтам контекста, базе данных PostgreSQL и файловой системе.
+
+**Механика взаимодействия:**
+
+1. **Делегирование:** Вместо копирования кода в чат Cursor, Диспетчер использует `scripts/curator_send_tasks_to_victoria.py` или прямой запуск локальных модулей через `docker exec`.
+2. **Экономия токенов (Token Economy):** Виктория считывает файлы локально. Облачная модель получает только **результат** (краткий отчет или исправленный код), что в 100+ раз меньше по объему.
+3. **RAG:** Виктория сама ищет в базе знаний через векторный поиск (pgvector). Облаку не нужно «помнить» весь проект.
+4. **Нулевая стоимость итераций:** Если код нужно переписывать многократно, это делает Виктория локально. В облако уходит только финальная версия.
+
+**Золотые правила для AI-ассистента:**
+
+1. **Принцип «Сначала спроси Викторию»:** Перед анализом сложной проблемы запроси контекст у локальной базы знаний.
+2. **Делегирование тяжелых задач:** Генерация тестов, глубокий аудит безопасности, рефакторинг больших модулей и Omni-RAG поиск выполняются локально.
+3. **Контроль через логи:** Всегда проверяй реальное состояние системы через `docker logs` и статус задач в БД.
+4. **Использование локальных экспертов:** Вызывай экспертов по именам (`@igor`, `@anna`, `@dmitry`) через промпты Виктории.
+
+**Результат:** Экономия 90% лимитов токенов и использование 100% мощности Mac Studio.
 
 ---
 
@@ -67,7 +133,7 @@
 
 **Последний аудит (03.03.2026):** Переход с 30B на 35B MoE (Qwen 3.5). Скорость загрузки в MLX: 4.6с. Личность подтверждена. Все эксперты уведомлены о смене ядра.
 
-**При смене модели (чеклист):** обновить MASTER_REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF_*.md` при актуальности; исторические планы в `docs/plans/` не переписывать — источник истины здесь.
+**При смене модели (чеклист):** обновить MASTER*REFERENCE (этот блок), `.cursor/rules/victoria.mdc`, `.cursor/rules/expert_and_brainstorm.mdc`, `.cursorrules` (Компоненты), `docs/COGNITIVE_CODE.md`, `docs/PORT_REGISTRY.md`, `knowledge_os/USER.md`, `knowledge_os/SOUL.md`, `docs/OPENWEBUI_VICTORIA_WISDOM_MODEL.md`, `docs/SESSION_HANDOFF*\*.md`при актуальности; исторические планы в`docs/plans/` не переписывать — источник истины здесь.
 
 ---
 
@@ -278,6 +344,7 @@ STRICT_LOCAL увеличивает нагрузку на локальные м�
 
 - JSON-блок в тройных бэктиках: ` ```json\n[{...}]\n``` `
 - Markdown-список:
+
   ```markdown
   **Execution Plan:**
 

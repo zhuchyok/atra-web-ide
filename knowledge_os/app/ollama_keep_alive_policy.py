@@ -121,26 +121,43 @@ def get_keep_alive(
             logger.info("🧠 [FALLBACK IMMORTALITY] MLX is down, making v3.5 immortal in Ollama")
             return -1
         else:
-            # Если MLX жив, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
+            # Если MLX жив, но мы в периоде кулдауна после сбоя — держим v3.5 живой
+            if _last_mlx_failure_time > 0:
+                elapsed = time.time() - _last_mlx_failure_time
+                if elapsed < RECOVERY_COOLDOWN_SECONDS:
+                    logger.info(
+                        "🛡️ [RECOVERY COOLDOWN] MLX recovered %.1fs ago, keeping v3.5 alive for cooldown",
+                        elapsed,
+                    )
+                    return -1
+            # Если MLX жив и кулдаун прошёл, выгружаем v3.5 в Ollama быстрее (через 1 мин), так как мозг в MLX
             return 60
 
     # 1.5. Recovery cooldown: if MLX just recovered, keep Ollama models alive
     if mlx_alive and _last_mlx_failure_time > 0:
         elapsed = time.time() - _last_mlx_failure_time
         if elapsed < RECOVERY_COOLDOWN_SECONDS:
-            logger.info(
-                "🛡️ [RECOVERY COOLDOWN] MLX recovered %.1fs ago, keeping %s alive in Ollama",
-                elapsed,
-                model_name,
-            )
-            return -1
+            # Для не-brain моделей тоже держим в памяти во время кулдауна
+            # НО: Эмбеддинги всё равно выгружаем (проверка ниже)
+            pass
+        else:
+            # Кулдаун прошёл, сбрасываем время сбоя
+            _last_mlx_failure_time = 0
 
     # 2. Бессмертные по имени (moondream и т.д.)
     if model_name and any(m in model_name for m in IMMORTAL_MODELS):
-        return -1
+        # Если это эмбеддинг, он всё равно должен вернуть 0 (проверка ниже)
+        if model_name and any(m in model_name for m in EMBEDDING_MODELS):
+            pass
+        else:
+            return -1
 
-    # 3. Эмбеддинги — выгрузить сразу (после бессмертных, чтобы nomic возвращал -1)
-    if category == "embedding" or (model_name and any(m in model_name for m in EMBEDDING_MODELS)):
+    # 3. Эмбеддинги — выгрузить сразу
+    if (
+        category == "embedding"
+        or (model_name and any(m in model_name for m in EMBEDDING_MODELS))
+        or (category and "embedding" in str(category).lower())
+    ):
         return 0
 
     # 4. Env

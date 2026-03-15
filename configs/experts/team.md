@@ -67,6 +67,16 @@
 **В репозитории:** [`configs/experts/employees.json`](employees.json) и **[`employees.md`](employees.md)** — для синхронизации в БД (`scripts/sync_employees.py`).  
 **При добавлении нового сотрудника:** добавьте в `employees.json`, выполните sync — в БД станет 87 и т.д.
 
+## Ответственный за ошибки контейнеров и сервисов (Docker)
+
+**Елена (Monitor)** назначена ответственной за отслеживание ошибок контейнеров и сервисов:
+
+- **Service Monitor** (в контейнере Victoria) проверяет здоровье сервисов (Victoria, Backend, MLX, Frontend) и при падении публикует событие **SERVICE_DOWN** в Event Bus.
+- **Victoria** обрабатывает SERVICE_DOWN: пытается перезапустить сервис через SelfCheckSystem; при неудаче передаёт задачу **Елене** на диагностику (логи, алерты, рекомендации).
+- **Autonomous Sentinel** при падении сервиса также направляет запрос на анализ **Елене** (Monitor). При необходимости инфраструктурных действий привлекается **Сергей** (DevOps).
+
+См. `knowledge_os/app/service_monitor.py`, `knowledge_os/app/victoria_event_handlers.py` (handle_service_down), `docs/VICTORIA_RESTARTS_CAUSE.md`.
+
 ## Использование в промптах
 
 Формулировать через команду экспертов:

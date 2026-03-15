@@ -65,8 +65,8 @@ class AutonomousSentinel:
             from ai_core import run_smart_agent_async
 
             await run_smart_agent_async(
-                f"Service {service_name} was down and I attempted recovery. Analyze the logs and suggest long-term fix.",
-                expert_name="SRE",
+                f"Сервис {service_name} упал, попытка восстановления выполнена. Проанализируй логи и предложи долгосрочное решение (мониторинг, алерты, ресурсы).",
+                expert_name="Елена",
                 category="reasoning",
             )
         finally:

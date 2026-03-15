@@ -349,7 +349,7 @@ class ExtendedThinkingEngine:
         self, prompt: str, step_num: int, current_understanding: str, category: Optional[str] = None
     ) -> str:
         """Сгенерировать один шаг рассуждения"""
-        return await self._generate_response(prompt, max_tokens=1000, category=category)
+        return await self._generate_response(prompt, max_tokens=2000, category=category)
 
     def _parse_thinking_step(self, step_text: str) -> Tuple[str, Optional[str]]:
         """Разобрать текст шага на мысль и вывод"""
@@ -541,7 +541,11 @@ class ExtendedThinkingEngine:
                 # Классифицируем задачу если категория не задана
                 # ВАЖНО: classify_task теперь возвращает TaskCategory объект
                 task_category_obj = self.model_router.classify_task(prompt, cat_str)
-                task_category_str = task_category_obj.value if hasattr(task_category_obj, "value") else str(task_category_obj)
+                task_category_str = (
+                    task_category_obj.value
+                    if hasattr(task_category_obj, "value")
+                    else str(task_category_obj)
+                )
 
                 # Выбираем оптимальную модель
                 optimal_model, _task_cat, confidence = await self.model_router.select_optimal_model(

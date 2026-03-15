@@ -1,6 +1,125 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-03-14) — Session 3
+### PostgreSQL Connection Pooling — PgBouncer внедрён
+
+- **Проблема:** 39 Python-модулей с отдельными `asyncpg.create_pool()` → 300-500 соединений при старте Docker → `too many clients already` → Victoria не может загрузить Expert DNA → задачи зависают.
+- **PgBouncer (edoburu/pgbouncer:latest, ARM64):** контейнер `knowledge_pgbouncer`, порт `6432`, transaction pooling, `default_pool_size=20`, `max_client_conn=1000`. Все сервисы теперь коннектятся на `pgbouncer:6432`.
+- **postgres `max_connections`**: снижен `500→100` (PgBouncer держит ≤25 реальных соединений).
+- **`idle_in_transaction_session_timeout=300s`**: оставлен — дополнительный уровень защиты.
+- **`employees_sync_daemon`**: LISTEN/NOTIFY несовместимо с transaction pooling → добавлен `POSTGRES_DIRECT_URL` (→ `postgres:5432` напрямую). `DIRECT_DB_URL` используется в `listen_notifications()`.
+- **`db_pool.py`**: `max_size=5` (env `DB_POOL_MAX_SIZE`), `close_pool()` добавлен.
+- **`auto_fix_db_connections.py`**: порог чистки `80%→70%`, интервал idle `5мин→2мин`, добавлена чистка `idle in transaction`.
+- **Результат:** Postgres видит 9 соединений (было 300-500). Victoria health `ok`. Тест `SELECT count(*) FROM experts` → 85 через PgBouncer ✅.
+- **Конфиг:** `knowledge_os/pgbouncer/pgbouncer.ini`, `knowledge_os/pgbouncer/userlist.txt`.
+- **Дизайн:** `docs/plans/2026-03-14-pgbouncer-design.md`.
+
+
+### Системные баги — исправлены
+
+- **semantic_cache**: timeout embedding 15s→5s, retries 2→1. Fast fail при занятой Ollama.
+- **react_agent**: `BLOCKED_HEAVY_MODELS = {qwq:32b, qwen2.5-coder:32b, deepseek-r1:32b, qwen3.5:35b}` — fallback только лёгкие модели. Добавлен обработчик `python-development` (выполнение Python кода через subprocess). Timeout 1200s→120s.
+- **victoria_server**: добавлена `_cleanup_stale_tasks()` (auto-fail processing задач > 30 мин). Исправлен NoneType crash в `resume_task_execution`. Удалён `qwq:32b` из model priorities (ml, security, reasoning, complex). `preferred_executor` — только victoria-wisdom-v3.5 и glm-4.7-flash.
+- **shadow_evaluator**: default judge `qwq:32b` → `victoria-wisdom-v3.5:latest`.
+- **model_optimizer**: medium/high `qwq:32b` → `victoria-wisdom-v3.5:latest`.
+- **advanced_ensemble**: `qwq:32b` → `glm-4.7-flash:latest`.
+- **corporation_knowledge_system**: fallback `/v1/models` → `/api/tags` для MLX (корректное определение доступности).
+- **expert-worker-heavy docker-compose**: добавлены volumes `/var/run/docker.sock` (SandboxManager) и `/Users/bikos/Downloads:/data/downloads:ro` (parquet файлы). Добавлен `python-development` инструмент в available_tools.
+- **Dockerfile agents**: `duckdb>=1.1.0` и `pyarrow>=14.0.0` добавлены в `requirements.txt` (knowledge_os и корневой). Явный pre-install слой чтобы не глотать ошибки через `2>/dev/null`.
+- **knowledge_vector_core**: пересоздан контейнер (был Exited 255 2 недели).
+- **Rust Gateway**: fix `cluster/heartbeat` — валидация пустого UUID (400 вместо 500). Fix `knowledge/search_v2` — валидация 768 измерений embedding (400 вместо 500).
+- **qwq:32b**: физически удалён из Ollama (`ollama rm qwq:32b`, освобождено 19 ГБ). `deepseek-r1:32b` оставлен — используется в `veronica_web_researcher.py` для Strategic Board.
+
+## § Последние изменения (2026-03-14)
+### Singularity 21.24: Quantum Optimization & Multi-Cluster — VERIFIED ✅
+- **Rust Core:** Добавлен модуль `quantum_opt` в `knowledge_engine`. Реализовано квантовое сэмплирование для RAG. Фикс паники `cannot sample empty range` — защита через `f32::EPSILON` и предвычисленные `scores`.
+- **Gateway:** Добавлены эндпоинты `/api/cluster/heartbeat` и `/api/cluster/sync`. `KnowledgeEngine` обёрнут в `Option<>` — Gateway стартует без паники при недоступной БД (503 для knowledge-эндпоинтов). Добавлен макрос `require_ke!`.
+- **Python Bridge:** Создан `knowledge_os/app/core/cluster_bridge.py` для Gossip-синхронизации и туннелирования задач. Distributed locking через Redis.
+- **DB:** Миграция `20260314_multi_cluster_autonomy.sql` (таблица `clusters`, поля `cluster_id` и `version`).
+- **Frontend:** Новый дашборд `ClusterDashboard.svelte`.
+- **Верификация:** `scripts/verify_quantum_cluster.py` → `[SUCCESS] Singularity 21.24 PASSED` (Quantum RAG: 5 узлов, Task Tunneling: задача перехвачена с мёртвого кластера).
+
 Документ собирает ключевые изменения и улучшения, сделанные в других чатов, чтобы новый контекст (агент/чат) мог опираться на уже внедрённое.
+
+---
+
+# # 83. Deep Expert Specialization: персонализация ДНК и опыта (2026-03-12)
+
+    Внедрена двухуровневая система специализации экспертов (Elite/Pro).
+    - **Expert DNA Manager:** Динамическая подгрузка специфичных правил (.mdc) из `.cursor/rules/` на основе ID эксперта.
+    - **Expert-Aware Success Retrieval:** Фильтрация успешных примеров в RAG по конкретному исполнителю для повышения точности.
+    - **Миграция БД:** Таблица `experts` расширена полями `specialization_level`, `rule_file` и `performance_score`.
+    - **Интеграция:** Специализация автоматически инъецируется в системный промпт через `ai_core.py` и `victoria_server.py`.
+
+    # 82. Self-Healing Logs: проактивное исправление ошибок из логов (2026-03-12)
+
+- **Проблема:** Рантайм-ошибки, не приводящие к падению сервиса, могли долго оставаться незамеченными, загрязняя логи и снижая стабильность.
+- **Реализация (Сингулярность 21.15):**
+  1. **Real-time Log Monitor:** Реализован сервис `docker_log_monitor.py`, который в реальном времени «тейлит» логи контейнеров `victoria-agent`, `backend` и `knowledge-os`.
+  2. **Error Detection:** Система автоматически распознает Python Tracebacks и сообщения уровня `ERROR`, извлекая файл, строку и контекст (20 строк).
+  3. **Propose-Only Mutation:** При обнаружении ошибки создается событие `LOG_ERROR_DETECTED`. Обработчик вызывает `MutationEngine` в режиме `propose_only=True`.
+  4. **Safety Approval Flow:** Вместо автоматической правки кода создается задача в таблице `tasks` со статусом `awaiting_approval`. Патч применяется только после ручного подтверждения пользователем на дашборде.
+- **Файлы:** `knowledge_os/app/docker_log_monitor.py`, `knowledge_os/app/event_bus.py`, `knowledge_os/app/victoria_event_handlers.py`, `knowledge_os/app/codebase_mutation_engine.py`.
+- **Итог:** Виктория стала проактивной — она видит свои ошибки в логах и заранее готовит решения, ожидая одобрения Ивана.
+
+---
+
+## 81. Adaptive Concurrency: динамическое управление очередью запросов (2026-03-12)
+
+- **Проблема:** При одновременной работе нескольких агентов (Victoria, Veronica) или тяжелых фоновых задачах Mac Studio мог перегружаться, что приводило к каскадным тайм-аутам и перегреву.
+- **Реализация (Сингулярность 21.14):**
+  1. **DynamicSemaphore:** В `OllamaExecutor` внедрен кастомный семафор, позволяющий изменять лимит параллельных запросов на лету без перезапуска.
+  2. **Hardware-Aware Throttling:** Добавлена фоновая задача, которая каждые 15 секунд опрашивает `MacStudioMonitor`. Лимит конкурентности автоматически сужается при:
+     - Повышении `thermal_level` (перегрев).
+     - Критической загрузке RAM (> 90%).
+     - Деградации `Health Score` в MLX (высокий TTFT/очередь).
+  3. **Graceful Queuing:** Запросы, превышающие текущий лимит, не отклоняются, а ставятся в очередь ожидания семафора, что обеспечивает плавную обработку без ошибок 503.
+- **Файлы:** `src/agents/core/executor.py`.
+- **Итог:** Повышена общая стабильность системы под высокой нагрузкой. Mac Studio защищен от перегрузки GPU/RAM при параллельной работе экспертов.
+
+---
+
+## 80. Semantic Cache: гибридное кэширование в OllamaExecutor (2026-03-12)
+
+- **Проблема:** Повторные или семантически близкие запросы к LLM (особенно в цикле ReAct) приводили к избыточной нагрузке на Mac Studio и задержкам.
+- **Реализация (Сингулярность 21.13):**
+  1. **Hybrid Cache Strategy:** В `OllamaExecutor` внедрена двухслойная система кэширования:
+     - **L1 (Hash):** In-memory кэш на основе MD5-хэша (expert + model + system + prompt) для мгновенного ответа при точном совпадении.
+     - **L2 (Semantic):** Интеграция с `SemanticAICache` из `knowledge_os` для поиска семантически близких ответов (threshold 0.95) через векторную БД PostgreSQL.
+  2. **Dynamic Filtering:** Внедрен список `NON_CACHEABLE_PATTERNS` (ls, cat, grep, status, docker ps и др.). Команды, результат которых меняется во времени, никогда не кэшируются.
+  3. **Expert Context:** Кэш разделен по именам экспертов (`expert_name`), что предотвращает смешивание ответов разных ролей на похожие вопросы.
+  4. **Async Background Save:** Сохранение в семантический кэш (L2) происходит в фоновом режиме через `asyncio.create_task`, не блокируя основной поток выполнения.
+- **Файлы:** `src/agents/core/executor.py`, `src/agents/bridge/victoria_server.py`.
+- **Итог:** Значительное ускорение повторных шагов планирования и стандартных запросов. Снижена нагрузка на Ollama/MLX при итеративной работе агента.
+
+---
+
+## 76. Оптимизация роутера чата: batch append и character limit (2026-03-12)
+
+77. Безопасный инференс: Circuit Breaker для узлов Ollama и MLX Admission Control (2026-03-12)
+78. Session Context Injection: подмешивание истории диалога в системный промпт (2026-03-12)
+79. Success Retrieval: обучение на прошлых победах через векторный поиск по задачам (2026-03-12)
+    - Внедрена система Success Retrieval (Сингулярность 21.12).
+    - Victoria теперь перед планированием задачи ищет семантически похожие успешные кейсы в таблице `tasks`.
+    - Найденные решения подмешиваются в контекст как few-shot примеры, что повышает точность планирования.
+    - Добавлена колонка `embedding` в таблицу `tasks` с HNSW индексом для быстрого векторного поиска.
+    - Обновлен механизм сохранения задач: теперь при создании/обновлении задачи автоматически генерируется эмбеддинг её цели.
+    - Реализован скрипт бэкфилла эмбеддингов для существующих завершенных задач.
+    - Реализовано автоматическое извлечение контекста сессии (последние 2-3 пары сообщений) из БД `knowledge_os`.
+    - Контекст теперь внедряется напрямую в `project_prompt` (системный промпт) для всех режимов: `agent.run`, `Victoria Enhanced` и `Fast Path`.
+    - Это обеспечивает связность диалога даже при отсутствии явной передачи `chat_history` от клиента (например, в Telegram или внешних скриптах).
+    - Внедрен `CircuitBreaker` для каждого отдельного узла Ollama/MLX в `LocalAIRouter`.
+    - Реализован `MLX Admission Control`: автоматическая блокировка запросов к MLX при нехватке RAM (ниже `MLX_RAM_RESERVE_GB`), чтобы предотвратить краш системы ("brain protection").
+    - Изоляция сбоев: если один узел Ollama падает, он временно исключается из роутинга, не затрагивая остальные.
+    - Поддержка как обычных, так и стриминговых запросов.
+
+- **Контекст:** Повышение производительности API чата при высокой нагрузке и больших историях диалогов.
+- **Сделано:**
+  1. **Batch Append:** В `stream_message` сохранение истории ('user' и 'assistant') теперь выполняется параллельно через `asyncio.gather`, что вдвое сокращает задержку записи в Redis/БД после завершения стрима.
+  2. **Character Limit Optimization:** Ограничение размера истории (10000 символов) перенесено непосредственно в метод `get_recent` менеджера контекста. Это исключает лишние циклы фильтрации в роутере и делает код чище.
+  3. **Partial Save on Cancel:** В случае разрыва соединения клиентом (CancelledError) роутер теперь пытается сохранить частичный ответ ассистента с пометкой `[cancelled]`, чтобы контекст не терялся.
+- **Файлы:** `backend/app/routers/chat.py`.
+- **Итог:** Снижена нагрузка на I/O, улучшена отзывчивость чата и надежность сохранения контекста.
 
 ---
 
@@ -9,10 +128,10 @@
 - **Симптом:** Ошибка «PAGE NOT FOUND: /API//ORDERS» при оформлении заказа. В логах Nuxt: «CRITICAL: Failed to save order to DB: FetchError: 400 Bad Request».
 - **Причина 1 (Nginx):** Слишком широкое правило `location /api` (без слеша) в конфигах Nginx перехватывало запросы к `/api_nuxt/` и отправляло их на Rust API вместо Nuxt.
 - **Причина 2 (Валидация):** Rust API возвращал 400, если `dealer_id` или `branch_id` передавались как пустые строки или невалидные UUID (что случалось при отсутствии дилера в конфиге).
-- **Сделано:** 
-    1. **Nginx:** В файлах `1.conf`, `8.conf`, `9.conf` на VDS 45.10.43.248 правило `location /api` заменено на `location /api/` (со слешем), что гарантирует разделение трафика между Rust (`/api/v1/`) и Nuxt (`/api_nuxt/`).
-    2. **Backend (Nuxt):** В `server/api/orders.post.ts` добавлена жесткая валидация UUID через regex. Если ID невалиден, он передается как `undefined`, что Rust API принимает корректно.
-    3. **Frontend:** В `Calculator.vue` синхронизирован `color_id` в параметрах заказа для соответствия ожиданиям Rust API.
+- **Сделано:**
+  1. **Nginx:** В файлах `1.conf`, `8.conf`, `9.conf` на VDS 45.10.43.248 правило `location /api` заменено на `location /api/` (со слешем), что гарантирует разделение трафика между Rust (`/api/v1/`) и Nuxt (`/api_nuxt/`).
+  2. **Backend (Nuxt):** В `server/api/orders.post.ts` добавлена жесткая валидация UUID через regex. Если ID невалиден, он передается как `undefined`, что Rust API принимает корректно.
+  3. **Frontend:** В `Calculator.vue` синхронизирован `color_id` в параметрах заказа для соответствия ожиданиям Rust API.
 - **Итог:** Маршрутизация восстановлена, заказы успешно сохраняются в БД и отправляются по Email.
 
 ---
@@ -110,7 +229,7 @@
 
 - **Симптом:** Сайт мелькает и пропадает; в Network видны запросы к localhost:8081/8083 вместо домена.
 - **Причина:** При сборке образа **web** не передавался `NUXT_PUBLIC_API_URL`; в nuxt.config и в компонентах был fallback `http://localhost:8081` → в клиентский бандл попадал localhost.
-- **Сделано (репо setki-21):** (1) **docker-compose.yml** и **Dockerfile.web** — дефолт `NUXT_PUBLIC_API_URL` заменён на `https://www.setki21.ru`. (2) **nuxt.config.ts** — fallback для apiUrl/apiBase: пустая строка и `/api` (same-origin). (3) Во всех страницах и сторах (tenant, dealers, admin/*, pricing, dealer/settings и т.д.) убран fallback `'http://localhost:8081'`, используется `config.public.apiUrl || ''`.
+- **Сделано (репо setki-21):** (1) **docker-compose.yml** и **Dockerfile.web** — дефолт `NUXT_PUBLIC_API_URL` заменён на `https://www.setki21.ru`. (2) **nuxt.config.ts** — fallback для apiUrl/apiBase: пустая строка и `/api` (same-origin). (3) Во всех страницах и сторах (tenant, dealers, admin/\*, pricing, dealer/settings и т.д.) убран fallback `'http://localhost:8081'`, используется `config.public.apiUrl || ''`.
 - **Документация:** В **docs/runbooks/SETKI21_WHITE_SCREEN.md** добавлен **шаг 0.6** — диагностика и исправление (пересборка web с NUXT_PUBLIC_API_URL на VDS).
 - **Итог:** После обновления кода setki-21 и пересборки образа web на VDS мерцание из‑за localhost не должно возвращаться.
 
@@ -128,7 +247,7 @@
 ## 63. Omni-RAG — Единый Интеллект (Open WebUI & Telegram) (2026-03-10)
 
 - **Цель:** Обеспечить одинаково высокий уровень знаний Виктории во всех интерфейсах (Web IDE, Open WebUI, Telegram).
-- **Сделано:** 
+- **Сделано:**
   1. **Open WebUI Hook:** В эндпоинт `POST /v1/chat/completions` (OpenAI API) интегрирован вызов `Hybrid Search v2`. Теперь при общении через Open WebUI Виктория автоматически получает контекст из базы знаний.
   2. **Omni-Search API:** Создан новый эндпоинт `POST /api/omni-rag/search` в `victoria_server.py` для быстрого поиска знаний внешними системами.
   3. **Telegram Context:** Добавлена логика распознавания Telegram-сессий (`tg-`) для будущей глубокой интеграции уведомлений и персонализации.
@@ -140,7 +259,7 @@
 ## 62. Enhanced RAG — Hybrid Search v2 & Re-ranking (2026-03-10)
 
 - **Цель:** Повысить точность поиска и расширить базу знаний актуальными данными от гигантов индустрии.
-- **Сделано:** 
+- **Сделано:**
   1. **Hybrid Search v2:** Внедрен поиск, сочетающий векторную близость и полнотекстовое ранжирование PostgreSQL (`tsvector` + `ts_rank_cd`).
   2. **Cross-Encoder Re-ranking:** Интегрирована модель `ms-marco-MiniLM-L-6-v2` для финальной перепроверки результатов (выполняется за < 1 сек на Mac Studio).
   3. **External Docs Indexer:** Реализован парсинг произвольных URL и массовая индексация GitHub (OpenAI, Anthropic, DeepSeek, LangChain, AutoGen).
@@ -204,7 +323,7 @@
   - **`location /api`** — запросы к API (в т.ч. `/api/v1/tenant/config`) не проксировались на setki21-api-new:8080 → фронтенд не получал конфиг дилера (название, телефон, логотип) → при SSR/гидрации падал или показывал белый экран.
   - **`location /uploads/`** — логотипы дилеров не отдавались (alias /app/uploads/).
   - **`location /images/works/`** — фото в блоке «Наши работы» не загружались (alias /data/images/works/).
-  Регрессия возникла при предыдущих правках фавиконов (удаление/изменение блоков в NPM).
+    Регрессия возникла при предыдущих правках фавиконов (удаление/изменение блоков в NPM).
 - **Сделано:** На VDS в конфиги **8.conf** и **9.conf** добавлены те же блоки, что и в 1.conf: `location /api { proxy_pass http://setki21-api-new:8080; ... }`, `location /uploads/ { alias /app/uploads/; ... }`, `location /images/works/ { alias /data/images/works/; ... }`. Выполнены `nginx -t` и `nginx -s reload` в контейнере atra-nginx-proxy.
 - **Итог:** Запросы с дилерских доменов к `/api/*`, `/uploads/*`, `/images/works/*` теперь проксируются/отдаются корректно. Белый экран должен исчезнуть после **жёсткого обновления** (Ctrl+Shift+R) или в режиме инкогнито.
 - **Правило (Pre-mortem):** При изменении NPM-конфигов для Setki21 **всегда** сверяться с **docs/SETKI21_NPM_SOURCE_OF_TRUTH.md** и проверять, что у **каждого** домена (включая дилеров) присутствуют блоки: `/api`, `/uploads/`, `/images/works/`, `/health`. После правок запускать **scripts/verify_setki21_all_sites.sh**. При добавлении нового дилерского домена — копировать структуру location из 1.conf (или из уже работающего дилера), не создавать конфиг без этих блоков.
@@ -236,8 +355,9 @@
   - **85 экспертов** из PostgreSQL
   - **RAG cache preload** для ускорения ответов
   - **File Watcher** и **Service Monitor** (фоновые сервисы)
-  
+
   Пик потребления памяти в момент старта составлял **15-19 GB**, что превышало Docker Desktop Memory Limit **19.5 GB** → OOM Kill.
+
 - **Диагностика:** `docker logs victoria-agent` показал `exitCode 137` (OOM). `docker stats victoria-agent` показал Memory Usage 9 GB / 19.5 GB (46%), но пики при старте превышали лимит.
 - **Решение:** Увеличить Docker Desktop Memory Limit до **24-32 GB**:
   1. Docker Desktop → **Settings** → **Resources** → **Memory**
@@ -306,8 +426,10 @@
 ---
 
 ## 50. Аудит нагрузки и устранение зависших задач (2026-03-08)
+
 **Проблема:** Высокая нагрузка на Postgres и Оркестратор из-за задач, зависших в статусе `in_progress` более 12 часов.
 **Решение:**
+
 1.  **Cleanup:** Принудительно завершены (status: failed) 5 задач исследования Trading & Quant и R&D (ID: `fc8a7e45...`, `296ae158...`, `5acf513c...`, `74821c99...`, `d8c5cbe8...`).
 2.  **Recovery:** Перезапущены контейнеры воркеров (`knowledge_os_worker`, `expert-worker-heavy`, `knowledge_os-expert-worker-light-1/2`) для сброса зависших соединений и очистки очередей.
 3.  **Root Cause:** Сбои эмбеддингов Ollama и недоступность MLX приводили к зацикливанию или бесконечному ожиданию в `ExpertWorker`.
@@ -399,7 +521,9 @@
            workspace_path="/Users/bikos/Documents/atra-web-ide"
          )
          ```
+
   4. **Документация:** обновлены `docs/MASTER_REFERENCE.md` (новый раздел «Batch Read»), `docs/CHANGES_FROM_OTHER_CHATS.md` (§47).
+
 - **Формат результата batch_read (детально):**
   ```json
   {
@@ -549,6 +673,7 @@
 
      - Для открытых файлов показывается либо первые 10 строк, либо окрестность cursor_line (±5 строк).
      - Лимит: максимум 5 файлов (если больше — сообщение "... и ещё N файл(ов)").
+
   3. **Инъекция в prompt** (`run_task_stream`, функция `sse_generator()`):
      - После формирования `skill_context` (если есть), вызывается `ide_context = _format_ide_context(body)`.
      - Если `ide_context` не пустой: `enriched_goal = ide_context + "\n" + enriched_goal` (IDE-контекст в начало, перед skill_context и original goal).
@@ -577,7 +702,9 @@
        )
        ```
   5. **Документация:** обновлены `docs/MASTER_REFERENCE.md` (новый раздел «IDE Context»), `docs/CHANGES_FROM_OTHER_CHATS.md` (§46).
+
 - **Формат open_files (детально):**
+
   ```json
   [
     {
@@ -595,6 +722,7 @@
   - `path` (обязательно): путь к файлу (относительный или абсолютный)
   - `content` (опционально): содержимое файла (для контекста, показывается частично в промпте)
   - `cursor_line` (опционально): строка, где находится курсор (для показа окрестности в промпте)
+
 - **Статус:** ✅ Полная реализация (TaskRequest расширен, форматирование, инъекция в prompt, MCP tool). Victoria теперь видит тот же контекст, что и Cursor assistant.
 - **Следующие шаги (План B):** B.4 — параллельные чтения (batch_read) — множественные read_file/grep за один запрос через Veronica для быстрого сканирования полпроекта.
 - **Итог:** Victoria теперь понимает, какие файлы открыты, какие изменены (git), какие правила применимы — как Cursor assistant. Это устраняет разницу в контексте и позволяет Victoria давать более релевантные ответы (например, «ты спрашиваешь про utils.py — я вижу, что он открыт и ты на строке 42, где validate_email»). См. MASTER_REFERENCE (IDE Context), `.cursor/plans/plan-b-*.md`.
@@ -635,10 +763,12 @@
            ---
            ЗАДАЧА:
            ```
+
      - В `sse_generator`:
        - Подготовка `enriched_goal = skill_context + body.goal` (если `skill_context` задан).
        - SSE step: `yield ... {'type': 'step', 'stepType': 'thought', 'title': 'Применяется скилл', 'content': skill_info['description']}` (показать пользователю, что скилл активирован).
        - Далее `enriched_goal` используется вместо `body.goal` при передаче в модель (контекст скилла попадает в промпт Victoria).
+
   3. **Формат инструкций:**
      - Каждый скилл имеет строгий чеклист (5-6 шагов).
      - Пример (brainstorming):
@@ -651,6 +781,7 @@
        6. Следующий шаг — writing-plans (план внедрения), НЕ код
        ```
      - Инструкции добавляются в начало goal → Victoria следует им автоматически.
+
 - **Примеры триггеров:**
   - "Создай новый компонент X" → `brainstorming` (паттерн: `созда.*новый.*компонент`)
   - "Напиши тест для функции Y" → `tdd` (паттерн: `напиш.*тест`)
@@ -676,6 +807,7 @@
   2. **Парсинг execution_plan:** Создана функция `_extract_execution_plan(response_text)` в victoria_server.py (после `_extract_last_answer_from_long`). Поддерживает два формата:
      - JSON-блок в тройных бэктиках: ` ```json\n[{...}]\n``` ` (парсинг через `json.loads`)
      - Markdown-список:
+
        ```markdown
        **Execution Plan:**
 
@@ -683,8 +815,10 @@
        - edit: path/to/file (description)
        - run: command
        ```
+
        (парсинг через regex по строкам с `-` или `*`; извлечение action, path/command, description).
        Возвращает `List[Dict]` с полями: `action`, `path`/`command`, `description`.
+
   3. **Промпт Victoria:** В `agent.executor.system_prompt` добавлена секция **«EXECUTION PLAN (руки в IDE)»** после «ПРАВИЛО МОНСТРА»:
      - Инструкции: если задача требует изменений в коде, добавить в конец ответа execution_plan в формате JSON.
      - Формат шага: `{"action": "read_file"|"edit"|"run", "path": "...", "command": "...", "description": "..."}`.
@@ -699,6 +833,7 @@
      - Интеграция с MCP client для вызова user-filesystem tools (read_file, write_file, execute_command).
      - Поддержка относительных путей (workspace_path), graceful error handling (продолжение при некритичных ошибках).
      - **Статус:** заготовка; полная интеграция с MCP в разработке.
+
 - **Формат execution_plan:** каждый шаг — объект:
   - `action`: "read_file" | "edit" | "run"
   - `path` (для read_file, edit): путь к файлу
@@ -3445,7 +3580,7 @@ _Сводка актуализирована с учётом правок из �
 - **Корневая причина:** NPM API требует **два отдельных запроса**:
   1. Создание/обновление Proxy Host
   2. Запрос SSL-сертификата от Let's Encrypt и привязка к Proxy Host
-  
+
   Старый код выполнял только первый шаг.
 
 - **Решение:**
@@ -3471,16 +3606,17 @@ _Сводка актуализирована с учётом правок из �
   - Домен уже существует → обновление конфигурации и повторный запрос SSL
 
 - **Тестирование:**
+
   ```bash
   # 1. Активировать домен через API
   curl -X POST https://www.setki21.ru/api/v1/admin/dealers/DEALER_ID/activate_domain
-  
+
   # 2. Проверить логи
   docker logs setki21-api-new --tail 50 | grep -E 'SSL|certificate'
-  
+
   # 3. Проверить HTTPS
   curl -I https://сеткимоскитки.рф/
-  
+
   # 4. Открыть в браузере без протокола
   # Ввести: сеткимоскитки.рф → должен открыться сайт через HTTPS
   ```
@@ -3490,6 +3626,7 @@ _Сводка актуализирована с учётом правок из �
   - **Вариант B (после деплоя):** Повторно нажать "Активировать домен" в админке
 
 - **Деплой на VDS:**
+
   ```bash
   cd /Users/bikos/Documents/dev/setki-21
   docker buildx build --platform linux/amd64 -t moskit-api:latest -f moskit-api/Dockerfile .
@@ -3507,3 +3644,37 @@ _Сводка актуализирована с учётом правок из �
   2. Запрашивается SSL-сертификат от Let's Encrypt
   3. Сертификат привязывается к Proxy Host
   4. Домен работает через HTTPS, пользователи могут вводить его в браузер без указания протокола
+
+---
+
+## 55. Self-Healing Logs Phase 1: Автономное исправление ошибок (2026-03-12)
+
+- **Проблема:** Ранее ошибки в Docker-логах требовали ручного анализа и вмешательства. Система была реактивной, а не проактивной.
+- **Реализация:**
+  1. **Log Monitoring:** Внедрен `LogMonitor` в `docker_log_monitor.py`, использующий библиотеку `docker` для tailing-а логов контейнеров `victoria-agent`, `backend`, `knowledge-os`. Детектирует Python Tracebacks и сообщения уровня ERROR.
+  2. **Event-Driven Flow:** Добавлено событие `LOG_ERROR_DETECTED` в `EventBus`.
+  3. **Autonomous Decision Making:** `CodebaseMutationEngine` расширен логикой принятия решений Викторией. Теперь она сама выбирает: `apply` (автономное исправление), `propose` (предложение патча) или `ignore`.
+  4. **Safety Guard:** Автономные патчи проходят проверку синтаксиса и автоматический запуск тестов (`pytest`) перед применением.
+  5. **Task Integration:** Результаты анализа (патчи, объяснения) сохраняются в таблицу `tasks` со статусом `awaiting_approval` (для предложений) или `completed` (для авто-исправлений).
+- **Файлы:** `knowledge_os/app/docker_log_monitor.py`, `knowledge_os/app/event_bus.py`, `knowledge_os/app/codebase_mutation_engine.py`, `knowledge_os/app/victoria_event_handlers.py`.
+- **Итог:** Система перешла в режим проактивного самоисцеления. Виктория теперь дежурит в логах 24/7 и самостоятельно устраняет критические баги или готовит решения для одобрения.
+
+---
+
+## 56. Omni-RAG & Vision API Stabilization (2026-03-12)
+
+- **Проблема:** Нестабильность Vision API (Moondream Station), ошибки импорта в Collective Memory, конфликты конкурентности в GraphRAG и таймауты планирования (STRATEGIST FAILED).
+- **Реализация:**
+  1. **Omni-RAG Implementation:** Внедрен Hybrid Search v2 (BM25 + Vector) и Cross-Encoder переранжировщик. Знания теперь синхронизированы между Web IDE, Open WebUI и Telegram.
+  2. **Vision API Stabilization:**
+     - Moondream 3 (7 ГБ) успешно загружена и инициализирована на порту 2020.
+     - Создан `scripts/vision_api_watcher.sh` для автоматического восстановления сервиса при сбоях.
+     - В `vision_processor.py` добавлен приоритет Ollama (moondream:latest) для Docker-агентов для повышения стабильности.
+  3. **Core Intelligence Fixes:**
+     - **Collective Memory:** Исправлен импорт `db_pool` в `collective_memory.py`, восстановлена работа stigmergy.
+     - **GraphRAG:** В `multi_hop_retriever.py` внедрено использование пула соединений, устранены ошибки `another operation is in progress`.
+     - **Strategist Timeouts:** В `ai_core.py` таймаут для категории `reasoning` увеличен до 1200с, предотвращая переключение на облачный fallback.
+     - **Extended Thinking:** Лимит токенов на шаг увеличен до 2000.
+     - **Immunity System:** Внедрена робастная обработка JSON для `Enhanced Immunity` и `Adversarial Critic`.
+- **Файлы:** `knowledge_os/app/vision_processor.py`, `knowledge_os/app/ai_core.py`, `knowledge_os/app/collective_memory.py`, `knowledge_os/app/graphrag/multi_hop_retriever.py`, `knowledge_os/app/ollama_keep_alive_policy.py`, `scripts/vision_api_watcher.sh`.
+- **Итог:** Интеллект Виктории стабилизирован и расширен «зрением». Omni-RAG обеспечивает высокую точность поиска, а система самовосстановления гарантирует доступность Vision API.

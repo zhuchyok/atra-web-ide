@@ -46,7 +46,7 @@ class Tools:
             default=True,
             description="If true, call backend /api/chat/ask-victoria (3 retries, 900s timeout, same as Cursor). Recommended.",
         )
-        ASK_VICTORIA_TIMEOUT: int = Field(default=600, description="Timeout in seconds for Victoria response")
+        ASK_VICTORIA_TIMEOUT: int = Field(default=1200, description="Timeout in seconds for Victoria response")
 
     def __init__(self):
         self.valves = self.Valves()

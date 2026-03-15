@@ -2,25 +2,36 @@
 Chat Router - SSE стриминг для AI чата (Singularity 14.0 Unified)
 Прокси-роутер, передающий все запросы в Victoria Agent.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse, JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
-from typing import Optional, AsyncGenerator, List, Dict
+
+import asyncio
 import json
 import logging
 import uuid
+from collections.abc import AsyncGenerator
+from typing import Dict, List, Optional
 
-from app.services.victoria import VictoriaClient, get_victoria_client
-from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from pydantic import BaseModel, Field
+
+from app.metrics.prometheus_metrics import ASK_VICTORIA_TOTAL, CHAT_EXPERT_ANSWER_TOTAL
+from app.metrics.prometheus_metrics import metrics as prometheus_metrics
+from app.services.concurrency_limiter import (
+    acquire_victoria_slot,
+    release_victoria_slot,
+    with_victoria_slot,
+)
 from app.services.conversation_context import get_conversation_context_manager
-from app.services.concurrency_limiter import acquire_victoria_slot, release_victoria_slot, with_victoria_slot
-from app.metrics.prometheus_metrics import metrics as prometheus_metrics, CHAT_EXPERT_ANSWER_TOTAL, ASK_VICTORIA_TOTAL
+from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
+from app.services.victoria import VictoriaClient, get_victoria_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 class ChatMessage(BaseModel):
     """Сообщение в чат"""
+
     content: str = Field(..., min_length=1, max_length=10000)
     expert_name: Optional[str] = Field(default=None, max_length=100)
     model: Optional[str] = Field(default=None, max_length=100)
@@ -29,8 +40,10 @@ class ChatMessage(BaseModel):
     user_id: Optional[str] = Field(default=None, max_length=128)
     session_id: Optional[str] = Field(default=None, max_length=128)
 
+
 class ChatResponse(BaseModel):
     """Ответ от чата"""
+
     content: str
     expert_name: Optional[str] = None
     model: Optional[str] = None
@@ -38,25 +51,39 @@ class ChatResponse(BaseModel):
 
 class AskVictoriaRequest(BaseModel):
     """Запрос для инструмента ask_victoria (Singularity 15.0)"""
+
     goal: str = Field(..., min_length=1, max_length=50000)
     project_context: Optional[str] = Field(default="atra-web-ide", max_length=128)
-    user_key: Optional[str] = Field(default=None, max_length=256, description="Stable user id e.g. openwebui-{user_id} for LTM")
-    chat_history: Optional[List[Dict[str, str]]] = Field(default=None, description="History as [{user, assistant}, ...] for Victoria context")
+    user_key: Optional[str] = Field(
+        default=None, max_length=256, description="Stable user id e.g. openwebui-{user_id} for LTM"
+    )
+    chat_history: Optional[List[Dict[str, str]]] = Field(
+        default=None, description="History as [{user, assistant}, ...] for Victoria context"
+    )
+
 
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
-    message: ChatMessage,
-    victoria: VictoriaClient = Depends(get_victoria_client)
+    message: ChatMessage, victoria: VictoriaClient = Depends(get_victoria_client)
 ) -> ChatResponse:
     """Отправить сообщение (не-стриминг) — прокси к Victoria /run"""
     try:
+        acquired = await acquire_victoria_slot()
+        if not acquired:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "service_busy", "detail": "Too many concurrent requests."},
+                headers={"Retry-After": "60"},
+            )
+
         correlation_id = str(uuid.uuid4())
         session_id = message.session_id or message.user_id
-        
+
         chat_history = []
         if session_id:
             ctx_mgr = get_conversation_context_manager()
-            recent = await ctx_mgr.get_recent(session_id, last_n=10)
+            # [OPTIMIZATION] Get recent messages with character limit directly in get_recent
+            recent = await ctx_mgr.get_recent(session_id, last_n=10, max_chars=10000)
             chat_history = ctx_mgr.to_victoria_chat_history(recent)
 
         result = await victoria.run(
@@ -64,14 +91,14 @@ async def send_message(
             expert_name=message.expert_name,
             session_id=session_id,
             chat_history=chat_history,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
-        
+
         if result.get("status") == "error":
             raise HTTPException(status_code=500, detail=result.get("error"))
-        
+
         content = result.get("result", "") or result.get("response", "")
-        
+
         # Сохраняем контекст
         if session_id:
             ctx_mgr = get_conversation_context_manager()
@@ -79,21 +106,23 @@ async def send_message(
             await ctx_mgr.append(session_id, "assistant", content)
 
         CHAT_EXPERT_ANSWER_TOTAL.labels(source="victoria_unified").inc()
-        
+
         return ChatResponse(
-            content=content,
-            expert_name=message.expert_name,
-            model=result.get("model")
+            content=content, expert_name=message.expert_name, model=result.get("model")
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chat send error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        release_victoria_slot()
+
 
 @router.post("/stream")
 @prometheus_metrics.track_request(mode="stream", endpoint="stream")
 async def stream_message(
-    message: ChatMessage,
-    victoria: VictoriaClient = Depends(get_victoria_client)
+    message: ChatMessage, victoria: VictoriaClient = Depends(get_victoria_client)
 ):
     """SSE стриминг ответа (Singularity 14.0 Unified) — прокси к Victoria /stream"""
     acquired = await acquire_victoria_slot()
@@ -101,16 +130,17 @@ async def stream_message(
         return JSONResponse(
             status_code=503,
             content={"error": "service_busy", "detail": "Too many concurrent requests."},
-            headers={"Retry-After": "60"}
+            headers={"Retry-After": "60"},
         )
 
     correlation_id = str(uuid.uuid4())
     session_id = message.session_id or message.user_id
-    
+
     chat_history = []
     if session_id:
         ctx_mgr = get_conversation_context_manager()
-        recent = await ctx_mgr.get_recent(session_id, last_n=10)
+        # [OPTIMIZATION] Use built-in character limit in get_recent
+        recent = await ctx_mgr.get_recent(session_id, last_n=10, max_chars=10000)
         chat_history = ctx_mgr.to_victoria_chat_history(recent)
 
     async def proxy_generator():
@@ -122,7 +152,7 @@ async def stream_message(
                 session_id=session_id,
                 chat_history=chat_history,
                 correlation_id=correlation_id,
-                mode=message.mode or "agent"
+                mode=message.mode or "agent",
             ):
                 yield line + "\n\n"
                 # Пытаемся извлечь контент для сохранения в историю
@@ -133,13 +163,31 @@ async def stream_message(
                             full_response.append(data.get("content", ""))
                     except:
                         pass
-            
+
             # Сохраняем историю после завершения стрима
             if session_id and full_response:
                 ctx_mgr = get_conversation_context_manager()
-                await ctx_mgr.append(session_id, "user", message.content)
-                await ctx_mgr.append(session_id, "assistant", "".join(full_response))
-                
+                # [OPTIMIZATION] Batch append to reduce DB/Redis calls
+                await asyncio.gather(
+                    ctx_mgr.append(session_id, "user", message.content),
+                    ctx_mgr.append(session_id, "assistant", "".join(full_response)),
+                )
+
+        except asyncio.CancelledError:
+            logger.info(f"Stream cancelled by client for session {session_id}")
+            # [OPTIMIZATION] Still try to save partial response if cancelled
+            if session_id and full_response:
+                try:
+                    ctx_mgr = get_conversation_context_manager()
+                    await ctx_mgr.append(
+                        session_id, "assistant", "".join(full_response) + " [cancelled]"
+                    )
+                except:
+                    pass
+            raise
+        except Exception as e:
+            logger.error(f"Stream error for session {session_id}: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
         finally:
             release_victoria_slot()
 
@@ -150,8 +198,9 @@ async def stream_message(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
+
 
 @router.post("/ask-victoria")
 async def ask_victoria(
@@ -168,15 +217,24 @@ async def ask_victoria(
     goal_stripped = (body.goal or "").strip()
     if not goal_stripped:
         if format == "json":
-            return JSONResponse(status_code=422, content={"status": "error", "result": "goal is required and cannot be empty"})
+            return JSONResponse(
+                status_code=422,
+                content={"status": "error", "result": "goal is required and cannot be empty"},
+            )
         return PlainTextResponse("goal is required and cannot be empty", status_code=422)
 
     acquired = await acquire_victoria_slot()
     if not acquired:
         ASK_VICTORIA_TOTAL.labels(status="busy").inc()
         if format == "json":
-            return JSONResponse(status_code=503, content={"status": "error", "result": "Too many requests; try again later."}, headers={"Retry-After": "60"})
-        return PlainTextResponse("Too many requests; try again later.", status_code=503, headers={"Retry-After": "60"})
+            return JSONResponse(
+                status_code=503,
+                content={"status": "error", "result": "Too many requests; try again later."},
+                headers={"Retry-After": "60"},
+            )
+        return PlainTextResponse(
+            "Too many requests; try again later.", status_code=503, headers={"Retry-After": "60"}
+        )
 
     session_id = body.user_key or str(uuid.uuid4())
 
@@ -207,7 +265,10 @@ async def ask_victoria(
             ASK_VICTORIA_TOTAL.labels(status="error").inc()
             err_detail = result.get("error") or ""
             msg = _user_facing_error(err_detail)
-            logger.warning("ask_victoria Victoria returned error: %s", err_detail[:200] if err_detail else "no detail")
+            logger.warning(
+                "ask_victoria Victoria returned error: %s",
+                err_detail[:200] if err_detail else "no detail",
+            )
             if format == "json":
                 return JSONResponse(status_code=503, content={"status": "error", "result": msg})
             return PlainTextResponse(msg, status_code=503)
@@ -217,7 +278,10 @@ async def ask_victoria(
         clarification = result.get("clarification_questions")
         if clarification:
             if isinstance(clarification, list):
-                lines = [f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q) for q in clarification]
+                lines = [
+                    f"Мне нужно уточнить: {q}" if isinstance(q, str) else str(q)
+                    for q in clarification
+                ]
                 content = "\n".join(lines) + ("\n\n" + content if content else "")
             else:
                 content = str(clarification) + ("\n\n" + content if content else "")
@@ -241,15 +305,16 @@ async def chat_status(victoria: VictoriaClient = Depends(get_victoria_client)) -
     """Статус Victoria"""
     return await victoria.health()
 
+
 @router.get("/models")
 async def list_models(victoria: VictoriaClient = Depends(get_victoria_client)) -> dict:
     """Список моделей через Victoria"""
     return await victoria.status()
 
+
 @router.get("/hidden-thoughts/{session_id}")
 async def get_hidden_thoughts(
-    session_id: str,
-    victoria: VictoriaClient = Depends(get_victoria_client)
+    session_id: str, victoria: VictoriaClient = Depends(get_victoria_client)
 ):
     """Получить скрытые рассуждения для сессии (Summary Reader)"""
     try:

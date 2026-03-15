@@ -591,9 +591,7 @@ async def _run_cloud_agent_async(
             or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
         )
         if _in_docker:
-            logger.debug(
-                "⚠️ cursor-agent not found (expected in Docker), using direct Ollama API"
-            )
+            logger.debug("⚠️ cursor-agent not found (expected in Docker), using direct Ollama API")
         else:
             logger.warning("⚠️ cursor-agent not found, using direct Ollama API")
         try:
@@ -608,6 +606,7 @@ async def _run_cloud_agent_async(
                 or "стратег" in prompt
                 or "анализ" in prompt
                 or "coding" in str(category)
+                or "reasoning" in str(category)
             ):
                 _ollama_timeout = max(_ollama_timeout, 1200.0)
                 logger.info(
@@ -733,109 +732,173 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
     if get_traffic_mirror:
         tm = get_traffic_mirror()
         await tm.mirror_request("ai_core", "_get_knowledge_context", query)
+
     try:
-        # 1. Пробуем новый GraphRAG (Singularity 10.0)
-        try:
-            from app.graphrag.graphrag_service import get_graphrag_service
+        # [SINGULARITY 21.22] Parallel RAG Execution: GraphRAG + VectorRAG
+        async def fetch_graph():
+            try:
+                from app.graphrag.graphrag_service import get_graphrag_service
 
-            graphrag = get_graphrag_service()
-            graph_context = await graphrag.retrieve_graph_context(query)
-            if graph_context:
-                logger.info("🌐 [GRAPHRAG] Использован глобальный контекст и логические цепочки")
-                return graph_context
-        except Exception as ge:
-            logger.debug(f"GraphRAG failed, falling back to standard RAG: {ge}")
+                graphrag = get_graphrag_service()
+                return await graphrag.retrieve_graph_context(query)
+            except Exception as ge:
+                logger.debug(f"GraphRAG failed: {ge}")
+                return None
 
-        # 2. Fallback на стандартный векторный RAG
-        embedding = await get_embedding(query)
-        if not embedding:
-            return ""
-        pool = await _get_db_pool()
-        if not pool:
-            return ""
+        async def fetch_vector():
+            try:
+                embedding = await get_embedding(query)
+                if not embedding:
+                    return ""
 
-        pc = (project_context or "").strip()
-        if pc:
-            project_cond = """
-                AND (
-                    domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
-                    OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
-                    OR metadata->>'source' = 'external_docs_indexer'
-                    OR source_ref = 'autonomous_worker'
-                    OR ( (domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1) OR metadata->>'source' = 'indexing_daemon')
-                         AND (metadata->>'project_slug' = $2 OR metadata->>'file_path' LIKE '%' || $2 || '%') )
-                )
-            """
-        else:
-            project_cond = """
-                AND (
-                    domain_id = (SELECT id FROM domains WHERE name = 'AI Research' LIMIT 1)
-                    OR domain_id = (SELECT id FROM domains WHERE name = 'victoria_tasks' LIMIT 1)
-                    OR domain_id = (SELECT id FROM domains WHERE name = 'project_files' LIMIT 1)
-                    OR metadata->>'source' = 'external_docs_indexer'
-                    OR metadata->>'source' = 'indexing_daemon'
-                    OR source_ref = 'autonomous_worker'
-                )
-            """
+                # [SINGULARITY 21.23] Try Rust RAG first
+                try:
+                    import httpx
 
-        async with pool.acquire() as conn:
-            if pc:
-                rows = await conn.fetch(
-                    """
-                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL AND confidence_score >= 0.3
-                    """
-                    + project_cond
-                    + """
-                    ORDER BY similarity DESC LIMIT 8
-                    """,
-                    str(embedding),
-                    pc,
-                )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
-                    FROM knowledge_nodes
-                    WHERE embedding IS NOT NULL AND confidence_score >= 0.3
-                    """
-                    + project_cond
-                    + """
-                    ORDER BY similarity DESC LIMIT 8
-                    """,
-                    str(embedding),
-                )
+                    # Внутри Docker сети используем имя сервиса и HTTPS
+                    rust_url = os.getenv(
+                        "RUST_GATEWAY_URL",
+                        "https://atra-web-ide-gateway:8081/api/knowledge/search_v2",
+                    )
+                    payload = {
+                        "embedding": embedding,
+                        "project_context": project_context,
+                        "limit": 10,  # Increased for quantum sampling
+                        "use_quantum": True,
+                    }
 
-            if not rows:
+                    # mTLS сертификаты для клиента (Singularity 21.24)
+                    cert_path = os.getenv("BRIDGE_CERT_PATH")
+                    key_path = os.getenv("BRIDGE_KEY_PATH")
+                    ca_path = os.getenv("BRIDGE_CA_PATH")
+
+                    client_kwargs = {"timeout": 10.0}
+                    if cert_path and key_path:
+                        import ssl
+
+                        ssl_ctx = ssl.create_default_context(cafile=ca_path)
+                        ssl_ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+                        client_kwargs["verify"] = ssl_ctx
+                    else:
+                        client_kwargs["verify"] = False  # Insecure fallback
+
+                    async with httpx.AsyncClient(**client_kwargs) as client:
+                        response = await client.post(rust_url, json=payload)
+                        if response.status_code == 200:
+                            nodes = response.json()
+                            if not nodes:
+                                return ""
+
+                            context = "\n📚 [KNOWLEDGE CONTEXT (RUST-ACCELERATED)]:\n"
+                            for node in nodes:
+                                if node.get("similarity", 0) >= 0.55:
+                                    meta = node.get("metadata") or {}
+                                    file_path = meta.get("file_path", "N/A")
+                                    context += f"\n[NODE: {file_path}] (релевантность: {node['similarity']:.2f}):\n"
+                                    context += f"{node['content'][:1200]}\n"
+                            logger.info("🚀 [RUST RAG] Successfully retrieved context.")
+                            return context
+                except Exception as re:
+                    logger.warning(f"⚠️ Rust RAG failed, falling back to Python: {re}")
+
+                # Fallback to Python RAG (old logic)
+                pool = await _get_db_pool()
+                if not pool:
+                    return ""
+
+                # [SINGULARITY 21.22] In-memory domain cache
+                from domain_cache import get_domain_id
+
+                async with pool.acquire() as conn:
+                    ai_research_id = await get_domain_id(conn, "AI Research")
+                    victoria_tasks_id = await get_domain_id(conn, "victoria_tasks")
+                    project_files_id = await get_domain_id(conn, "project_files")
+
+                    pc = (project_context or "").strip()
+                    params = [str(embedding)]
+
+                    if pc:
+                        project_cond = """
+                            AND (
+                                domain_id = $2
+                                OR domain_id = $3
+                                OR metadata->>'source' = 'external_docs_indexer'
+                                OR source_ref = 'autonomous_worker'
+                                OR ( (domain_id = $4 OR metadata->>'source' = 'indexing_daemon')
+                                     AND (metadata->>'project_slug' = $5 OR metadata->>'file_path' LIKE '%' || $5 || '%') )
+                            )
+                        """
+                        params.extend([ai_research_id, victoria_tasks_id, project_files_id, pc])
+                    else:
+                        project_cond = """
+                            AND (
+                                domain_id = $2
+                                OR domain_id = $3
+                                OR domain_id = $4
+                                OR metadata->>'source' = 'external_docs_indexer'
+                                OR metadata->>'source' = 'indexing_daemon'
+                                OR source_ref = 'autonomous_worker'
+                            )
+                        """
+                        params.extend([ai_research_id, victoria_tasks_id, project_files_id])
+
+                    rows = await conn.fetch(
+                        f"""
+                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        FROM knowledge_nodes
+                        WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                        {project_cond}
+                        ORDER BY similarity DESC LIMIT 8
+                        """,
+                        *params,
+                    )
+
+                    if not rows:
+                        return ""
+
+                    context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                    for row in rows:
+                        if row["similarity"] >= 0.55:
+                            meta = row["metadata"] or {}
+                            if isinstance(meta, str):
+                                try:
+                                    meta = json.loads(meta)
+                                except Exception:
+                                    meta = {}
+
+                            source = meta.get("source", "unknown")
+                            file_path = meta.get("file_path", "N/A")
+
+                            if source == "external_docs_indexer":
+                                context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                            elif source == "indexing_daemon":
+                                context += f"\n[PROJECT FILE: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
+                            elif meta.get("type") == "corporate_system":
+                                context += f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
+                            else:
+                                context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
+
+                            context += f"{row['content'][:1200]}\n"
+                    return context
+            except Exception as ve:
+                logger.error(f"Vector RAG failed: {ve}")
                 return ""
 
-            context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
-            for row in rows:
-                if row["similarity"] >= 0.55:
-                    meta = row["metadata"] or {}
-                    if isinstance(meta, str):
-                        try:
-                            meta = json.loads(meta)
-                        except Exception:
-                            meta = {}
+        # Execute both in parallel
+        graph_task = asyncio.create_task(fetch_graph())
+        vector_task = asyncio.create_task(fetch_vector())
 
-                    source = meta.get("source", "unknown")
-                    file_path = meta.get("file_path", "N/A")
+        graph_context, vector_context = await asyncio.gather(graph_task, vector_task)
 
-                    if source == "external_docs_indexer":
-                        context += f"\n[AI RESEARCH: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
-                    elif source == "indexing_daemon":
-                        context += f"\n[PROJECT FILE: {file_path}] (релевантность: {row['similarity']:.2f}):\n"
-                    elif meta.get("type") == "corporate_system":
-                        context += (
-                            f"\n[КОРПОРАЦИЯ: СИСТЕМА] (релевантность: {row['similarity']:.2f}):\n"
-                        )
-                    else:
-                        context += f"\n[ЗНАНИЕ] (релевантность: {row['similarity']:.2f}):\n"
+        full_context = ""
+        if graph_context:
+            logger.info("🌐 [GRAPHRAG] Context retrieved.")
+            full_context += graph_context + "\n"
+        if vector_context:
+            full_context += vector_context
 
-                    context += f"{row['content'][:1200]}\n"
-            return context
+        return full_context
+
     except Exception as exc:
         logger.error(f"Knowledge retrieval error: {exc}")
         return ""
@@ -957,50 +1020,84 @@ async def run_smart_agent_async_impl(
                         )
                 except Exception as ee:
                     logger.debug(f"⚠️ [VOICE OF EXPERIENCE] Error: {ee}")
+
+                # 4. [SINGULARITY 21.12] Success Retrieval: Collective Experience
+                try:
+                    from success_retriever import get_success_context
+
+                    # [SINGULARITY 21.17] Expert-Aware Success Retrieval
+                    success_context = await get_success_context(user_part, expert_name=expert_name)
+                    if success_context:
+                        experience_context += success_context
+                        logger.info(
+                            f"🏆 [SUCCESS RETRIEVAL] Injected successful examples for {expert_name}"
+                        )
+                except Exception as se:
+                    logger.debug(f"⚠️ [SUCCESS RETRIEVAL] Error: {se}")
+
+                # 5. [SINGULARITY 21.17] Deep Expert Specialization: DNA Injection
+                try:
+                    from expert_dna_manager import get_expert_dna_manager
+
+                    dna_mgr = get_expert_dna_manager()
+                    expert_dna = await dna_mgr.get_expert_dna(expert_name)
+                    if expert_dna:
+                        experience_context = expert_dna + "\n" + experience_context
+                        logger.info(f"🧬 [EXPERT DNA] Injected specialization for {expert_name}")
+                except Exception as de:
+                    logger.debug(f"⚠️ [EXPERT DNA] Error: {de}")
     except Exception as we:
         logger.debug(f"⚠️ [WISDOM/MENTORSHIP INJECTION] Error: {we}")
 
+    # --- [SINGULARITY 21.21] RECURSIVE TESTING PROMPT INJECTION ---
+    recursive_test_instruction = """
+### 🧪 RECURSIVE TESTING RULE:
+Если ты предлагаешь новый код или изменяешь существующую логику, ты ОБЯЗАН предоставить авто-тест (pytest).
+Твой ответ должен содержать блок кода с тестом, либо ты должен убедиться, что существующий тест в проекте покрывает твои изменения.
+Без теста твоё решение будет отклонено ArchitecturalGuard.
+"""
+    experience_context = recursive_test_instruction + "\n" + experience_context
+    # --- END RECURSIVE TESTING ---
+
     # --- MODEL ENSEMBLE LOGIC (Phase 2.7) ---
-    async def _verify_and_refine(initial_prompt: str, initial_response: str, depth: int = 0) -> str:
-        """Кросс-верификация ответа быстрой моделью-критиком (lfm2.5-thinking)."""
-        if depth >= 1:  # Ограничиваем рекурсию одной попыткой исправления
-            return initial_response
+    async def _introspection_loop(initial_prompt: str, initial_response: str) -> str:
+        """[SINGULARITY 21.20] Introspection Loop: Self-criticism and refinement."""
+        logger.info(f"🧠 [INTROSPECTION] Starting self-evaluation for {expert_name}")
 
-        logger.info(f"🧠 [ENSEMBLE] Запуск верификации для {expert_name} (глубина {depth})")
+        introspection_prompt = f"""Ты - Критик Сингулярности. Проведи интроспекцию ответа эксперта {expert_name}.
+ИСХОДНЫЙ ЗАПРОС: {initial_prompt}
+ОТВЕТ ЭКСПЕРТА: {initial_response}
 
-        verify_prompt = f"""Ты - AI-аудитор. Проверь ответ на наличие критических ошибок, галлюцинаций или нарушения логики.
-ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {initial_prompt}
-ОТВЕТ ДЛЯ ПРОВЕРКИ: {initial_response}
+КРИТЕРИИ ГИГАНТОВ:
+1. First Principles: Решена ли задача в корне или это "костыль"?
+2. Occam's Razor: Можно ли сделать это проще?
+3. Reliability: Есть ли риски падения?
 
-Если всё верно, напиши 'OK'. Если есть ошибка, опиши её кратко и предложи исправление."""
+Если ответ идеален, верни 'PERFECT'. Если есть что улучшить, предложи финальную, отточенную версию."""
 
-        # Используем lfm2.5-thinking как самого быстрого и логичного критика
         try:
             if router:
-                # Сингулярность 10.0: Увеличиваем таймаут для критика до 600с
-                verify_result = await router.run_local_llm(
-                    verify_prompt, category="general", model_hint="lfm2.5-thinking:1.2b"
+                result = await router.run_local_llm(
+                    introspection_prompt, category="reasoning", model_hint="lfm2.5-thinking"
                 )
-                verify_text = (
-                    verify_result[0] if isinstance(verify_result, tuple) else verify_result
-                )
+                refined_text = result[0] if isinstance(result, tuple) else result
 
-                if verify_text and "OK" not in verify_text.upper()[:10]:
-                    logger.warning(f"⚠️ [ENSEMBLE] Критик нашел ошибку: {verify_text[:100]}...")
+                if "PERFECT" in refined_text[:10]:
+                    return initial_response
 
-                    refine_prompt = f"""Основная модель выдала ответ с ошибкой. Исправь его, учитывая замечания критика.
-ЗАМЕЧАНИЯ КРИТИКА: {verify_text}
-ИСХОДНЫЙ ЗАПРОС: {initial_prompt}
-ИСПРАВЬ И ВЕРНИ ПОЛНЫЙ ОТВЕТ:"""
-
-                    refined_result = await router.run_local_llm(refine_prompt, category="coding")
-                    return (
-                        refined_result[0] if isinstance(refined_result, tuple) else refined_result
-                    )
+                logger.info("✨ [INTROSPECTION] Response refined by self-criticism.")
+                return refined_text
             return initial_response
         except Exception as e:
-            logger.error(f"❌ [ENSEMBLE] Ошибка верификации: {e}")
+            logger.error(f"❌ [INTROSPECTION] Error: {e}")
             return initial_response
+
+    async def _verify_and_refine(initial_prompt: str, initial_response: str, depth: int = 0) -> str:
+        """[SINGULARITY 21.22] Use EnsembleVerifier for cleaner logic."""
+        from core.ensemble_verifier import EnsembleVerifier
+
+        verifier = EnsembleVerifier(router, expert_name)
+        return await verifier.verify_and_refine(initial_prompt, initial_response, depth)
 
     # 0. Anomaly Detection: проверка запроса на аномалии
     try:
@@ -1026,24 +1123,23 @@ async def run_smart_agent_async_impl(
                 logger.info("✅ [DEBATE COMPLETE] Critical decision reached.")
                 return debate_result.final_decision
 
-        from anomaly_detector import get_anomaly_detector
+        # [SINGULARITY 21.22] Use AnomalyDetectorBridge for cleaner logic
+        from core.anomaly_bridge import AnomalyDetectorBridge
 
-        anomaly_detector = get_anomaly_detector()
-        should_block, alert = await anomaly_detector.analyze_request(
-            prompt,
-            identifier=request_id,
-            metadata={"expert_name": expert_name, "category": category},
+        should_block, alert = await AnomalyDetectorBridge.analyze_request(
+            prompt, request_id, expert_name, category or "general"
         )
+
         if should_block:
             logger.warning(
                 f"🚨 [ANOMALY DETECTOR] Запрос заблокирован: {alert.description if alert else 'unknown'}"
             )
             return "⚠️ Запрос отклонен системой безопасности."
 
-        # Проверка на блокировку
-        if anomaly_detector.is_blocked(request_id):
+        if AnomalyDetectorBridge.is_blocked(request_id):
             logger.warning(f"🚨 [ANOMALY DETECTOR] Идентификатор заблокирован: {request_id}")
             return "⚠️ Доступ временно ограничен. Попробуйте позже."
+
     except Exception as e:
         logger.debug(f"Anomaly detection failed: {e}")
 
@@ -2491,7 +2587,9 @@ async def run_smart_agent_async_impl(
     ):
         _now = time.time()
         if _now - _last_tool_creator_log_time[0] >= 30:
-            logger.info("🛠️ [TOOL CREATOR] Attempting to create a missing tool to fix the failure...")
+            logger.info(
+                "🛠️ [TOOL CREATOR] Attempting to create a missing tool to fix the failure..."
+            )
             _last_tool_creator_log_time[0] = _now
         else:
             logger.debug(

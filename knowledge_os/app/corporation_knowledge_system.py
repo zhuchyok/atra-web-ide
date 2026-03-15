@@ -80,10 +80,14 @@ class CorporationKnowledgeSystem:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(f"{self.mlx_url}/v1/models")
+                if response.status_code == 404:
+                    response = await client.get(f"{self.mlx_url}/api/tags")
                 if response.status_code == 200:
                     data = response.json()
-                    for model in data.get("data", []):
-                        models.append({"name": model.get("id", ""), "source": "mlx"})
+                    for model in data.get("data", data.get("models", [])):
+                        models.append(
+                            {"name": model.get("id", model.get("name", "")), "source": "mlx"}
+                        )
         except Exception as e:
             logger.debug(f"MLX API недоступен: {e}")
 
@@ -116,7 +120,12 @@ class CorporationKnowledgeSystem:
 
         # Ищем все .sh и .py файлы в scripts/
         if self.scripts_dir.exists():
+            # [SINGULARITY 21.9] Оптимизация памяти: не грузим тысячи файлов в список,
+            # если их слишком много. Ограничиваемся основными.
+            count = 0
             for script_file in self.scripts_dir.rglob("*.sh"):
+                if count > 50:
+                    break
                 scripts.append(
                     {
                         "name": script_file.name,
@@ -126,8 +135,12 @@ class CorporationKnowledgeSystem:
                         "modified": datetime.fromtimestamp(script_file.stat().st_mtime).isoformat(),
                     }
                 )
+                count += 1
 
+            count = 0
             for script_file in self.scripts_dir.rglob("*.py"):
+                if count > 50:
+                    break
                 scripts.append(
                     {
                         "name": script_file.name,
@@ -137,8 +150,48 @@ class CorporationKnowledgeSystem:
                         "modified": datetime.fromtimestamp(script_file.stat().st_mtime).isoformat(),
                     }
                 )
+                count += 1
 
         return scripts
+
+    def discover_images(self) -> List[Dict[str, Any]]:
+        """[OMNI-RAG] Обнаружить все изображения в проекте"""
+        images = []
+        image_extensions = ["*.png", "*.jpg", "*.jpeg", "*.svg", "*.gif"]
+
+        # Директории для поиска (адаптировано под структуру контейнера)
+        search_dirs = [
+            self.project_root / "docs",
+            self.project_root / "knowledge_os" / "docs",
+            self.project_root / "knowledge_os" / "knowledge_base",
+            self.project_root / "knowledge_os" / "ai_insights",
+            self.project_root / "ai_insights",
+        ]
+
+        for sdir in search_dirs:
+            if not sdir.exists():
+                continue
+
+            for ext in image_extensions:
+                for img_file in sdir.rglob(ext):
+                    # Пропускаем node_modules, виртуальные окружения и скрытые папки
+                    path_str = str(img_file)
+                    if "node_modules" in path_str or ".venv" in path_str or "/." in path_str:
+                        continue
+
+                    images.append(
+                        {
+                            "name": img_file.name,
+                            "path": str(img_file.relative_to(self.project_root)),
+                            "abs_path": str(img_file),
+                            "size": img_file.stat().st_size,
+                            "modified": datetime.fromtimestamp(
+                                img_file.stat().st_mtime
+                            ).isoformat(),
+                        }
+                    )
+
+        return images
 
     async def discover_recent_changes(self) -> List[Dict[str, Any]]:
         """Обнаружить недавние изменения в проекте"""
@@ -180,14 +233,15 @@ class CorporationKnowledgeSystem:
 
         return changes
 
-    async def update_corporation_knowledge(self) -> Dict[str, Any]:
-        """Обновить все знания корпорации"""
+    async def update_corporation_knowledge(self, pool: Optional[Any] = None) -> Dict[str, Any]:
+        """Обновить все знания корпорации. Если передан pool (asyncpg), используем его вместо нового соединения."""
         logger.info("🔄 Обновление знаний корпорации...")
 
         # Обнаруживаем все
         ollama_models = await self.discover_ollama_models()
         mlx_models = await self.discover_mlx_models()
         scripts = self.discover_scripts()
+        images = self.discover_images()
         recent_changes = await self.discover_recent_changes()
 
         knowledge = {
@@ -195,10 +249,12 @@ class CorporationKnowledgeSystem:
             "ollama_models": ollama_models,
             "mlx_models": mlx_models,
             "scripts": scripts,
+            "images": images,
             "recent_changes": recent_changes,
             "total_ollama_models": len(ollama_models),
             "total_mlx_models": len(mlx_models),
             "total_scripts": len(scripts),
+            "total_images": len(images),
         }
 
         # Сохраняем в БД с эмбеддингами для поиска
@@ -219,207 +275,311 @@ class CorporationKnowledgeSystem:
                         except ImportError:
                             logger.warning("⚠️ get_embedding недоступен, сохраняем без эмбеддингов")
 
-                # Используем прямое соединение вместо пула
-                conn = await asyncpg.connect(self.db_url, command_timeout=30)
-                try:
-                    # Получаем или создаем домен System
-                    domain_id = await conn.fetchval("""
-                        SELECT id FROM domains WHERE name = 'System' LIMIT 1
-                    """)
-                    if not domain_id:
-                        domain_id = await conn.fetchval("""
-                            INSERT INTO domains (name) VALUES ('System') RETURNING id
-                        """)
-
-                    # Удаляем старые знания корпорации
-                    await conn.execute("""
-                        DELETE FROM knowledge_nodes
-                        WHERE metadata->>'source' = 'corporation_knowledge_system'
-                    """)
-
-                    saved_count = 0
-
-                    # Сохраняем каждую модель Ollama отдельно с эмбеддингом
-                    for model in ollama_models:
-                        content = f"Модель Ollama: {model['name']}. Размер: {model.get('size', 0) / 1024 / 1024 / 1024:.2f} GB. Доступна для использования в корпорации."
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception as e:
-                                logger.debug(
-                                    f"Ошибка создания эмбеддинга для модели {model['name']}: {e}"
-                                )
-
-                        await conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 1.0, $4, true)
-                        """,
-                            domain_id,
-                            content,
-                            str(embedding) if embedding else None,
-                            json.dumps(
-                                {
-                                    "source": "corporation_knowledge_system",
-                                    "type": "ollama_model",
-                                    "model_name": model["name"],
-                                    "size": model.get("size", 0),
-                                    "timestamp": knowledge["timestamp"],
-                                }
-                            ),
-                        )
-                        saved_count += 1
-
-                    # Сохраняем каждую модель MLX отдельно с эмбеддингом
-                    for model in mlx_models:
-                        content = f"Модель MLX: {model['name']}. Путь: {model.get('path', 'N/A')}. Доступна для использования в корпорации."
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception as e:
-                                logger.debug(
-                                    f"Ошибка создания эмбеддинга для MLX модели {model['name']}: {e}"
-                                )
-
-                        await conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 1.0, $4, true)
-                        """,
-                            domain_id,
-                            content,
-                            str(embedding) if embedding else None,
-                            json.dumps(
-                                {
-                                    "source": "corporation_knowledge_system",
-                                    "type": "mlx_model",
-                                    "model_name": model["name"],
-                                    "path": model.get("path"),
-                                    "timestamp": knowledge["timestamp"],
-                                }
-                            ),
-                        )
-                        saved_count += 1
-
-                    # Сохраняем скрипты группами по типам с эмбеддингами
-                    scripts_by_type = {}
-                    for script in scripts:
-                        script_type = script["type"]
-                        if script_type not in scripts_by_type:
-                            scripts_by_type[script_type] = []
-                        scripts_by_type[script_type].append(script)
-
-                    for script_type, type_scripts in scripts_by_type.items():
-                        scripts_list = "\n".join([f"- {s['path']}" for s in type_scripts[:20]])
-                        content = f"Доступные {script_type} скрипты корпорации ({len(type_scripts)}):\n{scripts_list}"
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception as e:
-                                logger.debug(
-                                    f"Ошибка создания эмбеддинга для скриптов {script_type}: {e}"
-                                )
-
-                        await conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 1.0, $4, true)
-                        """,
-                            domain_id,
-                            content,
-                            str(embedding) if embedding else None,
-                            json.dumps(
-                                {
-                                    "source": "corporation_knowledge_system",
-                                    "type": f"scripts_{script_type}",
-                                    "count": len(type_scripts),
-                                    "timestamp": knowledge["timestamp"],
-                                }
-                            ),
-                        )
-                        saved_count += 1
-
-                    # Сохраняем недавние изменения с эмбеддингом
-                    if recent_changes:
-                        changes_text = "\n".join(
-                            [
-                                f"- {c.get('date', '')[:19]}: {c.get('message', '')[:100]}"
-                                for c in recent_changes[:10]
-                            ]
-                        )
-                        content = f"Недавние изменения в корпорации ({len(recent_changes)}):\n{changes_text}"
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception as e:
-                                logger.debug(f"Ошибка создания эмбеддинга для изменений: {e}")
-
-                        await conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 1.0, $4, true)
-                        """,
-                            domain_id,
-                            content,
-                            str(embedding) if embedding else None,
-                            json.dumps(
-                                {
-                                    "source": "corporation_knowledge_system",
-                                    "type": "recent_changes",
-                                    "count": len(recent_changes),
-                                    "timestamp": knowledge["timestamp"],
-                                }
-                            ),
-                        )
-                        saved_count += 1
-
-                    # Также сохраняем общий сводный узел для быстрого доступа
-                    summary_content = f"""Актуальное состояние корпорации (обновлено {knowledge["timestamp"]}):
-- Доступно моделей Ollama: {len(ollama_models)}
-- Доступно моделей MLX: {len(mlx_models)}
-- Доступно скриптов: {len(scripts)}
-- Недавних изменений: {len(recent_changes)}
-Все знания доступны через search_knowledge."""
-
-                    embedding = None
-                    if get_embedding:
-                        try:
-                            embedding = await get_embedding(summary_content)
-                        except Exception as e:
-                            logger.debug(f"Ошибка создания эмбеддинга для сводки: {e}")
-
-                    await conn.execute(
-                        """
-                        INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                        VALUES ($1, $2, $3, 1.0, $4, true)
-                    """,
-                        domain_id,
-                        summary_content,
-                        str(embedding) if embedding else None,
-                        json.dumps(
-                            {
-                                "source": "corporation_knowledge_system",
-                                "type": "system_summary",
-                                "version": "1.0",
-                                "timestamp": knowledge["timestamp"],
-                            }
-                        ),
-                    )
-                    saved_count += 1
-
-                    logger.info(
-                        f"✅ Знания корпорации сохранены в базу знаний: {saved_count} узлов ({len(ollama_models)} Ollama, {len(mlx_models)} MLX, {len(scripts)} скриптов)"
-                    )
-                finally:
-                    await conn.close()
+                # Используем переданный пул или одно соединение (меньше слотов к БД в nightly)
+                if pool is not None:
+                    async with pool.acquire() as conn:
+                        await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                else:
+                    conn = await asyncpg.connect(self.db_url, command_timeout=30)
+                    try:
+                        await self._save_corporation_knowledge_to_db(conn, knowledge, get_embedding)
+                    finally:
+                        await conn.close()
             except Exception as e:
                 logger.error(f"Ошибка сохранения знаний в БД: {e}", exc_info=True)
 
         return knowledge
+
+    async def _save_corporation_knowledge_to_db(
+        self, conn, knowledge: Dict[str, Any], get_embedding=None
+    ) -> None:
+        """Сохранить knowledge в БД (используется с conn из пула или одиночного connect)."""
+        ollama_models = knowledge.get("ollama_models", [])
+        mlx_models = knowledge.get("mlx_models", [])
+        scripts = knowledge.get("scripts", [])
+        images = knowledge.get("images", [])
+        recent_changes = knowledge.get("recent_changes", [])
+        # Получаем или создаем домен System
+        domain_id = await conn.fetchval("""
+            SELECT id FROM domains WHERE name = 'System' LIMIT 1
+        """)
+        if not domain_id:
+            domain_id = await conn.fetchval("""
+                INSERT INTO domains (name) VALUES ('System') RETURNING id
+            """)
+
+        # Удаляем старые знания корпорации
+        await conn.execute("""
+            DELETE FROM knowledge_nodes
+            WHERE metadata->>'source' = 'corporation_knowledge_system'
+        """)
+
+        saved_count = 0
+        # Сохраняем каждую модель Ollama отдельно с эмбеддингом
+        for model in ollama_models:
+            content = f"Модель Ollama: {model['name']}. Размер: {model.get('size', 0) / 1024 / 1024 / 1024:.2f} GB. Доступна для использования в корпорации."
+            embedding = None
+            if get_embedding:
+                try:
+                    embedding = await get_embedding(content)
+                except Exception as e:
+                    logger.debug(f"Ошибка создания эмбеддинга для модели {model['name']}: {e}")
+
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, $3, 1.0, $4, true)
+            """,
+                domain_id,
+                content,
+                str(embedding) if embedding else None,
+                json.dumps(
+                    {
+                        "source": "corporation_knowledge_system",
+                        "type": "ollama_model",
+                        "model_name": model["name"],
+                        "size": model.get("size", 0),
+                        "timestamp": knowledge["timestamp"],
+                    }
+                ),
+            )
+            saved_count += 1
+        # [SINGULARITY 21.9] Сброс памяти
+        import gc
+
+        if saved_count % 3 == 0:
+            gc.collect()
+            await asyncio.sleep(1)
+        print(f"DEBUG: Saved model {model['name']}", flush=True)
+
+        # Сохраняем каждую модель MLX отдельно с эмбеддингом
+        for model in mlx_models:
+            content = f"Модель MLX: {model['name']}. Путь: {model.get('path', 'N/A')}. Доступна для использования в корпорации."
+            embedding = None
+            if get_embedding:
+                try:
+                    embedding = await get_embedding(content)
+                except Exception as e:
+                    logger.debug(f"Ошибка создания эмбеддинга для MLX модели {model['name']}: {e}")
+
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, $3, 1.0, $4, true)
+            """,
+                domain_id,
+                content,
+                str(embedding) if embedding else None,
+                json.dumps(
+                    {
+                        "source": "corporation_knowledge_system",
+                        "type": "mlx_model",
+                        "model_name": model["name"],
+                        "path": model.get("path"),
+                        "timestamp": knowledge["timestamp"],
+                    }
+                ),
+            )
+            saved_count += 1
+            if saved_count % 3 == 0:
+                gc.collect()
+                await asyncio.sleep(1)
+
+        # Сохраняем скрипты группами по типам с эмбеддингами
+        scripts_by_type = {}
+        for script in scripts:
+            script_type = script["type"]
+            if script_type not in scripts_by_type:
+                scripts_by_type[script_type] = []
+            scripts_by_type[script_type].append(script)
+
+        for script_type, type_scripts in scripts_by_type.items():
+            scripts_list = "\n".join([f"- {s['path']}" for s in type_scripts[:20]])
+            content = (
+                f"Доступные {script_type} скрипты корпорации ({len(type_scripts)}):\n{scripts_list}"
+            )
+            embedding = None
+            if get_embedding:
+                try:
+                    embedding = await get_embedding(content)
+                except Exception as e:
+                    logger.debug(f"Ошибка создания эмбеддинга для скриптов {script_type}: {e}")
+
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, $3, 1.0, $4, true)
+            """,
+                domain_id,
+                content,
+                str(embedding) if embedding else None,
+                json.dumps(
+                    {
+                        "source": "corporation_knowledge_system",
+                        "type": f"scripts_{script_type}",
+                        "count": len(type_scripts),
+                        "timestamp": knowledge["timestamp"],
+                    }
+                ),
+            )
+            saved_count += 1
+            gc.collect()
+            await asyncio.sleep(0.5)
+
+        # [OMNI-RAG] Сохраняем описания изображений
+        if images:
+            try:
+                # [FIX] Исправлен импорт для работы внутри контейнера
+                try:
+                    from app.vision_processor import get_vision_processor
+                except ImportError:
+                    from vision_processor import get_vision_processor
+
+                vision = get_vision_processor()
+
+                for img in images:
+                    # Пропускаем слишком большие файлы для экономии времени в этом цикле
+                    if img["size"] > 5 * 1024 * 1024:
+                        continue
+
+                    # [SINGULARITY 21.10] Ограничиваем индексацию только важными исследованиями,
+                    # если проектных изображений нет.
+                    if "ai_research" in img["path"]:
+                        # Индексируем DeepSeek и AutoGen как ключевые технологии
+                        if not ("DeepSeek" in img["path"] or "autogen" in img["path"]):
+                            continue
+                        # Пропускаем аватарки, фавиконы и SVG (которые PIL не читает)
+                        if any(
+                            x in img["path"].lower() for x in ["avatar", "favicon", "logo", ".svg"]
+                        ):
+                            continue
+
+                    logger.info(f"🔍 [OMNI-RAG] Indexing image: {img['path']}")
+                    description = await vision.process_image(
+                        image_path=img["abs_path"],
+                        prompt="Опиши подробно, что на этом изображении: текст, объекты, схемы и логику.",
+                    )
+
+                    if description:
+                        logger.info(
+                            f"✅ [OMNI-RAG] Description generated for {img['path']}: {description[:50]}..."
+                        )
+                        # [FIX] Очистка описания от промпта, если модель его повторила
+                        description = description.replace(
+                            "Это файл из проекта Singularity 21.5. Опиши подробно, что на нем изображено, текст и логику (если это схема).",
+                            "",
+                        ).strip()
+                        description = description.replace(
+                            "Опиши подробно, что на этом изображении: текст, объекты, схемы и логику.",
+                            "",
+                        ).strip()
+
+                        content = f"Изображение {img['path']}: {description}"
+                        embedding = None
+                        if get_embedding:
+                            try:
+                                embedding = await get_embedding(content)
+                            except Exception:
+                                pass
+
+                        await conn.execute(
+                            """
+                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                            VALUES ($1, $2, $3, 0.9, $4, true)
+                        """,
+                            domain_id,
+                            content,
+                            str(embedding) if embedding else None,
+                            json.dumps(
+                                {
+                                    "source": "corporation_knowledge_system",
+                                    "type": "image_description",
+                                    "file_path": img["path"],
+                                    "timestamp": knowledge["timestamp"],
+                                }
+                            ),
+                        )
+                        saved_count += 1
+                        import gc
+
+                        gc.collect()
+                        await asyncio.sleep(0.5)
+            except Exception as ve:
+                logger.warning(f"⚠️ [OMNI-RAG] Ошибка обработки изображений: {ve}")
+
+        # Сохраняем недавние изменения с эмбеддингом
+        if recent_changes:
+            changes_text = "\n".join(
+                [
+                    f"- {c.get('date', '')[:19]}: {c.get('message', '')[:100]}"
+                    for c in recent_changes[:10]
+                ]
+            )
+            content = f"Недавние изменения в корпорации ({len(recent_changes)}):\n{changes_text}"
+            embedding = None
+            if get_embedding:
+                try:
+                    embedding = await get_embedding(content)
+                except Exception as e:
+                    logger.debug(f"Ошибка создания эмбеддинга для изменений: {e}")
+
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                VALUES ($1, $2, $3, 1.0, $4, true)
+            """,
+                domain_id,
+                content,
+                str(embedding) if embedding else None,
+                json.dumps(
+                    {
+                        "source": "corporation_knowledge_system",
+                        "type": "recent_changes",
+                        "count": len(recent_changes),
+                        "timestamp": knowledge["timestamp"],
+                    }
+                ),
+            )
+            saved_count += 1
+
+        # Также сохраняем общий сводный узел для быстрого доступа
+        summary_content = f"""Актуальное состояние корпорации (обновлено {knowledge["timestamp"]}):
+- Доступно моделей Ollama: {len(ollama_models)}
+- Доступно моделей MLX: {len(mlx_models)}
+- Доступно скриптов: {len(scripts)}
+- Доступно изображений (Omni-RAG): {len(images)}
+- Недавних изменений: {len(recent_changes)}
+Все знания доступны через search_knowledge."""
+
+        embedding = None
+        if get_embedding:
+            try:
+                embedding = await get_embedding(summary_content)
+            except Exception as e:
+                logger.debug(f"Ошибка создания эмбеддинга для сводки: {e}")
+
+        await conn.execute(
+            """
+            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+            VALUES ($1, $2, $3, 1.0, $4, true)
+        """,
+            domain_id,
+            summary_content,
+            str(embedding) if embedding else None,
+            json.dumps(
+                {
+                    "source": "corporation_knowledge_system",
+                    "type": "system_summary",
+                    "version": "1.0",
+                    "timestamp": knowledge["timestamp"],
+                }
+            ),
+        )
+        saved_count += 1
+
+        logger.info(
+            f"✅ Знания корпорации сохранены в базу знаний: {saved_count} узлов ({len(ollama_models)} Ollama, {len(mlx_models)} MLX, {len(scripts)} скриптов)"
+        )
 
     def generate_system_prompt_update(
         self,
@@ -496,10 +656,11 @@ Ollama модели ({}):
         return prompt
 
 
-async def update_all_agents_knowledge():
-    """Обновить знания всех агентов"""
+async def update_all_agents_knowledge(pool=None):
+    """Обновить знания всех агентов. Если передан pool (asyncpg), используем его для всех операций с БД."""
+    print("DEBUG: Starting update_all_agents_knowledge", flush=True)
     system = CorporationKnowledgeSystem()
-    knowledge = await system.update_corporation_knowledge()
+    knowledge = await system.update_corporation_knowledge(pool=pool)
 
     # Также извлекаем полные знания корпорации (системы, логика, умения)
     try:
@@ -516,7 +677,7 @@ async def update_all_agents_knowledge():
             from app.corporation_complete_knowledge import CorporationCompleteKnowledge
 
         complete_extractor = CorporationCompleteKnowledge()
-        complete_result = await complete_extractor.extract_all()
+        complete_result = await complete_extractor.extract_all(pool=pool)
         logger.info(
             f"✅ Извлечено полных знаний корпорации: {complete_result['total_extracted']} (сохранено: {complete_result['saved_to_db']})"
         )
@@ -528,7 +689,10 @@ async def update_all_agents_knowledge():
     lessons_learned = []
     if ASYNCPG_AVAILABLE:
         try:
-            conn_ins = await asyncpg.connect(system.db_url, command_timeout=10)
+            if pool is not None:
+                conn_ins = await pool.acquire()
+            else:
+                conn_ins = await asyncpg.connect(system.db_url, command_timeout=10)
             try:
                 rows = await conn_ins.fetch("""
                     SELECT k.content, k.confidence_score, d.name as domain_name
@@ -551,7 +715,10 @@ async def update_all_agents_knowledge():
                 """)
                 lessons_learned = [dict(r) for r in ll_rows]
             finally:
-                await conn_ins.close()
+                if pool is not None:
+                    await pool.release(conn_ins)
+                else:
+                    await conn_ins.close()
         except Exception as e:
             logger.debug("Не удалось загрузить топ-инсайты/lessons: %s", e)
 
@@ -562,8 +729,10 @@ async def update_all_agents_knowledge():
     # Обновляем system prompts всех агентов через БД
     if ASYNCPG_AVAILABLE:
         try:
-            # Используем прямое соединение вместо пула
-            conn = await asyncpg.connect(system.db_url, command_timeout=30)
+            if pool is not None:
+                conn = await pool.acquire()
+            else:
+                conn = await asyncpg.connect(system.db_url, command_timeout=30)
             try:
                 # Удаляем старые обновления знаний из system_prompt
                 experts = await conn.fetch("""
@@ -632,7 +801,10 @@ async def update_all_agents_knowledge():
                     f"✅ System prompts всех {len(experts)} агентов обновлены с актуальными знаниями"
                 )
             finally:
-                await conn.close()
+                if pool is not None:
+                    await pool.release(conn)
+                else:
+                    await conn.close()
         except Exception as e:
             logger.error(f"Ошибка обновления system prompts: {e}")
 

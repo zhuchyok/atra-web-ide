@@ -33,10 +33,10 @@ except ImportError:
 
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://0.0.0.0:8010")
 REPORTS_DIR = ROOT / "docs" / "curator_reports"
-SYNC_TIMEOUT = int(os.getenv("CURATOR_SYNC_TIMEOUT", "300"))
+SYNC_TIMEOUT = int(os.getenv("CURATOR_SYNC_TIMEOUT", "1200"))
 # Таймаут первого POST /run при async: до 202 Victoria выполняет стратегию и understand_goal (LLM); холодный старт может 3–5 мин
-POST_RUN_TIMEOUT = int(os.getenv("CURATOR_POST_RUN_TIMEOUT", "300"))
-POLL_INTERVAL = 2.5
+POST_RUN_TIMEOUT = int(os.getenv("CURATOR_POST_RUN_TIMEOUT", "600"))
+POLL_INTERVAL = 5.0
 DEFAULT_TASKS = [
     "привет",
     "какой статус проекта?",

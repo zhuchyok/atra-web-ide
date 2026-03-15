@@ -1,0 +1,19 @@
+{
+  "ts": "2026-03-14T14:27:54.235461+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "Полный анализ торгового дня MOEX 9 марта 2026. Файл: /Users/bikos/Downloads/2026-03-09.parquet. Схема: time(TIMESTAMP), ticker(VARCHAR), msg_type(O/T/L/H), payload(VARCHAR), sequence(UBIGINT). 24.4 млн записей. Форматы payload: O=снэпшот стакана ticker:bids(price,qty|...):asks(price,qty|...):ts; T=сделка ticker:price:side(+1/-1):qty:ts; L=last price ticker:price:ts. Используй /Users/bikos/Documents/atra-web-ide/knowledge_os/.venv/bin/python3 с duckdb. Задачи: 1) Распарси T-сообщения, посчитай buy/sell объём по топ-20 тикерам, найди дисбаланс (кит-активность). 2) Найди аномалии цены >0.5% через LAG() по L-сообщениям. 3) Для SBER и GAZP извлеки best_bid/best_ask из O-сообщений, посчитай спред, найди топ-10 аномально широких спредов. 4) Активность по часам — пиковые периоды. 5) Итоговый отчёт: характер дня, скрытые мотивы участников, инсайты.",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 37.11
+    }
+  ]
+}

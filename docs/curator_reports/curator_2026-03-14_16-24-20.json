@@ -1,0 +1,59 @@
+{
+  "ts": "2026-03-14T16:30:04.919786+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": false,
+  "tasks_count": 4,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "3c7830a3-cdd0-434c-b878-af16d54540d5",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 119.7
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 215.17
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+      "output_length": 222,
+      "correlation_id": "a3a42aee-3748-4104-b26e-487b9c9ab2e6",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 3.24
+    }
+  ]
+}

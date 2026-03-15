@@ -1,0 +1,21 @@
+Тебе предоставлен файл /data/downloads/2026-03-09.parquet — полный торговый день 9 марта 2026 (несколько млн записей, гранулярность 100ms).
+
+ЗАДАЧА: Провести глубокий анализ торговых данных через python-development инструмент.
+
+ШАГ 1 — Изучи схему файла:
+```python
+import duckdb
+conn = duckdb.connect()
+df = conn.execute("DESCRIBE SELECT * FROM read_parquet('/data/downloads/2026-03-09.parquet') LIMIT 0").fetchdf()
+print("SCHEMA:", df.to_string())
+info = conn.execute("SELECT COUNT(*) as total, MIN(time) as t_min, MAX(time) as t_max FROM read_parquet('/data/downloads/2026-03-09.parquet')").fetchdf()
+print("INFO:", info.to_string())
+sample = conn.execute("SELECT * FROM read_parquet('/data/downloads/2026-03-09.parquet') LIMIT 3").fetchdf()
+print("SAMPLE:", sample.to_string())
+```
+
+ШАГ 2 — Изучи структуру payload (первые 3 строки).
+
+ШАГ 3 — Найди аномалии: резкие ценовые движения (>0.3% за секунду), аномальные объёмы (>3 sigma), признаки spoofing/layering, активность китов.
+
+ШАГ 4 — Верни итоговый отчёт с выводами по рынку 9 марта 2026: аномалии, маркет-мейкеры, киты, общие паттерны.

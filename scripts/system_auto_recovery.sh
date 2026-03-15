@@ -488,6 +488,13 @@ log ""
     fi
     log ""
 
+    # 13. [SINGULARITY 21.5] Сброс зависших задач (Watchdog)
+    log "[13/13] Сброс зависших задач..."
+    if [ -x "knowledge_os/.venv/bin/python" ]; then
+        "knowledge_os/.venv/bin/python" "knowledge_os/scripts/reset_stuck_tasks.py" >> "$LOG_FILE" 2>&1 || true
+    fi
+    log ""
+
     if [ $FINAL_SERVICES_OK -ge 3 ]; then
     log "✅ СИСТЕМА В РАБОЧЕМ СОСТОЯНИИ"
     log ""

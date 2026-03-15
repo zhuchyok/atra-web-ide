@@ -128,7 +128,17 @@ def render_code_mutations():
             "app",
             f"{selected_mutation['module']}.py",
         )
+        # [FIX] Корректировка путей для Docker
+        if not os.path.exists(module_path) and os.path.exists(
+            f"/app/knowledge_os/app/{selected_mutation['module']}.py"
+        ):
+            module_path = f"/app/knowledge_os/app/{selected_mutation['module']}.py"
+
         mutation_path = selected_mutation["mutation_path"]
+        if not os.path.exists(mutation_path) and mutation_path.startswith("knowledge_os/"):
+            alt_path = os.path.join("/app", mutation_path)
+            if os.path.exists(alt_path):
+                mutation_path = alt_path
 
         try:
             if os.path.exists(module_path):
@@ -373,9 +383,19 @@ def render_synthesis_hub():
         else:
             with st.spinner("Эксперты обсуждают проблему..."):
                 try:
-                    # Имитация вызова ConsensusAgent (в будущем — реальный вызов через API)
-                    # Для демонстрации используем Victoria Enhanced
-                    from app.victoria_enhanced import VictoriaEnhanced
+                    # Надёжный импорт: дашборд может запускаться из dashboard/ или из корня knowledge_os (аудит 2026-03-11)
+                    try:
+                        from app.victoria_enhanced import VictoriaEnhanced
+                    except ImportError:
+                        try:
+                            from victoria_enhanced import VictoriaEnhanced
+                        except ImportError:
+                            # [FIX] Дополнительный путь для Docker
+                            import os
+                            import sys
+
+                            sys.path.append("/app/knowledge_os/app")
+                            from victoria_enhanced import VictoriaEnhanced
 
                     victoria = VictoriaEnhanced()
 
@@ -387,30 +407,45 @@ def render_synthesis_hub():
                     ВЫДАЙ ИТОГОВЫЙ КОНСЕНСУС И УРОВЕНЬ СОГЛАСИЯ (в %).
                     """
 
-                    result = (
-                        victoria.solve_sync(prompt, method="consensus")
-                        if hasattr(victoria, "solve_sync")
-                        else victoria.solve(prompt, method="extended_thinking")
-                    )
+                    # [FIX] Реальный вызов Виктории
+                    result = None
+                    if hasattr(victoria, "solve_sync"):
+                        result = victoria.solve_sync(prompt, method="consensus")
+                    else:
+                        # Fallback на асинхронный вызов через loop
+                        import asyncio
 
-                    st.success("✅ Консенсус достигнут!")
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        result = loop.run_until_complete(victoria.solve(prompt, method="consensus"))
+                        loop.close()
 
-                    # Визуализация уровня согласия
-                    agreement = 85  # Заглушка для демонстрации
-                    st.write(f"**Уровень согласия экспертов:** {agreement}%")
-                    st.progress(agreement / 100)
+                    if result:
+                        st.success("✅ Консенсус достигнут!")
 
-                    st.markdown("### 📜 Единое решение корпорации")
-                    st.info(
-                        "Это решение синтезировано на основе коллективного разума выбранных экспертов."
-                    )
-                    # Здесь должен быть текст из result
-                    st.write(
-                        "Согласно мнению экспертов, для достижения 100к RPS необходимо внедрить PgBouncer в режиме транзакций, оптимизировать shared_buffers до 25% RAM и использовать партиционирование таблиц по дате."
-                    )
+                        # Пытаемся извлечь agreement из результата или метаданных
+                        agreement = 85
+                        if isinstance(result, dict) and "agreement_score" in result:
+                            agreement = int(result["agreement_score"] * 100)
+
+                        st.write(f"**Уровень согласия экспертов:** {agreement}%")
+                        st.progress(agreement / 100)
+
+                        st.markdown("### 📜 Единое решение корпорации")
+                        st.info(
+                            "Это решение синтезировано на основе коллективного разума выбранных экспертов."
+                        )
+
+                        output_text = (
+                            result if isinstance(result, str) else result.get("output", str(result))
+                        )
+                        st.write(output_text)
+                    else:
+                        st.error("Виктория не вернула результат.")
 
                 except Exception as e:
                     st.error(f"Ошибка синтеза: {e}")
+                    st.code(traceback.format_exc())
 
 
 def render_ai_research_kb():

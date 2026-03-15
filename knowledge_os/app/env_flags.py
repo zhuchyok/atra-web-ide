@@ -6,6 +6,11 @@
 """
 
 import os
+from typing import Any, Dict
+
+# Счётчики для метрик Prometheus (STRICT_LOCAL)
+_strict_local_qa_skip_count: int = 0
+_strict_local_safety_skip_count: int = 0
 
 
 def is_strict_local() -> bool:
@@ -33,3 +38,29 @@ def get_strict_local_status() -> dict:
     """
     enabled = is_strict_local()
     return {"enabled": enabled, "mode": "strict_local" if enabled else "normal"}
+
+
+def increment_strict_local_qa_skip() -> None:
+    """Увеличивает счётчик QA reroute_to_cloud, пропущенных из-за STRICT_LOCAL."""
+    global _strict_local_qa_skip_count
+    _strict_local_qa_skip_count += 1
+
+
+def increment_strict_local_safety_skip() -> None:
+    """Увеличивает счётчик safety reroute, пропущенных из-за STRICT_LOCAL."""
+    global _strict_local_safety_skip_count
+    _strict_local_safety_skip_count += 1
+
+
+def get_strict_local_metrics() -> Dict[str, Any]:
+    """
+    Возвращает метрики STRICT_LOCAL для экспорта в Prometheus.
+
+    Returns:
+        dict: enabled (bool), qa_skip_count (int), safety_skip_count (int)
+    """
+    return {
+        "enabled": is_strict_local(),
+        "qa_skip_count": _strict_local_qa_skip_count,
+        "safety_skip_count": _strict_local_safety_skip_count,
+    }

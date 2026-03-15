@@ -20,11 +20,12 @@ async def reset_stuck_tasks():
     """Возвращает зависшие задачи в pending"""
     conn = await asyncpg.connect(DB_URL)
     try:
-        # Возвращаем задачи, которые зависли в in_progress более 1 часа
+        # Возвращаем задачи, которые зависли в in_progress более 4 часов
         result = await conn.execute("""
             UPDATE tasks
-            SET status = 'pending',
+            SET status = 'failed',
                 updated_at = NOW(),
+                result = 'Terminated by watchdog: stuck in in_progress for > 4 hours',
                 metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
                     'stuck_reset', true,
                     'stuck_reset_at', NOW()::text,
@@ -32,15 +33,32 @@ async def reset_stuck_tasks():
                     'reset_count', COALESCE((metadata->>'reset_count')::int, 0) + 1
                 )
             WHERE status = 'in_progress'
-            AND updated_at < NOW() - INTERVAL '1 hour'
+            AND updated_at < NOW() - INTERVAL '4 hours'
         """)
 
         reset_count = int(result.split()[-1])
 
         if reset_count > 0:
-            print(f"[{datetime.now()}] ✅ Возвращено в pending зависших задач: {reset_count}")
+            print(f"[{datetime.now()}] ⚠️ Завершено зависших задач (>4ч): {reset_count}")
         else:
-            print(f"[{datetime.now()}] ✅ Зависших задач не найдено")
+            print(f"[{datetime.now()}] ✅ Критически зависших задач (>4ч) не найдено")
+
+        # Дополнительно: возвращаем в pending задачи, которые висят от 1 до 4 часов (мягкий сброс)
+        soft_result = await conn.execute("""
+            UPDATE tasks
+            SET status = 'pending',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                    'soft_reset', true,
+                    'soft_reset_at', NOW()::text
+                )
+            WHERE status = 'in_progress'
+            AND updated_at < NOW() - INTERVAL '1 hour'
+            AND updated_at >= NOW() - INTERVAL '4 hours'
+        """)
+        soft_reset_count = int(soft_result.split()[-1])
+        if soft_reset_count > 0:
+            print(f"[{datetime.now()}] 🔄 Возвращено в pending (1-4ч): {soft_reset_count}")
 
         # Статистика
         stats = await conn.fetch("""

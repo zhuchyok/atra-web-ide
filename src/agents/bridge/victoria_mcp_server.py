@@ -22,7 +22,7 @@ VICTORIA_URL = os.getenv(
 # Таймаут для victoria_run (сек). Задачи на код (оркестратор → эксперты) часто > 5 мин. По умолчанию 10 мин.
 VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "600"))
 
-mcp = FastMCP("VictoriaATRA", host="0.0.0.0", port=8012, sse_path="/sse")
+mcp = FastMCP("VictoriaATRA")
 
 
 def _parse_run_result(result: dict) -> str:
@@ -467,9 +467,4 @@ async def victoria_batch_grep(
 
 
 if __name__ == "__main__":
-    logger.info("🚀 Victoria MCP Server запущен на http://0.0.0.0:8012")
-    logger.info("   SSE: http://localhost:8012/sse")
-    logger.info(f"   Victoria API: {VICTORIA_URL}")
-
-    # Запуск в режиме SSE для Cursor
-    mcp.run(transport="sse")
+    mcp.run()

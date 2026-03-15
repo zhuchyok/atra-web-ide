@@ -1,0 +1,14 @@
+#!/usr/bin/expect -f
+set timeout 60
+spawn moondream-station
+expect "Token: " {
+    send "\r"
+}
+expect "Moondream Station is running" {
+    puts "Moondream Station started successfully"
+}
+# Don't interact, just let it run in the background
+# But we need to keep it alive
+while {1} {
+    sleep 60
+}

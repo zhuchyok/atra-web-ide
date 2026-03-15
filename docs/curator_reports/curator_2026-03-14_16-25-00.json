@@ -1,0 +1,370 @@
+{
+  "ts": "2026-03-14T18:15:51.232068+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 28,
+  "results": [
+    {
+      "goal": "Проанализируй файл /data/downloads/2026-03-09.parquet с биржевыми данными MOEX через DuckDB. Напиши и выполни python3-скрипт с таким кодом:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 649.34
+    },
+    {
+      "goal": "import duckdb",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "con = duckdb.connect()",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "# 1. Схема файла",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 57.11
+    },
+    {
+      "goal": "print(\"=== SCHEMA ===\")",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "con.execute(\"DESCRIBE SELECT * FROM '/data/downloads/2026-03-09.parquet' LIMIT 1\").fetchdf().to_string()",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "# 2. Общее количество строк",
+      "status": "success",
+      "error": null,
+      "output_preview": "Victoria уточняет: Какой файл или каталог нужно посчитать?; Это часть более крупной задачи (например, подсчёт строк в проекте)?; Нужно использовать команду wc -l для подсчёта?",
+      "output_length": 175,
+      "correlation_id": "55e7a6b7-dd36-44d0-8176-c7d9b6e62625",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "Какой файл или каталог нужно посчитать?",
+          "Это часть более крупной задачи (например, подсчёт строк в проекте)?",
+          "Нужно использовать команду wc -l для подсчёта?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Не указан файл или источник данных для подсчета строк",
+        "confidence": 0.5,
+        "uncertainty_reason": "Не указан файл или источник данных для подсчета строк",
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 216.44
+    },
+    {
+      "goal": "count = con.execute(\"SELECT COUNT(*) FROM '/data/downloads/2026-03-09.parquet'\").fetchone()[0]",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 282.54
+    },
+    {
+      "goal": "print(f\"Total rows: {count}\")",
+      "status": "success",
+      "error": null,
+      "output_preview": "Victoria уточняет: Какой контекст использования этого кода? (отладка, логирование, вывод пользователю); Что такое переменная count и откуда она берётся?; Нужна ли обработка ошибок или форматирование вывода?",
+      "output_length": 206,
+      "correlation_id": "aaabc4b4-35b2-4f8e-bcc7-ee7f805292ae",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "Какой контекст использования этого кода? (отладка, логирование, вывод пользователю)",
+          "Что такое переменная count и откуда она берётся?",
+          "Нужна ли обработка ошибок или форматирование вывода?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Цель содержит только фрагмент кода без контекста задачи, нужны уточнения о том, что нужно сделать с этим print-вызовом",
+        "confidence": 0.5,
+        "uncertainty_reason": "Цель содержит только фрагмент кода без контекста задачи, нужны уточнения о том, что нужно сделать с этим print-вызовом",
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 156.42
+    },
+    {
+      "goal": "# 3. Первые 5 строк",
+      "status": "success",
+      "error": null,
+      "output_preview": "Victoria уточняет: Какой файл нужно прочитать?; Что делать с первыми 5 строками (показать, обработать, скопировать)?; Нужно ли выполнить команду для вывода строк?",
+      "output_length": 162,
+      "correlation_id": "cb8ce7b3-ae64-419b-84b2-e552b4ab01a5",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "Какой файл нужно прочитать?",
+          "Что делать с первыми 5 строками (показать, обработать, скопировать)?",
+          "Нужно ли выполнить команду для вывода строк?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Не указан файл или источник данных для вывода первых 5 строк",
+        "confidence": 0.8,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 120.21
+    },
+    {
+      "goal": "print(\"=== SAMPLE ===\")",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 547.87
+    },
+    {
+      "goal": "print(con.execute(\"SELECT * FROM '/data/downloads/2026-03-09.parquet' LIMIT 5\").fetchdf().to_string())",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "01cda7f3-c741-4849-be15-3ddec6d3a5a8",
+      "execution_trace": {},
+      "elapsed_seconds": 604.83
+    },
+    {
+      "goal": "# 4. Уникальные типы событий (event_type или type)",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "32b5f4f6-5ec9-4d24-9b45-69a8791d7533",
+      "execution_trace": {},
+      "elapsed_seconds": 601.09
+    },
+    {
+      "goal": "print(\"=== EVENT TYPES ===\")",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 132.26
+    },
+    {
+      "goal": "try:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "print(con.execute(\"SELECT event_type, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY event_type ORDER BY cnt DESC\").fetchdf().to_string())",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "548c82e0-48cd-4ecc-ae0f-30f88715f3bf",
+      "execution_trace": {},
+      "elapsed_seconds": 604.09
+    },
+    {
+      "goal": "except:",
+      "status": "success",
+      "error": null,
+      "output_preview": "Victoria уточняет: Можете уточнить, что именно нужно сделать?; Какие требования к результату?; Есть ли ограничения или условия?",
+      "output_length": 127,
+      "correlation_id": "e997b37a-eaa1-4fe2-965c-698624d60ddd",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "Можете уточнить, что именно нужно сделать?",
+          "Какие требования к результату?",
+          "Есть ли ограничения или условия?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Цель 'except:' не содержит конкретной задачи, требуется уточнение",
+        "confidence": 0.95,
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 190.31
+    },
+    {
+      "goal": "try:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 318.29
+    },
+    {
+      "goal": "print(con.execute(\"SELECT type, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY type ORDER BY cnt DESC\").fetchdf().to_string())",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "except Exception as e:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.03
+    },
+    {
+      "goal": "print(f\"No type column: {e}\")",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cab59e1b-ea75-46d7-adae-a119b4e49a6e",
+      "execution_trace": {},
+      "elapsed_seconds": 604.51
+    },
+    {
+      "goal": "# 5. Топ-5 инструментов по объему",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 212.59
+    },
+    {
+      "goal": "try:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "print(\"=== TOP SYMBOLS ===\")",
+      "status": "success",
+      "error": null,
+      "output_preview": "В корпорации 1569 задач.\n\n_Источник: `SELECT COUNT(*) FROM tasks LIMIT 100`_",
+      "output_length": 76,
+      "correlation_id": "3f8175ff-7351-491e-9c3d-9d16e6f946d4",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "3f8175ff-7351-491e-9c3d-9d16e6f946d4",
+        "goal_preview": "print(\"=== TOP SYMBOLS ===\")"
+      },
+      "elapsed_seconds": 561.99
+    },
+    {
+      "goal": "print(con.execute(\"SELECT symbol, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY symbol ORDER BY cnt DESC LIMIT 5\").fetchdf().to_string())",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 272.61
+    },
+    {
+      "goal": "except Exception as e:",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "print(f\"No symbol column: {e}\")",
+      "status": "success",
+      "error": null,
+      "output_preview": "Victoria уточняет: В каком файле находится этот код?; Какая ошибка возникает при выполнении этого кода?; Что должно быть в столбце 'symbol'?",
+      "output_length": 140,
+      "correlation_id": "96ea6e9a-3434-439e-ae2d-65ab023b1dec",
+      "execution_trace": {
+        "needs_clarification": true,
+        "clarification_questions": [
+          "В каком файле находится этот код?",
+          "Какая ошибка возникает при выполнении этого кода?",
+          "Что должно быть в столбце 'symbol'?"
+        ],
+        "strategy": "need_clarification",
+        "strategy_reason": "Неясно, что нужно сделать с этим фрагментом кода — исправить ошибку, объяснить или проанализировать контекст",
+        "confidence": 0.5,
+        "uncertainty_reason": "Неясно, что нужно сделать с этим фрагментом кода — исправить ошибку, объяснить или проанализировать контекст",
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 131.95
+    },
+    {
+      "goal": "print(\"DONE\")",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 332.49
+    }
+  ]
+}

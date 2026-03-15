@@ -2,6 +2,8 @@
 
 Чтобы по **https://www.setki21.ru** открывался сайт проекта Сетки 21, а не только API.
 
+> **Важно:** В продакшене используется стек **setki21_src** (контейнеры **setki21-web-new:3000** и **setki21-api-new:8080**). NPM должен направлять все домены Setki21 на этот стек. **Единый источник истины по NPM и маршрутизации:** **docs/SETKI21_NPM_SOURCE_OF_TRUTH.md**. При белом экране на всех сайтах — **docs/runbooks/SETKI21_WHITE_SCREEN.md**. Ниже описан альтернативный вариант со статикой (**setki21-site**); не переключайте NPM на setki21-site:80 без явной цели — иначе белые экраны вернутся.
+
 > **Цены в админке:** сейчас API на VDS — это только atra-core (вход без БД). Разделы «Цены», «Дилеры», «Заказы» и загрузка цен в калькуляторе работают через **moskit-api** (проект setki-21) и PostgreSQL. Как их развернуть — см. **docs/SETKI21_ADMIN_PRICING_VDS.md**.
 
 **На VDS в docker-compose уже добавлен сервис `setki21-site`.** Если compose на сервере старый, обнови его из репо (файл `docker-compose.vds.yml` → скопировать в `/home/atra/app/docker-compose.yml` на VDS).
@@ -60,12 +62,13 @@ ssh root@45.10.43.248 "cd /home/atra/app && docker-compose up -d setki21-site"
    - **Forward Hostname / IP:** `setki21-site`
    - **Forward Port:** `80`
    - Остальное без изменений → **Save**.
-4. **Custom Locations** → добавь два правила:
-   - **Location:** `/api` → **Forward** `moskit-api:8080`.
+4. **Custom Locations** → добавь три правила (порядок важен: более специфичные выше):
+   - **Location:** `/uploads` → **Forward** `setki21-api-new:8080` (логотипы дилеров из volume setki21_uploads).
+   - **Location:** `/api` → **Forward** `moskit-api:8080` (tenant, цены, админка — БД с дилерами).
    - **Location:** `/health` → **Forward** `moskit-api:8080`.
 5. Сохрани.
 
-Образец конфига NPM: **scripts/npm_proxy_setki21.conf**. В итоге: запросы к **/** идут в setki21-site (сайт), к **/api**, **/health** и **/uploads** — в moskit-api (вход, цены, админка, логотипы дилеров). Блок `location /uploads` нужен, чтобы по адресу https://www.setki21.ru/uploads/… отдавались загруженные в админке файлы; при ручной настройке в NPM добавь Custom Location: path **/uploads**, forward **moskit-api:8080**.
+**Почему так:** Контейнер **moskit-api** подключён к БД с tenant/дилерами — без него главная даёт белый экран (нет `/api/v1/tenant/config`). Контейнер **setki21-api-new** отдаёт файлы из `/home/atra/setki21_uploads` — для логотипов нужен именно он. Образец конфига: **scripts/npm_proxy_setki21.conf**.
 
 ## 6. Проверка
 

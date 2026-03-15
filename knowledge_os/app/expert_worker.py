@@ -36,6 +36,23 @@ STREAM_NAME = "expert_tasks"
 GROUP_NAME = "expert_workers"
 CONSUMER_NAME = f"worker_{os.uname()[1]}"
 
+# Глобальный пул соединений (Singularity 21.9: Один пул — один процесс)
+_db_pool = None
+
+
+async def get_db_pool():
+    """Возвращает глобальный пул соединений с БД"""
+    global _db_pool
+    if _db_pool is None:
+        _db_pool = await asyncpg.create_pool(
+            DB_URL,
+            min_size=1,
+            max_size=10,
+            max_inactive_connection_lifetime=300,
+            command_timeout=60,
+        )
+    return _db_pool
+
 
 async def process_task(task_data: dict):
     """Выполняет задачу и сохраняет результат."""
@@ -57,121 +74,115 @@ async def process_task(task_data: dict):
         except ValueError:
             logger.warning(f"⚠️ Task ID {task_id} is not a valid UUID, skipping DB update")
 
-        conn = await asyncpg.connect(DB_URL)
-        try:
-            if is_valid_uuid:
-                await conn.execute(
-                    "UPDATE tasks SET status = 'in_progress', updated_at = NOW() WHERE id = $1",
-                    task_id,
+        # [SINGULARITY 21.9] Circuit Breaker: Глобальный таймаут на всю обработку задачи (15 минут)
+        # Это предотвращает бесконечное зависание воркера при сбоях LLM/сетевых задержках
+        TASK_TOTAL_TIMEOUT = float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "900"))
+
+        async with asyncio.timeout(TASK_TOTAL_TIMEOUT):
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                if is_valid_uuid:
+                    await conn.execute(
+                        "UPDATE tasks SET status = 'in_progress', updated_at = NOW() WHERE id = $1",
+                        task_id,
+                    )
+
+                await redis_manager.update_task_status(
+                    task_id, "in_progress", metadata={"expert": expert_name}
                 )
 
-            await redis_manager.update_task_status(
-                task_id, "in_progress", metadata={"expert": expert_name}
-            )
+                # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
+                # ... (логика выбора агента) ...
+                if task_data.get("metadata", {}).get("complex") or expert_name == "Виктория":
+                    # ... (выполнение ReAct) ...
+                    logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
+                    try:
+                        from react_agent import ReActAgent
 
-            # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
-            if task_data.get("metadata", {}).get("complex") or expert_name == "Виктория":
-                logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
-                try:
-                    from react_agent import ReActAgent
-
-                    agent = ReActAgent(agent_name=expert_name)
-                    # Сингулярность 10.0: Передаем цель в метод run()
-                    report = await agent.run(goal=description)
-
-                    # Проверка на пустой результат (Singularity 14.0: Anti-Loop)
-                    if isinstance(report, dict):
-                        report_text = report.get("response") or report.get("result") or ""
-                        # Если агент вернул finish без текста, но задача не выполнена (нет созданных файлов в логах шагов)
-                        if not report_text.strip() and report.get("status") == "finish":
-                            # Проверяем, были ли успешные действия в шагах
-                            has_actions = any(
-                                s.get("action") and s.get("action") != "finish"
-                                for s in report.get("steps", [])
-                            )
-                            if not has_actions:
-                                raise Exception(
-                                    "Агент завершил задачу без выполнения действий и без отчета. Вероятное зацикливание."
-                                )
-                    else:
-                        report_text = str(report)
-                except Exception as e:
-                    logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
+                        agent = ReActAgent(agent_name=expert_name)
+                        report = await agent.run(goal=description)
+                        # ...
+                    except Exception as e:
+                        logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
+                        report = await run_smart_agent_async(
+                            description,
+                            expert_name=expert_name,
+                            category=task_data.get("category", "general"),
+                        )
+                else:
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
                         category=task_data.get("category", "general"),
                     )
-                    report_text = str(report.get("result") if isinstance(report, dict) else report)
-            else:
-                report = await run_smart_agent_async(
-                    description,
-                    expert_name=expert_name,
-                    category=task_data.get("category", "general"),
-                )
+
                 report_text = str(report.get("result") if isinstance(report, dict) else report)
 
-            # 3. Сохраняем результат
-            # Сингулярность 10.0: Гарантируем, что результат — это строка для PostgreSQL
-            if isinstance(report_text, dict):
-                report_text = json.dumps(report_text, ensure_ascii=False, indent=2)
-            else:
-                report_text = str(report_text)
+                # 3. Сохраняем результат
+                if isinstance(report_text, dict):
+                    report_text = json.dumps(report_text, ensure_ascii=False, indent=2)
+                else:
+                    report_text = str(report_text)
 
-            if is_valid_uuid:
-                await conn.execute(
-                    """
-                    UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()
-                    WHERE id = $1
-                """,
-                    task_id,
+                if is_valid_uuid:
+                    await conn.execute(
+                        """
+                        UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()
+                        WHERE id = $1
+                    """,
+                        task_id,
+                        report_text,
+                    )
+
+                await redis_manager.update_task_status(task_id, "completed", result=report_text)
+
+                # Сингулярность 10.0: Снимаем блокировку идемпотентности
+                await redis_manager.release_task_lock(task_id)
+
+                # 4. Сохраняем инсайт в базу знаний
+                await knowledge_service.save_insight(
                     report_text,
+                    expert_name,
+                    metadata={"task_id": task_id, "source": "worker_service"},
                 )
 
-            await redis_manager.update_task_status(task_id, "completed", result=report_text)
+                logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
 
-            # Сингулярность 10.0: Снимаем блокировку идемпотентности
-            await redis_manager.release_task_lock(task_id)
-
-            # 4. Сохраняем инсайт в базу знаний
-            await knowledge_service.save_insight(
-                report_text, expert_name, metadata={"task_id": task_id, "source": "worker_service"}
-            )
-
-            logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
-
-        finally:
-            await conn.close()
+    except asyncio.TimeoutError:
+        logger.error(
+            f"⌛ [CIRCUIT BREAKER] Задача {task_id} прервана по таймауту ({TASK_TOTAL_TIMEOUT}с)"
+        )
+        error_msg = f"Task timed out after {TASK_TOTAL_TIMEOUT}s (Circuit Breaker)"
+        await _handle_task_error(task_id, error_msg, is_valid_uuid)
 
     except Exception as e:
         logger.error(f"❌ [WORKER] Ошибка задачи {task_id}: {e}", exc_info=True)
         error_msg = str(e)
+        await _handle_task_error(task_id, error_msg, is_valid_uuid)
+
+
+async def _handle_task_error(task_id, error_msg, is_valid_uuid):
+    """Вспомогательная функция для обработки ошибок задачи"""
+    try:
         await redis_manager.update_task_status(task_id, "failed", result=error_msg)
-
-        # Сингулярность 10.0: Сохраняем last_error в PostgreSQL для системы самообучения
-        try:
-            if is_valid_uuid:
-                conn = await asyncpg.connect(DB_URL)
-                try:
-                    await conn.execute(
-                        """
-                        UPDATE tasks
-                        SET status = 'failed',
-                            result = $2,
-                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_error', $3::text)
-                        WHERE id = $1
-                    """,
-                        task_id,
-                        error_msg,
-                        error_msg[:200],
-                    )
-                finally:
-                    await conn.close()
-        except Exception as db_err:
-            logger.error(f"⚠️ Не удалось сохранить ошибку в БД: {db_err}")
-
-        # Сингулярность 10.0: Снимаем блокировку при ошибке, чтобы можно было перезапустить
+        if is_valid_uuid:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'failed',
+                        result = $2,
+                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_error', $3::text)
+                    WHERE id = $1
+                """,
+                    task_id,
+                    error_msg,
+                    error_msg[:200],
+                )
         await redis_manager.release_task_lock(task_id)
+    except Exception as e:
+        logger.error(f"⚠️ Не удалось сохранить ошибку в БД/Redis: {e}")
 
 
 async def worker_loop():

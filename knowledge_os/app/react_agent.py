@@ -74,7 +74,7 @@ class ReActAgent:
     def __init__(
         self,
         agent_name: str = "Виктория",
-        model_name: str = "qwq:32b",  # Самая мощная reasoning модель после удаления 70B/104B
+        model_name: str = "victoria-wisdom-v3.5:latest",  # Основная модель Виктории; qwq:32b слишком тяжёлая и блокирует Ollama для других запросов
         ollama_url: str = None,
         max_iterations: int = 10,
         system_prompt: Optional[str] = None,
@@ -179,6 +179,7 @@ class ReActAgent:
                 available_tools = [
                     "read_file",  # Чтение файлов
                     "run_terminal_cmd",  # Выполнение команд
+                    "python-development",  # Выполнение Python кода (duckdb, pandas, анализ данных)
                     "list_directory",  # Список файлов
                     "create_file",  # Создание файлов
                     "write_file",  # Запись в файлы
@@ -461,7 +462,9 @@ class ReActAgent:
         # Детальное описание инструментов
         tools_descriptions = {
             "read_file": "Читает содержимое файла. Параметры: file_path (путь к файлу)",
-            "run_terminal_cmd": "Выполняет команду в терминале. Параметры: command (команда для выполнения)",
+            "run_terminal_cmd": "Выполняет shell-команду в терминале. Параметры: command (команда для выполнения)",
+            "python-development": "Выполняет Python код. Параметры: code (Python код для выполнения), file_path (необязательно, путь для сохранения скрипта). Используй для анализа данных, duckdb, pandas, pyarrow.",
+            "execute_python": "Алиас python-development. Параметры: code (Python код), file_path (необязательно).",
             "list_directory": "Показывает список файлов в директории. Параметры: directory или path (путь к директории)",
             "create_file": "Создает НОВЫЙ файл с содержимым. Параметры: file_path (путь), content (содержимое)",
             "smart-patch": "Применяет точечные изменения к СУЩЕСТВУЮЩЕМУ файлу (SEARCH/REPLACE). Параметры: file_path (путь), patch_content (строка с блоками <<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE). Используй для правок кода.",
@@ -826,6 +829,44 @@ class ReActAgent:
         """Выполнить действие с реальными инструментами"""
         logger.info(f"🔧 [{self.agent_name}] Выполняю действие: {action}")
 
+        # Python-код: запись во временный файл + выполнение
+        if action in ["python-development", "execute_python", "run_python", "python_exec"]:
+            code = (
+                action_input.get("code")
+                or action_input.get("content")
+                or action_input.get("script")
+                or ""
+            )
+            file_path = action_input.get("file_path", "/tmp/_react_agent_exec.py")
+            if not code:
+                return "Error: не передан Python код (ожидается поле code или content)"
+            try:
+                import os as _os
+                import subprocess
+                import tempfile
+
+                _os.makedirs(
+                    _os.path.dirname(file_path) if _os.path.dirname(file_path) else "/tmp",
+                    exist_ok=True,
+                )
+                with open(file_path, "w", encoding="utf-8") as _f:
+                    _f.write(code)
+                result = subprocess.run(
+                    ["python3", file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                )
+                output = result.stdout or ""
+                err = result.stderr or ""
+                if result.returncode != 0:
+                    return f"STDOUT:\n{output}\nSTDERR (exit {result.returncode}):\n{err}"
+                return f"STDOUT:\n{output}" + (f"\nSTDERR:\n{err}" if err.strip() else "")
+            except subprocess.TimeoutExpired:
+                return "Error: Python скрипт превысил таймаут 120 секунд"
+            except Exception as e:
+                return f"Error executing Python: {str(e)}"
+
         # [SINGULARITY 21.6] Прямое выполнение системных команд через Shell (Cursor-like)
         if action in [
             "run_terminal_cmd",
@@ -1051,6 +1092,27 @@ class ReActAgent:
                 return f"Файл '{file_path}' успешно создан"
             elif action == "finish":
                 return action_input.get("output", "")
+            elif action in ["python-development", "execute_python", "run_python", "python_exec"]:
+                # Fallback Python executor (дублирует основной обработчик выше)
+                code = (
+                    action_input.get("code")
+                    or action_input.get("content")
+                    or action_input.get("script")
+                    or ""
+                )
+                file_path = action_input.get("file_path", "/tmp/_react_agent_exec.py")
+                if not code:
+                    return "Error: не передан Python код"
+                import subprocess as _sp
+
+                with open(file_path, "w", encoding="utf-8") as _f:
+                    _f.write(code)
+                r = _sp.run(["python3", file_path], capture_output=True, text=True, timeout=120)
+                out = r.stdout or ""
+                err = r.stderr or ""
+                if r.returncode != 0:
+                    return f"STDOUT:\n{out}\nSTDERR (exit {r.returncode}):\n{err}"
+                return f"STDOUT:\n{out}" + (f"\nSTDERR:\n{err}" if err.strip() else "")
             return f"Error: Неизвестное действие '{action}'"
         except Exception as e:
             logger.error(f"❌ Ошибка выполнения действия {action}: {e}")
@@ -1086,6 +1148,14 @@ class ReActAgent:
             )
 
             # КЭШИРОВАНИЕ СПИСКА МОДЕЛЕЙ (Сингулярность 10.0: Оптимизация скорости)
+            # Модели-тяжеловесы, которые нельзя подгружать через fallback — они блокируют Ollama
+            BLOCKED_HEAVY_MODELS = {
+                "qwq:32b",
+                "qwen2.5-coder:32b",
+                "deepseek-r1:32b",
+                "qwen3.5:35b",
+            }
+
             if not hasattr(self, "_models_to_try_cache"):
                 models_to_try = [self.model_name]
                 try:
@@ -1095,21 +1165,23 @@ class ReActAgent:
                         from app.available_models_scanner import scan_and_select_models
                     selection = await scan_and_select_models(mlx_url, ollama_url)
 
-                    # Добавляем лучшие модели из Ollama и MLX в список попыток
-                    if selection.ollama_best and selection.ollama_best not in models_to_try:
+                    # Добавляем только лучшую модель Ollama (не весь список!)
+                    if (
+                        selection.ollama_best
+                        and selection.ollama_best not in models_to_try
+                        and selection.ollama_best not in BLOCKED_HEAVY_MODELS
+                    ):
                         models_to_try.append(selection.ollama_best)
 
-                    # Добавляем остальные доступные модели из Ollama
-                    for m in selection.ollama_models:
-                        if m not in models_to_try:
-                            models_to_try.append(m)
+                    # Добавляем лёгкие MLX-модели как быстрый fallback
+                    if selection.mlx_best and selection.mlx_best not in models_to_try:
+                        models_to_try.append(selection.mlx_best)
+
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка сканирования моделей в ReActAgent: {e}")
-                    # Fallback на статический список если сканер не сработал
+                    # Fallback только лёгкие модели — никаких тяжёлых
                     fallback_models = [
-                        "qwen2.5-coder:32b",
-                        "glm-4.7-flash:q8_0",
-                        "qwq:32b",
+                        "glm-4.7-flash:latest",
                         "tinyllama:1.1b-chat",
                     ]
                     for m in fallback_models:
@@ -1119,8 +1191,8 @@ class ReActAgent:
 
             models_to_try = self._models_to_try_cache
 
-        # Таймаут 1200с для тяжелых локальных моделей (qwq:32b, qwen3-coder-next:latest)
-        request_timeout_sec = 1200.0
+        # Таймаут 120с — тяжёлые модели (qwq:32b и т.п.) в список не попадают
+        request_timeout_sec = 120.0
 
         logger.info(f"🔍 [GENERATE] Модели для попытки: {models_to_try}")
 

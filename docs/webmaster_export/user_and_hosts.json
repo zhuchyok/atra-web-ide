@@ -1,0 +1,40 @@
+{
+  "user": {
+    "user_id": 27871962
+  },
+  "hosts": [
+    {
+      "host_id": "https:www.100kna.ru:443",
+      "ascii_host_url": "https://www.100kna.ru/",
+      "unicode_host_url": "https://www.100kna.ru/",
+      "verified": true,
+      "main_mirror": null
+    },
+    {
+      "host_id": "https:www.100potolki.ru:443",
+      "ascii_host_url": "https://www.100potolki.ru/",
+      "unicode_host_url": "https://www.100potolki.ru/",
+      "verified": true,
+      "main_mirror": null
+    },
+    {
+      "host_id": "https:www.setki21.ru:443",
+      "ascii_host_url": "https://www.setki21.ru/",
+      "unicode_host_url": "https://www.setki21.ru/",
+      "verified": true,
+      "main_mirror": null
+    },
+    {
+      "host_id": "http:www.setki21.ru:80",
+      "ascii_host_url": "http://www.setki21.ru/",
+      "unicode_host_url": "http://www.setki21.ru/",
+      "verified": true,
+      "main_mirror": {
+        "host_id": "https:www.setki21.ru:443",
+        "ascii_host_url": "https://www.setki21.ru/",
+        "unicode_host_url": "https://www.setki21.ru/",
+        "verified": true
+      }
+    }
+  ]
+}

@@ -110,11 +110,12 @@ class ExecutionPlanExecutor:
     async def _execute_edit(self, step: Dict[str, Any], workspace_path: str) -> Dict[str, Any]:
         """
         Редактирует файл через MCP filesystem server.
-        Пока упрощённая версия — просто записывает новое содержимое.
-        TODO: добавить поддержку diff/patch для точечных правок.
+        Поддерживает как полную перезапись, так и точечную замену (StrReplace).
         """
         path = step.get("path")
-        content = step.get("content")  # Новое содержимое файла
+        content = step.get("content")
+        old_string = step.get("old_string")
+        new_string = step.get("new_string")
 
         if not path:
             return {"status": "error", "message": "Не указан path"}
@@ -123,15 +124,22 @@ class ExecutionPlanExecutor:
             path = f"{workspace_path}/{path}"
 
         try:
-            # Вызов MCP tool: user-filesystem/write_file
-            # ВАЖНО: это перезапишет файл полностью!
-            result = await self.mcp_client.call_tool(
-                server="user-filesystem",
-                tool_name="write_file",
-                arguments={"path": path, "content": content},
-            )
-
-            return {"status": "success", "message": "Файл изменён", "path": path}
+            if old_string is not None and new_string is not None:
+                # Точечная замена (аналог StrReplace)
+                result = await self.mcp_client.call_tool(
+                    server="user-filesystem",
+                    tool_name="replace_text",
+                    arguments={"path": path, "old_string": old_string, "new_string": new_string},
+                )
+                return {"status": "success", "message": "Текст заменен", "path": path}
+            else:
+                # Полная перезапись
+                result = await self.mcp_client.call_tool(
+                    server="user-filesystem",
+                    tool_name="write_file",
+                    arguments={"path": path, "contents": content},
+                )
+                return {"status": "success", "message": "Файл перезаписан", "path": path}
         except Exception as e:
             return {
                 "status": "error",

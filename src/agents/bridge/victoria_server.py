@@ -30,6 +30,7 @@ try:
     # Пытаемся импортировать из knowledge_os/app
     sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
     from emotion_detector import EmotionDetector
+    from expert_dna_manager import get_expert_dna_manager
     from query_orchestrator import QueryOrchestrator, QueryType
     from skill_mapper import get_skill_mapper
 
@@ -52,41 +53,10 @@ SIMPLE_PATTERNS = [
     "как ты",
     "что умеешь",
     "кто ты",
-    "помоги",
-    "расскажи",
     "спасибо",
     "thanks",
     "пока",
     "bye",
-    "good",
-    "объясни",
-    "explain",
-    "напиши",
-    "write",
-    "покажи",
-    "show",
-    "код",
-    "code",
-    "функци",
-    "function",
-    "класс",
-    "class",
-    "python",
-    "javascript",
-    "rust",
-    "что такое",
-    "what is",
-    "как работает",
-    "how does",
-    "зачем",
-    "почему",
-    "где",
-    "when",
-    "какой",
-    "which",
-    "сколько",
-    "тест",
-    "test",
     "ping",
     "pong",
 ]
@@ -113,7 +83,7 @@ FAST_TRACK_PATTERNS = [
     "test",
 ]
 
-# Паттерны для Victoria Agent (сложные задачи, корпорация, сервера)
+# Паттерны для Victoria Agent (сложные задачи, корпорация, сервера, анализ данных)
 VICTORIA_PATTERNS = [
     "файл на сервере",
     "ssh",
@@ -139,6 +109,35 @@ VICTORIA_PATTERNS = [
     "rag",
     "знани",
     "база",
+    # Анализ данных и программирование — всегда через ReAct агента
+    ".parquet",
+    ".csv",
+    ".json",
+    "duckdb",
+    "pandas",
+    "pyarrow",
+    "/data/",
+    "python",
+    "код",
+    "code",
+    "анализ",
+    "аномали",
+    "стакан",
+    "торгов",
+    "маркет",
+    "паттерн",
+    "скрипт",
+    "select ",
+    "import ",
+    "функци",
+    "function",
+    "класс",
+    "class",
+    "напиши код",
+    "напиши скрипт",
+    "выполни код",
+    "объясни код",
+    "создай скрипт",
 ]
 
 
@@ -285,27 +284,108 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
         pool = await agent._get_db_pool()
         if not pool:
             return
+
+        # [SINGULARITY 21.12] Получаем эмбеддинг для семантического поиска в будущем
+        embedding = None
+        goal_text = data.get("goal", "")
+        if goal_text and len(goal_text) > 5:
+            try:
+                embedding = await agent._get_embedding_for_rag(goal_text)
+            except Exception as ee:
+                logger.debug(f"Embedding generation for task failed: {ee}")
+
         async with pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO tasks (id, goal, status, result, metadata, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (id) DO UPDATE SET
-                    status = EXCLUDED.status,
-                    result = EXCLUDED.result,
-                    metadata = tasks.metadata || EXCLUDED.metadata,
-                    updated_at = EXCLUDED.updated_at
-            """,
-                task_id,
-                data.get("goal", ""),
-                data.get("status"),
-                data.get("output"),
-                json.dumps(data.get("metadata", {})),
-                data.get("created_at", datetime.now(timezone.utc)),
-                datetime.now(timezone.utc),
-            )
+            if embedding:
+                await conn.execute(
+                    """
+                    INSERT INTO tasks (id, goal, status, result, metadata, created_at, updated_at, embedding)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+                    ON CONFLICT (id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        result = EXCLUDED.result,
+                        metadata = tasks.metadata || EXCLUDED.metadata,
+                        updated_at = EXCLUDED.updated_at,
+                        embedding = EXCLUDED.embedding
+                """,
+                    task_id,
+                    goal_text,
+                    data.get("status"),
+                    data.get("output"),
+                    json.dumps(data.get("metadata", {})),
+                    data.get("created_at", datetime.now(timezone.utc)),
+                    datetime.now(timezone.utc),
+                    str(embedding),
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO tasks (id, goal, status, result, metadata, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (id) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        result = EXCLUDED.result,
+                        metadata = tasks.metadata || EXCLUDED.metadata,
+                        updated_at = EXCLUDED.updated_at
+                """,
+                    task_id,
+                    goal_text,
+                    data.get("status"),
+                    data.get("output"),
+                    json.dumps(data.get("metadata", {})),
+                    data.get("created_at", datetime.now(timezone.utc)),
+                    datetime.now(timezone.utc),
+                )
     except Exception as e:
         logger.debug(f"Task persistence save failed: {e}")
+
+
+async def _cleanup_stale_tasks():
+    """Фоновая задача: каждые 5 мин переводит processing-задачи старше 30 мин в failed."""
+    STALE_THRESHOLD_SEC = 30 * 60  # 30 минут
+    CHECK_INTERVAL_SEC = 5 * 60  # проверка каждые 5 мин
+    while True:
+        try:
+            await asyncio.sleep(CHECK_INTERVAL_SEC)
+            now = datetime.now(timezone.utc)
+            stale_ids = []
+            for task_id, store in list(_run_task_store.items()):
+                if store.get("status") != "processing":
+                    continue
+                updated_raw = store.get("updated_at") or store.get("created_at")
+                if not updated_raw:
+                    continue
+                try:
+                    if isinstance(updated_raw, str):
+                        updated_at = datetime.fromisoformat(updated_raw)
+                    else:
+                        updated_at = updated_raw
+                    if updated_at.tzinfo is None:
+                        updated_at = updated_at.replace(tzinfo=timezone.utc)
+                    age_sec = (now - updated_at).total_seconds()
+                    if age_sec > STALE_THRESHOLD_SEC:
+                        stale_ids.append(task_id)
+                except Exception:
+                    pass
+            for task_id in stale_ids:
+                _run_task_store[task_id]["status"] = "failed"
+                _run_task_store[task_id]["error"] = (
+                    f"Task timed out after {STALE_THRESHOLD_SEC // 60}m (auto-cleanup)"
+                )
+                try:
+                    await redis_manager.update_task_status(
+                        task_id, "failed", result=f"Timeout after {STALE_THRESHOLD_SEC // 60}m"
+                    )
+                except Exception:
+                    pass
+                logger.warning(
+                    "[CLEANUP] Stale task %s → failed (was processing > %dm)",
+                    task_id[:8],
+                    STALE_THRESHOLD_SEC // 60,
+                )
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.debug("[CLEANUP] _cleanup_stale_tasks error: %s", e)
 
 
 async def _load_tasks_from_db():
@@ -343,9 +423,12 @@ async def _load_tasks_from_db():
 async def resume_task_execution(task_id: str):
     """Перезапуск прерванной задачи"""
     task = _run_task_store.get(task_id)
-    if not task:
+    if not task or not isinstance(task, dict):
         return
-    logger.info(f"🔄 Перезапуск задачи {task_id}: {task['goal'][:50]}...")
+    goal = task.get("goal") or "Unknown Goal"
+    if not isinstance(goal, str):
+        goal = str(goal) if goal is not None else "Unknown Goal"
+    logger.info(f"🔄 Перезапуск задачи {task_id}: {goal[:50]}...")
     # Здесь логика вызова agent.run() с сохранением промежуточных результатов
     # Для простоты пока просто логируем, в будущем добавим полноценный resume
 
@@ -729,6 +812,9 @@ async def lifespan(app: FastAPI):
     # Восстановление задач из БД
     asyncio.create_task(_load_tasks_from_db())
 
+    # Очистка зависших задач (processing > 30 мин → failed)
+    asyncio.create_task(_cleanup_stale_tasks())
+
     # Прогрев модели Ollama: при VICTORIA_WARMUP_BLOCK_STARTUP=true — ждём завершения (сервер начнёт приём после прогрева)
     if os.getenv("VICTORIA_WARMUP_ENABLED", "true").lower() in ("true", "1", "yes"):
         if os.getenv("VICTORIA_WARMUP_BLOCK_STARTUP", "false").lower() in ("true", "1", "yes"):
@@ -821,8 +907,16 @@ class VictoriaAgent(BaseAgent):
 
         # По умолчанию planner = та же модель, что и executor: от понимания зависит всё, меньше галлюцинаций
         # VICTORIA_PLANNER_MODEL можно задать отдельно (например быстрая модель для планов)
+        # USE_MLX_FOR_PLANNER=true — направить planner в MLX чтобы не конкурировать с Ollama
         planner_model = env_planner_model or model_name
-        self.planner = OllamaExecutor(model=planner_model, base_url=base)
+        use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "false").lower() == "true"
+        if use_mlx_planner:
+            mlx_base = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
+            mlx_model = os.getenv("VICTORIA_PLANNER_MODEL", "victoria-wisdom-v3.5")
+            self.planner = OllamaExecutor(model=mlx_model, base_url=mlx_base)
+            logger.info("[VICTORIA_INIT] Planner → MLX (%s @ %s)", mlx_model, mlx_base)
+        else:
+            self.planner = OllamaExecutor(model=planner_model, base_url=base)
         self.executor = OllamaExecutor(model=model_name, base_url=base)
 
         logger.info("[VICTORIA_INIT] ✅ Executors created:")
@@ -1684,12 +1778,24 @@ JSON:"""
             if use_smart_for_goal and smart_model:
                 base = _ollama_base_url()
                 smart_planner = OllamaExecutor(model=smart_model, base_url=base)
-                out = await smart_planner.ask(prompt, raw_response=True, phase="understand_goal")
+                # [SINGULARITY 21.13] Pass expert_name for semantic cache
+                out = await smart_planner.ask(
+                    prompt,
+                    raw_response=True,
+                    phase="understand_goal",
+                    expert_name="Виктория (Smart Planner)",
+                )
                 logger.debug(
                     "[UNDERSTAND_GOAL] used smart model %s for short/ambiguous goal", smart_model
                 )
             else:
-                out = await self.planner.ask(prompt, raw_response=True, phase="understand_goal")
+                # [SINGULARITY 21.13] Pass expert_name for semantic cache
+                out = await self.planner.ask(
+                    prompt,
+                    raw_response=True,
+                    phase="understand_goal",
+                    expert_name="Виктория (Planner)",
+                )
             if not out or not isinstance(out, str):
                 return {"restated": raw_goal, "category": "multi_step", "first_step": ""}
             out = out.strip()
@@ -1799,7 +1905,13 @@ Q: "покажи файлы в текущей директории" → План
 
 ПЛАН (только 1-2 шага, максимально просто):"""
         _t_llm = time.perf_counter()
-        result = await self.planner.ask(plan_prompt, raw_response=True, phase="plan")
+        # [SINGULARITY 21.13] Pass expert_name for semantic cache
+        result = await self.planner.ask(
+            plan_prompt,
+            raw_response=True,
+            phase="plan",
+            expert_name=expert_name or "Виктория (Planner)",
+        )
         t_llm_plan_ms = (time.perf_counter() - _t_llm) * 1000
 
         # Всегда обновляем метрики для отслеживания в /status; при превышении порогов — проверка «тормозит»
@@ -1858,9 +1970,9 @@ Q: "покажи файлы в текущей директории" → План
                     "qwen2.5:3b",
                     "tinyllama:1.1b-chat",
                 ],
-                "ml": ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"],
-                "devops": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
-                "security": ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"],
+                "ml": ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
+                "devops": ["glm-4.7-flash:latest", "phi3.5:3.8b", "qwen2.5:3b"],
+                "security": ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"],
                 "database": ["qwen2.5-coder:32b", "phi3.5:3.8b", "qwen2.5:3b"],
                 "performance": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
                 "general": [
@@ -1876,9 +1988,9 @@ Q: "покажи файлы в текущей директории" → План
             if any(word in goal_lower for word in ["код", "программируй", "напиши код", "coding"]):
                 priorities = model_map.get("backend", model_map["general"])
             elif any(word in goal_lower for word in ["реши", "рассчитай", "reasoning", "логика"]):
-                priorities = ["qwq:32b", "glm-4.7-flash:q8_0", "qwen2.5-coder:32b", "phi3.5:3.8b"]
+                priorities = ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
             elif any(word in goal_lower for word in ["сложн", "комплекс", "complex", "enterprise"]):
-                priorities = ["qwq:32b", "qwen2.5-coder:32b", "phi3.5:3.8b"]
+                priorities = ["victoria-wisdom-v3.5:latest", "glm-4.7-flash:latest", "phi3.5:3.8b"]
             elif (
                 len(goal.split()) <= 5
             ):  # Простые задачи — всё равно берём из general (меньше галлюцинаций)
@@ -2000,12 +2112,14 @@ Q: "покажи файлы в текущей директории" → План
         # [SINGULARITY 21.6] Force Wisdom 30B even in fallback if configured
         _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
         _model_to_ask = _force_model if _force_model else self.executor.model
+        # [SINGULARITY 21.13] Pass expert_name for semantic cache
         return await self.executor.ask(
             prompt,
             history=context_memory,
             phase=phase,
             blocked_tools=blocked_tools,
             model=_model_to_ask,
+            expert_name=getattr(self, "expert_name", "Виктория"),
         )
 
     async def _ensure_best_available_models(self) -> None:
@@ -2113,12 +2227,10 @@ Q: "покажи файлы в текущей директории" → План
                     )
 
             if not executor_model:
-                # Предпочитаем qwen3-coder-next:latest (Senior Architect) или qwen2.5-coder:32b
                 preferred_executor = [
-                    "qwen3-coder-next:latest",
-                    "qwen2.5-coder:32b",
-                    "glm-4.7-flash:q8_0",
-                    "qwq:32b",
+                    "victoria-wisdom-v3.5:latest",
+                    "glm-4.7-flash:latest",
+                    "phi3.5:3.8b",
                 ]
                 for pref in preferred_executor:
                     if pref.lower() in ollama_lower_to_exact:
@@ -2147,9 +2259,14 @@ Q: "покажи файлы в текущей директории" → План
                     )
 
             if not planner_model:
-                # Предпочитаем БЫСТРУЮ модель для planner (отзывчивость важнее качества для планирования)
-                # На Mac Studio M4 Max 128GB даже 32B модели работают быстро
-                preferred_planner = ["qwen2.5-coder:32b", "glm-4.7-flash:q8_0", "qwq:32b"]
+                # Предпочитаем БЫСТРУЮ лёгкую модель для planner (отзывчивость важнее качества для планирования)
+                # НИКОГДА qwq:32b для planner — это блокирует всю Ollama!
+                preferred_planner = [
+                    "glm-4.7-flash:latest",
+                    "victoria-wisdom-v3.5:latest",
+                    "gemma3n:e4b",
+                    "tinyllama:1.1b-chat",
+                ]
                 for pref in preferred_planner:
                     if pref.lower() in ollama_lower_to_exact:
                         planner_model = ollama_lower_to_exact[pref.lower()]
@@ -2894,19 +3011,44 @@ async def _select_strategy(
 
 ВАЖНО: Короткие фразы (1-3 слова) даже со знаком вопроса (например, "Как дела?", "Ты тут?") — это ВСЕГДА quick_answer. Не выбирай deep_analysis для простых вопросов.
 
+КРИТИЧЕСКИ ВАЖНО: Если в цели явно указан конкретный файл (.parquet, .csv, .json), база данных (duckdb, postgres), или конкретные команды (python3, SELECT, LAG()), путь к файлу (/data/..., /Users/...) — это ВСЕГДА deep_analysis. НИКОГДА не выбирай need_clarification для задач с явно указанным файлом и инструментом.
+
 Ответь СТРОГО JSON: {{"strategy": "quick_answer"|"deep_analysis"|"need_clarification"|"decline_or_redirect", "reason": "одна фраза", "confidence": 0.0-1.0, "uncertainty_reason": "опционально: при низкой уверенности — почему"}}'''
-    strategy_timeout = float(os.getenv("STRATEGY_CALL_TIMEOUT_SEC", "120"))
+    strategy_timeout = float(os.getenv("STRATEGY_CALL_TIMEOUT_SEC", "30"))
+
+    # Быстрый fallback для задач с явными файлами/инструментами
+    goal_lower_check = goal.lower()
+    concrete_task_indicators = [
+        ".parquet",
+        ".csv",
+        ".json",
+        "/data/",
+        "/users/",
+        "duckdb",
+        "python3",
+        "select ",
+    ]
+    is_concrete_task = any(ind in goal_lower_check for ind in concrete_task_indicators)
+
     try:
         out = await asyncio.wait_for(
             agent.planner.ask(prompt, raw_response=True),
             timeout=strategy_timeout,
         )
         if not out or not isinstance(out, str):
-            return fallback
+            return (
+                {"strategy": "deep_analysis", "reason": "явный файл/инструмент", "confidence": 0.9}
+                if is_concrete_task
+                else fallback
+            )
         start = out.find("{")
         end = out.rfind("}") + 1
         if start < 0 or end <= start:
-            return fallback
+            return (
+                {"strategy": "deep_analysis", "reason": "явный файл/инструмент", "confidence": 0.9}
+                if is_concrete_task
+                else fallback
+            )
         data = json.loads(out[start:end])
         strategy = (data.get("strategy") or "").strip().lower()
         if strategy not in (
@@ -2935,7 +3077,19 @@ async def _select_strategy(
                 k_old = min(_strategy_cache.keys(), key=lambda k: _strategy_cache[k][1])
                 del _strategy_cache[k_old]
         return result
-    except (asyncio.TimeoutError, json.JSONDecodeError, Exception) as e:
+    except asyncio.TimeoutError:
+        if is_concrete_task:
+            logger.warning(
+                "⚠️ strategy LLM timeout, using deep_analysis fallback for explicit file task"
+            )
+            return {
+                "strategy": "deep_analysis",
+                "reason": "LLM timeout, explicit file task",
+                "confidence": 0.9,
+            }
+        logger.debug("_select_strategy: timeout")
+        return fallback
+    except (json.JSONDecodeError, Exception) as e:
         logger.debug("_select_strategy: %s", e)
         return fallback
 
@@ -2955,6 +3109,33 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
     Возвращает True, если нужны уточняющие вопросы (не выполнять задачу сразу).
     """
     goal_lower = goal.lower().strip()
+    # Явно конкретные задачи — всегда выполнять без уточнений
+    concrete_indicators = [
+        ".parquet",
+        ".csv",
+        ".json",
+        ".xlsx",
+        ".db",
+        "/data/",
+        "/users/",
+        "/app/",
+        "/workspace/",
+        "duckdb",
+        "python3",
+        "select ",
+        "from ",
+        "lag(",
+        "split_part",
+        "import ",
+        "запусти скрипт",
+        "выполни код",
+        "напиши скрипт",
+        "создай скрипт",
+        "напиши python",
+        "напиши код",
+    ]
+    if any(ind in goal_lower for ind in concrete_indicators):
+        return False  # Конкретная задача — никаких вопросов
     # Явно простые команды — никогда не запрашивать уточнение (полный цикл без остановки)
     simple_phrases = [
         "скажи привет",
@@ -2998,7 +3179,34 @@ def _check_ambiguity(goal: str, category: str, restated: str) -> bool:
 async def _generate_clarification_questions(
     agent: "VictoriaAgent", goal: str, restated: str
 ) -> List[str]:
-    """Генерация 1–3 уточняющих вопросов через planner LLM."""
+    """Генерация 1–3 уточняющих вопросов через planner LLM.
+    Не задаёт вопросы если в цели явно указан файл или инструмент анализа."""
+
+    # Не задавать вопросы если задача содержит явный файл/путь/инструмент
+    explicit_indicators = [
+        ".parquet",
+        ".csv",
+        ".json",
+        ".xlsx",
+        ".db",
+        "/data/",
+        "/Users/",
+        "/app/",
+        "/workspace/",
+        "duckdb",
+        "python3",
+        "SELECT ",
+        "FROM ",
+        "LAG(",
+        "SPLIT_PART",
+        "import ",
+        "запусти скрипт",
+        "выполни код",
+    ]
+    goal_lower = goal.lower()
+    if any(ind.lower() in goal_lower for ind in explicit_indicators):
+        return []  # Нет вопросов — задача достаточно конкретна
+
     prompt = f'''Пользователь просит: "{goal[:300]}"
 Переформулировка системы: "{restated[:200]}"
 Задача неоднозначна. Дай 2–3 кратких уточняющих вопроса (на русском).
@@ -3067,26 +3275,30 @@ async def _understand_goal_with_clarification(
         logger.info(
             "🕒 [SYNC] _generate_clarification_questions took %.2fs", time.monotonic() - _t_clar
         )
-        result = {
-            "needs_clarification": True,
-            "clarification_questions": questions,
-            "original_goal": goal,
-            "restated": restated,
-            "category": category,
-            "first_step": first_step[:200],
-        }
-        if redis_manager:
-            await redis_manager.set_cache(
-                f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
-            )
+        # Если вопросов нет (явная задача с файлом/инструментом) — продолжить выполнение
+        if not questions:
+            logger.info("🟢 [understand_goal] no clarification needed (explicit task), proceeding")
         else:
-            _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
-            while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
-                k_old = min(
-                    _understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1]
+            result = {
+                "needs_clarification": True,
+                "clarification_questions": questions,
+                "original_goal": goal,
+                "restated": restated,
+                "category": category,
+                "first_step": first_step[:200],
+            }
+            if redis_manager:
+                await redis_manager.set_cache(
+                    f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
                 )
-                del _understand_goal_cache[k_old]
-        return result
+            else:
+                _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
+                while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
+                    k_old = min(
+                        _understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1]
+                    )
+                    del _understand_goal_cache[k_old]
+            return result
     result = {
         "needs_clarification": False,
         "restated": restated,
@@ -3582,7 +3794,17 @@ async def _run_task_background(
         # === FAST TRACK (SINGULARITY 10.0) ===
         if is_fast_track_message(goal):
             ideal_model = _select_model_for_chat(goal)
-            content, source = await _generate_via_mlx_or_ollama(goal, ideal_model)
+
+            # [SINGULARITY 21.11] Session Context for Background Fast Path
+            session_ctx = ""
+            if session_id:
+                session_ctx = await _get_session_context_from_db(session_id, goal)
+
+            prompt_for_gen = goal
+            if session_ctx:
+                prompt_for_gen = f"{session_ctx}\n\nТЕКУЩИЙ ЗАПРОС: {prompt_for_gen}"
+
+            content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
             if content:
                 knowledge = {
                     "strategy": "quick_answer",
@@ -4082,11 +4304,7 @@ async def _run_task_background(
                 _inject_strategy_into_knowledge(knowledge, strategy_result)
                 store["status"] = "completed"
                 # Несколько ключей на случай разных путей Enhanced (CHANGES §56.1)
-                raw_result = (
-                    enhanced_result.get("result")
-                    or enhanced_result.get("output")
-                    or ""
-                )
+                raw_result = enhanced_result.get("result") or enhanced_result.get("output") or ""
                 try:
                     store["output"] = _normalize_output_for_user(raw_result)
                     if not isinstance(store["output"], str):
@@ -4411,6 +4629,11 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
             ideal_model = _select_model_for_chat(body.goal)
 
+            # [SINGULARITY 21.11] Session Context for Fast Path
+            session_ctx = ""
+            if body.session_id:
+                session_ctx = await _get_session_context_from_db(body.session_id, body.goal)
+
             # Сингулярность 10.0: Подтягиваем знания AI Research даже для простых запросов
             ai_research_context = ""
             try:
@@ -4422,8 +4645,19 @@ async def run_task_stream(body: TaskRequest, request: Request):
                 logger.debug("AI Research context fetch failed for stream: %s", e)
 
             prompt_for_gen = body.goal
+            if session_ctx:
+                prompt_for_gen = f"{session_ctx}\n\nТЕКУЩИЙ ЗАПРОС: {prompt_for_gen}"
             if ai_research_context:
-                prompt_for_gen = f"{ai_research_context}\n\nЗапрос: {body.goal}"
+                prompt_for_gen = f"{ai_research_context}\n\n{prompt_for_gen}"
+
+            # [SINGULARITY 21.17] Expert DNA for Fast Path
+            try:
+                dna_mgr = get_expert_dna_manager()
+                expert_dna = await dna_mgr.get_expert_dna("Виктория")
+                if expert_dna:
+                    prompt_for_gen = f"{expert_dna}\n\n{prompt_for_gen}"
+            except Exception as de:
+                logger.debug("Expert DNA fetch failed for stream: %s", de)
 
             content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
             if content:
@@ -4506,30 +4740,40 @@ async def run_task(
     # [AUTONOMOUS] Анализ логов и проактивные предложения
     if "статус" in (goal or "").lower() or "ошибк" in (goal or "").lower():
         try:
-            from app.event_bus import get_event_bus, EventType
+            from app.event_bus import EventType, get_event_bus
+
             bus = get_event_bus()
             recent_errors = bus.get_event_history(event_type=EventType.ERROR_DETECTED, limit=3)
             if recent_errors:
-                error_context = "\n".join([f"- {e.payload.get('error_info', {}).get('message')}" for e in recent_errors])
-                goal = f"ВНИМАНИЕ: В системе зафиксированы недавние ошибки:\n{error_context}\n\nУчитывай это при ответе.\n\n" + goal
+                error_context = "\n".join(
+                    [f"- {e.payload.get('error_info', {}).get('message')}" for e in recent_errors]
+                )
+                goal = (
+                    f"ВНИМАНИЕ: В системе зафиксированы недавние ошибки:\n{error_context}\n\nУчитывай это при ответе.\n\n"
+                    + goal
+                )
                 logger.info("[AUTONOMOUS] Добавлен контекст недавних ошибок в запрос")
         except Exception:
             pass
 
     # [AUTONOMOUS] Мониторинг Mac Studio (нагрузка, температура, модели)
-    if any(word in (goal or "").lower() for word in ["mac studio", "железо", "нагрузка", "температур", "ресурс"]):
+    if any(
+        word in (goal or "").lower()
+        for word in ["mac studio", "железо", "нагрузка", "температур", "ресурс"]
+    ):
         try:
             from app.mac_studio_monitor import get_mac_studio_monitor
+
             monitor = get_mac_studio_monitor()
             mac_stats = await monitor.get_full_stats()
             if mac_stats:
                 stats_context = f"""
 🖥️ СТАТУС MAC STUDIO (Real-time):
-- CPU: {mac_stats['hardware']['cpu']['percent']}%
-- RAM: {mac_stats['hardware']['ram']['used_gb']}GB / {mac_stats['hardware']['ram']['total_gb']}GB ({mac_stats['hardware']['ram']['percent']}%)
-- Thermal Level: {mac_stats['hardware']['temperature'].get('thermal_level', 'N/A')}
-- Loaded Models (Ollama): {len(mac_stats['models']['ollama'])}
-- Loaded Models (MLX): {len(mac_stats['models']['mlx'])}
+- CPU: {mac_stats["hardware"]["cpu"]["percent"]}%
+- RAM: {mac_stats["hardware"]["ram"]["used_gb"]}GB / {mac_stats["hardware"]["ram"]["total_gb"]}GB ({mac_stats["hardware"]["ram"]["percent"]}%)
+- Thermal Level: {mac_stats["hardware"]["temperature"].get("thermal_level", "N/A")}
+- Loaded Models (Ollama): {len(mac_stats["models"]["ollama"])}
+- Loaded Models (MLX): {len(mac_stats["models"]["mlx"])}
 
 Учитывай эти данные при ответе на вопросы о производительности и ресурсах.
 """
@@ -4569,7 +4813,18 @@ async def run_task(
 - Основной проект корпорации: {main_config["name"]}
 - Все файлы, команды и операции должны быть в контексте проекта {project_config["name"]}
 - При работе с файлами используй пути относительно корня проекта
+"""
 
+    # [SINGULARITY 21.11] Session Context Injection: подмешивание истории диалога прямо в системный промпт
+    if body.session_id:
+        session_ctx = await _get_session_context_from_db(body.session_id, goal)
+        if session_ctx:
+            project_prompt += f"\n📝 КОНТЕКСТ ТЕКУЩЕЙ СЕССИИ (прошлые сообщения):\n{session_ctx}\n"
+            logger.info(
+                f"📝 [SESSION_INJECTION] Внедрен контекст сессии ({len(session_ctx)} симв.)"
+            )
+
+    project_prompt += f"""
 🧠 БАЗА ЗНАНИЙ (ВСЕГДА ДОСТУПНА ДЛЯ ВСЕХ ПРОЕКТОВ):
 - ✅ 58+ экспертов Knowledge OS - доступны для ВСЕХ проектов (та же БД, те же эксперты)
 - ✅ Глобальные знания (global_knowledge.md) - доступны для ВСЕХ проектов
@@ -4623,6 +4878,15 @@ async def run_task(
                 source = "static_fallback"
 
         if content:
+            # [SINGULARITY 21.17] Expert DNA for Fast Path
+            try:
+                dna_mgr = get_expert_dna_manager()
+                expert_dna = await dna_mgr.get_expert_dna("Виктория")
+                if expert_dna:
+                    goal = f"{expert_dna}\n\n{goal}"
+            except Exception as de:
+                logger.debug("Expert DNA fetch failed for fast path: %s", de)
+
             # Для Fast Track ВСЕГДА возвращаем 200, даже если async_mode=true
             # Это убирает сообщение "Задача принята" в Telegram
             return TaskResponse(
@@ -5519,17 +5783,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
     # Подтягиваем релевантные знания через Hybrid Search v2 перед отправкой в Victoria
     try:
-        from app.enhanced_search import enhanced_search_knowledge, SearchMode
-        logger.info(f"🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
-        rag_res = await enhanced_search_knowledge(
-            query=goal,
-            mode=SearchMode.HYBRID,
-            limit=3
-        )
+        from app.enhanced_search import SearchMode, enhanced_search_knowledge
+
+        logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
+        rag_res = await enhanced_search_knowledge(query=goal, mode=SearchMode.HYBRID, limit=3)
         if rag_res and rag_res.get("results"):
             knowledge_text = rag_res.get("result_text", "")
             if knowledge_text:
-                logger.info(f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes")
+                logger.info(
+                    f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
+                )
                 # Внедряем знания в начало запроса
                 task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
     except Exception as e:
@@ -6024,14 +6287,12 @@ async def omni_rag_search(request: OmniSearchRequest):
     Использует Hybrid Search v2 + Cross-Encoder Re-ranking.
     """
     try:
-        from app.enhanced_search import enhanced_search_knowledge, SearchMode
+        from app.enhanced_search import SearchMode, enhanced_search_knowledge
+
         logger.info(f"🔍 [OMNI-RAG] Search request: {request.query} (domain: {request.domain})")
-        
+
         results = await enhanced_search_knowledge(
-            query=request.query,
-            domain=request.domain,
-            mode=SearchMode.HYBRID,
-            limit=request.limit
+            query=request.query, domain=request.domain, mode=SearchMode.HYBRID, limit=request.limit
         )
         return results
     except Exception as e:

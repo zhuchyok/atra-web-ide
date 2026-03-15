@@ -1,3 +1,5 @@
+pub mod quantum_opt;
+
 use chrono::{DateTime, NaiveDateTime, Utc};
 use ndarray::{Array1, ArrayView1};
 use serde::{Deserialize, Serialize};
@@ -66,6 +68,14 @@ pub struct KnowledgeNode {
     pub metadata: Option<serde_json::Value>,
     pub created_at: NaiveDateTime,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RankedNode {
+    pub id: Uuid,
+    pub content: String,
+    pub metadata: Option<serde_json::Value>,
+    pub similarity: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
@@ -148,31 +158,103 @@ impl KnowledgeEngine {
         &self,
         query_embedding: Vec<f32>,
         nodes_with_embeddings: Vec<KnowledgeNodeWithEmbedding>,
-    ) -> Vec<KnowledgeNode> {
+    ) -> Vec<RankedNode> {
         let q_arr = Array1::from(query_embedding);
         let q_view = q_arr.view();
 
-        let mut ranked = nodes_with_embeddings;
+        let mut ranked: Vec<RankedNode> = nodes_with_embeddings
+            .into_iter()
+            .map(|n| {
+                let sim =
+                    Self::cosine_similarity(&q_view, &Array1::from(n.embedding.0.clone()).view());
+                RankedNode {
+                    id: n.id,
+                    content: n.content,
+                    metadata: n.metadata,
+                    similarity: sim,
+                }
+            })
+            .collect();
+
         ranked.sort_by(|a, b| {
-            let sim_a =
-                Self::cosine_similarity(&q_view, &Array1::from(a.embedding.0.clone()).view());
-            let sim_b =
-                Self::cosine_similarity(&q_view, &Array1::from(b.embedding.0.clone()).view());
-            sim_b
-                .partial_cmp(&sim_a)
+            b.similarity
+                .partial_cmp(&a.similarity)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
         ranked
+    }
+
+    /// [SINGULARITY 21.23] High-performance RAG retrieval with project context filtering
+    pub async fn retrieve_with_context(
+        &self,
+        embedding: Vec<f32>,
+        project_context: Option<String>,
+        limit: i64,
+        use_quantum: bool,
+    ) -> Result<Vec<RankedNode>, sqlx::Error> {
+        let pc = project_context.unwrap_or_default();
+
+        // If quantum is enabled, we fetch more candidates to sample from
+        let fetch_limit = if use_quantum { limit * 2 } else { limit };
+
+        let query = if !pc.is_empty() {
+            format!(
+                "SELECT id, content, metadata, embedding, created_at, updated_at,
+                 (1 - (embedding <=> $1::vector)) as similarity
+                 FROM knowledge_nodes
+                 WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                 AND (
+                    metadata->>'project_slug' = $2
+                    OR metadata->>'file_path' LIKE '%' || $2 || '%'
+                    OR metadata->>'source' IN ('external_docs_indexer', 'indexing_daemon')
+                    OR source_ref = 'autonomous_worker'
+                 )
+                 ORDER BY similarity DESC LIMIT $3"
+            )
+        } else {
+            format!(
+                "SELECT id, content, metadata, embedding, created_at, updated_at,
+                 (1 - (embedding <=> $1::vector)) as similarity
+                 FROM knowledge_nodes
+                 WHERE embedding IS NOT NULL AND confidence_score >= 0.3
+                 ORDER BY similarity DESC LIMIT $2"
+            )
+        };
+
+        let mut sql_query = sqlx::query(&query).bind(Vector(embedding));
+
+        if !pc.is_empty() {
+            sql_query = sql_query.bind(pc).bind(fetch_limit);
+        } else {
+            sql_query = sql_query.bind(fetch_limit);
+        }
+
+        let rows = sql_query.fetch_all(&self.pool).await?;
+
+        let candidates: Vec<RankedNode> = rows
             .into_iter()
-            .map(|n| KnowledgeNode {
-                id: n.id,
-                content: n.content,
-                metadata: n.metadata,
-                created_at: n.created_at,
-                updated_at: n.updated_at,
+            .map(|row: sqlx::postgres::PgRow| {
+                use sqlx::Row;
+                RankedNode {
+                    id: row.get("id"),
+                    content: row.get("content"),
+                    metadata: row.get("metadata"),
+                    similarity: row.get::<f64, _>("similarity") as f32,
+                }
             })
-            .collect()
+            .collect();
+
+        // [SINGULARITY 21.24] Quantum-Inspired Optimization (Probabilistic RAG)
+        if use_quantum && candidates.len() > limit as usize {
+            let optimizer = crate::quantum_opt::QuantumInspiredOptimizer::new(1.0, 0.95);
+            let sampled = optimizer.quantum_sample(candidates, |c| c.similarity, limit as usize);
+            return Ok(sampled);
+        }
+
+        let mut results = candidates;
+        results.truncate(limit as usize);
+        Ok(results)
     }
 }
 

@@ -45,6 +45,7 @@ services:
       - ./nginx_proxy/letsencrypt:/etc/letsencrypt
     networks:
       - atra-net
+      - setki21_src_default
 
   # ============================================
   # Atra OS Kernel (Rust API)
@@ -99,3 +100,5 @@ networks:
   atra-net:
     name: atra-network
     driver: bridge
+  setki21_src_default:
+    external: true

@@ -1,0 +1,35 @@
+Проанализируй файл /data/downloads/2026-03-09.parquet с биржевыми данными MOEX через DuckDB. Напиши и выполни python3-скрипт с таким кодом:
+
+import duckdb
+con = duckdb.connect()
+
+# 1. Схема файла
+print("=== SCHEMA ===")
+con.execute("DESCRIBE SELECT * FROM '/data/downloads/2026-03-09.parquet' LIMIT 1").fetchdf().to_string()
+
+# 2. Общее количество строк
+count = con.execute("SELECT COUNT(*) FROM '/data/downloads/2026-03-09.parquet'").fetchone()[0]
+print(f"Total rows: {count}")
+
+# 3. Первые 5 строк
+print("=== SAMPLE ===")
+print(con.execute("SELECT * FROM '/data/downloads/2026-03-09.parquet' LIMIT 5").fetchdf().to_string())
+
+# 4. Уникальные типы событий (event_type или type)
+print("=== EVENT TYPES ===")
+try:
+    print(con.execute("SELECT event_type, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY event_type ORDER BY cnt DESC").fetchdf().to_string())
+except:
+    try:
+        print(con.execute("SELECT type, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY type ORDER BY cnt DESC").fetchdf().to_string())
+    except Exception as e:
+        print(f"No type column: {e}")
+
+# 5. Топ-5 инструментов по объему
+try:
+    print("=== TOP SYMBOLS ===")
+    print(con.execute("SELECT symbol, COUNT(*) as cnt FROM '/data/downloads/2026-03-09.parquet' GROUP BY symbol ORDER BY cnt DESC LIMIT 5").fetchdf().to_string())
+except Exception as e:
+    print(f"No symbol column: {e}")
+
+print("DONE")

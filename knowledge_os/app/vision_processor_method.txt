@@ -1,0 +1,69 @@
+    async def _process_with_moondream_station(self, image: PILImage, prompt: str) -> Optional[str]:
+        """Обработка через Moondream Station (MLX)"""
+        if not self.moondream_client:
+            return None
+
+        result = None
+        try:
+            # Используем синхронный клиент в async контексте
+            loop = asyncio.get_event_loop()
+
+            # [SINGULARITY 21.10] Moondream 1.0.0+ (Moondream 3)
+            # В этой версии client.query() возвращает генератор, если не указано иное.
+            # Попробуем собрать результат из генератора.
+            logger.debug(f"🔄 [VISION] Moondream query with prompt: {prompt[:50]}...")
+
+            def run_query():
+                # Вызываем query и проверяем, что он возвращает
+                res = self.moondream_client.query(image, prompt)
+                # Если это генератор, собираем его в строку
+                if hasattr(res, '__iter__') and not isinstance(res, (dict, str)):
+                    full_text = ""
+                    for chunk in res:
+                        if isinstance(chunk, str):
+                            full_text += chunk
+                        elif isinstance(chunk, dict):
+                            full_text += chunk.get("answer") or chunk.get("text") or ""
+                    return {"answer": full_text}
+                return res
+
+            result = await loop.run_in_executor(None, run_query)
+
+            if result:
+                if isinstance(result, dict):
+                    # [FIX] Проверка на ошибки API
+                    if "error" in result:
+                        logger.warning(f"⚠️ [VISION] Moondream Station returned error: {result['error']}")
+                        return None
+
+                    answer = result.get("answer") or result.get("text") or result.get("caption")
+                    if answer:
+                        logger.info("✅ [VISION] Processed with Moondream Station (MLX)")
+                        return str(answer)
+                elif isinstance(result, str):
+                    logger.info("✅ [VISION] Processed with Moondream Station (MLX) - string response")
+                    return result
+        except Exception as e:
+            logger.warning(f"⚠️ [VISION] Moondream Station failed: {e} (Type: {type(e).__name__})")
+            # Fallback на caption() если query() не сработал
+            try:
+                logger.info("🔄 [VISION] Attempting Moondream caption()...")
+                cap_result = await loop.run_in_executor(
+                    None, lambda: self.moondream_client.caption(image)
+                )
+                if isinstance(cap_result, dict):
+                    # caption() тоже может быть генератором
+                    if "caption" in cap_result:
+                        return cap_result["caption"]
+                    # Если это генератор внутри словаря или что-то еще
+                    answer = cap_result.get("caption") or cap_result.get("answer")
+                    if answer: return str(answer)
+                elif isinstance(cap_result, str):
+                    return cap_result
+                elif hasattr(cap_result, '__iter__'):
+                    full_cap = "".join([str(c) for c in cap_result])
+                    return full_cap
+            except Exception as e2:
+                logger.debug(f"Fallback 'caption' also failed: {e2}")
+
+        return None

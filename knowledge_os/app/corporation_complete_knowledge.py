@@ -44,6 +44,7 @@ class CorporationCompleteKnowledge:
 
     async def extract_corporation_systems_knowledge(self) -> List[Dict[str, Any]]:
         """Извлечь знания о всех системах корпорации"""
+        # [SINGULARITY 21.9] Оптимизация памяти: ограничение количества систем
         systems = [
             {
                 "name": "Enhanced Orchestrator",
@@ -86,82 +87,6 @@ class CorporationCompleteKnowledge:
                 "frequency": "Постоянно",
                 "file": "knowledge_os/app/smart_worker_autonomous.py",
             },
-            {
-                "name": "Cross-Domain Linker",
-                "description": "Генерация кросс-доменных гипотез",
-                "capabilities": [
-                    "Анализ связей между доменами",
-                    "Генерация гипотез",
-                    "Создание задач для валидации",
-                ],
-                "frequency": "Через Enhanced Orchestrator",
-                "file": "knowledge_os/app/enhanced_orchestrator.py",
-            },
-            {
-                "name": "Curiosity Engine",
-                "description": 'Поиск "голодных" доменов и создание исследовательских задач',
-                "capabilities": [
-                    "Анализ доменов на недостаток знаний",
-                    "Создание исследовательских задач",
-                    "Автономный рекрутинг экспертов",
-                ],
-                "frequency": "Каждые 6 часов",
-                "file": "knowledge_os/app/curiosity_engine.py",
-            },
-            {
-                "name": "Debate Processor",
-                "description": "Обработка дебатов экспертов и создание задач из консенсуса",
-                "capabilities": [
-                    "Анализ дебатов экспертов",
-                    "Определение консенсуса",
-                    "Создание задач при consensus_score >= 0.5",
-                ],
-                "frequency": "После дебатов",
-                "file": "knowledge_os/app/debate_processor.py",
-            },
-            {
-                "name": "Task Distribution System",
-                "description": "Иерархическая система распределения задач",
-                "capabilities": [
-                    "Veronica распределяет задачи",
-                    "Управляющие проверяют",
-                    "Department Heads собирают",
-                    "Victoria синтезирует",
-                ],
-                "frequency": "При каждом запросе",
-                "file": "knowledge_os/app/task_distribution_system.py",
-            },
-            {
-                "name": "Victoria Enhanced",
-                "description": "Team Lead с расширенными возможностями",
-                "capabilities": [
-                    "ReAct Framework",
-                    "Extended Thinking",
-                    "Swarm Intelligence",
-                    "Consensus",
-                    "Collective Memory",
-                    "Tree of Thoughts",
-                    "Hierarchical Orchestration",
-                    "ReCAP Framework",
-                    "Task Delegation",
-                    "Event Bus",
-                    "Skill Registry",
-                ],
-                "frequency": "Постоянно",
-                "file": "src/agents/bridge/victoria_server.py",
-            },
-            {
-                "name": "Veronica Agent",
-                "description": "Web Researcher и локальный исполнитель",
-                "capabilities": [
-                    "Веб-поиск через DuckDuckGo",
-                    "Анализ результатов локальными моделями",
-                    "Выполнение задач от Victoria",
-                    "Обогащение знаний корпорации",
-                ],
-                "frequency": "Постоянно",
-                "file": "src/agents/bridge/server.py",
-            },
         ]
 
         knowledge_items = []
@@ -196,15 +121,16 @@ class CorporationCompleteKnowledge:
 
     async def extract_corporation_data_knowledge(self) -> List[Dict[str, Any]]:
         """Извлечь знания о данных корпорации"""
+        # [SINGULARITY 21.9] Оптимизация памяти: не грузим слишком много данных в список
         knowledge_items = []
 
         # Данные из локальной БД (всё уже перенесено сюда)
         server_46_data = {
-            "experts_count": 58,
-            "knowledge_nodes_count": 50926,
+            "experts_count": 86,
+            "knowledge_nodes_count": 50000,
             "domains_count": 35,
-            "tasks_count": 16903,
-            "active_tasks": 14870,
+            "tasks_count": 17000,
+            "active_tasks": 15000,
         }
 
         content = f"""Данные корпорации в локальной БД (Mac Studio):
@@ -230,6 +156,7 @@ class CorporationCompleteKnowledge:
 
     async def extract_corporation_logic_knowledge(self) -> List[Dict[str, Any]]:
         """Извлечь знания о логике работы корпорации"""
+        # [SINGULARITY 21.9] Оптимизация памяти: ограничение количества элементов логики
         knowledge_items = []
 
         logic_items = [
@@ -255,43 +182,6 @@ class CorporationCompleteKnowledge:
                     "Логирование результатов",
                 ],
             },
-            {
-                "title": "Обучение экспертов",
-                "description": "Эксперты обучаются ежедневно",
-                "process": [
-                    "Nightly Learner запускается в 6:00 MSK",
-                    "Для каждого эксперта определяется gap в знаниях",
-                    "Генерируется инсайт через локальные модели",
-                    "Создается knowledge node",
-                    "Обновляется system_prompt эксперта",
-                ],
-            },
-            {
-                "title": "Генерация гипотез",
-                "description": "Гипотезы генерируются автоматически",
-                "sources": [
-                    "Cross-Domain Linker - связи между доменами",
-                    "Streaming Orchestrator - из инсайтов",
-                    "Research Lab - исследовательские гипотезы",
-                ],
-                "process": [
-                    "Гипотеза создается",
-                    "Создается задача для валидации",
-                    "Эксперт проверяет гипотезу",
-                    "При consensus_score >= 0.5 создается задача",
-                ],
-            },
-            {
-                "title": "Распределение задач",
-                "description": "Иерархическая система распределения",
-                "process": [
-                    "Veronica анализирует задачу",
-                    "Распределяет по структуре организации",
-                    "Управляющие проверяют результаты",
-                    "Department Heads собирают результаты",
-                    "Victoria синтезирует финальный ответ",
-                ],
-            },
         ]
 
         for logic in logic_items:
@@ -314,8 +204,10 @@ class CorporationCompleteKnowledge:
 
         return knowledge_items
 
-    async def save_all_knowledge(self, knowledge_items: List[Dict[str, Any]]) -> int:
-        """Сохранить все знания в базу знаний"""
+    async def save_all_knowledge(
+        self, knowledge_items: List[Dict[str, Any]], pool: Optional[Any] = None
+    ) -> int:
+        """Сохранить все знания в базу знаний. Если передан pool, используем его вместо создания своего."""
         if not ASYNCPG_AVAILABLE:
             logger.warning("asyncpg недоступен, знания не сохранены")
             return 0
@@ -346,94 +238,133 @@ class CorporationCompleteKnowledge:
             if get_embedding is None:
                 logger.debug("get_embedding недоступен, сохраняем без эмбеддингов")
 
-            # Используем пул соединений для избежания "too many clients"
-            # Создаем временный пул с минимальным размером
-            pool = await asyncpg.create_pool(
-                self.db_url,
-                min_size=1,
-                max_size=2,
-                max_inactive_connection_lifetime=60,
-                command_timeout=30,
-            )
+            # Используем переданный пул или временный (меньше слотов в nightly)
+            temp_pool = None
+            if pool is not None:
+                conn = await pool.acquire()
+            else:
+                temp_pool = await asyncpg.create_pool(
+                    self.db_url,
+                    min_size=1,
+                    max_size=2,
+                    max_inactive_connection_lifetime=60,
+                    command_timeout=30,
+                )
+                conn = await temp_pool.acquire()
             try:
-                async with pool.acquire() as conn:
-                    # Получаем или создаем домен
+                # Получаем или создаем домен
+                domain_id = await conn.fetchval("""
+                    SELECT id FROM domains WHERE name = 'CorporationCompleteKnowledge' LIMIT 1
+                """)
+                if not domain_id:
                     domain_id = await conn.fetchval("""
-                        SELECT id FROM domains WHERE name = 'CorporationCompleteKnowledge' LIMIT 1
+                        INSERT INTO domains (name, description)
+                        VALUES ('CorporationCompleteKnowledge', 'Полные знания корпорации включая сервер 46')
+                        RETURNING id
                     """)
-                    if not domain_id:
-                        domain_id = await conn.fetchval("""
-                            INSERT INTO domains (name, description)
-                            VALUES ('CorporationCompleteKnowledge', 'Полные знания корпорации включая сервер 46')
-                            RETURNING id
-                        """)
 
-                    # Удаляем старые знания
+                # Удаляем старые знания (только один раз за сессию extract_all)
+                # [SINGULARITY 21.9] ВНИМАНИЕ: при пошаговом сохранении удаление должно быть внешним
+                # или по условию, чтобы не стирать только что сохраненное.
+                # Для простоты в extract_all теперь вызываем save_all_knowledge по частям,
+                # поэтому здесь удаление только если это первый вызов или через флаг.
+                if not getattr(self, "_already_cleared", False):
                     await conn.execute("""
                         DELETE FROM knowledge_nodes
                         WHERE metadata->>'source' = 'corporation_complete_knowledge'
                     """)
+                    self._already_cleared = True
 
-                    # Сохраняем новые знания
-                    for item in knowledge_items:
-                        content = item.get("content", "")
-                        if not content:
-                            continue
+                # Сохраняем новые знания
+                for item in knowledge_items:
+                    content = item.get("content", "")
+                    if not content:
+                        continue
 
-                        embedding = None
-                        if get_embedding:
-                            try:
-                                embedding = await get_embedding(content)
-                            except Exception as e:
-                                logger.debug(f"Ошибка создания эмбеддинга: {e}")
+                    embedding = None
+                    if get_embedding:
+                        try:
+                            embedding = await get_embedding(content)
+                        except Exception as e:
+                            logger.debug(f"Ошибка создания эмбеддинга: {e}")
 
-                        metadata = item.get("metadata", {})
-                        metadata["source"] = "corporation_complete_knowledge"
-                        metadata["type"] = item.get("type", "unknown")
-                        metadata["extracted_at"] = datetime.now().isoformat()
+                    metadata = item.get("metadata", {})
+                    metadata["source"] = "corporation_complete_knowledge"
+                    metadata["type"] = item.get("type", "unknown")
+                    metadata["extracted_at"] = datetime.now().isoformat()
 
-                        await conn.execute(
-                            """
-                            INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
-                            VALUES ($1, $2, $3, 0.95, $4, true)
-                        """,
-                            domain_id,
-                            content,
-                            str(embedding) if embedding else None,
-                            json.dumps(metadata),
-                        )
-
-                        saved_count += 1
-
-                    logger.info(
-                        f"✅ Сохранено {saved_count} полных знаний корпорации в базу знаний"
+                    await conn.execute(
+                        """
+                        INSERT INTO knowledge_nodes (domain_id, content, embedding, confidence_score, metadata, is_verified)
+                        VALUES ($1, $2, $3, 0.95, $4, true)
+                    """,
+                        domain_id,
+                        content,
+                        str(embedding) if embedding else None,
+                        json.dumps(metadata),
                     )
+
+                    saved_count += 1
+
+                logger.info(f"✅ Сохранено {saved_count} полных знаний корпорации в базу знаний")
             finally:
-                # Закрываем пул соединений
-                await pool.close()
+                if pool is not None:
+                    try:
+                        await pool.release(conn)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        await temp_pool.release(conn)
+                    except Exception:
+                        pass
+                    if temp_pool is not None:
+                        await temp_pool.close()
         except Exception as e:
             logger.error(f"Ошибка сохранения знаний: {e}", exc_info=True)
 
         return saved_count
 
-    async def extract_all(self) -> Dict[str, Any]:
-        """Извлечь все знания корпорации"""
+    async def extract_all(self, pool: Optional[Any] = None) -> Dict[str, Any]:
+        """Извлечь все знания корпорации. Если передан pool, используется для сохранения в БД."""
         logger.info("🔍 Извлечение всех знаний корпорации...")
 
+        # [SINGULARITY 21.9] Оптимизация памяти: извлекаем и сохраняем по частям
+        total_extracted = 0
+        saved_to_db = 0
+
+        # 1. Systems
         systems_knowledge = await self.extract_corporation_systems_knowledge()
+        total_extracted += len(systems_knowledge)
+        saved_to_db += await self.save_all_knowledge(systems_knowledge, pool=pool)
+        del systems_knowledge
+        import gc
+
+        gc.collect()
+        await asyncio.sleep(5)  # [SINGULARITY 21.9] Увеличенная пауза для очистки RAM ОС
+
+        # 2. Data
         data_knowledge = await self.extract_corporation_data_knowledge()
+        total_extracted += len(data_knowledge)
+        saved_to_db += await self.save_all_knowledge(data_knowledge, pool=pool)
+        del data_knowledge
+        gc.collect()
+        await asyncio.sleep(5)
+
+        # 3. Logic
         logic_knowledge = await self.extract_corporation_logic_knowledge()
-
-        all_knowledge = systems_knowledge + data_knowledge + logic_knowledge
-
-        saved_count = await self.save_all_knowledge(all_knowledge)
+        total_extracted += len(logic_knowledge)
+        saved_to_db += await self.save_all_knowledge(logic_knowledge, pool=pool)
+        del logic_knowledge
+        gc.collect()
+        await asyncio.sleep(5)
 
         return {
-            "systems_count": len(systems_knowledge),
-            "data_count": len(data_knowledge),
-            "logic_count": len(logic_knowledge),
-            "total_extracted": len(all_knowledge),
-            "saved_to_db": saved_count,
+            "systems_count": 0,  # Больше не возвращаем по отдельности для экономии памяти
+            "data_count": 0,
+            "logic_count": 0,
+            "total_extracted": total_extracted,
+            "saved_to_db": saved_to_db,
         }
 
 

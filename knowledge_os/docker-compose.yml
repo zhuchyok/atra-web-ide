@@ -14,7 +14,13 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    command: ["postgres", "-c", "max_connections=300"] # 200 было мало при воркере+дашборд+Victoria+rest+оркестраторы (эксперты: docs/DB_CONNECTIONS_EXPERT_ANALYSIS.md)
+    command: [
+      "postgres",
+      "-c", "max_connections=100",
+      "-c", "idle_in_transaction_session_timeout=300000"
+    ]
+    # max_connections=100: PgBouncer держит ≤25 реальных соединений → 100 с запасом (было 500)
+    # idle_in_transaction_session_timeout=300000ms: убивает зависшие idle-in-transaction через 5 мин
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
@@ -34,11 +40,38 @@ services:
       timeout: 5s
       retries: 5
 
+  # PgBouncer: connection pooler перед PostgreSQL.
+  # Все сервисы коннектятся на pgbouncer:6432, тот держит ≤20 реальных соединений к postgres:5432.
+  # Исключение: employees_sync_daemon использует POSTGRES_DIRECT_URL → postgres:5432 (LISTEN/NOTIFY).
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: knowledge_pgbouncer
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    ports:
+      - "6432:6432"
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 6432 -U admin -d knowledge_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # Redis: кэш и очереди (restart: always). Имя knowledge_os_redis — чтобы не конфликтовать с atra (отдельный проект)
   redis:
     image: redis:7-alpine
     container_name: knowledge_os_redis
     restart: always
+    environment:
+      TZ: Europe/Moscow
     ports:
       - "6381:6379" # 6381 на хосте (6380 может быть занят atra в отдельном проекте)
     volumes:
@@ -71,10 +104,12 @@ services:
     # mem_reservation: 8g
     environment:
       TZ: Europe/Moscow
+      CORPORATION_TZ: Europe/Moscow
       PYTHONPATH: /app
       VICTORIA_PORT: "8000" # внутри контейнера 8000, снаружи 8010
       ATRA_ENV: prod
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
@@ -94,11 +129,14 @@ services:
       # Руки Виктории: держать victoria-wisdom-v3.5 в Ollama (600 = 10 мин; -1 = бессрочно в Ollama API)
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-600}
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
-      UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-600}
-      # Таймаут вызова LLM для выбора стратегии (с); 30 — чтобы не уходить в fallback при холодной модели
-      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-30}
-      # Таймаут understand_goal в синхронном пути (с); при превышении используем goal как restated и продолжаем
-      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-90}
+      # Увеличено до 1800 (30 минут) для сложных задач типа SEO-анализа
+      UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-1800}
+      # Таймаут понимания цели (было 90 → 300 сек = 5 минут для сложных задач)
+      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-300}
+      # Таймаут выбора стратегии (было 30 → 180 сек = 3 минуты)
+      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-180}
+      # Heartbeat для SSE streaming (15 сек → 10 сек для предотвращения обрывов)
+      VICTORIA_STREAM_HEARTBEAT_SEC: ${VICTORIA_STREAM_HEARTBEAT_SEC:-10}
       # Прогрев при старте: греем VICTORIA_PLANNER_MODEL + VICTORIA_MODEL (+ VICTORIA_WARMUP_EXTRA_MODELS через запятую)
       # VICTORIA_WARMUP_BLOCK_STARTUP=true = ждать прогрева до приёма запросов (стабильный первый sync)
       # VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-false}
@@ -109,6 +147,9 @@ services:
       VICTORIA_USE_LOCAL_ROUTER: "true"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       USE_ELK: "false"
+      # DB connection pool limits (best practice: маленький пул на сервис, мультиплексирование через PgBouncer)
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
       ELASTICSEARCH_URL: http://atra-elasticsearch:9200
       USE_KNOWLEDGE_OS: "true"
       VICTORIA_USE_CACHE: "false"
@@ -171,7 +212,7 @@ services:
       VERONICA_URL: ${VERONICA_URL:-http://veronica-agent:8000}
       # Canary: оркестрация V2 (A/B по проценту трафика)
       ORCHESTRATION_V2_ENABLED: ${ORCHESTRATION_V2_ENABLED:-true}
-      ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-10}
+      ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-50}
     ports:
       - "8010:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -179,6 +220,8 @@ services:
       - ../logs:/app/logs
       - ../src:/app/src
       - ../knowledge_os:/app/knowledge_os
+      # Доступ к данным для анализа (Singularity 21.24)
+      - /Users/bikos/Downloads:/data/downloads:ro
       # Мульти-проектный доступ: весь dev/ — новые проекты подхватываются автоматически
       - ../../dev:/workspace/dev
       - ..:/workspace/atra-web-ide
@@ -245,7 +288,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -255,11 +299,15 @@ services:
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "1"
       WORKER_TYPE: "heavy"
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
       - ../src:/app/src
       - ../knowledge_os:/app/knowledge_os
+      - /Users/bikos/Downloads:/data/downloads:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: python3 knowledge_os/app/expert_worker.py
@@ -287,7 +335,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -321,7 +370,8 @@ services:
       TZ: Europe/Moscow
       PYTHONPATH: /app
       ATRA_ENV: prod
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       USE_ELK: "true"
@@ -347,6 +397,8 @@ services:
       BROWSER_USE_HEADLESS: ${BROWSER_USE_HEADLESS:-true}
       # Victoria Operator: Veronica acts as eyes and hands
       VICTORIA_OPERATOR_ENABLED: "true"
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
+      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
     ports:
       - "8011:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -366,6 +418,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: atra-prometheus
+    environment:
+      TZ: Europe/Moscow
     ports:
       - "9092:9090" # 9092 на хосте (9090/9091 могут быть заняты другими Prometheus)
     volumes:
@@ -387,6 +441,7 @@ services:
     ports:
       - "3001:3000"
     environment:
+      - TZ=Europe/Moscow
       - GF_SECURITY_ADMIN_PASSWORD=atra2025
       - GF_INSTALL_PLUGINS=
       - GF_SERVER_ROOT_URL=http://localhost:3001
@@ -406,6 +461,7 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     environment:
+      - TZ=Europe/Moscow
       - discovery.type=single-node
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.security.enabled=false
@@ -430,6 +486,7 @@ services:
     ports:
       - "5601:5601"
     environment:
+      - TZ=Europe/Moscow
       - ELASTICSEARCH_HOSTS=http://atra-elasticsearch:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=
@@ -458,7 +515,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
@@ -486,8 +544,7 @@ services:
 
   # Nightly Learner: обучение экспертов, дебаты, гипотезы. Цикл каждые 24ч.
   # Записывает в knowledge_nodes, tasks — обновляет «БД: X ч назад» на дашборде.
-  # mem_limit (10G): максимум RAM для этого контейнера. Ограничивает потребление, чтобы при нехватке памяти
-  # ядро убивало именно контейнер (OOMKilled), а не другие процессы; 10G — под Mac Studio M4 Max 128GB.
+  # mem_limit (25G): полный цикл (эксперты, Council, эмбеддинги); 20G давало Killed/OOM.
   # Если снова "Killed": dmesg | grep -i oom; docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
   # OLLAMA_KEEP_ALIVE: 60 (1 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
   knowledge_nightly:
@@ -496,17 +553,18 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_nightly
     restart: unless-stopped
-    mem_limit: 10g
+    mem_limit: 25g
     deploy:
       resources:
         limits:
-          memory: 10G
+          memory: 25G
     networks:
       - atra-network
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -523,11 +581,21 @@ services:
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command:
-      [
+    command: [
         "sh",
         "-c",
-        "while true; do python -u nightly_learner.py; echo '✅ Цикл завершён. Следующий запуск через 24ч'; sleep 86400; done",
+        "while true; do \
+        HOUR=$$(date +%H); \
+        if [ $$HOUR -ge 0 ] && [ $$HOUR -lt 6 ]; then \
+        echo \"🌙 [NIGHTLY] Время глубокого обучения (00:00 - 06:00). Запуск одного цикла...\"; \
+        python -u nightly_learner.py; \
+        echo \"✅ Цикл завершён. Ожидание следующей ночи (до 00:00)...\"; \
+        sleep 21600; \
+        else \
+        echo \"☀️ [NIGHTLY] Сейчас $$HOUR:00. Ожидание окна 00:00 - 06:00...\"; \
+        sleep 1800; \
+        fi; \
+        done",
       ]
 
   # Knowledge OS REST API (порт 8002) — логирование чата в interaction_logs (Singularity 10.0)
@@ -544,7 +612,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11435
@@ -571,7 +640,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -589,8 +659,13 @@ services:
       ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
       # Phase 1.6: batch_group для задач одного domain (low/medium)
       BATCH_SMALL_TASKS_ENABLED: "true"
+      # mTLS — межкластерная безопасность для MultiClusterBridge (Singularity 21.24)
+      BRIDGE_CERT_PATH: /certs/mac-studio.crt
+      BRIDGE_KEY_PATH: /certs/mac-studio.key
+      BRIDGE_CA_PATH: /certs/ca.crt
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - ../certs:/certs:ro
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -617,7 +692,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
@@ -644,7 +720,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
@@ -672,7 +749,8 @@ services:
     environment:
       TZ: Europe/Moscow
       # Если дашборд в Docker, а PostgreSQL на хосте: postgresql://admin:secret@host.docker.internal:5432/knowledge_os
-      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os}
+      POSTGRES_DIRECT_URL: ${POSTGRES_DIRECT_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os}
       # Чтобы singularity_9_ab_tester и evaluator загружались в контейнере
       PYTHONPATH: /app/project/knowledge_os/app
       # URL бэкенда для API песочниц (внутри Docker сети)

@@ -44,86 +44,94 @@ class PerpetualEvolution:
             # В тихие часы запускаем самотестирование и исправление ошибок.
             try:
                 from autonomous_tester import AutonomousTester
+
                 tester = AutonomousTester()
                 await tester.run_cycle()
             except Exception as te:
                 logger.debug(f"Autonomous tester failed: {te}")
 
             # [SINGULARITY 24.0] Wisdom Injection Phase
-                # Automatically turn successful insights into skills
-                try:
-                    from wisdom_injection import WisdomInjectionEngine
+            # Automatically turn successful insights into skills
+            try:
+                from wisdom_injection import WisdomInjectionEngine
 
-                    wisdom_engine = WisdomInjectionEngine()
-                    await wisdom_engine.scan_and_inject()
-                except Exception as we:
-                    logger.debug(f"Wisdom injection failed: {we}")
+                wisdom_engine = WisdomInjectionEngine()
+                await wisdom_engine.scan_and_inject()
+            except Exception as we:
+                logger.debug(f"Wisdom injection failed: {we}")
 
-                # [SINGULARITY 21.0] Knowledge Distillation Phase
-                # Before researching new things, distill existing knowledge
-                from distillation_engine import KnowledgeDistiller
+            # [SINGULARITY 21.0] Knowledge Distillation Phase
+            # Before researching new things, distill existing knowledge
+            from distillation_engine import KnowledgeDistiller
 
-                distiller = KnowledgeDistiller()
-                await distiller.distill_knowledge_batch()
+            distiller = KnowledgeDistiller()
+            await distiller.distill_knowledge_batch()
 
-                # 1. RESEARCH: Find next big thing from Giants
-                task = await self.research_next_upgrade()
-                if not task:
-                    logger.info("😴 [EVOLUTION] No new upgrade ideas found. Sleeping...")
-                    await asyncio.sleep(3600)
-                    continue
+            # 1. RESEARCH: Find next big thing from Giants
+            task = await self.research_next_upgrade()
+            if not task:
+                logger.info("😴 [EVOLUTION] No new upgrade ideas found.")
+                return False
 
-                # 2. CHECK EXPERIENCE: Get warnings from past failures
-                warnings = await self.experience.get_warnings(task["title"])
-                if warnings:
-                    logger.warning(f"⚠️ [EVOLUTION] PITFALLS DETECTED: {warnings}")
-                    task["implementation_plan"] = (
-                        f"### [ГОЛОС ОПЫТА: ПРЕДУПРЕЖДЕНИЯ]\n{warnings}\n\n### [ПЛАН]\n{task['implementation_plan']}"
-                    )
-
-                # 3. BRAINSTORM: Call the Council
-                logger.info(f"🏛️ [EVOLUTION] Calling Expert Council for: {task['title']}")
-                council = ExpertCouncil()
-                final_plan = await council.start_debate(
-                    task["title"],
-                    f"REASONING: {task['reasoning']}\nPLAN: {task['implementation_plan']}",
+            # 2. CHECK EXPERIENCE: Get warnings from past failures
+            warnings = await self.experience.get_warnings(task["title"])
+            if warnings:
+                logger.warning(f"⚠️ [EVOLUTION] PITFALLS DETECTED: {warnings}")
+                task["implementation_plan"] = (
+                    f"### [ГОЛОС ОПЫТА: ПРЕДУПРЕЖДЕНИЯ]\n{warnings}\n\n### [ПЛАН]\n{task['implementation_plan']}"
                 )
 
-                # 4. CONSTITUTIONAL CHECK: Verify decision by Court
-                logger.info(f"⚖️ [EVOLUTION] Constitutional Verification for: {task['title']}")
-                court_result = await self.court.verify_decision(task["title"], final_plan)
+            # 3. BRAINSTORM: Call the Council
+            logger.info(f"🏛️ [EVOLUTION] Calling Expert Council for: {task['title']}")
+            council = ExpertCouncil()
+            final_plan = await council.start_debate(
+                task["title"],
+                f"REASONING: {task['reasoning']}\nPLAN: {task['implementation_plan']}",
+            )
 
-                if not court_result.get("valid"):
-                    logger.warning(
-                        f"🚨 [EVOLUTION] CONSTITUTIONAL VETO! {court_result.get('violations')}"
-                    )
-                    # If vetoed, we add feedback and try to re-synthesize or skip
-                    final_plan = f"### [ВЕТО КОНСТИТУЦИОННОГО СУДА]\n{court_result.get('feedback')}\n\n{final_plan}"
-                    # For safety, we still use the plan but it's now 'marked' with violations
+            # 4. CONSTITUTIONAL CHECK: Verify decision by Court
+            logger.info(f"⚖️ [EVOLUTION] Constitutional Verification for: {task['title']}")
+            court_result = await self.court.verify_decision(task["title"], final_plan)
 
-                task["implementation_plan"] = final_plan
-
-                # 5. IMPLEMENT: Execute the change
-                success = await self.execute_upgrade(task)
-
-                # 4. TEST: Verify the change
-                if success:
-                    await self.verify_and_log(task)
-                else:
-                    # Log failure to Voice of Experience
-                    await self.experience.log_failure(
-                        task["title"], "Implementation failed or timed out"
-                    )
-
-                logger.info(
-                    f"✅ [EVOLUTION] Cycle completed for: {task['title']}. Moving to next..."
+            if not court_result.get("valid"):
+                logger.warning(
+                    f"🚨 [EVOLUTION] CONSTITUTIONAL VETO! {court_result.get('violations')}"
                 )
-                await asyncio.sleep(60)  # Short break between upgrades
+                # If vetoed, we add feedback and try to re-synthesize or skip
+                final_plan = f"### [ВЕТО КОНСТИТУЦИОННОГО СУДА]\n{court_result.get('feedback')}\n\n{final_plan}"
+                # For safety, we still use the plan but it's now 'marked' with violations
 
-            except Exception as e:
-                logger.error(f"❌ [EVOLUTION] Error in loop: {e}")
-                await self.experience.log_failure("Perpetual Evolution Loop", str(e))
-                await asyncio.sleep(300)
+            task["implementation_plan"] = final_plan
+
+            # 5. IMPLEMENT: Execute the change
+            success = await self.execute_upgrade(task)
+
+            # 4. TEST: Verify the change
+            if success:
+                await self.verify_and_log(task)
+            else:
+                # Log failure to Voice of Experience
+                await self.experience.log_failure(
+                    task["title"], "Implementation failed or timed out"
+                )
+
+            logger.info(f"✅ [EVOLUTION] Cycle completed for: {task['title']}. Moving to next...")
+            await asyncio.sleep(60)  # Short break between upgrades
+
+        except Exception as e:
+            logger.error(f"❌ [EVOLUTION] Error in loop: {e}")
+            await self.experience.log_failure("Perpetual Evolution Loop", str(e))
+            await asyncio.sleep(300)
+
+    async def run_one_cycle(self) -> bool:
+        """Один цикл: исследование следующего апгрейда из знаний гигантов → создание задачи на внедрение (без council/court)."""
+        task = await self.research_next_upgrade()
+        if not task:
+            return False
+        success = await self.execute_upgrade(task)
+        if success:
+            await self.verify_and_log(task)
+        return success
 
     async def research_next_upgrade(self) -> dict:
         """Asks Victoria to find the next best thing to implement from AI Giants."""

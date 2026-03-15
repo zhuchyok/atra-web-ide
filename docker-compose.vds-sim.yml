@@ -1,0 +1,31 @@
+# Симуляция второго узла (VDS) для Singularity 21.24
+services:
+  gateway-vds:
+    build:
+      context: ./rust_core
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8082:8081" # Второй узел на порту 8082
+    environment:
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - CLUSTER_NAME=vds-node-1
+      - GATEWAY_CERT_PATH=/etc/certs/vds.crt
+      - GATEWAY_KEY_PATH=/etc/certs/vds.key
+      - GATEWAY_CLIENT_CA_PATH=/etc/certs/ca.crt
+    volumes:
+      - ./certs:/etc/certs:ro
+
+  bridge-vds:
+    build:
+      context: .
+      dockerfile: knowledge_os/Dockerfile
+    command: python3 knowledge_os/app/core/cluster_bridge.py
+    environment:
+      - DATABASE_URL=postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      - CLUSTER_NAME=vds-node-1
+      - BRIDGE_CERT_PATH=/etc/certs/vds.crt
+      - BRIDGE_KEY_PATH=/etc/certs/vds.key
+      - BRIDGE_CA_PATH=/etc/certs/ca.crt
+      - REDIS_URL=redis://knowledge_redis:6379/0
+    depends_on:
+      - gateway-vds

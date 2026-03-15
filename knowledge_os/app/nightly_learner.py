@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import json
 import logging
 import os
@@ -415,22 +416,78 @@ async def nightly_learning_cycle():
             f"[{start_time}] Total Nightly Learning Cycle (Council Phase enabled) starting..."
         )
 
-        # Обновляем знания корпорации перед обучением
+        # Обновляем знания корпорации перед обучением (один пул — меньше слотов к БД)
+        _log_step("[NIGHTLY] Phase: corporation knowledge update")
+        shared_pool = None
         try:
+            shared_pool = await asyncpg.create_pool(
+                DB_URL,
+                min_size=1,
+                max_size=4,
+                command_timeout=60,
+            )
             try:
-                from corporation_knowledge_system import update_all_agents_knowledge
-            except ImportError:
-                from app.corporation_knowledge_system import update_all_agents_knowledge
-            await update_all_agents_knowledge()
-            print("✅ Знания корпорации обновлены перед обучением")
+                try:
+                    from corporation_knowledge_system import update_all_agents_knowledge
+                except ImportError:
+                    from app.corporation_knowledge_system import update_all_agents_knowledge
+                await update_all_agents_knowledge(pool=shared_pool)
+                print("✅ Знания корпорации обновлены перед обучением")
+            finally:
+                await shared_pool.close()
         except Exception as e:
             print(f"⚠️ Не удалось обновить знания корпорации: {e}")
+            if shared_pool:
+                await shared_pool.close()
+
+        # Сброс памяти после тяжёлой фазы (1948+ скриптов, эмбеддинги) — снижает риск OOM (CHANGES §74)
+        import gc
+
+        gc.collect()
+        await asyncio.sleep(10)  # [SINGULARITY 21.9] Большая пауза для очистки RAM ОС
+
+        # --- ФАЗА: ОБНОВЛЕНИЕ ЗНАНИЙ ГИГАНТОВ (External Docs → AI Research) [опционально] ---
+        if os.getenv("ENABLE_NIGHTLY_EXTERNAL_INDEX", "false").lower() in ("true", "1"):
+            _log_step("📚 Running External Docs indexing (знания гигантов)...")
+            try:
+                try:
+                    from index_external_docs import run_indexing
+                except ImportError:
+                    from app.index_external_docs import run_indexing
+                await run_indexing()
+                print("✅ External Docs (AI Research) indexed.")
+            except Exception as e:
+                print(f"⚠️ External Docs indexing error: {e}")
+        else:
+            _log_step("ℹ️ External Docs indexing skipped (ENABLE_NIGHTLY_EXTERNAL_INDEX not set)")
+
+        # --- ФАЗА: ОДИН ЦИКЛ ВНЕДРЕНИЯ ИЗ ЗНАНИЙ ГИГАНТОВ (Perpetual Evolution) ---
+        _log_step("🌐 Running one Perpetual Evolution cycle (research from giants → task)...")
+        try:
+            try:
+                from perpetual_evolution import PerpetualEvolution
+            except ImportError:
+                from app.perpetual_evolution import PerpetualEvolution
+            engine = PerpetualEvolution()
+            ok = await engine.run_one_cycle()
+            if ok:
+                print("✅ Perpetual Evolution: one upgrade task created from giants.")
+            else:
+                print("ℹ️ Perpetual Evolution: no new upgrade proposed this run.")
+        except Exception as e:
+            print(f"⚠️ Perpetual Evolution error: {e}")
 
         # Используем get_pool из evaluator для совместимости с подключением к БД
         from evaluator import get_pool
 
         pool = await get_pool()
         conn = await pool.acquire()
+
+        # Ещё один сброс перед циклом по экспертам (освобождаем ссылки от corporation/PerpetualEvolution)
+        import gc
+
+        gc.collect()
+        await asyncio.sleep(5)  # [SINGULARITY 21.9] Пауза перед циклом обучения экспертов
 
         # Phase 0: Получаем контекст OKR и ошибок
         okr_context, error_context = await get_nightly_context(conn)
@@ -459,10 +516,11 @@ async def nightly_learning_cycle():
         print(f"📚 Найдено экспертов для обучения: {total_experts}")
 
         for idx, expert in enumerate(experts):
-            if idx % 10 == 0:
+            if idx % 3 == 0:
                 import gc
 
                 gc.collect()
+                await asyncio.sleep(2)  # [SINGULARITY 21.9] Частая пауза в цикле обучения
             _log_step(f"[NIGHTLY] Expert {idx + 1}/{total_experts}: {expert.get('name', '?')}")
 
             # [SINGULARITY 14.3] Memory Guard
@@ -693,6 +751,18 @@ async def nightly_learning_cycle():
         except Exception as e:
             print(f"⚠️ Talent Management error: {e}")
 
+        # --- ФАЗА 7.5: ENHANCED EXPERT EVOLVER (метрики → эволюция/специализация/удаление) ---
+        _log_step("🧬 Running Enhanced Expert Evolution cycle...")
+        try:
+            try:
+                from enhanced_expert_evolver import run_enhanced_evolution_cycle
+            except ImportError:
+                from app.enhanced_expert_evolver import run_enhanced_evolution_cycle
+            await run_enhanced_evolution_cycle()
+            print("✅ Phase 7.5: Enhanced Expert Evolution completed.")
+        except Exception as e:
+            print(f"⚠️ Enhanced Expert Evolution error: {e}")
+
         # --- ФАЗА 10: ADAPTIVE LEARNING (АДАПТИВНОЕ ОБУЧЕНИЕ) ---
         _log_step("🎓 Running Adaptive Learning...")
         try:
@@ -785,6 +855,9 @@ async def nightly_learning_cycle():
         # --- ФАЗА 13: AUTONOMOUS TESTS (Living Brain) ---
         _log_step("🧪 Running autonomous test phase...")
         try:
+            import gc
+
+            gc.collect()
             tests_dir = os.path.join(_KNOWLEDGE_OS_ROOT, "tests")
             if os.path.exists(tests_dir):
                 result = subprocess.run(
@@ -856,6 +929,19 @@ async def nightly_learning_cycle():
                     print("✅ Autonomous tests passed")
         except Exception as e:
             logger.warning("Autonomous tests phase failed: %s", e)
+
+        # --- ФАЗА 13.5: AUTONOMOUS TESTER (Self-Healing QA, Singularity 24.0) ---
+        _log_step("🧪 Running Autonomous Tester (full suite + Anna healing)...")
+        try:
+            try:
+                from autonomous_tester import AutonomousTester
+            except ImportError:
+                from app.autonomous_tester import AutonomousTester
+            tester = AutonomousTester()
+            await tester.run_cycle()
+            print("✅ Phase 13.5: Autonomous Tester (Self-Healing QA) completed.")
+        except Exception as e:
+            print(f"⚠️ Autonomous Tester error: {e}")
 
         # --- ФАЗА 14: GIT DIFF → ЗАДАЧИ НА ГЕНЕРАЦИЮ ТЕСТОВ (Living Brain §6.1) ---
         _log_step("📝 Running git diff → test generation tasks...")
@@ -1050,6 +1136,33 @@ async def nightly_learning_cycle():
         except Exception as e:
             logger.debug("Phase 17 (tasks cleanup) failed: %s", e)
 
+        # --- ФАЗА 17.5: СБРОС ЗАВИСШИХ ЗАДАЧ (in_progress > 4ч → failed, 1–4ч → pending) ---
+        _log_step("🔄 Running reset stuck tasks...")
+        try:
+            _scripts_dir = os.path.join(_KNOWLEDGE_OS_ROOT, "scripts")
+            _reset_script = os.path.join(_scripts_dir, "reset_stuck_tasks.py")
+            if os.path.isfile(_reset_script):
+                _proc = subprocess.run(
+                    [sys.executable, _reset_script],
+                    cwd=_KNOWLEDGE_OS_ROOT,
+                    timeout=60,
+                    capture_output=True,
+                    text=True,
+                    env={
+                        **os.environ,
+                        "PYTHONPATH": _KNOWLEDGE_OS_ROOT
+                        + os.pathsep
+                        + os.path.join(_KNOWLEDGE_OS_ROOT, "app"),
+                    },
+                )
+                if _proc.returncode == 0 and _proc.stdout:
+                    print(_proc.stdout.strip()[:400])
+                print("✅ Phase 17.5: Reset stuck tasks completed.")
+            else:
+                logger.debug("Phase 17.5 skipped: reset_stuck_tasks.py not found")
+        except Exception as e:
+            print(f"⚠️ Reset stuck tasks error: {e}")
+
         # --- ФАЗА 18: SELF-DISTILLATION (SINGULARITY 13.0) ---
         _log_step("🧠 Running Recursive Self-Distillation cycle...")
         try:
@@ -1075,6 +1188,19 @@ async def nightly_learning_cycle():
             print("✅ Phase 19: Shadow Prompt Promotion cycle completed.")
         except Exception as e:
             print(f"⚠️ Shadow Prompt Promotion error: {e}")
+
+        # --- ФАЗА 19.5: META-ARCHITECT SELF-EVOLUTION (SINGULARITY 10.0) ---
+        _log_step("🧬 Running MetaArchitect Self-Evolution (hot spots → mutations → shadow)...")
+        try:
+            try:
+                from meta_architect import MetaArchitect
+            except ImportError:
+                from app.meta_architect import MetaArchitect
+            architect = MetaArchitect()
+            await architect.self_evolution_cycle()
+            print("✅ Phase 19.5: MetaArchitect Self-Evolution completed.")
+        except Exception as e:
+            print(f"⚠️ MetaArchitect Self-Evolution error: {e}")
 
         # --- ФАЗА 20: WISDOM SYNTHESIS (SINGULARITY 20.0) ---
         _log_step("🏛️ Running Wisdom Synthesis (Meta-Strategies & Tacit Knowledge)...")
@@ -1114,6 +1240,42 @@ async def nightly_learning_cycle():
             print("✅ Phase 20: Wisdom Synthesis completed.")
         except Exception as e:
             print(f"⚠️ Wisdom Synthesis error: {e}")
+
+        # --- ФАЗА 20.5: ENHANCED IMMUNITY (один цикл за ночь) ---
+        _log_step("🛡️ Running Enhanced Immunity cycle...")
+        try:
+            try:
+                from enhanced_immunity import run_enhanced_immunity_cycle
+            except ImportError:
+                from app.enhanced_immunity import run_enhanced_immunity_cycle
+            await run_enhanced_immunity_cycle()
+            print("✅ Phase 20.5: Enhanced Immunity completed.")
+        except Exception as e:
+            print(f"⚠️ Enhanced Immunity error: {e}")
+
+        # --- ФАЗА 20.6: STRATEGIC BOARD (одно заседание за ночь) ---
+        _log_step("🏛️ Running Strategic Board meeting...")
+        try:
+            try:
+                from strategic_board import run_board_meeting
+            except ImportError:
+                from app.strategic_board import run_board_meeting
+            await run_board_meeting()
+            print("✅ Phase 20.6: Strategic Board meeting completed.")
+        except Exception as e:
+            print(f"⚠️ Strategic Board error: {e}")
+
+        # --- ФАЗА 20.7: SYNC EMPLOYEES (employees.json → БД) ---
+        _log_step("👥 Running Employees sync (nightly)...")
+        try:
+            try:
+                from employees_sync_daemon import trigger_employees_sync
+            except ImportError:
+                from app.employees_sync_daemon import trigger_employees_sync
+            await trigger_employees_sync(reason="nightly")
+            print("✅ Phase 20.7: Employees sync completed.")
+        except Exception as e:
+            print(f"⚠️ Employees sync error: {e}")
 
         await pool.release(conn)
         await pool.close()

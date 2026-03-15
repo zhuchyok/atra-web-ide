@@ -27,6 +27,12 @@ services:
       - PROJECT_CONTEXT=atra-web-ide
       - WORKSPACE_ROOT=/workspace
       - RUST_LOG=info
+      # mTLS — межкластерная безопасность (Singularity 21.24)
+      - GATEWAY_CERT_PATH=/certs/mac-studio.crt
+      - GATEWAY_KEY_PATH=/certs/mac-studio.key
+      - GATEWAY_CLIENT_CA_PATH=/certs/ca.crt
+    volumes:
+      - ./certs:/certs:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

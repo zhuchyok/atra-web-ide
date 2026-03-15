@@ -1,7 +1,13 @@
 # Env & secrets
 .env
 .env.local
+.env.webmaster
+.env.direct
 *.pem
+*.key
+*.crt
+*.csr
+certs/
 
 # Python
 __pycache__/

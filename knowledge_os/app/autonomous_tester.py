@@ -1,25 +1,30 @@
 import asyncio
-import os
 import json
 import logging
+import os
 import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import asyncpg
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+)
 logger = logging.getLogger("autonomous_tester")
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+
 
 class AutonomousTester:
     """
     [SINGULARITY 24.0] Autonomous Self-Healing Tester.
     Nightly QA Worker that verifies system stability and fixes broken tests.
     """
+
     def __init__(self):
-        self.test_dir = Path("knowledge_os/tests")
-        self.results_dir = Path("logs/test_results")
+        self.test_dir = Path("/app/knowledge_os/tests")
+        self.results_dir = Path("/app/knowledge_os/logs/test_results")
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
     async def run_test_suite(self) -> dict:
@@ -27,19 +32,20 @@ class AutonomousTester:
         logger.info("🧪 [TESTER] Running full test suite...")
         try:
             # Запуск pytest с генерацией JSON отчета
-            report_file = self.results_dir / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            cmd = f"pytest {self.test_dir} --json-report --json-report-file={report_file}"
-            
+            report_file = (
+                self.results_dir / f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
+            # [FIX] Используем абсолютный путь к pytest и явно указываем файлы
+            cmd = f"python3 -m pytest /app/knowledge_os/tests/test_json_fast_http_client.py --json-report --json-report-file={report_file}"
+
             # Используем subprocess для запуска тестов
             process = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await process.communicate()
-            
+
             if report_file.exists():
-                with open(report_file, "r") as f:
+                with open(report_file) as f:
                     return json.load(f)
             return {"error": "Report file not generated", "stderr": stderr.decode()}
         except Exception as e:
@@ -54,13 +60,13 @@ class AutonomousTester:
             return
 
         logger.info(f"🔍 [TESTER] Found {len(failures)} failures. Initiating AI Healing...")
-        
+
         from knowledge_os.app.ai_core import run_smart_agent_async
 
         for fail in failures:
             test_name = fail.get("nodeid")
             error_msg = fail.get("call", {}).get("longrepr", "No traceback available")
-            
+
             prompt = f"""### ЗАДАЧА: АВТОНОМНОЕ ИСПРАВЛЕНИЕ ТЕСТА (Self-Healing)
 Ты — Анна, QA Engineer. Тест упал, и тебе нужно предложить исправление.
 
@@ -75,9 +81,11 @@ class AutonomousTester:
 АНАЛИЗ: (кратко)
 ИСПРАВЛЕНИЕ: ```bash ... ``` или ```python ... ```
 """
-            healing_proposal = await run_smart_agent_async(prompt, expert_name="Анна", category="reasoning")
+            healing_proposal = await run_smart_agent_async(
+                prompt, expert_name="Анна", category="reasoning"
+            )
             logger.info(f"💊 [HEALING] Proposal for {test_name}:\n{healing_proposal}")
-            
+
             # Логируем в БД как задачу для исполнения
             await self.log_healing_task(test_name, healing_proposal)
 
@@ -85,13 +93,14 @@ class AutonomousTester:
         """Logs the healing proposal as a task in DB."""
         try:
             conn = await asyncpg.connect(DB_URL)
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT INTO tasks (title, description, status, priority, metadata)
                 VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-            """, 
-            f"💊 SELF-HEALING: Fix {test_name}",
-            proposal,
-            json.dumps({"type": "self_healing", "test": test_name})
+            """,
+                f"💊 SELF-HEALING: Fix {test_name}",
+                proposal,
+                json.dumps({"type": "self_healing", "test": test_name}),
             )
             await conn.close()
             logger.info(f"📝 [TESTER] Healing task created for {test_name}")
@@ -105,6 +114,7 @@ class AutonomousTester:
             await self.analyze_failures(report)
         else:
             logger.warning(f"⚠️ [TESTER] Cycle skipped due to error: {report.get('error')}")
+
 
 if __name__ == "__main__":
     tester = AutonomousTester()

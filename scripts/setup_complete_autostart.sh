@@ -163,8 +163,18 @@ else
 fi
 echo ""
 
-# 8. Настройка системы самовосстановления
-echo "[8/9] Настройка системы самовосстановления..."
+# 8. Настройка автозапуска MLX API Server (мозг Виктории на хосте)
+echo "[8/10] Настройка автозапуска MLX API Server..."
+if [ -f "scripts/setup_mlx_autostart.sh" ]; then
+    bash scripts/setup_mlx_autostart.sh
+    echo "   ✅ MLX API Server настроен на автозапуск при входе (мозг Виктории)"
+else
+    echo "   ⚠️  setup_mlx_autostart.sh не найден"
+fi
+echo ""
+
+# 9. Настройка системы самовосстановления
+echo "[9/10] Настройка системы самовосстановления..."
 if [ -f "scripts/setup_system_auto_recovery.sh" ]; then
     bash scripts/setup_system_auto_recovery.sh
 else
@@ -172,8 +182,8 @@ else
 fi
 echo ""
 
-# 9. Настройка автономных систем
-echo "[9/9] Настройка автономных систем..."
+# 10. Настройка автономных систем
+echo "[10/10] Настройка автономных систем..."
 if [ -f "scripts/start_autonomous_systems.sh" ]; then
     echo "   📝 Запускаю настройку автономных систем..."
     bash scripts/start_autonomous_systems.sh || echo "   ⚠️  Не удалось настроить автономные системы"
@@ -203,6 +213,13 @@ if command -v brew >/dev/null 2>&1 && brew services list 2>/dev/null | grep -q o
     fi
 else
     echo "⚠️  Ollama: проверьте автозапуск вручную"
+fi
+
+# Проверка MLX API Server (мозг Виктории)
+if launchctl list 2>/dev/null | grep -q "com.atra.mlx-api-server"; then
+    echo "✅ MLX API Server (мозг Виктории): настроен на автозапуск при входе"
+else
+    echo "⚠️  MLX API Server: не настроен (запустите: bash scripts/setup_mlx_autostart.sh)"
 fi
 
 # Проверка Victoria MCP
@@ -238,11 +255,12 @@ echo "🔄 После перезагрузки Mac Studio или MacBook:"
 echo "   1. Docker Desktop запустится автоматически"
 echo "   2. Все Docker контейнеры запустятся автоматически (в т.ч. Victoria, Open WebUI :3005)"
 echo "   3. Ollama запустится автоматически (если настроен)"
-echo "   4. Victoria MCP Server запустится автоматически (если настроен)"
-echo "   5. Self-Check System запустится автоматически (НОВОЕ) ✅"
-echo "   6. SSH Reverse Tunnel запустится автоматически (НОВОЕ) ✅"
-echo "   7. Model Tracker запустится автоматически (НОВОЕ) ✅"
-echo "   8. Автономные системы запустятся автоматически (если настроены)"
+echo "   4. MLX API Server (мозг Виктории) запустится автоматически при входе (launchd) ✅"
+echo "   5. Victoria MCP Server запустится автоматически (если настроен)"
+echo "   6. Self-Check System запустится автоматически ✅"
+echo "   7. SSH Reverse Tunnel запустится автоматически ✅"
+echo "   8. Model Tracker запустится автоматически ✅"
+echo "   9. Автономные системы запустятся автоматически (если настроены)"
 echo ""
 echo "📝 Проверка после перезагрузки:"
 echo "   bash scripts/verify_mac_studio_self_recovery.sh"

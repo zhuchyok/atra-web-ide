@@ -23,6 +23,8 @@ def loads(data: Optional[bytes | str]) -> Optional[Any]:
     Парсинг JSON из bytes или str. Возвращает dict/list или None при пустом/невалидном вводе.
     Не передавайте None из кэша — проверяйте «if cached_data» до вызова (edge case: пустая строка).
     """
+    # [STRESS TEST BUG] Намеренная ошибка для проверки Self-Healing
+
     if data is None or data == b"" or data == "":
         return None
     if _HAS_ORJSON:

@@ -77,24 +77,35 @@ def render_finance_and_roi():
     """💰 Финансы и ROI знаний."""
     st.subheader("📈 Финансовый Учет Интеллекта (Knowledge P&L)")
 
-    # Метрики ликвидности и экспертов
+    # Метрики ликвидности (всегда) и экспертов (если есть колонки virtual_budget, performance_score)
     results = fetch_data("""
         SELECT
             (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes) as total_liquidity,
-            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0) as active_nodes,
-            (SELECT SUM(virtual_budget) FROM experts) as total_budget,
-            (SELECT AVG(performance_score) FROM experts) as avg_performance
+            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0) as active_nodes
     """)
+    total_budget = None
+    avg_performance = None
+    expert_stats = fetch_data(
+        "SELECT SUM(virtual_budget) as total_budget, AVG(performance_score) as avg_performance FROM experts"
+    )
+    if expert_stats and expert_stats[0]:
+        total_budget = expert_stats[0].get("total_budget")
+        avg_performance = expert_stats[0].get("avg_performance")
 
     if results and results[0]:
         r = results[0]
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("💎 Ликвидность", f"{r['total_liquidity']:.1f}" if r["total_liquidity"] else "0")
-        c2.metric("✅ Активных узлов", f"{r['active_nodes']:,}" if r["active_nodes"] else "0")
-        c3.metric("💵 Общий бюджет", f"${r['total_budget']:.0f}" if r["total_budget"] else "$0")
+        c1.metric(
+            "💎 Ликвидность", f"{r['total_liquidity']:.1f}" if r.get("total_liquidity") else "0"
+        )
+        c2.metric("✅ Активных узлов", f"{r['active_nodes']:,}" if r.get("active_nodes") else "0")
+        c3.metric(
+            "💵 Общий бюджет",
+            f"${total_budget:.0f}" if total_budget is not None else "N/A (миграция)",
+        )
         c4.metric(
             "⭐ Производительность",
-            f"{r['avg_performance']:.2f}" if r["avg_performance"] else "N/A",
+            f"{avg_performance:.2f}" if avg_performance is not None else "N/A (миграция)",
         )
 
     st.markdown("---")

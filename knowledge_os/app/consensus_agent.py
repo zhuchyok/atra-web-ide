@@ -25,6 +25,7 @@ class AgentResponse:
     agent_name: str
     response: str
     confidence: float = 0.5
+    performance_score: float = 1.0  # [CONSENSUS v2] KPI эксперта
     reasoning: Optional[str] = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -134,6 +135,23 @@ class ConsensusAgent:
         previous_responses: List[List[AgentResponse]],
     ) -> List[AgentResponse]:
         """Собрать ответы от агентов"""
+        # [CONSENSUS v2] Загружаем KPI экспертов из БД
+        expert_kpis = {}
+        try:
+            import asyncpg
+
+            DB_URL = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            )
+            conn = await asyncpg.connect(DB_URL)
+            rows = await conn.fetch(
+                "SELECT name, performance_score FROM experts WHERE name = ANY($1)", agents
+            )
+            await conn.close()
+            expert_kpis = {r["name"]: r["performance_score"] or 1.0 for r in rows}
+        except Exception as e:
+            logger.debug(f"[CONSENSUS v2] Ошибка загрузки KPI: {e}")
+
         # [SINGULARITY 14.2] Pre-process history with FactExtractor if needed
         if (
             previous_responses
@@ -178,6 +196,7 @@ class ConsensusAgent:
                 agent_name=agent,
                 response=response.get("response", ""),
                 confidence=response.get("confidence", 0.5),
+                performance_score=expert_kpis.get(agent, 1.0),  # [CONSENSUS v2] Применяем KPI
                 reasoning=response.get("reasoning"),
             )
             agent_responses.append(agent_response)
@@ -209,32 +228,38 @@ class ConsensusAgent:
     def _check_quorum_convergence(
         self, responses: List[AgentResponse]
     ) -> Tuple[bool, Optional[str]]:
-        """Проверить quorum convergence (Aegean-style)"""
+        """Проверить quorum convergence (Aegean-style) с учетом весов [CONSENSUS v2]"""
         if not responses:
             return False, None
 
         # Группируем похожие ответы
         answer_groups = {}
+        total_weight = sum(r.performance_score * r.confidence for r in responses)
+
+        if total_weight == 0:
+            total_weight = len(responses)  # Fallback
+
         for resp in responses:
             # Нормализуем ответ для группировки
             normalized = self._normalize_answer(resp.response)
 
             if normalized not in answer_groups:
-                answer_groups[normalized] = []
-            answer_groups[normalized].append(resp)
+                answer_groups[normalized] = {"responses": [], "weight": 0.0}
 
-        # Находим группу с большинством
-        max_group_size = max(len(group) for group in answer_groups.values())
-        total_agents = len(responses)
+            answer_groups[normalized]["responses"].append(resp)
+            # Вес ответа = KPI * Уверенность
+            answer_groups[normalized]["weight"] += resp.performance_score * resp.confidence
 
-        # Проверяем quorum threshold
-        if max_group_size / total_agents >= self.quorum_threshold:
-            # Находим ответ группы большинства
-            for normalized, group in answer_groups.items():
-                if len(group) == max_group_size:
-                    # Берем ответ с наибольшей уверенностью
-                    best_response = max(group, key=lambda r: r.confidence)
-                    return True, best_response.response
+        # Находим группу с наибольшим весом
+        best_normalized = max(answer_groups.keys(), key=lambda k: answer_groups[k]["weight"])
+        max_group_weight = answer_groups[best_normalized]["weight"]
+
+        # Проверяем quorum threshold по весу
+        if max_group_weight / total_weight >= self.quorum_threshold:
+            group = answer_groups[best_normalized]["responses"]
+            # Берем ответ с наибольшей уверенностью из группы большинства
+            best_response = max(group, key=lambda r: r.confidence)
+            return True, best_response.response
 
         return False, None
 
@@ -272,45 +297,59 @@ class ConsensusAgent:
         return context
 
     def _synthesize_final_answer(self, responses: List[AgentResponse]) -> Tuple[str, float]:
-        """Синтезировать финальный ответ"""
+        """Синтезировать финальный ответ с учетом весов [CONSENSUS v2]"""
         if not responses:
             return "Нет ответов", 0.0
 
         # Группируем по похожести
         answer_groups = {}
+        total_weight = sum(r.performance_score * r.confidence for r in responses)
+
+        if total_weight == 0:
+            total_weight = len(responses)
+
         for resp in responses:
             normalized = self._normalize_answer(resp.response)
             if normalized not in answer_groups:
-                answer_groups[normalized] = []
-            answer_groups[normalized].append(resp)
+                answer_groups[normalized] = {"responses": [], "weight": 0.0}
 
-        # Выбираем группу большинства
-        largest_group = max(answer_groups.values(), key=len)
+            answer_groups[normalized]["responses"].append(resp)
+            answer_groups[normalized]["weight"] += resp.performance_score * resp.confidence
+
+        # Выбираем группу с наибольшим весом
+        best_normalized = max(answer_groups.keys(), key=lambda k: answer_groups[k]["weight"])
+        largest_group_data = answer_groups[best_normalized]
+        largest_group = largest_group_data["responses"]
 
         # Берем ответ с наибольшей уверенностью
         best_response = max(largest_group, key=lambda r: r.confidence)
 
-        # Рассчитываем consensus score
-        consensus_score = len(largest_group) / len(responses)
+        # Рассчитываем consensus score как долю веса
+        consensus_score = largest_group_data["weight"] / total_weight
 
         return best_response.response, consensus_score
 
     def _calculate_agreement_level(self, responses: List[AgentResponse]) -> float:
-        """Рассчитать уровень согласия"""
+        """Рассчитать уровень согласия с учетом весов [CONSENSUS v2]"""
         if len(responses) < 2:
             return 1.0
 
         # Группируем ответы
         answer_groups = {}
+        total_weight = sum(r.performance_score * r.confidence for r in responses)
+
+        if total_weight == 0:
+            total_weight = len(responses)
+
         for resp in responses:
             normalized = self._normalize_answer(resp.response)
             if normalized not in answer_groups:
-                answer_groups[normalized] = 0
-            answer_groups[normalized] += 1
+                answer_groups[normalized] = 0.0
+            answer_groups[normalized] += resp.performance_score * resp.confidence
 
-        # Максимальная группа
-        max_group_size = max(answer_groups.values())
-        agreement = max_group_size / len(responses)
+        # Максимальный вес группы
+        max_group_weight = max(answer_groups.values())
+        agreement = max_group_weight / total_weight
 
         return agreement
 

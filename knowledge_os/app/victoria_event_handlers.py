@@ -171,11 +171,186 @@ class VictoriaEventHandlers:
             return await self.handle_file_created(event)
         elif event.event_type == EventType.PERFORMANCE_DEGRADED:
             return await self.handle_performance_degraded(event)
+        elif event.event_type == EventType.LOG_ERROR_DETECTED:
+            return await self.handle_log_error_detected(event)
         # ... другие типы ...
         return {"status": "ignored"}
 
+    async def handle_log_error_detected(self, event: Event) -> Dict[str, Any]:
+        """
+        Обработчик ошибки из логов Docker.
+        Виктория сама решает: исправить автономно, предложить или игнорировать.
+        """
+        error_info = event.payload.get("error_info", {})
+        container = error_info.get("container", "unknown")
+
+        logger.warning(f"🚨 [SELF-HEALING] Обнаружена ошибка в логах контейнера {container}")
+
+        # 1. Анализ через Mutation Engine (Виктория принимает решение)
+        try:
+            from app.codebase_mutation_engine import get_mutation_engine
+
+            mutation = get_mutation_engine()
+
+            # Подготавливаем данные для мутации
+            mutation_event = {
+                "error_info": {
+                    "type": "LogError",
+                    "message": error_info.get("message"),
+                    "file": error_info.get("file"),
+                    "line": error_info.get("line"),
+                    "context": error_info.get("context"),
+                }
+            }
+
+            # Теперь не передаем propose_only=True, даем Виктории свободу выбора
+            mutation_result = await mutation.analyze_and_mutate(mutation_event)
+
+            if not mutation_result.get("success"):
+                return {"status": "mutation_failed", "reason": mutation_result.get("reason")}
+
+            decision = mutation_result.get("decision")
+
+            # 2. Обработка решения Виктории
+            if decision == "ignored":
+                logger.info(
+                    f"🧬 [SELF-HEALING] Виктория решила проигнорировать ошибку: {mutation_result.get('explanation')}"
+                )
+                return {"status": "ignored", "reason": mutation_result.get("explanation")}
+
+            if mutation_result.get("propose_only") or decision == "propose":
+                # Создаем задачу на одобрение
+                return await self._create_healing_task(
+                    error_info, mutation_result, status="awaiting_approval"
+                )
+
+            if decision == "applied":
+                # Создаем задачу со статусом completed (уведомление о том, что уже исправлено)
+                logger.info(
+                    f"✅ [SELF-HEALING] Виктория АВТОНОМНО исправила ошибку в {error_info.get('file')}"
+                )
+                return await self._create_healing_task(
+                    error_info, mutation_result, status="completed"
+                )
+
+            return {"status": "unknown_decision", "decision": decision}
+
+        except Exception as e:
+            logger.error(
+                f"❌ [SELF-HEALING] Ошибка в handle_log_error_detected: {e}", exc_info=True
+            )
+            return {"status": "error", "message": str(e)}
+
+    async def _create_healing_task(
+        self, error_info: Dict, mutation_result: Dict, status: str = "awaiting_approval"
+    ) -> Dict:
+        """Вспомогательный метод для создания задачи в БД."""
+        try:
+            import json
+            import os
+            import uuid
+
+            import asyncpg
+
+            patch_data = mutation_result.get("patch_data") or mutation_result
+            container = error_info.get("container", "unknown")
+
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            )
+            conn = await asyncpg.connect(db_url)
+            try:
+                task_id = str(uuid.uuid4())
+                prefix = "Self-Healing [AUTO]" if status == "completed" else "Self-Healing"
+                title = f"{prefix}: Исправление в {container}"
+
+                explanation = mutation_result.get("explanation") or patch_data.get("explanation")
+                description = (
+                    f"Обнаружена ошибка в логах:\n{error_info.get('message')}\n\n"
+                    f"Решение Виктории:\n{explanation}\n\n"
+                    f"Файл: {error_info.get('file')}:{error_info.get('line')}\n"
+                    f"Статус: {'Применено автоматически' if status == 'completed' else 'Ожидает одобрения'}"
+                )
+
+                metadata = {
+                    "source": "self_healing_logs",
+                    "container": container,
+                    "error_info": error_info,
+                    "proposed_patch": patch_data,
+                    "decision": mutation_result.get("decision"),
+                    "mutation_id": mutation_result.get("mutation_id"),
+                }
+
+                await conn.execute(
+                    """
+                    INSERT INTO tasks (id, title, description, status, priority, metadata, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    task_id,
+                    title,
+                    description,
+                    status,
+                    "high",
+                    json.dumps(metadata),
+                    datetime.now(timezone.utc),
+                )
+
+                logger.info(f"✅ [SELF-HEALING] Задача {task_id} создана (статус: {status})")
+                return {"status": "task_created", "task_id": task_id, "db_status": status}
+            finally:
+                await conn.close()
+        except Exception as db_err:
+            logger.error(f"❌ [SELF-HEALING] Ошибка БД: {db_err}")
+            return {"status": "db_error", "mutation": mutation_result}
+
     async def handle_file_created(self, event: Event) -> Dict[str, Any]:
         """Обработчик создания файла"""
+        file_path = event.payload.get("file_path")
+
+        # [AUTONOMOUS] Syntax Auto-Fix
+        if file_path and file_path.endswith(".py"):
+            try:
+                import subprocess
+                import sys
+
+                process = subprocess.run(
+                    [sys.executable, "-m", "py_compile", file_path], capture_output=True
+                )
+                if process.returncode != 0:
+                    logger.warning(
+                        f"🧬 [AUTONOMOUS] Обнаружена синтаксическая ошибка в новом файле {file_path}"
+                    )
+                    from app.codebase_mutation_engine import get_mutation_engine
+
+                    mutation = get_mutation_engine()
+                    error_msg = process.stderr.decode()
+                    # Пробуем извлечь строку ошибки
+                    line_match = re.search(r"line (\d+)", error_msg)
+                    line_no = int(line_match.group(1)) if line_match else 1
+
+                    await mutation.analyze_and_mutate(
+                        {
+                            "error_info": {
+                                "type": "SyntaxError",
+                                "message": error_msg,
+                                "file": file_path,
+                                "line": line_no,
+                            }
+                        }
+                    )
+            except Exception as e:
+                logger.debug(f"Syntax auto-fix error: {e}")
+
+        # [AUTONOMOUS] Shadow Execution для анализа файла
+        try:
+            from app.shadow_execution_manager import get_shadow_manager
+
+            shadow = get_shadow_manager()
+            # Запускаем анализ в тени (сравнение старого и нового методов анализа)
+            # await shadow.run_shadow(event.event_id, self._analyze_file, self._analyze_file_v2, event.payload.get("file_path"))
+        except ImportError:
+            pass
+
         # Используем state machine если доступна
         if self.use_state_machines and self.state_machine:
             try:
@@ -314,7 +489,7 @@ class VictoriaEventHandlers:
                 context.state = HandlerState.COMPLETED
                 logger.info(f"✅ Сервис перезапущен: {service_name}")
             else:
-                # Если не удалось, уведомляем пользователя
+                # Если не удалось — передаём задачу Елене (Monitor) на диагностику
                 context.result = {
                     "action": "service_restart_failed",
                     "service_name": service_name,
@@ -323,6 +498,28 @@ class VictoriaEventHandlers:
                 }
                 context.state = HandlerState.WAITING_APPROVAL
                 logger.error(f"❌ Не удалось перезапустить сервис: {service_name}")
+
+                async def _delegate_to_monitor():
+                    try:
+                        from ai_core import run_smart_agent_async
+
+                        prompt = (
+                            f"Сервис {service_name} (тип: {service_type}) недоступен, автоматический перезапуск не удался. "
+                            f"Ошибка: {restart_result.get('error', 'не указана')}. "
+                            "Проанализируй типичные причины (OOM, порт занят, зависимость недоступна), предложи шаги диагностики и исправления."
+                        )
+                        await run_smart_agent_async(
+                            prompt,
+                            expert_name="Елена",
+                            category="reasoning",
+                        )
+                        logger.info(
+                            f"✅ [MONITOR] Задача диагностики сервиса {service_name} передана Елене (Monitor)"
+                        )
+                    except Exception as e:
+                        logger.warning(f"⚠️ [MONITOR] Не удалось передать задачу Елене: {e}")
+
+                asyncio.create_task(_delegate_to_monitor())
 
             return context.result
         except Exception as e:
@@ -384,6 +581,20 @@ class VictoriaEventHandlers:
             error_info = event.payload.get("error_info", {})
 
             logger.warning(f"⚠️ Обработка обнаруженной ошибки: {error_info.get('type', 'unknown')}")
+
+            # [AUTONOMOUS] Mutation Engine - попытка автоматического исправления
+            try:
+                from app.codebase_mutation_engine import get_mutation_engine
+
+                mutation = get_mutation_engine()
+                mutation_result = await mutation.analyze_and_mutate({"error_info": error_info})
+                if mutation_result.get("success"):
+                    logger.info(
+                        f"🧬 [MUTATION] Ошибка исправлена автоматически: {mutation_result.get('mutation_id')}"
+                    )
+                    context.metadata["mutation"] = mutation_result
+            except Exception as e:
+                logger.debug(f"Mutation Engine error: {e}")
 
             # Диагностика через Extended Thinking (если доступен)
             if self.victoria and hasattr(self.victoria, "extended_thinking"):

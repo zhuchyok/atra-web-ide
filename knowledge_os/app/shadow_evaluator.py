@@ -29,7 +29,7 @@ class ShadowEvaluator:
             "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
         )
         self.router = LocalAIRouter()
-        self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "qwq:32b")
+        self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "victoria-wisdom-v3.5:latest")
         self._pool = None
 
     async def _get_pool(self):

@@ -28,7 +28,43 @@ FALLBACK_MODELS_OLLAMA = [
     "qwen2.5-coder:32b",  # Large, may crash on limited RAM
 ]
 
+
+class DynamicSemaphore:
+    """[SINGULARITY 21.14] Semaphore with dynamic limit adjustment"""
+
+    def __init__(self, initial_limit: int = 5):
+        self.limit = initial_limit
+        self.current_count = 0
+        self._condition = asyncio.Condition()
+        logger.info(f"[ADAPTIVE] Initialized DynamicSemaphore with limit {initial_limit}")
+
+    async def __aenter__(self):
+        async with self._condition:
+            while self.current_count >= self.limit:
+                await self._condition.wait()
+            self.current_count += 1
+            return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        async with self._condition:
+            self.current_count -= 1
+            self._condition.notify_all()
+
+    def set_limit(self, new_limit: int):
+        old_limit = self.limit
+        self.limit = max(1, new_limit)
+        if self.limit != old_limit:
+            logger.info(f"[ADAPTIVE] Concurrency limit changed: {old_limit} -> {self.limit}")
+            # We don't need to notify here because waiters will be notified on next release
+            # but notify_all doesn't hurt if we want immediate re-check
+
+    @property
+    def active_slots(self):
+        return self.current_count
+
+
 FALLBACK_MODELS_MLX = [
+    "victoria-wisdom-v3.5",  # Основная модель Victoria в MLX (приоритет 1)
     "phi3.5:3.8b",
     "qwen2.5:3b",
     "tinyllama:1.1b-chat",
@@ -81,11 +117,25 @@ class OllamaExecutor:
         self._mlx_url = _mlx_base_url()
         self._use_mlx_fallback = os.getenv("USE_MLX_FALLBACK", "true").lower() == "true"
 
+        # === CACHE CONFIGURATION [SINGULARITY 21.13] ===
+        self.use_semantic_cache = os.getenv("VICTORIA_USE_SEMANTIC_CACHE", "true").lower() == "true"
+        self._local_hash_cache: Dict[str, str] = {}  # L1: Exact match (in-memory)
+        self._cache_manager = None  # L2: SemanticAICache (lazy load)
+        self._cache_threshold = float(os.getenv("VICTORIA_CACHE_THRESHOLD", "0.95"))
+
+        # === ADAPTIVE CONCURRENCY [SINGULARITY 21.14] ===
+        self._semaphore = DynamicSemaphore(
+            initial_limit=int(os.getenv("VICTORIA_MAX_CONCURRENT", "5"))
+        )
+        self._monitor_task = None
+        self._start_monitor()
+
         logger.info("[EXECUTOR_INIT] ========== OllamaExecutor initialization ==========")
         logger.info(f"[EXECUTOR_INIT] Primary model: {self.model}")
         logger.info(f"[EXECUTOR_INIT] Ollama URL: {self.base_url}")
         logger.info(f"[EXECUTOR_INIT] MLX URL: {self._mlx_url}")
         logger.info(f"[EXECUTOR_INIT] MLX fallback enabled: {self._use_mlx_fallback}")
+        logger.info(f"[EXECUTOR_INIT] Semantic cache enabled: {self.use_semantic_cache}")
 
         self.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD ATRA. Отвечай на русском.
 
@@ -177,6 +227,66 @@ A: {"thought": "Выполню ls для текущей директории", "
         logger.error("[FALLBACK] ❌ No available fallback models found")
         return None, None
 
+    async def _get_cache_manager(self):
+        """Lazy load SemanticAICache from knowledge_os"""
+        if self._cache_manager is not None:
+            return self._cache_manager
+
+        try:
+            # Try to import from knowledge_os
+            sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
+            from semantic_cache import SemanticAICache
+
+            self._cache_manager = SemanticAICache(db_url=os.getenv("DATABASE_URL"))
+            logger.info("[CACHE] ✅ SemanticAICache manager initialized")
+        except Exception as e:
+            logger.debug(f"[CACHE] Failed to initialize SemanticAICache: {e}")
+            self.use_semantic_cache = False
+
+        return self._cache_manager
+
+    def _is_cacheable(self, prompt: str) -> bool:
+        """Check if the prompt is suitable for caching (no dynamic commands)"""
+        if not prompt:
+            return False
+
+        lower_prompt = prompt.lower()
+
+        # [SINGULARITY 21.13] Dynamic patterns that should NEVER be cached
+        non_cacheable = [
+            "ls",
+            "cat",
+            "grep",
+            "status",
+            "docker ps",
+            "docker logs",
+            "date",
+            "time",
+            "pwd",
+            "find",
+            "ps aux",
+            "top",
+            "df -h",
+            "git status",
+            "git log",
+            "git diff",
+            "ping",
+            "pong",
+        ]
+
+        # Check for exact word matches to avoid false positives (e.g. "catalog" containing "cat")
+        import re
+
+        for pattern in non_cacheable:
+            if re.search(rf"\b{re.escape(pattern)}\b", lower_prompt):
+                return False
+
+        # Don't cache very short prompts (usually greetings or simple pings)
+        if len(prompt) < 10:
+            return False
+
+        return True
+
     async def ask(
         self,
         prompt: str,
@@ -186,6 +296,7 @@ A: {"thought": "Выполню ls для текущей директории", "
         blocked_tools: Optional[List[str]] = None,
         model: Optional[str] = None,
         system: Optional[str] = None,
+        expert_name: str = "Виктория",
     ) -> Any:
         """
         Send request to LLM with automatic fallback on model crash.
@@ -193,18 +304,179 @@ A: {"thought": "Выполню ls для текущей директории", "
         blocked_tools: инструменты, которые нельзя выбирать (заблокированы из-за цикла).
         model: переопределить модель для этого запроса.
         system: переопределить системный промпт.
+        expert_name: имя эксперта для семантического кэша.
         """
-        return await self._ask_with_fallback(
-            prompt=prompt,
-            history=history,
-            raw_response=raw_response,
-            model=model or self.model,
-            base_url=self.base_url,
-            is_retry=False,
-            phase=phase,
-            blocked_tools=blocked_tools,
-            system_override=system,
-        )
+        # === HYBRID CACHE CHECK [SINGULARITY 21.13] ===
+        cache_key = f"{expert_name}:{model or self.model}:{system or ''}:{prompt}"
+        if self.use_semantic_cache and self._is_cacheable(prompt):
+            # L1: Exact Match (Hash)
+            import hashlib
+
+            hash_key = hashlib.md5(cache_key.encode()).hexdigest()
+            if hash_key in self._local_hash_cache:
+                logger.info(f"[CACHE_HIT] 🎯 L1 (Hash) hit for expert {expert_name}")
+                cached_content = self._local_hash_cache[hash_key]
+                if raw_response:
+                    return cached_content
+                return self._parse_response(cached_content, blocked_tools=blocked_tools)
+
+            # L2: Semantic Match (Vector)
+            cache_mgr = await self._get_cache_manager()
+            if cache_mgr:
+                try:
+                    # We use a combined key for semantic search to include context
+                    semantic_query = f"Context: {system or ''}\nPrompt: {prompt}"
+                    cached_response = await cache_mgr.get_cached_response(
+                        semantic_query, expert_name
+                    )
+                    if cached_response:
+                        logger.info(f"[CACHE_HIT] 🏆 L2 (Semantic) hit for expert {expert_name}")
+                        # Update L1 for even faster access next time
+                        self._local_hash_cache[hash_key] = cached_response
+                        if raw_response:
+                            return cached_response
+                        return self._parse_response(cached_response, blocked_tools=blocked_tools)
+                except Exception as ce:
+                    logger.debug(f"[CACHE_ERROR] Semantic lookup failed: {ce}")
+
+        # === ADAPTIVE CONCURRENCY [SINGULARITY 21.14] ===
+        # Ensure monitor is running
+        self._start_monitor()
+
+        async with self._semaphore:
+            logger.info(
+                f"[ADAPTIVE] Slot acquired. Active requests: {self._semaphore.active_slots}/{self._semaphore.limit}"
+            )
+            return await self._ask_with_fallback(
+                prompt=prompt,
+                history=history,
+                raw_response=raw_response,
+                model=model or self.model,
+                base_url=self.base_url,
+                is_retry=False,
+                phase=phase,
+                blocked_tools=blocked_tools,
+                system_override=system,
+            )
+
+        # === SAVE TO CACHE ===
+        # Only save if it's a successful string response and cacheable
+        if (
+            self.use_semantic_cache
+            and self._is_cacheable(prompt)
+            and isinstance(response, (str, AgentAction, AgentFinish))
+        ):
+            # Extract raw content for caching
+            content_to_cache = None
+            if isinstance(response, str):
+                content_to_cache = response
+            elif isinstance(response, AgentFinish):
+                # Reconstruct JSON for caching
+                content_to_cache = json.dumps(
+                    {
+                        "thought": response.thought,
+                        "tool": "finish",
+                        "tool_input": {"output": response.output},
+                    },
+                    ensure_ascii=False,
+                )
+            elif isinstance(response, AgentAction):
+                content_to_cache = json.dumps(
+                    {
+                        "thought": response.thought,
+                        "tool": response.tool,
+                        "tool_input": response.tool_input,
+                    },
+                    ensure_ascii=False,
+                )
+
+            if content_to_cache and len(content_to_cache) > 10:
+                # Basic error filtering
+                error_keywords = ["ошибка", "error", "не могу", "не удалось", "failed"]
+                if not any(kw in content_to_cache.lower() for kw in error_keywords):
+                    # Save to L1
+                    import hashlib
+
+                    hash_key = hashlib.md5(cache_key.encode()).hexdigest()
+                    self._local_hash_cache[hash_key] = content_to_cache
+
+                    # Save to L2 (background task)
+                    cache_mgr = await self._get_cache_manager()
+                    if cache_mgr:
+                        semantic_query = f"Context: {system or ''}\nPrompt: {prompt}"
+                        asyncio.create_task(
+                            cache_mgr.save_to_cache(
+                                semantic_query, content_to_cache, expert_name, priority="medium"
+                            )
+                        )
+                        logger.debug(
+                            f"[CACHE_SAVE] Saved response for {expert_name} to semantic cache"
+                        )
+
+        return response
+
+    def _start_monitor(self):
+        """Start background task to monitor Mac Studio hardware and adjust concurrency"""
+        if self._monitor_task is not None:
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+            self._monitor_task = loop.create_task(self._monitor_loop())
+            logger.info("[ADAPTIVE] Background monitor task started")
+        except RuntimeError:
+            # No running loop, will be started on first request
+            pass
+
+    async def _monitor_loop(self):
+        """Periodically check hardware and adjust semaphore limit"""
+        while True:
+            try:
+                # Lazy import to avoid circular dependencies
+                sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
+                from mac_studio_monitor import get_mac_studio_monitor
+
+                monitor = get_mac_studio_monitor()
+                stats = await monitor.get_full_stats()
+
+                # Logic for limit adjustment
+                new_limit = 5  # Default
+
+                # 1. Thermal Level check
+                thermal_level = int(
+                    stats.get("hardware", {}).get("temperature", {}).get("thermal_level", "0")
+                )
+                if thermal_level >= 2:
+                    new_limit = 1
+                elif thermal_level >= 1:
+                    new_limit = 2
+
+                # 2. RAM check
+                ram_percent = stats.get("hardware", {}).get("ram", {}).get("percent", 0)
+                if ram_percent > 95:
+                    new_limit = 1
+                elif ram_percent > 90:
+                    new_limit = min(new_limit, 2)
+
+                # 3. MLX Load check (if available)
+                try:
+                    from mlx_monitor import get_mlx_monitor
+
+                    mlx_monitor = get_mlx_monitor()
+                    health_score = mlx_monitor.get_health_score()
+                    if health_score < 0.3:
+                        new_limit = 1
+                    elif health_score < 0.6:
+                        new_limit = min(new_limit, 3)
+                except:
+                    pass
+
+                self._semaphore.set_limit(new_limit)
+
+            except Exception as e:
+                logger.debug(f"[ADAPTIVE] Monitor loop error: {e}")
+
+            await asyncio.sleep(15)  # Check every 15 seconds
 
     async def _ask_with_fallback(
         self,
@@ -363,7 +635,28 @@ A: {"thought": "Выполню ls для текущей директории", "
                     phase_info,
                 )
 
-                # Timeout on large model - try fallback
+                # Timeout on any model - try MLX fallback immediately
+                logger.warning(
+                    f"[LLM_TIMEOUT] Model {model} timed out (Ollama busy?), trying MLX fallback..."
+                )
+                self._failed_models.add(model)
+                self._fallback_attempts += 1
+
+                if self._use_mlx_fallback and base_url != self._mlx_url:
+                    fallback_model, fallback_url = await self._get_fallback_model()
+                    if fallback_model and fallback_url:
+                        return await self._ask_with_fallback(
+                            prompt=prompt,
+                            history=history,
+                            raw_response=raw_response,
+                            model=fallback_model,
+                            base_url=fallback_url,
+                            is_retry=True,
+                            phase=phase,
+                            blocked_tools=blocked_tools,
+                        )
+
+                # Timeout on large model - try fallback (legacy path)
                 if model in RESOURCE_HEAVY_MODELS:
                     logger.warning(
                         f"[LLM_TIMEOUT] Large model {model} timed out, trying fallback..."

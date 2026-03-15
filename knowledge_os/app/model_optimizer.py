@@ -258,8 +258,8 @@ class ModelOptimizer:
             },
             "reasoning": {
                 "low": ["phi3.5:3.8b", "qwen2.5:3b"],
-                "medium": ["qwq:32b", "phi3.5:3.8b"],
-                "high": ["qwq:32b", "phi3.5:3.8b"],
+                "medium": ["victoria-wisdom-v3.5:latest", "phi3.5:3.8b"],
+                "high": ["victoria-wisdom-v3.5:latest", "phi3.5:3.8b"],
                 "very_high": ["qwen2.5-coder:32b", "phi3.5:3.8b"],
             },
             "fast": {

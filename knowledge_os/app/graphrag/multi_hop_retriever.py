@@ -23,62 +23,64 @@ class MultiHopRetriever:
         1. Находит 'seed' узлы через векторный поиск.
         2. Параллельно обходит связи (hops) и оценивает их релевантность запросу.
         """
-        import asyncpg
-
         try:
-            conn = await asyncpg.connect(self.db_url)
+            try:
+                from db_pool import get_pool
+            except ImportError:
+                from app.db_pool import get_pool
 
-            # Шаг 1: Seed nodes (векторный поиск)
-            seeds = await conn.fetch(
-                """
-                SELECT id, content, confidence_score, domain_id,
-                       (1 - (embedding <=> $1::vector)) as similarity
-                FROM knowledge_nodes
-                WHERE embedding IS NOT NULL
-                ORDER BY embedding <=> $1::vector
-                LIMIT $2
-            """,
-                query_embedding,
-                limit,
-            )
+            pool = await get_pool()
+            embedding_str = str(query_embedding)
+
+            async with pool.acquire() as conn:
+                # Шаг 1: Seed nodes (векторный поиск)
+                seeds = await conn.fetch(
+                    """
+                    SELECT id, content, confidence_score, domain_id,
+                           (1 - (embedding <=> $1::vector)) as similarity
+                    FROM knowledge_nodes
+                    WHERE embedding IS NOT NULL
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT $2
+                """,
+                    embedding_str,
+                    limit,
+                )
 
             if not seeds:
-                await conn.close()
                 return []
 
             seed_ids = [s["id"] for s in seeds]
             all_results = {str(s["id"]): dict(s) for s in seeds}
 
             # Шаг 2: Параллельный обход и Query-Aware Scoring
-            # Мы используем asyncio.gather для параллельного выполнения запросов по разным путям или типам связей
-            # В данном случае оптимизируем через разделение на 'сильные' и 'семантические' пути
-
             async def fetch_hops(ids, depth):
-                return await conn.fetch(
-                    """
-                    WITH RECURSIVE graph_path AS (
-                        SELECT source_node_id, target_node_id, link_type, strength, 1 as hop_count
-                        FROM knowledge_links
-                        WHERE source_node_id = ANY($1::uuid[])
+                async with pool.acquire() as conn:
+                    return await conn.fetch(
+                        """
+                        WITH RECURSIVE graph_path AS (
+                            SELECT source_node_id, target_node_id, link_type, strength, 1 as hop_count
+                            FROM knowledge_links
+                            WHERE source_node_id = ANY($1::uuid[])
 
-                        UNION ALL
+                            UNION ALL
 
-                        SELECT l.source_node_id, l.target_node_id, l.link_type, l.strength, gp.hop_count + 1
-                        FROM knowledge_links l
-                        INNER JOIN graph_path gp ON l.source_node_id = gp.target_node_id
-                        WHERE gp.hop_count < $2 AND l.strength > 0.5
+                            SELECT l.source_node_id, l.target_node_id, l.link_type, l.strength, gp.hop_count + 1
+                            FROM knowledge_links l
+                            INNER JOIN graph_path gp ON l.source_node_id = gp.target_node_id
+                            WHERE gp.hop_count < $2 AND l.strength > 0.5
+                        )
+                        SELECT gp.*, kn.content, kn.domain_id,
+                               (1 - (kn.embedding <=> $3::vector)) as node_similarity
+                        FROM graph_path gp
+                        JOIN knowledge_nodes kn ON gp.target_node_id = kn.id
+                        ORDER BY gp.strength DESC, gp.hop_count ASC
+                        LIMIT 30
+                    """,
+                        ids,
+                        depth,
+                        embedding_str,
                     )
-                    SELECT gp.*, kn.content, kn.domain_id,
-                           (1 - (kn.embedding <=> $3::vector)) as node_similarity
-                    FROM graph_path gp
-                    JOIN knowledge_nodes kn ON gp.target_node_id = kn.id
-                    ORDER BY gp.strength DESC, gp.hop_count ASC
-                    LIMIT 30
-                """,
-                    ids,
-                    depth,
-                    query_embedding,
-                )
 
             # Параллельно запрашиваем разные уровни графа или разные наборы семян
             hop_tasks = [
@@ -110,7 +112,6 @@ class MultiHopRetriever:
                             "link_type": h["link_type"],
                         }
 
-            await conn.close()
             # Сортируем по итоговому score
             sorted_results = sorted(
                 all_results.values(), key=lambda x: x["similarity"], reverse=True

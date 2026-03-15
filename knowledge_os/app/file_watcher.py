@@ -6,6 +6,7 @@ File Watcher - Мониторинг изменений файлов
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -25,11 +26,14 @@ class FileChangeHandler(FileSystemEventHandler):
         watched_paths: Set[str],
         file_extensions: Optional[List[str]] = None,
         loop: Optional[asyncio.AbstractEventLoop] = None,
+        debounce_interval: float = 1.0,
     ):
         self.event_bus = event_bus
         self.watched_paths = watched_paths
         self.file_extensions = file_extensions or []
         self._loop = loop  # для вызова publish из потока watchdog через run_coroutine_threadsafe
+        self.debounce_interval = debounce_interval
+        self._last_events: Dict[str, float] = {}
         self.ignored_patterns = {
             ".git",
             "__pycache__",
@@ -63,9 +67,19 @@ class FileChangeHandler(FileSystemEventHandler):
         return False
 
     def _publish_event(self, event_type: EventType, src_path: str, is_directory: bool = False):
-        """Опубликовать событие в Event Bus"""
+        """Опубликовать событие в Event Bus с дебаунсом"""
         if self._should_ignore(src_path):
             return
+
+        # Дебаунс: игнорируем повторные события для того же файла в течение debounce_interval
+        now = time.time()
+        event_key = f"{event_type.value}:{src_path}"
+        if (
+            event_key in self._last_events
+            and now - self._last_events[event_key] < self.debounce_interval
+        ):
+            return
+        self._last_events[event_key] = now
 
         try:
             event = Event(

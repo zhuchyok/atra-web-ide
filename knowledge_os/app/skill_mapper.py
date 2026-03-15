@@ -3,7 +3,9 @@ Skill Mapper — автоматический маппинг типа задач
 Реализует "жёсткую дисциплину скиллов" как в Cursor assistant.
 """
 
+import glob
 import logging
+import os
 import re
 from typing import Dict, List, Optional
 
@@ -85,6 +87,30 @@ class SkillMapper:
 
     def __init__(self):
         self.patterns = SKILL_PATTERNS
+        self._skill_cache = {}
+
+    def _load_skill_file(self, pattern_path: str) -> Optional[str]:
+        """Загружает содержимое SKILL.md файла по паттерну пути."""
+        try:
+            # Разрешаем wildcard в пути
+            paths = glob.glob(pattern_path)
+            if not paths:
+                logger.warning(f"[SKILL_MAPPER] Файл скилла не найден по пути: {pattern_path}")
+                return None
+
+            # Берем первый найденный (обычно он один)
+            file_path = paths[0]
+            if file_path in self._skill_cache:
+                return self._skill_cache[file_path]
+
+            with open(file_path, encoding="utf-8") as f:
+                content = f.read()
+                self._skill_cache[file_path] = content
+                logger.info(f"[SKILL_MAPPER] Загружен полный текст скилла из {file_path}")
+                return content
+        except Exception as e:
+            logger.error(f"[SKILL_MAPPER] Ошибка загрузки файла скилла {pattern_path}: {e}")
+            return None
 
     def classify_task(self, goal: str) -> Optional[Dict[str, str]]:
         """
@@ -142,9 +168,16 @@ class SkillMapper:
 
     def get_skill_instructions(self, skill_type: str) -> str:
         """
-        Возвращает краткие инструкции для скилла.
-        (Полная загрузка SKILL.md — в отдельном модуле)
+        Возвращает полные инструкции для скилла из SKILL.md.
+        Если файл не найден, возвращает краткие инструкции.
         """
+        skill_config = self.patterns.get(skill_type)
+        if skill_config and "skill_path" in skill_config:
+            full_content = self._load_skill_file(skill_config["skill_path"])
+            if full_content:
+                return full_content
+
+        # Fallback на краткие инструкции
         instructions = {
             "brainstorming": (
                 "1. Изучи контекст проекта\n"

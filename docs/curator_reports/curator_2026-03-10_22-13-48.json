@@ -1,0 +1,27 @@
+{
+  "ts": "2026-03-10T22:19:44.737337+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "Довести дашборд Knowledge OS и все пункты аудита до рабочего состояния без заглушек. Источник: docs/audits/2026-03-11-dashboard-tabs-audit.md. Сделать: миграции для таблиц simulations и anomaly_detection_logs (если нет); миграция ALTER TABLE experts ADD COLUMN IF NOT EXISTS virtual_budget, performance_score; добавить блок «Дебаты» (expert council) в дашборд — запрос к knowledge_nodes по metadata->>'cycle' LIKE 'nightly_council%'; в Интеллект → Синтез Знаний — надёжный импорт VictoriaEnhanced (try victoria_enhanced затем app.victoria_enhanced); проверить пути Code Mutations в Docker; при недоступности сервисов/таблиц показывать явное сообщение, не падать. Итог: каждая вкладка либо работает, либо выводит понятное сообщение. Без заглушек.",
+      "status": "success",
+      "error": null,
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "18165d1d-9366-4119-adfb-485711480073",
+      "execution_trace": {
+        "task_type": "enhanced",
+        "use_enhanced": true,
+        "routed_to": "enhanced",
+        "delegated_to": null,
+        "method": "simple",
+        "correlation_id": "18165d1d-9366-4119-adfb-485711480073",
+        "goal_preview": "Довести дашборд Knowledge OS и все пункты аудита до рабочего состояния без заглушек. Источник: docs/audits/2026-03-11-da"
+      },
+      "elapsed_seconds": 356.29
+    }
+  ]
+}

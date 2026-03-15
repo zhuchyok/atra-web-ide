@@ -37,5 +37,37 @@ ssh "$VDS_HOST" "cd ${REMOTE_APP} && \
   fi"
 
 echo ""
+echo "=== 5. Верификация: живой сайт = сборка на VDS ==="
+if [ -n "${SKIP_SETKI21_VERIFY:-}" ]; then
+  echo "Верификация пропущена. Проверь вручную: docs/runbooks/SETKI21_DEPLOY_VERIFY_FAIL.md"
+else
+  VDS_HASH="$(ssh "$VDS_HOST" "grep -o 'entry\\.[^\\\"]*\\.css' ${REMOTE_APP}/setki21_site/index.html | head -1" 2>/dev/null || true)"
+  LIVE_HASH="$(
+    bash -lc '
+      for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        HASH="$(curl -sS --max-time 15 "https://www.setki21.ru/" | grep -o '\''entry\.[^\"]*\.css'\'' | head -1 || true)"
+        if [ -n "$HASH" ]; then
+          printf "%s" "$HASH"
+          exit 0
+        fi
+        sleep 3
+      done
+    ' || true
+  )"
+
+  echo "VDS hash:  ${VDS_HASH:-<empty>}"
+  echo "Live hash: ${LIVE_HASH:-<empty>}"
+
+  if [ -z "$VDS_HASH" ] || [ -z "$LIVE_HASH" ] || [ "$VDS_HASH" != "$LIVE_HASH" ]; then
+    echo "Верификация не прошла: живой сайт отдаёт другую сборку или недоступен."
+    echo "Runbook: docs/runbooks/SETKI21_DEPLOY_VERIFY_FAIL.md"
+    exit 1
+  fi
+
+  echo "Верификация OK: живой сайт отдаёт ту же сборку."
+fi
+
+echo ""
 echo "Готово. Проверь: https://www.setki21.ru"
-echo "В NPM для www.setki21.ru должен быть Forward: setki21-site:80 и Custom Locations /api, /health → atra-kernel:8081."
+echo "В NPM для www.setki21.ru должен быть Forward: setki21-site:80."
+echo "Если верификация упала, см. docs/runbooks/SETKI21_DEPLOY_VERIFY_FAIL.md"

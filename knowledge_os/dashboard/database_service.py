@@ -78,6 +78,10 @@ def get_db_connection():
     return None
 
 
+# Контекст-менеджер для совместимости с scout_tab и verify_dashboard_data
+db_connection = db_session
+
+
 @st.cache_data(ttl=60, max_entries=100)
 def fetch_data(query, params=None, cache_key=None):
     """Оптимизированная функция получения данных через пул сессий."""

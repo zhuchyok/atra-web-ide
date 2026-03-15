@@ -91,10 +91,15 @@ MLX_API_URL = (
 )  # MLX_API_URL=disabled → None, только Ollama
 
 
+from app.circuit_breaker import CircuitBreakerOpenError, CircuitState, get_circuit_breaker
 from app.context_mirror import ContextMirror
 from app.mlx_monitor import get_mlx_monitor
 from app.mlx_recovery_state import is_mlx_recovery_event, should_run_unload_on_recovery
-from app.ollama_keep_alive_policy import get_keep_alive, unload_ollama_fallback_models
+from app.ollama_keep_alive_policy import (
+    MLX_RAM_RESERVE_GB,
+    get_keep_alive,
+    unload_ollama_fallback_models,
+)
 
 # [SINGULARITY 21.3] God Mode 128GB: Immortal models and zero-swap
 IMMORTAL_MODELS = {"nomic-embed-text", "nomic-embed-text:latest", "moondream", "moondream:latest"}
@@ -263,6 +268,21 @@ class LocalAIRouter:
 
         # Context Mirror for failover
         self.context_mirror = ContextMirror()
+
+        # [SINGULARITY 21.10] Per-node Circuit Breakers
+        self._node_breakers = {}
+        for node in self.nodes:
+            # Создаем уникальный CB для каждого URL
+            node_url = node["url"]
+            breaker_name = (
+                f"node_{node_url.replace('://', '_').replace(':', '_').replace('.', '_')}"
+            )
+            self._node_breakers[node_url] = get_circuit_breaker(
+                name=breaker_name,
+                failure_threshold=3,  # 3 ошибки и узел в OPEN
+                recovery_timeout=120,  # 2 минуты на восстановление
+            )
+            logger.debug(f"🛡️ [CIRCUIT BREAKER] Initialized for {node_url} as {breaker_name}")
 
     @property
     def memory_manager(self):
@@ -591,15 +611,28 @@ class LocalAIRouter:
     ) -> str:
         """Select the best local model for the task.
 
-        ДИНАМИЧЕСКИЙ ВЫБОР: Если available_models_scanner доступен, выбирает из реально доступных моделей.
-        Если модель удалена/добавлена, система автоматически адаптируется (кэш обновляется каждые 2 мин).
-
-        Args:
-            prompt: User prompt
-            category: Task category
-            use_ollama: If True, use Ollama models (deprecated)
-            node_type: Тип узла ('mlx' или 'ollama') - для выбора подходящей модели
+        [THERMAL PROTECTION] Если Mac Studio перегрет, выбирает максимально легкие модели.
         """
+        # Проверка термального состояния для выбора модели
+        is_throttled = False
+        try:
+            from app.mac_studio_monitor import get_mac_studio_monitor
+
+            monitor = get_mac_studio_monitor()
+            if monitor.last_stats:
+                thermal_level = (
+                    monitor.last_stats.get("hardware", {})
+                    .get("temperature", {})
+                    .get("thermal_level", "0")
+                )
+                if int(thermal_level) >= 1:
+                    is_throttled = True
+                    logger.warning(
+                        "🔥 [THERMAL PROTECTION] Mac Studio is hot! Switching to light models."
+                    )
+        except:
+            pass
+
         prompt_lower = prompt.lower()
 
         # Определяем категорию из промпта если не задана явно
@@ -620,6 +653,13 @@ class LocalAIRouter:
 
         # ========== ДИНАМИЧЕСКИЙ ВЫБОР МОДЕЛИ ==========
         # Используем scanner если доступен, иначе fallback
+
+        if is_throttled:
+            # При перегреве форсируем самые легкие модели
+            if node_type == "mlx":
+                return "phi3.5:3.8b"
+            else:
+                return "tinyllama:1.1b-chat"
 
         if _HAS_MODEL_SCANNER and (_cached_mlx_models or _cached_ollama_models):
             # Динамический выбор из реально доступных моделей
@@ -1037,9 +1077,39 @@ class LocalAIRouter:
         # Try each node with retry logic
         start_time = time.time()
         for node in healthy_nodes:
+            node_url_base = node["url"]
+
+            # [SINGULARITY 21.10] Circuit Breaker Check
+            breaker = self._node_breakers.get(node_url_base)
+            if breaker and breaker.state == CircuitState.OPEN:
+                if not breaker._should_attempt_reset():
+                    logger.warning(f"🚨 [CIRCUIT BREAKER] Node {node_url_base} is OPEN. Skipping.")
+                    continue
+                else:
+                    logger.info(
+                        f"🔄 [CIRCUIT BREAKER] Node {node_url_base} is HALF_OPEN. Testing..."
+                    )
+
             # Определяем, это Ollama или MLX API Server
-            is_ollama = "11434" in node["url"] or "ollama" in node["url"].lower()
-            is_mlx = "11435" in node["url"] or "mlx" in node["url"].lower()
+            is_ollama = "11434" in node_url_base or "ollama" in node_url_base.lower()
+            is_mlx = "11435" in node_url_base or "mlx" in node_url_base.lower()
+
+            # [SINGULARITY 21.10] MLX Admission Control: Protect brain from overload
+            if is_mlx:
+                try:
+                    import psutil
+
+                    ram = psutil.virtual_memory()
+                    # Если свободного RAM меньше резерва MLX — блокируем запрос к MLX
+                    reserve_bytes = MLX_RAM_RESERVE_GB * 1024**3
+                    if ram.available < reserve_bytes:
+                        logger.warning(
+                            f"🧠 [ADMISSION CONTROL] MLX blocked to save brain! "
+                            f"Available RAM {ram.available / 1024**3:.1f}GB < Reserve {MLX_RAM_RESERVE_GB}GB"
+                        )
+                        continue
+                except Exception as e:
+                    logger.debug(f"Admission control check failed: {e}")
 
             # [FALLBACK_MODE] If MLX failed and we are on Ollama, use mirrored context
             if is_ollama and any(
@@ -1451,6 +1521,10 @@ class LocalAIRouter:
                         if response.status_code == 200:
                             if is_mlx:
                                 get_mlx_monitor().record_success()
+
+                            # [SINGULARITY 21.10] Record success for node breaker
+                            if breaker:
+                                breaker._on_success()
                             result_data = response.json()
                             # Обрабатываем разные форматы ответов
                             if "message" in result_data:
@@ -1571,6 +1645,10 @@ class LocalAIRouter:
                                     model,
                                 )
                         else:
+                            # [SINGULARITY 21.10] Record failure for node breaker
+                            if breaker:
+                                breaker._on_failure(f"HTTP {response.status_code}")
+
                             # Log error response body for debugging
                             try:
                                 error_text = response.text[:500]
@@ -1589,6 +1667,10 @@ class LocalAIRouter:
                 except asyncio.TimeoutError:
                     if is_mlx:
                         get_mlx_monitor().record_failure()
+
+                    # [SINGULARITY 21.10] Record failure for node breaker
+                    if breaker:
+                        breaker._on_failure("TimeoutError")
                     logger.warning(
                         "[ROUTER] ⏱️ Timeout: Node %s, Model %s (attempt %d/%d)",
                         node["name"],
@@ -1602,11 +1684,19 @@ class LocalAIRouter:
                 except httpx.ConnectError as e:
                     if is_mlx:
                         get_mlx_monitor().record_failure()
+
+                    # [SINGULARITY 21.10] Record failure for node breaker
+                    if breaker:
+                        breaker._on_failure(f"ConnectError: {e}")
                     logger.error("[ROUTER] ❌ Connection failed to %s: %s", node_url, e)
                     if attempt < max_retries:
                         await asyncio.sleep(2**attempt)
                     continue
                 except Exception as e:
+                    # [SINGULARITY 21.10] Record failure for node breaker
+                    if breaker:
+                        breaker._on_failure(f"{type(e).__name__}: {e}")
+
                     logger.error(
                         "[ROUTER] ❌ Exception calling Node %s: %s: %s",
                         node["name"],
@@ -1687,11 +1777,37 @@ class LocalAIRouter:
                 n for n in healthy_nodes if "11435" in n["url"] or "mlx" in n["url"].lower()
             ]
             if mlx_nodes:
-                node = mlx_nodes[0]
-                logger.info(f"🎯 [VIP STREAM] Выбран MLX узел: {node['name']}")
+                # [SINGULARITY 21.10] MLX Admission Control for streaming
+                try:
+                    import psutil
+
+                    ram = psutil.virtual_memory()
+                    reserve_bytes = MLX_RAM_RESERVE_GB * 1024**3
+                    if ram.available >= reserve_bytes:
+                        node = mlx_nodes[0]
+                        logger.info(f"🎯 [VIP STREAM] Выбран MLX узел: {node['name']}")
+                    else:
+                        logger.warning(
+                            "🧠 [ADMISSION CONTROL] MLX skipped for streaming to save brain!"
+                        )
+                except:
+                    pass
 
         if not node:
-            node = healthy_nodes[0]
+            # [SINGULARITY 21.10] Filter out OPEN nodes from streaming candidates
+            available_nodes = []
+            for n in healthy_nodes:
+                breaker = self._node_breakers.get(n["url"])
+                if breaker and breaker.state == CircuitState.OPEN:
+                    if not breaker._should_attempt_reset():
+                        continue
+                available_nodes.append(n)
+
+            if not available_nodes:
+                logger.error("❌ [STREAMING] All nodes are OPEN or unavailable!")
+                return
+
+            node = available_nodes[0]
 
         node_url = f"{node['url']}/api/generate"
         logger.info(f"🌊 [STREAMING] Node: {node['name']} | Model: {model}")
@@ -1720,8 +1836,18 @@ class LocalAIRouter:
                     "POST", node_url, json=payload, headers=headers
                 ) as response:
                     if response.status_code != 200:
+                        # [SINGULARITY 21.10] Record failure for node breaker
+                        breaker = self._node_breakers.get(node["url"])
+                        if breaker:
+                            breaker._on_failure(f"HTTP {response.status_code}")
+
                         logger.error(f"❌ [STREAMING] Error: {response.status_code}")
                         return
+
+                    # [SINGULARITY 21.10] Record success for node breaker
+                    breaker = self._node_breakers.get(node["url"])
+                    if breaker:
+                        breaker._on_success()
 
                     async for line in response.aiter_lines():
                         if not line:
@@ -1736,6 +1862,11 @@ class LocalAIRouter:
                         except json.JSONDecodeError:
                             continue
         except Exception as e:
+            # [SINGULARITY 21.10] Record failure for node breaker
+            breaker = self._node_breakers.get(node["url"])
+            if breaker:
+                breaker._on_failure(f"StreamException: {e}")
+
             logger.error(f"❌ [STREAMING] Error: {e}")
             return
 

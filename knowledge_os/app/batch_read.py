@@ -24,23 +24,27 @@ async def batch_read_files(
     max_file_size_mb: int = 1,
 ) -> List[Dict[str, Any]]:
     """
-    Параллельное чтение множества файлов.
-
-    Args:
-        file_paths: список путей к файлам (относительные или абсолютные)
-        workspace_path: путь к workspace (для относительных путей)
-        max_concurrent: максимальное количество одновременных чтений (по умолчанию 10)
-        max_file_size_mb: максимальный размер файла в МБ (по умолчанию 1 МБ)
-
-    Returns:
-        [
-            {"path": "src/utils.py", "content": "...", "status": "success"},
-            {"path": "src/main.py", "content": None, "status": "error", "error": "File too large"},
-            ...
-        ]
+    Параллельное чтение множества файлов через Rust Gateway [SINGULARITY 21.23].
     """
+    try:
+        import httpx
+
+        # Rust Gateway работает на порту 8081
+        rust_url = "http://localhost:8081/api/files/batch_read"
+        payload = {"file_paths": file_paths, "max_concurrent": max_concurrent}
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(rust_url, json=payload)
+            if response.status_code == 200:
+                logger.info(f"🚀 [RUST BATCH_READ] Successfully read {len(file_paths)} files.")
+                return response.json().get("results", [])
+    except Exception as e:
+        logger.warning(f"⚠️ Rust Batch Read failed, falling back to Python: {e}")
+
+    # Fallback на Python реализацию (старый код)
     results = []
     semaphore = asyncio.Semaphore(max_concurrent)
+    # ... (остальной код остается как fallback)
 
     async def read_single_file(file_path: str) -> Dict[str, Any]:
         """Читает один файл с ограничением по размеру."""
@@ -118,29 +122,24 @@ async def batch_grep_files(
     max_concurrent: int = 10,
 ) -> List[Dict[str, Any]]:
     """
-    Параллельный поиск паттерна в множестве файлов (аналог grep).
-
-    Args:
-        pattern: регулярное выражение для поиска
-        file_paths: список путей к файлам
-        workspace_path: путь к workspace
-        case_sensitive: учитывать регистр (по умолчанию False)
-        max_concurrent: максимальное количество одновременных операций
-
-    Returns:
-        [
-            {
-                "path": "src/utils.py",
-                "matches": [
-                    {"line": 42, "content": "def validate_email(email: str) -> bool:", "match": "validate_email"},
-                    ...
-                ],
-                "match_count": 3,
-                "status": "success"
-            },
-            ...
-        ]
+    Параллельный поиск паттерна через Rust Gateway [SINGULARITY 21.23].
     """
+    try:
+        import httpx
+
+        rust_url = "http://localhost:8081/api/files/batch_grep"
+        payload = {"pattern": pattern, "file_paths": file_paths, "case_sensitive": case_sensitive}
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(rust_url, json=payload)
+            if response.status_code == 200:
+                logger.info(
+                    f"🚀 [RUST BATCH_GREP] Successfully grepped {len(file_paths)} patterns."
+                )
+                return response.json().get("results", [])
+    except Exception as e:
+        logger.warning(f"⚠️ Rust Batch Grep failed, falling back to Python: {e}")
+
     import re
 
     results = []

@@ -41,9 +41,12 @@ _is_docker = (
 _default_embed_base = (
     "http://host.docker.internal:11434" if _is_docker else "http://localhost:11434"
 )
+# [FIX] Принудительно используем IP хоста для Ollama из контейнера, если host.docker.internal не резолвится
 _embed_base = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_API_URL") or _default_embed_base
+if _is_docker and _embed_base == "http://host.docker.internal:11434":
+    _embed_base = "http://host.docker.internal:11434"
 OLLAMA_EMBED_URL = os.getenv("OLLAMA_EMBED_URL") or f"{_embed_base.rstrip('/')}/api/embeddings"
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text")  # Dedicated embedding model
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest")  # Dedicated embedding model
 # nomic-embed-text (v1/v1.5) output dimension; БД и кэш должны совпадать (миграция fix_embedding_dimensions_768)
 EMBEDDING_DIM = 768
 CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
@@ -78,7 +81,7 @@ async def get_embedding(text: str) -> Optional[list]:
     При недоступности общего клиента — fallback на разовый AsyncClient (resilience).
     Внедрена логика повторных попыток (retries) для стабильности на Mac Studio.
     """
-    max_retries = 3
+    max_retries = 1  # Одна попытка — fast fail, embedding некритичен для работы
     for attempt in range(max_retries):
         client = None
         if get_http_client:
@@ -88,8 +91,10 @@ async def get_embedding(text: str) -> Optional[list]:
                 logger.debug("Shared HTTP client unavailable, attempt %d: %s", attempt + 1, exc)
 
         try:
+            # [DEBUG]
+            logger.debug("Embedding request to %s with model %s", OLLAMA_EMBED_URL, OLLAMA_MODEL)
             if client is None:
-                async with httpx.AsyncClient() as fallback_client:
+                async with httpx.AsyncClient(verify=False) as fallback_client:
                     res = await _do_embed_request(fallback_client, text)
             else:
                 res = await _do_embed_request(client, text)
@@ -119,13 +124,14 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
             json={
                 "model": OLLAMA_MODEL,
                 "prompt": text,
-                "keep_alive": 0,
-            },  # выгрузить сразу (MODEL_UNLOADING_AND_MEMORY)
-            timeout=30.0,  # Увеличено с 10.0 до 30.0 для стабильности на Mac Studio
+            },  # [FIX] Removed keep_alive: 0 to avoid constant unloading
+            timeout=5.0,  # Fast fail: embedding некритичен, 5с достаточно
         )
         if response.status_code == 503:
             logger.warning("Ollama embeddings service unavailable (503). Skipping embedding.")
             return None
+        if response.status_code != 200:
+            logger.error("Ollama error %d: %s", response.status_code, response.text)
         response.raise_for_status()
         raw = response.content
         if not raw:
@@ -136,7 +142,12 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
             return None
         return data.get("embedding")
     except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.error("Embedding error (Ollama): %s", exc)
+        logger.error(
+            "Embedding error (Ollama) for text '%s...': %s (Type: %s)",
+            text[:50],
+            exc,
+            type(exc).__name__,
+        )
         return None
 
 

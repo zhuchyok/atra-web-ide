@@ -23,19 +23,54 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _make_browser_config(headless: bool, user_data_dir: Optional[str] = None) -> "BrowserConfig":
+    """Build BrowserConfig, optionally with persistent profile (cookies/session survive restarts)."""
+    kwargs: Dict[str, Any] = {
+        "headless": headless,
+        "disable_security": True,  # Allow local testing
+    }
+    if user_data_dir:
+        kwargs["user_data_dir"] = user_data_dir
+        # Для первого входа в Директ/любой кабинет нужен видимый браузер
+        if headless:
+            logger.info(
+                "BROWSER_USER_DATA_DIR задан: при первом логине установи BROWSER_USE_HEADLESS=false"
+            )
+    if not BROWSER_USE_AVAILABLE:
+        return None
+    try:
+        return BrowserConfig(**kwargs)
+    except TypeError:
+        # Старые версии browser-use без user_data_dir
+        kwargs.pop("user_data_dir", None)
+        logger.warning(
+            "Текущая версия browser-use не поддерживает user_data_dir; сессия не сохранится"
+        )
+        return BrowserConfig(**kwargs)
+
+
 class BrowserOperator:
     """
     Operates a browser autonomously to verify UI/UX and perform actions.
     Acts as the 'eyes and hands' for Victoria, executed by Veronica.
+
+    Постоянный профиль: задай BROWSER_USER_DATA_DIR (путь к папке) — тогда куки/логин
+    сохранятся между запусками. Для первого входа в Директ включи BROWSER_USE_HEADLESS=false.
     """
 
     def __init__(self):
         self.headless = os.getenv("BROWSER_USE_HEADLESS", "true").lower() == "true"
-        self.browser_config = BrowserConfig(
-            headless=self.headless,
-            disable_security=True,  # Allow local testing
+        user_data_dir = os.getenv("BROWSER_USER_DATA_DIR", "").strip() or None
+        if user_data_dir and not os.path.isabs(user_data_dir):
+            # Относительный путь — от корня knowledge_os или репо
+            base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            user_data_dir = os.path.abspath(os.path.join(base, user_data_dir))
+        if user_data_dir:
+            os.makedirs(user_data_dir, exist_ok=True)
+        self.browser_config = (
+            _make_browser_config(self.headless, user_data_dir) if BROWSER_USE_AVAILABLE else None
         )
-        self.controller = Controller()
+        self.controller = Controller() if BROWSER_USE_AVAILABLE else None
 
     async def execute_task(self, goal: str, project_context: str = "general") -> Dict[str, Any]:
         """

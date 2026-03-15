@@ -1,0 +1,34 @@
+Проект: atra-web-ide. Путь к репо: /Users/bikos/Documents/atra-web-ide (или workspace root).
+
+Задача: проанализировать файл .cursor/rules/victoria.mdc на устаревшие формулировки и переписать его.
+
+Что сделать по шагам:
+
+1. Изучи текущий victoria.mdc (все разделы).
+
+2. Свериться с актуальными источниками:
+   - docs/MASTER_REFERENCE.md (разделы Wisdom Era, порты, последние изменения);
+   - docs/CHANGES_FROM_OTHER_CHATS.md (последние §§ — номера версий, даты, новые возможности);
+   - docs/PORT_REGISTRY.md (порты Victoria, Veronica, MLX, Ollama и т.д.);
+   - knowledge_os/docker-compose.yml (USE_VICTORIA_ENHANCED, ENABLE_EVENT_MONITORING, RECOVERY_WEBHOOK_URL, порты);
+   - knowledge_os/app/available_models_scanner.py (OLLAMA_BEST_FIRST, MLX_BEST_FIRST, имена моделей);
+   - knowledge_os/app/local_router.py (OLLAMA_MODELS_FALLBACK, MLX_MODELS_FALLBACK);
+   - knowledge_os/app/ollama_keep_alive_policy.py (FALLBACK_BRAIN_MODELS, keep_alive);
+   - src/agents/bridge/victoria_server.py (эндпоинты: /run, /orchestrate, /run/status, параметры TaskRequest).
+
+3. Выявить устаревшее:
+   - номер/название эры (Singularity 21.5 vs 24.0 или иное в MASTER_REFERENCE);
+   - даты в заголовках («Инвентарь 2026-03-05», «План B.1 2026-03-06») — актуализировать или убрать;
+   - имена моделей (victoria-wisdom-v3.5, phi3.5:3.8b и т.д.) — сверять с кодом;
+   - порты (8010, 8011, 11434, 11435, 9099) — сверять с PORT_REGISTRY и кодом;
+   - эндпоинты (/run vs /orchestrate для execution_plan) — по victoria_server.py;
+   - статусы «в разработке» (План B.1, B.2) — по CHANGES и коду определить, что уже внедрено;
+   - ссылки на документы (INVENTORY, CURATOR_RUNBOOK и т.д.) — проверить существование путей.
+
+4. Результат оформить в виде отчёта:
+   - краткий список «что устарело» с обоснованием;
+   - полный обновлённый текст victoria.mdc (или пораздельный diff), готовый к подстановке в файл.
+
+5. Не менять смысл разделов (Золотой стандарт, три уровня, Мозг и Руки, метод экспертов, когнитивный кодекс). Менять только фактические данные (версии, даты, порты, имена, статусы) и формулировки, которые противоречат коду или библии.
+
+Контекст: пользователь восстановил Золотой стандарт (делегирование через Task/API); в MASTER_REFERENCE и .cursorrules это уже закреплено. В victoria.mdc §0 тоже есть это определение — оставить по смыслу, при необходимости слегка унифицировать формулировки с MASTER_REFERENCE.

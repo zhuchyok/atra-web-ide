@@ -29,7 +29,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Config
-MOONDREAM_STATION_URL = os.getenv("MOONDREAM_STATION_URL", "http://localhost:2020")
+MOONDREAM_STATION_URL = os.getenv("MOONDREAM_STATION_URL", "http://host.docker.internal:2020")
 MOONDREAM_STATION_ENABLED = os.getenv("MOONDREAM_STATION_ENABLED", "true").lower() == "true"
 # Fallback на Ollama (старый способ)
 MAC_LLM_URL = os.getenv("MAC_LLM_URL", "http://localhost:11434")
@@ -66,8 +66,21 @@ class VisionProcessor:
         self.moondream_station_enabled = MOONDREAM_STATION_ENABLED
         self.moondream_client = None
 
+        # [SINGULARITY 21.10] Принудительно отключаем Moondream Station в контейнере,
+        # так как он недоступен по сети и вызывает задержки/ошибки.
+        # Используем Ollama (moondream:latest) напрямую.
+        if os.path.exists("/.dockerenv"):
+            logger.info("🐳 [VISION] Running in Docker, prioritizing Ollama over Moondream Station")
+            self.moondream_station_enabled = False
+
         # Fallback узлы (Ollama на Mac Studio)
-        self.fallback_nodes = [{"name": "Mac Studio (Ollama)", "url": MAC_LLM_URL, "priority": 1}]
+        self.fallback_nodes = [
+            {
+                "name": "Mac Studio (Ollama)",
+                "url": "http://host.docker.internal:11434",
+                "priority": 1,
+            }
+        ]
         self.model = VISION_MODEL
 
         # Инициализация Moondream клиента (если доступен)
@@ -90,10 +103,32 @@ class VisionProcessor:
             )
             return None
 
+        # [DEBUG] Логируем входные данные
+        if not image_path and not image_base64:
+            logger.debug("⏩ [VISION] _prepare_image called with no image_path and no image_base64")
+            return None
+
         try:
             if image_path:
+                logger.debug(f"🔍 [VISION] Loading image from path: {image_path}")
+                # [SINGULARITY 21.9] Проверка на Git LFS заглушки
+                try:
+                    if os.path.exists(image_path):
+                        with open(image_path, "rb") as f:
+                            # Читаем больше байт для надежной проверки LFS (минимум 100)
+                            header = f.read(128)
+                            if b"git-lfs" in header or b"github.com/spec/v1" in header:
+                                logger.debug(f"⏩ [VISION] Skipping Git LFS pointer: {image_path}")
+                                return None
+                    else:
+                        logger.warning(f"⚠️ [VISION] Image path does not exist: {image_path}")
+                        return None
+                except Exception as e:
+                    logger.debug(f"⚠️ [VISION] Error checking LFS for {image_path}: {e}")
+
                 return Image.open(image_path)
             elif image_base64:
+                logger.debug(f"🔍 [VISION] Loading image from base64 (length: {len(image_base64)})")
                 # Декодируем base64
                 if isinstance(image_base64, str):
                     # Убираем префикс data:image/...;base64, если есть
@@ -109,24 +144,74 @@ class VisionProcessor:
             return None
 
     async def _process_with_moondream_station(self, image: PILImage, prompt: str) -> Optional[str]:
-        """Обработка через Moondream Station (MLX)"""
+        """Обработка через Moondream Station (MLX) или Ollama (fallback)"""
+        # [SINGULARITY 21.10] Пытаемся использовать Ollama как основной vision-процессор,
+        # так как Moondream Station (MLX) может быть недоступен из контейнера.
+
+        # 1. Пытаемся через Ollama (moondream:latest)
+        try:
+            import base64
+            from io import BytesIO
+
+            buffered = BytesIO()
+            image.save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                # Используем host.docker.internal для Ollama
+                ollama_url = "http://host.docker.internal:11434/api/generate"
+                response = await client.post(
+                    ollama_url,
+                    json={
+                        "model": "moondream:latest",
+                        "prompt": prompt,
+                        "images": [img_str],
+                        "stream": False,
+                    },
+                )
+                if response.status_code == 200:
+                    res_json = response.json()
+                    answer = res_json.get("response")
+                    if answer:
+                        logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
+                        return str(answer)
+        except Exception as e:
+            logger.debug(f"Ollama vision failed: {e}")
+
+        # 2. Пытаемся через Moondream Station (MLX) как fallback
         if not self.moondream_client:
             return None
 
         try:
-            # Используем синхронный клиент в async контексте
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None, lambda: self.moondream_client.query(image, prompt)
-            )
+            logger.debug(f"🔄 [VISION] Moondream query with prompt: {prompt[:50]}...")
 
-            if result and isinstance(result, dict):
-                answer = result.get("answer", "")
-                if answer:
-                    logger.info("✅ [VISION] Processed with Moondream Station (MLX)")
-                    return answer
+            def run_query():
+                try:
+                    res = self.moondream_client.query(image, prompt, stream=True)
+                    if isinstance(res, dict) and "answer" in res:
+                        gen = res["answer"]
+                        if hasattr(gen, "__iter__") and not isinstance(gen, (str, dict)):
+                            return "".join([str(chunk) for chunk in gen])
+                        return str(gen)
+                    return None
+                except Exception as e:
+                    logger.debug(f"Query failed, trying caption: {e}")
+                    res = self.moondream_client.caption(image, stream=True)
+                    if isinstance(res, dict) and "caption" in res:
+                        gen = res["caption"]
+                        if hasattr(gen, "__iter__") and not isinstance(gen, (str, dict)):
+                            return "".join([str(chunk) for chunk in gen])
+                        return str(gen)
+                    return None
+
+            answer = await loop.run_in_executor(None, run_query)
+            if answer:
+                logger.info("✅ [VISION] Processed with Moondream Station (MLX)")
+                return str(answer)
+
         except Exception as e:
-            logger.warning(f"⚠️ [VISION] Moondream Station failed: {e}")
+            logger.warning(f"⚠️ [VISION] Moondream Station failed: {e} (Type: {type(e).__name__})")
 
         return None
 
@@ -159,15 +244,14 @@ class VisionProcessor:
         self, image_base64: str, prompt: str, use_pdf_model: bool = False
     ) -> Optional[str]:
         """Fallback на Ollama с поддержкой разных моделей"""
-        # Выбираем модель в зависимости от задачи
-        if use_pdf_model:
-            models_to_try = ["llava:7b", "moondream"]  # llava лучше для PDF
-        else:
-            models_to_try = ["moondream", "llava:7b"]  # moondream быстрее для обычных изображений
+        # [OMNI-RAG] Используем moondream как основную модель для Ollama
+        models_to_try = ["moondream:latest", "llava:7b"]
 
         for node in self.fallback_nodes:
             for model_name in models_to_try:
                 try:
+                    # [DEBUG]
+                    logger.debug(f"Trying Ollama model {model_name} on {node['url']}")
                     node_url = f"{node['url']}/api/generate"
 
                     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -202,7 +286,7 @@ class VisionProcessor:
     ) -> Optional[str]:
         """
         Обрабатывает изображение локальной vision моделью.
-        Приоритет: Moondream Station (MLX) → Ollama → Fallback
+        Приоритет: Ollama (moondream:latest) → Moondream Station (MLX) → Fallback
 
         Args:
             image_path: Путь к файлу изображения
@@ -218,19 +302,51 @@ class VisionProcessor:
             logger.error("❌ [VISION] No image provided or failed to load")
             return None
 
-        # Приоритет 1: Moondream Station (MLX) - прямой клиент
+        # [SINGULARITY 21.10] Приоритет 1: Ollama (moondream:latest) через host.docker.internal
+        # Это самый надежный способ из контейнера.
+        try:
+            logger.debug("🔄 [VISION] Attempting Ollama vision on host.docker.internal...")
+            buffered = io.BytesIO()
+            image.save(buffered, format="JPEG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+
+            async with httpx.AsyncClient(timeout=120.0) as client:  # Увеличен таймаут
+                ollama_url = "http://host.docker.internal:11434/api/generate"
+                response = await client.post(
+                    ollama_url,
+                    json={
+                        "model": "moondream:latest",
+                        "prompt": prompt,
+                        "images": [img_str],
+                        "stream": False,
+                    },
+                )
+                if response.status_code == 200:
+                    res_json = response.json()
+                    answer = res_json.get("response")
+                    if answer:
+                        logger.info("✅ [VISION] Processed with Ollama (moondream:latest)")
+                        return str(answer)
+                else:
+                    logger.debug(
+                        f"Ollama vision returned status {response.status_code}: {response.text}"
+                    )
+        except Exception as e:
+            logger.debug(f"Ollama vision failed: {e} (Type: {type(e).__name__})")
+
+        # Приоритет 2: Moondream Station (MLX) - прямой клиент
         if self.moondream_client:
             result = await self._process_with_moondream_station(image, prompt)
             if result:
                 return result
 
-        # Приоритет 2: Moondream Station REST API
+        # Приоритет 3: Moondream Station REST API
         if self.moondream_station_enabled:
             result = await self._process_with_moondream_api(image, prompt)
             if result:
                 return result
 
-        # Приоритет 3: Fallback на Ollama
+        # Приоритет 4: Fallback на Ollama (старый способ с перебором нод)
         # Подготавливаем base64 для Ollama
         buffer = io.BytesIO()
         image.save(buffer, format="PNG")

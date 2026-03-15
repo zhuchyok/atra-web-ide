@@ -346,7 +346,10 @@ class CollectiveMemorySystem:
         if result_for_db is not None and not isinstance(result_for_db, str):
             result_for_db = str(result_for_db)
         try:
-            from db_pool import get_pool
+            try:
+                from db_pool import get_pool
+            except ImportError:
+                from app.db_pool import get_pool
 
             pool = await get_pool()
             async with pool.acquire() as conn:

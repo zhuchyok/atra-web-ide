@@ -110,6 +110,181 @@ def render_wisdom_tab():
 
     st.markdown("---")
 
+    # 4. Дебаты экспертов (Expert Council / nightly_council)
+    st.markdown("### 🎭 Дебаты экспертов (Expert Council)")
+
+    # Добавляем метрики консенсуса, если они есть
+    try:
+        council_stats = fetch_data("""
+            SELECT
+                COUNT(*) as total_debates,
+                AVG((metadata->>'consensus_score')::float) as avg_consensus
+            FROM knowledge_nodes
+            WHERE metadata->>'cycle' LIKE 'nightly_council%'
+            AND metadata->>'consensus_score' IS NOT NULL
+        """)
+
+        if council_stats and council_stats[0]["total_debates"] > 0:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.metric("Всего дебатов", council_stats[0]["total_debates"])
+            with c2:
+                avg_score = council_stats[0]["avg_consensus"] or 0
+                st.metric("Средний консенсус", f"{avg_score:.2f}")
+            st.markdown("---")
+    except Exception:
+        pass
+
+    try:
+        council_data = fetch_data("""
+            SELECT id, content, created_at, metadata->>'cycle' as cycle, metadata->>'consensus_score' as score
+            FROM knowledge_nodes
+            WHERE metadata->>'cycle' LIKE 'nightly_council%'
+            ORDER BY created_at DESC LIMIT 10
+        """)
+        if council_data:
+            for row in council_data:
+                score_val = row.get("score")
+                score_str = f" | Консенсус: {score_val}" if score_val else ""
+                with st.expander(
+                    f"📌 {row['cycle'] or 'council'}{score_str} — {row['created_at'].strftime('%d.%m %H:%M') if hasattr(row['created_at'], 'strftime') else row['created_at']}"
+                ):
+                    st.write(row["content"] or "—")
+        else:
+            st.info("Дебаты экспертов пока не проводились (ночной цикл council).")
+    except Exception as e:
+        st.error(f"Ошибка загрузки дебатов: {e}")
+
+    st.markdown("---")
+
+    # 7. [SINGULARITY 21.18] Success Retrieval Audit
+    st.markdown("### 📊 Success Retrieval Audit (Efficiency)")
+    try:
+        audit_data = fetch_data("""
+            SELECT
+                SUM((metadata->>'time_saved_seconds')::int) as total_saved_sec,
+                COUNT(*) as total_retrievals,
+                AVG((metadata->>'examples_found')::int) as avg_examples
+            FROM knowledge_nodes
+            WHERE metadata->>'type' = 'success_retrieval_audit'
+        """)
+
+        if audit_data and audit_data[0]["total_retrievals"] > 0:
+            total_sec = audit_data[0]["total_saved_sec"] or 0
+            total_hours = total_sec / 3600
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Экономия времени (часы)", f"{total_hours:.2f}h")
+            with c2:
+                st.metric("Всего активаций опыта", audit_data[0]["total_retrievals"])
+            with c3:
+                st.metric("Среднее кол-во примеров", f"{audit_data[0]['avg_examples']:.1f}")
+
+            # График экономии по дням
+            savings_over_time = fetch_data("""
+                SELECT
+                    date_trunc('day', created_at) as day,
+                    SUM((metadata->>'time_saved_seconds')::int) / 60 as minutes_saved
+                FROM knowledge_nodes
+                WHERE metadata->>'type' = 'success_retrieval_audit'
+                GROUP BY 1 ORDER BY 1
+            """)
+            if savings_over_time:
+                df_savings = pd.DataFrame(savings_over_time)
+                fig_savings = px.bar(
+                    df_savings,
+                    x="day",
+                    y="minutes_saved",
+                    title="Экономия времени (минуты в день)",
+                    template="plotly_dark",
+                    color_discrete_sequence=[st.get_option("theme.primaryColor") or "#58a6ff"],
+                )
+                st.plotly_chart(fig_savings, use_container_width=True)
+        else:
+            st.info("Данные аудита эффективности пока не накоплены.")
+    except Exception as e:
+        st.error(f"Ошибка загрузки аудита: {e}")
+
+    st.markdown("---")
+
+    # 6. [SINGULARITY 21.18] Dynamic DNA Control
+    st.markdown("### 🧬 Dynamic DNA Control (Automation Center)")
+    st.markdown("Управление ДНК экспертов в реальном времени без перезагрузки системы.")
+
+    try:
+        experts_list = fetch_data(
+            "SELECT id, name, role, specialization_level FROM experts ORDER BY name"
+        )
+        if experts_list:
+            expert_names = [e["name"] for e in experts_list]
+            selected_expert_name = st.selectbox("Выберите эксперта для тюнинга ДНК:", expert_names)
+
+            selected_expert = next(e for e in experts_list if e["name"] == selected_expert_name)
+            expert_id = selected_expert["id"]
+
+            # Загружаем текущее переопределение
+            current_override = fetch_data(
+                """
+                SELECT custom_instructions, version
+                FROM expert_dna_overrides
+                WHERE expert_id = $1 AND is_active = TRUE
+                ORDER BY updated_at DESC LIMIT 1
+            """,
+                expert_id,
+            )
+
+            initial_text = current_override[0]["custom_instructions"] if current_override else ""
+
+            with st.form(key=f"dna_form_{expert_id}"):
+                st.markdown(f"**Эксперт:** {selected_expert_name} ({selected_expert['role']})")
+                st.markdown(f"**Уровень:** {selected_expert['specialization_level']}")
+
+                new_instructions = st.text_area(
+                    "Динамические инструкции (DNA Override):",
+                    value=initial_text,
+                    height=200,
+                    help="Эти инструкции будут приоритетнее любых .mdc файлов.",
+                )
+
+                submit_button = st.form_submit_button(label="🚀 Обновить ДНК Мгновенно")
+
+                if submit_button:
+                    import asyncpg
+                    from database_service import get_db_connection
+
+                    async def update_dna():
+                        conn = await get_db_connection()
+                        try:
+                            # Деактивируем старые
+                            await conn.execute(
+                                "UPDATE expert_dna_overrides SET is_active = FALSE WHERE expert_id = $1",
+                                expert_id,
+                            )
+                            # Вставляем новую
+                            await conn.execute(
+                                """
+                                INSERT INTO expert_dna_overrides (expert_id, custom_instructions, updated_by)
+                                VALUES ($1, $2, $3)
+                            """,
+                                expert_id,
+                                new_instructions,
+                                "Dashboard_Admin",
+                            )
+                            return True
+                        finally:
+                            await conn.close()
+
+                    if asyncio.run(update_dna()):
+                        st.success(
+                            f"✅ ДНК эксперта {selected_expert_name} обновлена! Изменения вступят в силу при следующем запросе."
+                        )
+                        st.balloons()
+        else:
+            st.warning("Список экспертов пуст.")
+    except Exception as e:
+        st.error(f"Ошибка DNA Control: {e}")
+
     st.markdown("---")
 
     # 5. Цифровая Конституция (Constitutional AI)

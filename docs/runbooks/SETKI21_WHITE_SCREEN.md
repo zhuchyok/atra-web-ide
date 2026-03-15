@@ -9,6 +9,7 @@
 ## Какой стек используется
 
 На VDS в `/home/atra/app/setki21_src` развёрнуты контейнеры **setki21-web-new** (Nuxt :3000) и **setki21-api-new** (Rust API :8080). NPM должен направлять:
+
 - **/** → `setki21-web-new:3000`
 - **/api**, **/health**, **/uploads** → `setki21-api-new:8080`
 
@@ -21,6 +22,7 @@
 Контейнер **atra-nginx-proxy** должен быть в **двух сетях**: **atra-network** (для других сервисов на VDS) и **setki21_src_default** (для setki21-api-new и setki21-web-new).
 
 **Правильно (docker-compose.vds.yml):**
+
 ```yaml
 nginx-proxy:
   networks:
@@ -35,12 +37,14 @@ networks:
 ```
 
 **Если NPM запущен без сети setki21_src_default:**
+
 - Health API возвращает 000 или таймаут
 - Tenant config через HTTPS → 502 Bad Gateway
 - Nuxt SSR падает с `FetchError: 502`
 - Белый экран (сайт мелькает, затем пропадает)
 
 **Исправление (если NPM уже запущен без этой сети):**
+
 ```bash
 docker network connect setki21_src_default atra-nginx-proxy
 docker restart atra-nginx-proxy
@@ -54,19 +58,23 @@ docker network connect setki21_src_default atra-nginx-proxy  # повторно 
 ## Шаг 0.5. API не стартует: «password authentication failed for user moskit»
 
 Если контейнер **setki21-api-new** в статусе Up, но в логах цикл:
+
 ```text
 psql: error: connection to server at "postgres" (172.18.0.5), port 5432 failed: FATAL: password authentication failed for user "moskit"
 Postgres (postgres) is unavailable - sleeping
 ```
+
 причина: API подключён к **двум сетям** (default + atra-network). Имя **postgres** резолвится в **atra-postgres** (172.18.0.5), а не в Postgres стека setki21_src (172.19.0.5). У atra-postgres другие учётные данные.
 
 **Исправление:** в **docker-compose.vds.yml** (репо setki-21) для сервиса **api** задать явный хост БД:
+
 ```yaml
 services:
   api:
     environment:
       - DATABASE_URL=postgres://moskit:password@setki21_src-postgres-1:5432/moskit
 ```
+
 Затем на VDS: скопировать обновлённый `docker-compose.vds.yml` в `/home/atra/app/setki21_src/`, выполнить `docker compose -f docker-compose.yml -f docker-compose.vds.yml up -d api --force-recreate`. Убедиться, что контейнер Postgres стека (**setki21_src-postgres-1**) запущен: `docker compose up -d postgres`.
 
 ---
@@ -78,12 +86,14 @@ services:
 **Причина:** Образ **web** (setki21-web-new) был собран без `NUXT_PUBLIC_API_URL` или с дефолтом localhost. В клиентский бандл Nuxt зашивается `apiUrl` на этапе сборки; если не задать продакшен-URL, в браузере запросы уходят на localhost пользователя → ошибки → белый экран/мерцание.
 
 **Исправление:** Пересобрать образ **web** с явным продакшен-URL и перезапустить контейнер на VDS:
+
 ```bash
 # На VDS в /home/atra/app/setki21_src
 export NUXT_PUBLIC_API_URL=https://www.setki21.ru
 docker compose -f docker-compose.yml -f docker-compose.vds.yml build --no-cache web
 docker compose -f docker-compose.yml -f docker-compose.vds.yml up -d web
 ```
+
 Либо в **.env** на VDS задать `NUXT_PUBLIC_API_URL=https://www.setki21.ru` и затем `docker compose build web && docker compose up -d web`.
 
 В репо setki-21 дефолты уже исправлены: **docker-compose.yml** и **Dockerfile.web** по умолчанию используют `https://www.setki21.ru`; в **nuxt.config.ts** и во всех страницах/сторах fallback для apiUrl — пустая строка (same-origin), а не localhost. После обновления кода из репо и пересборки web проблема не должна возвращаться.
@@ -170,15 +180,15 @@ ssh root@45.10.43.248 'docker logs setki21-web-new --tail 30'
 
 ## Краткий чеклист
 
-| Проверка              | Команда/действие |
-|-----------------------|------------------|
-| Контейнеры Up         | `docker ps \| grep setki21` |
-| Health 200            | `curl … setki21-api-new:8080/health` |
-| Tenant config JSON    | `curl -H "Host: www.setki21.ru" …/api/v1/tenant/config` |
-| Nuxt отдаёт HTML      | `curl http://setki21-web-new:3000/` → есть `<title>` |
-| NPM Forward           | setki21-web-new:3000 для / |
-| Логи без критических  | `docker logs setki21-api-new setki21-web-new --tail 30` |
-| Кэш браузера          | Ctrl+F5 / инкогнито |
+| Проверка             | Команда/действие                                        |
+| -------------------- | ------------------------------------------------------- |
+| Контейнеры Up        | `docker ps \| grep setki21`                             |
+| Health 200           | `curl … setki21-api-new:8080/health`                    |
+| Tenant config JSON   | `curl -H "Host: www.setki21.ru" …/api/v1/tenant/config` |
+| Nuxt отдаёт HTML     | `curl http://setki21-web-new:3000/` → есть `<title>`    |
+| NPM Forward          | setki21-web-new:3000 для /                              |
+| Логи без критических | `docker logs setki21-api-new setki21-web-new --tail 30` |
+| Кэш браузера         | Ctrl+F5 / инкогнито                                     |
 
 ---
 
@@ -186,12 +196,12 @@ ssh root@45.10.43.248 'docker logs setki21-web-new --tail 30'
 
 Белый экран может быть на **главном** или на **дилерских** доменах. Для каждого сайта должны выполняться: контейнеры Up, NPM ведёт **/** на `setki21-web-new:3000`, а запрос к `/api/v1/tenant/config` с соответствующим **Host** возвращает JSON.
 
-| Сайт | URL для проверки | Host для tenant config | Ожидание |
-|------|------------------|------------------------|----------|
-| **Главный** | https://www.setki21.ru | `www.setki21.ru` | JSON головного tenant |
-| **Главный (без www)** | https://setki21.ru | `setki21.ru` | редирект на www или тот же JSON |
-| **Сетки Москитки (Йошкар-Ола)** | https://сеткимоскитки.рф или https://xn--e1agaahbbnszfhh.xn--p1ai | `xn--e1agaahbbnszfhh.xn--p1ai` или `www.xn--e1agaahbbnszfhh.xn--p1ai` | JSON дилера |
-| **Сетки Москитки НН** | https://setkimoskitki.ru | `setkimoskitki.ru` или `www.setkimoskitki.ru` | JSON дилера |
+| Сайт                            | URL для проверки                                                  | Host для tenant config                                                | Ожидание                        |
+| ------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------- |
+| **Главный**                     | https://www.setki21.ru                                            | `www.setki21.ru`                                                      | JSON головного tenant           |
+| **Главный (без www)**           | https://setki21.ru                                                | `setki21.ru`                                                          | редирект на www или тот же JSON |
+| **Сетки Москитки (Йошкар-Ола)** | https://сеткимоскитки.рф или https://xn--e1agaahbbnszfhh.xn--p1ai | `xn--e1agaahbbnszfhh.xn--p1ai` или `www.xn--e1agaahbbnszfhh.xn--p1ai` | JSON дилера                     |
+| **Сетки Москитки НН**           | https://setkimoskitki.ru                                          | `setkimoskitki.ru` или `www.setkimoskitki.ru`                         | JSON дилера                     |
 
 ### Команды для проверки tenant config по каждому хосту (на VDS)
 
@@ -226,6 +236,7 @@ docker exec atra-nginx-proxy curl -s -H "Host: www.setkimoskitki.ru" http://setk
 1. **Прокси API → Web:** API по умолчанию шлёт запрос на `http://web:3000/api/callback` (сервис `web` в том же compose). Убедиться, что оба контейнера в одной сети (setki21_src_default). При необходимости задать на VDS в env контейнера **api**: `CALLBACK_PROXY_URL=http://setki21-web-new:3000`.
 
 2. **SMTP в контейнере web (частая причина):** Заявки (обратный звонок, контакт, заказ сеток) отправляются через **один и тот же SMTP** из env. В каталоге деплоя (`/home/atra/app/setki21_src`) в **.env** задать те же переменные, что и для оформления заказов:
+
    ```bash
    SMTP_HOST=smtp.timeweb.ru
    SMTP_PORT=465
@@ -233,6 +244,7 @@ docker exec atra-nginx-proxy curl -s -H "Host: www.setkimoskitki.ru" http://setk
    SMTP_PASS=пароль_от_ящика
    CONTACT_EMAIL=info@setki21.ru
    ```
+
    Если используете **Timeweb** (как для заказов сеток) — в .env задать `SMTP_HOST=smtp.timeweb.ru`, `SMTP_PORT=465`. Если остаётесь на **Mail.ru** — нужен пароль приложения в `SMTP_PASS` и `SMTP_PORT=587`. После правки .env перезапустить web: `docker compose -f docker-compose.yml -f docker-compose.vds.yml up -d web`.
 
 3. **Логи:** При ошибке отправки смотреть логи Nuxt: `docker logs setki21-web-new --tail 50` (ошибки nodemailer, 503). Логи API: `docker logs setki21-api-new --tail 30` (если прокси возвращает 502 — до Web не доходит).
@@ -261,6 +273,42 @@ docker exec atra-nginx-proxy curl -s -H "Host: www.setkimoskitki.ru" http://setk
 **Причина:** API искал tenant только по точному Host; в БД у головного дилера записан домен `setki21.ru` без www, поэтому для `Host: www.setki21.ru` возвращался 400 «Tenant not found».
 
 **Исправление (в коде moskit-api, уже внедрено):** В `handlers/content.rs` для `/api/v1/tenant/config` и фавикона добавлен fallback: если по точному Host дилер не найден и Host начинается с `www.`, повторный поиск по домену без префикса (www.setki21.ru → setki21.ru). После обновления кода setki-21 и пересборки образа API на VDS www-версии работают без отдельной записи в БД.
+
+---
+
+## Админка: «не та база» (данные из другого API или БД)
+
+**Симптом:** В админке (www.setki21.ru/admin или /admin/dealers, или кабинет дилера /dealer/settings) сохраняете реквизиты/юр. данные, но на сайте по-прежнему отображается ООО «Бикос» или другие «чужие» данные. Либо в админке видите список дилеров/данные не из той БД.
+
+**Причины:**
+
+1. **Web собран с другим API:** В образ **web** на этапе сборки зашивается `NUXT_PUBLIC_API_URL`. Если собирали без него или с URL другого окружения (localhost, staging), админка в браузере ходит в другой API → другая БД. **Исправление:** пересобрать web с `NUXT_PUBLIC_API_URL=https://www.setki21.ru` (или ваш продакшен-домен API), см. Шаг 0.6.
+2. **API на VDS смотрит в другую БД:** Контейнер **api** подключается к Postgres по `DATABASE_URL`. Если в docker-compose.vds.yml указан хост другой БД (например atra-postgres вместо setki21_src-postgres-1), изменения в админке пишутся в другую базу, а публичный tenant config читается из своей. **Исправление:** в docker-compose.vds.yml для **api** должно быть `DATABASE_URL=postgres://moskit:password@setki21_src-postgres-1:5432/moskit`, см. Шаг 0.5.
+3. **Редактируете не того дилера:** В суперадминке (/admin/dealers) убедитесь, что открыта карточка нужного дилера (по имени/домену). В кабинете дилера (/dealer/settings) всегда редактируется только тот дилер, под которым вошли (auth.user.dealer_id).
+
+**Проверка:** После сохранения реквизитов в админке вызвать `GET /api/v1/tenant/config` с заголовком Host нужного дилерского домена — в ответе в `legal.requisites` должны быть только что сохранённые данные.
+
+---
+
+## 502 Bad Gateway на всех сайтах
+
+**Симптом:** Все сайты (www.setki21.ru, дилеры) отдают 502 Bad Gateway.
+
+**Причины:**
+
+1. **Имена контейнеров:** NPM настроен на **setki21-web-new** и **setki21-api-new**. Если в `docker-compose.yml` на VDS нет `container_name`, контейнеры получают имена вида **setki21_src-web-1** / **setki21_src-api-1** — NPM не резолвит хостнеймы → 502.
+2. **Порт API:** Moskit API по умолчанию слушает **8081**; в контейнере маппинг **8083:8080**. Если в env сервиса **api** не задан **PORT=8080**, приложение слушает 8081, а NPM стучится на 8080 → 502 на запросах к /api.
+
+**Исправление на VDS:**
+
+- В `/home/atra/app/setki21_src/docker-compose.yml` у сервисов **api** и **web** должны быть строки: `container_name: setki21-api-new` и `container_name: setki21-web-new`; у **api** в **environment** — `- PORT=8080`.
+- Пересоздать контейнеры:  
+  `docker compose -f docker-compose.yml -f docker-compose.vds.yml up -d web api --force-recreate`
+- Проверка изнутри NPM:  
+  `docker exec atra-nginx-proxy curl -s -o /dev/null -w "%{http_code}" http://setki21-web-new:3000/` → 200;  
+  `docker exec atra-nginx-proxy curl -s -o /dev/null -w "%{http_code}" http://setki21-api-new:8080/health` → 200.
+
+**В репозитории setki-21** в `docker-compose.yml` уже есть `container_name` и `PORT=8080`; при следующем `git pull` на VDS подтянуть актуальный compose и при необходимости снова пересоздать контейнеры.
 
 ---
 

@@ -28,6 +28,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+# LISTEN/NOTIFY несовместим с PgBouncer transaction pooling — нужно прямое персистентное соединение.
+# POSTGRES_DIRECT_URL указывает напрямую на postgres:5432 минуя pgbouncer:6432.
+DIRECT_DB_URL = os.getenv("POSTGRES_DIRECT_URL", DB_URL)
 SYNC_DEBOUNCE_SECONDS = int(os.getenv("SYNC_DEBOUNCE_SECONDS", "5"))  # Дебаунс: не чаще раз в 5 сек
 PERIODIC_SYNC_MINUTES = int(
     os.getenv("PERIODIC_SYNC_MINUTES", "60")
@@ -118,8 +121,10 @@ class EmployeesSyncDaemon:
 
         while True:
             try:
-                conn = await asyncpg.connect(DB_URL)
-                logger.info("🔌 Подключено к БД, слушаю 'experts_changed'...")
+                conn = await asyncpg.connect(DIRECT_DB_URL)
+                logger.info(
+                    "🔌 Подключено к БД напрямую (LISTEN/NOTIFY, минуя PgBouncer), слушаю 'experts_changed'..."
+                )
 
                 async def callback(conn, pid, channel, payload):
                     await self.handle_notification(payload)
