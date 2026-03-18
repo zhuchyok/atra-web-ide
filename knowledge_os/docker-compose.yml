@@ -18,12 +18,22 @@ services:
       [
         "postgres",
         "-c",
-        "max_connections=100",
+        "max_connections=200",
         "-c",
         "idle_in_transaction_session_timeout=300000",
+        "-c",
+        "idle_session_timeout=600000",
+        "-c",
+        "tcp_keepalives_idle=60",
+        "-c",
+        "tcp_keepalives_interval=10",
+        "-c",
+        "tcp_keepalives_count=3",
       ]
-    # max_connections=100: PgBouncer держит ≤25 реальных соединений → 100 с запасом (было 500)
-    # idle_in_transaction_session_timeout=300000ms: убивает зависшие idle-in-transaction через 5 мин
+    # max_connections=200: Victoria Enhanced создаёт 20+ пулов × min_size=1 → ~60 прямых соединений
+    # PgBouncer добавляет ≤25; итого буфер до 200 (было 100 — overflow при нагрузке)
+    # idle_session_timeout=600s: закрывает idle соединения через 10 мин
+    # idle_in_transaction_session_timeout=300s: убивает idle-in-transaction через 5 мин
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
