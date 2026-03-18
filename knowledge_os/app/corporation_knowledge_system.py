@@ -726,7 +726,8 @@ async def update_all_agents_knowledge(pool=None):
         knowledge, top_insights=top_insights or None, lessons_learned=lessons_learned or None
     )
 
-    # Обновляем system prompts всех агентов через БД
+    # Сохраняем динамический контекст в expert_context (не в system_prompt!)
+    # system_prompt остаётся статичным (~5KB), динамика живёт в expert_context
     if ASYNCPG_AVAILABLE:
         try:
             if pool is not None:
@@ -734,71 +735,24 @@ async def update_all_agents_knowledge(pool=None):
             else:
                 conn = await asyncpg.connect(system.db_url, command_timeout=30)
             try:
-                # Удаляем старые обновления знаний из system_prompt
-                experts = await conn.fetch("""
-                    SELECT id, name, system_prompt
-                    FROM experts
-                """)
+                experts = await conn.fetch("SELECT id, name FROM experts")
 
                 for expert in experts:
-                    system_prompt = expert["system_prompt"] or ""
-
-                    # Удаляем старое обновление знаний (если есть)
-                    lines = system_prompt.split("\n")
-                    new_lines = []
-                    skip_until_end = False
-
-                    for line in lines:
-                        if "АКТУАЛЬНЫЕ ЗНАНИЯ КОРПОРАЦИИ" in line:
-                            skip_until_end = True
-                        if (
-                            skip_until_end
-                            and line.strip() == ""
-                            and new_lines
-                            and new_lines[-1].strip() == ""
-                        ):
-                            skip_until_end = False
-                            continue
-                        if not skip_until_end:
-                            new_lines.append(line)
-
-                    cleaned_prompt = "\n".join(new_lines).strip()
-
-                    # Добавляем новое обновление
-                    updated_prompt = cleaned_prompt + "\n\n" + prompt_update
-
-                    # Singularity 10.0: версионирование — backup перед UPDATE
-                    old_hash = hashlib.sha256((system_prompt or "").encode()).hexdigest()
-                    new_hash = hashlib.sha256(updated_prompt.encode()).hexdigest()
-                    if old_hash != new_hash:
-                        try:
-                            await conn.execute(
-                                """
-                                INSERT INTO prompt_change_log (expert_id, old_prompt_hash, new_prompt_hash, metadata)
-                                VALUES ($1, $2, $3, $4::jsonb)
-                            """,
-                                expert["id"],
-                                old_hash,
-                                new_hash,
-                                json.dumps({"source": "update_all_agents_knowledge"}),
-                            )
-                        except Exception as e:
-                            logger.debug(
-                                "prompt_change_log insert skipped (table may not exist): %s", e
-                            )
-
+                    # Upsert динамического контекста — заменяем полностью
                     await conn.execute(
                         """
-                        UPDATE experts
-                        SET system_prompt = $1
-                        WHERE id = $2
-                    """,
-                        updated_prompt,
+                        INSERT INTO expert_context (expert_id, context_type, content, updated_at)
+                        VALUES ($1, 'corporation_knowledge', $2, NOW())
+                        ON CONFLICT (expert_id, context_type)
+                        DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+                        """,
                         expert["id"],
+                        prompt_update,
                     )
 
                 logger.info(
-                    f"✅ System prompts всех {len(experts)} агентов обновлены с актуальными знаниями"
+                    f"✅ Динамический контекст обновлён для {len(experts)} агентов "
+                    f"(expert_context, размер блока: {len(prompt_update)} chars)"
                 )
             finally:
                 if pool is not None:
@@ -806,7 +760,7 @@ async def update_all_agents_knowledge(pool=None):
                 else:
                     await conn.close()
         except Exception as e:
-            logger.error(f"Ошибка обновления system prompts: {e}")
+            logger.error(f"Ошибка обновления expert_context: {e}")
 
     return knowledge
 

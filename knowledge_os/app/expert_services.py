@@ -6,6 +6,7 @@ Expert Services — список сотрудников и их услуг дл�
 Источник: configs/experts/employees.json + experts из БД (гибрид: employees + автономные).
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -249,6 +250,58 @@ def get_expert_system_prompt(expert_name_or_role: str) -> Optional[str]:
             return ex.submit(_fetch).result(timeout=5)
     except Exception:
         return None
+
+
+async def get_full_expert_prompt(expert_name_or_role: str, conn=None) -> Optional[str]:
+    """
+    Собирает полный промпт эксперта: статичный system_prompt (~5KB) + динамический expert_context.
+    Вызывать вместо get_expert_system_prompt при наличии пула соединений.
+    """
+    try:
+        import asyncpg
+
+        try:
+            from app.expert_aliases import resolve_expert_name_for_db
+            resolved = resolve_expert_name_for_db(expert_name_or_role)
+        except ImportError:
+            resolved = expert_name_or_role
+
+        async def _run():
+            _conn = conn
+            _close = False
+            if _conn is None:
+                _conn = await asyncpg.connect(DB_URL)
+                _close = True
+            try:
+                row = await _conn.fetchrow(
+                    """
+                    SELECT e.id, e.system_prompt,
+                           ec.content AS dynamic_context
+                    FROM experts e
+                    LEFT JOIN expert_context ec
+                      ON ec.expert_id = e.id AND ec.context_type = 'corporation_knowledge'
+                    WHERE e.name = $1 OR e.role = $1
+                    LIMIT 1
+                    """,
+                    resolved,
+                )
+                if not row:
+                    return None
+                static = row["system_prompt"] or ""
+                dynamic = row["dynamic_context"] or ""
+                if dynamic:
+                    return f"{static}\n\n{dynamic}"
+                return static
+            finally:
+                if _close:
+                    await _conn.close()
+
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            return await _run()
+        return asyncio.run(_run())
+    except Exception:
+        return get_expert_system_prompt(expert_name_or_role)
 
 
 def get_all_expert_names(max_count: Optional[int] = None) -> List[str]:
