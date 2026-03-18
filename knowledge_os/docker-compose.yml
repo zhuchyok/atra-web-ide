@@ -230,6 +230,8 @@ services:
       # Canary: оркестрация V2 (A/B по проценту трафика)
       ORCHESTRATION_V2_ENABLED: ${ORCHESTRATION_V2_ENABLED:-true}
       ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-50}
+      # Stability & Performance Watchdog: Backpressure
+      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
     ports:
       - "8010:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -552,6 +554,8 @@ services:
       SMART_WORKER_RETRY_DELAY_SEC: "180"
       # Батч по batch_group: один вызов LLM на 2–3 задачи (ARCHITECTURE_IMPROVEMENTS §2.5)
       SMART_WORKER_BATCH_GROUP_LLM: "true"
+      # Stability & Performance Watchdog: Backpressure
+      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
     volumes:
       - ../knowledge_os:/app/knowledge_os
     working_dir: /app/knowledge_os/app
@@ -676,6 +680,8 @@ services:
       # Живой организм: при недоступности Ollama/MLX оркестратор шлёт POST сюда; на хосте запустить scripts/host_recovery_listener.py
       RECOVERY_WEBHOOK_URL: ${RECOVERY_WEBHOOK_URL:-http://host.docker.internal:9099/recover}
       ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
+      # Stability & Performance Watchdog: Backpressure
+      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
       # Phase 1.6: batch_group для задач одного domain (low/medium)
       BATCH_SMALL_TASKS_ENABLED: "true"
       # mTLS — межкластерная безопасность для MultiClusterBridge (Singularity 21.24)

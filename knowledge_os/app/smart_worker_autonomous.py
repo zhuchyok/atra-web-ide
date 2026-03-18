@@ -178,8 +178,10 @@ except ImportError:
 
     ai_core_path = os.path.join(os.path.dirname(__file__), "ai_core.py")
     spec = importlib.util.spec_from_file_location("ai_core", ai_core_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load ai_core from {ai_core_path}")
     ai_core = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ai_core)
+    spec.loader.exec_module(ai_core)  # type: ignore[union-attr]
     run_smart_agent_async = ai_core.run_smart_agent_async
 
 
@@ -196,7 +198,7 @@ def _parse_batch_response(text: str, n: int) -> list:
     import re
 
     if not text or n < 1:
-        return None
+        return []
     parts = re.findall(r"\[RESULT_\d+\]\s*(.*?)\s*\[/RESULT_\d+\]", text, re.DOTALL)
     if len(parts) >= n:
         return [p.strip() if p else "" for p in parts[:n]]
@@ -205,7 +207,7 @@ def _parse_batch_response(text: str, n: int) -> list:
         parts = text.split("|||BATCH_SEP|||")
         if len(parts) >= n:
             return [p.strip() if p else "" for p in parts[:n]]
-    return None
+    return []
 
 
 async def escalate_task_to_board(
@@ -291,7 +293,7 @@ async def process_batch_tasks(pool, tasks: list):
             import ai_core
 
             if hasattr(ai_core, "_current_router"):
-                ai_core._current_router = router_instance
+                setattr(ai_core, "_current_router", router_instance)
         except Exception:
             pass
 
@@ -311,8 +313,9 @@ async def process_batch_tasks(pool, tasks: list):
             report = report.get("response", report.get("text", str(report)))
         else:
             report = str(report) if report else ""
+        report_str: str = str(report) if report else ""
 
-        parsed = _parse_batch_response(report, len(tasks))
+        parsed = _parse_batch_response(report_str, len(tasks))
         if parsed and all(len(p) > 10 for p in parsed):
             async with pool.acquire() as conn:
                 for t, result in zip(tasks, parsed):
@@ -669,7 +672,7 @@ DESC: {task_description}
             import ai_core
 
             if hasattr(ai_core, "_current_router"):
-                ai_core._current_router = router_instance
+                setattr(ai_core, "_current_router", router_instance)
         except Exception as e:
             logger.debug(f"Could not set preferred source/model: {e}")
 
@@ -1239,7 +1242,7 @@ DESC: {task_description}
         meta_dict = metadata if isinstance(metadata, dict) else {}
         if not isinstance(meta_dict, dict):
             try:
-                meta_dict = json.loads(metadata) if metadata else {}
+                meta_dict = json.loads(str(metadata)) if metadata else {}
             except (TypeError, ValueError, json.JSONDecodeError):
                 meta_dict = {}
         last_error_text = (
@@ -1462,6 +1465,26 @@ async def main():
                 except Exception as e:
                     logger.debug(f"Backpressure check failed: {e}")
 
+            # ═══════════════════════════════════════════════════════════════════════════════
+            # BACKPRESSURE: Лимит ожидающих задач (Stability & Performance Watchdog)
+            # ═══════════════════════════════════════════════════════════════════════════════
+            try:
+                async with pool.acquire() as conn:
+                    pending_count = await conn.fetchval(
+                        "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                    )
+                    max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
+                    if pending_count >= max_pending:
+                        # [WATCHDOG] Если задач слишком много — не берем новые из очереди,
+                        # чтобы дать системе разгрузиться.
+                        print(
+                            f"[{datetime.now()}] ⏸️ BACKPRESSURE: Too many pending tasks ({pending_count}/{max_pending}). Waiting 10s..."
+                        )
+                        await asyncio.sleep(10)
+                        continue
+            except Exception as e:
+                logger.debug(f"Pending tasks backpressure check failed: {e}")
+
             # Используем LEFT JOIN чтобы обрабатывать задачи даже если эксперт не найден
             # Приоритизируем задачи с высокой bug_probability (Code-Smell Predictor, Singularity 9.0)
             async with pool.acquire() as conn:
@@ -1535,7 +1558,7 @@ async def main():
 
                             ir = get_intelligent_router()
                             prompt = f"{task.get('title', '')} {task.get('description', '')}"
-                            tc = ir.estimate_task_complexity(prompt, category=None)
+                            tc = ir.estimate_task_complexity(prompt, category="default")
                             if getattr(tc, "requires_reasoning", False):
                                 task["_effective_category"] = "reasoning"
                             elif getattr(tc, "requires_coding", False):
@@ -1657,10 +1680,11 @@ async def main():
                             from adaptive_concurrency import is_model_heavy as _is_heavy_fn
                         except ImportError:
                             _is_heavy_fn = lambda m: False
-                        if use_pairing and len(group_list) > 1 and _is_heavy_fn:
+                        _is_heavy_fn_safe = _is_heavy_fn or (lambda m: False)
+                        if use_pairing and len(group_list) > 1:
 
                             def _heavy(k):
-                                return _is_heavy_fn(k[1])
+                                return _is_heavy_fn_safe(k[1])
 
                             mlx_heavy = [
                                 (k, v) for k, v in group_list if k[0] == "mlx" and _heavy(k)

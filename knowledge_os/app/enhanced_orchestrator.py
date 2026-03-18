@@ -1333,6 +1333,7 @@ async def run_enhanced_orchestration_cycle():
                 task_dict = dict(ft)
                 # metadata может прийти как JSON-строка из asyncpg — парсим в dict
                 import json as _json
+
                 if isinstance(task_dict.get("metadata"), str):
                     try:
                         task_dict["metadata"] = _json.loads(task_dict["metadata"])
@@ -1468,14 +1469,30 @@ async def run_enhanced_orchestration_cycle():
 
             # --- ФАЗА 5: ДВИГАТЕЛЬ ЛЮБОПЫТСТВА (с приоритизацией) ---
             logger.info("🔍 Phase 5: Curiosity Engine...")
-            deserts = await conn.fetch("""
-                SELECT d.id, d.name, count(k.id) as node_count
-                FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
-                GROUP BY d.id, d.name
-                HAVING count(k.id) < 50 OR max(k.created_at) < NOW() - INTERVAL '48 hours'
-                ORDER BY count(k.id) ASC
-                LIMIT 5
-            """)
+
+            # BACKPRESSURE: Лимит ожидающих задач (Stability & Performance Watchdog)
+            # Если задач в очереди уже много, Curiosity Engine не должен создавать новые,
+            # чтобы не усугублять перегрузку.
+            pending_count = await conn.fetchval(
+                "SELECT count(*) FROM tasks WHERE status = 'pending'"
+            )
+            max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
+            if pending_count >= max_pending:
+                logger.warning(
+                    "⏸️ BACKPRESSURE: Too many pending tasks (%s/%s). Skipping Curiosity Engine research tasks.",
+                    pending_count,
+                    max_pending,
+                )
+                deserts = []
+            else:
+                deserts = await conn.fetch("""
+                    SELECT d.id, d.name, count(k.id) as node_count
+                    FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
+                    GROUP BY d.id, d.name
+                    HAVING count(k.id) < 50 OR max(k.created_at) < NOW() - INTERVAL '48 hours'
+                    ORDER BY count(k.id) ASC
+                    LIMIT 5
+                """)
 
             # Лимит автономных экспертов (план: не более 25)
             autonomous_count = await conn.fetchval(
