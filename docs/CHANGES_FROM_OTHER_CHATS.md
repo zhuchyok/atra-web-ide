@@ -1,6 +1,46 @@
 # Правки из других чатов — сводка для агента
 
-## § Последние изменения (2026-03-14) — Session 3
+## § Последние изменения (2026-03-18) — Session 5
+
+### Архитектурный рефакторинг: expert_context + knowledge_nodes TTL + RAG оптимизация
+
+#### expert_context — разделение статики и динамики (Root Cause: TOAST bloat)
+- **Проблема:** `experts.system_prompt` содержал 16-28 MB на эксперта (8120 повторений блока "ДОСТУПНЫЕ МОДЕЛИ"). `corporation_knowledge_system.py` каждую ночь дописывал динамику в system_prompt без корректной очистки → PostgreSQL TOAST bloat 6321 MB → CPU 350%+ на autovacuum.
+- **Исправлено:**
+  - Создана таблица `expert_context (id, expert_id, context_type, content, updated_at)` с UNIQUE(expert_id, context_type).
+  - `corporation_knowledge_system.py`: динамические знания (модели, скрипты, инсайты) → UPSERT в `expert_context`, НЕ в `system_prompt`.
+  - `expert_services.py`: добавлена `get_full_expert_prompt()` — собирает `system_prompt` + `expert_context` через JOIN на запрос.
+  - Очищены все 85 экспертов: 28 MB → 5 KB на эксперта.
+  - `experts` table: **6321 MB → 280 KB**.
+- **Commit:** `2dfee91`
+
+#### prompt_change_log — retention policy
+- 701K строк (236 MB) → удалены, оставлено 850 (последние 10 на эксперта).
+- Триггер `trg_trim_prompt_change_log`: при каждом INSERT удаляет старые, оставляет max 50 на эксперта.
+- **Результат:** 236 MB → 360 KB.
+
+#### knowledge_nodes — TTL + дедупликация + оптимизация индексов
+- Удалено 29,681 нод (дубли по content, пустые, stale low-confidence старше 60 дней): 123K → 93K.
+- Создана SQL функция `cleanup_knowledge_nodes(ttl_days_untyped, ttl_days_typed, min_confidence)`.
+- `nightly_learner.py`: Phase 20.8 — вызов `cleanup_knowledge_nodes(30, 180, 0.5)` каждую ночь.
+- Удалены 8 дублирующих/устаревших индексов (IVFFlat embedding, 2×created_at, 2×updated_at, 2×confidence): 17 → 9 индексов, 480 MB → ~260 MB индексного пространства.
+- **Основной RAG-запрос:** 63 ms → **0.171 ms** (368x ускорение) — новый составной индекс `idx_kn_confidence_usage`.
+
+#### PostgreSQL — настройка под Mac Studio 96GB
+- `shared_buffers`: 128 MB → **2 GB**
+- `work_mem`: 4 MB → **64 MB**
+- `effective_cache_size`: 128 MB → **8 GB**
+- `parallel_setup_cost`: 1000 → 100 (планировщик лучше использует параллелизм)
+- `default_statistics_target`: 100 → 200 (точнее планы)
+
+#### victoria_server.py — lazy imports
+- `EmotionDetector`, `QueryOrchestrator`, `SkillMapper`, `ExpertDNAManager` теперь загружаются при первом реальном вызове.
+- Функции: `_lazy_emotion_detector()`, `_lazy_query_orchestrator()`, `_lazy_skill_mapper()`, `_lazy_expert_dna_manager()`.
+- Экономия при старте Victoria: ~300-600 MB RSS.
+- **Commit:** `b9f945e`
+
+
+
 ### PostgreSQL Connection Pooling — PgBouncer внедрён
 
 - **Проблема:** 39 Python-модулей с отдельными `asyncpg.create_pool()` → 300-500 соединений при старте Docker → `too many clients already` → Victoria не может загрузить Expert DNA → задачи зависают.
@@ -13,7 +53,6 @@
 - **Результат:** Postgres видит 9 соединений (было 300-500). Victoria health `ok`. Тест `SELECT count(*) FROM experts` → 85 через PgBouncer ✅.
 - **Конфиг:** `knowledge_os/pgbouncer/pgbouncer.ini`, `knowledge_os/pgbouncer/userlist.txt`.
 - **Дизайн:** `docs/plans/2026-03-14-pgbouncer-design.md`.
-
 
 ### Системные баги — исправлены
 
@@ -31,7 +70,9 @@
 - **qwq:32b**: физически удалён из Ollama (`ollama rm qwq:32b`, освобождено 19 ГБ). `deepseek-r1:32b` оставлен — используется в `veronica_web_researcher.py` для Strategic Board.
 
 ## § Последние изменения (2026-03-14)
+
 ### Singularity 21.24: Quantum Optimization & Multi-Cluster — VERIFIED ✅
+
 - **Rust Core:** Добавлен модуль `quantum_opt` в `knowledge_engine`. Реализовано квантовое сэмплирование для RAG. Фикс паники `cannot sample empty range` — защита через `f32::EPSILON` и предвычисленные `scores`.
 - **Gateway:** Добавлены эндпоинты `/api/cluster/heartbeat` и `/api/cluster/sync`. `KnowledgeEngine` обёрнут в `Option<>` — Gateway стартует без паники при недоступной БД (503 для knowledge-эндпоинтов). Добавлен макрос `require_ke!`.
 - **Python Bridge:** Создан `knowledge_os/app/core/cluster_bridge.py` для Gossip-синхронизации и туннелирования задач. Distributed locking через Redis.
