@@ -1277,6 +1277,17 @@ async def nightly_learning_cycle():
         except Exception as e:
             print(f"⚠️ Employees sync error: {e}")
 
+        # --- ФАЗА 20.8: KNOWLEDGE NODES TTL CLEANUP ---
+        _log_step("🧹 Running knowledge_nodes TTL cleanup...")
+        try:
+            rows = await conn.fetch("SELECT * FROM cleanup_knowledge_nodes(30, 180, 0.5)")
+            for row in rows:
+                print(f"✅ Phase 20.8: Deleted {row['deleted_count']} nodes ({row['reason']})")
+            if not rows:
+                print("✅ Phase 20.8: knowledge_nodes TTL cleanup — nothing to delete.")
+        except Exception as e:
+            print(f"⚠️ knowledge_nodes TTL cleanup error: {e}")
+
         await pool.release(conn)
         await pool.close()
         _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")

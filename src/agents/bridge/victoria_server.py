@@ -26,20 +26,65 @@ from pydantic import BaseModel
 load_dotenv()
 
 # --- SINGULARITY 10.0: UNIFIED CHAT LOGIC ---
-try:
-    # Пытаемся импортировать из knowledge_os/app
-    sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
-    from emotion_detector import EmotionDetector
-    from expert_dna_manager import get_expert_dna_manager
-    from query_orchestrator import QueryOrchestrator, QueryType
-    from skill_mapper import get_skill_mapper
+# Lazy-load emotion/skill/orchestrator — только при первом реальном вызове (экономит ~300-600 MB RAM при старте)
+EMOTION_DETECTOR_AVAILABLE = False
+EmotionDetector = None
+QueryOrchestrator = None
+QueryType = None
+get_skill_mapper = None
+get_expert_dna_manager = None
 
-    EMOTION_DETECTOR_AVAILABLE = True
-except ImportError:
-    EmotionDetector = None
-    QueryOrchestrator = None
-    get_skill_mapper = None
-    EMOTION_DETECTOR_AVAILABLE = False
+def _ensure_knowledge_os_path() -> bool:
+    ko_path = os.path.join(os.getcwd(), "knowledge_os/app")
+    if ko_path not in sys.path:
+        sys.path.insert(0, ko_path)
+    return os.path.exists(ko_path)
+
+def _lazy_emotion_detector():
+    global EmotionDetector, EMOTION_DETECTOR_AVAILABLE
+    if EmotionDetector is None and not EMOTION_DETECTOR_AVAILABLE:
+        try:
+            _ensure_knowledge_os_path()
+            from emotion_detector import EmotionDetector as _ED
+            EmotionDetector = _ED
+            EMOTION_DETECTOR_AVAILABLE = True
+        except ImportError:
+            pass
+    return EmotionDetector
+
+def _lazy_query_orchestrator():
+    global QueryOrchestrator, QueryType
+    if QueryOrchestrator is None:
+        try:
+            _ensure_knowledge_os_path()
+            from query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
+            QueryOrchestrator = _QO
+            QueryType = _QT
+        except ImportError:
+            pass
+    return QueryOrchestrator
+
+def _lazy_skill_mapper():
+    global get_skill_mapper
+    if get_skill_mapper is None:
+        try:
+            _ensure_knowledge_os_path()
+            from skill_mapper import get_skill_mapper as _gsm
+            get_skill_mapper = _gsm
+        except ImportError:
+            pass
+    return get_skill_mapper
+
+def _lazy_expert_dna_manager():
+    global get_expert_dna_manager
+    if get_expert_dna_manager is None:
+        try:
+            _ensure_knowledge_os_path()
+            from expert_dna_manager import get_expert_dna_manager as _gedm
+            get_expert_dna_manager = _gedm
+        except ImportError:
+            pass
+    return get_expert_dna_manager
 
 # Простые сообщения для которых не нужен агент Victoria (быстрый путь через MLX/Ollama)
 SIMPLE_PATTERNS = [
@@ -4602,9 +4647,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
     # ✅ SKILL DISCIPLINE: автоопределение и вызов скилла перед выполнением
     skill_context = None
-    if get_skill_mapper:
+    if _lazy_skill_mapper():
         try:
-            mapper = get_skill_mapper()
+            mapper = _lazy_skill_mapper()()
             skill_info = mapper.classify_task(body.goal)
             if skill_info:
                 logger.info(
@@ -4646,9 +4691,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'IDE Context', 'content': context_summary})}\n\n"
 
         emotion_data = {"emotion": "calm", "confidence": 1.0}
-        if EMOTION_DETECTOR_AVAILABLE and EmotionDetector:
+        _ED = _lazy_emotion_detector()
+        if _ED:
             try:
-                detector = EmotionDetector()
+                detector = _ED()
                 res = detector.detect_emotion(body.goal)
                 emotion_data = {
                     "emotion": res.detected_emotion,
@@ -4711,7 +4757,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
             # [SINGULARITY 21.17] Expert DNA for Fast Path
             try:
-                dna_mgr = get_expert_dna_manager()
+                _dna_fn = _lazy_expert_dna_manager()
+                if _dna_fn is None:
+                    raise ImportError("expert_dna_manager not available")
+                dna_mgr = _dna_fn()
                 expert_dna = await dna_mgr.get_expert_dna("Виктория")
                 if expert_dna:
                     prompt_for_gen = f"{expert_dna}\n\n{prompt_for_gen}"
@@ -4939,7 +4988,10 @@ async def run_task(
         if content:
             # [SINGULARITY 21.17] Expert DNA for Fast Path
             try:
-                dna_mgr = get_expert_dna_manager()
+                _dna_fn2 = _lazy_expert_dna_manager()
+                if _dna_fn2 is None:
+                    raise ImportError("expert_dna_manager not available")
+                dna_mgr = _dna_fn2()
                 expert_dna = await dna_mgr.get_expert_dna("Виктория")
                 if expert_dna:
                     goal = f"{expert_dna}\n\n{goal}"
