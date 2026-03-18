@@ -731,9 +731,9 @@ async def _memory_watchdog():
     import sys
     import time
 
-    _WARN_GB = float(os.getenv("VICTORIA_MEM_WARN_GB", "15"))
-    _RESTART_GB = float(os.getenv("VICTORIA_MEM_RESTART_GB", "18"))
-    _INTERVAL_SEC = int(os.getenv("VICTORIA_MEM_CHECK_INTERVAL", "1800"))  # 30 min
+    _WARN_GB = float(os.getenv("VICTORIA_MEM_WARN_GB", "12"))
+    _RESTART_GB = float(os.getenv("VICTORIA_MEM_RESTART_GB", "16"))
+    _INTERVAL_SEC = int(os.getenv("VICTORIA_MEM_CHECK_INTERVAL", "300"))  # 5 min
 
     def _rss_gb() -> float:
         try:
