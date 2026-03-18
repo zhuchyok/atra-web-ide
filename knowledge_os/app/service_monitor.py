@@ -92,8 +92,13 @@ class ServiceMonitor:
         """
         victoria_port = int(os.getenv("VICTORIA_PORT", "8010"))
 
-        # Определяем, запущены ли мы в Docker (по наличию переменной DATABASE_URL с knowledge_postgres)
-        in_docker = "knowledge_postgres" in os.getenv("DATABASE_URL", "")
+        # Определяем, запущены ли мы в Docker
+        # Проверяем по нескольким признакам — DATABASE_URL может указывать на PgBouncer
+        in_docker = (
+            "knowledge_postgres" in os.getenv("DATABASE_URL", "")
+            or "knowledge_pgbouncer" in os.getenv("DATABASE_URL", "")
+            or os.path.exists("/.dockerenv")
+        )
 
         # MLX API Server URL: в Docker используем host.docker.internal, локально localhost
         mlx_url = os.getenv(
@@ -107,10 +112,10 @@ class ServiceMonitor:
             "http://host.docker.internal:8080" if in_docker else "http://localhost:8080",
         )
 
-        # Frontend URL: в Docker используем имя контейнера, локально localhost
+        # Frontend URL: Grafana на 3001 (не 3002)
         frontend_url = os.getenv(
             "FRONTEND_MONITOR_URL",
-            "http://host.docker.internal:3002" if in_docker else "http://localhost:3002",
+            "http://host.docker.internal:3001" if in_docker else "http://localhost:3001",
         )
 
         return [
@@ -146,7 +151,7 @@ class ServiceMonitor:
                 port=8080,
                 health_check_path="/health",
             ),
-            Service(name="Frontend", service_type="http", endpoint=frontend_url, port=3002),
+            Service(name="Grafana", service_type="http", endpoint=frontend_url, port=3001),
             Service(
                 name="PostgreSQL", service_type="docker", endpoint="knowledge_postgres", port=5432
             ),
