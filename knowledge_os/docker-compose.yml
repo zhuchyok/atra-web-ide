@@ -711,6 +711,7 @@ services:
       TELEGRAM_REPORTS_ENABLED: ${TELEGRAM_REPORTS_ENABLED:-true}
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "telegram_notifications_worker.py"]
     depends_on:
