@@ -200,7 +200,7 @@ impl KnowledgeEngine {
 
         let query = if !pc.is_empty() {
             format!(
-                "SELECT id, content, metadata, embedding, created_at, updated_at,
+                "SELECT id, content, metadata, created_at, updated_at,
                  (1 - (embedding <=> $1::vector)) as similarity
                  FROM knowledge_nodes
                  WHERE embedding IS NOT NULL AND confidence_score >= 0.3
@@ -214,11 +214,11 @@ impl KnowledgeEngine {
             )
         } else {
             format!(
-                "SELECT id, content, metadata, embedding, created_at, updated_at,
+                "SELECT id, content, metadata, created_at, updated_at,
                  (1 - (embedding <=> $1::vector)) as similarity
                  FROM knowledge_nodes
                  WHERE embedding IS NOT NULL AND confidence_score >= 0.3
-                 ORDER BY similarity DESC LIMIT $2"
+                 ORDER BY embedding <=> $1::vector LIMIT $2"
             )
         };
 
