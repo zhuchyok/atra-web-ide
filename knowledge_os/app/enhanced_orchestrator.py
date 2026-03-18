@@ -163,10 +163,15 @@ async def check_llm_services_health() -> Tuple[bool, bool]:
                 ollama_ok = r.status_code == 200
             except Exception:  # pylint: disable=broad-except
                 pass
-            # MLX: GET /v1/models или /api/tags
+            # MLX: проверяем /health (быстро), затем /api/tags, fallback /v1/models
             try:
-                r = await client.get(f"{mlx_url}/v1/models")
-                mlx_ok = r.status_code == 200
+                r = await client.get(f"{mlx_url}/health")
+                if r.status_code == 200:
+                    mlx_ok = True
+                else:
+                    # /health не ответил успехом — пробуем /api/tags
+                    r = await client.get(f"{mlx_url}/api/tags")
+                    mlx_ok = r.status_code == 200
             except Exception:  # pylint: disable=broad-except
                 try:
                     r = await client.get(f"{mlx_url}/api/tags")
@@ -1326,6 +1331,13 @@ async def run_enhanced_orchestration_cycle():
             rule_completed = 0
             for ft in failed_tasks:
                 task_dict = dict(ft)
+                # metadata может прийти как JSON-строка из asyncpg — парсим в dict
+                import json as _json
+                if isinstance(task_dict.get("metadata"), str):
+                    try:
+                        task_dict["metadata"] = _json.loads(task_dict["metadata"])
+                    except Exception:
+                        task_dict["metadata"] = {}
                 if rule_executor_can_handle(task_dict):
                     try:
                         result = await rule_executor_execute(task_dict)

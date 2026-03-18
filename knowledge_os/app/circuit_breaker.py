@@ -249,8 +249,22 @@ class CircuitBreaker:
             )
 
     async def _send_telegram_alert(self):
-        """Отправляет Telegram алерт при критическом событии"""
+        """Отправляет Telegram алерт при критическом событии. Дедупликация: не старше 10 минут."""
         try:
+            from datetime import timezone as _tz
+            # Не отправляем алерт если событие старше 10 минут
+            _now = datetime.now(_tz.utc)
+            if self.last_failure_time:
+                _event_time = self.last_failure_time
+                if _event_time.tzinfo is None:
+                    _event_time = _event_time.replace(tzinfo=_tz.utc)
+                if (_now - _event_time).total_seconds() > 600:
+                    logger.info(
+                        f"[CIRCUIT BREAKER {self.name}] Алерт пропущен — событие устарело "
+                        f"({(_now - _event_time).total_seconds():.0f}s назад)"
+                    )
+                    return
+
             import httpx
 
             tg_token = os.getenv("TG_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", "")
