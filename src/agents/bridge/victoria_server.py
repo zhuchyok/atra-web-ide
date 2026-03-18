@@ -719,6 +719,62 @@ async def warmup_victoria():
         logger.info("✅ [VICTORIA] Victoria прогрета (блокирующий режим), приём запросов")
 
 
+async def _memory_watchdog():
+    """Периодическая очистка памяти: gc.collect() + malloc_trim каждые 30 мин.
+    При превышении 18GB RSS — мягкий перезапуск процесса (sys.exit → restart: always поднимет заново).
+    Защита от kernel panic: watchdog timeout был вызван исчерпанием swap из-за неограниченного роста Victoria.
+    """
+    import ctypes
+    import ctypes.util
+    import gc
+    import os
+    import sys
+    import time
+
+    _WARN_GB = float(os.getenv("VICTORIA_MEM_WARN_GB", "15"))
+    _RESTART_GB = float(os.getenv("VICTORIA_MEM_RESTART_GB", "18"))
+    _INTERVAL_SEC = int(os.getenv("VICTORIA_MEM_CHECK_INTERVAL", "1800"))  # 30 min
+
+    def _rss_gb() -> float:
+        try:
+            with open("/proc/self/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        return int(line.split()[1]) / 1024 / 1024
+        except Exception:
+            pass
+        return 0.0
+
+    def _trim():
+        """Вернуть свободную память OS через malloc_trim."""
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            libc.malloc_trim(0)
+        except Exception:
+            pass
+
+    logger.info("[MEM WATCHDOG] Запущен (warn=%.0fGB restart=%.0fGB interval=%ds)", _WARN_GB, _RESTART_GB, _INTERVAL_SEC)
+
+    while True:
+        await asyncio.sleep(_INTERVAL_SEC)
+        try:
+            gc.collect()
+            _trim()
+            rss = _rss_gb()
+            logger.info("[MEM WATCHDOG] После gc+trim: RSS=%.1f GB (warn=%.0f restart=%.0f)", rss, _WARN_GB, _RESTART_GB)
+            if rss >= _RESTART_GB:
+                logger.error(
+                    "[MEM WATCHDOG] RSS=%.1f GB >= %.0f GB — инициируем мягкий перезапуск для защиты системы",
+                    rss, _RESTART_GB
+                )
+                # restart: always поднимет контейнер снова
+                sys.exit(0)
+            elif rss >= _WARN_GB:
+                logger.warning("[MEM WATCHDOG] RSS=%.1f GB >= %.0f GB — высокое потребление памяти", rss, _WARN_GB)
+        except Exception as e:
+            logger.warning("[MEM WATCHDOG] Ошибка: %s", e)
+
+
 # FastAPI lifespan events для запуска/остановки мониторинга
 # Victoria = один сервис на 8010 с тремя уровнями: Agent (всегда), Enhanced, Initiative. Все три должны быть активны для полноценной работы.
 @asynccontextmanager
@@ -821,6 +877,9 @@ async def lifespan(app: FastAPI):
             await warmup_victoria()
         else:
             asyncio.create_task(warmup_victoria())
+
+    # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
+    asyncio.create_task(_memory_watchdog())
 
     logger.info("[VICTORIA] Lifespan startup завершён, Uvicorn переходит в режим приёма запросов")
     yield
