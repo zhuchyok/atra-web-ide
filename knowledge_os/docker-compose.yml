@@ -142,7 +142,9 @@ services:
       SEARXNG_URL: "http://searxng:8080"
       WEB_SEARCH_PROVIDERS: "searxng,duckduckgo,ollama"
       VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
-      VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5:latest"
+      VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5"
+      # Planner идёт в MLX (11435) чтобы не конкурировать с executor'ом за очередь Ollama
+      USE_MLX_FOR_PLANNER: "true"
       # [SINGULARITY 21.5] Disable model selector for God Mode consistency
       VICTORIA_USE_MODEL_SELECTOR: "false"
       # [SINGULARITY 21.6] Force Wisdom 3.5 for all steps

@@ -47,8 +47,10 @@ class DynamicSemaphore:
 
     async def __aexit__(self, exc_type, exc, tb):
         async with self._condition:
-            self.current_count -= 1
+            self.current_count = max(0, self.current_count - 1)
             self._condition.notify_all()
+        # При CancelledError убеждаемся что слот освобождён — не подавляем исключение
+        return False
 
     def set_limit(self, new_limit: int):
         old_limit = self.limit
@@ -347,17 +349,21 @@ A: {"thought": "Выполню ls для текущей директории", "
             logger.info(
                 f"[ADAPTIVE] Slot acquired. Active requests: {self._semaphore.active_slots}/{self._semaphore.limit}"
             )
-            return await self._ask_with_fallback(
-                prompt=prompt,
-                history=history,
-                raw_response=raw_response,
-                model=model or self.model,
-                base_url=self.base_url,
-                is_retry=False,
-                phase=phase,
-                blocked_tools=blocked_tools,
-                system_override=system,
-            )
+            try:
+                return await self._ask_with_fallback(
+                    prompt=prompt,
+                    history=history,
+                    raw_response=raw_response,
+                    model=model or self.model,
+                    base_url=self.base_url,
+                    is_retry=False,
+                    phase=phase,
+                    blocked_tools=blocked_tools,
+                    system_override=system,
+                )
+            except asyncio.CancelledError:
+                logger.warning("[ADAPTIVE] Task cancelled — semaphore slot released")
+                raise
 
         # === SAVE TO CACHE ===
         # Only save if it's a successful string response and cacheable
@@ -550,9 +556,13 @@ A: {"thought": "Выполню ls для текущей директории", "
 
         # Таймаут на один вызов LLM: настраивается через OLLAMA_EXECUTOR_TIMEOUT (по умолчанию 300 с)
         # connect=30 — стабильность из контейнера к host.docker.internal (не обрывать долгие ответы)
+        # sock_read=120 — принудительно закрываем соединение если Ollama молчит больше 2 мин:
+        # без sock_read зависшие соединения накапливаются в Ollama и блокируют очередь.
         _exec_timeout = float(os.getenv("OLLAMA_EXECUTOR_TIMEOUT", "300"))
-        timeout = aiohttp.ClientTimeout(total=_exec_timeout, connect=30.0)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        _sock_read_timeout = float(os.getenv("OLLAMA_SOCK_READ_TIMEOUT", "120"))
+        connector = aiohttp.TCPConnector(force_close=True)
+        timeout = aiohttp.ClientTimeout(total=_exec_timeout, connect=30.0, sock_read=_sock_read_timeout)
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             try:
                 logger.info(f"[LLM_CALL] Sending request to {url}...")
                 async with session.post(url, json=payload) as response:
