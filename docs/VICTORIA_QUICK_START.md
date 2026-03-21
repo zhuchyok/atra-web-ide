@@ -118,6 +118,69 @@ docker-compose -f knowledge_os/docker-compose.yml up -d victoria-telegram-bot
 
 ---
 
+## 6️⃣ API напрямую (curl / скрипты)
+
+### Быстрый ответ — `/stream` (SSE, < 30 сек)
+
+```bash
+curl -s -N -X POST "http://localhost:8010/stream" \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "привет, статус системы", "use_enhanced": false}' | \
+  python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if line.startswith('data:'):
+        d = json.loads(line[5:])
+        if d.get('type') == 'chunk': print(d['content'], end='', flush=True)
+        elif d.get('type') == 'done': print()
+"
+```
+
+### Аудит / анализ — async режим (1–5 мин, use_enhanced=true)
+
+**Шаг 1: отправить задачу**
+```bash
+TASK_ID=$(curl -s -X POST "http://localhost:8010/run?async_mode=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "goal": "проведи аудит системы",
+    "project_context": "atra-web-ide",
+    "use_enhanced": true
+  }' | python3 -c "import sys,json; print(json.load(sys.stdin).get('task_id',''))")
+echo "task_id: $TASK_ID"
+```
+
+**Шаг 2: получить результат**
+```bash
+curl -s "http://localhost:8010/run/status/$TASK_ID" | \
+  python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+print('status:', d.get('status'), '| stage:', d.get('stage'))
+if d.get('status') == 'completed': print(d.get('output','')[:2000])
+"
+```
+
+> **Почему async лучше для тяжёлых задач:**
+> - Обычный `/run` блокирует терминал и может timeout
+> - Async гарантирует что Виктория доделает работу в фоне
+> - Статусы: `queued` → `processing` → `completed` / `failed`
+> - Пока задача идёт: `docker logs -f victoria-agent`
+
+### Из Cursor — когда MCP victoria_chat зависает
+
+```bash
+# Вместо victoria_run MCP (блокирующий) — async через Shell tool:
+TASK_ID=$(curl -s -X POST "http://localhost:8010/run?async_mode=true" \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "...", "use_enhanced": true}' | \
+  python3 -c "import sys,json; print(json.load(sys.stdin).get('task_id',''))")
+# затем poll каждые 20-30 сек через curl /run/status/$TASK_ID
+```
+
+---
+
 ## 🔧 Быстрая диагностика
 
 ### Victoria не отвечает
@@ -159,14 +222,14 @@ lsof -i :8080  # Backend
 
 ## 🎯 Когда что использовать
 
-| Задача           | Режим                            |
-| ---------------- | -------------------------------- |
-| Работа с кодом   | **Cursor**                       |
-| Вопросы / диалог | **Терминал чат** или **Cursor**  |
-| Одна команда     | **Терминал команда**             |
-| Браузер          | **Open WebUI**                   |
-| Мобильный        | **Telegram**                     |
-| Автоматизация    | **Терминал команда** или **API** |
+| Задача | Режим | Таймаут |
+| --- | --- | --- |
+| Работа с кодом | **Cursor MCP** | — |
+| Быстрый вопрос (< 30 сек) | **`/stream`** `use_enhanced=false` | 30с |
+| Аудит / анализ (1–5 мин) | **`/run?async_mode=true`** + poll | фон |
+| Диалог в браузере | **Open WebUI** | — |
+| Мобильный | **Telegram** | — |
+| Автоматизация / скрипты | **async API** | фон |
 
 ---
 
