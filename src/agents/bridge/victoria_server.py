@@ -4604,10 +4604,11 @@ async def _generate_via_mlx_or_ollama(
     """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None)."""
     # 1) MLX
     try:
-        if hasattr(agent.executor, "mlx_url") and agent.executor.mlx_url:
+        mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(agent.executor, "mlx_url", None)
+        if mlx_url:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 r = await client.post(
-                    f"{agent.executor.mlx_url}/api/chat",
+                    f"{mlx_url}/api/chat",
                     json={
                         "model": ideal_model,
                         "messages": [
@@ -4745,7 +4746,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
                 from app.victoria_enhanced import VictoriaEnhanced
 
                 temp_enhanced = VictoriaEnhanced()
-                ai_research_context = await temp_enhanced._get_ai_research_context(body.goal)
+                ai_research_context = await asyncio.wait_for(
+                    temp_enhanced._get_ai_research_context(body.goal), timeout=3.0
+                )
             except Exception as e:
                 logger.debug("AI Research context fetch failed for stream: %s", e)
 
