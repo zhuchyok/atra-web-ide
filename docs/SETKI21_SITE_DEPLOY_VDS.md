@@ -70,6 +70,11 @@ ssh root@45.10.43.248 "cd /home/atra/app && docker-compose up -d setki21-site"
 
 **Почему так:** Контейнер **moskit-api** подключён к БД с tenant/дилерами — без него главная даёт белый экран (нет `/api/v1/tenant/config`). Контейнер **setki21-api-new** отдаёт файлы из `/home/atra/setki21_uploads` — для логотипов нужен именно он. Образец конфига: **scripts/npm_proxy_setki21.conf**.
 
+> **⚠️ DNS-кэш nginx (важно при пересоздании контейнеров):**
+> Nginx кэширует IP контейнеров при старте. Если `setki21-api-new` пересоздать — получит новый IP, а nginx будет слать запросы на старый → `502 Bad Gateway`.
+> **Решение уже применено:** в `/home/atra/app/nginx_proxy/data/nginx/proxy_host/1.conf` добавлена строка `resolver 127.0.0.11 valid=10s ipv6=off;` — nginx переспрашивает Docker DNS каждые 10 сек.
+> **Если всё же 502 после пересоздания контейнера:** `docker exec atra-nginx-proxy nginx -s reload` (занимает ~1 сек, без даунтайма).
+
 ## 6. Проверка
 
 - https://www.setki21.ru — открывается главная страница сайта Сетки 21.

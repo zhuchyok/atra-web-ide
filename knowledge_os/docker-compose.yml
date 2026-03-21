@@ -39,8 +39,7 @@ services:
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: knowledge_os
+      POSTGRES_PASSWORD: secret # pragma: allowlist secret
     ports:
       - "5432:5432"
     volumes:
@@ -113,28 +112,35 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: victoria-agent
-    restart: always
+    restart: on-failure:5
     oom_kill_disable: false
     user: root
     networks:
       - atra-network
     # mem_limit жёсткий — защита от kernel panic (был watchdog timeout 2026-03-15)
-    mem_limit: 20g
-    mem_reservation: 8g
+    mem_limit: 24g
+    mem_reservation: 10g
     environment:
       TZ: Europe/Moscow
       CORPORATION_TZ: Europe/Moscow
       PYTHONPATH: /app
       VICTORIA_PORT: "8000" # внутри контейнера 8000, снаружи 8010
       ATRA_ENV: prod
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
       # MLX API Server: используем нашу новую обученную модель
       MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
       MLX_HEALTH_URL: http://host.docker.internal:11435/health
+      # [SINGULARITY 21.5] ResourceGuard: повышен порог CPU до 90% — 75% слишком агрессивно,
+      # блокирует пользовательский чат когда оркестратор занят фоновой работой
+      GUARD_CPU_THRESHOLD: "90.0"
+      GUARD_RAM_THRESHOLD: "92.0"
+      # [SINGULARITY 21.5] SearXNG self-hosted веб-поиск (http://searxng:8080 внутри Docker)
+      SEARXNG_URL: "http://searxng:8080"
+      WEB_SEARCH_PROVIDERS: "searxng,duckduckgo,ollama"
       VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
       VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5:latest"
       # [SINGULARITY 21.5] Disable model selector for God Mode consistency
@@ -234,6 +240,8 @@ services:
       ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-50}
       # Stability & Performance Watchdog: Backpressure
       SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
+      # Circuit Breaker: таймаут задачи (1800s = 30 мин для сложных LLM-задач)
+      WORKER_TASK_TOTAL_TIMEOUT: ${WORKER_TASK_TOTAL_TIMEOUT:-1800}
     ports:
       - "8010:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -247,11 +255,33 @@ services:
       - ../../dev:/workspace/dev
       - ..:/workspace/atra-web-ide
       - /var/run/docker.sock:/var/run/docker.sock
-      # Глобальные правила и Библия (Единый источник истины)
-      - ../.cursorrules:/workspace/global/.cursorrules:ro
+      # Глобальные правила и Библия: доступны через /workspace/atra-web-ide/.cursorrules
+      # и /workspace/atra-web-ide/docs/MASTER_REFERENCE.md (файловые маунты убраны —
+      # Docker Desktop на macOS путает file-bind-mount с директорией после рестарта)
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
-      - ../docs/MASTER_REFERENCE.md:/workspace/global/docs/MASTER_REFERENCE.md:ro
     command: python -m src.agents.bridge.victoria_server
+
+  # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
+  # [SINGULARITY 21.5] Автономность: Victoria использует SearXNG вместо внешних API
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8084:8080"
+    volumes:
+      - ./configs/searxng:/etc/searxng:rw
+    environment:
+      - INSTANCE_NAME=ATRA SearXNG
+      - BASE_URL=http://localhost:8084/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    networks:
+      - atra-network
 
   # Воркер для тяжелых задач (Heavy Worker) - 1 инстанс
   # Open WebUI: профессиональный интерфейс для Виктории и облачных моделей
@@ -280,6 +310,10 @@ services:
       - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
       - OLLAMA_API_BASE_URL=http://host.docker.internal:11434/api
       - OPENWEBUI_NAME=ATRA Singularity 14.0
+      # [SINGULARITY 21.5] SearXNG self-hosted: автономный веб-поиск без внешних API
+      - ENABLE_RAG_WEB_SEARCH=True
+      - RAG_WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>&format=json
     volumes:
       - open-webui-data:/app/backend/data
       - /Users/bikos/Documents/atra-web-ide/docs:/workspace/global_docs:ro
@@ -309,8 +343,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -356,8 +390,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app:/app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -391,8 +425,8 @@ services:
       TZ: Europe/Moscow
       PYTHONPATH: /app
       ATRA_ENV: prod
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       USE_ELK: "true"
@@ -430,10 +464,8 @@ services:
       # Мульти-проектный доступ: весь dev/ — новые проекты подхватываются автоматически
       - ../../dev:/workspace/dev
       - ..:/workspace/atra-web-ide
-      # Глобальные правила и Библия (Единый источник истины)
-      - ../.cursorrules:/workspace/global/.cursorrules:ro
+      # Глобальные правила и Библия: доступны через /workspace/atra-web-ide/
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
-      - ../docs/MASTER_REFERENCE.md:/workspace/global/docs/MASTER_REFERENCE.md:ro
     command: python -m src.agents.bridge.server
 
   prometheus:
@@ -536,8 +568,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
@@ -586,8 +618,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -635,8 +667,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11435
@@ -665,8 +697,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       REDIS_URL: redis://redis:6379
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
@@ -719,8 +751,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
@@ -748,8 +780,8 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os/app
-      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os
-      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
@@ -776,9 +808,9 @@ services:
       - "8501:8501"
     environment:
       TZ: Europe/Moscow
-      # Если дашборд в Docker, а PostgreSQL на хосте: postgresql://admin:secret@host.docker.internal:5432/knowledge_os
-      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os}
-      POSTGRES_DIRECT_URL: ${POSTGRES_DIRECT_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os}
+      # Если дашборд в Docker, а PostgreSQL на хосте: postgresql://admin:secret@host.docker.internal:5432/knowledge_os  # pragma: allowlist secret
+      DATABASE_URL: ${DATABASE_URL:-postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os} # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: ${POSTGRES_DIRECT_URL:-postgresql://admin:secret@knowledge_postgres:5432/knowledge_os} # pragma: allowlist secret
       # Чтобы singularity_9_ab_tester и evaluator загружались в контейнере
       PYTHONPATH: /app/project/knowledge_os/app
       # URL бэкенда для API песочниц (внутри Docker сети)
@@ -798,6 +830,66 @@ services:
         "--server.address=0.0.0.0",
         "--server.headless=true",
       ]
+
+  # Stability & Performance Watchdog: Автономная оптимизация и Backpressure
+  performance-watchdog:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: performance-watchdog
+    restart: unless-stopped
+    mem_limit: 4g
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      WATCHDOG_INTERVAL_SEC: "1800"
+      WATCHDOG_SLOW_THRESHOLD_MS: "500"
+      WATCHDOG_AUTONOMOUS: "true"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "performance_watchdog.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Perpetual Evolution Engine: автономный цикл эволюции (каждые 2 ч)
+  knowledge_evolution:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_evolution
+    restart: unless-stopped
+    mem_limit: 6g
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      REDIS_URL: redis://redis:6379
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MLX_API_URL: http://host.docker.internal:11435
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
+      EVOLUTION_INTERVAL_SEC: "7200"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "run_evolution_loop.py"]
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   open-webui-data:

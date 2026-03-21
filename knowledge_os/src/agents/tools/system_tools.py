@@ -101,7 +101,7 @@ class SystemTools:
 
             # Если захвата не произошло, берем всё без строк с паролем
             if not result_lines:
-                result_lines = [l for l in lines if "password:" not in l.lower()]
+                result_lines = [line for line in lines if "password:" not in line.lower()]
 
             final_output = "\n".join(result_lines).strip()
 
@@ -226,24 +226,92 @@ class WebTools:
 
     @staticmethod
     async def web_search(query: str) -> str:
-        """Поиск актуальной информации в интернете"""
+        """Поиск информации: SearXNG → DuckDuckGo. При STRICT_LOCAL=true — заблокирован."""
+        strict_local = os.getenv("STRICT_LOCAL", "false").lower() in ("true", "1", "yes")
+        if strict_local:
+            logger.info("🔒 [STRICT_LOCAL] web_search заблокирован — работаем только локально")
+            return (
+                "⚠️ Веб-поиск отключён: STRICT_LOCAL=true. "
+                "Используйте локальную базу знаний или отключите STRICT_LOCAL для доступа к интернету."
+            )
+
+        # Быстрая проверка интернета (TCP 1.1.1.1:53, таймаут 1.5s)
+        if not await WebTools._check_internet():
+            logger.warning("🌐 [web_search] Интернет недоступен — пропускаем поиск")
+            return (
+                "⚠️ Интернет недоступен. Использую локальную базу знаний Victoria. "
+                "Если нужен веб-поиск — проверьте подключение."
+            )
+
+        providers = [
+            p.strip() for p in os.getenv("WEB_SEARCH_PROVIDERS", "searxng,duckduckgo").split(",")
+        ]
+        logger.info(f"🔍 Web search: {query!r} | providers: {providers}")
+
+        for provider in providers:
+            try:
+                if provider == "searxng":
+                    result = await WebTools._searxng_search(query)
+                    if result:
+                        return result
+                elif provider == "duckduckgo":
+                    result = await WebTools._duckduckgo_search(query)
+                    if result:
+                        return result
+            except Exception as exc:
+                logger.warning("⚠️ [web_search] provider=%s failed: %s", provider, exc)
+
+        return "Поиск недоступен: все провайдеры не ответили. Попробуйте позже или используйте локальную базу знаний."
+
+    @staticmethod
+    async def _check_internet(timeout: float = 1.5) -> bool:
+        """Быстрая проверка интернета: TCP-соединение до 1.1.1.1:53 (Cloudflare DNS)."""
+        import asyncio as _asyncio
+
         try:
-            from duckduckgo_search import DDGS
+            _, writer = await _asyncio.wait_for(
+                _asyncio.open_connection("1.1.1.1", 53),
+                timeout=timeout,
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return True
+        except Exception:
+            return False
 
-            logger.info(f"🔍 Searching the web for: {query}")
-            with DDGS() as ddgs:
-                results = [r for r in ddgs.text(query, max_results=5)]
-                if not results:
-                    return "No results found."
+    @staticmethod
+    async def _searxng_search(query: str) -> str:
+        """Поиск через локальный SearXNG (SEARXNG_URL из env)."""
+        import httpx  # noqa: PLC0415
 
-                formatted_results = []
-                for r in results:
-                    formatted_results.append(
-                        f"Title: {r['title']}\nLink: {r['href']}\nSnippet: {r['body']}\n"
-                    )
+        url = os.getenv("SEARXNG_URL", "http://localhost:8084")
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                f"{url}/search",
+                params={"q": query, "format": "json", "language": "ru"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        results = data.get("results", [])[:5]
+        if not results:
+            return ""
+        parts = [
+            f"Title: {r.get('title', '')}\nLink: {r.get('url', '')}\nSnippet: {r.get('content', '')}"
+            for r in results
+        ]
+        return "\n---\n".join(parts)
 
-                return "\n---\n".join(formatted_results)
-        except ImportError:
-            return "Error: 'duckduckgo-search' library not found. Please run 'pip install duckduckgo-search'."
-        except Exception as e:
-            return f"Web Search Error: {str(e)}"
+    @staticmethod
+    async def _duckduckgo_search(query: str) -> str:
+        """Поиск через DuckDuckGo (публичный fallback)."""
+        from duckduckgo_search import DDGS  # noqa: PLC0415
+
+        with DDGS() as ddgs:
+            results = [r for r in ddgs.text(query, max_results=5)]
+        if not results:
+            return ""
+        parts = [f"Title: {r['title']}\nLink: {r['href']}\nSnippet: {r['body']}" for r in results]
+        return "\n---\n".join(parts)

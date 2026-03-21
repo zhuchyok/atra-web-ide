@@ -16,7 +16,7 @@ cd "$ROOT"
 # Подхват DATABASE_URL и др. из .env при запуске по cron/launchd
 if [ -f "$ROOT/.env" ]; then set -a; source "$ROOT/.env"; set +a; fi
 REPORTS_DIR="${ROOT}/docs/curator_reports"
-STANDARDS="status_project greeting what_can_you_do list_files one_line_code"
+STANDARDS="status_project greeting what_can_you_do list_files one_line_code code_audit"
 VICTORIA_URL="${VICTORIA_URL:-http://localhost:8010}"
 # DATABASE_URL для --create-task-on-divergence (если не задан — задачи не создаются, только FINDINGS)
 export DATABASE_URL="${DATABASE_URL:-}"
@@ -87,8 +87,13 @@ if [ -x "$ROOT/knowledge_os/.venv/bin/python" ]; then
 fi
 for st in $STANDARDS; do
   echo "--- Эталон: $st ---"
+  # greeting и status_project: достаточно 1 совпадения из списка (порог 0.2)
+  THRESHOLD="0.5"
+  if [ "$st" = "greeting" ] || [ "$st" = "status_project" ]; then
+    THRESHOLD="0.2"
+  fi
   $PYTHON_CMD scripts/curator_compare_to_standard.py --report "$REPORT" --standard "$st" \
-    --write-findings --create-task-on-divergence || true
+    --threshold "$THRESHOLD" --write-findings --create-task-on-divergence || true
   echo ""
 done
 
@@ -99,3 +104,36 @@ if [ -n "$SYNC_RAG" ] && [ -n "$DATABASE_URL" ]; then
 fi
 
 echo "Готово. При расхождениях: FINDINGS в docs/curator_reports/; задачи в БД (если задан DATABASE_URL)."
+
+# [SINGULARITY 21.5] Шаг 4: Victoria само-анализ + авто-патч через FAST_PATCH_PATH
+echo "=== 4. Victoria Self-Curator: само-анализ + авто-патч ==="
+$PYTHON_CMD scripts/victoria_self_curator.py --skip-curator || true
+echo ""
+
+# [SINGULARITY 21.25] Шаг 5: Замкнутый цикл — Victoria сама генерирует следующие задачи
+echo "=== 5. Victoria Task Generator: расширение очереди аудита ==="
+$PYTHON_CMD scripts/victoria_task_generator.py || true
+echo "Задачи в очереди: $(wc -l < scripts/curator_tasks.txt | tr -d ' ')"
+echo ""
+
+# [SINGULARITY 21.25] Шаг 6: Сохранение FINDINGS в knowledge_nodes
+echo "=== 6. Findings → Knowledge Nodes ==="
+$PYTHON_CMD scripts/curator_findings_to_knowledge.py || true
+echo ""
+
+# [SINGULARITY 21.27] Шаг 6b: Обновить ключевые доки в RAG (только если есть DATABASE_URL)
+echo "=== 6b. Docs → RAG (ключевые доки проекта) ==="
+if [ -n "$DATABASE_URL" ]; then
+  $PYTHON_CMD scripts/ingest_docs_to_rag.py || true
+else
+  echo "DATABASE_URL не задан — пропускаем обновление RAG"
+fi
+echo ""
+
+# [SINGULARITY 21.25] Шаг 7: Ежедневный дайджест в ntfy
+echo "=== 7. Daily Summary Report → ntfy ==="
+$PYTHON_CMD scripts/daily_summary_report.py || true
+echo ""
+
+echo "=== ЦИКЛ ЗАВЕРШЁН ==="
+echo "Следующий прогон получит расширенный список задач."

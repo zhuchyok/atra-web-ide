@@ -42,23 +42,48 @@ def load_standard_content(name: str) -> str:
 
 
 def extract_key_phrases(md: str, max_chars: int = 400) -> list[str]:
-    """Из markdown эталона вытащить фразы для проверки: слова из заголовков и из блока эталонного ответа."""
+    """Из markdown эталона вытащить фразы для проверки.
+
+    Приоритет 1: секция «**Ключевые фразы**» — пункты из bullet-list.
+    Приоритет 2: первый абзац «**Эталонный ответ**».
+    Приоритет 3: словарный фоллбэк (hardcoded список).
+    """
     key_phrases = []
-    # Слова, которые часто должны быть в ответе Victoria
-    for word in ("Виктория", "Team Lead", "Atra", "чат", "эксперт", "планы", "файл", "Veronica",
-                 "Привет", "помочь", "статус", "дашборд", "список", "ls", "datetime", "date.today",
-                 "STDOUT", "total"):
-        if word.lower() in md.lower():
-            key_phrases.append(word)
-    # Первый абзац после "Эталонный ответ" или "**Эталонный ответ**"
-    m = re.search(r"\*\*Эталонный ответ\*\*[:\s]*\n(.*?)(?=\n\n|\n\*\*|\Z)", md, re.DOTALL | re.IGNORECASE)
-    if m:
-        block = m.group(1).strip()[:max_chars]
-        # Несколько коротких фраз из блока (первые слова предложений)
-        for part in re.split(r"[.\n]", block):
-            part = part.strip()
-            if 10 <= len(part) <= 80:
-                key_phrases.append(part)
+
+    # P1: парсим секцию «Ключевые фразы (хотя бы N из списка):»
+    kp_block = re.search(
+        r"\*\*Ключевые фразы[^*]*\*\*[^\n]*\n((?:[ \t]*-[^\n]+\n?)+)",
+        md, re.IGNORECASE
+    )
+    if kp_block:
+        for line in kp_block.group(1).splitlines():
+            # строка вида "- слово1 / слово2 / слово3"
+            line = re.sub(r"^[ \t]*-\s*", "", line).strip()
+            for phrase in re.split(r"\s*/\s*", line):
+                phrase = phrase.strip()
+                if phrase:
+                    key_phrases.append(phrase)
+
+    # P2: первый абзац «Эталонный ответ»
+    if not key_phrases:
+        m = re.search(r"\*\*Эталонный ответ\*\*[:\s]*\n(.*?)(?=\n\n|\n\*\*|\Z)", md, re.DOTALL | re.IGNORECASE)
+        if m:
+            block = m.group(1).strip()[:max_chars]
+            for part in re.split(r"[.\n]", block):
+                part = part.strip()
+                if 10 <= len(part) <= 80:
+                    key_phrases.append(part)
+
+    # P3: фоллбэк — слова из хардкоженного словаря, присутствующие в тексте эталона
+    if not key_phrases:
+        for word in ("Виктория", "Team Lead", "Atra", "чат", "эксперт", "планы", "файл", "Veronica",
+                     "Привет", "Добрый день", "помочь", "помогу", "разработк", "статус", "активн",
+                     "список", "ls", "datetime", "date.today", "STDOUT", "total",
+                     "ОК", "ПРОБЛЕМА", "не обнаружен", "не найден",
+                     "предоставл", "информац", "обработк", "анализ", "отвеч", "выполн"):
+            if word.lower() in md.lower():
+                key_phrases.append(word)
+
     return key_phrases[:15]  # не более 15 фраз
 
 
@@ -117,7 +142,12 @@ def main():
         if std == "what_can_you_do":
             return "умеешь" in g or "умею" in g or "возможност" in g or "что ты" in g
         if std == "list_files":
-            return "файл" in g or "список" in g or "list" in g or "ls" in g or "покажи" in g
+            # Только задачи на ЛИСТИНГ файлов; "проверь файл" / "прочитай файл" — аудит, не листинг
+            if "проверь файл" in g or "прочитай файл" in g or "есть ли там" in g:
+                return False
+            return ("покажи" in g and "файл" in g) or "список файлов" in g or ("list" in g and "файл" in g) or "ls " in g
+        if std == "code_audit":
+            return "проверь файл" in g or "есть ли там" in g or "pip install" in g or "hardcoded" in g or "секрет" in g
         if std == "one_line_code":
             return "код" in g or "выведи" in g or "datetime" in g or "date.today" in g
         return True  # неизвестный эталон — пишем по порогу
@@ -197,9 +227,16 @@ async def _create_tasks_for_divergences(db_url: str, divergences: list, report_n
                 "ratio": round(ratio, 2),
                 "assignee_hint": "Technical Writer",
             })
+            # Не создаём дубль если уже есть pending/in_progress с тем же title
+            existing = await conn.fetchval(
+                "SELECT id FROM tasks WHERE title=$1 AND status IN ('pending','in_progress') LIMIT 1",
+                title,
+            )
+            if existing:
+                continue
             await conn.execute(
                 """INSERT INTO tasks (title, description, status, priority, metadata)
-                   VALUES ($1, $2, 'pending', 'medium', $3::jsonb)""",
+                   VALUES ($1, $2, 'pending', 'low', $3::jsonb)""",
                 title,
                 description,
                 metadata,
