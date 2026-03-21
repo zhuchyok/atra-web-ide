@@ -54,8 +54,8 @@ async def run_local_audit(diff_content: str) -> bool:
 
 Будь строгим, но конструктивным Team Lead.
 """
-        # Используем категорию reasoning для глубокого анализа
-        response = await run_smart_agent_async(prompt, expert_name="Виктория", category="reasoning")
+        # Используем категорию coding для быстрого аудита (reasoning даёт 600с таймаут — слишком долго)
+        response = await run_smart_agent_async(prompt, expert_name="Виктория", category="coding")
 
         if not response:
             logger.warning("⚠️ Локальная Виктория не ответила. Пропускаем аудит.")
