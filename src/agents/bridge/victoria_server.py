@@ -4209,6 +4209,34 @@ async def _run_task_background(
                                     logger.info(
                                         "[ORCHESTRATOR] Исполнение по assignments выполнено (фон), контекст подставлен"
                                     )
+                                    # Ранний выход: эксперты дали реальный ответ — не запускаем лишний agent.run()
+                                    # Проверяем что это не пустой fallback ("простой метод, enhancements недоступны")
+                                    _is_real_answer = (
+                                        _exec_results
+                                        and "enhancements недоступны" not in _exec_results
+                                        and "Ошибка делегирования" not in _exec_results
+                                        and len(_exec_results.strip()) > 50
+                                    )
+                                    if _is_real_answer:
+                                        logger.info(
+                                            "[ORCHESTRATOR] Реальный ответ от экспертов — ранний выход, agent.run() не нужен"
+                                        )
+                                        _inject_strategy_into_knowledge(
+                                            store.setdefault("knowledge", {}), strategy_result
+                                        )
+                                        store["status"] = "completed"
+                                        store["stage"] = "completed"
+                                        store["output"] = _normalize_output_for_user(_exec_results)
+                                        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                                        if session_id:
+                                            await _save_session_exchange(
+                                                session_id, goal_for_exec, _exec_results
+                                            )
+                                        logger.info(
+                                            "[VICTORIA_CYCLE] background completed task_id=%s route=expert_assignments",
+                                            task_id,
+                                        )
+                                        return
                             except Exception as _e:
                                 logger.warning(
                                     "[ORCHESTRATOR] execute_assignments_async failed (фон): %s", _e
@@ -4224,7 +4252,9 @@ async def _run_task_background(
             logger.error(
                 f"[ORCHESTRATOR_DEBUG] Outer exception in orchestration block: {e}", exc_info=True
             )
-    orchestration_context_bg = _build_orchestration_context(orchestration_plan_bg)
+    # Строим контекст оркестратора только если эксперты не дали реального ответа
+    if not orchestration_context_bg:
+        orchestration_context_bg = _build_orchestration_context(orchestration_plan_bg)
     try:
         store["status"] = "running"
         store["stage"] = "running"
