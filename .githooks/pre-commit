@@ -31,7 +31,7 @@ if [ -f "$ROOT/.env" ]; then
   . "$ROOT/.env" 2>/dev/null || true
   set +a
 fi
-if ! $ROOT/knowledge_os/.venv/bin/python scripts/git_guardian.py; then
+if ! timeout 180 $ROOT/knowledge_os/.venv/bin/python scripts/git_guardian.py; then
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "❌ AI Audit failed! Commit rejected by Victoria."
   echo "   Fix the issues or use 'git commit --no-verify' if you are sure."
