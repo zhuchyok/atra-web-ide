@@ -179,6 +179,29 @@ TASK_ID=$(curl -s -X POST "http://localhost:8010/run?async_mode=true" \
 # затем poll каждые 20-30 сек через curl /run/status/$TASK_ID
 ```
 
+### ✅ Правильный путь (Золотой стандарт) — через куратор-скрипт
+
+```bash
+# Одна задача
+python3 scripts/curator_send_tasks_to_victoria.py \
+  --tasks "проведи аудит системы" \
+  --max-wait 600
+
+# Из файла с задачами
+python3 scripts/curator_send_tasks_to_victoria.py \
+  --file scripts/curator_tasks.txt \
+  --max-wait 600
+
+# Результат автоматически сохраняется в:
+# docs/curator_reports/curator_YYYY-MM-DD_HH-MM-SS.json (.md)
+```
+
+> **Почему через скрипт, а не голый curl:**
+> - Отчёт сохраняется в `docs/curator_reports/` автоматически
+> - При `completed` — печатает резюме прямо в терминал
+> - Cursor-агент читает отчёт и пишет выводы в FINDINGS
+> - «Виктория сделала» = появление файла отчёта
+
 ---
 
 ## 🔧 Быстрая диагностика
