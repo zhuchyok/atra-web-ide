@@ -143,6 +143,9 @@ services:
       WEB_SEARCH_PROVIDERS: "searxng,duckduckgo,ollama"
       VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
       VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5"
+      # Мозг (MLX, порт 11435): planner → MLX (victoria-wisdom-v3.5 без тега)
+      # Руки (Ollama, порт 11434): executor → victoria-wisdom-v3.5:latest
+      USE_MLX_FOR_PLANNER: "true"
       # Strategy использует phi3.5:3.8b (бессмертная модель в Ollama) — не конкурирует за 35B очередь
       # [VICTORIA_STRATEGY_MODEL по умолчанию: phi3.5:3.8b из кода]
       # [SINGULARITY 21.5] Disable model selector for God Mode consistency
