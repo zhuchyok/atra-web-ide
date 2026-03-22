@@ -146,8 +146,10 @@ services:
       # Мозг (MLX, порт 11435): planner → MLX (victoria-wisdom-v3.5 без тега)
       # Руки (Ollama, порт 11434): executor → victoria-wisdom-v3.5:latest
       USE_MLX_FOR_PLANNER: "true"
-      # Strategy использует phi3.5:3.8b (бессмертная модель в Ollama) — не конкурирует за 35B очередь
-      # [VICTORIA_STRATEGY_MODEL по умолчанию: phi3.5:3.8b из кода]
+      # Strategy: tinyllama (уже загружена, бессмертна, ответ <2с, не блокирует 35B очередь)
+      # phi3.5:3.8b не подходит: при рестарте Victoria холодная загрузка блокируется занятым Ollama
+      VICTORIA_STRATEGY_MODEL: "tinyllama:1.1b-chat"
+      VICTORIA_STRATEGY_BASE_URL: "http://host.docker.internal:11434"
       # [SINGULARITY 21.5] Disable model selector for God Mode consistency
       VICTORIA_USE_MODEL_SELECTOR: "false"
       # [SINGULARITY 21.6] Force Wisdom 3.5 for all steps
