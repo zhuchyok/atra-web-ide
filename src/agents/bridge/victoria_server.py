@@ -941,6 +941,51 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Victoria ATRA Bridge API", lifespan=lifespan)
 
 
+# --- IP Rate Limiting / Blocking Middleware ---
+_IP_RATE_WINDOW_SEC = int(os.getenv("IP_RATE_WINDOW_SEC", "60"))
+_IP_RATE_MAX_POST = int(os.getenv("IP_RATE_MAX_POST", "10"))
+_BLOCKED_IPS: set = set(filter(None, os.getenv("VICTORIA_BLOCKED_IPS", "").split(",")))
+_ip_request_counts: Dict[str, list] = {}
+
+
+@app.middleware("http")
+async def ip_rate_limit_middleware(request: Request, call_next):
+    forwarded_ip = (
+        request.headers.get("X-Real-IP")
+        or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    )
+    client_host = request.client.host if request.client else ""
+    # Реальный IP: если forwarded_ip есть — используем его, иначе client_host
+    real_ip = forwarded_ip or client_host
+    # Локальные и Docker-сети — никогда не блокируем
+    _is_local = (
+        not real_ip
+        or real_ip in ("127.0.0.1", "::1", "localhost")
+        or real_ip.startswith("172.")
+        or real_ip.startswith("10.")
+        or real_ip.startswith("192.168.")
+    )
+    if not _is_local and real_ip in _BLOCKED_IPS:
+        logger.warning("🚫 [BLOCKED] IP %s blocked by VICTORIA_BLOCKED_IPS", real_ip)
+        return JSONResponse(status_code=403, content={"detail": "Access denied"})
+    if not _is_local and request.method == "POST":
+        now = time.time()
+        window = _ip_request_counts.setdefault(real_ip, [])
+        _ip_request_counts[real_ip] = [t for t in window if now - t < _IP_RATE_WINDOW_SEC]
+        if len(_ip_request_counts[real_ip]) >= _IP_RATE_MAX_POST:
+            logger.warning(
+                "🚦 [RATE_LIMIT] IP %s exceeded %d POST/min limit on %s",
+                real_ip, _IP_RATE_MAX_POST, request.url.path,
+            )
+            return JSONResponse(
+                status_code=429,
+                content={"detail": f"Rate limit: max {_IP_RATE_MAX_POST} POST requests per {_IP_RATE_WINDOW_SEC}s"},
+                headers={"Retry-After": str(_IP_RATE_WINDOW_SEC)},
+            )
+        _ip_request_counts[real_ip].append(now)
+    return await call_next(request)
+
+
 class VictoriaAgent(BaseAgent):
     """Виктория — Team Lead, использует оптимизированную конфигурацию моделей."""
 
@@ -1878,27 +1923,34 @@ class VictoriaAgent(BaseAgent):
 
 Пример: "ошибки на странице X, найди и исправь" → {{"restated": "Проверить структуру frontend и найти причину 404 на странице X", "category": "investigate", "first_step": "list_directory в frontend"}}
 JSON:"""
+        _ug_llm_timeout = float(os.getenv("UNDERSTAND_GOAL_LLM_TIMEOUT_SEC", "60"))
         try:
             if use_smart_for_goal and smart_model:
                 base = _ollama_base_url()
                 smart_planner = OllamaExecutor(model=smart_model, base_url=base)
                 # [SINGULARITY 21.13] Pass expert_name for semantic cache
-                out = await smart_planner.ask(
-                    prompt,
-                    raw_response=True,
-                    phase="understand_goal",
-                    expert_name="Виктория (Smart Planner)",
+                out = await asyncio.wait_for(
+                    smart_planner.ask(
+                        prompt,
+                        raw_response=True,
+                        phase="understand_goal",
+                        expert_name="Виктория (Smart Planner)",
+                    ),
+                    timeout=_ug_llm_timeout,
                 )
                 logger.debug(
                     "[UNDERSTAND_GOAL] used smart model %s for short/ambiguous goal", smart_model
                 )
             else:
                 # [SINGULARITY 21.13] Pass expert_name for semantic cache
-                out = await self.planner.ask(
-                    prompt,
-                    raw_response=True,
-                    phase="understand_goal",
-                    expert_name="Виктория (Planner)",
+                out = await asyncio.wait_for(
+                    self.planner.ask(
+                        prompt,
+                        raw_response=True,
+                        phase="understand_goal",
+                        expert_name="Виктория (Planner)",
+                    ),
+                    timeout=_ug_llm_timeout,
                 )
             if not out or not isinstance(out, str):
                 return {"restated": raw_goal, "category": "multi_step", "first_step": ""}
@@ -1916,6 +1968,10 @@ JSON:"""
                 _f = data.get("first_step") or ""
                 first_step = (_f if isinstance(_f, str) else str(_f)).strip()
                 return {"restated": restated, "category": category, "first_step": first_step[:200]}
+        except asyncio.TimeoutError:
+            logger.warning(
+                "⏱ [UNDERSTAND_GOAL] LLM timeout (%.0fs), fallback to raw goal", _ug_llm_timeout
+            )
         except Exception as e:
             logger.debug("understand_goal parse failed: %s", e)
         return {"restated": raw_goal, "category": "multi_step", "first_step": ""}
@@ -2348,8 +2404,17 @@ Q: "покажи файлы в текущей директории" → План
 
             # Planner model - используем БЫСТРУЮ модель для планирования!
             # Это критично для отзывчивости Victoria
-            planner_model = None
-            if env_planner:
+            # Если USE_MLX_FOR_PLANNER=true — planner уже на MLX, не переопределять!
+            _use_mlx_planner = os.getenv("USE_MLX_FOR_PLANNER", "false").lower() == "true"
+            if _use_mlx_planner:
+                logger.info(
+                    "[MODEL_SELECT] ℹ️ USE_MLX_FOR_PLANNER=true — planner на MLX (%s), пропускаем Ollama-override",
+                    getattr(self.planner, "model", "?"),
+                )
+                planner_model = getattr(self.planner, "model", None)
+            else:
+                planner_model = None
+            if not _use_mlx_planner and env_planner:
                 if env_planner.strip().lower() in ollama_lower_to_exact:
                     planner_model = ollama_lower_to_exact[env_planner.strip().lower()]
                     logger.info(
@@ -4089,9 +4154,25 @@ async def _run_task_background(
                 except Exception as _e:
                     logger.debug("get_recent_completed_tasks_context: %s", _e)
                     break
-            understanding = await _understand_goal_with_clarification(
-                agent, goal, last_tasks_context=last_tasks_context or None
-            )
+            _ug_timeout = float(os.getenv("UNDERSTAND_GOAL_TIMEOUT_SEC", "90"))
+            try:
+                understanding = await asyncio.wait_for(
+                    _understand_goal_with_clarification(
+                        agent, goal, last_tasks_context=last_tasks_context or None
+                    ),
+                    timeout=_ug_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "⏱ [BG] _understand_goal_with_clarification timeout (%.0fs), proceeding with raw goal",
+                    _ug_timeout,
+                )
+                understanding = {
+                    "needs_clarification": False,
+                    "restated": goal,
+                    "category": "multi_step",
+                    "first_step": "",
+                }
             if understanding.get("needs_clarification"):
                 questions = understanding.get("clarification_questions") or []
                 clarification_text = "Victoria уточняет: " + (
@@ -5204,7 +5285,7 @@ async def run_task(
                 logger.debug("get_recent_completed_tasks_context: %s", _e)
                 break
     _t_understand_0 = time.monotonic()
-    understand_timeout = float(os.getenv("UNDERSTAND_GOAL_TIMEOUT_SEC", "180"))
+    understand_timeout = float(os.getenv("UNDERSTAND_GOAL_TIMEOUT_SEC", "90"))
     try:
         understanding = await asyncio.wait_for(
             _understand_goal_with_clarification(
