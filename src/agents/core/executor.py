@@ -556,13 +556,11 @@ A: {"thought": "Выполню ls для текущей директории", "
 
         # Таймаут на один вызов LLM: настраивается через OLLAMA_EXECUTOR_TIMEOUT (по умолчанию 300 с)
         # connect=30 — стабильность из контейнера к host.docker.internal (не обрывать долгие ответы)
-        # sock_read=120 — принудительно закрываем соединение если Ollama молчит больше 2 мин:
-        # без sock_read зависшие соединения накапливаются в Ollama и блокируют очередь.
+        # Без sock_read: executor использует stream:False — весь ответ буферизуется Ollama перед отправкой.
+        # При sock_read=120 35B модель silent-timeout-ится во время генерации (>2 мин). total достаточно.
         _exec_timeout = float(os.getenv("OLLAMA_EXECUTOR_TIMEOUT", "300"))
-        _sock_read_timeout = float(os.getenv("OLLAMA_SOCK_READ_TIMEOUT", "120"))
-        connector = aiohttp.TCPConnector(force_close=True)
-        timeout = aiohttp.ClientTimeout(total=_exec_timeout, connect=30.0, sock_read=_sock_read_timeout)
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        timeout = aiohttp.ClientTimeout(total=_exec_timeout, connect=30.0)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             try:
                 logger.info(f"[LLM_CALL] Sending request to {url}...")
                 async with session.post(url, json=payload) as response:

@@ -143,9 +143,8 @@ services:
       WEB_SEARCH_PROVIDERS: "searxng,duckduckgo,ollama"
       VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
       VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5"
-      # Strategy использует лёгкую быструю модель — не конкурирует за 35B очередь
-      VICTORIA_STRATEGY_MODEL: "lfm2.5-thinking:1.2b"
-      VICTORIA_STRATEGY_BASE_URL: "http://host.docker.internal:11434"
+      # Strategy использует phi3.5:3.8b (бессмертная модель в Ollama) — не конкурирует за 35B очередь
+      # [VICTORIA_STRATEGY_MODEL по умолчанию: phi3.5:3.8b из кода]
       # [SINGULARITY 21.5] Disable model selector for God Mode consistency
       VICTORIA_USE_MODEL_SELECTOR: "false"
       # [SINGULARITY 21.6] Force Wisdom 3.5 for all steps
@@ -159,10 +158,16 @@ services:
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
       # Увеличено до 1800 (30 минут) для сложных задач типа SEO-анализа
       UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-1800}
-      # Таймаут понимания цели (было 90 → 300 сек = 5 минут для сложных задач)
-      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-300}
-      # Таймаут выбора стратегии (было 30 → 180 сек = 3 минуты)
-      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-180}
+      # Таймаут понимания цели — 90 сек для нормальных задач (LLM вызов = 60 сек)
+      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-90}
+      # Таймаут LLM вызова внутри understand_goal
+      UNDERSTAND_GOAL_LLM_TIMEOUT_SEC: ${UNDERSTAND_GOAL_LLM_TIMEOUT_SEC:-60}
+      # Таймаут выбора стратегии (phi3.5 — быстро, 30 сек достаточно)
+      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-30}
+      # IP Rate Limiting: заблокированные IP (через запятую) и лимиты POST запросов
+      VICTORIA_BLOCKED_IPS: ${VICTORIA_BLOCKED_IPS:-}
+      IP_RATE_WINDOW_SEC: ${IP_RATE_WINDOW_SEC:-60}
+      IP_RATE_MAX_POST: ${IP_RATE_MAX_POST:-10}
       # Heartbeat для SSE streaming (15 сек → 10 сек для предотвращения обрывов)
       VICTORIA_STREAM_HEARTBEAT_SEC: ${VICTORIA_STREAM_HEARTBEAT_SEC:-10}
       # Прогрев при старте: греем VICTORIA_PLANNER_MODEL + VICTORIA_MODEL (+ VICTORIA_WARMUP_EXTRA_MODELS через запятую)
