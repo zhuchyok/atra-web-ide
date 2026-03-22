@@ -3134,9 +3134,19 @@ async def _select_strategy(
     ]
     is_concrete_task = any(ind in goal_lower_check for ind in concrete_task_indicators)
 
+    # Strategy — задача классификации (4 варианта), не нужна тяжёлая модель.
+    # Используем быструю бессмертную модель (phi3.5:3.8b в Ollama или tiny в MLX).
+    # Это снимает конкуренцию с основными задачами за 35B модель.
+    _strategy_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
+    _strategy_base = os.getenv("VICTORIA_STRATEGY_BASE_URL", "http://host.docker.internal:11434")
+    try:
+        _strategy_executor = OllamaExecutor(model=_strategy_model, base_url=_strategy_base)
+    except Exception:
+        _strategy_executor = agent.planner  # fallback на planner если OllamaExecutor недоступен
+
     try:
         out = await asyncio.wait_for(
-            agent.planner.ask(prompt, raw_response=True),
+            _strategy_executor.ask(prompt, raw_response=True),
             timeout=strategy_timeout,
         )
         if not out or not isinstance(out, str):
@@ -4186,6 +4196,9 @@ async def _run_task_background(
                             and isinstance(_assignments, dict)
                             and (force_execute or not recommends_veronica)
                         ):
+                            # Обновляем stage чтобы показать что стратегия выбрана и идёт выполнение
+                            store["stage"] = "executing_experts"
+                            store["updated_at"] = datetime.now(timezone.utc).isoformat()
                             try:
                                 logger.info(
                                     "[ORCHESTRATOR_DEBUG] Calling execute_assignments_async (фон)"
