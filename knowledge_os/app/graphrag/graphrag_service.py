@@ -23,26 +23,27 @@ class GraphRAGService:
         self.detector = get_community_detector(self.db_url)
         self.retriever = get_multi_hop_retriever(self.db_url)
 
-    async def retrieve_graph_context(self, query: str, limit: int = 8) -> str:
+    async def retrieve_graph_context(self, query: str, limit: int = 8) -> tuple[str, list]:
         """
         Выполняет полный цикл GraphRAG поиска:
         1. Получает embedding запроса.
         2. Извлекает сущности из запроса.
         3. Выполняет multi-hop поиск по графу.
         4. Формирует структурированный контекст.
+        Returns: (context_string, nodes_list)
         """
         try:
             from app.semantic_cache import get_embedding
 
             embedding = await get_embedding(query)
             if not embedding:
-                return ""
+                return "", []
 
             # 1. Multi-hop поиск
             nodes = await self.retriever.retrieve_with_hops(embedding, max_hops=2, limit=limit)
 
             if not nodes:
-                return ""
+                return "", []
 
             # 2. Формирование контекста
             context = "\n🌐 [GRAPHRAG GLOBAL CONTEXT]:\n"
@@ -67,11 +68,11 @@ class GraphRAGService:
             if entities:
                 context += f"\n🔍 ОБНАРУЖЕННЫЕ СУЩНОСТИ: {', '.join([e.name for e in entities])}\n"
 
-            return context
+            return context, nodes
 
         except Exception as e:
             logger.error(f"GraphRAG retrieval error: {e}")
-            return ""
+            return "", []
 
 
 _service = None

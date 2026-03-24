@@ -814,7 +814,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 from app.graphrag.graphrag_service import get_graphrag_service
 
                 graphrag = get_graphrag_service()
-                return await graphrag.retrieve_graph_context(query)
+                graph_context, graph_nodes = await graphrag.retrieve_graph_context(query)
+                
+                # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
+                if graph_nodes:
+                    pool = await _get_db_pool()
+                    deep_memory = await _enrich_with_deep_memory(graph_nodes, pool)
+                    if deep_memory:
+                        graph_context = deep_memory + graph_context
+                
+                return graph_context
             except Exception as ge:
                 logger.debug(f"GraphRAG failed: {ge}")
                 return None
@@ -984,16 +993,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
             full_context += vector_context
 
         # [SINGULARITY 21.25] Global Deep Memory Hierarchical Enrichment (for GraphRAG)
-        if graph_context and not ("<deep_memory>" in full_context):
-            try:
-                # We don't have the nodes list here easily if it came from GraphRAG,
-                # but we can try to enrich if we find any domain_ids in the graph_context
-                # or just rely on the vector_context enrichment which is more precise.
-                # For now, if GraphRAG is used, we might want to add global summaries.
-                pass
-            except Exception:
-                pass
-
+        # Already handled inside fetch_graph for GraphRAG path and fetch_vector for VectorRAG path.
         return full_context
 
     except Exception as exc:
