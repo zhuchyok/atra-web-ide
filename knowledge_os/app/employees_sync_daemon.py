@@ -27,10 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=sync_daemon")
 # LISTEN/NOTIFY несовместим с PgBouncer transaction pooling — нужно прямое персистентное соединение.
 # POSTGRES_DIRECT_URL указывает напрямую на postgres:5432 минуя pgbouncer:6432.
-DIRECT_DB_URL = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DIRECT_DB_URL = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@localhost:5432/knowledge_os?application_name=sync_daemon_direct")
 SYNC_DEBOUNCE_SECONDS = int(os.getenv("SYNC_DEBOUNCE_SECONDS", "5"))  # Дебаунс: не чаще раз в 5 сек
 PERIODIC_SYNC_MINUTES = int(
     os.getenv("PERIODIC_SYNC_MINUTES", "60")

@@ -15,7 +15,7 @@ import os
 
 import asyncpg
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=knowledge_pool")
 
 # Читаем из env, чтобы можно было тюнить без rebuild (например, при включённом PgBouncer ставим 20)
 _MAX_POOL_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "5"))
