@@ -458,7 +458,8 @@ async def _get_db_pool():
     if _DB_POOL is None and asyncpg:
         try:
             default_url = (
-                os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:6432/knowledge_os"
+                os.getenv("DATABASE_URL")
+                or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
             )
             db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
             _DB_POOL = await asyncpg.create_pool(
@@ -743,6 +744,57 @@ async def _run_cloud_agent_async(
         return f"❌ Ошибка связи с облаком: {exc}"
 
 
+async def _enrich_with_deep_memory(nodes: list, pool) -> str:
+    """
+    Extract unique domain_ids from nodes and fetch domain summaries (Deep Memory).
+    """
+    if not nodes or not pool:
+        return ""
+
+    domain_ids = set()
+    for node in nodes:
+        # Vector RAG rows are asyncpg.Record or dict
+        if hasattr(node, "get"):
+            did = node.get("domain_id")
+        else:
+            # Fallback for other node structures if any
+            did = getattr(node, "domain_id", None)
+        
+        if did:
+            domain_ids.add(did)
+
+    if not domain_ids:
+        return ""
+
+    try:
+        async with pool.acquire() as conn:
+            # Fetch domain summaries and domain names
+            rows = await conn.fetch(
+                """
+                SELECT d.name as domain_name, kn.content
+                FROM knowledge_nodes kn
+                JOIN domains d ON kn.domain_id = d.id
+                WHERE kn.domain_id = ANY($1::uuid[])
+                  AND kn.metadata->>'type' = 'domain_summary'
+                """,
+                list(domain_ids),
+            )
+
+            if not rows:
+                return ""
+
+            enrichment = "\n<deep_memory>\n"
+            for row in rows:
+                enrichment += f'  <domain name="{row["domain_name"]}">\n'
+                enrichment += f'    {row["content"]}\n'
+                enrichment += "  </domain>\n"
+            enrichment += "</deep_memory>\n"
+            return enrichment
+    except Exception as e:
+        logger.error(f"Deep Memory enrichment failed: {e}")
+        return ""
+
+
 async def _get_knowledge_context(query: str, project_context: Optional[str] = None) -> str:
     """Retrieve relevant knowledge nodes (GraphRAG). If project_context set, project_files filtered by project."""
     return await _get_knowledge_context_impl(query, project_context)
@@ -819,6 +871,13 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                     context += f"\n[NODE: {file_path}] (релевантность: {node['similarity']:.2f}):\n"
                                     context += f"{node['content'][:1200]}\n"
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
+
+                            # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
+                            pool = await _get_db_pool()
+                            deep_memory = await _enrich_with_deep_memory(nodes, pool)
+                            if deep_memory:
+                                context = deep_memory + context
+
                             return context
                 except Exception as re:
                     logger.warning(f"⚠️ Rust RAG failed, falling back to Python: {re}")
@@ -866,7 +925,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                     rows = await conn.fetch(
                         f"""
-                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) as similarity
+                        SELECT content, metadata, domain_id, (1 - (embedding <=> $1::vector)) as similarity
                         FROM knowledge_nodes
                         WHERE embedding IS NOT NULL AND confidence_score >= 0.3
                         {project_cond}
@@ -878,7 +937,12 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     if not rows:
                         return ""
 
+                    # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
+                    deep_memory = await _enrich_with_deep_memory(rows, pool)
+
                     context = "\n📚 [KNOWLEDGE CONTEXT (AI Research & Corp)]:\n"
+                    if deep_memory:
+                        context = deep_memory + context
                     for row in rows:
                         if row["similarity"] >= 0.55:
                             meta = row["metadata"] or {}
@@ -918,6 +982,17 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
             full_context += graph_context + "\n"
         if vector_context:
             full_context += vector_context
+
+        # [SINGULARITY 21.25] Global Deep Memory Hierarchical Enrichment (for GraphRAG)
+        if graph_context and not ("<deep_memory>" in full_context):
+            try:
+                # We don't have the nodes list here easily if it came from GraphRAG,
+                # but we can try to enrich if we find any domain_ids in the graph_context
+                # or just rely on the vector_context enrichment which is more precise.
+                # For now, if GraphRAG is used, we might want to add global summaries.
+                pass
+            except Exception:
+                pass
 
         return full_context
 
