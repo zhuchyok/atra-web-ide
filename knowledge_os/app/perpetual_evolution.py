@@ -67,6 +67,13 @@ class PerpetualEvolution:
             distiller = KnowledgeDistiller()
             await distiller.distill_knowledge_batch()
 
+            # [SINGULARITY 25.0] Domain Passport Evolution
+            # Update domain summaries (Architectural Passports) based on recent knowledge
+            try:
+                await self.update_domain_passports()
+            except Exception as dpe:
+                logger.debug(f"Domain passport evolution failed: {dpe}")
+
             # 1. RESEARCH: Find next big thing from Giants
             task = await self.research_next_upgrade()
             if not task:
@@ -252,6 +259,141 @@ class PerpetualEvolution:
             json.dumps({"type": "evolution_log", "task": task}),
         )
         await conn.close()
+
+    async def update_domain_passports(self):
+        """
+        [SINGULARITY 25.0] Evolution Integration: Auto-update Architectural Passports for domains.
+        """
+        logger.info("📘 [EVOLUTION] Updating Domain Architectural Passports...")
+        conn = await asyncpg.connect(DB_URL)
+        try:
+            # 1. Identify domains that need summary updates
+            # We look for domains where there are knowledge nodes newer than the last domain_summary
+            domains = await conn.fetch(
+                """
+                SELECT d.id, d.name
+                FROM domains d
+                WHERE EXISTS (
+                    SELECT 1 FROM knowledge_nodes kn
+                    WHERE kn.domain_id = d.id
+                    AND kn.created_at > COALESCE(
+                        (SELECT MAX(created_at) FROM knowledge_nodes WHERE domain_id = d.id AND metadata->>'type' = 'domain_summary'),
+                        '1970-01-01'::timestamp
+                    )
+                )
+            """
+            )
+
+            for domain in domains:
+                domain_id = domain["id"]
+                domain_name = domain["name"]
+                logger.info(f"🧬 [EVOLUTION] Generating Architectural Passport for domain: {domain_name}")
+
+                # 2. Gather recent knowledge nodes (content and metadata)
+                nodes = await conn.fetch(
+                    """
+                    SELECT content, metadata, created_at
+                    FROM knowledge_nodes
+                    WHERE domain_id = $1
+                    AND (metadata->>'type' IS NULL OR metadata->>'type' != 'domain_summary')
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                """,
+                    domain_id,
+                )
+
+                if not nodes:
+                    continue
+
+                knowledge_context = "\n".join(
+                    [f"- [{n['created_at']}] {n['content']}" for n in nodes]
+                )
+
+                # 3. Use Victoria to generate a concise "Architectural Passport"
+                prompt = f"""
+                ТЫ - ВЕРХОВНЫЙ АРХИТЕКТОР СИСТЕМЫ.
+                ЗАДАЧА: Сформируй "Архитектурный Паспорт" (Architectural Passport) для домена знаний '{domain_name}'.
+                Этот паспорт должен суммировать текущее состояние домена, ключевые стандарты и последние важные находки.
+
+                ПОСЛЕДНИЕ ЗНАНИЯ В ДОМЕНЕ:
+                {knowledge_context}
+
+                ОТВЕТЬ В ФОРМАТЕ JSON:
+                {{
+                    "summary": "Краткое описание текущего состояния домена",
+                    "standards": ["Стандарт 1", "Стандарт 2"],
+                    "key_findings": ["Находка 1", "Находка 2"],
+                    "evolution_status": "stable/evolving/disruptive"
+                }}
+                ВЕРНИ ТОЛЬКО ЧИСТЫЙ JSON.
+                """
+
+                # Используем victoria-wisdom-v3.5 для архитектурного синтеза
+                from local_router import LocalAIRouter
+                router = LocalAIRouter()
+                response_data = await router.run_local_llm(
+                    prompt, category="reasoning", model="victoria-wisdom-v3.5"
+                )
+
+                response = response_data[0] if isinstance(response_data, (list, tuple)) else str(response_data)
+                
+                # Clean and parse JSON
+                clean_response = response.strip()
+                start_idx = clean_response.find("{")
+                end_idx = clean_response.rfind("}")
+                if start_idx != -1 and end_idx != -1:
+                    passport_data = json.loads(clean_response[start_idx : end_idx + 1])
+                    
+                    passport_content = f"### ARCHITECTURAL PASSPORT: {domain_name}\n\n"
+                    passport_content += f"**Summary:** {passport_data.get('summary')}\n\n"
+                    passport_content += "**Standards:**\n" + "\n".join([f"- {s}" for s in passport_data.get("standards", [])]) + "\n\n"
+                    passport_content += "**Key Findings:**\n" + "\n".join([f"- {f}" for f in passport_data.get("key_findings", [])]) + "\n\n"
+                    passport_content += f"**Status:** {passport_data.get('evolution_status')}"
+
+                    # 4. Update existing domain_summary node or insert a new one
+                    # We look for an existing summary to update it (keeping the history clean)
+                    existing_summary = await conn.fetchrow(
+                        "SELECT id FROM knowledge_nodes WHERE domain_id = $1 AND metadata->>'type' = 'domain_summary' LIMIT 1",
+                        domain_id
+                    )
+
+                    metadata = {
+                        "type": "domain_summary",
+                        "updated_at": datetime.now().isoformat(),
+                        "domain_name": domain_name,
+                        "version": "1.0"
+                    }
+
+                    if existing_summary:
+                        await conn.execute(
+                            """
+                            UPDATE knowledge_nodes
+                            SET content = $1, metadata = $2, created_at = NOW()
+                            WHERE id = $3
+                        """,
+                            passport_content,
+                            json.dumps(metadata),
+                            existing_summary["id"]
+                        )
+                        logger.info(f"✅ [EVOLUTION] Updated Architectural Passport for {domain_name}")
+                    else:
+                        await conn.execute(
+                            """
+                            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                            VALUES ($1, $2, 1.0, $3, true)
+                        """,
+                            domain_id,
+                            passport_content,
+                            json.dumps(metadata)
+                        )
+                        logger.info(f"✅ [EVOLUTION] Created NEW Architectural Passport for {domain_name}")
+                else:
+                    logger.warning(f"⚠️ [EVOLUTION] Failed to parse passport JSON for {domain_name}")
+
+        except Exception as e:
+            logger.error(f"❌ [EVOLUTION] Error updating domain passports: {e}")
+        finally:
+            await conn.close()
 
 
 if __name__ == "__main__":
