@@ -54,7 +54,7 @@ class GenerateRequest(BaseModel):
     prompt: str
     model: Optional[str] = None
     category: Optional[str] = None
-    max_tokens: int = 512
+    max_tokens: int = 32768
     temperature: float = 0.7
     stream: bool = False
 

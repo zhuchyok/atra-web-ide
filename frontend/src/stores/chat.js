@@ -72,28 +72,16 @@ export function clearMessages() {
   messages.set([])
 }
 
-// Загрузить экспертов с API (только Виктория)
+// Загрузить экспертов с API
 export async function loadExperts() {
   try {
-    // Используем порт 8081 для Rust Gateway
-    const response = await fetch(`http://${window.location.hostname}:8081/api/experts`)
+    // Используем порт 8080 для FastAPI Backend
+    const response = await fetch(`http://${window.location.hostname}:8080/api/experts`)
     if (response.ok) {
       const data = await response.json()
-      // Фильтруем - оставляем только Викторию
-      const victoriaOnly = data.filter(e =>
-        e.name.includes('Виктория') ||
-        e.name.includes('Victoria') ||
-        e.name.toLowerCase().includes('victoria')
-      )
-
-      // Если Виктории нет в списке, создаем её
-      if (victoriaOnly.length === 0) {
-        const victoria = { id: '1', name: 'Виктория', role: 'Team Lead' }
-        experts.set([victoria])
-        selectedExpert.set(victoria)
-      } else {
-        experts.set(victoriaOnly)
-        selectedExpert.set(victoriaOnly[0])
+      experts.set(data)
+      if (data.length > 0) {
+        selectedExpert.set(data[0])
       }
     } else {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -119,38 +107,27 @@ export async function sendMessage(content, mode = null) {
   addMessage('assistant', '', expertValue?.name)
 
   try {
-    // Используем порт 8081 для Rust Gateway
-    const response = await fetch(`http://${window.location.hostname}:8081/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages: [
-          { role: 'user', content: content }
-        ],
-        model: "victoria-wisdom-v3.5:latest",
-        stream: false, // Наш Rust Gateway пока не поддерживает SSE стриминг напрямую в OpenAI формате
-        use_rag: true
-      })
+    const { fetchSSE } = await import('../utils/sse.js')
+    
+    // Используем порт 8080 для FastAPI Backend /api/chat/stream
+    await fetchSSE(`http://${window.location.hostname}:8080/api/chat/stream`, {
+      content: content,
+      expert_name: expertValue?.name,
+      mode: modeValue
+    }, (data) => {
+      if (data.type === 'chunk') {
+        updateLastMessage(data.content)
+      } else if (data.type === 'step') {
+        appendStep({
+          title: data.title,
+          content: data.content,
+          stepType: data.step_type || 'thought'
+        })
+      } else if (data.type === 'error') {
+        throw new Error(data.content)
+      }
     })
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Неизвестная ошибка')
-      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`)
-    }
-
-    const data = await response.json()
-    const assistantContent = data.choices?.[0]?.message?.content || 'Нет ответа'
-    updateLastMessage(assistantContent)
-
-  } catch (e) {
-          } catch (e) {
-            console.warn('SSE parse error:', e, line)
-          }
-        }
-      }
-    }
   } catch (e) {
     let errorMessage = e.message || 'Ошибка при отправке сообщения.'
     if (e.message?.includes('503') || e.message?.includes('service_busy')) {

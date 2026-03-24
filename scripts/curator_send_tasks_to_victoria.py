@@ -184,8 +184,11 @@ def main():
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     report_json = REPORTS_DIR / f"curator_{ts}.json"
     report_md = REPORTS_DIR / f"curator_{ts}.md"
+    artifacts_dir = REPORTS_DIR / f"artifacts_{ts}"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
+    rec_ts = ts # Используем общую метку времени для артефактов
     for i, goal in enumerate(tasks, 1):
         print(f"[{i}/{len(tasks)}] {goal[:60]}...")
         start = time.perf_counter()
@@ -208,6 +211,20 @@ def main():
                 out = run_sync(VICTORIA_URL, goal, args.project, max_steps=50)
         elapsed = time.perf_counter() - start
         trace = (out.get("knowledge") or {}).get("execution_trace") or (out.get("knowledge") or {})
+        
+        # [SINGULARITY 22.8] Artifact-Driven Reporting
+        artifact_path = None
+        if out.get("output") or out.get("knowledge"):
+            artifact_filename = f"task_{i}_{rec_ts}.json"
+            artifact_path = artifacts_dir / artifact_filename
+            artifact_data = {
+                "goal": goal,
+                "output": out.get("output"),
+                "knowledge": out.get("knowledge"),
+                "correlation_id": out.get("correlation_id")
+            }
+            artifact_path.write_text(json.dumps(artifact_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
         rec = {
             "goal": goal,
             "status": out.get("status"),
@@ -217,6 +234,7 @@ def main():
             "correlation_id": out.get("correlation_id"),
             "execution_trace": trace,
             "elapsed_seconds": round(elapsed, 2),
+            "artifact_file": str(artifact_path.name) if artifact_path else None
         }
         results.append(rec)
         print(f"    -> {rec['status']} ({elapsed:.1f}s) correlation_id={ (rec.get('correlation_id') or '')[:8]}")

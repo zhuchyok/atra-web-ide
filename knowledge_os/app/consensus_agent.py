@@ -69,15 +69,13 @@ class ConsensusAgent:
     ) -> ConsensusResult:
         """
         Достичь консенсуса между агентами
-
-        Args:
-            agents: Список агентов
-            question: Вопрос для консенсуса
-            initial_context: Начальный контекст
-
-        Returns:
-            Результат консенсуса
+        [SINGULARITY 22.5] Pre-mortem: добавление скептика для поиска уязвимостей.
         """
+        # Добавляем Скептика в список агентов, если его там нет
+        if "Скептик" not in agents:
+            agents = agents + ["Скептик"]
+            logger.info("🕵️ [SINGULARITY 22.5] Pre-mortem: Skeptic added to the debate")
+
         logger.info(f"🤝 Начинаю консенсус между {len(agents)} агентами: {question[:80]}")
 
         agent_responses: List[AgentResponse] = []
@@ -177,9 +175,17 @@ class ConsensusAgent:
         tasks = []
         for agent in agents:
             # Персонализируем промпт для каждого агента
-            agent_prompt = (
-                f"{base_prompt}\n\nТЫ - {agent}. Дай СВОЕ независимое мнение, не повторяй других."
-            )
+            if agent == "Скептик":
+                agent_prompt = f"""
+                ВЫ - СКЕПТИК СИНГУЛЯРНОСТИ (Pre-mortem Expert).
+                ВАША ЗАДАЧА: Найти 3 причины, почему предложенное решение или ответ ПРОВАЛИТСЯ.
+                Будьте максимально критичны. Ищите уязвимости, логические ошибки и риски.
+                
+                ВОПРОС/ЗАДАЧА: {question}
+                """
+            else:
+                agent_prompt = f"{base_prompt}\n\nТЫ - {agent}. Дай СВОЕ независимое мнение, не повторяй других."
+            
             task = self._generate_agent_response(agent, agent_prompt)
             tasks.append(task)
 

@@ -51,7 +51,8 @@ async def list_experts(
                 id=str(e["id"]),
                 name=e["name"],
                 role=e.get("role"),
-                system_prompt=e.get("system_prompt"),
+                # [OPTIMIZATION] Don't return full system prompt in the list to save bandwidth
+                system_prompt=None, 
                 created_at=str(e.get("created_at")) if e.get("created_at") else None,
             )
             for e in experts

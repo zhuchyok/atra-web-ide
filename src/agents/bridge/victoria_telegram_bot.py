@@ -73,7 +73,8 @@ class BotHealthReport(BaseModel):
 logger = logging.getLogger(__name__)
 
 # Какой Python запускает бота — в него и ставить пакеты (иначе после перезапуска снова «не установлен»)
-_PIP_CMD = f"{sys.executable} -m pip install Pillow pypdf"
+# [SINGULARITY 22.0] Runtime pip install is forbidden. Packages must be in requirements.txt.
+_PIP_CMD = "pip install -r requirements.txt"
 
 # Попытка импортировать PIL для работы с изображениями
 try:
@@ -125,11 +126,12 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", ""
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("ALLOWED_USER_ID", "")
 # Chat ID группы Bikos_Corporation (если указан, бот будет работать в группе)
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-# Victoria URL: приоритет localhost (как для простых, так и для сложных запросов)
-# Явно заданный VICTORIA_URL имеет приоритет, иначе — localhost, не 185
+# Victoria URL: только localhost — бот предназначен для запуска исключительно на Mac Studio
+# где Victoria всегда доступна на localhost:8010. Remote fallback убран намеренно:
+# при деплое на сторонний сервер бот не должен тянуться к Mac Studio Victoria через туннель.
 VICTORIA_LOCAL_URL = os.getenv("VICTORIA_LOCAL_URL", "http://localhost:8010")
-VICTORIA_REMOTE_URL = os.getenv("VICTORIA_REMOTE_URL", "http://185.177.216.15:8010")
-VICTORIA_URL = os.getenv("VICTORIA_URL") or VICTORIA_LOCAL_URL  # localhost по умолчанию, не 185
+VICTORIA_REMOTE_URL = os.getenv("VICTORIA_REMOTE_URL", "")  # отключён: fallback на 185 запрещён
+VICTORIA_URL = os.getenv("VICTORIA_URL") or VICTORIA_LOCAL_URL
 # Таймаут ожидания ответа Victoria (сек). Для сложных задач (проверка RAM, анализ кода) — увеличьте.
 VICTORIA_POLL_TIMEOUT_SEC = int(
     os.getenv("VICTORIA_POLL_TIMEOUT_SEC", "900")
@@ -377,15 +379,13 @@ async def send_to_victoria(
     update_heartbeat()
     logger.info(f"📤 Отправка в Victoria ({VICTORIA_URL}): {goal[:100]}...")
 
-    # Список URL: сначала localhost (как простые), затем remote — чтобы и сложные шли через localhost
-    _all = [
-        VICTORIA_LOCAL_URL,
-        VICTORIA_URL,
-        VICTORIA_REMOTE_URL,
-        "http://185.177.216.15:8010",
-        "http://185.177.216.15:8020",
-    ]
-    urls_to_try = list(dict.fromkeys(_all))  # порядок сохраняем, дубли убираем
+    # Только localhost: бот работает на Mac Studio рядом с Victoria.
+    # Никаких fallback на внешние адреса — это предотвращает нагрузку на Victoria
+    # со стороннего сервера через SSH-туннель.
+    _all = [VICTORIA_URL, VICTORIA_LOCAL_URL]
+    if VICTORIA_REMOTE_URL:
+        _all.append(VICTORIA_REMOTE_URL)
+    urls_to_try = list(dict.fromkeys(u for u in _all if u))  # дубли убираем
 
     # Одно сообщение о старте на всю операцию (не при каждой попытке URL)
     # if chat_id:
@@ -774,7 +774,7 @@ Victoria Enhanced: {"✅ включен" if status.get("victoria_enhanced", {}).
         return
 
     if text_lower == "/models":
-        urls_to_try = [VICTORIA_URL, VICTORIA_REMOTE_URL, VICTORIA_LOCAL_URL]
+        urls_to_try = [VICTORIA_URL, VICTORIA_LOCAL_URL]
         for url in urls_to_try:
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:
@@ -961,7 +961,29 @@ async def telegram_bridge():
         logger.error("❌ TELEGRAM_USER_ID не установлен! Бот не может работать.")
         return
 
-    # Регистрация в Victoria (если доступна)
+    # Обязательная проверка: Victoria должна быть доступна локально.
+    # Если Victoria недоступна — бот не запускается (защита от запуска на стороннем сервере
+    # где Victoria отсутствует и бот начинает тянуться к Mac Studio через туннель).
+    victoria_alive = False
+    for _attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f"{VICTORIA_URL}/health")
+                if r.status_code == 200:
+                    victoria_alive = True
+                    break
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+    if not victoria_alive:
+        logger.error(
+            f"❌ Victoria недоступна по адресу {VICTORIA_URL}. "
+            "Telegram-бот запускается только на Mac Studio рядом с Victoria. "
+            "Если это сторонний сервер — бот не должен здесь работать."
+        )
+        return
+
+    # Регистрация в Victoria
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(f"{VICTORIA_URL}/api/telegram/register", json={"status": "online"})

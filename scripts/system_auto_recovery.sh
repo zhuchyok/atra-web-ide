@@ -269,9 +269,24 @@ fi
 log ""
 log "[6/10] Проверка здоровья всех сервисов..."
 
+# [SINGULARITY 21.5] Функция принудительного перезапуска при зависании портов (macOS Docker Desktop bug)
+# Если контейнер Up, но порт не отвечает снаружи — делаем restart
+fix_stuck_port() {
+    local name=$1
+    local port=$2
+    local container_name
+    container_name=$(docker ps --format "{{.Names}}" --filter "publish=$port" | head -n 1)
+    if [[ -n "$container_name" ]]; then
+        log "   ⚠️ Порт $port ($name) не отвечает снаружи. Принудительный перезапуск $container_name..."
+        docker restart "$container_name" >/dev/null
+        sleep 5
+    fi
+}
+
 check_service() {
     local name=$1
     local url=$2
+    local port=$3
     local max_retries=3
     local retry=0
 
@@ -285,6 +300,15 @@ check_service() {
     done
 
     log "   ❌ $name: недоступен после $max_retries попыток"
+    # Если это Docker сервис и порт указан — пробуем починить зависший проброс
+    if [[ -n "$port" ]]; then
+        fix_stuck_port "$name" "$port"
+        # Последняя попытка после фикса
+        if curl -s -f --connect-timeout 10 "$url" >/dev/null 2>&1; then
+            log "   ✅ $name: восстановлен после перезапуска порта"
+            return 0
+        fi
+    fi
     return 1
 }
 
@@ -295,23 +319,26 @@ VERONICA_HEALTH_OK=0
 
 # Knowledge OS сервисы
 TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
-if check_service "Victoria Agent (8010)" "http://localhost:8010/health"; then
+if check_service "Victoria Agent (8010)" "http://localhost:8010/health" "8010"; then
     SERVICES_OK=$((SERVICES_OK + 1))
     VICTORIA_HEALTH_OK=1
 fi
 
 TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
-if check_service "Veronica Agent (8011)" "http://localhost:8011/health"; then
+if check_service "Veronica Agent (8011)" "http://localhost:8011/health" "8011"; then
     SERVICES_OK=$((SERVICES_OK + 1))
     VERONICA_HEALTH_OK=1
 fi
 
 # ATRA Web IDE сервисы
 TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
-check_service "ATRA Web IDE Backend (8080)" "http://localhost:8080/health" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "ATRA Web IDE Backend (8080)" "http://localhost:8080/health" "8080" && SERVICES_OK=$((SERVICES_OK + 1)) || true
 
 TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
-check_service "ATRA Web IDE Frontend (3002)" "http://localhost:3002" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+check_service "ATRA Web IDE Frontend (3000)" "http://localhost:3000" "3000" && SERVICES_OK=$((SERVICES_OK + 1)) || true
+
+TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
+check_service "Open WebUI (3005)" "http://localhost:3005" "3005" && SERVICES_OK=$((SERVICES_OK + 1)) || true
 
 # MLX API Server
 TOTAL_SERVICES=$((TOTAL_SERVICES + 1))
@@ -454,9 +481,11 @@ log "[9/10] Финальная проверка..."
 
 # Повторная проверка после исправлений
 FINAL_SERVICES_OK=0
-check_service "Victoria Agent" "http://localhost:8010/health" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
-check_service "Veronica Agent" "http://localhost:8011/health" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
-check_service "ATRA Web IDE Backend" "http://localhost:8080/health" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "Victoria Agent" "http://localhost:8010/health" "8010" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "Veronica Agent" "http://localhost:8011/health" "8011" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "ATRA Web IDE Backend" "http://localhost:8080/health" "8080" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "ATRA Web IDE Frontend" "http://localhost:3000" "3000" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
+check_service "Open WebUI" "http://localhost:3005" "3005" && FINAL_SERVICES_OK=$((FINAL_SERVICES_OK + 1)) || true
 
 log ""
 log "=============================================="

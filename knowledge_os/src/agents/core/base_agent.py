@@ -76,6 +76,48 @@ class AtraBaseAgent(ABC):
             summary += f"Серверы: {json.dumps(self.project_knowledge['server_status'])}\n"
         return summary
 
+    def _get_relevant_tools(self, goal: str) -> List[str]:
+        """
+        [SINGULARITY 21.34] Progressive Tool Disclosure:
+        Фильтрует список доступных инструментов на основе цели задачи для повышения точности.
+        """
+        goal_lower = goal.lower()
+        all_tools = list(self.tools.keys())
+        
+        # Если инструментов мало, отдаем все
+        if len(all_tools) <= 5:
+            return all_tools
+            
+        relevant = []
+        
+        # Группы инструментов
+        fs_tools = ["read_file", "write_file", "edit_file", "list_files", "grep_search", "batch_read", "batch_grep", "apply_patch"]
+        web_tools = ["web_search", "fetch_url", "searxng_search"]
+        system_tools = ["execute_command", "get_server_status", "restart_service"]
+        
+        # Логика фильтрации
+        is_fs_task = any(kw in goal_lower for kw in ["файл", "код", "директори", "папк", "read", "write", "edit", "patch", "аудит"])
+        is_web_task = any(kw in goal_lower for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web"])
+        is_system_task = any(kw in goal_lower for kw in ["сервер", "процесс", "docker", "контейнер", "restart", "status", "command"])
+        
+        if is_fs_task:
+            relevant.extend([t for t in fs_tools if t in all_tools])
+        if is_web_task:
+            relevant.extend([t for t in web_tools if t in all_tools])
+        if is_system_task:
+            relevant.extend([t for t in system_tools if t in all_tools])
+            
+        # Всегда добавляем базовые инструменты
+        base_tools = ["finish", "ask_question", "think"]
+        relevant.extend([t for t in base_tools if t in all_tools])
+        
+        # Если ничего не подошло, отдаем все (fallback)
+        if not relevant:
+            return all_tools
+            
+        # Удаляем дубликаты
+        return list(set(relevant))
+
     async def run(
         self, goal: str, max_steps: int = 500, blocked_tools: Optional[List[str]] = None
     ) -> str:

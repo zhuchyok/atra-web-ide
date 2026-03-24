@@ -22,7 +22,16 @@ async def run_cursor_agent_async(prompt: str):
         process = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+        except (asyncio.TimeoutError, TimeoutError):
+            # asyncio.wait_for бросает asyncio.TimeoutError — убиваем процесс явно
+            try:
+                process.kill()
+                await process.wait()
+            except ProcessLookupError:
+                pass
+            return f"👩‍💼 **Виктория:**\nВаш запрос принят: _{prompt}_\n\nЯ проанализирую его и отвечу через несколько минут в канале мониторинга."
 
         if process.returncode == 0:
             return stdout.decode().strip()

@@ -45,6 +45,7 @@ services:
     build: ./frontend
     container_name: atra-web-ide-frontend
     restart: unless-stopped
+    mem_limit: 1g
     ports:
       - "3000:3000"
     depends_on:
@@ -59,6 +60,7 @@ services:
     build: ./backend
     container_name: atra-web-ide-backend
     restart: unless-stopped
+    mem_limit: 2g
     tty: true # нужен для PTY терминала в Web IDE
     env_file: .env # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — те же что у Victoria, для алертов
     ports:

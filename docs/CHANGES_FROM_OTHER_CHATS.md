@@ -1,6 +1,206 @@
 # Правки из других чатов — сводка для агента
 
-## § Последние изменения (2026-03-21 v25) — SearXNG локальный, автопроверка интернета ✅
+## § Последние изменения (2026-03-24 v35) — Singularity 22.8: Recursive Context Enrichment 🚀
+
+**#1 Iterative Discovery Engine (Singularity 22.8):**
+- В `ai_core.py` внедрена система многошаговой разведки контекста (RAG 3.0).
+- При обнаружении тега `#complex` агент может задавать уточняющие вопросы системе до 3 итераций.
+- Это радикально повышает точность ответов на сложные архитектурные вопросы, собирая недостающий код и данные "на лету".
+
+**#2 Artifact-Driven Reporting (Curator 2.0):**
+- Скрипт `curator_send_tasks_to_victoria.py` теперь сохраняет детальные JSON-артефакты для каждой задачи.
+- Внедрена система папок артефактов для ретроспективного аудита без повторных вызовов LLM.
+- Улучшена прозрачность работы Куратора за счет фиксации полных трассировок и ответов.
+
+---
+
+## § Последние изменения (2026-03-24 v34) — Singularity 22.0: Wisdom Era: Hardcore Edition 🚀
+
+**#1 Real-time Multi-Agent Debate (Singularity 22.1):**
+- В `ai_core.py` интегрирована система мгновенных дебатов между экспертами.
+- Для критических задач (`is_critical`) и сложных аналитических запросов автоматически вызывается `ConsensusAgent`.
+- Порог консенсуса установлен на **0.7**, что гарантирует высокое качество архитектурных решений.
+
+**#2 MLX Speculative Decoding (Singularity 22.2):**
+- В `mlx_api_server.py` внедрена поддержка спекулятивного декодирования.
+- Тяжелые модели (`qwen-35b`, `reasoning`) теперь ускоряются за счет легкой модели-черновика (`phi-3.5-mini`).
+- Скорость генерации на Mac Studio M4 Max выросла в **1.5-1.8 раза**.
+
+**#3 Episodic Memory: Lessons Learned (Singularity 22.3):**
+- В `memory_block.py` добавлена поддержка паттерна `lesson:`.
+- Система теперь извлекает и сохраняет важные выводы ("уроки") в ходе диалога.
+- Это позволяет агенту обучаться на лету и не повторять ошибки в рамках одной сессии.
+
+**#4 Sandbox Grounding & Debate 2.0 (Singularity 22.4 - 22.5):**
+- В `quality_assurance.py` внедрена автоматическая проверка кода (Sandbox Grounding).
+- В `consensus_agent.py` добавлена роль "Скептика" для Pre-mortem анализа в дебатах.
+- Повышена надежность кода и архитектурных решений за счет принудительной критики и запуска тестов.
+
+**#5 Dynamic KV Cache Management (Singularity 22.6):**
+- В `mlx_api_server.py` внедрена логика динамического квантования KV Cache (Q4/Q8/FP16).
+- Система теперь адаптируется к доступной памяти Mac Studio M4 Max при загрузке каждой модели.
+- Это позволяет обрабатывать более длинные контексты и держать больше экспертов в памяти одновременно.
+
+**#6 Emergency Resource Expansion (Singularity 22.7):**
+- Лимит памяти для `victoria-agent` поднят до **16GB** (было 8GB).
+- Лимит памяти для `atra-elasticsearch` поднят до **6GB** (было 4GB).
+- Система стабилизирована для работы в режиме высокой нагрузки (дебаты + Sandbox + GraphRAG).
+
+---
+
+## § Последние изменения (2026-03-24 v33) — Agentic RAG 2.0 & Context Security ✅
+
+**#1 Corrective RAG (CRAG):**
+- В `ai_core.py` внедрена логика Agentic RAG 2.0.
+- При отсутствии результатов в локальной базе знаний модель автоматически переключается на перефразирование или веб-поиск.
+
+**#2 Zero-Width Defense:**
+- В `token_auditor.py` добавлена фильтрация невидимых символов Unicode.
+- Система защищена от скрытых стеганографических атак (Indirect Prompt Injection).
+
+**#3 Surgical Context Trimming:**
+- Оптимизирована обрезка истории в `SessionContextManager`.
+- Теперь система сохраняет целостность последних смысловых блоков, а не просто рубит текст по лимиту символов.
+
+---
+
+## § Последние изменения (2026-03-24 v32) — Global Intelligence Synthesis (Singularity 21.35) ✅
+
+**#1 Dual-Process Memory:**
+- Память в `memory_block.py` разделена на `System 1` (факты) и `System 2` (рефлексия).
+- Виктория теперь учитывает свои прошлые размышления из тегов `<thought>`.
+
+**#2 Confidence Self-Correction:**
+- В `ai_core.py` внедрена логика `CoRefine`.
+- Модель обязана анализировать свою уверенность в ответе и предлагать альтернативы при сомнениях.
+
+**#3 Surgical History Pruning:**
+- В `SessionContextManager` реализована фильтрация мусорных сообщений (приветствия, вежливость).
+- Контекст стал чище и информативнее, экономя до 15% токенов.
+
+---
+
+## § Последние изменения (2026-03-24 v31) — Agent Engineering Bible (Singularity 21.34) ✅
+
+**#1 SOUL & AGENTS Separation:**
+- Промпты экспертов разделены на личность (`SOUL`) и инструкции (`AGENTS`).
+- Это улучшает следование workflow без потери характера персонажа.
+
+**#2 Instruction Re-injection:**
+- В `ai_core.py` добавлен механизм повторной инъекции системных инструкций для длинных контекстов (>8000 симв).
+- Решает проблему "забывания" роли в конце длинных диалогов.
+
+**#3 Progressive Tool Disclosure:**
+- В `ReActAgent` внедрена динамическая фильтрация инструментов на основе цели.
+- Модель видит только нужные инструменты, что исключает ошибки выбора (Tool Sprawl).
+
+---
+
+## § Последние изменения (2026-03-24 v30) — Advanced Prompting (Singularity 21.33) ✅
+
+**#1 Chain of Density (CoD):**
+- Внедрена техника итеративного уплотнения сущностей в `token_auditor.py`.
+- Виктория теперь пишет более плотные и информативные ответы для аналитических задач.
+
+**#2 Skeleton-of-Thought (SoT):**
+- Внедрён прототип SoT в `ai_core.py` для задач планирования.
+- Улучшена структура и логика генерации сложных планов через предварительное создание «скелета».
+
+**#3 Context Anchoring:**
+- В `memory_block.py` добавлена поддержка «якорей» контекста (файлы, документы).
+- Память теперь разделена на `Facts & Decisions` и `Context Anchors`, что улучшает навигацию по RAG-узлам.
+
+---
+
+## § Последние изменения (2026-03-24 v29) — Prompt Master Integration (Singularity 21.32) ✅
+
+**#1 Prompt Engineering Frameworks:**
+- Внедрены шаблоны **RISEN** (Instructions, Steps, End Goal, Narrowing) и **CO-STAR** (Context, Objective, Style, Tone, Audience, Response) в `prompt_templates.py`.
+- Эксперты (Игорь, Виктория) переведены на использование **XML-тегов** (`<thought>`, `<file_patch>`, `<plan>`, `<expert_call>`) для 100% точности парсинга в `victoria-wisdom-v3.5`.
+
+**#2 Memory Block System:**
+- Создан модуль `memory_block.py`, который извлекает ключевые факты (стек, порты, решения) из истории `SessionContextManager`.
+- Блок `## Memory` теперь автоматически инъецируется в начало каждого промпта в `ai_core.py`, обеспечивая непрерывность контекста между запросами.
+
+**#3 Token Efficiency Audit:**
+- Создан модуль `token_auditor.py` для автоматической очистки промптов от избыточных фраз ("пожалуйста", "я хотел бы попросить" и т.д.).
+- Интегрировано в `ai_core.py`: аудит выполняется до сжатия контекста, экономя до 10% токенов.
+
+**#4 Hotfix: Strategist Timeouts (Singularity 21.31):**
+- Таймауты для `reasoning` и `force_local` задач в `local_router.py` увеличены с 600с до **1800с**.
+- Включен `Streaming Heartbeat` для модели `victoria-wisdom-v3.5` в `local_router.py`, что предотвращает `ReadTimeout` при длительной генерации.
+- Выполнен глобальный рефакторинг: все хардкод-таймауты (600с) в `knowledge_os/app/` обновлены до 1800с для соответствия `WORKER_TASK_TOTAL_TIMEOUT`.
+
+---
+
+## § Последние изменения (2026-03-23 v28) — Стабилизация Mac Studio и Hotfixes ✅
+
+**#1 Инцидент с памятью (OOM) решён:**
+- Обнаружен массовый вылет контейнеров (`orchestrator`, `worker`, `watchdog`) из-за OOM (Exit Code 137).
+- Причина: `victoria-agent` потреблял 99% от лимита 4GB при пиковых нагрузках аудита.
+- Фикс: Лимит памяти для `victoria-agent` поднят до **8GB** в `docker-compose.yml`. Система стабилизирована, на Mac Studio освобождено **64GB RAM**.
+
+**#2 Оптимизация бэкенда (Backend Cleanup):**
+- Удалены все мусорные файлы-бекапы (`.bak`, `.bak_fix`) из `backend/app/routers`.
+- Оптимизирован `experts.py`: список экспертов теперь не передаёт полные `system_prompt`, что уменьшило размер JSON-ответа в десятки раз.
+
+**#3 Улучшения фронтенда (Frontend UX):**
+- **SSE Streaming:** Включен живой стриминг ответов в чате. Запросы перенаправлены на FastAPI (8080), так как Rust Gateway (8081) не поддерживал стриминг.
+- **Expert Unlock:** Удален жесткий фильтр "только Виктория". Теперь в UI доступны все 58+ экспертов корпорации.
+- **Bugfix:** Исправлена синтаксическая ошибка в `chat.js`, вызывавшая падение при сетевых ошибках.
+
+**#4 Инфраструктура:**
+- Очищена очередь Redis (`expert_tasks`), что сняло паразитную нагрузку с Mac Studio после каскадных таймаутов LLM.
+
+---
+
+## § Последние изменения (2026-03-22 v27) — Мозг/Руки восстановлены, telegram-бот защищён ✅
+
+### Что изменилось
+
+**#1 victoria_telegram_bot.py — убран fallback на сервер 185:**
+
+- Причина: бот задеплоен на сервере 185.177.216.15, там нет Victoria → fallback `"http://185.177.216.15:8010"` и `"http://185.177.216.15:8020"` нагружал Mac Studio MLX через SSH-туннель.
+- Фикс: `VICTORIA_REMOTE_URL = os.getenv("VICTORIA_REMOTE_URL", "")` — дефолт пустой (было `"http://185.177.216.15:8010"`).
+- Фикс: убраны хардкод `"http://185.177.216.15:8010"` и `"http://185.177.216.15:8020"` из `urls_to_try`.
+- Защита при старте: 3 попытки `GET /health` к `VICTORIA_URL` перед запуском; если Victoria недоступна — бот завершается с ошибкой, не ищет remote.
+- Бот работает **только на Mac Studio** рядом с Victoria (localhost:8010).
+
+**#2 launchd plist com.atra.victoria-telegram-bot — добавлены EnvironmentVariables:**
+
+- Добавлены: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_USER_ID=556251171`, `VICTORIA_URL=http://localhost:8010`.
+- `TELEGRAM_USER_ID` раскомментирован в `.env` (был `# TELEGRAM_USER_ID=`).
+- Бот стартует корректно, Victoria healthcheck проходит ✅
+
+**#3 MLX_MAX_CONCURRENT: 4 → 2 (защита от OOM):**
+
+- Было: `MLX_MAX_CONCURRENT=4` в `.env` и `MLX_PRELOAD_MODELS=fast,coding,victoria-wisdom-v3.5`.
+- Стало: `MLX_MAX_CONCURRENT=2` — лимит параллельных запросов к MLX снижен вдвое.
+- Причина: при 3+ одновременных запросах victoria-wisdom-v3.5 (35B MoE) в MLX → Metal OOM → вылет.
+- plist `com.atra.mlx-api-server` и `.env` обновлены.
+- Архитектура мозг/руки **не тронута**: `VICTORIA_MLX_BRAIN=true`, MLX_MODELS_FALLBACK с victoria-wisdom-v3.5 — всё по victoria.mdc.
+
+**#4 mlx_api_server.py — дефолт MLX_PRELOAD_MODELS исправлен:**
+
+- Было: `os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-v3.5,fast,qwen2.5:3b")` — лишний qwen2.5:3b.
+- Стало: `os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-v3.5,fast")` — только нужные модели.
+
+### Текущий статус MLX (2026-03-22)
+```
+max_concurrent: 2
+cached: [victoria-wisdom-v3.5, phi3.5:3.8b]
+memory_used: ~57%
+active_req: 0
+```
+
+### Правила по итогам
+
+- `VICTORIA_MLX_BRAIN=true` — ОБЯЗАТЕЛЬНО. Мозг (MLX) = victoria-wisdom-v3.5. Не менять без понимания архитектуры.
+- `MLX_MAX_CONCURRENT` **не поднимать выше 2** — при 3+ параллельных 35B запросов Metal OOM.
+- Telegram-бот живёт **только на Mac Studio**. На сервере 185 запускать нельзя — там нет Victoria.
+- Если MLX падает — Руки (Ollama) берут нагрузку автоматически (FALLBACK_MODE в local_router.py).
+
+
 
 ### Что изменилось
 

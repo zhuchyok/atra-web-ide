@@ -40,7 +40,7 @@ fi
 
 # Запускаем MCP Server
 export VICTORIA_URL="${VICTORIA_URL:-http://localhost:8010}"
-export VICTORIA_MCP_RUN_TIMEOUT_SEC="${VICTORIA_MCP_RUN_TIMEOUT_SEC:-600}"
+export VICTORIA_MCP_RUN_TIMEOUT_SEC="${VICTORIA_MCP_RUN_TIMEOUT_SEC:-1800}"
 
 echo "✅ Victoria Agent готов" >&2
 

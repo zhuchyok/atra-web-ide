@@ -247,7 +247,7 @@ class AutoBackupManager:
                     env=env,
                     capture_output=True,
                     text=True,
-                    timeout=600,  # 10 минут таймаут
+                    timeout=1800,  # 10 минут таймаут
                 )
 
                 if result.returncode == 0:

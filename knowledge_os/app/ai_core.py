@@ -40,6 +40,28 @@ except ImportError:
     async def get_embedding(text: str) -> Optional[List[float]]:
         return None
 
+# [SINGULARITY 21.32] Prompt Master Integration
+try:
+    from memory_block import get_memory_block
+    from token_auditor import audit_efficiency
+    from session_context_manager import get_session_context_manager
+except ImportError:
+    get_memory_block = lambda x: ""
+    audit_efficiency = lambda x: x
+    get_session_context_manager = lambda: None
+
+# [SINGULARITY 22.1] Real-time Multi-Agent Debate
+try:
+    from consensus_agent import ConsensusAgent
+except ImportError:
+    ConsensusAgent = None
+
+# [SINGULARITY 22.8] Iterative Discovery
+try:
+    from iterative_discovery import IterativeDiscovery
+except ImportError:
+    IterativeDiscovery = None
+
 
 try:
     from local_router import LocalAIRouter  # type: ignore
@@ -608,7 +630,7 @@ async def _run_cloud_agent_async(
                 or "coding" in str(category)
                 or "reasoning" in str(category)
             ):
-                _ollama_timeout = max(_ollama_timeout, 1200.0)
+                _ollama_timeout = max(_ollama_timeout, 1800.0)
                 logger.info(
                     f"🕒 [AI_CORE] Увеличен таймаут Ollama до {_ollama_timeout}с для тяжелой задачи"
                 )
@@ -949,6 +971,24 @@ async def run_smart_agent_async_impl(
     project_context: Optional[str] = None,
 ):
     start_time = time.time()
+
+    # [SINGULARITY 21.32] Token Efficiency Audit
+    prompt = audit_efficiency(prompt)
+    
+    # [SINGULARITY 21.33] Chain of Density (CoD) for reasoning tasks
+    if category == "reasoning" or "анализ" in prompt.lower():
+        from token_auditor import _auditor
+        prompt = _auditor.apply_chain_of_density(prompt)
+
+    # [SINGULARITY 21.33] Skeleton-of-Thought (SoT) Prototype
+    if "создай" in prompt.lower() and "план" in prompt.lower():
+        sot_instruction = """
+        ### [SYSTEM: SKELETON-OF-THOUGHT ENABLED]
+        1. Сначала выведи только структуру (скелет) ответа.
+        2. Затем для каждого пункта скелета напиши детальное содержание.
+        Это позволит ускорить генерацию и сделать ответ более структурированным.
+        """
+        prompt = sot_instruction + prompt
 
     # [SINGULARITY 21.0] Enforce CoT for critical tasks
     if is_critical or category in ("reasoning", "vip"):
@@ -1540,6 +1580,36 @@ async def run_smart_agent_async_impl(
             asyncio.create_task(pred_cache.predict_and_cache(user_part, expert_name))
         return cached_response
 
+    # [SINGULARITY 22.8] Iterative Discovery
+    # Если задача сложная и требует глубокого анализа, запускаем итеративную разведку
+    if IterativeDiscovery and (is_critical or category == "reasoning" or "#complex" in user_part.lower()):
+        logger.info(f"🕵️ [SINGULARITY 22.8] Starting Iterative Discovery for: {expert_name}")
+        import sys
+        ai_processor = sys.modules[__name__]
+        discovery = IterativeDiscovery(ai_processor=ai_processor, max_iterations=3)
+        return await discovery.run(
+            user_part, expert_name, category or "general", 
+            context=knowledge_context, project_context=project_context
+        )
+
+    # [SINGULARITY 22.1] Real-time Multi-Agent Debate
+    # Если задача сложная и требует консенсуса, запускаем дебаты
+    if ConsensusAgent and (is_critical or category == "reasoning" or "обсуди" in user_part.lower()):
+        logger.info(f"🤝 [SINGULARITY 22.1] Starting Real-time Multi-Agent Debate for: {expert_name}")
+        consensus = ConsensusAgent(model_name=strategist_model)
+        # Выбираем экспертов для дебатов на основе задачи
+        debate_experts = ["Виктория", "Игорь", "Анна"] # Базовая тройка
+        if is_coding_task:
+            debate_experts = ["Игорь", "Максим", "Виктория"]
+        
+        debate_res = await consensus.reach_consensus(debate_experts, user_part, {"kb_context": kb_context_rag})
+        if debate_res and debate_res.consensus_score > 0.7:
+            logger.info(f"✅ [SINGULARITY 22.1] Consensus reached with score {debate_res.consensus_score:.2f}")
+            # Сохраняем результат в кэш и возвращаем
+            if cache:
+                await cache.save_to_cache(user_part, debate_res.final_answer, expert_name)
+            return debate_res.final_answer
+
     # 3. Hybrid Strategy: Manager-Worker Pattern (Strategist vs Executor)
     # If the task is coding or audit, we use Strategist (Wisdom) to plan and Executor (Qwen3) to execute
 
@@ -2100,7 +2170,7 @@ async def run_smart_agent_async_impl(
                 user_part,
                 category=category or "research",
                 use_web=True,
-                timeout=600.0 if (is_vip or category in ("reasoning", "vip")) else 120.0,
+                timeout=1800.0 if (is_vip or category in ("reasoning", "vip")) else 120.0,
             )
 
             if result and result.get("analysis"):
@@ -2176,7 +2246,7 @@ async def run_smart_agent_async_impl(
                     name="local",
                     handler=try_local,
                     priority=1,
-                    timeout=600.0,  # Увеличено до 600s для тяжелых моделей
+                    timeout=1800.0,  # Увеличено до 600s для тяжелых моделей
                 )
             )
 
@@ -2469,13 +2539,54 @@ async def run_smart_agent_async_impl(
             full_prompt = f"{full_prompt}\n\n{learned_rules}"
             logger.info("🧠 [DISTILLATION] Injected learned rules into prompt.")
 
+    # [SINGULARITY 21.32] Memory Block System (Prompt Master)
+    if session_id:
+        try:
+            ctx_mgr = get_session_context_manager()
+            if ctx_mgr:
+                # Получаем историю (последние 10 сообщений)
+                # user_id в SessionContextManager — это session_id
+                history_rows = await ctx_mgr.get_session_context(session_id, expert_name, user_part)
+                # get_session_context возвращает строку, нам нужен список для get_memory_block
+                # Но мы можем адаптировать get_memory_block или извлечь факты прямо здесь
+                memory_block = get_memory_block([{"content": history_rows}])
+                if memory_block:
+                    full_prompt = memory_block + full_prompt
+                    logger.info(f"🧠 [MEMORY BLOCK] Injected into prompt for session {session_id}")
+        except Exception as e:
+            logger.debug(f"⚠️ [MEMORY BLOCK] Error injecting memory: {e}")
+
+    # [SINGULARITY 21.34] Instruction Re-injection (Giant's Knowledge)
+    # Боремся с "центрифугированием инструкций" в длинных контекстах
+    if len(full_prompt) > 8000:
+        instruction_reminder = f"\n\n### [SYSTEM REMINDER: STAY IN CHARACTER]\nНапоминание: Ты {expert_name}. Следуй своим инструкциям и правилам 'Золотого стандарта' ATRA."
+        full_prompt += instruction_reminder
+        logger.info(f"🔄 [RE-INJECTION] System instructions re-injected for {expert_name} (len={len(full_prompt)})")
+
+    # [SINGULARITY 21.35] Confidence-Guided Self-Correction (CoRefine Pattern)
+    # Если в промпте есть сомнение или задача сложная, добавляем инструкцию самопроверки
+    if category in ("reasoning", "coding") or len(user_part) > 500:
+        self_correct_instruction = "\n### [SYSTEM: SELF-CORRECTION ENABLED]\nЕсли ты не уверен в ответе на 100%, начни с анализа своих сомнений в теге <thought> и предложи альтернативный вариант."
+        full_prompt += self_correct_instruction
+
+    # [SINGULARITY 21.36] Agentic RAG 2.0 (Corrective RAG)
+    # Если поиск по базе знаний не дал результатов, добавляем инструкцию перефразирования
+    if knowledge_context and "результаты не найдены" in knowledge_context.lower():
+        rag_2_0_instruction = "\n### [SYSTEM: AGENTIC RAG 2.0]\nРезультаты поиска по базе знаний не дали точных совпадений. Попробуй перефразировать ключевые термины или используй инструмент web_search для уточнения контекста."
+        full_prompt += rag_2_0_instruction
+
     # Умное сокращение контекста перед отправкой в облако (агрессивное сжатие)
     # Predictive Compression: проверяем предсжатый контекст (Singularity 14.0)
     compressed_prompt = full_prompt
     latency_before_compression = time.time()
     latency_reduction = 0.0
 
-    if ContextAnalyzer and len(full_prompt) > 2000:
+    # [SINGULARITY 21.28] Оптимизация сжатия: повышаем пороги, чтобы не терять важный код
+    _compression_threshold = int(os.getenv("CONTEXT_COMPRESSION_THRESHOLD", "32000"))
+    _compression_limit = int(os.getenv("CONTEXT_COMPRESSION_LIMIT", "16000"))
+    _compression_enabled = os.getenv("ENABLE_CONTEXT_COMPRESSION", "true").lower() in ("true", "1", "yes")
+
+    if _compression_enabled and ContextAnalyzer and len(full_prompt) > _compression_threshold:
         # Проверяем, есть ли предсжатый контекст (Predictive Compression)
         precompressed = None
         try:
@@ -2501,7 +2612,7 @@ async def run_smart_agent_async_impl(
                 # Обычное сжатие, если предсжатый контекст не найден
                 analyzer = ContextAnalyzer(relevance_threshold=0.65)
                 compressed_prompt = await analyzer.compress_context(
-                    full_prompt, user_part, max_length=2000
+                    full_prompt, user_part, max_length=_compression_limit
                 )
                 tokens_saved = (len(full_prompt) - len(compressed_prompt)) // 4
                 logger.info(
@@ -2512,16 +2623,16 @@ async def run_smart_agent_async_impl(
             # Fallback к обычному сжатию
             analyzer = ContextAnalyzer(relevance_threshold=0.65)
             compressed_prompt = await analyzer.compress_context(
-                full_prompt, user_part, max_length=2000
+                full_prompt, user_part, max_length=_compression_limit
             )
             tokens_saved = (len(full_prompt) - len(compressed_prompt)) // 4
             logger.info(
                 f"📉 [CONTEXT COMPRESSION] Compressed from {len(full_prompt)} to {len(compressed_prompt)} chars (~{tokens_saved} tokens saved)"
             )
-    elif ContextCompressor:
+    elif _compression_enabled and ContextCompressor and len(full_prompt) > _compression_threshold:
         # Используем агрессивное сжатие
         compressed_prompt = await ContextCompressor.compress_smart(
-            full_prompt, user_part, max_length=2000, aggressive=True
+            full_prompt, user_part, max_length=_compression_limit, aggressive=True
         )
         if len(compressed_prompt) < len(full_prompt):
             tokens_saved = (len(full_prompt) - len(compressed_prompt)) // 4

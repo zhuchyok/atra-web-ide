@@ -76,6 +76,7 @@ class QualityAssurance:
     ) -> Tuple[bool, QualityMetrics, Optional[str]]:
         """
         Валидирует ответ на качество.
+        [SINGULARITY 22.4] Sandbox Grounding: автоматическая проверка кода через выполнение.
 
         Returns:
             (is_acceptable, metrics, recommendation)
@@ -85,6 +86,16 @@ class QualityAssurance:
         """
         metrics = QualityMetrics()
         issues = []
+
+        # [SINGULARITY 22.4] Sandbox Grounding для кода
+        if response_type == "code" or "```python" in response:
+            grounding_ok, grounding_score, error_msg = await self._run_sandbox_grounding(response)
+            metrics.correctness_score = grounding_score
+            if not grounding_ok:
+                issues.append(f"Sandbox Grounding Failed: {error_msg}")
+                logger.warning(f"🧪 [SANDBOX GROUNDING] Code failed verification: {error_msg}")
+            else:
+                logger.info(f"🧪 [SANDBOX GROUNDING] Code verified successfully (score: {grounding_score})")
 
         # 1. Safety Check (критично!)
         safety_ok, safety_warning, safety_score = await self._check_safety(response, response_type)
@@ -357,6 +368,67 @@ class QualityAssurance:
                 score -= 0.4  # Много повторений
 
         return max(0.0, min(1.0, score))
+
+    async def _run_sandbox_grounding(self, response: str) -> Tuple[bool, float, Optional[str]]:
+        """
+        [SINGULARITY 22.4] Sandbox Grounding:
+        Извлекает код из ответа и запускает его в изолированном процессе для проверки.
+        """
+        import re
+        import subprocess
+        import tempfile
+
+        # Извлекаем блоки кода Python
+        code_blocks = re.findall(r"```python\n(.*?)\n```", response, re.DOTALL)
+        if not code_blocks:
+            return True, 1.0, None  # Кода нет, проверка не нужна
+
+        combined_code = "\n\n".join(code_blocks)
+        
+        # Ограничиваем опасные операции (базовый уровень)
+        forbidden = ["os.remove", "os.system", "shutil.rmtree", "subprocess.", "socket."]
+        for f in forbidden:
+            if f in combined_code:
+                return False, 0.0, f"Forbidden operation detected: {f}"
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as tmp:
+                tmp.write(combined_code)
+                tmp_path = tmp.name
+
+            # Запускаем с таймаутом и ограничением ресурсов
+            process = await asyncio.create_subprocess_exec(
+                "python3", "-m", "py_compile", tmp_path,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
+
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                return False, 0.3, f"Syntax Error: {error_msg}"
+
+            # Если синтаксис ок, пробуем выполнить (только если это не деструктивный код)
+            if "def test_" in combined_code or "assert " in combined_code:
+                test_process = await asyncio.create_subprocess_exec(
+                    "python3", tmp_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(test_process.communicate(), timeout=5.0)
+                if test_process.returncode != 0:
+                    return False, 0.5, f"Runtime/Assertion Error: {stderr.decode().strip()}"
+
+            return True, 1.0, None
+
+        except asyncio.TimeoutError:
+            return False, 0.2, "Execution Timeout (Infinite loop?)"
+        except Exception as e:
+            return False, 0.1, f"Grounding Error: {str(e)}"
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def get_quality_statistics(self, source: Optional[str] = None) -> Dict:
         """Получает статистику качества"""

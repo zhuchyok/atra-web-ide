@@ -19,8 +19,8 @@ VICTORIA_URL = os.getenv(
     "VICTORIA_URL",
     "http://localhost:8010",
 )
-# Таймаут для victoria_run (сек). Задачи на код (оркестратор → эксперты) часто > 5 мин. По умолчанию 10 мин.
-VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "600"))
+# Таймаут для victoria_run (сек). Задачи на код (оркестратор → эксперты) часто > 10 мин. По умолчанию 30 мин.
+VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "1800"))
 
 mcp = FastMCP("VictoriaATRA")
 

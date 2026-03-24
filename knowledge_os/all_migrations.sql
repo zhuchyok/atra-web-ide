@@ -905,3 +905,22 @@ CREATE TRIGGER update_webhooks_updated_at
 -- Комментарии
 COMMENT ON TABLE webhooks IS 'Webhooks для интеграции с внешними системами (Slack, Discord, Telegram, Custom)';
 COMMENT ON TABLE webhook_logs IS 'Логи отправки webhooks для отладки и мониторинга';
+
+-- Миграция: metadata в semantic_ai_cache (2026-03-22)
+ALTER TABLE semantic_ai_cache ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_semantic_ai_cache_metadata ON semantic_ai_cache USING GIN (metadata);
+COMMENT ON COLUMN semantic_ai_cache.metadata IS 'JSON-метаданные кэша: precompressed, compression_ratio и др.';
+
+-- Миграция: исправить размерность vector в embedding_cache 384 → 768 (2026-03-22)
+-- nomic-embed-text возвращает 768 измерений; старые 384-dim несовместимы → TRUNCATE
+DROP INDEX IF EXISTS idx_embedding_cache_embedding;
+TRUNCATE TABLE embedding_cache;
+ALTER TABLE embedding_cache ALTER COLUMN embedding TYPE vector(768) USING NULL;
+CREATE INDEX IF NOT EXISTS idx_embedding_cache_embedding
+    ON embedding_cache USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50);
+
+-- Миграция: trigram индекс для ILIKE на knowledge_nodes.content (2026-03-08)
+-- Причина: content ILIKE делал seq scan 94K строк → 513% CPU. Теперь GIN trgm.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_knowledge_nodes_content_trgm
+    ON knowledge_nodes USING GIN (content gin_trgm_ops);

@@ -61,6 +61,7 @@ async def process_task(task_data: dict):
     description = task_data["description"]
 
     logger.info(f"🛠️ [WORKER] Начало выполнения задачи {task_id} для {expert_name}")
+    print(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
 
     try:
         # 1. Обновляем статус в БД и Redis
@@ -99,9 +100,17 @@ async def process_task(task_data: dict):
                     try:
                         from react_agent import ReActAgent
 
-                        agent = ReActAgent(agent_name=expert_name)
+                        model_hint = task_data.get("metadata", {}).get("model_hint")
+                        print(f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-v3.5:latest'}")
+                        agent = ReActAgent(agent_name=expert_name, model_name=model_hint or "victoria-wisdom-v3.5:latest")
+                        print(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
                         report = await agent.run(goal=description)
-                        # ...
+                        print(f"DEBUG_PRINT: agent.run() finished for task {task_id}")
+                        # [SINGULARITY 21.26] Fix: ReActAgent returns 'response', not 'result'
+                        if isinstance(report, dict) and "response" in report:
+                            report_text = report["response"]
+                        else:
+                            report_text = str(report.get("result") if isinstance(report, dict) else report)
                     except Exception as e:
                         logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
                         report = await run_smart_agent_async(
@@ -109,14 +118,14 @@ async def process_task(task_data: dict):
                             expert_name=expert_name,
                             category=task_data.get("category", "general"),
                         )
+                        report_text = str(report.get("result") if isinstance(report, dict) else report)
                 else:
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
                         category=task_data.get("category", "general"),
                     )
-
-                report_text = str(report.get("result") if isinstance(report, dict) else report)
+                    report_text = str(report.get("result") if isinstance(report, dict) else report)
 
                 # 3. Сохраняем результат
                 if isinstance(report_text, dict):
@@ -125,6 +134,7 @@ async def process_task(task_data: dict):
                     report_text = str(report_text)
 
                 if is_valid_uuid:
+                    print(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
                     await conn.execute(
                         """
                         UPDATE tasks SET status = 'completed', result = $2, completed_at = NOW()

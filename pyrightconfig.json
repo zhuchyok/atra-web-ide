@@ -21,6 +21,10 @@
     "data",
     "mirror"
   ],
+  "extraPaths": [
+    "knowledge_os/app",
+    "knowledge_os"
+  ],
   "venvPath": "knowledge_os",
   "venv": ".venv",
   "typeCheckingMode": "basic"

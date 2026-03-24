@@ -14,6 +14,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
+    mem_limit: 4g
     command:
       [
         "postgres",
@@ -118,8 +119,10 @@ services:
     networks:
       - atra-network
     # mem_limit жёсткий — защита от kernel panic (был watchdog timeout 2026-03-15)
-    mem_limit: 24g
-    mem_reservation: 10g
+    # Снижен с 24g → 4g: zombie-процессы fixed (2026-03-22), реальное RSS = 0.26 GB
+    # Повышен до 16g: 8g не хватает при нагрузке (2026-03-24)
+    mem_limit: 16g
+    mem_reservation: 4g
     environment:
       TZ: Europe/Moscow
       CORPORATION_TZ: Europe/Moscow
@@ -302,6 +305,7 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
     restart: always
+    mem_limit: 4g
     ports:
       - "3005:8080"
     extra_hosts:
@@ -348,9 +352,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 14g
+          memory: 3g
         reservations:
-          memory: 8g
+          memory: 512m
     networks:
       - atra-network
     environment:
@@ -367,6 +371,8 @@ services:
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "1"
       WORKER_TYPE: "heavy"
+      SMART_WORKER_LLM_TIMEOUT: "1200"
+      WORKER_TASK_TOTAL_TIMEOUT: "3600"
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
     volumes:
@@ -395,9 +401,9 @@ services:
       replicas: 2
       resources:
         limits:
-          memory: 4g
+          memory: 2g
         reservations:
-          memory: 1g
+          memory: 256m
     networks:
       - atra-network
     environment:
@@ -414,6 +420,8 @@ services:
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "3"
       WORKER_TYPE: "light"
+      SMART_WORKER_LLM_TIMEOUT: "600"
+      WORKER_TASK_TOTAL_TIMEOUT: "1800"
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
@@ -526,10 +534,12 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
+    restart: unless-stopped
+    mem_limit: 6g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms3g -Xmx3g"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
     ports:
@@ -538,7 +548,6 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - atra-network
-    restart: unless-stopped
     healthcheck:
       test:
         ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
@@ -568,14 +577,14 @@ services:
     restart: unless-stopped
 
   # Воркер (дневной): обрабатывает PENDING задачи (симуляции, разведка, обычные задачи). LLM на хосте.
-  # mem_limit 10G — как у nightly, под Mac Studio M4 Max 128GB.
+  # mem_limit снижен 10g → 3g: реальное потребление 0.24 GB (2026-03-22).
   knowledge_os_worker:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_worker
     restart: unless-stopped
-    mem_limit: 10g
+    mem_limit: 3g
     networks:
       - atra-network
     environment:
@@ -589,18 +598,22 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
-      # Потолок: макс. задач «в работе»; адаптив снизит при перегрузке MLX/Ollama
-      SMART_WORKER_MAX_CONCURRENT: "5"
+      # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
+      SMART_WORKER_MAX_CONCURRENT: "2"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
       # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
       ADAPTIVE_MLX_SAFE_MAX: "2"
-      # Жёсткий таймаут на LLM вызов (300 сек = 5 мин) — защита от зависания
-      SMART_WORKER_LLM_TIMEOUT: "300"
+      # Жёсткий таймаут на LLM вызов (600 сек = 10 мин) — 35B может ждать в очереди пока куратор/nightly не освободят Ollama
+      SMART_WORKER_LLM_TIMEOUT: "600"
       # Больше попыток и задержка перед повтором — меньше накопления в ручной очереди
       SMART_WORKER_MAX_ATTEMPTS: "5"
       SMART_WORKER_RETRY_DELAY_SEC: "180"
       # Батч по batch_group: один вызов LLM на 2–3 задачи (ARCHITECTURE_IMPROVEMENTS §2.5)
       SMART_WORKER_BATCH_GROUP_LLM: "true"
+      # Стратег использует лёгкую модель — тяжёлая 35B не нужна для планирования задач воркера.
+      # phi3.5:3.8b уже загружена, освобождает 26 GB Ollama VRAM (убирает дубль victoria-wisdom).
+      VICTORIA_STRATEGIST_MODEL: "phi3.5:3.8b"
+      VICTORIA_EXECUTOR_MODEL: "victoria-wisdom-v3.5"
       # Stability & Performance Watchdog: Backpressure
       SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
     volumes:
@@ -612,8 +625,9 @@ services:
 
   # Nightly Learner: обучение экспертов, дебаты, гипотезы. Цикл каждые 24ч.
   # Записывает в knowledge_nodes, tasks — обновляет «БД: X ч назад» на дашборде.
-  # mem_limit (25G): полный цикл (эксперты, Council, эмбеддинги); 20G давало Killed/OOM.
-  # Если снова "Killed": dmesg | grep -i oom; docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
+  # mem_limit снижен 25g → 8g (2026-03-22): nightly вызывает внешний Ollama (host.docker.internal),
+  # сам модели не грузит. Старый OOM был от zombie-процессов (исправлено). Мониторинг:
+  # docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
   # OLLAMA_KEEP_ALIVE: 60 (1 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
   knowledge_nightly:
     build:
@@ -621,11 +635,11 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_nightly
     restart: unless-stopped
-    mem_limit: 25g
+    mem_limit: 8g
     deploy:
       resources:
         limits:
-          memory: 25G
+          memory: 8g
     networks:
       - atra-network
     environment:
@@ -703,8 +717,8 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_orchestrator
     restart: unless-stopped
-    mem_limit: 12g
-    mem_reservation: 4g
+    mem_limit: 6g
+    mem_reservation: 2g
     networks:
       - atra-network
     environment:
@@ -732,9 +746,9 @@ services:
       # Phase 1.6: batch_group для задач одного domain (low/medium)
       BATCH_SMALL_TASKS_ENABLED: "true"
       # mTLS — межкластерная безопасность для MultiClusterBridge (Singularity 21.24)
-      BRIDGE_CERT_PATH: /certs/mac-studio.crt
-      BRIDGE_KEY_PATH: /certs/mac-studio.key
-      BRIDGE_CA_PATH: /certs/ca.crt
+      # BRIDGE_CERT_PATH: /certs/mac-studio.crt
+      # BRIDGE_KEY_PATH: /certs/mac-studio.key
+      # BRIDGE_CA_PATH: /certs/ca.crt
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - ../certs:/certs:ro
@@ -851,7 +865,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: performance-watchdog
     restart: unless-stopped
-    mem_limit: 4g
+    mem_limit: 1g
     networks:
       - atra-network
     environment:
@@ -881,7 +895,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_evolution
     restart: unless-stopped
-    mem_limit: 6g
+    mem_limit: 2g
     networks:
       - atra-network
     environment:

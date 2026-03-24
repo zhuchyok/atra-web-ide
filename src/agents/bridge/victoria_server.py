@@ -27,6 +27,7 @@ load_dotenv()
 
 # --- SINGULARITY 10.0: UNIFIED CHAT LOGIC ---
 # Lazy-load emotion/skill/orchestrator — только при первом реальном вызове (экономит ~300-600 MB RAM при старте)
+asyncpg = None
 EMOTION_DETECTOR_AVAILABLE = False
 EmotionDetector = None
 QueryOrchestrator = None
@@ -45,7 +46,10 @@ def _lazy_emotion_detector():
     if EmotionDetector is None and not EMOTION_DETECTOR_AVAILABLE:
         try:
             _ensure_knowledge_os_path()
-            from emotion_detector import EmotionDetector as _ED
+            try:
+                from emotion_detector import EmotionDetector as _ED
+            except ImportError:
+                from app.emotion_detector import EmotionDetector as _ED
             EmotionDetector = _ED
             EMOTION_DETECTOR_AVAILABLE = True
         except ImportError:
@@ -57,7 +61,10 @@ def _lazy_query_orchestrator():
     if QueryOrchestrator is None:
         try:
             _ensure_knowledge_os_path()
-            from query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
+            try:
+                from query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
+            except ImportError:
+                from app.query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
             QueryOrchestrator = _QO
             QueryType = _QT
         except ImportError:
@@ -69,7 +76,10 @@ def _lazy_skill_mapper():
     if get_skill_mapper is None:
         try:
             _ensure_knowledge_os_path()
-            from skill_mapper import get_skill_mapper as _gsm
+            try:
+                from skill_mapper import get_skill_mapper as _gsm
+            except ImportError:
+                from app.skill_mapper import get_skill_mapper as _gsm
             get_skill_mapper = _gsm
         except ImportError:
             pass
@@ -80,7 +90,10 @@ def _lazy_expert_dna_manager():
     if get_expert_dna_manager is None:
         try:
             _ensure_knowledge_os_path()
-            from expert_dna_manager import get_expert_dna_manager as _gedm
+            try:
+                from expert_dna_manager import get_expert_dna_manager as _gedm
+            except ImportError:
+                from app.expert_dna_manager import get_expert_dna_manager as _gedm
             get_expert_dna_manager = _gedm
         except ImportError:
             pass
@@ -340,6 +353,14 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
                 logger.debug(f"Embedding generation for task failed: {ee}")
 
         async with pool.acquire() as conn:
+            meta = data.get("metadata", {})
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except:
+                    meta = {}
+            meta["is_user_requested"] = True
+            
             if embedding:
                 await conn.execute(
                     """
@@ -356,7 +377,7 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
                     goal_text,
                     data.get("status"),
                     data.get("output"),
-                    json.dumps(data.get("metadata", {})),
+                    json.dumps(meta),
                     data.get("created_at", datetime.now(timezone.utc)),
                     datetime.now(timezone.utc),
                     str(embedding),
@@ -376,7 +397,7 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
                     goal_text,
                     data.get("status"),
                     data.get("output"),
-                    json.dumps(data.get("metadata", {})),
+                    json.dumps(meta),
                     data.get("created_at", datetime.now(timezone.utc)),
                     datetime.now(timezone.utc),
                 )
@@ -417,9 +438,10 @@ async def _cleanup_stale_tasks():
                     f"Task timed out after {STALE_THRESHOLD_SEC // 60}m (auto-cleanup)"
                 )
                 try:
-                    await redis_manager.update_task_status(
-                        task_id, "failed", result=f"Timeout after {STALE_THRESHOLD_SEC // 60}m"
-                    )
+                    if redis_manager:
+                        await redis_manager.update_task_status(
+                            task_id, "failed", result=f"Timeout after {STALE_THRESHOLD_SEC // 60}m"
+                        )
                 except Exception:
                     pass
                 logger.warning(
@@ -558,7 +580,7 @@ ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower(
 ORCHESTRATION_V2_PERCENTAGE = float(os.getenv("ORCHESTRATION_V2_PERCENTAGE", "10"))
 
 
-def _refresh_orchestration_v2_settings():
+def _refresh_orchestration_v2_settings_v2():
     global ORCHESTRATION_V2_ENABLED, ORCHESTRATION_V2_PERCENTAGE
     ORCHESTRATION_V2_ENABLED = os.getenv("ORCHESTRATION_V2_ENABLED", "false").lower() in (
         "1",
@@ -716,7 +738,7 @@ async def _preload_rag_cache():
 
 
 async def warmup_victoria():
-    """Прогрев: загружаем в Ollama все модели, используемые в синхронном пути (strategy + understand_goal + executor)."""
+    """Прогрев: загружаем модели. Если MLX доступен и модель там уже есть — Ollama прогрев пропускаем."""
     if os.getenv("VICTORIA_WARMUP_ENABLED", "true").lower() not in ("true", "1", "yes"):
         return
     models_to_warm = [
@@ -739,10 +761,26 @@ async def warmup_victoria():
     models_list = sorted(seen)
     logger.info("🔥 [VICTORIA] Прогрев Victoria: загрузка моделей %s...", models_list)
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    mlx_url = os.getenv("MLX_API_URL", "http://localhost:11435").rstrip("/")
     timeout_per_model = float(os.getenv("VICTORIA_WARMUP_TIMEOUT_PER_MODEL", "90"))
+
+    # Определяем какие модели уже загружены в MLX — не дублируем их в Ollama
+    mlx_cached: set = set()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as c:
+            r = await c.get(f"{mlx_url}/health")
+            if r.status_code == 200:
+                for m in r.json().get("cached_models", []):
+                    mlx_cached.add(m.get("name", ""))
+    except Exception:
+        pass
+
     async with httpx.AsyncClient(timeout=timeout_per_model) as client:
         for model in models_list:
             if not model:
+                continue
+            if model in mlx_cached or model.rstrip(":latest") in mlx_cached:
+                logger.info("⚡ [VICTORIA] Модель %s уже в MLX — пропускаем Ollama прогрев", model)
                 continue
             try:
                 r = await client.post(
@@ -855,18 +893,21 @@ async def lifespan(app: FastAPI):
                 if ko_root not in sys.path:
                     sys.path.insert(0, ko_root)
                 try:
-                    from app.victoria_enhanced import VictoriaEnhanced
+                    try:
+                        from app.victoria_enhanced import VictoriaEnhanced
+                    except ImportError:
+                        from victoria_enhanced import VictoriaEnhanced
 
                     logger.info("🚀 Инициализация Victoria Enhanced при старте сервера...")
                     victoria_enhanced_instance = VictoriaEnhanced()
-                    await victoria_enhanced_instance.start()
+                    await victoria_enhanced_instance.start()  # type: ignore[union-attr]
                     victoria_enhanced_monitoring_started = True
                     logger.info(
                         "✅ Victoria Enhanced запущен при старте сервера (мониторинг по ENABLE_EVENT_MONITORING)"
                     )
                     break
-                except ImportError as e:
-                    logger.debug(f"Не удалось импортировать VictoriaEnhanced из {ko_root}: {e}")
+                except ImportError as imp_e:
+                    logger.debug(f"Не удалось импортировать VictoriaEnhanced из {ko_root}: {imp_e}")
                     continue
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка запуска мониторинга при старте: {e}")
@@ -932,7 +973,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if victoria_enhanced_instance and victoria_enhanced_monitoring_started:
         try:
-            await victoria_enhanced_instance.stop()
+            await victoria_enhanced_instance.stop()  # type: ignore[union-attr]
             logger.info("🛑 Victoria Enhanced мониторинг остановлен")
         except Exception as e:
             logger.warning(f"⚠️ Ошибка остановки мониторинга: {e}")
@@ -989,7 +1030,7 @@ async def ip_rate_limit_middleware(request: Request, call_next):
 class VictoriaAgent(BaseAgent):
     """Виктория — Team Lead, использует оптимизированную конфигурацию моделей."""
 
-    def __init__(self, name: str = "Виктория", model_name: str = None):
+    def __init__(self, name: str = "Виктория", model_name: Optional[str] = None):
         logger.info("[VICTORIA_INIT] ========== VictoriaAgent initialization ==========")
 
         # Victoria выбирает модель из актуального списка Ollama+MLX (см. _ensure_best_available_models в run())
@@ -1106,12 +1147,16 @@ class VictoriaAgent(BaseAgent):
                     "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
                 )
                 _pool_cmd_timeout = int(os.getenv("VICTORIA_DB_POOL_COMMAND_TIMEOUT", "25"))
-                self.db_pool = await asyncpg.create_pool(
-                    db_url,
-                    min_size=1,
-                    max_size=5,
-                    command_timeout=_pool_cmd_timeout,
-                )
+                if asyncpg:
+                    self.db_pool = await asyncpg.create_pool(
+                        db_url,
+                        min_size=1,
+                        max_size=5,
+                        command_timeout=_pool_cmd_timeout,
+                    )
+                else:
+                    logger.error("❌ asyncpg не загружен, невозможно создать pool")
+                    return None
                 logger.info("✅ Knowledge OS Database pool создан")
             except Exception as e:
                 logger.error(f"❌ Ошибка создания pool Knowledge OS: {e}")
@@ -1513,7 +1558,7 @@ class VictoriaAgent(BaseAgent):
                     best_expert = expert_name
                     best_data = expert_data
 
-            if best_expert:
+            if best_expert and isinstance(best_data, dict):
                 logger.info(
                     f"✅ Выбран лучший эксперт: {best_expert} ({best_data.get('role')}) для задачи: {goal[:50]} (score: {best_score:.1f})"
                 )
@@ -2214,6 +2259,9 @@ Q: "покажи файлы в текущей директории" → План
         try:
             from app.available_models_scanner import OLLAMA_PRIORITY_BY_CATEGORY
             from app.model_selector import get_best_model_for_category
+        except ImportError:
+            from available_models_scanner import OLLAMA_PRIORITY_BY_CATEGORY
+            from model_selector import get_best_model_for_category
 
             # Используем селектор для выбора оптимальной модели
             best_model = await get_best_model_for_category(category, OLLAMA_PRIORITY_BY_CATEGORY)
@@ -2254,7 +2302,7 @@ Q: "покажи файлы в текущей директории" → План
                     )
                 # category=None → LocalAIRouter сам определит из промпта (fast/general/reasoning/coding)
                 # Это даёт автовыбор модели из MLX/Ollama в зависимости от сложности запроса
-                result, routing_source = await self.local_router.run_local_llm(
+                result, routing_source = await self.local_router.run_local_llm(  # type: ignore[arg-type]
                     prompt=prompt,
                     system_prompt=system_prompt,
                     category=None,  # автоопределение как в ai_core и worker
@@ -2451,8 +2499,8 @@ Q: "покажи файлы в текущей директории" → План
                 old_executor = getattr(self.executor, "model", "unknown")
                 old_planner = getattr(self.planner, "model", "unknown")
 
-                self.executor.model = executor_model
-                self.planner.model = planner_model
+                self.executor.model = executor_model or "victoria-wisdom-v3.5"
+                self.planner.model = planner_model or "victoria-wisdom-v3.5"
 
                 logger.info("[MODEL_SELECT] " + "=" * 60)
                 logger.info("[MODEL_SELECT] ✅ МОДЕЛИ ВЫБРАНЫ:")
@@ -2866,11 +2914,18 @@ async def _try_corporation_data_quick_response(
         if app_path not in sys.path:
             sys.path.insert(0, app_path)
         try:
-            from app.corporation_data_tool import (
-                _extract_latest_user_message,
-                is_data_question,
-                query_corporation_data,
-            )
+            try:
+                from app.corporation_data_tool import (
+                    _extract_latest_user_message,
+                    is_data_question,
+                    query_corporation_data,
+                )
+            except ImportError:
+                from corporation_data_tool import (
+                    _extract_latest_user_message,
+                    is_data_question,
+                    query_corporation_data,
+                )
 
             q = _extract_latest_user_message(goal) or goal
             if not is_data_question(goal) and not is_data_question(q):
@@ -3415,7 +3470,7 @@ async def _generate_clarification_questions(
 
 # Кэш understand_goal: key -> (result_dict, expiry_ts). TTL 300 с, макс. 200 записей.
 _understand_goal_cache: Dict[str, Tuple[dict, float]] = {}
-_UNDERSTAND_GOAL_CACHE_TTL = 300.0
+_UNDERSTAND_GOAL_CACHE_TTL: int = 300
 _UNDERSTAND_GOAL_CACHE_MAX = 200
 
 
@@ -3471,7 +3526,7 @@ async def _understand_goal_with_clarification(
                     f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
                 )
             else:
-                _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
+                _understand_goal_cache[key] = (result, now + float(_UNDERSTAND_GOAL_CACHE_TTL))
                 while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
                     k_old = min(
                         _understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1]
@@ -3489,7 +3544,7 @@ async def _understand_goal_with_clarification(
             f"understand_goal:{key}", result, ttl=_UNDERSTAND_GOAL_CACHE_TTL
         )
     else:
-        _understand_goal_cache[key] = (result, now + _UNDERSTAND_GOAL_CACHE_TTL)
+        _understand_goal_cache[key] = (result, now + float(_UNDERSTAND_GOAL_CACHE_TTL))
         while len(_understand_goal_cache) > _UNDERSTAND_GOAL_CACHE_MAX:
             k_old = min(_understand_goal_cache.keys(), key=lambda k: _understand_goal_cache[k][1])
             del _understand_goal_cache[k_old]
@@ -3512,7 +3567,10 @@ async def _enhance_goal_with_vision(goal: str, images_base64: List[str]) -> Opti
             if p not in sys.path:
                 sys.path.insert(0, p)
         try:
-            from app.vision_processor import VisionProcessor
+            try:
+                from app.vision_processor import VisionProcessor
+            except ImportError:
+                from vision_processor import VisionProcessor
 
             processor = VisionProcessor()
             prompt = "Опиши это изображение подробно: что на нём изображено, текст если есть, структура. Ответ на русском."
@@ -3619,14 +3677,14 @@ def _format_ide_context(request: TaskRequest) -> str:
             # Показываем первые 10 строк или около cursor_line
             if content:
                 lines = content.split("\n")
-                if cursor_line and cursor_line > 0:
-                    start = max(0, cursor_line - 5)
-                    end = min(len(lines), cursor_line + 5)
-                    snippet = "\n".join(lines[start:end])
-                    parts.append(f"     Lines {start + 1}-{end}:")
-                else:
-                    snippet = "\n".join(lines[:10])
-                    parts.append("     First 10 lines:")
+            if cursor_line and int(cursor_line) > 0:
+                start = max(0, int(cursor_line) - 5)
+                end = min(len(lines), int(cursor_line) + 5)
+                snippet = "\n".join(lines[start:end])
+                parts.append(f"     Lines {start + 1}-{end}:")
+            else:
+                snippet = "\n".join(lines[:10])
+                parts.append("     First 10 lines:")
 
                 # Добавляем отступ для сниппета
                 indented = "\n".join(f"       {line}" for line in snippet.split("\n"))
@@ -3777,22 +3835,25 @@ async def _get_long_term_memory_context(
                 if p not in sys.path:
                     sys.path.insert(0, p)
             try:
-                from app.long_term_memory import get_long_term_memory_manager
+                try:
+                    from app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    from long_term_memory import get_long_term_memory_manager
 
                 mgr = get_long_term_memory_manager()
 
-                # План «как я» п.1.1: семантический поиск по LTM при наличии эмбеддинга
+                # Plan п.1.1: семантический поиск по LTM при наличии эмбеддинга
                 embedding = None
-                if hasattr(self, "_last_query_embedding") and self._last_query_embedding:
-                    embedding = self._last_query_embedding
+                if hasattr(agent, "_last_query_embedding") and agent._last_query_embedding:
+                    embedding = agent._last_query_embedding
 
                 if embedding:
                     ctx = await mgr.get_relevant_threads(
-                        embedding, project_context, user_key=user_key, limit=limit, max_chars=600
+                        embedding, project_context or "unknown", user_key=user_key, limit=limit, max_chars=600
                     )
                 else:
                     ctx = await mgr.get_recent_threads(
-                        user_key, project_context, limit=limit, max_chars=600
+                        user_key, project_context or "unknown", limit=limit, max_chars=600
                     )
 
                 return (ctx or "").strip()
@@ -4139,11 +4200,16 @@ async def _run_task_background(
                 if _app and _app not in sys.path:
                     sys.path.insert(0, _app)
                 try:
-                    from app.recent_tasks_context import (
-                        get_recent_completed_tasks_context as _get_recent,
-                    )
+                    try:
+                        from app.recent_tasks_context import (
+                            get_recent_completed_tasks_context as _get_recent,
+                        )
+                    except ImportError:
+                        from recent_tasks_context import (
+                            get_recent_completed_tasks_context as _get_recent,
+                        )
 
-                    last_tasks_context = await _get_recent(project_context, limit=5) or ""
+                    last_tasks_context = await _get_recent(project_context or "unknown", limit=5) or ""
                     if last_tasks_context:
                         logger.info(
                             "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда» (фон)"
@@ -4497,7 +4563,7 @@ async def _run_task_background(
             enhanced_result = await enhanced.solve(
                 goal_for_enhanced_bg,
                 use_enhancements=True,
-                context=context_with_history if context_with_history else None,
+                context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
             )
             if enhanced_result is None or not isinstance(enhanced_result, dict):
                 store["status"] = "completed"
@@ -4772,9 +4838,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
     # ✅ SKILL DISCIPLINE: автоопределение и вызов скилла перед выполнением
     skill_context = None
-    if _lazy_skill_mapper():
+    _skill_mapper_cls = _lazy_skill_mapper()
+    if _skill_mapper_cls:
         try:
-            mapper = _lazy_skill_mapper()()
+            mapper = _skill_mapper_cls()
             skill_info = mapper.classify_task(body.goal)
             if skill_info:
                 logger.info(
@@ -4802,7 +4869,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
         enriched_goal = body.goal
         if skill_context:
             enriched_goal = skill_context + body.goal
-            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Применяется скилл', 'content': skill_info['description']})}\n\n"
+            yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Применяется скилл', 'content': skill_info.get('description', '') if skill_info else ''})}\n\n"
 
         # ✅ B.3: IDE Context (как в Cursor)
         ide_context = _format_ide_context(body)
@@ -4917,7 +4984,15 @@ async def run_task_stream(body: TaskRequest, request: Request):
                             yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                             await asyncio.sleep(0.02)
                 elif isinstance(result, JSONResponse):
-                    data = json.loads(result.body)
+                    body_bytes = result.body
+                    if isinstance(body_bytes, (bytes, memoryview)):
+                        if isinstance(body_bytes, memoryview):
+                            body_str = bytes(body_bytes).decode()
+                        else:
+                            body_str = body_bytes.decode()
+                    else:
+                        body_str = body_bytes
+                    data = json.loads(body_str)
                     yield f"data: {json.dumps({'type': 'error', 'content': data.get('message', 'Ошибка')})}\n\n"
             except Exception as e:
                 logger.error("Stream expert path error: %s", e, exc_info=True)
@@ -4941,6 +5016,7 @@ async def run_task(
     async_mode=true: возвращает 202 + task_id, задача выполняется в фоне; результат — через GET /run/status/{task_id}.
     Заголовок X-Correlation-ID опционален; при отсутствии генерируется UUID для трассировки.
     """
+    global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
 
     # === REQUEST FLOW TRACING ===
@@ -5615,7 +5691,7 @@ async def run_task(
                         enhanced_result = await enhanced.solve(
                             goal_for_enhanced,
                             use_enhancements=True,
-                            context=context_with_history if context_with_history else None,
+                            context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
                         )
                         logger.info(
                             f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
@@ -5840,9 +5916,9 @@ async def batch_read_endpoint(request: BatchReadRequest):
 
         results = await batch_read_files(
             file_paths=request.file_paths,
-            workspace_path=request.workspace_path,
-            max_concurrent=request.max_concurrent,
-            max_file_size_mb=request.max_file_size_mb,
+            workspace_path=request.workspace_path or "/Users/bikos/Documents/atra-web-ide",
+            max_concurrent=request.max_concurrent or 10,
+            max_file_size_mb=request.max_file_size_mb or 1,
         )
 
         success_count = sum(1 for r in results if r["status"] == "success")
@@ -5874,9 +5950,9 @@ async def batch_grep_endpoint(request: BatchGrepRequest):
         results = await batch_grep_files(
             pattern=request.pattern,
             file_paths=request.file_paths,
-            workspace_path=request.workspace_path,
-            case_sensitive=request.case_sensitive,
-            max_concurrent=request.max_concurrent,
+            workspace_path=request.workspace_path or "/Users/bikos/Documents/atra-web-ide",
+            case_sensitive=request.case_sensitive if request.case_sensitive is not None else False,
+            max_concurrent=request.max_concurrent or 10,
         )
 
         total_matches = sum(r["match_count"] for r in results)
@@ -5994,7 +6070,6 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         project_context=os.getenv("MAIN_PROJECT", "atra-web-ide"),
         session_id=f"openai-{correlation_id[:8]}",
         chat_history=chat_history,
-        async_mode=False,  # Open WebUI ожидает синхронный ответ или стрим
         use_enhanced=True,  # Всегда используем Enhanced для OpenAI API (Open WebUI)
     )
 
@@ -6007,7 +6082,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         # Ищем последние 5 обменов для этого пользователя/проекта
         memory_context = await ltm.get_recent_threads(
             user_key=f"openai-{correlation_id[:8]}",
-            project_context=task_req.project_context,
+            project_context=task_req.project_context or "unknown",
             limit=5,
         )
         if memory_context:
@@ -6038,7 +6113,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
     # [SINGULARITY 16.1] Omni-RAG: Telegram Notification Hook
     # Если запрос пришел от Telegram (по session_id или метаданным), можно добавить логику уведомлений
-    if task_req.session_id.startswith("tg-"):
+    if task_req.session_id and task_req.session_id.startswith("tg-"):
         logger.info(f"📱 [OMNI-RAG] Telegram request detected: {task_req.session_id}")
 
     # --- РЕАЛИЗАЦИЯ СТРИМИНГА (OPENAI COMPATIBLE) ---
@@ -6092,7 +6167,15 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 if result is None:
                     pass  # full_response_content уже задан выше
                 elif isinstance(result, JSONResponse):
-                    body_data = json.loads(result.body.decode())
+                    body_bytes = result.body
+                    if isinstance(body_bytes, (bytes, memoryview)):
+                        if isinstance(body_bytes, memoryview):
+                            body_str = bytes(body_bytes).decode()
+                        else:
+                            body_str = body_bytes.decode()
+                    else:
+                        body_str = body_bytes
+                    body_data = json.loads(body_str)
                     if "clarification_questions" in body_data:
                         questions = body_data["clarification_questions"]
                         full_response_content = "🤔 Мне нужно уточнить несколько деталей, чтобы выполнить задачу максимально точно:\n\n"
@@ -6138,12 +6221,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
                 # Сохраняем в память (фоном)
                 try:
-                    from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+                    from app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    from long_term_memory import get_long_term_memory_manager
 
                     ltm = get_long_term_memory_manager()
                     await ltm.save_thread(
                         user_key=f"openai-{correlation_id[:8]}",
-                        project_context=task_req.project_context,
+                        project_context=task_req.project_context or "unknown",
                         goal_summary=user_messages[-1].content[:200],
                         outcome_summary=(full_response_content or "")[:200],
                     )
@@ -6183,7 +6268,15 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
         # Если вернулся JSONResponse (например, 202), извлекаем реальный результат
         if isinstance(result, JSONResponse):
-            body_data = json.loads(result.body.decode())
+            body_bytes = result.body
+            if isinstance(body_bytes, (bytes, memoryview)):
+                if isinstance(body_bytes, memoryview):
+                    body_str = bytes(body_bytes).decode()
+                else:
+                    body_str = body_bytes.decode()
+            else:
+                body_str = body_bytes
+            body_data = json.loads(body_str)
             if "clarification_questions" in body_data:
                 questions = body_data["clarification_questions"]
                 output_text = "🤔 Мне нужно уточнить несколько деталей:\n\n"
@@ -6200,13 +6293,16 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
         # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
         try:
-            from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+            try:
+                from app.long_term_memory import get_long_term_memory_manager
+            except ImportError:
+                from long_term_memory import get_long_term_memory_manager
 
             ltm = get_long_term_memory_manager()
             # Сохраняем краткую версию (первые 200 символов)
             await ltm.save_thread(
                 user_key=f"openai-{correlation_id[:8]}",
-                project_context=task_req.project_context,
+                project_context=task_req.project_context or "unknown",
                 goal_summary=user_messages[-1].content[:200],
                 outcome_summary=output_text[:200],
             )
@@ -6501,7 +6597,7 @@ async def get_hidden_thoughts(session_id: str):
 
         from app.victoria_enhanced import VictoriaEnhanced
 
-        thoughts = VictoriaEnhanced.get_hidden_thoughts(session_id)
+        thoughts = VictoriaEnhanced.get_hidden_thoughts(session_id)  # type: ignore[attr-defined]
 
         if thoughts:
             return {"status": "success", "session_id": session_id, "thoughts": thoughts}
@@ -6530,7 +6626,7 @@ async def omni_rag_search(request: OmniSearchRequest):
         logger.info(f"🔍 [OMNI-RAG] Search request: {request.query} (domain: {request.domain})")
 
         results = await enhanced_search_knowledge(
-            query=request.query, domain=request.domain, mode=SearchMode.HYBRID, limit=request.limit
+            query=request.query, domain=request.domain, mode=SearchMode.HYBRID, limit=request.limit or 3
         )
         return results
     except Exception as e:

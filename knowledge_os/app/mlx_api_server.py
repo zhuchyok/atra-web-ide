@@ -204,7 +204,7 @@ _cache_cleanup_interval_sec = int(os.getenv("MLX_CACHE_CLEANUP_INTERVAL_SEC", "6
 # Модели для предзагрузки при старте (можно изменить через MLX_PRELOAD_MODELS)
 # По умолчанию: victoria-wisdom-v3.5, phi3.5, qwen2.5
 _HEAVY_KEYS_NO_PRELOAD = set()  # Разрешаем предзагрузку всех указанных моделей
-_preload_models_env = os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-v3.5,fast,qwen2.5:3b")
+_preload_models_env = os.getenv("MLX_PRELOAD_MODELS", "victoria-wisdom-v3.5,fast")
 _preload_models = [m.strip() for m in _preload_models_env.split(",") if m.strip()]
 
 # Конфигурация моделей (пути к MLX моделям)
@@ -365,7 +365,7 @@ class GenerateRequest(BaseModel):
     prompt: str
     model: Optional[str] = None
     category: Optional[str] = None
-    max_tokens: int = 512
+    max_tokens: int = 32768
     temperature: float = 0.7
     stream: bool = False
 
@@ -760,7 +760,20 @@ def get_model(model_key: str):
                 f"🔄 Загрузка модели: {model_key} из {model_path} (память: {memory_info['used_percent'] * 100:.1f}%)"
             )
             load_start = time.time()
-            model, tokenizer = load(model_path)
+            
+            # [SINGULARITY 22.6] Dynamic KV Cache Management
+            # Настраиваем квантование KV Cache в зависимости от доступной памяти
+            kv_config = {}
+            if memory_info["available_gb"] < 16:
+                kv_config = {"kv_cache_quantization": "q4"}
+                logger.info(f"💾 [SINGULARITY 22.6] Low memory ({memory_info['available_gb']:.1f}GB), using Q4 KV Cache")
+            elif memory_info["available_gb"] < 32:
+                kv_config = {"kv_cache_quantization": "q8"}
+                logger.info(f"💾 [SINGULARITY 22.6] Moderate memory ({memory_info['available_gb']:.1f}GB), using Q8 KV Cache")
+            else:
+                logger.info(f"💾 [SINGULARITY 22.6] Sufficient memory ({memory_info['available_gb']:.1f}GB), using FP16 KV Cache")
+
+            model, tokenizer = load(model_path, **kv_config)
             load_duration = time.time() - load_start
 
             _models_cache[model_key] = {
@@ -1043,10 +1056,10 @@ async def chat(request: ChatRequest, http_request: Request):
 
     # Извлекаем параметры из options
     temperature = 0.7
-    max_tokens = 512
+    max_tokens = 32768
     if request.options:
         temperature = request.options.get("temperature", 0.7)
-        max_tokens = request.options.get("num_predict", 512)
+        max_tokens = request.options.get("num_predict", 32768)
 
     # Создаём GenerateRequest
     gen_request = GenerateRequest(
@@ -1144,9 +1157,33 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 loop = asyncio.get_event_loop()
                 try:
 
-                    def generate_with_lock():
-                        """Генерация с глобальной блокировкой Metal для защиты от конфликтов"""
-                        with _metal_global_lock:
+                # [SINGULARITY 22.2] Speculative Decoding (35B + 1B)
+                # Если используется тяжелая модель (например, Qwen-35B), 
+                # мы можем использовать легкую модель (например, Phi-3.5-mini) для спекулятивного декодирования.
+                # Это ускоряет инференс в 1.5-2 раза.
+                use_speculative = os.getenv("MLX_SPECULATIVE_DECODING", "true").lower() == "true"
+                draft_model_data = None
+                if use_speculative and model_key in ("reasoning", "coding", "qwen-35b"):
+                    try:
+                        draft_model_data = get_model("phi-3.5-mini")
+                        logger.info(f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi-3.5-mini")
+                    except Exception as e:
+                        logger.debug(f"⚠️ [SINGULARITY 22.2] Failed to load draft model: {e}")
+
+                def generate_with_lock():
+                    """Генерация с глобальной блокировкой Metal для защиты от конфликтов"""
+                    with _metal_global_lock:
+                        if draft_model_data:
+                            # Спекулятивное декодирование через mlx_lm.generate
+                            return generate(
+                                model,
+                                tokenizer,
+                                prompt=request.prompt,
+                                max_tokens=request.max_tokens,
+                                draft_model=draft_model_data["model"],
+                                draft_tokenizer=draft_model_data["tokenizer"]
+                            )
+                        else:
                             return generate(
                                 model,
                                 tokenizer,

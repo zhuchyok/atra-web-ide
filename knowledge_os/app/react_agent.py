@@ -147,15 +147,59 @@ class ReActAgent:
         """
         Think - рассуждение о текущей ситуации
         """
+        print("DEBUG_PRINT: think() called")
         # Строим промпт для рассуждения
         prompt = self._build_think_prompt(goal, context)
+        print(f"DEBUG_PRINT: think prompt built, length: {len(prompt)}")
 
         # Генерируем рассуждение через модель
         thought = await self._generate_response(prompt)
+        print(f"DEBUG_PRINT: think response received, length: {len(thought) if thought else 0}")
 
-        logger.info(f"🤔 [{self.agent_name}] Think: {thought[:100]}...")
+        logger.info(f"🤔 [{self.agent_name}] Think: {thought[:100] if thought else 'None'}...")
 
         return thought
+
+    def _get_relevant_tools(self, goal: str, all_tools: List[str]) -> List[str]:
+        """
+        [SINGULARITY 21.34] Progressive Tool Disclosure:
+        Фильтрует список доступных инструментов на основе цели задачи для повышения точности.
+        """
+        goal_lower = goal.lower()
+        
+        # Если инструментов мало, отдаем все
+        if len(all_tools) <= 5:
+            return all_tools
+            
+        relevant = []
+        
+        # Группы инструментов
+        fs_tools = ["read_file", "write_file", "edit_file", "list_files", "grep_search", "batch_read", "batch_grep", "apply_patch", "create_file"]
+        web_tools = ["web_search", "fetch_url", "searxng_search", "google_search"]
+        system_tools = ["execute_command", "get_server_status", "restart_service", "docker_ps", "get_logs"]
+        
+        # Логика фильтрации
+        is_fs_task = any(kw in goal_lower for kw in ["файл", "код", "директори", "папк", "read", "write", "edit", "patch", "аудит", "file"])
+        is_web_task = any(kw in goal_lower for kw in ["найти в сети", "поиск", "интернет", "url", "сайт", "web", "search"])
+        is_system_task = any(kw in goal_lower for kw in ["сервер", "процесс", "docker", "контейнер", "restart", "status", "command", "log"])
+        
+        if is_fs_task:
+            relevant.extend([t for t in fs_tools if t in all_tools])
+        if is_web_task:
+            relevant.extend([t for t in web_tools if t in all_tools])
+        if is_system_task:
+            relevant.extend([t for t in system_tools if t in all_tools])
+            
+        # Всегда добавляем базовые инструменты
+        base_tools = ["finish", "ask_question", "think", "delegate_task"]
+        relevant.extend([t for t in base_tools if t in all_tools])
+        
+        # Если ничего не подошло, отдаем все (fallback)
+        if not relevant:
+            return all_tools
+            
+        # Удаляем дубликаты
+        return list(set(relevant))
 
     async def act(self, thought: str, available_tools: List[str] = None) -> Tuple[str, Dict]:
         """
@@ -186,6 +230,10 @@ class ReActAgent:
                     "search_knowledge",  # Поиск в базе знаний
                     "finish",  # Завершение задачи
                 ]
+
+        # [SINGULARITY 21.34] Progressive Tool Disclosure
+        available_tools = self._get_relevant_tools(self.initial_goal or "", available_tools)
+        logger.info(f"🎯 [PROGRESSIVE DISCLOSURE] Filtered to {len(available_tools)} relevant tools")
 
         # [SILENT THOUGHT] Внутренний аудит перед действием
         silent_audit_prompt = f"""Ты - Виктория. Перед тем как выбрать инструмент, проведи внутренний аудит.
@@ -264,6 +312,7 @@ class ReActAgent:
         """
         Запустить полный ReAct цикл
         """
+        print(f"DEBUG_PRINT: run() started for goal: {goal[:50]}")
         self.memory.goal = goal
         self.memory.current_state = ReActState.THINK
         self.memory.iteration = 0
@@ -272,19 +321,25 @@ class ReActAgent:
 
         while self.memory.iteration < self.memory.max_iterations:
             self.memory.iteration += 1
+            print(f"DEBUG_PRINT: Iteration {self.memory.iteration}, state: {self.memory.current_state}")
 
             try:
                 # 1. Think
                 if self.memory.current_state == ReActState.THINK:
+                    print("DEBUG_PRINT: Entering think state")
                     thought = await self.think(goal, context)
+                    print(f"DEBUG_PRINT: Think finished, thought length: {len(thought) if thought else 0}")
                     step = ReActStep(state=ReActState.THINK, thought=thought)
                     self.memory.steps.append(step)
                     self.memory.current_state = ReActState.ACT
+                    print("DEBUG_PRINT: State changed to ACT")
 
                 # 2. Act
                 elif self.memory.current_state == ReActState.ACT:
+                    print("DEBUG_PRINT: Entering act state")
                     last_step = self.memory.steps[-1]
                     action, action_input = await self.act(last_step.thought)
+                    print(f"DEBUG_PRINT: Act finished, action: {action}")
 
                     # Проверяем, не финальное ли это действие
                     if action == "finish":
@@ -653,11 +708,23 @@ class ReActAgent:
             response_clean = re.sub(r"<think>.*", "", response_clean, flags=re.DOTALL).strip()
 
         # [SINGULARITY 21.6] Fix: Try to find ANY JSON block if the specific "action" pattern fails
-        json_blocks = re.findall(r"```(?:json)?\s*(\{.*)", response_clean, re.DOTALL)
+        json_blocks = re.findall(r"```(?:json)?\s*([\{\[].*?)```", response_clean, re.DOTALL)
+
+        # [SINGULARITY 21.26] Fix: If the model returns JSON with trailing backticks but not in a proper block
+        if not json_blocks and "```" in response_clean:
+            # Try to find JSON between backticks or before backticks
+            json_blocks = re.findall(r"([\{\[].*?)(?:```|$)", response_clean, re.DOTALL)
 
         # Если не нашли в блоках, ищем просто по тексту
         if not json_blocks:
-            json_blocks = re.findall(r"(\{.*)", response_clean, re.DOTALL)
+            # [SINGULARITY 21.27] Fix: Handle case where JSON is not enclosed in backticks at all
+            # We look for something that looks like a JSON object or array
+            # Starting with { or [ and ending with } or ]
+            json_blocks = re.findall(r"([\{\[].*[\}\]])", response_clean, re.DOTALL)
+            
+            # If still not found, fallback to greedier match
+            if not json_blocks:
+                json_blocks = re.findall(r"([\{\[].*)", response_clean, re.DOTALL)
 
         if json_blocks:
             # Пробуем парсить блоки с конца (обычно финальное действие в конце)
@@ -670,7 +737,8 @@ class ReActAgent:
                         block_clean = block_clean.split("```")[0].strip()
 
                     # 2. Пытаемся найти корректный конец JSON по балансу скобок
-                    balance = 0
+                    balance_curly = 0
+                    balance_square = 0
                     last_valid_index = -1
                     in_string = False
                     escape_next = False
@@ -687,12 +755,17 @@ class ReActAgent:
                             continue
                         if not in_string:
                             if char == "{":
-                                balance += 1
+                                balance_curly += 1
                             elif char == "}":
-                                balance -= 1
-                                if balance == 0:
-                                    last_valid_index = i
-                                    break
+                                balance_curly -= 1
+                            elif char == "[":
+                                balance_square += 1
+                            elif char == "]":
+                                balance_square -= 1
+                            
+                            if balance_curly == 0 and balance_square == 0:
+                                last_valid_index = i
+                                break
 
                     if last_valid_index != -1:
                         block_to_parse = block_clean[: last_valid_index + 1]
@@ -703,8 +776,20 @@ class ReActAgent:
                             block_to_parse += "}" * (
                                 block_to_parse.count("{") - block_to_parse.count("}")
                             )
+                        if block_to_parse.count("[") > block_to_parse.count("]"):
+                            block_to_parse += "]" * (
+                                block_to_parse.count("[") - block_to_parse.count("]")
+                            )
 
                     action_data = json.loads(block_to_parse)
+                    
+                    # Если это список, берем первый элемент (если он есть)
+                    if isinstance(action_data, list) and action_data:
+                        action_data = action_data[0]
+                    
+                    if not isinstance(action_data, dict):
+                        continue
+
                     action = action_data.get("action")
                     action_input = action_data.get("input", {})
 
@@ -1123,88 +1208,60 @@ class ReActAgent:
         finish_keywords = ["цель достигнута", "задача выполнена", "готово", "завершено", "успешно"]
         return any(keyword in reflection.lower() for keyword in finish_keywords)
 
-    async def _generate_response(self, prompt: str) -> str:
+    async def _generate_response(self, prompt: str, max_tokens: int = 2048) -> str:
         """Генерировать ответ через модель с динамическим выбором из доступных"""
         import httpx
 
+        # [SINGULARITY 21.15] Определение типа задачи для выбора между Мозгом (MLX) и Руками (Ollama)
+        # Если в промпте есть "ТВОЕ РАССУЖДЕНИЕ" или "ВЫБЕРИ действие", это шаг исполнения (руки).
+        # Если промпт про стратегию или архитектуру — это мозг.
+        is_reasoning_task = any(kw in prompt.lower() for kw in ["стратегия", "архитектура", "план", "анализ"])
+        
+        # [SINGULARITY 21.25] Принудительное использование Ollama если указано в промпте
+        force_ollama = "[force_ollama]" in prompt or "preferred_source: ollama" in prompt.lower()
+        if force_ollama:
+            logger.info("⚡ [REACT] Принудительное использование Ollama (force_ollama)")
+            is_reasoning_task = False
+        
         # [SINGULARITY 21.6] Force Wisdom 30B for all steps if configured
         _force_model = os.getenv("VICTORIA_FORCE_STEP_MODEL")
         if _force_model:
             logger.info(f"🎯 [GOD MODE] Forcing model {_force_model} for ReAct step")
             models_to_try = [_force_model]
         else:
-            # Динамический выбор моделей через сканер
-            is_docker = (
-                os.path.exists("/.dockerenv")
-                or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
-            )
-            ollama_url = os.getenv(
-                "OLLAMA_BASE_URL",
-                "http://host.docker.internal:11434" if is_docker else "http://localhost:11434",
-            )
-            mlx_url = os.getenv(
-                "MLX_API_URL",
-                "http://host.docker.internal:11435" if is_docker else "http://localhost:11435",
-            )
-
-            # КЭШИРОВАНИЕ СПИСКА МОДЕЛЕЙ (Сингулярность 10.0: Оптимизация скорости)
-            # Модели-тяжеловесы, которые нельзя подгружать через fallback — они блокируют Ollama
-            BLOCKED_HEAVY_MODELS = {
-                "qwq:32b",
-                "qwen2.5-coder:32b",
-                "deepseek-r1:32b",
-                "qwen3.5:35b",
-            }
-
+            # [SINGULARITY 21.28] Fix: Initialize _models_to_try_cache if not present
             if not hasattr(self, "_models_to_try_cache"):
-                models_to_try = [self.model_name]
+                # По умолчанию используем модель, переданную в конструктор
+                self._models_to_try_cache = [self.model_name]
+                
+                # Попытка добавить альтернативные модели (Ollama)
                 try:
-                    try:
-                        from available_models_scanner import scan_and_select_models
-                    except ImportError:
-                        from app.available_models_scanner import scan_and_select_models
-                    selection = await scan_and_select_models(mlx_url, ollama_url)
-
-                    # Добавляем только лучшую модель Ollama (не весь список!)
-                    if (
-                        selection.ollama_best
-                        and selection.ollama_best not in models_to_try
-                        and selection.ollama_best not in BLOCKED_HEAVY_MODELS
-                    ):
-                        models_to_try.append(selection.ollama_best)
-
-                    # Добавляем лёгкие MLX-модели как быстрый fallback
-                    if selection.mlx_best and selection.mlx_best not in models_to_try:
-                        models_to_try.append(selection.mlx_best)
-
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка сканирования моделей в ReActAgent: {e}")
-                    # Fallback только лёгкие модели — никаких тяжёлых
-                    fallback_models = [
-                        "glm-4.7-flash:latest",
-                        "tinyllama:1.1b-chat",
-                    ]
-                    for m in fallback_models:
-                        if m not in models_to_try:
-                            models_to_try.append(m)
-                self._models_to_try_cache = models_to_try
-
+                    import httpx
+                    # Не блокируем инициализацию долгим сканированием, просто добавляем базовые
+                    # В будущем здесь можно сделать асинхронное сканирование
+                    pass
+                except Exception:
+                    pass
+            
             models_to_try = self._models_to_try_cache
 
-        # Таймаут 120с — тяжёлые модели (qwq:32b и т.п.) в список не попадают
-        request_timeout_sec = 120.0
-
-        logger.info(f"🔍 [GENERATE] Модели для попытки: {models_to_try}")
+        # Таймаут на LLM вызов
+        request_timeout_sec = float(os.getenv("SMART_WORKER_LLM_TIMEOUT", "600"))
 
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(request_timeout_sec, connect=60.0)
         ) as client:
             for model in models_to_try:
-                # Определяем URL для модели (MLX или Ollama)
-                # В данной реализации пробуем оба источника
-                urls = [self.ollama_url, self.mlx_url]
+                # [SINGULARITY 21.15] Балансировка Мозг/Руки:
+                # Для задач размышления (reasoning) — MLX первым.
+                # Для задач действия (acting/steps) — Ollama первым, чтобы не забивать мозг.
+                if is_reasoning_task:
+                    urls = [u for u in [self.mlx_url, self.ollama_url] if u]
+                else:
+                    urls = [u for u in [self.ollama_url, self.mlx_url] if u]
 
                 for llm_url in urls:
+
                     if not llm_url:
                         continue
                     try:
@@ -1227,9 +1284,15 @@ class ReActAgent:
                                     f"✅ [GENERATE] Модель {model} вернула ответ ({len(result)} симв.)"
                                 )
                                 return result
+                        elif response.status_code == 503:
+                            logger.warning(f"⚠️ [GENERATE] 503 Service Unavailable на {llm_url}, пробуем следующую URL...")
+                            continue
                         elif response.status_code == 404:
                             logger.warning(f"⚠️ [GENERATE] 404 на {llm_url} модель={model}")
                             continue
+                    except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.WriteTimeout) as e:
+                        logger.warning(f"⏱️ [GENERATE] Таймаут на {llm_url} ({repr(e)}), пробуем следующую URL...")
+                        continue
                     except Exception as e:
                         logger.warning(f"⚠️ [GENERATE] Ошибка модели {model}: {repr(e)}")
                         continue

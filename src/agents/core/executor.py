@@ -1,7 +1,10 @@
 import asyncio
+import hashlib
 import json
 import logging
 import os
+import re
+import sys
 import time
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
@@ -103,10 +106,10 @@ def _mlx_base_url() -> str:
 class OllamaExecutor:
     """Исполнитель запросов к Ollama / MLX API с автоматическим fallback"""
 
-    def __init__(self, model: str = None, base_url: Optional[str] = None):
+    def __init__(self, model: Optional[str] = None, base_url: Optional[str] = None):
         # Автовыбор модели: если не указана, будет выбрана при первом запросе через сканирование Ollama
-        self.model = model or os.getenv("VICTORIA_MODEL") or os.getenv("VERONICA_MODEL") or "auto"
-        self.base_url = base_url or _ollama_base_url()
+        self.model: str = model or os.getenv("VICTORIA_MODEL") or os.getenv("VERONICA_MODEL") or "auto"
+        self.base_url: str = base_url or _ollama_base_url()
         self._model_resolved = False  # Флаг: модель уже выбрана из актуального списка
 
         # === FALLBACK CONFIGURATION ===
@@ -237,7 +240,7 @@ A: {"thought": "Выполню ls для текущей директории", "
         try:
             # Try to import from knowledge_os
             sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
-            from semantic_cache import SemanticAICache
+            from semantic_cache import SemanticAICache  # type: ignore # [SINGULARITY 21.13] Dynamic import from knowledge_os
 
             self._cache_manager = SemanticAICache(db_url=os.getenv("DATABASE_URL"))
             logger.info("[CACHE] ✅ SemanticAICache manager initialized")
@@ -277,8 +280,6 @@ A: {"thought": "Выполню ls для текущей директории", "
         ]
 
         # Check for exact word matches to avoid false positives (e.g. "catalog" containing "cat")
-        import re
-
         for pattern in non_cacheable:
             if re.search(rf"\b{re.escape(pattern)}\b", lower_prompt):
                 return False
@@ -292,7 +293,7 @@ A: {"thought": "Выполню ls для текущей директории", "
     async def ask(
         self,
         prompt: str,
-        history: List[Dict[str, str]] = None,
+        history: Optional[List[Dict[str, str]]] = None,
         raw_response: bool = False,
         phase: Optional[str] = None,
         blocked_tools: Optional[List[str]] = None,
@@ -312,8 +313,6 @@ A: {"thought": "Выполню ls для текущей директории", "
         cache_key = f"{expert_name}:{model or self.model}:{system or ''}:{prompt}"
         if self.use_semantic_cache and self._is_cacheable(prompt):
             # L1: Exact Match (Hash)
-            import hashlib
-
             hash_key = hashlib.md5(cache_key.encode()).hexdigest()
             if hash_key in self._local_hash_cache:
                 logger.info(f"[CACHE_HIT] 🎯 L1 (Hash) hit for expert {expert_name}")
@@ -401,8 +400,6 @@ A: {"thought": "Выполню ls для текущей директории", "
                 error_keywords = ["ошибка", "error", "не могу", "не удалось", "failed"]
                 if not any(kw in content_to_cache.lower() for kw in error_keywords):
                     # Save to L1
-                    import hashlib
-
                     hash_key = hashlib.md5(cache_key.encode()).hexdigest()
                     self._local_hash_cache[hash_key] = content_to_cache
 
@@ -440,7 +437,7 @@ A: {"thought": "Выполню ls для текущей директории", "
             try:
                 # Lazy import to avoid circular dependencies
                 sys.path.insert(0, os.path.join(os.getcwd(), "knowledge_os/app"))
-                from mac_studio_monitor import get_mac_studio_monitor
+                from mac_studio_monitor import get_mac_studio_monitor  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
 
                 monitor = get_mac_studio_monitor()
                 stats = await monitor.get_full_stats()
@@ -466,7 +463,7 @@ A: {"thought": "Выполню ls для текущей директории", "
 
                 # 3. MLX Load check (if available)
                 try:
-                    from mlx_monitor import get_mlx_monitor
+                    from mlx_monitor import get_mlx_monitor  # type: ignore # [SINGULARITY 21.14] Dynamic import from knowledge_os
 
                     mlx_monitor = get_mlx_monitor()
                     health_score = mlx_monitor.get_health_score()
@@ -487,7 +484,7 @@ A: {"thought": "Выполню ls для текущей директории", "
     async def _ask_with_fallback(
         self,
         prompt: str,
-        history: List[Dict[str, str]],
+        history: Optional[List[Dict[str, str]]],
         raw_response: bool,
         model: str,
         base_url: str,
@@ -747,7 +744,7 @@ A: {"thought": "Выполню ls для текущей директории", "
                     data = json.loads(json_str)
                     logger.info(f"[LLM_PARSE] JSON parsed successfully, keys: {list(data.keys())}")
                 except json.JSONDecodeError as je:
-                    logger.warning(f"[LLM_PARSE] JSON decode failed: {je}, trying ast.literal_eval")
+                    logger.warning(f"[LLM_PARSE] JSON decode failed: {je}")
                     # Если модель выдала одинарные кавычки (Python style), пробуем исправить
                     import ast
 

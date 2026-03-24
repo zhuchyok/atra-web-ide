@@ -1353,14 +1353,14 @@ class LocalAIRouter:
 
                         # Увеличиваем таймаут для reasoning задач (Совет, стратегия)
                         if category == "reasoning":
-                            _node_timeout = max(_node_timeout, 600.0)
+                            _node_timeout = max(_node_timeout, 1800.0)
                             logger.info(f"🕒 [REASONING] Увеличен таймаут до {_node_timeout}с")
 
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг, увеличиваем таймаут до 10 минут
                         if getattr(self, "force_local", False):
-                            _node_timeout = 600.0
+                            _node_timeout = 1800.0
                             logger.info(
-                                "🚀 [MONSTER] Увеличен таймаут HTTP до 600с для форсированного локального роутинга."
+                                "🚀 [MONSTER] Увеличен таймаут HTTP до 1800с для форсированного локального роутинга."
                             )
 
                         try:
@@ -1384,7 +1384,7 @@ class LocalAIRouter:
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, или используется тяжелая модель, используем стриминг для предотвращения ReadTimeout
                         is_heavy_model = any(
                             heavy in str(model).lower()
-                            for heavy in ["32b", "30b", "70b", "104b", "qwq"]
+                            for heavy in ["32b", "30b", "70b", "104b", "qwq", "victoria-wisdom-v3.5"]
                         )
                         if (
                             getattr(self, "force_local", False)

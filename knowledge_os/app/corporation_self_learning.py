@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -208,15 +209,27 @@ class CorporationSelfLearning:
         try:
             pool = await self.get_pool()
             async with pool.acquire() as conn:
-                res = await conn.execute("""
-                    UPDATE tasks
-                    SET status = 'pending',
-                        metadata = metadata - 'last_error'
-                    WHERE status = 'in_progress'
-                    AND (metadata->>'last_error' = 'timeout' OR updated_at < NOW() - INTERVAL '30 minutes');
-                """)
-                if res != "UPDATE 0":
-                    logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
+                # Проверяем backpressure ПЕРЕД сбросом зависших задач.
+                # Если очередь уже переполнена — не добавляем в неё ещё задач.
+                pending_count_row = await conn.fetchrow(
+                    "SELECT COUNT(*) FROM tasks WHERE status = 'pending'"
+                )
+                pending_count = pending_count_row[0] if pending_count_row else 0
+                max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "80"))
+                if pending_count >= max_pending // 2:
+                    logger.warning(
+                        f"⏸️ [SELF-HEALING] Пропускаем reset stuck задач: очередь {pending_count}/{max_pending} уже заполнена"
+                    )
+                else:
+                    res = await conn.execute("""
+                        UPDATE tasks
+                        SET status = 'pending',
+                            metadata = metadata - 'last_error'
+                        WHERE status = 'in_progress'
+                        AND (metadata->>'last_error' = 'timeout' OR updated_at < NOW() - INTERVAL '30 minutes');
+                    """)
+                    if res != "UPDATE 0":
+                        logger.info(f"🛡️ [SELF-HEALING] Автоматически сброшено зависших задач: {res}")
         except Exception as e:
             logger.error(f"❌ [SELF-HEALING] Ошибка при автоочистке: {e}")
         for improvement in improvements:

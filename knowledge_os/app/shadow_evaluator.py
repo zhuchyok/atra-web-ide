@@ -84,7 +84,7 @@ VERDICT:"""
         try:
             # Вызываем локальную модель-судью
             result = await self.router.run_local_llm(
-                judge_prompt, category="reasoning", model_hint=self.judge_model, timeout=600.0
+                judge_prompt, category="reasoning", model_hint=self.judge_model, timeout=1800.0
             )
 
             raw_response = result[0] if isinstance(result, tuple) else result

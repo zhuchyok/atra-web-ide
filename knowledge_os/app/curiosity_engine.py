@@ -108,7 +108,7 @@ class CuriosityEngine:
                         task_desc,
                         victoria_id,
                         tech_domain_id,
-                        json.dumps({"source": "curiosity_engine", "gap": gap}),
+                        json.dumps({"source": "curiosity_engine", "gap": gap, "is_autonomous": True}),
                     )
                     logger.info(f"🚀 Created research task for gap: {gap}")
 

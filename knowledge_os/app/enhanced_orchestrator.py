@@ -13,8 +13,39 @@ import subprocess
 import sys
 import time
 import traceback
+import fcntl  # [SINGULARITY 21.30] Для блокировки файлов на Unix-системах
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
+
+# ... (остальные импорты)
+
+class PIDLock:
+    """[SINGULARITY 21.30] Механизм предотвращения запуска дубликатов процесса."""
+    def __init__(self, lock_file="/tmp/enhanced_orchestrator.pid"):
+        self.lock_file = lock_file
+        self.fd = None
+
+    def acquire(self):
+        try:
+            self.fd = open(self.lock_file, "w")
+            # Попытка установить эксклюзивную блокировку без ожидания
+            fcntl.lockf(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self.fd.write(str(os.getpid()))
+            self.fd.flush()
+            return True
+        except (IOError, OSError):
+            return False
+
+    def release(self):
+        if self.fd:
+            try:
+                fcntl.lockf(self.fd, fcntl.LOCK_UN)
+                self.fd.close()
+                if os.path.exists(self.lock_file):
+                    os.remove(self.lock_file)
+            except Exception:
+                pass
+
 
 try:
     import httpx
@@ -138,6 +169,80 @@ LLM_HEALTH_TIMEOUT = float(os.getenv("ORCHESTRATOR_LLM_HEALTH_TIMEOUT", "5.0"))
 RECOVERY_WEBHOOK_URL = os.getenv(
     "RECOVERY_WEBHOOK_URL", ""
 ).strip()  # POST при недоступности Ollama/MLX
+
+
+async def get_ollama_latency() -> float:
+    """Измеряет латентность Ollama (Singularity 21.29)."""
+    ollama_url = (
+        os.getenv("OLLAMA_BASE_URL")
+        or os.getenv("OLLAMA_API_URL")
+        or "http://host.docker.internal:11434"
+    ).rstrip("/")
+    if not HTTPX_AVAILABLE:
+        return 999.0
+    start = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get(f"{ollama_url}/api/tags")
+            if r.status_code == 200:
+                return time.perf_counter() - start
+    except Exception:
+        pass
+    return 999.0
+
+
+async def _justify_task_value(title: str, description: str) -> Tuple[bool, str]:
+    """Justification Filter: Проверка ценности задачи перед созданием (Singularity 21.29)."""
+    try:
+        prompt = f"""Обоснуй ценность этой автономной задачи для системы ATRA.
+Задача: {title}
+Описание: {description[:500]}
+
+Верни JSON: {{"is_valuable": true/false, "reason": "краткое обоснование"}}
+Ценными считаются задачи, связанные с безопасностью, критическими ошибками, оптимизацией производительности или новыми технологиями R&D 2026.
+"""
+        # Используем легкую модель для фильтрации
+        result = await run_smart_agent_async(prompt, expert_name="Виктория", category="fast")
+        if not result or not isinstance(result, str):
+            return True, "no_justification_needed"
+        import re
+
+        match = re.search(r"\{.*\}", result, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return bool(data.get("is_valuable", True)), str(data.get("reason", ""))
+    except Exception:
+        pass
+    return True, "fallback_approved"
+
+
+async def apply_time_decay(conn):
+    """Energy Budget (Time Decay): Эволюционный отбор задач (Singularity 21.29)."""
+    logger.info("⏳ Applying Time Decay (Energy Budget) to autonomous tasks...")
+    # Твои задачи (is_user_requested) имеют бесконечный бюджет.
+    # Автономные задачи теряют энергию.
+    # Лимиты: low=12h, medium=24h, high=48h. Urgent не трогаем.
+    try:
+        decay_results = await conn.execute("""
+            UPDATE tasks
+            SET status = 'cancelled',
+                metadata = metadata || jsonb_build_object(
+                    'cancel_reason', 'energy_depleted',
+                    'cancelled_at', NOW()
+                )
+            WHERE status = 'pending'
+              AND (metadata->>'is_user_requested')::boolean IS NOT TRUE
+              AND (
+                  (priority = 'low' AND created_at < NOW() - INTERVAL '12 hours') OR
+                  (priority = 'medium' AND created_at < NOW() - INTERVAL '24 hours') OR
+                  (priority = 'high' AND created_at < NOW() - INTERVAL '48 hours')
+              )
+              AND parent_task_id IS NULL
+        """)
+        if decay_results != "UPDATE 0":
+            logger.info(f"  🧹 Time Decay: {decay_results.split()[-1]} stale tasks cancelled.")
+    except Exception as e:
+        logger.warning(f"Time Decay failed: {e}")
 
 
 async def check_llm_services_health() -> Tuple[bool, bool]:
@@ -824,6 +929,10 @@ async def run_enhanced_orchestration_cycle():
             # --- ФАЗА 0: AUTONOMOUS ERROR FIXING (Автоматическое исправление ошибок) ---
             t0 = time.time()
             logger.info("🔧 Phase 0: Auto-fixing errors...")
+            
+            # [SINGULARITY 21.29] Apply Time Decay before starting new work
+            await apply_time_decay(conn)
+            
             phase_result = "skipped"
             try:
                 from error_auto_fixer import auto_fix_all_errors
@@ -1470,29 +1579,39 @@ async def run_enhanced_orchestration_cycle():
             # --- ФАЗА 5: ДВИГАТЕЛЬ ЛЮБОПЫТСТВА (с приоритизацией) ---
             logger.info("🔍 Phase 5: Curiosity Engine...")
 
-            # BACKPRESSURE: Лимит ожидающих задач (Stability & Performance Watchdog)
-            # Если задач в очереди уже много, Curiosity Engine не должен создавать новые,
-            # чтобы не усугублять перегрузку.
-            pending_count = await conn.fetchval(
-                "SELECT count(*) FROM tasks WHERE status = 'pending'"
-            )
-            max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
-            if pending_count >= max_pending:
+            # [SINGULARITY 21.29] Resource-Driven Curiosity: Check Ollama latency
+            # Если латентность > 1.0с (Ollama перегружена), Curiosity Engine "засыпает"
+            ollama_latency = await get_ollama_latency()
+            if ollama_latency > 1.0:
                 logger.warning(
-                    "⏸️ BACKPRESSURE: Too many pending tasks (%s/%s). Skipping Curiosity Engine research tasks.",
-                    pending_count,
-                    max_pending,
+                    "⏸️ RESOURCE-DRIVEN CURIOSITY: Ollama latency high (%.2fs > 1.0s). Curiosity Engine sleeps.",
+                    ollama_latency,
                 )
                 deserts = []
             else:
-                deserts = await conn.fetch("""
-                    SELECT d.id, d.name, count(k.id) as node_count
-                    FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
-                    GROUP BY d.id, d.name
-                    HAVING count(k.id) < 50 OR max(k.created_at) < NOW() - INTERVAL '48 hours'
-                    ORDER BY count(k.id) ASC
-                    LIMIT 5
-                """)
+                # BACKPRESSURE: Лимит ожидающих задач (Stability & Performance Watchdog)
+                # Если задач в очереди уже много, Curiosity Engine не должен создавать новые,
+                # чтобы не усугублять перегрузку.
+                pending_count = await conn.fetchval(
+                    "SELECT count(*) FROM tasks WHERE status = 'pending'"
+                )
+                max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
+                if pending_count >= max_pending:
+                    logger.warning(
+                        "⏸️ BACKPRESSURE: Too many pending tasks (%s/%s). Skipping Curiosity Engine research tasks.",
+                        pending_count,
+                        max_pending,
+                    )
+                    deserts = []
+                else:
+                    deserts = await conn.fetch("""
+                        SELECT d.id, d.name, count(k.id) as node_count
+                        FROM domains d LEFT JOIN knowledge_nodes k ON d.id = k.domain_id
+                        GROUP BY d.id, d.name
+                        HAVING count(k.id) < 50 OR max(k.created_at) < NOW() - INTERVAL '48 hours'
+                        ORDER BY count(k.id) ASC
+                        LIMIT 5
+                    """)
 
             # Лимит автономных экспертов (план: не более 25)
             autonomous_count = await conn.fetchval(
@@ -1524,6 +1643,17 @@ async def run_enhanced_orchestration_cycle():
                     f"в области {desert['name']}. Найди 3 прорывных инсайта."
                 )
                 title_curiosity = f"🔥 ИССЛЕДОВАНИЕ: {desert['name']}"
+
+                # [SINGULARITY 21.29] Justification Filter (Proof of Value)
+                is_valuable, reason = await _justify_task_value(title_curiosity, curiosity_task)
+                if not is_valuable:
+                    logger.info(
+                        "  ⏭️ Skip Curiosity task for %s: low value (reason: %s)",
+                        desert["name"],
+                        reason,
+                    )
+                    continue
+
                 best_expert = await get_best_expert_for_domain(conn, desert["id"])
                 if best_expert and same_task_for_expert_in_last_n_days:
                     if await same_task_for_expert_in_last_n_days(
@@ -1551,6 +1681,8 @@ async def run_enhanced_orchestration_cycle():
                         {
                             "reason": "curiosity_engine_starvation",
                             "node_count": desert["node_count"],
+                            "justification": reason,
+                            "is_autonomous": True,
                         }
                     ),
                 )
@@ -1873,7 +2005,17 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Enhanced Orchestrator")
+    # [SINGULARITY 21.30] PID Lock Enforcement
+    lock = PIDLock()
+    if not lock.acquire():
+        print(f"⚠️ [ORCHESTRATOR] Process already running. Exiting to prevent duplication.")
+        sys.exit(0)
+
+    try:
+        parser = argparse.ArgumentParser(description="Enhanced Orchestrator")
+        # ... (остальной код argparse)
+    finally:
+        lock.release()
     parser.add_argument("--prompt", nargs="*", help="Single prompt (for Telegram gateway)")
     parser.add_argument(
         "--continuous", action="store_true", help="Run forever: listen and orchestrate on interval"

@@ -122,8 +122,13 @@ async def run_cursor_agent_async(prompt: str, max_timeout: int = 45):
             else:
                 error_msg = stderr.decode()[:200]
                 logger.error(f"⚠️ Ошибка оркестратора (code {process.returncode}): {error_msg}")
-        except asyncio.TimeoutExpired:
-            process.kill()
+        except (asyncio.TimeoutError, TimeoutError):
+            # asyncio.wait_for бросает asyncio.TimeoutError (не TimeoutExpired!)
+            try:
+                process.kill()
+                await process.wait()
+            except ProcessLookupError:
+                pass
             logger.warning("⏱️ Orchestrator timeout expired (20s)")
     except Exception as e:
         logger.error(f"Failed to run orchestrator: {e}")
