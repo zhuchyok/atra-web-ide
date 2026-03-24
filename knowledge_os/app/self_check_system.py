@@ -197,7 +197,7 @@ class SelfCheckSystem:
             import asyncpg
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
             )
             conn = await asyncpg.connect(db_url)
             try:
@@ -396,7 +396,7 @@ class SelfCheckSystem:
             import asyncpg
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
             )
             conn = await asyncpg.connect(db_url)
             try:

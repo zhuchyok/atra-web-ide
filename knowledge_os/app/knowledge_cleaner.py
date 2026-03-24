@@ -5,7 +5,7 @@ from datetime import datetime
 import asyncpg
 from resource_manager import acquire_resource_lock
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 async def archive_old_knowledge():

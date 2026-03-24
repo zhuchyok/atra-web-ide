@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # URL для локальных моделей
 MLX_API_URL = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 async def run_simulation(simulation_id: int):

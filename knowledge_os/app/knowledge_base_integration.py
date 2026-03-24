@@ -51,7 +51,7 @@ async def get_corporation_knowledge_context(query: str, limit: int = 5) -> str:
             return ""
 
         # Подключаемся к БД
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         conn = await asyncpg.connect(db_url)
 
         try:
@@ -101,7 +101,7 @@ async def ensure_knowledge_base_accessible():
         return False
 
     try:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         conn = await asyncpg.connect(db_url, timeout=3.0)
         try:
             # Проверяем наличие таблицы knowledge_nodes

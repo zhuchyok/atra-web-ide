@@ -29,7 +29,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
-_DEFAULT_DB = "postgresql://admin:secret@localhost:5432/knowledge_os"
+_DEFAULT_DB = "postgresql://admin:secret@localhost:6432/knowledge_os"
 DATABASE_URL = os.getenv("DATABASE_URL") or _DEFAULT_DB
 DB_URL_PRIMARY = DATABASE_URL
 DB_URL_FALLBACK = DATABASE_URL

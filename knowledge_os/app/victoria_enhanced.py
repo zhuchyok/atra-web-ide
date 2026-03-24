@@ -2244,7 +2244,7 @@ class VictoriaEnhanced:
 
             # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
             )
             task_dist = get_task_distribution_system(db_url)
 

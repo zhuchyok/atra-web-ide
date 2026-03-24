@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import asyncpg
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 # Connection pool для PostgreSQL (решает проблему "too many clients already")
 _db_pool: Optional[asyncpg.Pool] = None

@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # Конфигурация БД
 USER_NAME = getpass.getuser()
 DEFAULT_DB_URL = (
-    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:6432/knowledge_os"
 )
 
 DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)

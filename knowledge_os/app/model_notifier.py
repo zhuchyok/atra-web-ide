@@ -14,7 +14,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
 VERONICA_URL = os.getenv("VERONICA_URL", "http://localhost:8011")
 

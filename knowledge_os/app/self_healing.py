@@ -16,7 +16,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Config
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 TG_TOKEN = os.getenv("TG_TOKEN", "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU")
 CHAT_ID = os.getenv("CHAT_ID", "556251171")
 

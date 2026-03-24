@@ -10,7 +10,7 @@ import httpx
 
 TG_TOKEN = "8422371257:AAEwgSCvSv637QqDsi-EAayVYj8dsENsLbU"
 ALLOWED_USER_ID = 556251171
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 async def handle_document(chat_id, document):

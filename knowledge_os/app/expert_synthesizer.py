@@ -8,7 +8,7 @@ from ai_core import run_smart_agent_async
 
 logger = logging.getLogger("expert_synthesizer")
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 class ExpertSynthesizer:
     """

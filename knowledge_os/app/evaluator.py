@@ -14,7 +14,7 @@ async def get_pool():
     if asyncpg is None:
         return None
     return await asyncpg.create_pool(
-        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"),
+        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"),
         min_size=1,
         max_size=5,
     )

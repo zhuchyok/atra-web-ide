@@ -29,7 +29,7 @@ from duckduckgo_search import DDGS  # type: ignore # pylint: disable=import-erro
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 VECTOR_CORE_URL = os.getenv("VECTOR_CORE_URL", "http://knowledge_vector_core:8001")
 MLX_API_URL = os.getenv("MLX_API_URL", "http://host.docker.internal:11435")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")

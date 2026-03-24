@@ -17,7 +17,7 @@ from datetime import datetime
 
 import asyncpg
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 # Superuser URL для экстренной чистки (PostgreSQL резервирует 3 слота для superuser)
 _SUPERUSER_URL = DB_URL.replace("admin:secret", "postgres:postgres")
 

@@ -605,7 +605,7 @@ def get_intelligent_router(db_url: str = None) -> IntelligentModelRouter:
         import os
 
         db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         _router_instance = IntelligentModelRouter(db_url)
     return _router_instance

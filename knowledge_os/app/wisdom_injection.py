@@ -9,7 +9,7 @@ import asyncpg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("wisdom_injection")
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 class WisdomInjectionEngine:

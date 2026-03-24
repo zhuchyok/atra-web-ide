@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Настройки: секреты только из переменных окружения (мировая практика)
 TG_TOKEN = os.getenv("TG_TOKEN", "")
 ALLOWED_USER_ID = int(os.getenv("TG_ALLOWED_USER_ID", "0")) or 556251171  # Илья (Владелец)
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 VECTOR_CORE_URL = "http://localhost:8001"
 PID_FILE = "/tmp/telegram_simple_expert.pid"
 

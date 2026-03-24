@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-_DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+_DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 # Пороги (env для настройки)
 STUCK_MINUTES = int(os.getenv("PREDICTIVE_STUCK_MINUTES", "15"))

@@ -79,7 +79,7 @@ async def execute_assignments_async(
         except ImportError:
             redis_manager = None
 
-    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
     strategy_line = f"\nСтратегия оркестратора: {strategy}" if strategy else ""
     prompt_template = (

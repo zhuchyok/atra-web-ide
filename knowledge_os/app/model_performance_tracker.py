@@ -236,7 +236,7 @@ def get_performance_tracker(db_url: str = None) -> ModelPerformanceTracker:
         import os
 
         db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         _tracker_instance = ModelPerformanceTracker(db_url)
     return _tracker_instance

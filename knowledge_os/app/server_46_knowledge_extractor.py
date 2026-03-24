@@ -33,7 +33,7 @@ class Server46KnowledgeExtractor:
     def __init__(self, project_root: Optional[Path] = None, db_url: Optional[str] = None):
         self.project_root = project_root or Path(__file__).parent.parent.parent
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
 
     async def extract_git_history_knowledge(self) -> List[Dict[str, Any]]:

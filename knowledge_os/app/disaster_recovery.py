@@ -256,7 +256,7 @@ def get_disaster_recovery(db_url: str = None) -> DisasterRecovery:
 
         if not db_url:
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
             )
         _disaster_recovery = DisasterRecovery(db_url)
     return _disaster_recovery

@@ -15,7 +15,7 @@ except ImportError:
 
 
 async def main():
-    conn_str = "postgresql://admin:secret@127.0.0.1:5432/knowledge_os"
+    conn_str = "postgresql://admin:secret@127.0.0.1:6432/knowledge_os"
     try:
         pool = await asyncpg.create_pool(conn_str)
         print("Connected to DB")

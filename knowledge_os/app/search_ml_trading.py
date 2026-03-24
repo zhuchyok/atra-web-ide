@@ -9,7 +9,7 @@ import os
 import asyncpg
 import httpx
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 VECTOR_CORE_URL = "http://localhost:8001"
 
 

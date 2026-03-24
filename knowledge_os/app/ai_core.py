@@ -458,7 +458,7 @@ async def _get_db_pool():
     if _DB_POOL is None and asyncpg:
         try:
             default_url = (
-                os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+                os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:6432/knowledge_os"
             )
             db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
             _DB_POOL = await asyncpg.create_pool(

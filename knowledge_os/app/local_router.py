@@ -129,7 +129,7 @@ RAM_RESERVE_GB = float(os.getenv("RAM_RESERVE_GB", "24"))
 MAC_LLM_URL = MLX_API_URL
 SERVER_LLM_URL = OLLAMA_API_URL
 USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM", "true").lower() == "true"
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 # Health check cache (120 seconds TTL - увеличен для снижения нагрузки на /api/tags)
 _health_cache = {"nodes": [], "timestamp": 0}

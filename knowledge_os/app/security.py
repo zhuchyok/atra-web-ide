@@ -24,7 +24,7 @@ from cryptography.fernet import Fernet
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_urlsafe(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24

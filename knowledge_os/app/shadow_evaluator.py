@@ -26,7 +26,7 @@ class ShadowEvaluator:
 
     def __init__(self, db_url: Optional[str] = None):
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.router = LocalAIRouter()
         self.judge_model = os.getenv("SHADOW_JUDGE_MODEL", "victoria-wisdom-v3.5:latest")

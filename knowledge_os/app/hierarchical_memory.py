@@ -21,7 +21,7 @@ class HierarchicalMemoryManager:
 
     def __init__(self):
         self.db_url = os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.pruning_threshold_days = 180  # 6 months of inactivity
 

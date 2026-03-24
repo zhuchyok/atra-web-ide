@@ -71,9 +71,9 @@ async def get_pool():
 
     user_name = getpass.getuser()
     if user_name == "zhuchyok":
-        default_url = f"postgresql://{user_name}@localhost:5432/knowledge_os"
+        default_url = f"postgresql://{user_name}@localhost:6432/knowledge_os"
     else:
-        default_url = "postgresql://admin:secret@localhost:5432/knowledge_os"
+        default_url = "postgresql://admin:secret@localhost:6432/knowledge_os"
 
     return await asyncpg.create_pool(os.getenv("DATABASE_URL", default_url), min_size=1, max_size=3)
 

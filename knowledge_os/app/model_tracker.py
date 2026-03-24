@@ -30,7 +30,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 OLLAMA_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 CHECK_INTERVAL = int(os.getenv("MODEL_TRACKER_INTERVAL", "3600"))  # 1 час по умолчанию
 

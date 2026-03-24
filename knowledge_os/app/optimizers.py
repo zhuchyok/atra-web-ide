@@ -98,7 +98,7 @@ class PredictiveCache:
         self.cache = cache_manager
         self.prediction_queue = []
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.query_patterns = {}  # Паттерны запросов для анализа
         self._background_task_running = False  # Флаг для отслеживания фоновой задачи

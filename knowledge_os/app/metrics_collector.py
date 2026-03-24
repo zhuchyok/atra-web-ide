@@ -23,7 +23,7 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 @dataclass

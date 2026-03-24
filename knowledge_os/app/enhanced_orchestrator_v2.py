@@ -80,7 +80,7 @@ except ImportError:
 
 
 def _get_db_url() -> str:
-    return os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+    return os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:6432/knowledge_os"
 
 
 class EnhancedOrchestratorV2:

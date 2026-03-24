@@ -22,7 +22,7 @@ except ImportError:
 
 async def get_pool():
     return await asyncpg.create_pool(
-        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"),
+        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"),
         min_size=1,
         max_size=5,
     )

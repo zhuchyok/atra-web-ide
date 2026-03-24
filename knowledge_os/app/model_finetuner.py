@@ -15,7 +15,7 @@ import asyncpg
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 MLX_MODELS_DIR = os.getenv("MLX_MODELS_DIR", os.path.expanduser("~/.mlx_models"))
 TRAINING_DATA_DIR = os.getenv("TRAINING_DATA_DIR", "./training_data")
 

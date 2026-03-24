@@ -23,7 +23,7 @@ import httpx
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 # API Keys (из environment variables)
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")

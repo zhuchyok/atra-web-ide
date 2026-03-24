@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 USER = getpass.getuser()
-DB_URL = os.getenv("DATABASE_URL", f"postgresql://{USER}@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", f"postgresql://{USER}@localhost:6432/knowledge_os")
 WORKSPACE_ROOT = "/Users/zhuchyok/Documents/GITHUB/atra"
 
 

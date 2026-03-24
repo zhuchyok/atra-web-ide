@@ -38,7 +38,7 @@ class CorporationCompleteKnowledge:
 
     def __init__(self, db_url: Optional[str] = None):
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.project_root = Path(__file__).parent.parent.parent
 

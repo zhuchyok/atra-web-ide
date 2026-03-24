@@ -20,7 +20,7 @@ class ExpertHiringManager:
 
     def __init__(self):
         self.db_url = os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
 
     async def _get_conn(self):

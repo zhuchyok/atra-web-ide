@@ -27,7 +27,7 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 DEFAULT_MARGIN_FACTOR = float(os.getenv("MODEL_METRICS_MARGIN_FACTOR", "1.2"))
 PROBE_TIMEOUT_LOAD_SEC = float(os.getenv("MODEL_PROBE_LOAD_TIMEOUT", "180"))
 PROBE_TIMEOUT_UNLOAD_SEC = float(os.getenv("MODEL_PROBE_UNLOAD_TIMEOUT", "60"))

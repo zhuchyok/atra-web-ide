@@ -28,7 +28,7 @@ async def get_pool():
     global pool
     if pool is None:
         # Default fallback for testing
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@127.0.0.1:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@127.0.0.1:6432/knowledge_os")
         print("Connecting to database...")
         pool = await asyncpg.create_pool(db_url, min_size=1, max_size=5)
     return pool

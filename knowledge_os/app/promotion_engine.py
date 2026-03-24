@@ -21,7 +21,7 @@ async def get_db_pool():
     if asyncpg is None:
         return None
     # Try to use existing pool if available from other modules, or create new
-    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
     return await asyncpg.create_pool(db_url, min_size=1, max_size=5)
 
 

@@ -20,7 +20,7 @@ class LoadPredictor:
         import os
 
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.hourly_patterns: Dict[int, int] = defaultdict(int)  # hour -> request_count
         self.daily_patterns: Dict[int, int] = defaultdict(int)  # weekday -> request_count

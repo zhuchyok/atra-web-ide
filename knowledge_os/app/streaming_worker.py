@@ -39,7 +39,7 @@ logging.basicConfig(
 logger = logging.getLogger("streaming_worker")
 
 # Конфигурация
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Connection pool

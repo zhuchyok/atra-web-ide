@@ -443,7 +443,7 @@ def _mask_db_url(url: str) -> str:
 USER_NAME = getpass.getuser()
 # Локальная БД (Mac Studio): DATABASE_URL или localhost
 DEFAULT_DB_URL = (
-    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:5432/knowledge_os"
+    os.getenv("DATABASE_URL") or "postgresql://admin:secret@localhost:6432/knowledge_os"
 )
 DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")

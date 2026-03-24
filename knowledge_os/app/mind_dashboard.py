@@ -8,7 +8,7 @@ import asyncpg
 
 async def show_dashboard():
     USER = getpass.getuser()
-    DB_URL = os.getenv("DATABASE_URL_LOCAL", f"postgresql://{USER}@localhost:5432/knowledge_os")
+    DB_URL = os.getenv("DATABASE_URL_LOCAL", f"postgresql://{USER}@localhost:6432/knowledge_os")
 
     try:
         conn = await asyncpg.connect(DB_URL)

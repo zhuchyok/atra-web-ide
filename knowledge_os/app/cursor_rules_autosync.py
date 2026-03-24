@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/knowledge")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:6432/knowledge")
 SYNC_SCRIPT = Path(__file__).parent.parent / "scripts" / "sync_cursor_rules.py"
 CHECK_INTERVAL = 30  # секунд
 

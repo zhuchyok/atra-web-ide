@@ -111,7 +111,7 @@ class AutonomousOverseer:
 
 
 async def main():
-    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
     overseer = AutonomousOverseer(db_url)
     await overseer.run_cycle()
 

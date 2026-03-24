@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("telegram_notifications")
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("TG_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_USER_ID") or os.getenv("CHAT_ID", "")
 NOTIFICATION_INTERVAL_SEC = int(

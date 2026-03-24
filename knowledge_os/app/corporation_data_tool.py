@@ -118,7 +118,7 @@ async def _execute_sql(sql: str) -> Dict[str, Any]:
     try:
         import asyncpg
 
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         conn = await asyncpg.connect(db_url, timeout=5.0)
         try:
             rows = await conn.fetch(sql)

@@ -13,7 +13,7 @@ except ImportError:
     import asyncpg
 
 # Database connection details
-DB_URL = "postgresql://admin:secret@127.0.0.1:5432/knowledge_os"
+DB_URL = "postgresql://admin:secret@127.0.0.1:6432/knowledge_os"
 
 
 async def main():

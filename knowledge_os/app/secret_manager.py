@@ -224,7 +224,7 @@ class SecretManager:
 
                 USER_NAME = getpass.getuser()
                 db_url = os.getenv(
-                    "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                    "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
                 )
 
                 conn = await asyncpg.connect(db_url)

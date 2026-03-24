@@ -689,7 +689,7 @@ def get_organizational_structure(db_url: Optional[str] = None) -> Organizational
         db_url = os.getenv("DATABASE_URL")
     # Если все еще None, используем дефолтное значение для Docker
     if db_url is None:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
     # Создаем новый экземпляр, если его нет или db_url изменился
     if _organizational_structure is None or _organizational_structure.db_url != db_url:
         _organizational_structure = OrganizationalStructure(db_url)

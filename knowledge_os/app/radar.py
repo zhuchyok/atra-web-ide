@@ -9,7 +9,7 @@ import asyncpg
 async def detect_anomalies():
     print("📡 Monitoring Knowledge Radar for Anomalies...")
     pool = await asyncpg.create_pool(
-        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
     )
 
     async with pool.acquire() as conn:

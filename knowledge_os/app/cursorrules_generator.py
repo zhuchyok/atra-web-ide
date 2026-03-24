@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 
 import asyncpg
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 CURSORRULES_PATH = Path(__file__).parent.parent.parent / ".cursorrules"
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 

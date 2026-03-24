@@ -108,6 +108,6 @@ _dna_manager = None
 def get_expert_dna_manager():
     global _dna_manager
     if _dna_manager is None:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         _dna_manager = ExpertDNAManager(db_url)
     return _dna_manager

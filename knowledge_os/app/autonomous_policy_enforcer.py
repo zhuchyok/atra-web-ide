@@ -67,6 +67,6 @@ _policy_enforcer = None
 def get_policy_enforcer():
     global _policy_enforcer
     if _policy_enforcer is None:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         _policy_enforcer = AutonomousPolicyEnforcer(db_url)
     return _policy_enforcer

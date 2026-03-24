@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 _DASHBOARD_DIR = Path(__file__).resolve().parent.parent / "dashboard"
-_DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+_DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 # Один элемент: (title_short, priority, assignee_hint, description, auto_apply_safe)
 # auto_apply_safe: только для низкорисковых механических правок (max_entries)

@@ -23,7 +23,7 @@ class ContextScaler:
         import os
 
         self.db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         self.task_type_stats: Dict[str, Dict] = {}
 

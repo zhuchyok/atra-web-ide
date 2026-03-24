@@ -326,7 +326,7 @@ def get_auto_backup_manager(db_url: str = None, backup_dir: str = "backups") -> 
     global _auto_backup_manager
     if _auto_backup_manager is None:
         db_url = db_url or os.getenv(
-            "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
         )
         _auto_backup_manager = AutoBackupManager(db_url, backup_dir)
     return _auto_backup_manager

@@ -34,9 +34,9 @@ logger = logging.getLogger(__name__)
 USER_NAME = getpass.getuser()
 # Priority: 1. env var, 2. local user (Mac), 3. fallback to admin (Server)
 if USER_NAME == "zhuchyok":
-    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:5432/knowledge_os"
+    DEFAULT_DB_URL = f"postgresql://{USER_NAME}@localhost:6432/knowledge_os"
 else:
-    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:5432/knowledge_os"
+    DEFAULT_DB_URL = "postgresql://admin:secret@localhost:6432/knowledge_os"
 
 DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 

@@ -33,7 +33,7 @@ async def get_embedding(text: str) -> list:
 async def get_pool():
     global pool
     if pool is None:
-        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
         pool = await asyncpg.create_pool(
             db_url,
             min_size=2,

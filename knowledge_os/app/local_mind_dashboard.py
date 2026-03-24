@@ -92,7 +92,7 @@ async def get_routing_metrics(conn):
 
 async def get_stats():
     # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
-    _db = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+    _db = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
     DB_URL_LOCAL = os.getenv("DATABASE_URL_LOCAL", _db)
     DB_URL_REMOTE = os.getenv("DATABASE_URL_REMOTE", _db)  # та же локальная БД
 

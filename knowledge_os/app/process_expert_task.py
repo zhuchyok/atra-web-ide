@@ -7,7 +7,7 @@ from datetime import datetime
 import asyncpg
 from ai_core import run_smart_agent_sync
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 
 def run_cursor_agent(prompt: str, expert_name: str = "Глеб"):

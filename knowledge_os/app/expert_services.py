@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 _DB_EXPERTS_CACHE: Optional[List[Dict[str, Any]]] = None
 _DB_EXPERTS_TS = 0.0
 _DB_EXPERTS_LOCK = threading.Lock()
