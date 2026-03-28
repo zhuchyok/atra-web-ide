@@ -94,6 +94,24 @@ EMBEDDING_BATCH_SIZE = Histogram(
     buckets=[1, 2, 5, 10, 20],
 )
 
+# === [SINGULARITY 24.3] Advanced Caching Metrics ===
+
+SEMANTIC_CACHE_HITS = Counter(
+    "semantic_cache_hits_total",
+    "Total semantic cache hits",
+    ["cache_type"],  # memory | db | graceful_degradation
+)
+
+EMBEDDING_COLLAPSED = Counter(
+    "embedding_requests_collapsed_total",
+    "Total embedding requests collapsed (Request Collapsing)",
+)
+
+EMBEDDING_BACKPRESSURE_THROTTLE = Counter(
+    "embedding_backpressure_throttle_total",
+    "Total embedding requests delayed by backpressure (semaphore)",
+)
+
 # === LLM метрики ===
 
 LLM_REQUESTS = Counter(
@@ -311,6 +329,23 @@ def update_queue_size(queue_name: str, size: int) -> None:
 def update_cache_size(cache_type: str, size: int) -> None:
     """Обновление размера кэша."""
     CACHE_SIZE.labels(cache_type=cache_type).set(size)
+
+
+# === [SINGULARITY 24.3] Helpers for Advanced Metrics ===
+
+def record_semantic_cache_hit(cache_type: str) -> None:
+    """Запись попадания в семантический кэш."""
+    SEMANTIC_CACHE_HITS.labels(cache_type=cache_type).inc()
+
+
+def record_embedding_collapsed() -> None:
+    """Запись сгруппированного запроса эмбеддинга."""
+    EMBEDDING_COLLAPSED.inc()
+
+
+def record_embedding_throttle() -> None:
+    """Запись задержки по backpressure."""
+    EMBEDDING_BACKPRESSURE_THROTTLE.inc()
 
 
 def get_metrics() -> bytes:

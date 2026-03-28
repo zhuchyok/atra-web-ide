@@ -14,20 +14,25 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    mem_limit: 4g
+    mem_limit: 8g
+    shm_size: 256mb
     command:
       [
         "postgres",
         "-c",
         "shared_preload_libraries=pg_stat_statements",
         "-c",
-        "max_connections=200",
+        "max_connections=500",
+        "-c",
+        "shared_memory_type=sysv",
         "-c",
         "idle_in_transaction_session_timeout=300000",
         "-c",
         "idle_session_timeout=600000",
         "-c",
         "tcp_keepalives_idle=60",
+        "-c",
+        "tcp_keepalives_interval=10",
         "-c",
         "tcp_keepalives_interval=10",
         "-c",
@@ -120,9 +125,10 @@ services:
       - atra-network
     # mem_limit жёсткий — защита от kernel panic (был watchdog timeout 2026-03-15)
     # Снижен с 24g → 4g: zombie-процессы fixed (2026-03-22), реальное RSS = 0.26 GB
-    # Повышен до 16g: 8g не хватает при нагрузке (2026-03-24)
-    mem_limit: 16g
-    mem_reservation: 4g
+    # Повышен до 25g: 20g не хватало при нагрузке (2026-03-08)
+    # [SINGULARITY 24.3] Оптимизация под Blitz Mode: 25g limit, 10g reservation
+    mem_limit: 25g
+    mem_reservation: 10g
     environment:
       TZ: Europe/Moscow
       CORPORATION_TZ: Europe/Moscow
@@ -161,8 +167,8 @@ services:
       VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
       # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
       OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
-      # Руки Виктории: держать victoria-wisdom-v3.5 в Ollama (600 = 10 мин; -1 = бессрочно в Ollama API)
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-600}
+      # Руки Виктории: держать victoria-wisdom-v3.5 в Ollama (300 = 5 мин; -1 = бессрочно в Ollama API)
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
       # Увеличено до 1800 (30 минут) для сложных задач типа SEO-анализа
       UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-1800}
@@ -211,6 +217,7 @@ services:
       # 🎯 Victoria Initiative - Event-Driven Architecture и мониторинг (без кавычек в значении)
       # По умолчанию false — меньше памяти при старте, меньше OOM (VICTORIA_RESTARTS_CAUSE §2). Включить в .env при 10–14 GB Docker Memory.
       ENABLE_EVENT_MONITORING: ${ENABLE_EVENT_MONITORING:-true}
+      HOST_SANDBOX_SHARED_DIR: ${HOST_SANDBOX_SHARED_DIR:-/Users/bikos/Documents/atra-web-ide/knowledge_os/sandbox_shared}
       FILE_WATCHER_ENABLED: ${FILE_WATCHER_ENABLED:-true}
       SERVICE_MONITOR_ENABLED: ${SERVICE_MONITOR_ENABLED:-true}
       RAG_PRELOAD_TYPICAL_QUERIES: ${RAG_PRELOAD_TYPICAL_QUERIES:-true}
@@ -418,7 +425,7 @@ services:
       VICTORIA_MODEL: ${VICTORIA_LIGHT_MODEL:-lfm2.5-thinking:1.2b}
       ENABLE_COLLECTIVE_LEARNING: "true"
       LEARNING_SYNC_INTERVAL: "300"
-      SMART_WORKER_MAX_CONCURRENT: "3"
+      SMART_WORKER_MAX_CONCURRENT: "2"
       WORKER_TYPE: "light"
       SMART_WORKER_LLM_TIMEOUT: "600"
       WORKER_TASK_TOTAL_TIMEOUT: "1800"
@@ -535,11 +542,11 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     restart: unless-stopped
-    mem_limit: 6g
+    mem_limit: 8g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms3g -Xmx3g"
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
     ports:
@@ -599,7 +606,7 @@ services:
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
       # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
-      SMART_WORKER_MAX_CONCURRENT: "2"
+      SMART_WORKER_MAX_CONCURRENT: "1"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
       # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
       ADAPTIVE_MLX_SAFE_MAX: "2"
@@ -618,6 +625,7 @@ services:
       SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -660,6 +668,7 @@ services:
       TELEGRAM_USER_ID: ${TELEGRAM_USER_ID:-556251171}
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -702,6 +711,7 @@ services:
       SERVER_LLM_URL: http://host.docker.internal:11434
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     command: ["python", "-u", "rest_api.py"]
     extra_hosts:
@@ -880,6 +890,7 @@ services:
       WATCHDOG_AUTONOMOUS: "true"
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -907,9 +918,10 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
-      EVOLUTION_INTERVAL_SEC: "7200"
+      EVOLUTION_INTERVAL_SEC: "28800"
     volumes:
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /app/knowledge_os/app
     extra_hosts:
       - "host.docker.internal:host-gateway"

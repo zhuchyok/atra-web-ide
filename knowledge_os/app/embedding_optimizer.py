@@ -8,6 +8,7 @@ import asyncio
 import hashlib
 import logging
 import os
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -49,8 +50,9 @@ class EmbeddingOptimizer:
             db_url: URL базы данных
         """
         self.db_url = db_url
-        self._memory_cache: Dict[str, List[float]] = {}  # In-memory кэш
-        self._cache_size = 1000  # Максимум эмбеддингов в памяти
+        # [SINGULARITY 24.3] LRU Cache instead of simple Dict
+        self._memory_cache: OrderedDict[str, List[float]] = OrderedDict()
+        self._cache_size = 2000  # Увеличено для Blitz Mode
         self._batch_queue: List[Dict[str, Any]] = []  # Очередь для batch-обработки
         self._batch_size = 10  # Размер батча
         self._batch_timeout = 0.5  # Таймаут батча в секундах
@@ -77,6 +79,8 @@ class EmbeddingOptimizer:
     async def _get_cached_embedding_by_hash(self, text_hash: str) -> Optional[List[float]]:
         """Получает эмбеддинг из кэша по уже вычисленному хэшу (память -> БД)."""
         if text_hash in self._memory_cache:
+            # [LRU] Перемещаем в конец (самый свежий)
+            self._memory_cache.move_to_end(text_hash)
             return self._memory_cache[text_hash]
         try:
             conn = await asyncpg.connect(self.db_url)
@@ -94,10 +98,12 @@ class EmbeddingOptimizer:
                 )
                 if row:
                     embedding = row["embedding"]
-                    if len(self._memory_cache) >= self._cache_size:
-                        oldest_key = next(iter(self._memory_cache))
-                        del self._memory_cache[oldest_key]
+                    # [LRU] Добавляем в кэш и проверяем размер
                     self._memory_cache[text_hash] = embedding
+                    self._memory_cache.move_to_end(text_hash)
+                    if len(self._memory_cache) > self._cache_size:
+                        # Удаляем самый старый (первый в OrderedDict)
+                        self._memory_cache.popitem(last=False)
                     return embedding
             finally:
                 await conn.close()
@@ -132,12 +138,11 @@ class EmbeddingOptimizer:
         text_hash = self._get_text_hash(text)
         normalized_text = self._normalize_text(text)
 
-        # Сохраняем в memory cache
-        if len(self._memory_cache) >= self._cache_size:
-            # Удаляем старые (FIFO)
-            oldest_key = next(iter(self._memory_cache))
-            del self._memory_cache[oldest_key]
+        # [LRU] Сохраняем в memory cache
         self._memory_cache[text_hash] = embedding
+        self._memory_cache.move_to_end(text_hash)
+        if len(self._memory_cache) > self._cache_size:
+            self._memory_cache.popitem(last=False)
 
         # Сохраняем в БД (асинхронно, не блокируем)
         asyncio.create_task(self._save_embedding_to_db(text_hash, normalized_text, embedding))

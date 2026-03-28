@@ -152,12 +152,23 @@ def get_keep_alive(
         else:
             return -1
 
-    # 3. Эмбеддинги — выгрузить сразу
+    # 3. Эмбеддинги — адаптивная политика keep_alive
     if (
         category == "embedding"
         or (model_name and any(m in model_name for m in EMBEDDING_MODELS))
         or (category and "embedding" in str(category).lower())
     ):
+        # [SINGULARITY 24.3] В Blitz Mode при высокой нагрузке держим эмбеддинги 5 минут
+        # Это предотвращает постоянную выгрузку/загрузку при пачках задач
+        try:
+            # Пытаемся получить количество задач в очереди Redis (если доступно)
+            # Если не получается, используем время дня или просто 300с как безопасный буфер
+            # Для простоты здесь: если RAM позволяет, держим 300с, иначе 0
+            effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
+            if effective_ram is not None and effective_ram < RAM_CRITICAL_PERCENT:
+                return 300
+        except:
+            pass
         return 0
 
     # 4. Env

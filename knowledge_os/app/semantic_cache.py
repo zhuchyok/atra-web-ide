@@ -4,10 +4,20 @@ Provides semantic caching for AI agent responses using PostgreSQL vector storage
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Union
+
+# [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
+try:
+    from .circuit_breaker import CircuitBreaker, CircuitBreakerOpenError, get_circuit_breaker
+except ImportError:
+    # Fallback if not in package
+    CircuitBreaker = None
+    CircuitBreakerOpenError = Exception
+    get_circuit_breaker = None
 
 # Third-party imports with fallbacks
 try:
@@ -47,10 +57,60 @@ if _is_docker and _embed_base == "http://host.docker.internal:11434":
     _embed_base = "http://host.docker.internal:11434"
 OLLAMA_EMBED_URL = os.getenv("OLLAMA_EMBED_URL") or f"{_embed_base.rstrip('/')}/api/embeddings"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest")  # Dedicated embedding model
+# [SINGULARITY 24.3] Metrics Integration
+try:
+    from backend.app.metrics.prometheus_metrics import (
+        record_semantic_cache_hit,
+        record_embedding_collapsed,
+        record_embedding_throttle
+    )
+    _METRICS_AVAILABLE = True
+except ImportError:
+    # Try alternate path if called from different context
+    try:
+        from app.metrics.prometheus_metrics import (
+            record_semantic_cache_hit,
+            record_embedding_collapsed,
+            record_embedding_throttle
+        )
+        _METRICS_AVAILABLE = True
+    except ImportError:
+        _METRICS_AVAILABLE = False
+
+def _safe_record_hit(cache_type: str):
+    if _METRICS_AVAILABLE:
+        try: record_semantic_cache_hit(cache_type)
+        except: pass
+
+def _safe_record_collapsed():
+    if _METRICS_AVAILABLE:
+        try: record_embedding_collapsed()
+        except: pass
+
+def _safe_record_throttle():
+    if _METRICS_AVAILABLE:
+        try: record_embedding_throttle()
+        except: pass
+
 # nomic-embed-text (v1/v1.5) output dimension; БД и кэш должны совпадать (миграция fix_embedding_dimensions_768)
 EMBEDDING_DIM = 768
 CACHE_THRESHOLD = 0.92  # Similarity threshold to return cached result
 STRATEGIC_CACHE_THRESHOLD = 0.95  # Более строгий threshold для стратегических вопросов
+
+# [SINGULARITY 24.3] Request Collapsing & Backpressure
+_inflight_embeddings: Dict[str, asyncio.Future] = {}
+_embedding_lock = asyncio.Lock()
+_embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит параллелизма
+
+# [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
+if get_circuit_breaker:
+    _ollama_breaker = get_circuit_breaker(
+        name="ollama_embeddings",
+        failure_threshold=5,
+        recovery_timeout=30,  # Быстрое восстановление для эмбеддингов
+    )
+else:
+    _ollama_breaker = None
 
 # Ключевые слова стратегических вопросов (для высокого приоритета кэширования)
 STRATEGIC_KEYWORDS = [
@@ -78,10 +138,57 @@ STRATEGIC_KEYWORDS = [
 async def get_embedding(text: str) -> Optional[list]:
     """
     Get embedding from Ollama. Uses shared HTTP client (connection reuse).
-    При недоступности общего клиента — fallback на разовый AsyncClient (resilience).
-    Внедрена логика повторных попыток (retries) для стабильности на Mac Studio.
+    [SINGULARITY 24.3] Внедрен Request Collapsing (DataLoader pattern):
+    идентичные конкурентные запросы группируются, чтобы не перегружать GPU.
     """
-    max_retries = 1  # Одна попытка — fast fail, embedding некритичен для работы
+    if not text:
+        return None
+
+    # Генерируем ключ для группировки (хэш текста)
+    text_hash = hashlib.md5(text.encode()).hexdigest()
+
+    async with _embedding_lock:
+        if text_hash in _inflight_embeddings:
+            logger.debug(f"🔗 [COLLAPSING] Waiting for in-flight embedding: {text_hash}")
+            _safe_record_collapsed()
+            # Ждем завершения уже запущенного запроса
+            return await _inflight_embeddings[text_hash]
+
+        # Создаем Future для нового запроса
+        future = asyncio.get_event_loop().create_future()
+        _inflight_embeddings[text_hash] = future
+
+    try:
+        # Выполняем реальный запрос через семафор (Backpressure) и Circuit Breaker
+        if _embedding_semaphore.locked():
+            _safe_record_throttle()
+        async with _embedding_semaphore:
+            if _ollama_breaker:
+                res = await _ollama_breaker.call(_execute_embedding_request, text)
+            else:
+                res = await _execute_embedding_request(text)
+            future.set_result(res)
+            return res
+    except CircuitBreakerOpenError:
+        logger.warning(f"🚨 [CIRCUIT BREAKER] Ollama embeddings is OPEN, skipping: {text_hash}")
+        future.set_result(None)
+        return None
+    except Exception as exc:
+        if not future.done():
+            future.set_exception(exc)
+        raise
+    finally:
+        # Очищаем информацию о запросе
+        async with _embedding_lock:
+            if _inflight_embeddings.get(text_hash) == future:
+                del _inflight_embeddings[text_hash]
+
+
+async def _execute_embedding_request(text: str) -> Optional[list]:
+    """
+    Внутренняя логика выполнения запроса с ретраями.
+    """
+    max_retries = 3  # [SINGULARITY 24.3] Увеличено до 3 для Blitz Mode
     for attempt in range(max_retries):
         client = None
         if get_http_client:
@@ -102,9 +209,17 @@ async def get_embedding(text: str) -> Optional[list]:
             if res:
                 return res
 
+            # [SINGULARITY 24.3] Graceful Degradation: Search by Hash if Ollama fails
+            if attempt == max_retries - 1:
+                logger.warning("🔍 [GRACEFUL DEGRADATION] Ollama failed, trying exact hash match in DB...")
+                # Поиск по хэшу в БД будет реализован в методах класса SemanticAICache
+                # Здесь мы просто возвращаем None, чтобы сигнализировать о провале Ollama
+
             # Если вернулось None (например, 503), пробуем еще раз
             if attempt < max_retries - 1:
-                await asyncio.sleep(2**attempt)
+                wait_time = 2**attempt
+                logger.debug(f"⏳ [RETRY] Embedding attempt {attempt + 1} failed, waiting {wait_time}s...")
+                await asyncio.sleep(wait_time)
 
         except Exception as exc:
             if attempt < max_retries - 1:
@@ -207,13 +322,45 @@ class SemanticAICache:
         if self._embedding_optimizer:
             cached = await self._embedding_optimizer.get_cached_embedding(text)
             if cached:
+                _safe_record_hit("memory")
                 return cached
 
             # Вычисляем эмбеддинг
             embedding = await get_embedding(text)
             if embedding:
                 await self._embedding_optimizer.save_embedding(text, embedding)
-            return embedding
+                return embedding
+
+            # [SINGULARITY 24.3] Graceful Degradation: Search by exact text if Ollama failed
+            logger.warning(f"🔍 [GRACEFUL DEGRADATION] Ollama failed, attempting exact match for: {text[:50]}...")
+            conn, _ = await self._get_conn()
+            if conn:
+                try:
+                    # Ищем в основной таблице кэша по тексту запроса
+                    row = await conn.fetchrow(
+                        "SELECT embedding FROM semantic_ai_cache WHERE query_text = $1 LIMIT 1",
+                        text
+                    )
+                    if row and row["embedding"]:
+                        emb_val = row["embedding"]
+                        # Если это вектор в БД, он может вернуться как список или строка
+                        if isinstance(emb_val, str):
+                            try:
+                                emb = [float(x) for x in emb_val.strip('[]').split(',')]
+                                logger.info("✅ [GRACEFUL DEGRADATION] Found exact match in DB")
+                                _safe_record_hit("graceful_degradation")
+                                return emb
+                            except:
+                                pass
+                        elif isinstance(emb_val, list):
+                            logger.info("✅ [GRACEFUL DEGRADATION] Found exact match in DB (list)")
+                            _safe_record_hit("graceful_degradation")
+                            return emb_val
+                    await conn.close()
+                except Exception as e:
+                    logger.error(f"Error in graceful degradation: {e}")
+                    if conn: await conn.close()
+            return None
 
         # Fallback на старую логику (для обратной совместимости); ключ = хэш нормализованного текста
         try:
