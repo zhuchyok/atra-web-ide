@@ -27,6 +27,8 @@ services:
       - PROJECT_CONTEXT=atra-web-ide
       - WORKSPACE_ROOT=/workspace
       - RUST_LOG=info
+      # Retry при инициализации KnowledgeEngine (exponential backoff, max 63s)
+      - GATEWAY_DB_MAX_RETRIES=6
       # mTLS — межкластерная безопасность (Singularity 21.24)
       - GATEWAY_CERT_PATH=/certs/mac-studio.crt
       - GATEWAY_KEY_PATH=/certs/mac-studio.key
