@@ -1,6 +1,27 @@
 # Правки из других чатов — сводка для агента
 
-## § Последние изменения (2026-03-29 v49) — Singularity 24.3: victoria-wisdom-v3.5 через MLX ✅
+## § Последние изменения (2026-03-29 v50) — Gateway KnowledgeEngine Retry Fix ✅
+
+**Проблема:** После рестарта Docker — `atra-web-ide-gateway` стартует раньше, чем Docker-сеть регистрирует DNS для `knowledge_postgres`. `KnowledgeEngine::new()` падает один раз → устанавливает `None` навсегда → все `POST /api/knowledge/search_v2` возвращают **503** всю сессию. Воркеры не могут делать RAG-поиск по базе знаний.
+
+**Фикс в `rust_core/gateway/src/main.rs`:**
+- Добавлен exponential backoff retry-loop: 6 попыток (1→2→4→8→16→32s = max 63s ожидания).
+- Управляется через `GATEWAY_DB_MAX_RETRIES` env (default: 6).
+- `depends_on: knowledge_postgres` НЕ работает — разные compose-файлы (gateway в `docker-compose.yml`, postgres в `knowledge_os/docker-compose.yml`).
+
+**Фикс в `docker-compose.yml`:** Добавлен `GATEWAY_DB_MAX_RETRIES=6` в environment.
+
+**Результат при деплое:** `✅ KnowledgeEngine initialized successfully (attempt 1)` — с первой попытки при живом Postgres. При холодном старте — будет ждать через backoff.
+
+**Команда для проверки:**
+```bash
+docker logs atra-web-ide-gateway | grep KnowledgeEngine
+# Ожидаемо: ✅ KnowledgeEngine initialized successfully (attempt N)
+```
+
+---
+
+
 
 **ФИНАЛЬНЫЙ РЕЗУЛЬТАТ:** Оба эксперта отвечают через victoria-wisdom-v3.5 за ~31s, Score=1.00. Чистые ролевые ответы без артефактов.
 
