@@ -1,5 +1,174 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-03-29 v49) — Singularity 24.3: victoria-wisdom-v3.5 через MLX ✅
+
+**ФИНАЛЬНЫЙ РЕЗУЛЬТАТ:** Оба эксперта отвечают через victoria-wisdom-v3.5 за ~31s, Score=1.00. Чистые ролевые ответы без артефактов.
+
+**#1 expert_worker.py: Dialogue Fast Path — victoria-wisdom-v3.5 via MLX**
+- Модель: `victoria-wisdom-v3.5` через MLX API (порт 11435). Скорость: ~3-7s при чистом MLX.
+- Маршрутизация: `victoria-wisdom*` → MLX (порт 11435); остальные модели → Ollama.
+- **Причина**: victoria-wisdom в Ollama для чата таймаутится (генерирует ~1.7 tok/s через Metal GPU), в MLX — мгновенно (Apple Neural Engine).
+- `num_predict: 100` — ограничение токенов для гарантированного завершения.
+- Очистка `description` от служебного префикса `УЧАСТИЕ В ДИАЛОГЕ [id]:` через regex.
+- Strip артефактов модели: `report_text.strip().lstrip(".\n")` + regex удаления эхо вопроса.
+- `TASK_TOTAL_TIMEOUT` для диалоговых задач: 120s → 200s.
+- `COLLECTION_TIMEOUT` в `dialogue_controller.py`: 150s → 190s.
+
+**#2 Диагностика MLX stuck requests**
+- После каждого Docker-рестарта или накопления тестов MLX накапливает "зависшие" запросы (`active_requests > 0`).
+- Зависшие запросы конкурируют за Neural Engine и замедляют новые запросы до таймаута.
+- Решение: перед тестами проверять `GET /health` MLX → если `active_requests > 0` → перезапустить MLX: `pkill -f mlx_api_server && bash scripts/start_mlx_api_server.sh`.
+
+**#3 Ollama: victoria-wisdom-v3.5 для чата не работает**
+- `victoria-wisdom-v3.5:latest` (= `qwen3.5:35b`, 22GB) в Ollama не отвечает на `/api/chat` — таймаут 90s+.
+- Embeddings через Ollama работают нормально (nomic-embed-text).
+- Чат victoria-wisdom работает только через MLX.
+
+**Инсайты по инфраструктуре (обновлено):**
+- victoria-wisdom в MLX: ~3-7s на ответ (чистый MLX), ~30s (при одном stuck request в очереди).
+- Два эксперта одновременно через MLX: sequential processing, итого ~30-60s.
+- При `active_requests ≥ max_concurrent (4)` MLX возвращает 503 — нужен pre-check.
+- victoria-wisdom-v3.5 и qwen3.5:35b — один и тот же GGUF в Ollama (22763MB).
+
+**Команды для теста:**
+```bash
+# Проверить MLX (должно быть active_requests: 0)
+curl -s http://localhost:11435/health | python3 -c "import json,sys; d=json.load(sys.stdin); print('active:', d.get('active_requests',0))"
+
+# Запустить диалог
+docker exec -e REDIS_URL=redis://knowledge_os_redis:6379/0 -e PYTHONPATH=/app/knowledge_os/app victoria-agent python3 /app/scripts/ask_local_swarm.py "Ваш вопрос"
+```
+
+---
+
+
+
+**ФИНАЛЬНЫЙ РЕЗУЛЬТАТ:** Оба эксперта отвечают за ~12 секунд, Score=1.00, полный консенсус.
+
+**#1 expert_worker.py: Dialogue Fast Path — Ollama phi3.5:3.8b**
+- Добавлен прямой HTTP-вызов к Ollama `/api/chat` для диалоговых задач (`is_dialogue=True`).
+- Обходит весь тяжёлый `ai_core` pipeline (IterativeDiscovery, Strategist, RAG, SemanticCache).
+- Модель: `phi3.5:3.8b` (2GB, ~12s ответ). Fallback: `run_smart_agent_async` с `is_vip=True`.
+- Приоритет: если `dialogue_active` Redis flag — не-диалоговые задачи пропускаются.
+- MLX ИСКЛЮЧЁН из диалогового пути: накапливает "зависшие" запросы после httpx timeout.
+
+**#2 dialogue_controller.py: Прямой консенсус без ConsensusAgent**
+- Заменён вызов `consensus_agent.reach_consensus()` (занимал 300s на Ollama embeddings).
+- Теперь: простой синтез из ответов экспертов + математический score (variance-based).
+- Результат: консенсус за <1s вместо 300s. Score=1.00 при 2/2 экспертах.
+
+**#3 ask_local_swarm.py: dialogue_active Redis flag**
+- Устанавливает `dialogue_active = "1"` (TTL 600s) перед публикацией запроса.
+- Воркеры пропускают не-диалоговые задачи пока флаг активен.
+
+**Инсайты по инфраструктуре:**
+- Ollama на Mac Studio M3 Ultra (192GB) держит несколько моделей в VRAM одновременно.
+- phi3.5:3.8b (2GB) + victoria-wisdom-v3.5 (26GB) работают параллельно без swap.
+- MLX создаёт "зависшие" запросы: когда httpx client timeout, MLX продолжает inference.
+- ConsensusAgent с Ollama embeddings ненадёжен — заменён на детерминированный синтез.
+- Ollama нужно перезапускать если накапливаются зависшие requests (brew services restart ollama).
+
+**Команда для теста:**
+```bash
+docker exec -e REDIS_URL=redis://knowledge_os_redis:6379/0 -e PYTHONPATH=/app/knowledge_os/app victoria-agent python3 /app/scripts/ask_local_swarm.py "Ваш вопрос"
+```
+
+---
+
+## § Предыдущие изменения (2026-03-29 v47) — Singularity 24.3: Живой Чат (Living Chat) — Архитектурные исправления
+
+**#1 event_bus_redis_bridge.py: id="0" → id="$" (Fix 6 — корень задвоения задач)**
+- Группы consumer group при создании теперь стартуют с `id="$"` (конец стрима), а не с `id="0"` (начало).
+- Устранён replay исторических событий при каждом рестарте контейнера (было 36 групп × 23 DIALOGUE_REQUEST = 196 дублей).
+
+**#2 victoria_event_handlers.py: Дедупликация задач (Fix 7)**
+- Перед push в `stream:expert_tasks` проверяется Redis SET NX ключ `dialogue_task:{dialogue_id}:{expert_name}` (TTL 600s).
+- Предотвращает повторные задачи для одного эксперта в одном диалоге даже при дублировании событий.
+
+**#3 semantic_cache.py: Fast-fail эмбеддингов (Fix 2)**
+- `max_retries=1` (было 5) — снижен storm-retry: 1 попытка × 5s вместо 31s блокировки.
+- Circuit breaker `failure_threshold=3` (было 5) — открывается быстрее (15s vs 155s).
+
+**#4 expert_worker.py: TTL для устаревших диалоговых задач (Fix 3)**
+- Задачи диалога старше 5 минут (`created_at`) пропускаются мгновенно (`⏭️ STALE`).
+- Устраняет обработку многосотенного бэклога при рестартах.
+
+**#5 expert_worker.py: TASK_TOTAL_TIMEOUT=120s для диалоговых задач (Fix 4)**
+- Для задач с `metadata.is_dialogue=True` таймаут 120s (вместо 1800s).
+- Позволяет workers своевременно освобождаться для следующих задач.
+
+**#6 dialogue_controller.py: Collection timeout 150s + fallback консенсус (Fix 1)**
+- После `asyncio.sleep(150)` если диалог ещё в статусе "collecting" — принудительно вызывается `_reach_consensus`.
+- Fix 1b: если ответов нет (`dialogue["responses"]` пуст) — не вызывать ConsensusAgent (он тоже требует LLM), сразу публикуется fallback `DIALOGUE_CONSENSUS` с `score=0`.
+- Гарантирует, что `DIALOGUE_CONSENSUS` **всегда** публикуется.
+
+**#7 ask_local_swarm.py: Полный сброс consumer group перед тестом (Fix 5)**
+- `XGROUP DESTROY expert_workers` → `XGROUP CREATE id="$"` → `XTRIM MAXLEN 0`.
+- Удаляет ghost consumer groups из `event_bus_stream`.
+- Обеспечивает чистую среду для каждого теста.
+
+**#8 victoria_enhanced.py: Исправлена двойная подписка DIALOGUE_REQUEST**
+- Удалена дублирующая подписка `self.event_handlers.handle_dialogue_request` на `DIALOGUE_REQUEST` в методе `start_monitoring`.
+- Было 2 одинаковых handler, порождавших N×M задач при N событиях.
+
+**#9 victoria_server.py: DialogueController запускается при старте сервера**
+- После запуска `VictoriaEnhanced.start()` теперь явно запускается `start_dialogue_controller(get_event_bus())`.
+- Ранее DialogueController запускался только при первом orchestration-запросе через `enhanced_orchestrator.py` — это означало, что без входящих запросов система Живого Чата не работала.
+
+**Результат**: система Живого Чата (Headless Mode) работает end-to-end:
+- `💬 New dialogue request` — DialogueController регистрирует диалог ✓
+- `💭 Expert thought` — воркеры получают задачи и публикуют мысли ✓  
+- `⏰ Collection timeout → DIALOGUE_CONSENSUS` — гарантированный финал ✓
+- Операционное ограничение: при высокой нагрузке MLX (victoria-wisdom-v3.5) Ollama выдаёт 503 и LLM-вызов занимает >120s. При свободном MLX система полностью отвечает.
+
+
+
+**#1 Worker Timeout Synchronization:**
+- В `smart_worker_autonomous.py` и `expert_worker.py` таймаут увеличен с **600с** до **1800с**.
+- Устранены ошибки `timeout` при генерации сложного кода и дебатах экспертов.
+
+**#2 Strategist Local Routing Fix:**
+- В `ai_core.py` исправлен конфликт God Mode (MLX) и Docker-приоритета (Ollama).
+- Для модели `victoria-wisdom-v3.5` теперь форсируется MLX даже в контейнере.
+- Устранены ошибки `STRATEGIST FAILED` и ненужные прыжки в облако.
+
+**#3 Recursion Guard:**
+- В `execute_assignments.py` добавлен `try...except RecursionError`.
+- Система защищена от крашей при глубокой вложенности отмены задач.
+
+**#4 Knowledge Base Recovery:**
+- Запущена массовая генерация эмбеддингов для 92% узлов знаний.
+- Архивация 3,410 старых узлов через `prune_knowledge_nodes` завершена.
+
+---
+
+## § Последние изменения (2026-03-25 v45) — Singularity 24.3: GraphRAG Depth & Cache Optimization 🚀
+
+**#1 GraphRAG Multi-Hop Optimization (Singularity 24.3):**
+- В `MultiHopRetriever.py` внедрен адаптивный порог `strength` (растет на 0.05 с каждым хопом).
+- Жесткое ограничение глубины до 3 хопов (SQL + Python).
+- Внедрено кэширование путей в Redis через `DomainCache`.
+- Query-Aware Scoring: учет силы связей, векторной близости и штрафа за глубину.
+
+**#2 asyncpg Stability:**
+- Переход на последовательное выполнение `fetch_hops` для устранения ошибок "another operation is in progress".
+- Улучшена логика выборки seed-узлов (top-100 с ручной фильтрацией).
+
+---
+
+## § Последние изменения (2026-03-25 v44) — Singularity 24.1: Database Throughput & Pool Optimization 🚀
+
+**#1 Database Pool Expansion (Singularity 24.1):**
+- В `ai_core.py` и `architecture_profiler.py` лимит соединений `max_size` увеличен с **5** до **20**.
+- Это устраняет `TimeoutError` при получении соединения из пула под высокой нагрузкой.
+- Система теперь полностью использует возможности PostgreSQL (`max_connections=500`).
+
+**#2 Task Queue Maintenance:**
+- Проведен сброс зависших задач.
+- Оптимизирована пропускная способность воркеров.
+
+---
+
 ## § Последние изменения (2026-03-24 v35) — Singularity 22.8: Recursive Context Enrichment 🚀
 
 **#1 Iterative Discovery Engine (Singularity 22.8):**

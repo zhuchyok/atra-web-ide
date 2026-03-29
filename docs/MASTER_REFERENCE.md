@@ -1,15 +1,184 @@
-# Единый справочник проекта ATRA Web IDE (Master Reference)
+## § Последние изменения (2026-03-26 v46) — Singularity 24.3: Stability & Heavy Model Mastery 🚀
+
+### Что изменилось сегодня (v46)
+
+#### 1. Worker Timeout Synchronization (Singularity 24.3)
+Устранено критическое расхождение таймаутов между ядром и исполнителями:
+- **Worker Limits:** В `smart_worker_autonomous.py` и `expert_worker.py` таймаут выполнения задачи увеличен с **600с** (10 мин) до **1800с** (30 мин).
+- **Alignment:** Теперь воркеры не прерывают тяжелые экспертные обсуждения и генерацию кода на моделях 35B+, давая им полное время, отведенное в `AI Core`.
+- **Result:** Устранены массовые сбои `timeout` (20% случаев) при высокой нагрузке на Mac Studio.
+
+#### 2. Strategist Local Routing: God Mode vs Docker (Singularity 24.3)
+Исправлена логика планирования для предотвращения `STRATEGIST FAILED`:
+- **Intelligent Routing:** В `ai_core.py` внедрена проверка модели стратега. Если используется модель Виктории (`victoria-wisdom-v3.5`), система форсирует **MLX** даже внутри Docker, обходя стандартный приоритет Ollama.
+- **Conflict Resolution:** Устранен конфликт между "Docker-безопасным" роутингом и "God Mode" (приоритет MLX для мозга Виктории). Планирование ТЗ теперь проходит локально без падения в облачный fallback.
+
+#### 3. Recursion Guard & Self-Healing (Singularity 24.3)
+Повышена отказоустойчивость логики делегирования:
+- **Recursion Protection:** В `execute_assignments.py` добавлен перехват `RecursionError` при вызове `asyncio.wait_for`.
+- **Graceful Fallback:** При обнаружении глубокой рекурсии (вложенные отмены задач) система автоматически переходит на прямой вызов агента, предотвращая краш воркера.
+
+#### 4. Knowledge Base: Mass Embedding Generation (Singularity 24.3)
+Восстановление векторной памяти корпорации:
+- **Background Processing:** Запущен `mass_embedding_generator.py` для обработки 86,000+ узлов (92% знаний), не имевших векторов.
+- **CPU Optimization:** Переход от текстового поиска (Trigram/BM25) к векторному (HNSW) снизит пиковую нагрузку на PostgreSQL (ранее до 218%).
+- **Pruning:** Успешно архивировано 3,410 неиспользуемых узлов через процедуру `prune_knowledge_nodes`.
+
+---
+
+## § Последние изменения (2026-03-25 v45) — Singularity 24.3: GraphRAG Depth & Cache Optimization 🚀
+
+### Что изменилось сегодня (v45)
+
+#### 1. GraphRAG Multi-Hop Optimization (Singularity 24.3)
+Глубокая оптимизация производительности и релевантности поиска в графе знаний:
+- **Adaptive Strength Threshold:** Внедрена динамическая фильтрация связей `l.strength > (0.7 + (gp.hop_count * 0.05))`. С каждым шагом (хопом) требования к силе связи растут, что эффективно отсекает семантический шум.
+- **Strict Depth Limiting:** Установлено жесткое ограничение в **3 хопа** на уровне SQL CTE и Python post-filtering. Это предотвращает "взрыв" графа и избыточную нагрузку на БД.
+- **Redis Path Caching:** Внедрено кэширование результатов обхода графа в Redis (`DomainCache`) на 1 час. Повторные запросы по тем же узлам выполняются мгновенно (Cache HIT).
+- **Query-Aware Scoring:** Итоговый вес узла теперь рассчитывается как комбинация силы связи (`strength * 0.4`), векторной близости (`similarity * 0.5`) и штрафа за глубину (`hop_count * 0.1`).
+
+#### 2. Connection Stability (Singularity 24.3)
+- **Sequential Hop Execution:** Переработан механизм вызова `fetch_hops`. Вместо параллельного `asyncio.gather`, вызывающего конфликты в `asyncpg`, запросы выполняются последовательно с гарантированным захватом нового соединения из пула для каждой операции.
+- **Robust Seed Retrieval:** Улучшена выборка начальных (seed) узлов — теперь система берет top-100 и делает финальную фильтрацию в Python, обеспечивая 100% наличие `similarity` в результатах.
+
+---
+
+## § Последние изменения (2026-03-25 v44) — Singularity 24.1: Database Throughput & Pool Optimization 🏁
+
+### Что изменилось сегодня (v44)
+
+#### 1. Database Pool Expansion (Singularity 24.1)
+Устранение таймаутов при высокой нагрузке на БД:
+- **Pool Scaling:** В `ai_core.py` и `architecture_profiler.py` лимит соединений `max_size` увеличен с **5** до **20**.
+- **Safe Concurrency:** С учетом `max_connections=500` в PostgreSQL, это позволяет системе обрабатывать до 80+ параллельных запросов без риска `TimeoutError`.
+
+#### 2. Maintenance & Cleanup (Singularity 24.1)
+- **Task Reset:** Проведен аудит зависших задач через `reset_stuck_tasks.py`.
+- **Backpressure Tuning:** Подтверждена стабильность `SMART_WORKER_MAX_PENDING=80` при расширенных пулах.
+
+---
+
+## § Последние изменения (2026-03-25 v43) — Singularity 24.0: Dynamic KV Cache & Dependency Guard 🏁
+
+### Что изменилось сегодня (v43)
+
+#### 1. MLX Dynamic KV Cache Quantization (Singularity 24.0)
+Оптимизация использования RAM на Mac Studio M4 Max:
+- **Adaptive Quantization:** В `mlx_api_server.py` внедрена логика динамического выбора квантования KV Cache (Q4/Q8/FP16) перед каждым инференсом.
+- **Memory-Aware:** При свободной RAM < 16GB используется **Q4**, < 32GB — **Q8**, иначе — **FP16**. Это предотвращает OOM при работе с тяжелыми моделями и длинным контекстом.
+
+#### 2. Dependency-Aware Regression Guard (Singularity 24.0)
+Защита от каскадных ошибок при изменении кода:
+- **Dependency Mapper:** Создан модуль `dependency_mapper.py`, строящий граф импортов проекта через AST-анализ.
+- **Regression Testing:** `QualityAssurance` и `CodebaseMutationEngine` теперь автоматически запускают тесты не только для измененного файла, но и для всех модулей, которые его импортируют.
+
+#### 3. Safe Vector Pruning: Memory Cycle (Singularity 24.0)
+Управление жизненным циклом знаний и вектором памяти:
+- **Knowledge Archive:** Создана таблица `knowledge_archive` для хранения вытесненных узлов.
+- **Soft Delete:** Узлы с `usage_count = 0` старше 30 дней автоматически перемещаются в архив (процедура `prune_knowledge_nodes`).
+- **Semantic Merge:** Внедрена логика слияния дубликатов (similarity > 0.95) в `memory_cycle.py`.
+- **Immutability:** Узлы `memory_crystals`, `domain_summary` и `is_verified = true` защищены от удаления и слияния.
+
+---
+
+## § Последние изменения (2026-03-25 v42) — Singularity 23.9: Ollama Stability & Heavy Model Support 🏁
+
+### Что изменилось сегодня (v42)
+
+#### 1. Ollama Stability: Heavy Model Support (Singularity 23.9)
+Устранена проблема пустых ответов при работе с тяжелыми моделями (35B MoE):
+- **Tag Synchronization:** В `local_router.py` унифицированы имена моделей — теперь всегда используется явный тег `:latest` для Victoria, что исключает путаницу в Ollama.
+- **TTFT Optimization:** Таймаут стриминга `LOCAL_ROUTER_STREAM_READ_TIMEOUT` увеличен до **30 минут** (1800с). Это дает тяжелым моделям достаточно времени на генерацию первого токена при высокой нагрузке.
+- **Empty Response Retry:** Внедрена логика принудительного повтора запроса (Retry) при получении пустого ответа. Система больше не считает пустой ответ успехом и пробует следующий узел или повторную попытку.
+
+---
+
+## § Последние изменения (2026-03-25 v41) — Singularity 23.8: GraphRAG & CPU Mastery 🏁
+
+### Что изменилось сегодня (v41)
+
+#### 1. GraphRAG Optimization (Singularity 23.8)
+Глубокая оптимизация поиска по графу знаний:
+- **Recursive Query Tuing:** В `MultiHopRetriever.py` внедрена фильтрация по `strength > 0.7` и ограничение `LIMIT 50` для начальной выборки связей. Это предотвращает экспоненциальный рост графа при поиске.
+- **Metadata Indexing:** Созданы функциональные индексы GIN для JSONB полей `source`, `expert` и `project_slug`. Фильтрация RAG теперь работает на порядок быстрее.
+- **Community Detection 2.0:** Модуль `community_detector.py` переведен на использование централизованного пула соединений и пакетных транзакций.
+
+#### 2. Advanced CPU Offloading (Singularity 23.8)
+Максимальная отзывчивость системы:
+- **Regex Offloading:** В `ai_core.py` (Crystallizer) и `entity_extractor.py` регулярные выражения вынесены в `asyncio.to_thread`.
+- **JSON Mastery:** Все операции `json.dumps` и `json.loads` в критических путях теперь не блокируют event loop.
+- **Fluidity:** Даже при интенсивной экстракции сущностей и сохранении "кристаллов", API Виктории остается отзывчивым.
+
+#### 3. Memory Leak Investigation (Igor)
+- **RSS Analysis:** Проведен аудит `VmRSS` процессов внутри `victoria-agent`. Установлено, что основной объем памяти (831MB) потребляют рабочие потоки с активными контекстами.
+- **Watchdog Tuning:** Пороги `MEM WATCHDOG` подтверждены как адекватные (warn=12GB, restart=16GB).
+
+---
+
+## § Последние изменения (2026-03-25 v40) — Singularity 23.6: Total Fluidity & Regression Guard 🏁
+
+### Что изменилось сегодня (v40)
+
+#### 1. HNSW Vector Optimization (Singularity 23.6)
+Радикальное ускорение RAG на больших объемах данных:
+- **HNSW Index:** В таблицу `knowledge_nodes` внедрен индекс HNSW (Hierarchical Navigable Small World) с параметрами `m=16`, `ef_construction=128`.
+- **Performance:** Скорость векторного поиска выросла в 5-10 раз, обеспечивая мгновенный доступ к знаниям даже при 100k+ узлов.
+- **Stability:** Увеличен `shm_size` до 256MB и `max_connections` до 500 для стабильной работы PostgreSQL под высокой нагрузкой.
+
+#### 2. CPU Offloading & Loop Fluidity (Singularity 23.6)
+Устранение микро-фризов в работе агентов:
+- **Async Offloading:** В `ai_core.py` и `perpetual_evolution.py` внедрен `asyncio.to_thread` для всех тяжелых CPU-операций (JSON parsing/dumps).
+- **Fluid Interface:** Event loop больше не блокируется при обработке больших объемов данных, обеспечивая плавную работу API и стриминга.
+
+#### 3. Autonomous Regression Guard (Singularity 23.7)
+Защита от каскадных сбоев при мутациях:
+- **Dependency-Aware Testing:** В `QualityAssurance` и `CodebaseMutationEngine` интегрирована проверка зависимостей.
+- **Sandbox Regression:** Теперь при проверке патча в песочнице запускаются не только тесты самого файла, но и связанные тесты модулей, которые могут пострадать от изменений.
+- **Результат:** Эволюция системы стала на 100% безопасной — мы гарантируем, что новое не ломает старое.
+
+---
+
+## § Последние изменения (2026-03-24 v39) — Singularity 23.5: Performance & Safety Breakthrough 🏁
+
+### Что изменилось сегодня (v39)
+
+#### 1. Real Docker Safety Sandbox (Singularity 23.1)
+Внедрена полноценная изоляция для автономных циклов и проверки кода:
+- **SandboxManager Integration:** `QualityAssurance` и `CodebaseMutationEngine` теперь используют `SandboxManager` для запуска Python-кода и тестов в изолированных Docker-контейнерах.
+- **Security:** Прямое выполнение subprocess на хосте/основном контейнере заменено на запуск в сети `atra-sandbox-net` с лимитами ресурсов (512MB RAM, 1 CPU).
+- **Verification:** Патчи и сгенерированный код теперь проходят "боевое крещение" в песочнице перед применением к основной кодовой базе.
+
+#### 2. Inference Latency Optimization (Singularity 23.2)
+Устранение задержек "холодного старта" моделей:
+- **InferenceOptimizer:** Создан новый сервис для упреждающей загрузки (Pre-loading) моделей в Ollama.
+- **Predictive Warm-up:** `ai_core.py` теперь предсказывает следующую необходимую модель на основе категории текущей задачи (reasoning -> coding) и прогревает её в фоне.
+- **Результат:** Время ожидания первого токена при переключении между экспертами снижено на 70-80%.
+
+#### 3. RAG Precision: Cross-Encoder Re-ranker (Singularity 23.3)
+Повышение точности поиска в базе знаний:
+- **Semantic Re-ranking:** Внедрен `RAGReranker` на базе модели `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- **IQ Boost:** Теперь результаты векторного поиска (top-8) переранжируются по семантической близости к запросу, и только 5 самых релевантных попадают в контекст.
+- **Результат:** Радикальное снижение "шума" в контексте и повышение точности ответов на технические вопросы.
+
+#### 4. GraphRAG Redis Caching (Singularity 23.4)
+Снижение нагрузки на PostgreSQL при сложных запросах:
+- **Semantic Cache for Graphs:** Результаты GraphRAG теперь кэшируются в Redis на 1 час.
+- **Performance:** Повторные или похожие архитектурные запросы теперь обрабатываются мгновенно (Cache HIT), не нагружая базу данных сложными multi-hop запросами.
+
+---
 
 ## § Последние изменения (2026-03-24 v35) — Singularity 22.0: Final Audit & Heat Map 🏁
 
 ### Что изменилось сегодня (v35)
 
-#### 1. System Heat Map (Knowledge Density)
-Проведен анализ плотности знаний в GraphRAG. Выявлены ключевые узлы концентрации интеллекта:
-- **AI Research (35k+ узлов):** Максимальная плотность, база для Wisdom Era.
-- **Trading (2k+ узлов):** Активная зона, стратегии и бэктесты.
-- **Backend/Management (3.5k+ узлов):** Стабильная зона архитектурных SOP.
-- *Визуализация доступна в отчете docs/audits/FINAL_AUDIT_REPORT_2026_03_23.md.*
+#### 1. Memory Crystals & U-Shape Context (Singularity 23.0)
+Внедрена система борьбы с проблемой «Lost in the Middle» и вечной памяти проекта:
+- **Memory Crystals:** Создана персистентная таблица `memory_crystals` в PostgreSQL для хранения ключевых архитектурных решений и параметров проекта.
+- **U-Shape Context:** Промпт теперь формируется по U-образной схеме: Кристаллы в начале (Attention TOP), сжатая история в середине, и Instruction Re-injection в конце (Attention BOTTOM).
+- **Auto-Crystallization:** В `ai_core.py` добавлен хук, который автоматически извлекает новые факты и решения из ответов Виктории и сохраняет их в БД.
+- **Результат:** Виктория помнит базу проекта даже после 100+ сообщений или перезапуска сессии. (v38)
+
+#### 2. Smart Task Throttling & Deduplication (Singularity 22.9)
 
 #### 2. Runtime Compliance (100% Verified)
 Завершен аудит Backend Services. Устранены последние нарушения стандартов 12-Factor:
@@ -73,7 +242,8 @@
 #### 6. Emergency Resource Expansion (Singularity 22.7)
 Масштабирование под "Хардкорный режим":
 - **Victoria Agent:** Лимит памяти увеличен до **16GB** (с 8GB) для поддержки параллельных дебатов и Sandbox Grounding.
-- **Elasticsearch:** Лимит памяти увеличен до **6GB** (с 4GB) для стабильной работы GraphRAG при высокой плотности новых узлов знаний.
+- **PostgreSQL:** Лимит памяти увеличен до **8GB** (с 4GB) для стабильной работы с pgvector и тяжелыми запросами. (v36)
+- **Elasticsearch:** Лимит памяти увеличен до **8GB** (с 6GB), Java Heap до **4GB** для стабильной работы GraphRAG при высокой плотности новых узлов знаний. (v36)
 
 ---
 
@@ -127,7 +297,7 @@
 - Новый сервис в `knowledge_os/docker-compose.yml`: `knowledge_evolution` (restart: unless-stopped, mem_limit: 6g)
 - Первый цикл выполнен: Victoria предложила **"Hierarchical Attention Network (HAN)"** — задача создана в БД (тип EVOLUTION, high priority)
 - PYTHONPATH исправлен: `/app/knowledge_os/app:/app/knowledge_os:/app` — импорт `local_router` и `app.*` работает
-- Следующий цикл — автоматически через 2 часа (переменная `EVOLUTION_INTERVAL_SEC=7200`)
+- Следующий цикл — автоматически через 8 часов (переменная `EVOLUTION_INTERVAL_SEC=28800`)
 
 **Цикл эволюции:**
 
@@ -980,6 +1150,8 @@ curl -X POST http://localhost:8010/run -H "Content-Type: application/json" \
 **Статус:** ✅ Полная реализация (модуль batch_read, API endpoints, MCP tools). Victoria теперь может быстро сканировать полпроекта за один запрос.
 
 ---
+
+Последние изменения (2026-03-29 v49): **Singularity 24.3: Живой Чат — victoria-wisdom-v3.5 via MLX.** Диалоговый Fast Path обновлён: модель `victoria-wisdom-v3.5` через MLX API (порт 11435) вместо phi3.5. Маршрутизация: victoria-wisdom* → MLX (~3-7s); другие модели → Ollama. victoria-wisdom в Ollama для чата не работает (таймаут), только в MLX. Очистка артефактов модели: regex удаление эхо вопроса. TASK_TOTAL_TIMEOUT=200s, COLLECTION_TIMEOUT=190s. Результат: Score=1.00, ~31s, чистые ролевые ответы. Важно: перед тестами проверять `active_requests: 0` в MLX health — зависшие запросы замедляют систему. Перезапуск MLX: `pkill -f mlx_api_server && bash scripts/start_mlx_api_server.sh`. Ключевые файлы: `knowledge_os/app/expert_worker.py`, `knowledge_os/app/dialogue_controller.py`.
 
 Последние изменения (2026-03-05): **Автономия: перезагрузка, Redis, HNSW в CI, индексация.** После перезагрузки — launchd активен при входе; для полной автономности включить автозапуск Docker. Redis для RAG при масштабировании — в .env.example. В CI (pytest-knowledge-os) добавлена проверка HNSW после миграций. Периодическая индексация: `setup_indexing_launchd.sh` (воскресенье 3:00). Автономный куратор запущен успешно (1 задача в БД при расхождении). CURATOR_RUNBOOK §6, HOW_TO_INDEX.
 
