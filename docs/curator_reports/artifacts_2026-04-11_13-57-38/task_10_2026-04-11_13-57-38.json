@@ -1,0 +1,17 @@
+{
+  "goal": "2. КТО ОБРАБАТЫВАЕТ задачи (workers) и почему они не успевают?",
+  "output": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "aa3f0e92-b760-4b47-b7c7-3e6de5c963c0",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  },
+  "correlation_id": "aa3f0e92-b760-4b47-b7c7-3e6de5c963c0"
+}

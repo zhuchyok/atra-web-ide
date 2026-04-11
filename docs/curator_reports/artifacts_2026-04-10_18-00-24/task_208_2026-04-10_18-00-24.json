@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/quality_assurance.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "28bad577-bdd4-42a7-9d81-ad669dbb65ed"
+}

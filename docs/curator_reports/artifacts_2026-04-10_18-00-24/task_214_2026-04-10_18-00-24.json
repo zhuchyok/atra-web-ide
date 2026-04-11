@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/scripts/victoria_task_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "8b7e7fb7-9aa8-44f1-8c4f-6d807ba769d7"
+}

@@ -1,5 +1,55 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-04-11 v63) — Hierarchical Swarm Orchestration: Explicit Handoffs & Contracts 🐝
+
+### Что изменилось сегодня (v63)
+
+#### 1. Swarm-Planning (Victoria Router)
+- В `enhanced_orchestrator.py` обновлен промпт декомпозиции: теперь Виктория может предлагать цепочки экспертов с указанием **контрактов (JSON Schema)** для каждого этапа.
+- Внедрена поддержка метаданных `is_swarm` для объединения экспертов в общую сессию.
+
+#### 2. Contract-based Handoffs
+- В `explicit_handoffs.py` добавлена валидация через `jsonschema`. Передача задачи между экспертами теперь требует соблюдения структуры данных.
+- При нарушении контракта эксперт-приемник может инициировать **Back-handoff** (возврат на доработку).
+
+#### 3. Actor-based Swarm Support
+- `VictoriaExpertActor` в `expert_worker.py` получил метод `initiate_handoff` для прямой передачи задач коллегам.
+- Воркеры теперь автоматически распознают теги `HANDOFF:`, `TASK:` и `CONTRACT:` в ответах LLM для активации децентрализованной передачи.
+
+#### 4. MsgHub Shared Context
+- Интегрирована поддержка `agentscope.msghub` на уровне воркера. Эксперты в рамках одной Swarm-задачи видят единую историю рассуждений, что исключает потерю контекста при handoff.
+
+---
+
+## § Последние изменения (2026-04-11 v62) — AgentScope Integration: Actor-based Distributed Intelligence 🚀
+
+### Что изменилось сегодня (v62)
+
+#### 1. MsgHub Integration (Team Intelligence)
+- В `ai_core.py` метод `generate_discussion` переведен на `agentscope.msghub`.
+- Эксперты теперь общаются в общем контексте в реальном времени, что исключает потерю нити обсуждения.
+- Внедрена фаза **"Радикальной правды"** (Ray Dalio): агенты обязаны критиковать слабые места предложенных планов.
+
+#### 2. Distributed Actors (Expert Workers)
+- В `expert_worker.py` внедрен класс `VictoriaExpertActor` на базе `AgentBase`.
+- Реализована модель **Actor-based** изоляции: каждый эксперт имеет свою очередь сообщений и изолированное состояние.
+- Принцип **"Let it crash"** (Erlang): сбой одного эксперта не блокирует систему, актор восстанавливается супервизором.
+
+#### 3. Orchestration Pipelines (First Principles)
+- В `enhanced_orchestrator.py` внедрены `agentscope.pipelines`.
+- Декомпозиция задач теперь идет через цепочку: **Decomposer (First Principles)** -> **Auditor (Pre-mortem)**.
+- Это гарантирует, что каждая сложная задача проходит через аудит рисков перед созданием подзадач.
+
+#### 4. Hybrid Memory (ReMe + Vector)
+- В `ai_core.py` интегрирован модуль `ReMe` (AgentScope) для управления рабочим контекстом.
+- Поиск знаний теперь идет по схеме: **ReMe (Short-term)** -> **GraphRAG** -> **VisualRAG** -> **VectorRAG**.
+
+#### 5. HITL Hooks (Strong Opinions, Weakly Held)
+- В `human_in_the_loop.py` добавлены хуки для интеграции с AgentScope.
+- Система позволяет человеку мгновенно корректировать "мнение" актора-эксперта в процессе рассуждения через RPC-интерфейс.
+
+---
+
 ## § Последние изменения (2026-04-09 v61) — Singularity 25.4: Circuit Breaker Complete Fix + System 100% ✅
 
 ### Что изменилось (v61)

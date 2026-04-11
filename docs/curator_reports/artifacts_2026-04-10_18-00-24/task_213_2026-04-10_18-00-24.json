@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/scripts/mlx_api_server.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "cabef5c7-4276-46c9-abb9-4c845abbcacf"
+}

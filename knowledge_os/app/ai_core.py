@@ -56,6 +56,13 @@ try:
 except ImportError:
     ConsensusAgent = None
 
+# [SINGULARITY 26.2] Swarm & Handoff Integration
+try:
+    from explicit_handoffs import get_handoff_manager
+except ImportError:
+    def get_handoff_manager():
+        return None
+
 # [SINGULARITY 22.8] Iterative Discovery
 try:
     from iterative_discovery import IterativeDiscovery
@@ -432,13 +439,55 @@ class TeamDiscussionEngine:
     ) -> str:
         """
         Generates a multi-expert discussion for a given task.
-        Optimized for victoria-wisdom-v3.5 (MLX).
+        [SINGULARITY 26.1] Integrated AgentScope MsgHub for shared context.
         """
         logger.info(f"🧠 [TEAM ENGINE] Generating discussion for: {task_title}")
 
-        expert_styles = self._get_expert_styles(experts)
-        
-        prompt = f"""### ROLE: AI Director & Team Orchestrator
+        # [AGENT SCOPE] MsgHub Integration
+        try:
+            import agentscope
+            from agentscope.msghub import MsgHub
+            from agentscope.agents import UserAgent, DialogAgent
+            
+            # Инициализация AgentScope если еще не сделано
+            agentscope.init(model_configs=[{
+                "config_name": "victoria_mlx",
+                "model_type": "openai_chat",
+                "api_key": "empty",
+                "base_url": "http://host.docker.internal:11435/v1"
+            }])
+
+            # Создаем агентов для обсуждения
+            expert_agents = []
+            for name in experts:
+                style = self._expert_styles_cache.get(name, "Professional expert.")
+                expert_agents.append(DialogAgent(
+                    name=name,
+                    sys_prompt=f"ТЫ - {name}. {style} Внедряй фазу 'Радикальной правды': критикуй неоптимальные идеи.",
+                    model_config_name="victoria_mlx"
+                ))
+
+            # Запускаем MsgHub
+            with MsgHub(participants=expert_agents) as hub:
+                # Начальное сообщение от Виктории (Team Lead)
+                intro = f"Команда, задача: {task_title}. Описание: {task_description}. Контекст: {context_data[:500] if context_data else 'N/A'}"
+                hub.broadcast({"role": "user", "content": intro})
+                
+                # Симулируем 2 круга обсуждения (мировые практики: дебаты повышают качество)
+                for _ in range(2):
+                    for agent in expert_agents:
+                        agent.reply()
+                
+                # Собираем историю обсуждения
+                discussion_history = hub.get_transcript()
+                return discussion_history
+
+        except Exception as e:
+            logger.warning(f"⚠️ [AGENT SCOPE] MsgHub failed, falling back to legacy discussion: {e}")
+            # Legacy fallback code...
+            expert_styles = self._get_expert_styles(experts)
+            
+            prompt = f"""### ROLE: AI Director & Team Orchestrator
 ### TASK: Simulate a technical discussion between the following experts to solve the task.
 
 ### TASK TITLE: {task_title}
@@ -1045,6 +1094,14 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
         async def fetch_vector():
             try:
+                # [AGENT SCOPE] ReMe Memory Integration
+                from agentscope.memory import ReMe
+                reme = ReMe(config={"type": "hybrid", "top_k": 5})
+                reme_context = reme.retrieve(query)
+                if reme_context:
+                    logger.info("🧠 [AGENT SCOPE] ReMe context retrieved.")
+                    return f"\n🧠 [WORKING MEMORY (ReMe)]:\n{reme_context}\n"
+
                 embedding = await get_embedding(query)
                 if not embedding:
                     return ""
@@ -1376,6 +1433,17 @@ async def run_smart_agent_async_impl(
         require_cot = True
         if "ПОШАГОВО" not in prompt:
             prompt = f"### [SYSTEM: ENFORCED REASONING MODE]\nРЕШИ ЗАДАЧУ ПОШАГОВО (Chain-of-Thought).\n\n{prompt}"
+
+    # [SINGULARITY 26.2] SWARM & HANDOFF INSTRUCTIONS
+    swarm_instruction = """
+### 🐝 SWARM & HANDOFF PROTOCOL:
+Если ты понимаешь, что задача требует участия другого эксперта (например, написание тестов, аудит безопасности или деплой), ты можешь инициировать HANDOFF.
+Для этого в конце своего ответа добавь блок:
+HANDOFF: @имя_эксперта
+TASK: описание задачи для коллеги
+CONTRACT: {json_schema_результата}
+"""
+    prompt = swarm_instruction + "\n" + prompt
 
     request_id = f"{expert_name}_{int(time.time())}"
     # Единый user_key/project_context: из аргумента, иначе MAIN_PROJECT (в т.ч. execute_assignments)

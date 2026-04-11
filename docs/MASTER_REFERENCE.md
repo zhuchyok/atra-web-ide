@@ -1,8 +1,29 @@
-## § Последние изменения (2026-04-11 v61) — Omni-RAG v3: Multimodal Integration 🚀
+## § Последние изменения (2026-04-11 v63) — Hierarchical Swarm Orchestration: Explicit Handoffs & Contracts 🐝
 
-### Что изменилось сегодня (v61)
+### Что изменилось сегодня (v63)
 
-#### 1. Omni-RAG v3: Мультимодальный визуальный поиск (VRAG/VimRAG)
+#### 1. Swarm Orchestration (Hybrid Model)
+Переход к гибридной модели управления мультиагентной системой:
+- **Victoria Router (Planning):** Виктория планирует цепочки экспертов (Handoff Chains) с заданными контрактами.
+- **Contract-based Handoffs:** Передача задач между экспертами через `explicit_handoffs.py` с валидацией по JSON Schema.
+- **Decentralized Execution:** Эксперты могут сами инициировать handoff через теги `HANDOFF:` и `TASK:` в ответах.
+- **Shared Memory (MsgHub):** Все участники Swarm-группы подключены к единому контексту рассуждений.
+
+---
+
+## § Последние изменения (2026-04-11 v62) — AgentScope Integration: Actor-based Distributed Intelligence 🚀
+
+### Что изменилось сегодня (v62)
+
+#### 1. AgentScope Integration (AOP & Actors)
+Внедрение AgentScope переводит систему от процедурной оркестрации к модели **Actor-based Distributed Intelligence**:
+- **MsgHub (Team Intelligence):** В `ai_core.py` метод `generate_discussion` теперь использует `agentscope.msghub`. Эксперты общаются в реальном времени с поддержкой фазы **"Радикальной правды"** (Ray Dalio).
+- **Distributed Actors:** В `expert_worker.py` реализован `VictoriaExpertActor` на базе `AgentBase`. Изолированные состояния и принцип **"Let it crash"** (Erlang).
+- **Orchestration Pipelines:** В `enhanced_orchestrator.py` декомпозиция задач переведена на `agentscope.pipelines` (Decomposer -> Auditor).
+- **Hybrid Memory (ReMe):** В `ai_core.py` интегрирован модуль `ReMe` для управления рабочим контекстом.
+- **HITL Hooks:** В `human_in_the_loop.py` добавлены хуки для коррекции мнений акторов через RPC.
+
+#### 2. Omni-RAG v3: Multimodal Integration (v61)
 Внедрена поддержка визуального контекста для Knowledge OS:
 - **Инфраструктура:** Добавлен сервис `victoria-visual-search` в `docker-compose.yml` (порт 8005) на базе модели `Alibaba-NLP/GVE-2B` и FAISS.
 - **Индексация:** Создан `multimodal_indexer.py` для автоматического сканирования PDF, скриншотов и UI-дизайнов.

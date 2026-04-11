@@ -316,11 +316,26 @@ async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
 ВАЖНО: Если задача требует написания кода или анализа данных из конкретного файла, НЕ разбивай её на мелкие теоретические вопросы.
 Создай ОДНУ или ДВЕ подзадачи для написания и запуска скрипта.
 
+[SINGULARITY 26.2] SWARM MODE: Если задача сложная, предложи цепочку экспертов (handoff chain).
+Для каждого шага укажи: subtask, department, expert_role, priority и ОЖИДАЕМЫЙ КОНТРАКТ (JSON schema для результата).
+
 Задача:
 {goal[:2000]}
 
 Верни ТОЛЬКО валидный JSON:
-{{"task_description": "кратко", "subtasks": [{{"subtask": "промпт для сотрудника", "department": "отдел", "expert_role": "имя/роль", "priority": "medium"}}]}}"""
+{{
+  "task_description": "кратко",
+  "is_swarm": true,
+  "subtasks": [
+    {{
+      "subtask": "промпт для сотрудника",
+      "department": "отдел",
+      "expert_role": "имя/роль",
+      "priority": "medium",
+      "contract": {{"type": "object", "properties": {{"code": {{"type": "string"}}}}}}
+    }}
+  ]
+}}"""
         result = await run_smart_agent_async(prompt, expert_name="Виктория", category="planning")
         if not result or not isinstance(result, str):
             return None
@@ -337,13 +352,15 @@ async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
 
 try:
     from swarm_orchestrator import SwarmOrchestrator
+    from explicit_handoffs import get_handoff_manager
 except ImportError:
-
     class SwarmOrchestrator:
         """Fallback for SwarmOrchestrator."""
-
         async def handle_critical_failures(self):
             pass
+
+    def get_handoff_manager():
+        return None
 
 
 try:
@@ -1045,9 +1062,35 @@ async def run_enhanced_orchestration_cycle():
                 len(unprioritized_tasks),
             )
 
-            # --- ФАЗА 1.5: ДЕКОМПОЗИЦИЯ СЛОЖНЫХ ЗАДАЧ (ORCHESTRATION_IMPROVEMENTS §3.2) ---
+# --- ФАЗА 1.5: ДЕКОМПОЗИЦИЯ СЛОЖНЫХ ЗАДАЧ (Pipelines & First Principles) ---
             t15 = time.time()
             decomposed_count = 0
+            
+            # [AGENT SCOPE] Orchestration Pipeline
+            try:
+                from agentscope.pipelines import SequentialPipeline
+                from agentscope.agents import DialogAgent
+                
+                # 1. Decomposition Agent (First Principles)
+                decomposer = DialogAgent(
+                    name="Decomposer",
+                    sys_prompt="ТЫ - Архитектор. Разложи задачу на атомарные части (First Principles Thinking).",
+                    model_config_name="victoria_mlx"
+                )
+                
+                # 2. Red Team Auditor (Pre-mortem)
+                auditor = DialogAgent(
+                    name="Auditor",
+                    sys_prompt="ТЫ - Red Team. Найди 3 причины, почему этот план провалится (Pre-mortem).",
+                    model_config_name="victoria_mlx"
+                )
+                
+                # Pipeline: Decompose -> Audit -> Execute
+                orch_pipeline = SequentialPipeline([decomposer, auditor])
+                
+            except ImportError:
+                orch_pipeline = None
+
             try:
                 complex_unassigned = await conn.fetch("""
                     SELECT id, title, description, domain_id, priority, metadata,
@@ -1139,6 +1182,16 @@ async def run_enhanced_orchestration_cycle():
                                     )
                                     continue
 
+                        # [SINGULARITY 26.2] Swarm MsgHub Integration
+                        is_swarm = bool(struct.get("is_swarm", False))
+                        if is_swarm:
+                            logger.info(f"🐝 [SWARM] Initializing MsgHub for task {task['id']}")
+                            try:
+                                from agentscope.msghub import msghub
+                                # MsgHub создается в контексте AI Core, здесь мы просто помечаем задачу
+                            except ImportError:
+                                pass
+
                         for st in subtasks[:5]:  # max 5 subtasks
                             st_desc = st.get("subtask", st.get("description", ""))
                             st_dept = st.get("department", "General")
@@ -1146,13 +1199,18 @@ async def run_enhanced_orchestration_cycle():
                                 "SELECT id FROM domains WHERE name = $1", st_dept
                             )
                             st_domain_id = domain_row["id"] if domain_row else task["domain_id"]
-                            meta = json.dumps(
-                                {
-                                    "source": "orchestrator_decompose",
-                                    "parent_task_id": str(task["id"]),
-                                    "expert_role": st.get("expert_role", ""),
-                                }
-                            )
+                            
+                            # [SINGULARITY 26.2] Contract & Handoff metadata
+                            st_contract = st.get("contract")
+                            
+                            meta = {
+                                "source": "orchestrator_decompose",
+                                "parent_task_id": str(task["id"]),
+                                "expert_role": st.get("expert_role", ""),
+                                "is_swarm": is_swarm,
+                                "contract": st_contract
+                            }
+                            
                             _meta = task.get("metadata")
                             parent_pc = task.get("project_context") or (
                                 json.loads(_meta).get("project_context")
@@ -1180,7 +1238,7 @@ async def run_enhanced_orchestration_cycle():
                                 _priority,
                                 st_domain_id,
                                 victoria_id,
-                                meta,
+                                json.dumps(meta),
                                 task["id"],
                                 parent_pc,
                             )

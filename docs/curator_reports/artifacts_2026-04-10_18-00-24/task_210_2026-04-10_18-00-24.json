@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/token_auditor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "1a928d23-8caa-452a-9c1d-bc2d453375c3"
+}

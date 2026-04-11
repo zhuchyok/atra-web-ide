@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/telegram_gateway_v2.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "9316c865-9829-4e93-b758-e1d579fb3a02"
+}

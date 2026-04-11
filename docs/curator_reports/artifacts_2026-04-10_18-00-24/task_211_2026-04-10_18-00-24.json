@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/src/agents/core/base_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "9ea33d29-cf78-4166-b6e5-bad4abeea2ad"
+}

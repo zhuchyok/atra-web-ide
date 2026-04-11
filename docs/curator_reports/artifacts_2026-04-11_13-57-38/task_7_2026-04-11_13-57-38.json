@@ -1,0 +1,11 @@
+{
+  "goal": "ТВОЯ ЗАДАЧА — выясни три вещи:",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "630fa21a-a410-4160-b302-380c686c2fe4"
+}

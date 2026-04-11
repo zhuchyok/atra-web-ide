@@ -1,0 +1,17 @@
+{
+  "goal": "1. КТО СОЗДАЁТ эти задачи и с какой скоростью?",
+  "output": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "c55dcd63-92d0-422d-9c50-bef6aa9c9fb8",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  },
+  "correlation_id": "c55dcd63-92d0-422d-9c50-bef6aa9c9fb8"
+}

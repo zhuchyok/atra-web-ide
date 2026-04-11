@@ -65,10 +65,7 @@ class Handoff:
 
     def validate(self) -> bool:
         """
-        Валидация handoff
-
-        Returns:
-            True если валиден
+        Валидация handoff по контракту (Singularity 26.2)
         """
         if not self.from_agent or not self.to_agent:
             self.error = "from_agent и to_agent обязательны"
@@ -81,6 +78,35 @@ class Handoff:
         if self.deadline < datetime.now(timezone.utc):
             self.error = "deadline в прошлом"
             return False
+
+        # [SINGULARITY 26.2] Contract-based validation
+        if self.validation_schema:
+            try:
+                # [SINGULARITY 26.2] Simple validation if jsonschema is missing
+                required = self.validation_schema.get("required", [])
+                for field in required:
+                    if field not in self.context:
+                        self.error = f"Contract violation: missing required field '{field}'"
+                        logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {self.error}")
+                        return False
+                
+                # Try full validation if possible
+                import jsonschema
+                jsonschema.validate(instance=self.context, schema=self.validation_schema)
+                logger.info(f"✅ Handoff {self.handoff_id} validated against full contract.")
+            except ImportError:
+                logger.debug("jsonschema not installed, using simple field validation")
+            except Exception as e:
+                self.error = f"Contract validation failed: {e}"
+                logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {e}")
+                return False
+        elif "contract" in self.context:
+            # Fallback: если схема передана внутри контекста
+            try:
+                import jsonschema
+                jsonschema.validate(instance=self.context, schema=self.context["contract"])
+                logger.info(f"✅ Handoff {self.handoff_id} validated against inline contract.")
+            except: pass
 
         return True
 

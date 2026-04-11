@@ -54,6 +54,51 @@ async def get_db_pool():
     return _db_pool
 
 
+# [SINGULARITY 26.1] AgentScope Actor Model Integration
+try:
+    from agentscope.agents import AgentBase
+    from agentscope.message import Msg
+
+    class VictoriaExpertActor(AgentBase):
+        """
+        [AGENT SCOPE] Expert as a Distributed Actor.
+        Implements 'Let it crash' philosophy and isolated state.
+        [SINGULARITY 26.2] Swarm & Handoff Support.
+        """
+        def __init__(self, name: str, role: str, persona: str):
+            super().__init__(name=name, sys_prompt=persona)
+            self.role = role
+
+        def reply(self, x: dict = None) -> dict:
+            # Логика обработки сообщения актором
+            logger.info(f"🎭 [ACTOR:{self.name}] Processing message...")
+            # В реальности здесь будет вызов ai_core или ReAct
+            return {"role": "assistant", "content": f"Processed by {self.name}", "name": self.name}
+
+        async def initiate_handoff(self, to_expert: str, task: str, context: dict, contract: dict = None):
+            """Инициализировать передачу задачи другому эксперту (Singularity 26.2)"""
+            try:
+                from explicit_handoffs import get_handoff_manager
+                manager = get_handoff_manager()
+                if manager:
+                    handoff = manager.create_handoff(
+                        from_agent=self.name,
+                        to_agent=to_expert,
+                        task=task,
+                        context=context,
+                        expected_output=f"Result matching contract: {contract}"
+                    )
+                    if contract:
+                        handoff.validation_schema = contract
+                    logger.info(f"🚀 [SWARM] {self.name} initiated handoff to {to_expert}")
+                    return handoff
+            except Exception as e:
+                logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
+            return None
+
+except ImportError:
+    logger.debug("AgentScope not available for VictoriaExpertActor")
+
 async def process_task(task_data: dict):
     """Выполняет задачу и сохраняет результат."""
     task_id = task_data["task_id"]
@@ -110,6 +155,16 @@ async def process_task(task_data: dict):
                     return
             except Exception:
                 pass  # Если Redis недоступен — продолжаем обычно
+
+        # [SINGULARITY 26.2] Swarm MsgHub Context
+        is_swarm = bool(task_data.get("metadata", {}).get("is_swarm", False))
+        if is_swarm:
+            try:
+                from agentscope.msghub import msghub
+                # Воркер подключается к MsgHub задачи
+                logger.info(f"🐝 [SWARM] Expert {expert_name} joining MsgHub for task {task_id}")
+            except ImportError:
+                pass
 
         async with asyncio.timeout(TASK_TOTAL_TIMEOUT):
             pool = await get_db_pool()
@@ -308,6 +363,43 @@ async def process_task(task_data: dict):
                     report_text = json.dumps(report_text, ensure_ascii=False, indent=2)
                 else:
                     report_text = str(report_text)
+
+                # [SINGULARITY 26.2] Swarm Handoff Detection
+                if "HANDOFF:" in report_text and "TASK:" in report_text:
+                    try:
+                        import re as _re
+                        _to_expert = _re.search(r'HANDOFF:\s*@?(\w+)', report_text)
+                        _task_desc = _re.search(r'TASK:\s*(.+)', report_text, _re.DOTALL)
+                        _contract = _re.search(r'CONTRACT:\s*(\{.*\})', report_text, _re.DOTALL)
+                        
+                        if _to_expert and _task_desc:
+                            to_name = _to_expert.group(1)
+                            task_msg = _task_desc.group(1).strip()
+                            contract_json = None
+                            if _contract:
+                                try:
+                                    contract_json = json.loads(_contract.group(1))
+                                except: pass
+                            
+                            from explicit_handoffs import get_handoff_manager
+                            manager = get_handoff_manager()
+                            if manager:
+                                manager.create_handoff(
+                                    from_agent=expert_name,
+                                    to_agent=to_name,
+                                    task=task_msg,
+                                    context={"parent_result": report_text, "parent_task_id": task_id},
+                                    expected_output=f"Swarm handoff result for {to_name}"
+                                )
+                                if contract_json:
+                                    # Находим созданный handoff и ставим схему
+                                    h_list = manager.get_pending_handoffs(to_name)
+                                    if h_list:
+                                        h_list[0].validation_schema = contract_json
+                                
+                                logger.info(f"🐝 [SWARM] {expert_name} successfully initiated handoff to {to_name}")
+                    except Exception as he:
+                        logger.error(f"❌ [SWARM] Handoff detection failed: {he}")
 
                 if is_valid_uuid:
                     print(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
