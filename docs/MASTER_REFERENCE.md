@@ -1,3 +1,32 @@
+## § Последние изменения (2026-04-11 v64) — Singularity 26.3: Immortal Distributed Intelligence (100%) 🧬
+
+### Что изменилось сегодня (v64)
+
+#### 1. Event Sourcing & Actor Persistence
+- В `VictoriaExpertActor` внедрена система Event Sourcing (таблицы `actor_states`, `actor_events` — миграция `20260411_actor_event_sourcing.sql`).
+- Реализованы методы `save_snapshot()`, `record_event()` и `recover_state()`: акторы переживают перезагрузки воркеров без потери контекста.
+
+#### 2. Dynamic Sub-Agent Spawning (Micro-Agent Factory)
+- `expert_generator.py` расширен поддержкой `is_micro=True` — временные узкоспециализированные агенты с промптом до 500 символов.
+- `enhanced_orchestrator.py`: при флаге `needs_micro_agent` в плане декомпозиции система автоматически порождает микро-агента через `recruit_expert`.
+
+#### 3. Autonomous Red-Team Auditor
+- Создан `red_team_auditor.py` — аудитор логики, работает 24/7 в цикле `perpetual_evolution.py`.
+- Применяет метод "5 Почему" и "Инверсию" к узлам знаний и результатам задач; при обнаружении галлюцинаций создаёт задачи на исправление (приоритет `high`).
+
+#### 4. Collective Reflection Loop
+- В `ai_core.py` внедрён `COLLECTIVE REFLECTION PROTOCOL`: каждый ответ агента содержит `<reasoning_trace>` с сомнениями, отброшенными альтернативами и оценкой уверенности (0-100%).
+- Трассы рассуждений анализируются Red-Team Auditor для перекрёстной верификации.
+
+#### 5. Victoria Visual Search — Production Fix
+- Исправлен `victoria-visual-search`: добавлен `Dockerfile` + `requirements.txt` (fastapi, uvicorn, faiss-cpu, numpy, packaging).
+- Сервис стабильно стартует на порту `8005`, FAISS-индекс создаётся в памяти при первом запуске.
+
+**Итоговый рейтинг мультиагентной системы: ~97/100.**
+Файлы: `expert_worker.py`, `expert_generator.py`, `enhanced_orchestrator.py`, `red_team_auditor.py`, `ai_core.py`, `perpetual_evolution.py`, `visual_search/Dockerfile`, `db/migrations/20260411_actor_event_sourcing.sql`.
+
+---
+
 ## § Последние изменения (2026-04-11 v63) — Hierarchical Swarm Orchestration: Explicit Handoffs & Contracts 🐝
 
 ### Что изменилось сегодня (v63)

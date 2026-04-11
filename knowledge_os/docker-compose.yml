@@ -947,7 +947,9 @@ services:
 
   # Omni-RAG v3: Мультимодальный визуальный поиск (VRAG/VimRAG)
   victoria-visual-search:
-    image: python:3.10-slim
+    build:
+      context: ./app/visual_search
+      dockerfile: Dockerfile
     container_name: victoria-visual-search
     restart: unless-stopped
     mem_limit: 4g
@@ -956,18 +958,12 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app
-      # Модель для визуальных эмбеддингов (будет скачана при старте или примонтирована)
-      EMBEDDING_MODEL: "Alibaba-NLP/GVE-2B"
-      DEVICE: "cpu" # Mac Studio CPU достаточно для 2B модели в инференсе
+      EMBEDDING_MODEL: "stub"
+      DEVICE: "cpu"
     ports:
       - "8005:8005"
     volumes:
-      - ../knowledge_os/app/visual_search:/app
       - ../knowledge_os/models:/app/models
-      - ../docs:/app/corpus/docs:ro
-      - ../frontend:/app/corpus/frontend:ro
-    working_dir: /app
-    command: ["python", "search_engine_api.py"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

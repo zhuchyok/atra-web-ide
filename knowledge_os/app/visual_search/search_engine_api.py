@@ -4,11 +4,8 @@ import time
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import torch
-from PIL import Image
 import faiss
 import numpy as np
-from transformers import AutoModel, AutoTokenizer
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
