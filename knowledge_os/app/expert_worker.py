@@ -178,6 +178,9 @@ async def process_task(task_data: dict):
     logger.info(f"🛠️ [WORKER] Начало выполнения задачи {task_id} для {expert_name}")
     print(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
 
+    # actor объявлен на уровне функции, чтобы блок except мог записать task_failed event
+    actor = None
+
     # [SINGULARITY 24.3] Fix 3: TTL для диалоговых задач — пропускаем устаревшие
     if task_data.get("metadata", {}).get("is_dialogue"):
         created_at_str = task_data.get("created_at")
@@ -250,10 +253,14 @@ async def process_task(task_data: dict):
                 )
 
                 # [SINGULARITY 26.3] Actor Recovery & State Management
-                actor = None
                 try:
                     actor = VictoriaExpertActor(name=expert_name, role="Expert", persona="", task_id=str(task_id))
                     await actor.recover_state()
+                    # Записываем старт НЕМЕДЛЕННО — до LLM-вызова, чтобы событие было даже при падении
+                    await actor.record_event("task_started", {
+                        "description": description[:200],
+                        "category": task_data.get("category", "general"),
+                    })
                 except Exception as actor_err:
                     logger.warning(f"⚠️ [ACTOR] Recovery failed: {actor_err}")
 
@@ -556,16 +563,48 @@ async def process_task(task_data: dict):
 
                 logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
 
+                # [SINGULARITY 26.4] Детерминированный handoff — без LLM-тегов
+                try:
+                    from explicit_handoffs import detect_deterministic_handoff
+                    auto_handoff = detect_deterministic_handoff(
+                        from_agent=expert_name,
+                        task_description=description,
+                        task_result=report_text[:300],
+                        category=task_data.get("category", "general"),
+                    )
+                    if auto_handoff:
+                        logger.info(
+                            f"🔀 [AUTO-HANDOFF] {expert_name} → {auto_handoff.to_agent} "
+                            f"| ID: {auto_handoff.handoff_id}"
+                        )
+                        if actor:
+                            await actor.record_event("handoff_created", {
+                                "to_agent": auto_handoff.to_agent,
+                                "handoff_id": auto_handoff.handoff_id,
+                            })
+                except Exception as _hf_err:
+                    logger.debug(f"[HANDOFF] Deterministic check failed (non-critical): {_hf_err}")
+
     except asyncio.TimeoutError:
         logger.error(
             f"⌛ [CIRCUIT BREAKER] Задача {task_id} прервана по таймауту ({TASK_TOTAL_TIMEOUT}с)"
         )
         error_msg = f"Task timed out after {TASK_TOTAL_TIMEOUT}s (Circuit Breaker)"
+        if actor:
+            try:
+                await actor.record_event("task_failed", {"reason": "timeout", "timeout_sec": TASK_TOTAL_TIMEOUT})
+            except Exception:
+                pass
         await _handle_task_error(task_id, error_msg, is_valid_uuid)
 
     except Exception as e:
         logger.error(f"❌ [WORKER] Ошибка задачи {task_id}: {e}", exc_info=True)
         error_msg = str(e)
+        if actor:
+            try:
+                await actor.record_event("task_failed", {"reason": error_msg[:300]})
+            except Exception:
+                pass
         await _handle_task_error(task_id, error_msg, is_valid_uuid)
 
 

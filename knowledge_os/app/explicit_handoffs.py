@@ -287,4 +287,91 @@ def get_handoff_manager() -> HandoffManager:
     global _handoff_manager
     if _handoff_manager is None:
         _handoff_manager = HandoffManager()
+
+
+# ---------------------------------------------------------------------------
+# Детерминированный роутер — НЕ зависит от LLM-тегов
+# Принцип: на основе category/keywords в описании выбираем следующего эксперта
+# ---------------------------------------------------------------------------
+
+# Маппинг: (паттерны в описании) → (эксперт-получатель, приоритет)
+_DETERMINISTIC_ROUTES: List[Dict] = [
+    {
+        "keywords": ["тест", "test", "pytest", "coverage", "проверь работу", "unit test", "integration test"],
+        "expert": "Анна",
+        "reason": "QA проверка — автоматический handoff к тестировщику",
+        "priority": HandoffPriority.HIGH,
+    },
+    {
+        "keywords": ["deploy", "деплой", "docker", "kubernetes", "k8s", "nginx", "CI/CD", "restart", "rollout"],
+        "expert": "Сергей",
+        "reason": "DevOps задача — автоматический handoff к DevOps",
+        "priority": HandoffPriority.HIGH,
+    },
+    {
+        "keywords": ["безопасност", "security", "уязвимост", "sql injection", "xss", "csrf", "audit безопасн"],
+        "expert": "Алексей",
+        "reason": "Security audit — автоматический handoff к аудитору",
+        "priority": HandoffPriority.CRITICAL,
+    },
+    {
+        "keywords": ["метрики", "backtest", "sharpe", "drawdown", "аналитик", "отчёт", "отчет", "статистик"],
+        "expert": "Максим",
+        "reason": "Аналитика — автоматический handoff к дата-аналитику",
+        "priority": HandoffPriority.MEDIUM,
+    },
+    {
+        "keywords": ["ml ", "модель", "обучени", "feature engineering", "pytorch", "tensorflow", "трейн"],
+        "expert": "Дмитрий",
+        "reason": "ML задача — автоматический handoff к ML-инженеру",
+        "priority": HandoffPriority.MEDIUM,
+    },
+]
+
+
+def detect_deterministic_handoff(
+    from_agent: str,
+    task_description: str,
+    task_result: str = "",
+    category: str = "general",
+) -> Optional[Handoff]:
+    """
+    Детерминированный handoff без LLM.
+
+    Анализирует описание/результат задачи по ключевым словам и создаёт
+    handoff к нужному эксперту. Не нужны LLM-теги в тексте ответа.
+
+    Returns:
+        Handoff объект если найдено совпадение, иначе None
+    """
+    text = (task_description + " " + task_result + " " + category).lower()
+
+    for route in _DETERMINISTIC_ROUTES:
+        if any(kw.lower() in text for kw in route["keywords"]):
+            to_agent = route["expert"]
+            # Не handoff-им сами себе
+            if to_agent == from_agent:
+                continue
+
+            mgr = get_handoff_manager()
+            handoff = mgr.create_handoff(
+                from_agent=from_agent,
+                to_agent=to_agent,
+                task=f"[AUTO-HANDOFF] {task_description[:300]}",
+                context={
+                    "original_task": task_description[:500],
+                    "partial_result": task_result[:500],
+                    "category": category,
+                    "auto_route_reason": route["reason"],
+                },
+                expected_output=f"Результат обработки задачи экспертом {to_agent}",
+                priority=route["priority"],
+            )
+            logger.info(
+                f"🔀 [DETERMINISTIC HANDOFF] {from_agent} → {to_agent} | "
+                f"Причина: {route['reason']} | ID: {handoff.handoff_id}"
+            )
+            return handoff
+
+    return None
     return _handoff_manager
