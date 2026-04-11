@@ -933,7 +933,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
-      EVOLUTION_INTERVAL_SEC: "28800"
+      EVOLUTION_INTERVAL_SEC: "3600"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - /var/run/docker.sock:/var/run/docker.sock

@@ -42,15 +42,7 @@ class PerpetualEvolution:
             logger.debug(f"Autonomous skill refinement failed: {asr}")
 
         try:
-            # [SINGULARITY 26.3] Autonomous Red-Team Auditor Phase
-            # Запускаем аудит логики и поиск галлюцинаций.
-            try:
-                from red_team_auditor import RedTeamAuditor
-                auditor = RedTeamAuditor()
-                await auditor.run_audit_cycle()
-            except Exception as rta:
-                logger.debug(f"Red Team Auditor failed: {rta}")
-
+            # [SINGULARITY 26.3] Autonomous Red-Team Auditor Phase — теперь в run_one_cycle()
             # [SINGULARITY 24.0] Autonomous Tester Phase
             # В тихие часы запускаем самотестирование и исправление ошибок.
             try:
@@ -142,7 +134,32 @@ class PerpetualEvolution:
             await asyncio.sleep(300)
 
     async def run_one_cycle(self) -> bool:
-        """Один цикл: исследование следующего апгрейда из знаний гигантов → создание задачи на внедрение (без council/court)."""
+        """Один цикл: автономные фазы + исследование следующего апгрейда из знаний гигантов → создание задачи на внедрение."""
+
+        # [SINGULARITY 26.3] Red-Team Audit Phase (перенесено из run_forever — туда никогда не доходило)
+        try:
+            from red_team_auditor import RedTeamAuditor
+            auditor = RedTeamAuditor()
+            await auditor.run_audit_cycle()
+        except Exception as rta:
+            logger.warning(f"⚠️ [RED TEAM] Auditor failed: {rta}")
+
+        # [SINGULARITY 24.0] Autonomous Tester Phase
+        try:
+            from autonomous_tester import AutonomousTester
+            tester = AutonomousTester()
+            await tester.run_cycle()
+        except Exception as te:
+            logger.debug(f"Autonomous tester failed: {te}")
+
+        # [SINGULARITY 24.0] Wisdom Injection Phase
+        try:
+            from wisdom_injection import WisdomInjectionEngine
+            wisdom_engine = WisdomInjectionEngine()
+            await wisdom_engine.scan_and_inject()
+        except Exception as we:
+            logger.debug(f"Wisdom injection failed: {we}")
+
         task = await self.research_next_upgrade()
         if not task:
             return False

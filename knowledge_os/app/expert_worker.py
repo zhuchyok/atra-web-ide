@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+import uuid
 from datetime import datetime, timezone
 
 import asyncpg
@@ -55,102 +56,118 @@ async def get_db_pool():
 
 
 # [SINGULARITY 26.1] AgentScope Actor Model Integration
+# Try real agentscope first, fall back to lightweight shim (same interface)
 try:
     from agentscope.agents import AgentBase
     from agentscope.message import Msg
-
-    class VictoriaExpertActor(AgentBase):
-        """
-        [AGENT SCOPE] Expert as a Distributed Actor.
-        Implements 'Let it crash' philosophy and isolated state.
-        [SINGULARITY 26.2] Swarm & Handoff Support.
-        [SINGULARITY 26.3] Event Sourcing & State Recovery.
-        """
-        def __init__(self, name: str, role: str, persona: str, task_id: str = None):
-            super().__init__(name=name, sys_prompt=persona)
-            self.role = role
-            self.task_id = task_id
-            self._db_pool = None
-
-        async def _get_conn(self):
-            if not self._db_pool:
-                self._db_pool = await get_db_pool()
-            return self._db_pool
-
-        async def record_event(self, event_type: str, payload: dict):
-            """Записать событие в лог (Event Sourcing)"""
-            pool = await self._get_conn()
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "INSERT INTO actor_events (actor_name, task_id, event_type, payload) VALUES ($1, $2, $3, $4)",
-                    self.name, uuid.UUID(self.task_id) if self.task_id else None, event_type, json.dumps(payload)
-                )
-
-        async def save_snapshot(self):
-            """Сохранить полный снимок состояния"""
-            state = self.state_dict()
-            pool = await self._get_conn()
-            async with pool.acquire() as conn:
-                await conn.execute(
-                    "INSERT INTO actor_states (actor_name, task_id, state_data) VALUES ($1, $2, $3)",
-                    self.name, uuid.UUID(self.task_id) if self.task_id else None, json.dumps(state)
-                )
-
-        async def recover_state(self):
-            """Восстановить состояние из последнего снимка и лога событий"""
-            if not self.task_id: return
-            pool = await self._get_conn()
-            async with pool.acquire() as conn:
-                # 1. Загружаем последний снимок
-                snapshot = await conn.fetchrow(
-                    "SELECT state_data FROM actor_states WHERE actor_name = $1 AND task_id = $2 ORDER BY created_at DESC LIMIT 1",
-                    self.name, uuid.UUID(self.task_id)
-                )
-                if snapshot:
-                    self.load_state_dict(json.loads(snapshot["state_data"]))
-                    logger.info(f"🔄 [RECOVERY] {self.name} restored from snapshot.")
-
-                # 2. Проигрываем события после снимка (если нужно для сложной логики)
-                # В данной реализации AgentScope state_dict обычно достаточно
-
-        def reply(self, x: dict = None) -> dict:
-            # Логика обработки сообщения актором
-            logger.info(f"🎭 [ACTOR:{self.name}] Processing message...")
-            # [SINGULARITY 26.3] Автоматическая запись мысли в лог
-            if x and 'content' in x:
-                asyncio.create_task(self.record_event("receive_message", {"content": x['content']}))
-            
-            # В реальности здесь будет вызов ai_core или ReAct
-            res = {"role": "assistant", "content": f"Processed by {self.name}", "name": self.name}
-            asyncio.create_task(self.record_event("reply_generated", res))
-            return res
-
-        async def initiate_handoff(self, to_expert: str, task: str, context: dict, contract: dict = None):
-            """Инициализировать передачу задачи другому эксперту (Singularity 26.2)"""
-            try:
-                # [SINGULARITY 26.3] Записываем событие передачи
-                await self.record_event("handoff_initiated", {"to": to_expert, "task": task})
-                
-                from explicit_handoffs import get_handoff_manager
-                manager = get_handoff_manager()
-                if manager:
-                    handoff = manager.create_handoff(
-                        from_agent=self.name,
-                        to_agent=to_expert,
-                        task=task,
-                        context=context,
-                        expected_output=f"Result matching contract: {contract}"
-                    )
-                    if contract:
-                        handoff.validation_schema = contract
-                    logger.info(f"🚀 [SWARM] {self.name} initiated handoff to {to_expert}")
-                    return handoff
-            except Exception as e:
-                logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
-            return None
-
+    _AGENTSCOPE_REAL = True
+    logger.info("✅ [ACTOR] Using real AgentScope library")
 except ImportError:
-    logger.debug("AgentScope not available for VictoriaExpertActor")
+    try:
+        from agentscope_shim import AgentBase, Msg
+        _AGENTSCOPE_REAL = False
+        logger.info("⚡ [ACTOR] Using AgentScope shim (minimal fallback)")
+    except ImportError:
+        AgentBase = object
+        Msg = dict
+        _AGENTSCOPE_REAL = False
+        logger.warning("⚠️ [ACTOR] No AgentScope or shim available")
+
+
+class VictoriaExpertActor(AgentBase):
+    """
+    [AGENT SCOPE] Expert as a Distributed Actor.
+    Implements 'Let it crash' philosophy and isolated state.
+    [SINGULARITY 26.2] Swarm & Handoff Support.
+    [SINGULARITY 26.3] Event Sourcing & State Recovery.
+    Works with real agentscope OR with the lightweight agentscope_shim.
+    """
+    def __init__(self, name: str, role: str, persona: str, task_id: str = None):
+        super().__init__(name=name, sys_prompt=persona)
+        self.role = role
+        self.task_id = task_id
+        self._db_pool = None
+
+    async def _get_conn(self):
+        if not self._db_pool:
+            self._db_pool = await get_db_pool()
+        return self._db_pool
+
+    async def record_event(self, event_type: str, payload: dict):
+        """Записать событие в лог (Event Sourcing)"""
+        pool = await self._get_conn()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO actor_events (actor_name, task_id, event_type, payload) VALUES ($1, $2, $3, $4)",
+                self.name, uuid.UUID(self.task_id) if self.task_id else None, event_type, json.dumps(payload)
+            )
+
+    async def save_snapshot(self):
+        """Сохранить полный снимок состояния"""
+        state = self.state_dict()
+        pool = await self._get_conn()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO actor_states (actor_name, task_id, state_data) VALUES ($1, $2, $3)",
+                self.name, uuid.UUID(self.task_id) if self.task_id else None, json.dumps(state)
+            )
+
+    async def recover_state(self):
+        """Восстановить состояние из последнего снимка и лога событий"""
+        if not self.task_id: return
+        pool = await self._get_conn()
+        async with pool.acquire() as conn:
+            snapshot = await conn.fetchrow(
+                "SELECT state_data FROM actor_states WHERE actor_name = $1 AND task_id = $2 ORDER BY created_at DESC LIMIT 1",
+                self.name, uuid.UUID(self.task_id)
+            )
+            if snapshot:
+                self.load_state_dict(json.loads(snapshot["state_data"]))
+                logger.info(f"🔄 [RECOVERY] {self.name} restored from snapshot.")
+
+    def reply(self, x: dict = None) -> dict:
+        # Sync stub for AgentScope pipeline compatibility.
+        # Real async processing goes through process_async() called from process_task().
+        logger.info(f"🎭 [ACTOR:{self.name}] Processing message (sync stub)...")
+        if x and 'content' in x:
+            asyncio.create_task(self.record_event("receive_message", {"content": x['content']}))
+        res = {"role": "assistant", "content": f"[Actor {self.name}: use process_async() for real work]", "name": self.name}
+        asyncio.create_task(self.record_event("reply_generated", res))
+        return res
+
+    async def process_async(self, task_description: str, category: str = "general") -> str:
+        """Real async task processing via ai_core (the live replacement for stub reply())."""
+        await self.record_event("task_started", {"description": task_description[:200]})
+        result = await run_smart_agent_async(
+            task_description,
+            expert_name=self.name,
+            category=category,
+        )
+        text = str(result.get("result") if isinstance(result, dict) else result)
+        await self.record_event("task_finished", {"result_len": len(text)})
+        return text
+
+    async def initiate_handoff(self, to_expert: str, task: str, context: dict, contract: dict = None):
+        """Инициализировать передачу задачи другому эксперту (Singularity 26.2)"""
+        try:
+            await self.record_event("handoff_initiated", {"to": to_expert, "task": task})
+            from explicit_handoffs import get_handoff_manager
+            manager = get_handoff_manager()
+            if manager:
+                handoff = manager.create_handoff(
+                    from_agent=self.name,
+                    to_agent=to_expert,
+                    task=task,
+                    context=context,
+                    expected_output=f"Result matching contract: {contract}"
+                )
+                if contract:
+                    handoff.validation_schema = contract
+                logger.info(f"🚀 [SWARM] {self.name} initiated handoff to {to_expert}")
+                return handoff
+        except Exception as e:
+            logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
+        return None
 
 async def process_task(task_data: dict):
     """Выполняет задачу и сохраняет результат."""
@@ -233,12 +250,12 @@ async def process_task(task_data: dict):
                 )
 
                 # [SINGULARITY 26.3] Actor Recovery & State Management
+                actor = None
                 try:
                     actor = VictoriaExpertActor(name=expert_name, role="Expert", persona="", task_id=str(task_id))
                     await actor.recover_state()
-                    # В будущем: actor.reply() может заменить run_smart_agent_async для полной Actor-модели
                 except Exception as actor_err:
-                    logger.debug(f"⚠️ [ACTOR] Recovery failed: {actor_err}")
+                    logger.warning(f"⚠️ [ACTOR] Recovery failed: {actor_err}")
 
                 # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
                 # ... (логика выбора агента) ...
@@ -475,11 +492,29 @@ async def process_task(task_data: dict):
 
                 await redis_manager.update_task_status(task_id, "completed", result=report_text)
 
+                # [SINGULARITY 26.3] Extract reasoning_trace and store in task metadata
+                if "<reasoning_trace>" in report_text and is_valid_uuid:
+                    try:
+                        import re as _re
+                        _trace_match = _re.search(r'<reasoning_trace>(.*?)</reasoning_trace>', report_text, _re.DOTALL)
+                        if _trace_match:
+                            _trace = _trace_match.group(1).strip()
+                            await conn.execute(
+                                "UPDATE tasks SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1",
+                                task_id,
+                                json.dumps({"reasoning_trace": _trace[:2000]}),
+                            )
+                            logger.info(f"🧠 [REFLECTION] reasoning_trace saved for task {task_id}")
+                    except Exception as _te:
+                        logger.debug(f"reasoning_trace extraction failed: {_te}")
+
                 # [SINGULARITY 26.3] Final State Snapshot
-                try:
-                    await actor.save_snapshot()
-                    await actor.record_event("task_completed", {"result_len": len(report_text)})
-                except: pass
+                if actor:
+                    try:
+                        await actor.save_snapshot()
+                        await actor.record_event("task_completed", {"result_len": len(report_text)})
+                    except Exception:
+                        pass
 
                 # Сингулярность 10.0: Снимаем блокировку идемпотентности
                 await redis_manager.release_task_lock(task_id)

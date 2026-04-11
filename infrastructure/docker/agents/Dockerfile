@@ -45,6 +45,13 @@ RUN pip install --no-cache-dir duckdb pyarrow pandas || true
 RUN pip install --no-cache-dir -r requirements.txt || \
     pip install fastapi uvicorn httpx pydantic aiohttp asyncpg python-dotenv moondream Pillow
 
+# agentscope устанавливается отдельно (--no-deps) чтобы не ломать requirements.txt fallback
+# Actor model, MsgHub, ReMe memory, Swarm orchestration
+RUN pip install --no-cache-dir --no-deps agentscope || true
+RUN pip install --no-cache-dir shortuuid json5 json_repair filetype aioitertools \
+    opentelemetry-sdk opentelemetry-api opentelemetry-semantic-conventions \
+    sqlalchemy || true
+
 # Установка Rust-модуля из builder (мировая практика: один слой, без Rust в финальном образе)
 COPY --from=cache_normalizer_builder /out/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/cache_normalizer*.whl && rm /tmp/cache_normalizer*.whl

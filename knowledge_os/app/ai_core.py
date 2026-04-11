@@ -1094,13 +1094,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
         async def fetch_vector():
             try:
-                # [AGENT SCOPE] ReMe Memory Integration
-                from agentscope.memory import ReMe
-                reme = ReMe(config={"type": "hybrid", "top_k": 5})
-                reme_context = reme.retrieve(query)
-                if reme_context:
-                    logger.info("🧠 [AGENT SCOPE] ReMe context retrieved.")
-                    return f"\n🧠 [WORKING MEMORY (ReMe)]:\n{reme_context}\n"
+                # [AGENT SCOPE] ReMe Memory Integration (optional — falls through if not available)
+                try:
+                    from agentscope.memory import ReMe
+                    reme = ReMe(config={"type": "hybrid", "top_k": 5})
+                    reme_context = reme.retrieve(query)
+                    if reme_context:
+                        logger.info("🧠 [AGENT SCOPE] ReMe context retrieved.")
+                        return f"\n🧠 [WORKING MEMORY (ReMe)]:\n{reme_context}\n"
+                except (ImportError, Exception) as _reme_err:
+                    logger.debug(f"ReMe not available, using VectorRAG: {_reme_err}")
 
                 embedding = await get_embedding(query)
                 if not embedding:
@@ -1435,26 +1438,33 @@ async def run_smart_agent_async_impl(
             prompt = f"### [SYSTEM: ENFORCED REASONING MODE]\nРЕШИ ЗАДАЧУ ПОШАГОВО (Chain-of-Thought).\n\n{prompt}"
 
     # [SINGULARITY 26.3] COLLECTIVE REFLECTION LOOP (Reasoning Trace)
+    # Only inject for large models or reasoning/vip categories — small models (phi3.5 3.8B) ignore it.
+    _is_large_model = is_vip or category in ("reasoning", "vip") or any(
+        x in str(expert_name).lower() for x in ("виктория", "victoria")
+    )
     reflection_instruction = """
-### 🧠 COLLECTIVE REFLECTION PROTOCOL:
-Твой ответ должен содержать скрытый блок <reasoning_trace>, в котором ты:
-1. Описываешь свои сомнения при выборе решения.
-2. Указываешь, какие альтернативные подходы ты отбросил и почему.
-3. Оцениваешь уверенность в своем ответе (0-100%).
-Этот блок будет проанализирован другими агентами для коллективной верификации.
+### COLLECTIVE REFLECTION PROTOCOL:
+Your answer MUST contain a hidden block <reasoning_trace> with:
+1. Your doubts when choosing the solution.
+2. Alternative approaches you rejected and why.
+3. Your confidence score (0-100%).
+This block will be analyzed by other agents for collective verification.
 """
-    prompt = reflection_instruction + "\n" + prompt
+    if _is_large_model:
+        prompt = reflection_instruction + "\n" + prompt
 
     # [SINGULARITY 26.2] SWARM & HANDOFF INSTRUCTIONS
+    # Only inject for Victoria (orchestrator role) — other experts should not initiate handoffs.
     swarm_instruction = """
-### 🐝 SWARM & HANDOFF PROTOCOL:
-Если ты понимаешь, что задача требует участия другого эксперта (например, написание тестов, аудит безопасности или деплой), ты можешь инициировать HANDOFF.
-Для этого в конце своего ответа добавь блок:
-HANDOFF: @имя_эксперта
-TASK: описание задачи для коллеги
-CONTRACT: {json_schema_результата}
+### SWARM & HANDOFF PROTOCOL:
+If the task requires another expert (e.g. writing tests, security audit, deployment),
+add at the END of your answer:
+HANDOFF: @expert_name
+TASK: task description for the colleague
+CONTRACT: {json_schema}
 """
-    prompt = swarm_instruction + "\n" + prompt
+    if expert_name in ("Виктория", "Victoria", "виктория"):
+        prompt = swarm_instruction + "\n" + prompt
 
     request_id = f"{expert_name}_{int(time.time())}"
     # Единый user_key/project_context: из аргумента, иначе MAIN_PROJECT (в т.ч. execute_assignments)
