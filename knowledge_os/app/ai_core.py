@@ -1003,7 +1003,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         await tm.mirror_request("ai_core", "_get_knowledge_context", query)
 
     try:
-        # [SINGULARITY 21.22] Parallel RAG Execution: GraphRAG + VectorRAG + VisualRAG
+        # [SINGULARITY 21.22] Parallel RAG Execution: GraphRAG + VectorRAG
         async def fetch_graph():
             try:
                 from app.graphrag.graphrag_service import get_graphrag_service
@@ -1023,13 +1023,14 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 logger.debug(f"GraphRAG failed: {ge}")
                 return None
 
-        async def fetch_visual():
+        async def fetch_visual(refined_query: Optional[str] = None):
             """[OMNI-RAG v3] Coarse-to-Fine Visual Context Retrieval."""
+            search_query = refined_query or query
             try:
                 if not LocalAIRouter:
                     return ""
                 router = LocalAIRouter()
-                visual_results = await router.search_visual_context(query)
+                visual_results = await router.search_visual_context(search_query)
                 if not visual_results:
                     return ""
                 
@@ -1204,14 +1205,48 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 logger.error(f"Vector RAG failed: {ve}")
                 return ""
 
-        # Execute all in parallel
+        # [OMNI-RAG v3] Coarse-to-Fine Iterative Search
+        # Step 1: Coarse search (Graph + Vector)
         graph_task = asyncio.create_task(fetch_graph())
         vector_task = asyncio.create_task(fetch_vector())
-        visual_task = asyncio.create_task(fetch_visual())
+        graph_context, vector_context = await asyncio.gather(graph_task, vector_task)
 
-        graph_context, vector_context, visual_context = await asyncio.gather(
-            graph_task, vector_task, visual_task
-        )
+        # Step 2: Fine search (Visual) if needed
+        visual_context = ""
+        prompt_lower = query.lower()
+        is_multimodal = "#multimodal" in prompt_lower or any(kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"])
+        
+        if is_multimodal:
+            logger.info("🎨 [OMNI-RAG] Multimodal query detected, performing fine visual search...")
+            visual_context = await fetch_visual()
+        elif graph_context or vector_context:
+            # Анализируем текстовый контекст: если там есть упоминания визуальных артефактов, делаем fine search
+            combined_text = (graph_context or "") + (vector_context or "")
+            if any(kw in combined_text.lower() for kw in ["image", "screenshot", "diagram", "pdf", "ui_design"]):
+                logger.info("🔍 [OMNI-RAG] Visual artifacts mentioned in text context, refining search...")
+                visual_context = await fetch_visual()
+
+        if visual_context:
+            logger.info("🖼️ [OMNI-RAG] Visual context retrieved. Verifying via ConsensusAgent...")
+            try:
+                from consensus_agent import ConsensusAgent
+                consensus = ConsensusAgent()
+                # Упрощенная верификация: проверяем, не противоречит ли визуальный контекст текстовому
+                verification_prompt = f"""
+                Verify if the following visual context matches the textual context for the query: "{query}"
+                TEXTUAL CONTEXT: {graph_context[:1000]}... {vector_context[:1000]}...
+                VISUAL CONTEXT: {visual_context}
+                Respond with 'VALID' or 'INVALID' and a brief reason.
+                """
+                # Используем легкую модель для верификации
+                v_res = await LocalAIRouter().run_local_llm(verification_prompt, category="fast")
+                if isinstance(v_res, tuple) and "INVALID" in str(v_res[0]):
+                    logger.warning(f"⚠️ [OMNI-RAG] Visual context verification failed: {v_res[0]}")
+                    visual_context = f"⚠️ [VERIFICATION FAILED]: {visual_context}"
+                else:
+                    logger.info("✅ [OMNI-RAG] Visual context verified.")
+            except Exception as ce:
+                logger.debug(f"Consensus verification failed: {ce}")
 
         full_context = ""
         if graph_context:
