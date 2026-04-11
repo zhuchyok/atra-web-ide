@@ -42,6 +42,15 @@ class PerpetualEvolution:
             logger.debug(f"Autonomous skill refinement failed: {asr}")
 
         try:
+            # [SINGULARITY 26.3] Autonomous Red-Team Auditor Phase
+            # Запускаем аудит логики и поиск галлюцинаций.
+            try:
+                from red_team_auditor import RedTeamAuditor
+                auditor = RedTeamAuditor()
+                await auditor.run_audit_cycle()
+            except Exception as rta:
+                logger.debug(f"Red Team Auditor failed: {rta}")
+
             # [SINGULARITY 24.0] Autonomous Tester Phase
             # В тихие часы запускаем самотестирование и исправление ошибок.
             try:

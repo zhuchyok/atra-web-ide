@@ -114,48 +114,62 @@ def run_cursor_agent(prompt: str):
     return run_smart_agent_sync(prompt, expert_name="HR-Director", category="recruitment")
 
 
-async def recruit_expert(domain_name: str):
+async def recruit_expert(domain_name: str, is_micro: bool = False):
     """
     Autonomous Recruitment: Designing expert for domain.
-    1. Analyzes best practices.
-    2. Generates name, role, and system prompt.
-    3. Persists expert to database.
+    is_micro: If True, creates a temporary micro-agent for a specific subtask.
     """
     if not ASYNCPG_AVAILABLE:
         logger.error("❌ asyncpg is not installed. Recruitment is disabled.")
         return
 
-    logger.info("🕵️ Autonomous Recruitment: Designing expert for domain '%s'...", domain_name)
+    logger.info("🕵️ Autonomous Recruitment: Designing %sexpert for domain '%s'...", "micro-" if is_micro else "", domain_name)
     conn = await asyncpg.connect(DB_URL)
 
     # 1. Анализируем лучшие мировые практики для этой роли (промпт мирового уровня)
-    recruitment_prompt = f"""
-    Ты — ведущий Prompt Engineer мирового класса. Создай эксперта уровня ТОП-1 В МИРЕ для ИИ-корпорации.
+    if is_micro:
+        recruitment_prompt = f"""
+        Ты — Архитектор Микро-агентов. Создай узкоспециализированного временного агента.
+        ОБЛАСТЬ: {domain_name}
+        ЗАДАЧА: Придумай имя и очень конкретный system_prompt (max 500 символов), 
+        фокусирующийся ТОЛЬКО на этой области.
+        
+        ВЕРНИ ТОЛЬКО JSON:
+        {{
+            "name": "Имя",
+            "role": "Micro-Specialist",
+            "system_prompt": "Текст промпта",
+            "department": "{domain_name}"
+        }}
+        """
+    else:
+        recruitment_prompt = f"""
+        Ты — ведущий Prompt Engineer мирового класса. Создай эксперта уровня ТОП-1 В МИРЕ для ИИ-корпорации.
 
-    ОБЛАСТЬ: {domain_name}
+        ОБЛАСТЬ: {domain_name}
 
-    ЗАДАЧА:
-    1. Придумай имя (в стиле компании: Марк, София и т.п.).
-    2. Определи роль (каноничный формат: Legal Counsel, Data Analyst, Backend Developer, QA Engineer, Risk Manager, Trading Strategy Developer и т.п.).
-    3. Разработай system_prompt уровня мирового топ-эксперта. ОБЯЗАТЕЛЬНО включи:
-       - Методологии (FAANG, McKinsey, IEEE, ISO — применимые к области)
-       - Стиль общения: конкретный, структурированный, экспертный
-       - 5–7 ключевых компетенций с конкретными примерами
-       - Границы экспертизы (что входит, что делегировать)
-       - Формат ответа (по возможности)
-       - Лучшие практики индустрии
-    Референс: структура промптов топ-экспертов (Анна QA, Павел Trading, Игорь Backend) — чёткая специализация, Reuse First, структурированный ответ.
+        ЗАДАЧА:
+        1. Придумай имя (в стиле компании: Марк, София и т.п.).
+        2. Определи роль (каноничный формат: Legal Counsel, Data Analyst, Backend Developer, QA Engineer, Risk Manager, Trading Strategy Developer и т.п.).
+        3. Разработай system_prompt уровня мирового топ-эксперта. ОБЯЗАТЕЛЬНО включи:
+           - Методологии (FAANG, McKinsey, IEEE, ISO — применимые к области)
+           - Стиль общения: конкретный, структурированный, экспертный
+           - 5–7 ключевых компетенций с конкретными примерами
+           - Границы экспертизы (что входит, что делегировать)
+           - Формат ответа (по возможности)
+           - Лучшие практики индустрии
+        Референс: структура промптов топ-экспертов (Анна QA, Павел Trading, Игорь Backend) — чёткая специализация, Reuse First, структурированный ответ.
 
-    Длина system_prompt: минимум 200 символов, желательно 400+.
+        Длина system_prompt: минимум 200 символов, желательно 400+.
 
-    ВЕРНИ ТОЛЬКО JSON (без пояснений):
-    {{
-        "name": "Имя",
-        "role": "Роль",
-        "system_prompt": "Текст промпта мирового уровня",
-        "department": "{domain_name}"
-    }}
-    """
+        ВЕРНИ ТОЛЬКО JSON (без пояснений):
+        {{
+            "name": "Имя",
+            "role": "Роль",
+            "system_prompt": "Текст промпта мирового уровня",
+            "department": "{domain_name}"
+        }}
+        """
 
     output = run_cursor_agent(recruitment_prompt)
 

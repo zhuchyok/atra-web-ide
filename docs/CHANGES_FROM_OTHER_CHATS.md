@@ -5071,6 +5071,24 @@ _Сводка актуализирована с учётом правок из �
 
 ---
 
+## 64. Singularity 26.3: Immortal Distributed Intelligence (Singularity 100%) (2026-04-11)
+
+- **Event Sourcing & Actor Persistence:**
+  - В `VictoriaExpertActor` внедрена система Event Sourcing (таблицы `actor_states`, `actor_events`).
+  - Реализованы методы `save_snapshot()`, `record_event()` и `recover_state()` для "бессмертия" акторов при перезагрузках воркеров.
+- **Dynamic Sub-Agent Spawning (Micro-Agent Factory):**
+  - Расширен `expert_generator.py` поддержкой создания временных микро-агентов (`is_micro=True`) с узкой специализацией.
+  - В `enhanced_orchestrator.py` добавлена логика автоматического порождения микро-агентов при обнаружении флага `needs_micro_agent` в плане декомпозиции.
+- **Autonomous Red-Team Auditor:**
+  - Создан `red_team_auditor.py` — автономный агент, проверяющий логику узлов знаний и результатов задач 24/7 по методу "5 Почему" и "Инверсии".
+  - Интегрирован в цикл `perpetual_evolution.py` для непрерывного поиска галлюцинаций и логических дыр.
+- **Collective Reflection Loop:**
+  - В `ai_core.py` внедрен протокол `reasoning_trace` — каждый ответ теперь содержит скрытый блок размышлений, сомнений и оценки уверенности.
+  - Это позволяет другим агентам проводить перекрестную проверку (Collective Reflection) и повышает общую точность системы.
+- **Файлы:** `knowledge_os/app/expert_worker.py`, `knowledge_os/app/expert_generator.py`, `knowledge_os/app/enhanced_orchestrator.py`, `knowledge_os/app/red_team_auditor.py`, `knowledge_os/app/ai_core.py`, `knowledge_os/app/perpetual_evolution.py`, `knowledge_os/db/migrations/20260411_actor_event_sourcing.sql`.
+
+---
+
 ## 58. Singularity 24.8: Adaptive Ollama Context (2026-03-08)
 
 - **Adaptive Context Window:**

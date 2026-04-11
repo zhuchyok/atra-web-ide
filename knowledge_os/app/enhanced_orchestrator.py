@@ -1184,6 +1184,18 @@ async def run_enhanced_orchestration_cycle():
 
                         # [SINGULARITY 26.2] Swarm MsgHub Integration
                         is_swarm = bool(struct.get("is_swarm", False))
+                        
+                        # [SINGULARITY 26.3] Dynamic Sub-Agent Spawning (Micro-Agent Factory)
+                        # Если задача требует ультра-специфичного навыка, которого нет у экспертов
+                        if struct.get("needs_micro_agent"):
+                            try:
+                                from expert_generator import recruit_expert
+                                micro_domain = struct.get("micro_agent_domain", st_dept)
+                                logger.info(f"🧬 [SPAWNING] Spawning micro-agent for domain: {micro_domain}")
+                                await recruit_expert(micro_domain, is_micro=True)
+                            except Exception as se:
+                                logger.error(f"❌ [SPAWNING] Failed to spawn micro-agent: {se}")
+
                         if is_swarm:
                             logger.info(f"🐝 [SWARM] Initializing MsgHub for task {task['id']}")
                             try:

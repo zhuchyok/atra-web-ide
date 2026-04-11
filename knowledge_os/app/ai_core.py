@@ -1434,6 +1434,17 @@ async def run_smart_agent_async_impl(
         if "ПОШАГОВО" not in prompt:
             prompt = f"### [SYSTEM: ENFORCED REASONING MODE]\nРЕШИ ЗАДАЧУ ПОШАГОВО (Chain-of-Thought).\n\n{prompt}"
 
+    # [SINGULARITY 26.3] COLLECTIVE REFLECTION LOOP (Reasoning Trace)
+    reflection_instruction = """
+### 🧠 COLLECTIVE REFLECTION PROTOCOL:
+Твой ответ должен содержать скрытый блок <reasoning_trace>, в котором ты:
+1. Описываешь свои сомнения при выборе решения.
+2. Указываешь, какие альтернативные подходы ты отбросил и почему.
+3. Оцениваешь уверенность в своем ответе (0-100%).
+Этот блок будет проанализирован другими агентами для коллективной верификации.
+"""
+    prompt = reflection_instruction + "\n" + prompt
+
     # [SINGULARITY 26.2] SWARM & HANDOFF INSTRUCTIONS
     swarm_instruction = """
 ### 🐝 SWARM & HANDOFF PROTOCOL:
