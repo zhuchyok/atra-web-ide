@@ -507,6 +507,9 @@ A: {"thought": "Выполню ls для текущей директории", "
             messages.extend(history)
         messages.append({"role": "user", "content": prompt})
 
+        # keep_alive: политика из ollama_keep_alive_policy
+        # При живом MLX → 60с (руки), при падении MLX → -1 (immortal fallback)
+
         payload = {
             "model": model,
             "messages": messages,
@@ -524,15 +527,21 @@ A: {"thought": "Выполню ls для текущей директории", "
                     return raw
 
             key = (m_name or "").lower()
+            # Большие модели (>20GB): короткий TTL чтобы не блокировать Ollama scheduler
+            if "wisdom" in key or "35b" in key or "qwen3.5" in key:
+                return 60
             if "70b" in key or "104b" in key or "next" in key:
                 return 60
             if "32b" in key or "30b" in key or "qwq" in key:
-                return 300
+                return 120
             if "7b" in key or "8b" in key or "14b" in key:
-                return 600
+                return 300
+            # phi3.5 (17GB), lfm2.5, другие средние — не держать часами
+            if "phi3" in key or "phi3.5" in key or "17gb" in key:
+                return 120
             if "3b" in key or "1b" in key or "tiny" in key or "embedding" in key:
-                return 3600
-            return 300
+                return 300
+            return 120
 
         payload["keep_alive"] = get_smart_keep_alive(model)
 

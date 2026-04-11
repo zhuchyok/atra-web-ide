@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/circuit_breaker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "6c02bed3-c6ee-4a83-b85e-592fc30f1161"
+}

@@ -27,7 +27,10 @@ except ImportError:
         "⚠️ watchdog не установлен — hot-reload skills отключен. Установите: pip install watchdog (есть в requirements.txt)"
     )
 
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 from app.skill_registry import Skill, SkillRegistry, SkillSource, get_skill_registry
 
 # SkillFileHandler только если watchdog доступен

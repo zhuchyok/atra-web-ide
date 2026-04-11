@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/expert_dna_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "3c665598-a6ae-4a3a-9671-f8e26662bb6e"
+}

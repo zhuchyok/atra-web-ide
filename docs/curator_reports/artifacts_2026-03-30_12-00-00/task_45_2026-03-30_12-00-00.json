@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/graphrag/graphrag_service.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "c0aac35a-b7f3-4172-b697-20540347a161"
+}

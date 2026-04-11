@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/collective_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "a8dda5b1-e5e4-428c-9206-6e91a2e2362c"
+}

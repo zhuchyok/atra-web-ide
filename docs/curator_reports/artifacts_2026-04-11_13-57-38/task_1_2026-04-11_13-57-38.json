@@ -1,0 +1,17 @@
+{
+  "goal": "Выясни причины появления зависших задач в системе Knowledge OS. Это критическая проблема — очередь раздулась до 86 pending задач и 13 in_progress, из которых большинство не обновлялись часами. Из-за этого эволюция была заблокирована 2 дня.",
+  "output": "**Система (Mac Studio):**\n- CPU: 1.9% (12 ядер)\n- Память: 7.6 / 35.18 ГБ (21.6%)\n- Диск: 206.33 / 1827.95 ГБ (11.29%)\n\n**MLX API Server:** healthy\n- Память: 71.8%, свободно 36.13 ГБ из 128.0 ГБ\n- Моделей в кэше: 2\n",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "8e62eff4-2f88-44fb-9250-21ca35dac007",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  },
+  "correlation_id": "8e62eff4-2f88-44fb-9250-21ca35dac007"
+}

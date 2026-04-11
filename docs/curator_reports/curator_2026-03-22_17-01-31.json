@@ -1,0 +1,79 @@
+{
+  "ts": "2026-03-22T17:15:05.041011+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 7,
+  "results": [
+    {
+      "goal": "Проведи аудит чистоты кода в модуле src/agents/core.",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "223edd8d-67da-4cbf-9392-01b296eac9da",
+      "execution_trace": {},
+      "elapsed_seconds": 600.87
+    },
+    {
+      "goal": "Нужно оценить:",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 182.26
+    },
+    {
+      "goal": "1. SOLID, KISS, DRY.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02
+    },
+    {
+      "goal": "2. Мертвый код и неиспользуемые импорты.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "3. Качество обработки ошибок.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "4. Места для рефакторинга.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    },
+    {
+      "goal": "Подготовь краткий отчет.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01
+    }
+  ]
+}

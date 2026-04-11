@@ -14,7 +14,10 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 import httpx
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +125,7 @@ class ServiceMonitor:
             Service(
                 name="Victoria Agent",
                 service_type="http",
-                endpoint=f"http://127.0.0.1:{victoria_port}",
+                endpoint=f"http://victoria-agent:8000" if in_docker else f"http://127.0.0.1:{victoria_port}",
                 port=victoria_port,
                 health_check_path="/health",
             ),
@@ -134,6 +137,15 @@ class ServiceMonitor:
                 else os.getenv("VERONICA_MONITOR_URL", "http://localhost:8011"),
                 port=8011,
                 health_check_path="/health",
+            ),
+            Service(
+                name="Victoria Proxy",
+                service_type="http",
+                endpoint=os.getenv("PROXY_MONITOR_URL", "http://host.docker.internal:8040" if in_docker else "http://localhost:8040"),
+                port=8040,
+                health_check_path="/health",
+                check_interval=30,
+                timeout=5,
             ),
             Service(
                 name="MLX API Server",
@@ -285,6 +297,12 @@ class ServiceMonitor:
         if old_status == new_status:
             return
 
+        # [SINGULARITY 24.3] Avoid flooding the EventBus with UNKNOWN/DOWN transitions during startup
+        # or when services are flapping.
+        if old_status == ServiceStatus.UNKNOWN and new_status == ServiceStatus.DOWN:
+            logger.info(f"ℹ️ Service {service.name} is DOWN on first check (expected during startup)")
+            return
+
         # Определяем тип события
         if new_status == ServiceStatus.DOWN:
             event_type = EventType.SERVICE_DOWN
@@ -294,7 +312,7 @@ class ServiceMonitor:
             event_type = EventType.SERVICE_HEALTH_CHECK
 
         event = Event(
-            event_id=f"service_{service.name}_{new_status.value}",
+            event_id=f"service_{service.name}_{new_status.value}_{int(datetime.now(timezone.utc).timestamp())}",
             event_type=event_type,
             payload={
                 "service_name": service.name,
@@ -398,7 +416,7 @@ class ServiceMonitor:
             )
 
     async def check_all_services(self):
-        """Проверить все сервисы"""
+        """Проверить все сервисы и глубину очереди задач"""
         for service_name, service in self.services.items():
             old_status = self.service_statuses.get(service_name, ServiceStatus.UNKNOWN)
             new_status = await self.check_service(service)
@@ -407,6 +425,62 @@ class ServiceMonitor:
 
             # Публикуем событие об изменении статуса
             await self._publish_status_change(service, old_status, new_status)
+
+        # [SINGULARITY 24.3] Мониторинг глубины очереди задач
+        await self._check_queue_depth()
+
+    # [SINGULARITY 25.1] Retry logic for failed tasks (Igor & Roman)
+    async def retry_failed_tasks(self, limit: int = 11):
+        """Находит последние проваленные задачи и перезапускает их."""
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # Находим задачи с таймаутами или ошибками связи
+            tasks = await conn.fetch("""
+                SELECT id, title, goal, project_context, metadata
+                FROM tasks
+                WHERE status = 'failed'
+                AND (result ILIKE '%timeout%' OR result ILIKE '%Connect call failed%')
+                ORDER BY updated_at DESC
+                LIMIT $1
+            """, limit)
+            
+            for task in tasks:
+                logger.info(f"🔄 [RETRY] Перезапуск задачи {task['id']}: {task['title']}")
+                # Сбрасываем статус в pending
+                await conn.execute("""
+                    UPDATE tasks 
+                    SET status = 'pending', result = NULL, updated_at = NOW()
+                    WHERE id = $1
+                """, task['id'])
+            
+            return len(tasks)
+
+    async def _check_queue_depth(self):
+        """Проверить количество PENDING задач и опубликовать событие при перегрузке"""
+        try:
+            from app.db_pool import get_pool
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                pending_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'pending'")
+                
+                max_queue = int(os.getenv("MAX_PENDING_TASKS_THRESHOLD", "100"))
+                
+                if pending_count > max_queue:
+                    logger.warning(f"⚠️ Очередь перегружена: {pending_count} задач (лимит: {max_queue})")
+                    event = Event(
+                        event_id=f"queue_overload_{int(datetime.now(timezone.utc).timestamp())}",
+                        event_type=EventType.PERFORMANCE_DEGRADED,
+                        payload={
+                            "metric": "queue_depth",
+                            "value": pending_count,
+                            "threshold": max_queue,
+                            "status": "overloaded"
+                        },
+                        source="service_monitor"
+                    )
+                    await self.event_bus.publish(event)
+        except Exception as e:
+            logger.error(f"❌ Ошибка проверки глубины очереди: {e}")
 
     async def _monitoring_loop(self):
         """Основной цикл мониторинга. Задержка перед первым проходом: Victoria (HTTP + skills + DB) + запас на развёртывание и загрузку моделей при первом запросе."""

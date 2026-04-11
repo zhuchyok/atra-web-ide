@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/debate_processor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "7e05ae41-820a-4339-93d9-23583a052f3d"
+}

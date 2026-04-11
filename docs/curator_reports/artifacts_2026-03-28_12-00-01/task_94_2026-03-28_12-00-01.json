@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/enhanced_scout_researcher.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "2459ee2f-64ca-4b9a-ba88-ce02d1995ca1"
+}

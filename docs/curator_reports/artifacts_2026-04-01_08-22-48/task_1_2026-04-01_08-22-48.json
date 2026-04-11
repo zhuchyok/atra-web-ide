@@ -1,0 +1,11 @@
+{
+  "goal": "привет",
+  "output": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+  "knowledge": {
+    "strategy": "quick_answer",
+    "confidence": 1.0,
+    "fast_path": true,
+    "source": "static_fallback"
+  },
+  "correlation_id": "9fe92efc-b4c7-4600-b622-0135d62f4626"
+}

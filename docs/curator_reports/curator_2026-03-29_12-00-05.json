@@ -1,0 +1,2130 @@
+{
+  "ts": "2026-03-30T04:58:42.570106+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 181,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "62f9b80b-5359-4f67-96bb-b2ae726ad219",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 300.09,
+      "artifact_file": "task_1_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78ccfd89-e5c7-49a3-9958-08b3fb37bafb",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_2_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "698bf34a-cddf-406c-862e-144e2d21f10b",
+      "execution_trace": {},
+      "elapsed_seconds": 604.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+      "output_length": 222,
+      "correlation_id": "c8485f83-1912-4ce9-8001-2654080c4ed6",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 300.11,
+      "artifact_file": "task_4_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2d593d52-07f7-4e9d-9595-5ce2fc097434",
+      "execution_trace": {},
+      "elapsed_seconds": 602.29,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/src/agents/core/executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d2b58370-dd8b-4526-835a-d0e17333d238",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.21,
+      "artifact_file": "task_6_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/git_guardian.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b07076d0-57e2-4cad-91c1-c53ebbf27cc1",
+      "execution_trace": {},
+      "elapsed_seconds": 602.6,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/run_evolution_loop.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f676bc17-1b74-4c49-a26c-db068a145582",
+      "execution_trace": {},
+      "elapsed_seconds": 602.54,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6850b493-1ede-47f8-bfe5-3d5e0bfcbb9f",
+      "execution_trace": {},
+      "elapsed_seconds": 602.69,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/scripts/cloud_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cbe6fdb6-a8d0-482b-b3b7-89f4addac7d1",
+      "execution_trace": {},
+      "elapsed_seconds": 600.87,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/scripts/curator_compare_to_standard.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bee4d9aa-24ec-45d3-ab56-25509c684898",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_11_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/ingest_docs_to_rag.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ea23105f-b357-46ef-bf99-2c2bc2cf015a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_12_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9557a08f-b790-443c-989f-2e6734e170a0",
+      "execution_trace": {},
+      "elapsed_seconds": 603.73,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/performance_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8fa0dbec-a6f2-416a-867e-a162f8cd4466",
+      "execution_trace": {},
+      "elapsed_seconds": 602.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "883c5843-afce-4f1f-91f2-95dd9790da75",
+      "execution_trace": {},
+      "elapsed_seconds": 603.49,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/smart_worker_autonomous.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8a00b4de-f499-46fb-a5ca-98db2e3ded03",
+      "execution_trace": {},
+      "elapsed_seconds": 603.51,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/circuit_breaker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "35a72a68-171b-4ebf-8c67-d08626018e3f",
+      "execution_trace": {},
+      "elapsed_seconds": 602.83,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/nightly_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b8bfa169-4254-4579-8644-d6fdc130cad2",
+      "execution_trace": {},
+      "elapsed_seconds": 600.64,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_knowledge_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d93bb587-730d-425d-a656-8c45569f88a5",
+      "execution_trace": {},
+      "elapsed_seconds": 603.86,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_services.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bdf2a470-9274-4aee-b32d-494bef3ebfb4",
+      "execution_trace": {},
+      "elapsed_seconds": 603.89,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/service_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "69845560-a4d3-4373-82cf-6a744719513f",
+      "execution_trace": {},
+      "elapsed_seconds": 604.03,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ui_audit_agent.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cd80f44e-bde2-4f11-b365-405a264588a5",
+      "execution_trace": {},
+      "elapsed_seconds": 601.86,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/swarm_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "64813d94-3e8a-4fd3-ac5b-db6b6e03276f",
+      "execution_trace": {},
+      "elapsed_seconds": 601.67,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2baaf1c0-6b19-44af-8a33-8b9cf335d990",
+      "execution_trace": {},
+      "elapsed_seconds": 603.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2ee7c94d-28f3-4352-abc6-521f3227ee13",
+      "execution_trace": {},
+      "elapsed_seconds": 604.27,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/streaming_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 443.84,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/worker_v3_1.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_chaos_injector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.12,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/react_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a8d81519-aa16-4e6c-a053-a18c8a28ca8b",
+      "execution_trace": {},
+      "elapsed_seconds": 606.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_self_assessment.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2922a801-df5e-4410-b61c-adbe0a5fbe65",
+      "execution_trace": {},
+      "elapsed_seconds": 601.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/veronica_web_researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "71029f4d-cfdb-47f1-9605-d81c1f20a2ef",
+      "execution_trace": {},
+      "elapsed_seconds": 604.59,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/parallel_orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e3559f68-0b2d-4e60-a27c-7896f485e0fb",
+      "execution_trace": {},
+      "elapsed_seconds": 601.76,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_protocol.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "221c2204-36b0-4bcf-bca1-0b39581ca0cc",
+      "execution_trace": {},
+      "elapsed_seconds": 601.68,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/scripts/run_orchestrator_version_migration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f397d262-3d7c-4582-b45d-fc496dfbf2f4",
+      "execution_trace": {},
+      "elapsed_seconds": 603.87,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_learning_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 32.79,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_collaboration.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_debate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/scripts/test_agent_suggestions.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/task_rule_executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.08,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/force_worker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/db_pool.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/employees_sync_daemon.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/graphrag/graphrag_service.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/perpetual_evolution.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/tests/test_deep_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ad_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adaptive_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adaptive_prompter.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adversarial_implementation_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_kpi_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.16,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/anomaly_detector.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/anti_hallucination.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/aoi_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/architecture_profiler.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_backup_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_fix_db_connections.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.12,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_fixer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.12,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_prompt_optimizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.1,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_distillation.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_overseer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_policy_enforcer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_tester.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f9cabf1c-f301-408e-a668-2bd17db952f8",
+      "execution_trace": {},
+      "elapsed_seconds": 608.09,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cache_cleanup_task.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f3eca1a9-3770-4692-99ac-4370a8ab1b2b",
+      "execution_trace": {},
+      "elapsed_seconds": 604.55,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/checklist_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e3bdda24-a36d-4e08-a38c-54961fa7fc9a",
+      "execution_trace": {},
+      "elapsed_seconds": 606.54,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_auditor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78ad95ce-0285-4748-9e0b-10fcbd752178",
+      "execution_trace": {},
+      "elapsed_seconds": 604.63,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_smell_model_trainer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1ecea99e-41ca-4397-b28d-db9e643a3eb3",
+      "execution_trace": {},
+      "elapsed_seconds": 602.46,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_smell_predictor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "12d8989a-9c19-49b8-b81d-80eecf7c5b60",
+      "execution_trace": {},
+      "elapsed_seconds": 602.91,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/codebase_mutation_engine.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "105500aa-708c-46f6-88a2-bfec46fb3f41",
+      "execution_trace": {},
+      "elapsed_seconds": 601.67,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/collaboration_forum.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "38ffa898-4cd1-43ad-9840-bc64e2e26763",
+      "execution_trace": {},
+      "elapsed_seconds": 603.27,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/collective_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "11cfc346-7142-4901-a101-4c528fa30eaf",
+      "execution_trace": {},
+      "elapsed_seconds": 602.93,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ed18146a-a02b-4ec9-a636-759b5ed43370",
+      "execution_trace": {},
+      "elapsed_seconds": 603.93,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/context_analyzer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78103961-333b-4b91-a77e-62d1fbc5e8dd",
+      "execution_trace": {},
+      "elapsed_seconds": 603.95,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/context_scaler.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4cefe1ab-c487-49a6-93f9-a8c1edd558f1",
+      "execution_trace": {},
+      "elapsed_seconds": 1118.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/contextual_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 275.62,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_complete_knowledge.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_data_tool.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/curiosity_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.21,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cursor_rules_autosync.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.28,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cursorrules_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.27,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/dashboard_daily_improver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.23,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/deadline_tracker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/debate_processor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/department_heads_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.25,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/disaster_recovery.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/distillation_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/early_warning_system.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.29,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/embedding_optimizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.25,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/emotion_detector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.29,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_expert_evolver.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.31,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_monitor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.22,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_orchestrator_v2.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_scout_researcher.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_search.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/episodic_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/error_auto_fixer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/evaluator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.17,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/execute_assignments.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/experience_retriever.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_aliases.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.16,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_council_discussion.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bf0a7554-c327-437f-9496-2b4790e5ab6c",
+      "execution_trace": {},
+      "elapsed_seconds": 610.93,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_dna_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f298a0dd-6ef0-452f-aa9b-f4548d0a3fe9",
+      "execution_trace": {},
+      "elapsed_seconds": 602.17,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0cc494c1-6d80-4405-b560-0d9abd987c09",
+      "execution_trace": {},
+      "elapsed_seconds": 602.22,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7484692d-df94-432e-939b-17a3fb779971",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 10.21,
+      "artifact_file": "task_105_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_hiring_manager.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "27fc15a2-9b35-43ef-9418-756273f69ed7",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.13,
+      "artifact_file": "task_106_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_synthesizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fa32d5f5-3a43-4621-8580-fbc6c0659ea3",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_107_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_validator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "dbb43c74-779e-4dbf-a953-1d9cde9fdf93",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_108_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/federated_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "59079b77-ee49-4549-985f-593ccd0fd2f4",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.13,
+      "artifact_file": "task_109_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/feedback_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c1c2e619-29ed-4bab-9c98-55cb31e10e46",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_110_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/global_scout.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "35b4da6b-3bbf-4034-8f83-50b8365c6a9f",
+      "execution_trace": {},
+      "elapsed_seconds": 604.54,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/health_check.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "be03be60-6916-4cc7-8cb9-ef40e76e3b63",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 10.24,
+      "artifact_file": "task_112_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/hierarchical_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "803551eb-37bc-4357-b6bd-edbf5b434030",
+      "execution_trace": {},
+      "elapsed_seconds": 602.82,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/indexing_daemon.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8f6bcc7a-cadf-4003-ac06-af96ece3e335",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 15.92,
+      "artifact_file": "task_114_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/intelligent_model_router.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c5730031-2aac-4807-92a6-149d00498fa4",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 30.79,
+      "artifact_file": "task_115_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_base_integration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bc6bcf0b-e4c1-4c4a-9d37-40a2f8c8998e",
+      "execution_trace": {},
+      "elapsed_seconds": 602.89,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_cleaner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "40c9810d-bf93-444c-a456-0e6c99036675",
+      "execution_trace": {},
+      "elapsed_seconds": 605.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_graph.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6d4faca6-1018-4d64-a254-fa9a7146c646",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 36.2,
+      "artifact_file": "task_118_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/load_predictor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d7b2e341-aac5-4bb4-b004-2d03cfb5ea0f",
+      "execution_trace": {},
+      "elapsed_seconds": 604.83,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/local_mind_dashboard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a9d43d2c-7981-4d81-bfbf-ff4ff74d3c12",
+      "execution_trace": {},
+      "elapsed_seconds": 602.02,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/local_router.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7766b18f-da98-41b2-b794-869dcca1cc3f",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 37.92,
+      "artifact_file": "task_121_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/long_term_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9f5c1598-c76b-4d7b-a921-97dafe307ff4",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 31.77,
+      "artifact_file": "task_122_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/memory_consolidator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cb1b5ebd-2c9a-40cc-9586-ed4167767c96",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 38.05,
+      "artifact_file": "task_123_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mentor_system.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "06e6d9a9-cb44-4e8a-9869-0f45c104362b",
+      "execution_trace": {},
+      "elapsed_seconds": 602.17,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mentorship_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6c248e4a-ae73-4add-a44d-93fcca4e5c76",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 48.35,
+      "artifact_file": "task_125_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/meta_architect.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0f988583-c60b-4770-bac7-b1c7c5958492",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 38.6,
+      "artifact_file": "task_126_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/meta_synthesizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "14d2626b-7aa2-4c6a-b0ee-581eac9aef8b",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 37.49,
+      "artifact_file": "task_127_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/metrics_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f6f264f2-9176-4300-b437-b25b72a335f4",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 31.87,
+      "artifact_file": "task_128_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/metrics_exporter.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f63928b2-72d7-49e7-b25e-32ce6c360b31",
+      "execution_trace": {},
+      "elapsed_seconds": 607.25,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mind_dashboard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d005b8d8-f1d0-44bd-915e-393269c5423a",
+      "execution_trace": {},
+      "elapsed_seconds": 603.35,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_ab_test.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1af1150a-9861-4e5e-81fb-70daaf8e35df",
+      "execution_trace": {},
+      "elapsed_seconds": 605.79,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_data_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "25222ab4-245d-4e6a-95a3-f2f349a809f3",
+      "execution_trace": {},
+      "elapsed_seconds": 600.94,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_trainer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1296de86-e91b-4abb-a3d0-72421f21140d",
+      "execution_trace": {},
+      "elapsed_seconds": 601.37,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_enhancer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 418.76,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_finetuner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8a7965c4-41b9-4e04-97ec-776939cfd3cb",
+      "execution_trace": {},
+      "elapsed_seconds": 608.56,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_notifier.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d216fb76-1b0d-4794-a5cf-f67cfcc342b9",
+      "execution_trace": {},
+      "elapsed_seconds": 601.87,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_performance_probe.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "97ef21dc-1c2c-48ea-ae76-d61396ad5db1",
+      "execution_trace": {},
+      "elapsed_seconds": 601.95,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_performance_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8258debb-ba21-4f7b-b9ef-f50338df8f4f",
+      "execution_trace": {},
+      "elapsed_seconds": 601.33,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_tracker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8d6be11b-f503-4f46-8259-d9f77b05ccbd",
+      "execution_trace": {},
+      "elapsed_seconds": 602.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_validator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c6cf6555-d115-434f-b4be-0d440100da26",
+      "execution_trace": {},
+      "elapsed_seconds": 602.06,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/optimizers.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fc9ab852-4d1f-4b19-8adb-43bf33a08e6e",
+      "execution_trace": {},
+      "elapsed_seconds": 601.73,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78fc429f-324e-4549-899e-2a58679ceb51",
+      "execution_trace": {},
+      "elapsed_seconds": 601.93,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/organizational_structure.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c381ff09-fe7c-4463-bb50-f37975f1e562",
+      "execution_trace": {},
+      "elapsed_seconds": 601.32,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/performance_optimizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "00e2cad9-c771-4157-aa76-6bdc39276ace",
+      "execution_trace": {},
+      "elapsed_seconds": 602.51,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/predictive_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "edb1c880-2734-4027-91de-e68430e2ecbe",
+      "execution_trace": {},
+      "elapsed_seconds": 600.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/process_expert_task.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7500655e-3ac0-4cfc-ae23-66070af6bc22",
+      "execution_trace": {},
+      "elapsed_seconds": 604.35,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/promotion_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "95b035b8-4ccc-48c5-a7fa-9b176da498d0",
+      "execution_trace": {},
+      "elapsed_seconds": 603.67,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/prompt_ab_testing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fccf1b77-66d1-4ba1-abad-98d4a669edd4",
+      "execution_trace": {},
+      "elapsed_seconds": 600.74,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/prompt_cache.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fa148c28-fcf4-40f3-a4e7-b5b4bac88a5b",
+      "execution_trace": {},
+      "elapsed_seconds": 602.82,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/radar.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78a87ce7-f8df-4c31-8db4-d6c52924d44d",
+      "execution_trace": {},
+      "elapsed_seconds": 605.4,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/rate_limiter.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fe5f4f7a-9c0b-4566-8b35-e5cbd11ec32f",
+      "execution_trace": {},
+      "elapsed_seconds": 602.31,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/report_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "303c84f7-187a-45b6-b7a7-0f08d30f0e1a",
+      "execution_trace": {},
+      "elapsed_seconds": 602.88,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/rest_api.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5aefb4c0-6272-4a49-9a1c-51606acf656e",
+      "execution_trace": {},
+      "elapsed_seconds": 604.85,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/safety_verifier.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4a803655-7f5c-4ede-a339-cecf73067476",
+      "execution_trace": {},
+      "elapsed_seconds": 604.87,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/scout_researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a3a855d2-df1f-4d6e-ab9a-923ea6b4dd13",
+      "execution_trace": {},
+      "elapsed_seconds": 602.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/search_ml_trading.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "09dd4e90-1f41-420e-af46-928b5916d5f2",
+      "execution_trace": {},
+      "elapsed_seconds": 609.64,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/secret_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6709be2d-3907-4dd3-83a0-1a4364468f06",
+      "execution_trace": {},
+      "elapsed_seconds": 607.55,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/security.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b6c7f1b6-be4a-4139-abb7-397abbbb8563",
+      "execution_trace": {},
+      "elapsed_seconds": 600.37,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_check_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "65c1a7eb-cb25-40a2-bd86-a669a8236a5c",
+      "execution_trace": {},
+      "elapsed_seconds": 601.5,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_healing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c6af7c1e-5f36-42d0-9045-3b825392dfe2",
+      "execution_trace": {},
+      "elapsed_seconds": 601.21,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/semantic_cache.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1a2792c8-58e6-4605-a905-099725755317",
+      "execution_trace": {},
+      "elapsed_seconds": 602.06,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/backend/app/metrics/prometheus_metrics.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1af41b43-f50b-4194-9d10-681e4e670b3c",
+      "execution_trace": {},
+      "elapsed_seconds": 612.19,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ollama_keep_alive_policy.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "64205116-fb34-47d7-959b-1bbf84ecbead",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 19.76,
+      "artifact_file": "task_163_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/verify_embedding_optimization.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bdb9d26d-5abd-42fd-95e1-cf5a4442fbc0",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 9.75,
+      "artifact_file": "task_164_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/server_46_knowledge_extractor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fe75a5df-ac36-4ce2-b9ee-e730d0597e0d",
+      "execution_trace": {},
+      "elapsed_seconds": 609.43,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/session_context_manager.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "30dfe5f5-4120-4021-a5f8-d9f7a15fafdb",
+      "execution_trace": {},
+      "elapsed_seconds": 604.77,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/shadow_evaluator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8d2a3c83-ad0c-4f85-9ca6-430c82f5a63a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 11.31,
+      "artifact_file": "task_167_2026-03-29_12-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/simulator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9ed8f342-da1a-4c44-90bf-9cb3cb807891",
+      "execution_trace": {},
+      "elapsed_seconds": 610.17,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/singularity_9_ab_tester.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9cba9cb9-9e27-424b-b323-1d805049a835",
+      "execution_trace": {},
+      "elapsed_seconds": 600.38,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/skill_discovery.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "437e62ec-7250-4ccf-8e00-bc0f08e61ace",
+      "execution_trace": {},
+      "elapsed_seconds": 617.69,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/sla_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1df00e16-efa4-45d4-ae1e-90023d926920",
+      "execution_trace": {},
+      "elapsed_seconds": 604.89,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/smart_worker_v3.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "99a2ef1e-feab-4831-9b7b-8e03de78668e",
+      "execution_trace": {},
+      "elapsed_seconds": 606.68,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/smart_worker_v3_1.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8b996338-f703-4117-886d-16a9a2a6e5cc",
+      "execution_trace": {},
+      "elapsed_seconds": 615.61,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/sop_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "28deabbf-49f7-41cb-9354-0eddada11939",
+      "execution_trace": {},
+      "elapsed_seconds": 618.25,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/strategic_board.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c053aa46-774d-431b-a4f1-043f340ef280",
+      "execution_trace": {},
+      "elapsed_seconds": 607.74,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/streaming_orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f71a42f7-8a1a-415f-a407-c27842a332a0",
+      "execution_trace": {},
+      "elapsed_seconds": 613.52,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/success_retriever.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "03442806-09a4-4784-9d99-6fbb5c3b8d3f",
+      "execution_trace": {},
+      "elapsed_seconds": 618.46,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/synthetic_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e5360b97-03ff-48f0-9805-94bb7758d505",
+      "execution_trace": {},
+      "elapsed_seconds": 617.94,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/tacit_knowledge_miner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7099ecd2-6eca-495d-9c93-b0699b4be844",
+      "execution_trace": {},
+      "elapsed_seconds": 615.24,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/task_prioritizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7d138739-ab44-42be-a3be-c3d8828c69e9",
+      "execution_trace": {},
+      "elapsed_seconds": 610.31,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/team_formation.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=10)",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 590.98,
+      "artifact_file": null
+    }
+  ]
+}

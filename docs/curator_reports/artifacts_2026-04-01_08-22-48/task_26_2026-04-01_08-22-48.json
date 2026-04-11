@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/streaming_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "0f6f2f67-a71d-4946-adc0-b8078380a15b"
+}

@@ -1,0 +1,16 @@
+{
+  "goal": "Прочитай следующие файлы и ответь на вопросы по каждому:\n\n1. Файл: knowledge_os/docker-compose.yml\n   - Какой VICTORIA_URL задан в секции backend (atra-web-ide-backend или аналог)?\n   - На каком порту",
+  "output": "Не удалось понять вопрос и сформировать запрос к базе данных.",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "ba4f0a91-5fea-41dc-a096-0c56aba4d1e6",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/memory_consolidator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "cb1b5ebd-2c9a-40cc-9586-ed4167767c96"
+}

@@ -10,7 +10,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 

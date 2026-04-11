@@ -1,0 +1,174 @@
+{
+  "ts": "2026-04-05T11:11:36.518081+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 15,
+  "results": [
+    {
+      "goal": "# GOAL: Устранение зацикливания и оптимизация производительности (Singularity 24.7)",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 734.64,
+      "artifact_file": null
+    },
+    {
+      "goal": "## Описание проблемы",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "1. **Зацикливание:** В логах `victoria-agent` постоянно опрашивается статус задачи `d8707d50-8c08-464f-9aed-265bebf5375e` (status=processing, output_len=0). При этом задача отсутствует в базе данных PostgreSQL. Необходимо принудительно очистить `_run_task_store` в памяти сервера или перезапустить сервис.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "2. **Перегрузка Ollama:** Наблюдаются частые ошибки `HTTP 503: server busy`. Это замедляет работу RAG и диалогов. Нужно проверить загруженные модели и применить политику выгрузки (aggressive unload).",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "3. **Медленный RAG:** В логах gateway фиксируются запросы к `knowledge_nodes` длительностью до 10 секунд. Проверить индексы и нагрузку на БД.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "4. **Приложение opencode:** Пользователь жалуется на отзывчивость в `atra-web-ide`. Проверить цепочку: Frontend -> Backend -> Victoria.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "## Ожидаемый результат",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "- Логи `victoria-agent` чисты от опросов несуществующих задач.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "- Ollama отвечает стабильно, лишние модели выгружены.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "- RAG-запросы выполняются в пределах допустимых таймаутов.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02,
+      "artifact_file": null
+    },
+    {
+      "goal": "- Victoria в приложении `opencode` (atra-web-ide) отвечает корректно и быстро.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "## Инструкции",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "- Используй экспертов: @backend_developer (Игорь), @devops_engineer (Сергей), @sre_monitor (Елена).",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "- Сверься с Библией (`docs/MASTER_REFERENCE.md`) и Когнитивным кодексом.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.02,
+      "artifact_file": null
+    },
+    {
+      "goal": "- После выполнения обнови `docs/CHANGES_FROM_OTHER_CHATS.md`.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.01,
+      "artifact_file": null
+    }
+  ]
+}

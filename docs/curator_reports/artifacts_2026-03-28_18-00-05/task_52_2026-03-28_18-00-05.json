@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/agent_kpi_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "742259b1-7b86-4984-a45f-980a7412b38e"
+}

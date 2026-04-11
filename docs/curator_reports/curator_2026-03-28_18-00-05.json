@@ -1,0 +1,2170 @@
+{
+  "ts": "2026-03-29T06:59:55.921255+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 161,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "3a949998-cfe0-42dc-bc10-22effb29ba76",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 282.01,
+      "artifact_file": "task_1_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e6607f0a-0ff5-44ed-8d6a-b3a8a88f8b97",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_2_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "468c595e-0d3e-4e27-aa85-2d5c9e21b592",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_3_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+      "output_length": 222,
+      "correlation_id": "951e7a31-9c29-4a9f-bf3b-f633ed815a6e",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 120.8,
+      "artifact_file": "task_4_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "57073f31-34a8-4293-8efb-1a7bf687af97",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_5_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/src/agents/core/executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c525a693-c607-4101-bf3e-dd672d924999",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_6_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/git_guardian.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "501705bd-0893-425f-b9d7-4b1b7e0312ed",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_7_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/run_evolution_loop.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5b30eff6-9c58-4dc0-bf04-4d6136705a74",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_8_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5e27b758-80df-45b0-9a1e-43d0dc09fe70",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.19,
+      "artifact_file": "task_9_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/cloud_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d55cf9a7-93fc-434e-9a4f-1fd70c50d470",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.2,
+      "artifact_file": "task_10_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/curator_compare_to_standard.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "dd1789b3-f391-4de3-9931-31087d128db4",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_11_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/ingest_docs_to_rag.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4ab9175a-b398-4dc7-8d6d-e4d3c3c58cdd",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_12_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2c1a2d73-6ab2-4775-b150-624c69536195",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.16,
+      "artifact_file": "task_13_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/performance_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5f913e5e-ba2f-48c5-8fc0-d1efe4bd4e7b",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.19,
+      "artifact_file": "task_14_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "3e0e34fb-3100-406e-90b0-16a0bd56e92e",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.16,
+      "artifact_file": "task_15_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/smart_worker_autonomous.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "98aff0d7-2cdc-4948-a8b3-eae2db441e05",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_16_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/circuit_breaker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a6752d84-48ce-412b-8bf3-0ab3e7fc0c5f",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_17_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/nightly_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b1de36b0-0361-484e-98bb-bb998f225321",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.19,
+      "artifact_file": "task_18_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_knowledge_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5e250002-4327-4881-a262-3a932ef08f7f",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_19_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_services.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5c0934c7-d53c-4b22-8906-0674a44a0e75",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_20_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/service_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7ba48cc3-15d8-4542-ad36-72ca3cef1e50",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_21_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ui_audit_agent.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ba717180-74f4-420d-9096-b3bdfb439205",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.2,
+      "artifact_file": "task_22_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/swarm_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7415b07a-382e-451a-b5d5-8f90dd28216a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.31,
+      "artifact_file": "task_23_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cbcd1b97-be30-482c-8f69-6d11ff43507b",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_24_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d9aebda6-bc8a-4eb0-ae62-315c692bfd9a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_25_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/streaming_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f84f3221-bef7-451d-87d9-5d6bc90c475e",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_26_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/worker_v3_1.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6c3089e4-026d-4726-9fa6-78b4bfb699c9",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_27_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_chaos_injector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e61e8111-f925-4bdf-bb58-8f453780ff75",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_28_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/react_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "81ebf3dc-4f3c-4737-9033-d05d799d8424",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_29_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_self_assessment.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "45472944-0b2e-4407-85ad-dc474a9691e0",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_30_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/veronica_web_researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "586c7510-f345-4364-8511-0c5402b4b532",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_31_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/parallel_orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8c847b99-3bc1-484e-bd53-9247ae74dfd1",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.13,
+      "artifact_file": "task_32_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_protocol.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "db3d3f40-6a08-4d77-929d-9acba6138d9b",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_33_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/run_orchestrator_version_migration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c05d6896-f2ba-40a6-9e28-963f84093695",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_34_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_learning_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "527e808d-f126-4dc6-ac56-14c77c93cabd",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_35_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4ef92091-39e2-426b-8c3f-d4092dc520c1",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_36_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_collaboration.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b5daf7ea-c7ef-49b7-ae1c-5dc205505eb1",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.17,
+      "artifact_file": "task_37_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_debate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5ae0cab5-e62b-4912-b0f9-4143fc446c6c",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_38_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/scripts/test_agent_suggestions.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1bba5fcf-15ad-4697-ae5f-86bbb0c3ac69",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_39_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/task_rule_executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "936f11bd-2b2a-4240-a2d2-f4fdd2c38d76",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.18,
+      "artifact_file": "task_40_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/force_worker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e58cf244-3705-4309-9ea9-6c85405bab91",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.07,
+      "artifact_file": "task_41_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/db_pool.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "481a970e-6699-406a-9180-33614ca00fd1",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_42_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/employees_sync_daemon.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "251d3bd5-061a-4521-b205-9b279854bd8b",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_43_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ai_core.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0c1dc857-fd8f-4107-9253-7d067dfd29d8",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.14,
+      "artifact_file": "task_44_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/graphrag/graphrag_service.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ec33c2fe-e713-4814-a9ec-0044755d2bc2",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_45_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/perpetual_evolution.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cf914510-e9b0-45e4-be78-d0ce798abcbc",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_46_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/tests/test_deep_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b3a3152a-ff71-45b0-9f33-22b2b2ce0bdd",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_47_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ad_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cc0c635d-b7c2-44ba-9785-145c1d3270ce",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_48_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adaptive_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "aba4a0c2-7b3b-4987-b610-2a7c8a65e2a2",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_49_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adaptive_prompter.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ea75e505-56da-46d0-9a23-7c5f6fe8cd42",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.13,
+      "artifact_file": "task_50_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/adversarial_implementation_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b64c33bf-5d85-4e82-8986-097c2d647e6e",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_51_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_kpi_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "742259b1-7b86-4984-a45f-980a7412b38e",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_52_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/anomaly_detector.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b781307e-fa9f-4957-9796-985de8e08aac",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_53_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/anti_hallucination.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "75fe4972-b6b7-4353-ac29-98797e6c8916",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_54_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/aoi_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "25bef1e3-9c93-40fe-a098-18241d6b4445",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_55_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/architecture_profiler.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e2987f96-3a94-42da-8712-b29d284b5ab5",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_56_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_backup_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "38135759-f40d-4310-80b9-628961e82420",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.06,
+      "artifact_file": "task_57_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_fix_db_connections.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f821f5ff-e7d4-465f-9de5-4ed0fa2bd221",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.06,
+      "artifact_file": "task_58_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_fixer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2e0664fb-1cac-4063-9a8c-2c837d191823",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.08,
+      "artifact_file": "task_59_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/auto_prompt_optimizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "60ed3c1d-73f8-4788-848e-ad564e276b29",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_60_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_distillation.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "29ab8f61-0ba0-4a0a-89f8-b62570102478",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_61_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_overseer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9c946303-855b-4537-93d6-fb689893255a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.08,
+      "artifact_file": "task_62_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_policy_enforcer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "57704f96-2788-4d30-a96b-be292222cb31",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_63_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/autonomous_tester.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ac135614-ac0f-4991-8095-13d45d3b54ba",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_64_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cache_cleanup_task.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7cc0fd7d-16e5-418b-87d4-feea8dd2cef0",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_65_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/checklist_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e0a25090-8089-4412-ae0a-7effcbe6c03c",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_66_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_auditor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c05c2ec8-f2b1-4be2-b3f8-854bd62a08f1",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_67_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_smell_model_trainer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0af09b88-98b1-4d24-a530-13c6bc3254a5",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_68_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/code_smell_predictor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5ab2a500-af7e-439a-8426-0fabe96d455a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_69_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/codebase_mutation_engine.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b55ee9db-f4a3-4d0d-a361-9511e6a56f25",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.08,
+      "artifact_file": "task_70_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/collaboration_forum.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4d3d520b-38c5-42bf-bd71-45c6e37ce4dd",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_71_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/collective_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a8dda5b1-e5e4-428c-9206-6e91a2e2362c",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.12,
+      "artifact_file": "task_72_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "262f63cf-8097-4297-9ed0-bbaf2a7b6b92",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_73_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/context_analyzer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "3897cd46-5e96-4eaa-b9f6-af5db7d14d54",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_74_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/context_scaler.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "58e2810a-3b6a-4e64-82ff-10d2ecb20126",
+      "execution_trace": {},
+      "elapsed_seconds": 603.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/contextual_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a6d6c3ae-4cee-460e-8cc6-38a7917e640a",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.13,
+      "artifact_file": "task_76_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_complete_knowledge.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2ae43cb0-022c-43e8-bc82-dd7855958bf2",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.1,
+      "artifact_file": "task_77_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_data_tool.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4322ec8e-1dc2-4a5f-9a0a-885c2557f94d",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 5.11,
+      "artifact_file": "task_78_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/curiosity_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "3fb02ff7-71cc-4e34-a06a-12b444e8d508",
+      "execution_trace": {},
+      "elapsed_seconds": 600.42,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cursor_rules_autosync.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1cc90aba-83e0-4b57-943e-41687b27b471",
+      "execution_trace": {},
+      "elapsed_seconds": 603.95,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/cursorrules_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1d055017-24a1-4a4a-a4d3-3538a7cbc4c0",
+      "execution_trace": {},
+      "elapsed_seconds": 604.23,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/dashboard_daily_improver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "db97f63e-0a14-4554-8e22-d689955e8719",
+      "execution_trace": {},
+      "elapsed_seconds": 604.07,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/deadline_tracker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "374ae16a-8f9f-46e9-84b6-b52fdc9cff25",
+      "execution_trace": {},
+      "elapsed_seconds": 604.79,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/debate_processor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "41a62dcf-476f-4287-8642-db88e1129ac1",
+      "execution_trace": {},
+      "elapsed_seconds": 602.87,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/department_heads_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9fced948-f757-41d4-9322-331326f8a2f9",
+      "execution_trace": {},
+      "elapsed_seconds": 601.61,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/disaster_recovery.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "542a4310-b3c8-4789-84e5-07420015f6a1",
+      "execution_trace": {},
+      "elapsed_seconds": 603.6,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/distillation_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "292f4ced-435e-44b1-9ea4-92be85b8270b",
+      "execution_trace": {},
+      "elapsed_seconds": 600.13,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/early_warning_system.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cf5004f2-652a-4847-9d65-ae2e580c57a2",
+      "execution_trace": {},
+      "elapsed_seconds": 605.07,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/embedding_optimizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0bdd28c3-a033-4e82-ae3d-a087b35951fe",
+      "execution_trace": {},
+      "elapsed_seconds": 601.5,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/emotion_detector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "59fcb0a8-17a4-49d8-8f2f-189b29723b4d",
+      "execution_trace": {},
+      "elapsed_seconds": 602.67,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_expert_evolver.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "34089cd7-1a0c-437c-94ae-6e138831b1b0",
+      "execution_trace": {},
+      "elapsed_seconds": 604.03,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_monitor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4bd3912a-e3d9-4855-b8dc-1719af820f20",
+      "execution_trace": {},
+      "elapsed_seconds": 601.33,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_orchestrator_v2.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ef704d85-9df5-425c-b955-bdaf57e29730",
+      "execution_trace": {},
+      "elapsed_seconds": 602.21,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_scout_researcher.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "885efbb8-9dd6-4cbf-bc6c-071ff243ba51",
+      "execution_trace": {},
+      "elapsed_seconds": 602.95,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_search.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c2ae6c6c-42b8-40b7-9109-803286ebd00c",
+      "execution_trace": {},
+      "elapsed_seconds": 603.08,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/episodic_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a094e402-317f-4419-b7e5-eb096e2a75fb",
+      "execution_trace": {},
+      "elapsed_seconds": 606.07,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/error_auto_fixer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c6a523eb-da27-463d-9a04-15f1fc70b429",
+      "execution_trace": {},
+      "elapsed_seconds": 604.31,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/evaluator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7d909262-b1e9-4875-92ce-91808166990c",
+      "execution_trace": {},
+      "elapsed_seconds": 604.1,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/execute_assignments.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 351.01,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/experience_retriever.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run/status/ea5eb0c3-43e2-495e-8788-3553c896efe3 (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 549.08,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_aliases.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c189ddf3-4c7b-4a9a-a44d-7084f1f0150f",
+      "execution_trace": {},
+      "elapsed_seconds": 608.6,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_council_discussion.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 78.05,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_dna_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "92829659-dd8a-491a-a6bf-961bb408e28d",
+      "execution_trace": {},
+      "elapsed_seconds": 606.88,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f6f8783f-f6ff-431c-969e-34ae6213557c",
+      "execution_trace": {},
+      "elapsed_seconds": 601.76,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "800a9ea1-d25e-42b2-a262-9148eb055711",
+      "execution_trace": {},
+      "elapsed_seconds": 601.97,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_hiring_manager.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6d4dbfb2-53d3-4408-98df-abd31d6849a3",
+      "execution_trace": {},
+      "elapsed_seconds": 603.65,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_synthesizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 215.23,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_validator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/federated_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "65d654f2-58e8-45a3-91ad-adf45d391e2c",
+      "execution_trace": {},
+      "elapsed_seconds": 606.3,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/feedback_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 448.07,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/global_scout.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run/status/c90a8250-4725-4fab-94c8-5cca3987fb2d (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 717.89,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/health_check.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/hierarchical_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.15,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/indexing_daemon.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='localhost', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 6.11,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/intelligent_model_router.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "dd4dc1cf-8a9d-4cc1-ac7a-3f5c20673f69",
+      "execution_trace": {},
+      "elapsed_seconds": 609.04,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_base_integration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0b426ce8-62c1-4837-91c3-2c7d85adc063",
+      "execution_trace": {},
+      "elapsed_seconds": 602.14,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_cleaner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fd34912e-1c2a-4a9c-a64f-83f4891e7c04",
+      "execution_trace": {},
+      "elapsed_seconds": 601.99,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/knowledge_graph.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c38f250a-580a-4255-a5d5-cc6bc4ab98a8",
+      "execution_trace": {},
+      "elapsed_seconds": 601.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/load_predictor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "05f805fb-0019-4ba4-9e2f-e9cbbedc1d3d",
+      "execution_trace": {},
+      "elapsed_seconds": 602.84,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/local_mind_dashboard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ee2bfd10-8b95-4555-8200-40748cf0b165",
+      "execution_trace": {},
+      "elapsed_seconds": 603.1,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/local_router.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7617192c-227b-4aac-976f-7ef03270cbe1",
+      "execution_trace": {},
+      "elapsed_seconds": 602.7,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/long_term_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "cd7e2f02-8bbe-4823-ae85-1042f1a967de",
+      "execution_trace": {},
+      "elapsed_seconds": 603.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/memory_consolidator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "57193f4e-dbd2-49bd-bea1-457adaa34cf0",
+      "execution_trace": {},
+      "elapsed_seconds": 603.03,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mentor_system.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "cannot access local variable 'orchestration_context_bg' where it is not associated with a value",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "746c28b3-ff15-4af7-a941-701009c65615",
+      "execution_trace": {
+        "metadata": {
+          "model_used": "local",
+          "source": "local"
+        }
+      },
+      "elapsed_seconds": 10.3,
+      "artifact_file": "task_124_2026-03-28_18-00-05.json"
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mentorship_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "eec4e477-decd-4f24-a4ab-f478b5eb3449",
+      "execution_trace": {},
+      "elapsed_seconds": 604.63,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/meta_architect.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "aa09ce81-ee1a-4ca0-9395-2f41ba6f8aab",
+      "execution_trace": {},
+      "elapsed_seconds": 601.56,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/meta_synthesizer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7ab1cb44-93fb-475b-b5a5-2f829f757247",
+      "execution_trace": {},
+      "elapsed_seconds": 602.17,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/metrics_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "3accd6b2-70d0-474b-acc4-16ddabdadb5f",
+      "execution_trace": {},
+      "elapsed_seconds": 600.6,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/metrics_exporter.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a31e8b5e-fd11-4ed2-83e4-31ecf13da406",
+      "execution_trace": {},
+      "elapsed_seconds": 601.11,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/mind_dashboard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bb746512-6dd3-4e7b-bbb4-8f3d609b7901",
+      "execution_trace": {},
+      "elapsed_seconds": 603.98,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_ab_test.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b717b904-21ec-4b0b-98bd-36a9e0b88d14",
+      "execution_trace": {},
+      "elapsed_seconds": 603.08,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_data_collector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "370b2681-cbe7-489b-822b-7c3648aa0049",
+      "execution_trace": {},
+      "elapsed_seconds": 604.95,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ml_router_trainer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c2c5d154-8f98-4e8a-9942-d7a873159a60",
+      "execution_trace": {},
+      "elapsed_seconds": 601.84,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_enhancer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9353885e-f355-433c-8ba4-2c0bb42914d2",
+      "execution_trace": {},
+      "elapsed_seconds": 600.35,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_finetuner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "42e11228-f49e-4f01-9155-31a4c46fc2cc",
+      "execution_trace": {},
+      "elapsed_seconds": 603.94,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_notifier.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a3a71860-c8fc-46c6-b399-80b06a5a31d7",
+      "execution_trace": {},
+      "elapsed_seconds": 607.68,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_performance_probe.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bae447ed-517b-4045-96c4-29419594f147",
+      "execution_trace": {},
+      "elapsed_seconds": 604.03,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_performance_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ef5a82f0-1910-47a9-b59b-06c869169ebb",
+      "execution_trace": {},
+      "elapsed_seconds": 601.68,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_tracker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b603dcb1-cfc1-4ee3-a0c5-840124406a7c",
+      "execution_trace": {},
+      "elapsed_seconds": 602.96,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/model_validator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4f039f18-02f6-4661-b892-851b38773199",
+      "execution_trace": {},
+      "elapsed_seconds": 601.52,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/optimizers.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ef92e08e-9c90-4137-9bfc-7a7f113a9083",
+      "execution_trace": {},
+      "elapsed_seconds": 614.85,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c8f45094-5a1e-47e0-8d97-d93a312ebf63",
+      "execution_trace": {},
+      "elapsed_seconds": 612.27,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/organizational_structure.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0532f39f-621e-42a9-910d-45507583e4dc",
+      "execution_trace": {},
+      "elapsed_seconds": 603.9,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/performance_optimizer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "eb11adfe-772e-49d2-be54-5638b4e01711",
+      "execution_trace": {},
+      "elapsed_seconds": 603.07,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/predictive_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "bf456ecf-1c76-448a-9e8c-ea4ce12760a5",
+      "execution_trace": {},
+      "elapsed_seconds": 626.37,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/process_expert_task.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "312a78f5-34b6-4d01-a1ad-35d14f91b590",
+      "execution_trace": {},
+      "elapsed_seconds": 600.32,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/promotion_engine.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78ef70cd-7d57-4820-bd79-a6e605608e96",
+      "execution_trace": {},
+      "elapsed_seconds": 605.16,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/prompt_ab_testing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2a97903f-96f9-4f17-846e-931d5873e3be",
+      "execution_trace": {},
+      "elapsed_seconds": 612.35,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/prompt_cache.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1e135749-24fe-4010-ab98-8f2a277d1d09",
+      "execution_trace": {},
+      "elapsed_seconds": 615.91,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/radar.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b21c26a3-5544-4830-abef-f073851d000c",
+      "execution_trace": {},
+      "elapsed_seconds": 604.48,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/rate_limiter.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0dfeaf98-d539-4449-9665-00a18464b38c",
+      "execution_trace": {},
+      "elapsed_seconds": 636.03,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/report_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "49f7804f-f74e-4273-b154-17246bcd066b",
+      "execution_trace": {},
+      "elapsed_seconds": 601.61,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/rest_api.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8fa372b4-b1a8-432f-906b-320e75d391f8",
+      "execution_trace": {},
+      "elapsed_seconds": 637.44,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/safety_verifier.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5895ee02-c3ce-4814-9b9a-a65da05e85a4",
+      "execution_trace": {},
+      "elapsed_seconds": 604.36,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/scout_researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1e471c87-5d8c-49b1-92ef-1f3c01c9af55",
+      "execution_trace": {},
+      "elapsed_seconds": 617.8,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/search_ml_trading.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6d7346ac-8317-4a08-bfe3-a3e6361baaf1",
+      "execution_trace": {},
+      "elapsed_seconds": 617.72,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/secret_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 12.83,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/security.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "45aa69fd-3374-48df-a5df-d9b277d525b9",
+      "execution_trace": {},
+      "elapsed_seconds": 605.04,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_check_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5b8c4309-3a95-460b-bb48-94c078324dbc",
+      "execution_trace": {},
+      "elapsed_seconds": 601.91,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_healing.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "071602e2-6265-4ab0-b030-60a2a2c1336b",
+      "execution_trace": {},
+      "elapsed_seconds": 601.61,
+      "artifact_file": null
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/semantic_cache.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "23fda827-373b-438d-aa76-bda6a9840034",
+      "execution_trace": {},
+      "elapsed_seconds": 601.62,
+      "artifact_file": null
+    }
+  ]
+}

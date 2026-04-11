@@ -10,7 +10,10 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 

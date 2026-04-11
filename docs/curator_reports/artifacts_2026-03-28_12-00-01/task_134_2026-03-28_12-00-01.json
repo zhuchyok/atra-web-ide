@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/model_enhancer.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "95d089c7-5669-4569-8445-f034d2f46421"
+}

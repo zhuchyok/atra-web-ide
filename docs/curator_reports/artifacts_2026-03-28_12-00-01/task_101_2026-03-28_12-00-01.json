@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/expert_aliases.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "5769fa0d-7f50-41c9-a8cc-721cba871a42"
+}

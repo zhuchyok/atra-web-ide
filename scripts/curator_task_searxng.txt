@@ -1,0 +1,23 @@
+Задача: Поднять SearXNG как локальный поисковый движок в Docker для автономной работы Victoria без внешних API.
+
+Контекст:
+- Проект: atra-web-ide, Knowledge OS
+- Victoria должна уметь искать в интернете без зависимости от облачных сервисов
+- SearXNG — privacy-first мета-поисковик, легко поднимается в Docker
+- Текущий web_search() в src/agents/tools/system_tools.py использует внешние API
+- Порты корпорации зарезервированы (PORT_REGISTRY.md), свободный диапазон 8081+
+
+Что нужно сделать:
+1. Добавить сервис searxng в knowledge_os/docker-compose.yml на порту 8082
+2. Создать минимальный конфиг SearXNG (settings.yml) в knowledge_os/configs/searxng/
+3. Обновить WEB_SEARCH_PROVIDERS в .env: добавить SEARXNG_URL=http://searxng:8082
+4. В src/agents/tools/system_tools.py в функции web_search() добавить:
+   - Проверку доступности интернета перед вызовом
+   - Fallback: если внешний поиск недоступен — попробовать SearXNG
+5. Проверить что сервис поднимается (docker compose up -d searxng)
+6. Обновить docs/MASTER_REFERENCE.md — добавить SearXNG в PORT_REGISTRY и в список сервисов
+
+Критерии успеха:
+- docker ps показывает searxng Running
+- curl http://localhost:8082/search?q=test&format=json возвращает результаты
+- web_search("test") работает через SearXNG когда внешний поиск недоступен

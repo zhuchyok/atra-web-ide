@@ -157,8 +157,6 @@ VICTORIA_PATTERNS = [
     "сервер",
     "статус",
     "проверь",
-    "victoria",
-    "виктория",
     "агент",
     "задач",
     "mac studio",
@@ -201,7 +199,7 @@ VICTORIA_PATTERNS = [
 
 def is_simple_message(content: str) -> bool:
     """Проверить, является ли сообщение простым (не требует агента)"""
-    lower = content.lower().strip()
+    lower = content.lower().strip().lstrip("«»").strip()
 
     # Если сообщение очень короткое (1-2 слова) и нет явных признаков сложности — это простое
     words = lower.split()
@@ -223,13 +221,13 @@ def is_simple_message(content: str) -> bool:
 
 def is_fast_track_message(content: str) -> bool:
     """Проверить, нужно ли отвечать мгновенно (приветствия и т.д.)"""
-    lower = content.lower().strip()
+    lower = content.lower().strip().lstrip("«»").strip()
     # Если это одно слово из списка приветствий
     if lower in FAST_TRACK_PATTERNS:
         return True
     # Если сообщение начинается с приветствия и оно короткое
     for p in FAST_TRACK_PATTERNS:
-        if lower.startswith(p) and len(lower) < 30:
+        if lower.startswith(p) and len(lower) < 150:
             return True
     return False
 
@@ -905,6 +903,23 @@ async def lifespan(app: FastAPI):
                     logger.info(
                         "✅ Victoria Enhanced запущен при старте сервера (мониторинг по ENABLE_EVENT_MONITORING)"
                     )
+
+                    # [SINGULARITY 24.3] Запускаем DialogueController для Живого Чата
+                    try:
+                        ko_app_for_dc = ko_root
+                        import sys as _sys
+                        if ko_app_for_dc not in _sys.path:
+                            _sys.path.insert(0, ko_app_for_dc)
+                        try:
+                            from app.dialogue_controller import start_dialogue_controller
+                            from app.event_bus import get_event_bus as _get_eb
+                        except ImportError:
+                            from dialogue_controller import start_dialogue_controller
+                            from event_bus import get_event_bus as _get_eb
+                        _dc = start_dialogue_controller(_get_eb())
+                        logger.info("🎭 [DIALOGUE] DialogueController запущен при старте сервера")
+                    except Exception as dc_err:
+                        logger.warning(f"⚠️ [DIALOGUE] Не удалось запустить DialogueController: {dc_err}")
                     break
                 except ImportError as imp_e:
                     logger.debug(f"Не удалось импортировать VictoriaEnhanced из {ko_root}: {imp_e}")
@@ -4577,9 +4592,11 @@ async def _run_task_background(
                 }
                 _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             else:
+                _enhanced_meta = enhanced_result.get("metadata")
+                _enhanced_meta_typed: dict = dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
                 knowledge = {
                     "method": enhanced_result.get("method"),
-                    "metadata": dict(enhanced_result.get("metadata") or {}),
+                    "metadata": _enhanced_meta_typed,
                     "project_context": project_context,
                     "delegated_to": enhanced_result.get("delegated_to"),
                     "task_id": enhanced_result.get("task_id"),
@@ -4796,7 +4813,8 @@ async def _generate_via_mlx_or_ollama(
     try:
         mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(agent.executor, "mlx_url", None)
         if mlx_url:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            # [SINGULARITY 24.3] Увеличен таймаут до 300с для VIP-запросов пользователя
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 r = await client.post(
                     f"{mlx_url}/api/chat",
                     json={
@@ -4938,7 +4956,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
                 temp_enhanced = VictoriaEnhanced()
                 ai_research_context = await asyncio.wait_for(
-                    temp_enhanced._get_ai_research_context(body.goal), timeout=3.0
+                    getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(body.goal), timeout=3.0  # pyright: ignore[reportAttributeAccessIssue]
                 )
             except Exception as e:
                 logger.debug("AI Research context fetch failed for stream: %s", e)
@@ -4969,12 +4987,31 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
                     await asyncio.sleep(0.05)
                 yield f"data: {json.dumps({'type': 'end'})}\n\n"
+            else:
+                # Fallback error for fast track (Singularity 24.3 Fix)
+                err_msg = "Извините, сейчас я не могу обработать ваш запрос (Fast Track timeout)."
+                yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
+                yield f"data: {json.dumps({'type': 'end'})}\n\n"
         else:
             yield f"data: {json.dumps({'type': 'progress', 'step': 1, 'total': 3, 'status': 'analysis'})}\n\n"
             yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Анализ задачи', 'content': 'Запускаю экспертную цепочку Victoria Enhanced...', 'correlation_id': correlation_id})}\n\n"
 
             try:
-                result = await run_task(body, request, async_mode=False)
+                # [SINGULARITY 25.2] Keep-alive heartbeat каждые 15с пока модель думает.
+                # Без этого браузер/прокси обрывает SSE при долгом молчании (модель 35B = 2-4 мин TTT).
+                # Та же техника что в /v1/chat/completions (Netflix/Cloudflare best practice).
+                heartbeat_sec = int(os.getenv("VICTORIA_STREAM_HEARTBEAT_SEC", "15"))
+                task = asyncio.create_task(run_task(body, request, async_mode=False))
+                while not task.done():
+                    done, _ = await asyncio.wait([task], timeout=heartbeat_sec)
+                    if not done:
+                        # SSE comment — не отображается клиентом, но не даёт соединению умереть
+                        yield ": keep-alive\n\n"
+                try:
+                    result = task.result()
+                except Exception as e:
+                    raise e
+
                 if isinstance(result, TaskResponse):
                     content = result.output
                     if content:
@@ -4993,10 +5030,12 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     else:
                         body_str = body_bytes
                     data = json.loads(body_str)
-                    yield f"data: {json.dumps({'type': 'error', 'content': data.get('message', 'Ошибка')})}\n\n"
+                    err_msg = f"Ошибка Victoria Enhanced: {data.get('message', 'Неизвестная ошибка')}"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
             except Exception as e:
                 logger.error("Stream expert path error: %s", e, exc_info=True)
-                yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+                err_msg = f"Критическая ошибка стриминга: {str(e)}"
+                yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
 
             yield f"data: {json.dumps({'type': 'end'})}\n\n"
 
@@ -5696,9 +5735,11 @@ async def run_task(
                         logger.info(
                             f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
                         )
+                        _enhanced_meta = enhanced_result.get("metadata")
+                        _enhanced_meta_typed: dict = dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
                         knowledge = {
                             "method": enhanced_result.get("method"),
-                            "metadata": dict(enhanced_result.get("metadata") or {}),
+                            "metadata": _enhanced_meta_typed,
                             "project_context": project_context,
                             "delegated_to": enhanced_result.get("delegated_to"),
                             "task_id": enhanced_result.get("task_id"),
@@ -6256,7 +6297,6 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "Transfer-Encoding": "chunked",
                 "X-Accel-Buffering": "no",
             },
         )
@@ -6395,7 +6435,8 @@ async def get_status():
     }
     if victoria_enhanced_instance:
         try:
-            enhanced_status = await victoria_enhanced_instance.get_status()
+            _get_status_fn = getattr(victoria_enhanced_instance, "get_status", None)  # pyright: ignore[reportAttributeAccessIssue]
+            enhanced_status = await _get_status_fn() if _get_status_fn is not None else {}
             status["victoria_enhanced"] = {
                 "enabled": True,
                 "monitoring_started": enhanced_status.get("monitoring_started", False),

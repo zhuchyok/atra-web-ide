@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/agent_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "d038c6a6-7601-408d-8293-4d6ba5f7cc9d"
+}

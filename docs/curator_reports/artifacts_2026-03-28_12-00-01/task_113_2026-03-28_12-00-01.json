@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/hierarchical_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "161fd83f-ab15-49be-97ed-3d598491f4e5"
+}

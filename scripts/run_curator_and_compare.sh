@@ -59,7 +59,7 @@ echo ""
 echo "=== 1. Прогон куратора ==="
 if [ -n "$FULL" ]; then
   echo "Режим: полный (все задачи из curator_tasks.txt)"
-  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 600
+  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 3600
 else
   echo "Режим: быстрый (--quick, 2 задачи)"
   python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --quick

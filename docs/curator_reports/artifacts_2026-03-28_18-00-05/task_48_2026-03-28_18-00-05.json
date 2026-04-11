@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/ad_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "cc0c635d-b7c2-44ba-9785-145c1d3270ce"
+}

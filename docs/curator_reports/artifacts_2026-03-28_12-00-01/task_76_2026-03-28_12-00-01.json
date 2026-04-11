@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/contextual_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "555e56bf-798d-4b12-a8f5-4a8045d28037"
+}

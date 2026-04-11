@@ -1,0 +1,11 @@
+{
+  "goal": "что ты умеешь?",
+  "output": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+  "knowledge": {
+    "strategy": "quick_answer",
+    "confidence": 1.0,
+    "fast_path": true,
+    "source": "static_fallback"
+  },
+  "correlation_id": "94e91a0c-d549-4dfe-b3e5-a32a09e89d4c"
+}

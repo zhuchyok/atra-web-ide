@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/adaptive_prompter.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "ea75e505-56da-46d0-9a23-7c5f6fe8cd42"
+}

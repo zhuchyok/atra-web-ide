@@ -87,7 +87,10 @@ class ContainerMetricsCollector:
             metrics = await self.collect_all_metrics()
             if metrics:
                 try:
-                    from app.event_bus import Event, EventType, get_event_bus
+                    try:
+                        from app.event_bus import Event, EventType, get_event_bus
+                    except ImportError:
+                        from event_bus import Event, EventType, get_event_bus
 
                     event_bus = get_event_bus()
                     await event_bus.publish(

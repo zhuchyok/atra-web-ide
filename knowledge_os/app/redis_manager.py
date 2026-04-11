@@ -10,6 +10,8 @@ import redis.asyncio as redis
 logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+# Дедуп-lock при push в stream: не короче таймаута задачи (expert_worker)
+_TASK_DEDUP_LOCK_TTL = int(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
 
 
 class RedisManager:
@@ -26,19 +28,54 @@ class RedisManager:
             cls._instance = super(RedisManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, url: str = REDIS_URL):
+    def __init__(self, url: str = None):
         if not hasattr(self, "initialized"):
-            self.url = url
+            # [SINGULARITY 24.3] ВАЖНО: В Docker REDIS_URL может быть задан через окружение
+            # Мы отдаем приоритет переданному url, затем окружению, затем дефолту.
+            self.url = url or os.getenv("REDIS_URL", "redis://localhost:6379")
             self.initialized = True
+            import os as system_os
+            # [SINGULARITY 24.3] Логируем всегда для отладки
+            print(f"DEBUG: [REDIS_MANAGER] Initialized with URL: {self.url} (PID: {system_os.getpid()})")
+            # [SINGULARITY 24.3] Сбрасываем пул при инициализации, если он был
+            self._pool = None
+        else:
+            # [SINGULARITY 24.3] Если уже инициализирован, но передан новый URL - обновляем
+            if url and url != self.url:
+                import os as system_os
+                print(f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {url} (PID: {system_os.getpid()})")
+                self.url = url
+                self._pool = None
+            elif os.getenv("REDIS_URL") and os.getenv("REDIS_URL") != self.url:
+                # Также проверяем окружение, если url не передан явно
+                import os as system_os
+                new_url = os.getenv("REDIS_URL")
+                print(f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {new_url} from ENV (PID: {system_os.getpid()})")
+                self.url = new_url
+                self._pool = None
+        
+        # [SINGULARITY 24.3] Глобальная переменная модуля тоже должна быть актуальной
+        import redis_manager as rm_module
+        rm_module.REDIS_URL = self.url
+        print(f"DEBUG: [REDIS_MANAGER] Module REDIS_URL is now: {rm_module.REDIS_URL}")
 
     async def get_client(self) -> redis.Redis:
         """Получает или создает клиент Redis из пула."""
+        # [SINGULARITY 24.3] Если пул устарел (URL изменился), пересоздаем его
+        if self._pool is not None:
+            # Проверим, соответствует ли пул текущему URL
+            # В redis-py пул не хранит URL напрямую в доступном виде, 
+            # но мы сбрасываем self._pool при обновлении self.url
+            pass
+
         if self._pool is None:
             try:
+                # [SINGULARITY 24.3] Используем self.url, который мы обновили
                 self._pool = redis.ConnectionPool.from_url(
                     self.url, max_connections=20, decode_responses=True
                 )
                 logger.info(f"✅ [REDIS] Пул соединений создан: {self.url}")
+                print(f"DEBUG: [REDIS_MANAGER] ConnectionPool created for {self.url}")
             except Exception as e:
                 logger.error(f"❌ [REDIS] Ошибка создания пула: {e}")
                 raise
@@ -111,8 +148,8 @@ class RedisManager:
                 # Проверяем, не обрабатывается ли уже эта задача (идемпотентность)
                 lock_key = f"lock:task:{task_id}"
                 is_locked = await client.set(
-                    lock_key, "processing", ex=1800, nx=True
-                )  # Блокировка на 30 мин
+                    lock_key, "processing", ex=_TASK_DEDUP_LOCK_TTL, nx=True
+                )
                 if not is_locked:
                     logger.warning(f"🚫 [REDIS] Дубликат задачи {task_id} проигнорирован")
                     return False

@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/model_performance_tracker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "7cf8b753-a825-41b0-b8c4-4a38839ca684"
+}

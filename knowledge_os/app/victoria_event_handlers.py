@@ -11,7 +11,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from app.event_bus import Event, EventType
+try:
+    from app.event_bus import Event, EventType
+except ImportError:
+    from event_bus import Event, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +158,26 @@ class VictoriaEventHandlers:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
+    async def handle_dialogue_consensus(self, event: Event) -> Dict[str, Any]:
+        """Обработка финального консенсуса диалога"""
+        payload = event.payload
+        dialogue_id = payload.get("dialogue_id")
+        final_answer = payload.get("final_answer")
+        consensus_score = payload.get("consensus_score", 0)
+
+        # [SINGULARITY 24.3] DEBUG: Always log consensus receipt
+        logger.info(f"🏆 [DIALOGUE] RECEIVED CONSENSUS for {dialogue_id} (Score: {consensus_score:.2f})")
+        
+        # [SINGULARITY 24.3] Логируем финальный ответ для истории
+        try:
+            from app.redis_manager import redis_manager
+            await redis_manager.set_cache(f"dialogue_final:{dialogue_id}", final_answer, ttl=3600)
+            logger.info(f"✅ [DIALOGUE] Final answer for {dialogue_id} saved to Redis")
+        except Exception as e:
+            logger.error(f"❌ [DIALOGUE] Error saving final answer: {e}")
+
+        return {"status": "consensus_received", "dialogue_id": dialogue_id}
+
     async def handle_event(self, event: Event) -> Dict[str, Any]:
         """Общий диспетчер событий"""
         # [SINGULARITY 12.0] Route to Autonomous Sentinel
@@ -173,18 +196,82 @@ class VictoriaEventHandlers:
             return await self.handle_performance_degraded(event)
         elif event.event_type == EventType.LOG_ERROR_DETECTED:
             return await self.handle_log_error_detected(event)
+        elif event.event_type == EventType.DIALOGUE_REQUEST:
+            return await self.handle_dialogue_request(event)
+        elif event.event_type == EventType.EXPERT_RESPONSE:
+            return await self.handle_expert_response(event)
+        elif event.event_type == EventType.DIALOGUE_CONSENSUS:
+            return await self.handle_dialogue_consensus(event)
         # ... другие типы ...
         return {"status": "ignored"}
 
-    async def handle_log_error_detected(self, event: Event) -> Dict[str, Any]:
+    async def handle_dialogue_request(self, event: Event) -> Dict[str, Any]:
+        """Обработка запроса на диалог (для экспертов)"""
+        payload = event.payload
+        expert_name = payload.get("expert_name")
+        query = payload.get("query")
+        dialogue_id = payload.get("dialogue_id")
+
+        if not expert_name or not query:
+            return {"status": "ignored", "reason": "missing_data"}
+
+        logger.info(f"🎭 [DIALOGUE] Expert {expert_name} received request for dialogue {dialogue_id}")
+
+        # Постановка задачи эксперту через Redis Stream
+        try:
+            import uuid
+            from app.redis_manager import redis_manager
+
+            # [SINGULARITY 24.3] Deduplication: one task per (dialogue_id, expert_name)
+            dedup_key = f"dialogue_task:{dialogue_id}:{expert_name}"
+            client = await redis_manager.get_client()
+            already_queued = not await client.set(dedup_key, "1", nx=True, ex=600)
+            if already_queued:
+                logger.debug(f"[DEDUP] Task for {expert_name}/{dialogue_id} already queued, skipping")
+                return {"status": "already_queued"}
+
+            task_id = str(uuid.uuid4())
+            task_data = {
+                "task_id": task_id,
+                "expert_name": expert_name,
+                "description": f"УЧАСТИЕ В ДИАЛОГЕ [{dialogue_id}]: {query}",
+                "category": "dialogue",
+                "metadata": {
+                    "autonomous": True, 
+                    "dialogue_id": dialogue_id,
+                    "is_dialogue": True
+                },
+            }
+
+            await redis_manager.push_to_stream("expert_tasks", task_data)
+            logger.info(f"✅ [DIALOGUE] Task {task_id} queued for {expert_name}")
+
+            return {"status": "task_queued", "task_id": task_id, "expert": expert_name}
+        except Exception as e:
+            logger.error(f"❌ [DIALOGUE] Error queuing task: {e}")
+            return {"status": "error", "message": str(e)}
+
+    async def handle_expert_response(self, event: Event) -> Dict[str, Any]:
+        """Обработка ответа эксперта (логирование и т.д.)"""
+        # DialogueController сам слушает это событие, здесь можем добавить доп. логику
+        return {"status": "received"}
+
+    async def handle_log_error_detected(self, event: Any) -> Dict[str, Any]:
         """
         Обработчик ошибки из логов Docker.
         Виктория сама решает: исправить автономно, предложить или игнорировать.
         """
-        error_info = event.payload.get("error_info", {})
-        container = error_info.get("container", "unknown")
+        import uuid
+        # [SINGULARITY 24.7] Fix: handle both Event object and dict payload for manual calls
+        if isinstance(event, dict):
+            error_info = event.get("error_info", event)
+            event_id = f"manual_{uuid.uuid4().hex[:8]}"
+        else:
+            error_info = event.payload.get("error_info", event.payload)
+            event_id = event.event_id
 
-        logger.warning(f"🚨 [SELF-HEALING] Обнаружена ошибка в логах контейнера {container}")
+        container = error_info.get("container", "unknown")
+        logger.warning(f"🚨 [SELF-HEALING] Обнаружена ошибка в логах контейнера {container} (Event: {event_id})")
 
         # 1. Анализ через Mutation Engine (Виктория принимает решение)
         try:
@@ -256,7 +343,7 @@ class VictoriaEventHandlers:
             container = error_info.get("container", "unknown")
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
             )
             conn = await asyncpg.connect(db_url)
             try:
@@ -285,6 +372,9 @@ class VictoriaEventHandlers:
                     """
                     INSERT INTO tasks (id, title, description, status, priority, metadata, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (title, COALESCE(project_context, 'default')) 
+                    WHERE status IN ('pending', 'in_progress') 
+                    DO NOTHING
                     """,
                     task_id,
                     title,
@@ -347,7 +437,7 @@ class VictoriaEventHandlers:
 
             shadow = get_shadow_manager()
             # Запускаем анализ в тени (сравнение старого и нового методов анализа)
-            # await shadow.run_shadow(event.event_id, self._analyze_file, self._analyze_file_v2, event.payload.get("file_path"))
+            asyncio.create_task(shadow.run_shadow(event.event_id, self._analyze_file, self._analyze_file, event.payload.get("file_path")))
         except ImportError:
             pass
 
@@ -759,7 +849,7 @@ class VictoriaEventHandlers:
             import asyncpg
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
             )
             conn = await asyncpg.connect(db_url)
             try:

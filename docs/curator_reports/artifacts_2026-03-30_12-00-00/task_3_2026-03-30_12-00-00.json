@@ -1,0 +1,11 @@
+{
+  "goal": "покажи список файлов в корне проекта",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "ad5df194-9119-4a49-b4e1-cf5cee9fdb6d"
+}

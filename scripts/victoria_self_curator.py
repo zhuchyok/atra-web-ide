@@ -9,6 +9,38 @@ from datetime import datetime, timezone
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("self_curator")
 
+NTFY_URL = os.getenv("NTFY_URL", "")
+TG_TOKEN = os.getenv("TG_TOKEN", "")
+TG_CHAT_ID = os.getenv("TG_CHAT_ID", "")
+
+
+async def _ntfy_notify(title: str, body: str) -> None:
+    """Отправка в ntfy → Telegram fallback."""
+    if NTFY_URL:
+        try:
+            # trust_env=False — отключаем ALL_PROXY из env (socks5h без httpx-socks даёт gaierror)
+            async with httpx.AsyncClient(timeout=10.0, trust_env=False) as c:
+                await c.post(NTFY_URL, content=body.encode(),
+                             headers={"Title": title, "Priority": "default"})
+            logger.info("ntfy отправлено ✅")
+            return
+        except Exception as e:
+            logger.warning("ntfy failed: %s", e)
+    if TG_TOKEN and TG_CHAT_ID:
+        try:
+            tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+            proxy = os.getenv("TG_PROXY", "")
+            kw = {"proxy": proxy} if proxy else {}
+            async with httpx.AsyncClient(timeout=10.0, **kw) as c:
+                await c.post(tg_url, json={
+                    "chat_id": TG_CHAT_ID,
+                    "text": f"*{title}*\n\n{body[:4000]}",
+                    "parse_mode": "Markdown",
+                })
+            logger.info("Telegram отправлено ✅")
+        except Exception as e:
+            logger.warning("Telegram failed: %s", e)
+
 ROOT = Path(__file__).resolve().parents[1]
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://0.0.0.0:8010")
 REPORTS_DIR = ROOT / "docs" / "curator_reports"
@@ -18,7 +50,7 @@ async def run_curator():
     """Запуск стандартного кураторского прогона"""
     logger.info("🚀 Запуск кураторского прогона...")
     # Используем системный python3, так как в venv какие-то проблемы с соединением
-    cmd = ["python3", str(ROOT / "scripts" / "curator_send_tasks_to_victoria.py"), "--file", str(TASKS_FILE), "--async", "--quick"]
+    cmd = ["python3", str(ROOT / "scripts" / "curator_send_tasks_to_victoria.py"), "--file", str(TASKS_FILE), "--async", "--max-wait", "3600"]
     process = await asyncio.create_subprocess_exec(*cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
     stdout, stderr = await process.communicate()
 
@@ -97,6 +129,15 @@ async def ask_victoria_to_analyze(report_path: Path):
                     analysis_path = REPORTS_DIR / f"self_analysis_{ts}.md"
                     analysis_path.write_text(f"# Само-анализ Виктории ({ts})\n\n{analysis}", encoding="utf-8")
                     logger.info(f"✅ Анализ сохранен: {analysis_path}")
+
+                    # Отправляем результат само-анализа в ntfy (подробное уведомление)
+                    if analysis and analysis != "Нет ответа.":
+                        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                        await _ntfy_notify(
+                            f"🧠 Victoria Self-Analysis [{now_str}]",
+                            analysis[:4000]
+                        )
+
                     return analysis
                 else:
                     logger.error(f"❌ Ошибка API: {response.status_code}")

@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/code_smell_predictor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "427406ff-015c-4da8-9e26-e616ac2ca5ee"
+}

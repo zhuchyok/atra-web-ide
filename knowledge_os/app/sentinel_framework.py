@@ -6,7 +6,10 @@ from collections.abc import Awaitable
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List
 
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 from app.redis_manager import redis_manager
 
 logger = logging.getLogger("ExpertSentinel")

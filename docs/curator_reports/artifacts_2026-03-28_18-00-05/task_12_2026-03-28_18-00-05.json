@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/scripts/ingest_docs_to_rag.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "4ab9175a-b398-4dc7-8d6d-e4d3c3c58cdd"
+}

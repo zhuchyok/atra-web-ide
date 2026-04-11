@@ -114,13 +114,19 @@ async def execute_assignments_async(
                 )
 
                 # СОЗДАЕМ РЕАЛЬНУЮ ЗАДАЧУ В БД
+                # ON CONFLICT: idx_tasks_active_dedup защищает от дублей (title+project_context, active only).
+                # DO UPDATE SET updated_at=NOW() гарантирует RETURNING id даже при конфликте.
+                task_title = f"🤖 Делегировано: {expert_name} ({key})"
                 task_id = await conn.fetchval(
                     """
                     INSERT INTO tasks (title, description, status, priority, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', 'high', $3, $4, $5)
+                    ON CONFLICT (title, COALESCE(project_context, 'default'))
+                        WHERE status IN ('pending', 'in_progress')
+                    DO UPDATE SET updated_at = NOW()
                     RETURNING id
                 """,
-                    f"🤖 Делегировано: {expert_name} ({key})",
+                    task_title,
                     subtask_desc,
                     expert_id,
                     victoria_id,
@@ -129,7 +135,7 @@ async def execute_assignments_async(
                     ),
                 )
 
-                logger.info(f"🚀 [MONSTER] Создана задача {task_id} для {expert_name}")
+                logger.info(f"🚀 [MONSTER] Создана/найдена задача {task_id} для {expert_name}")
 
                 # МОНСТР-ЛОГИКА 10.0: Отправляем задачу в Redis Stream для асинхронного воркера
                 if redis_manager:
@@ -183,15 +189,28 @@ async def execute_assignments_async(
                             logger.info(
                                 f"⏳ [MONSTER] Запуск run_smart_agent_async для {expert_name}, timeout={timeout_per_expert}"
                             )
-                            report = await asyncio.wait_for(
-                                run_smart_agent_async(
+                            # [SINGULARITY 24.3] Fix RecursionError in cancel()
+                            # Use a non-recursive cancellation strategy if possible or wrap in try-except
+                            # but the root cause is often deeply nested tasks in asyncio.wait_for
+                            try:
+                                report = await asyncio.wait_for(
+                                    run_smart_agent_async(
+                                        subtask_desc,
+                                        expert_name=expert_name,
+                                        category="orchestrator_assignment",
+                                        project_context=project_context,
+                                    ),
+                                    timeout=timeout_per_expert,
+                                )
+                            except RecursionError:
+                                logger.error(f"⚠️ [MONSTER] RecursionError detected during wait_for for {expert_name}. Attempting recovery.")
+                                # Fallback to a direct call without wait_for if recursion happens in asyncio internals
+                                report = await run_smart_agent_async(
                                     subtask_desc,
                                     expert_name=expert_name,
                                     category="orchestrator_assignment",
                                     project_context=project_context,
-                                ),
-                                timeout=timeout_per_expert,
-                            )
+                                )
 
                             # Если дошли сюда, значит успех
                             # Обновляем задачу в БД как завершенную

@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/cursorrules_generator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "c3b9448c-6443-4235-905a-7f1b30b1e2d9"
+}

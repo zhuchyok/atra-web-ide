@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/auto_backup_manager.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "38135759-f40d-4310-80b9-628961e82420"
+}

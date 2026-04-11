@@ -5,7 +5,10 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 from app.victoria_event_handlers import VictoriaEventHandlers
 
 # Setup logging

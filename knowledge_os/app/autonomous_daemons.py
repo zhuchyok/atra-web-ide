@@ -6,7 +6,10 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
-from app.event_bus import Event, EventBus, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventBus, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventBus, EventType, get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +72,7 @@ class PerformanceDaemon:
         if metric["name"] == "rag_latency":
             # Действие: Очистка кэша Redis и переиндексация легких узлов
             try:
-                from app.redis_manager import redis_manager
+                from redis_manager import redis_manager
 
                 await (await redis_manager.get_client()).flushdb()
                 logger.info("🧹 [SELF-HEALING] Кэш Redis очищен для ускорения RAG")
@@ -85,7 +88,7 @@ class PerformanceDaemon:
     async def _fetch_metric(self, metric):
         """Реальное получение метрик из БД или Prometheus."""
         try:
-            from app.evaluator import get_pool
+            from evaluator import get_pool
 
             pool = await get_pool()
             async with pool.acquire() as conn:
@@ -132,3 +135,25 @@ async def setup_daemons():
 
     await igor.start()
     await dmitriy.start()
+
+    # [SINGULARITY 24.3] Живой Чат: Автономные диалоги экспертов
+    try:
+        from dialogue_controller import start_dialogue_controller
+        from event_bus_redis_bridge import start_redis_bridge
+        from victoria_enhanced import VictoriaEnhanced
+        
+        bus = get_event_bus()
+        await bus.start()
+        
+        # [SINGULARITY 24.3] DEBUG: Log PID and Bus ID
+        logger.info(f"🎭 [DAEMONS] (PID: {os.getpid()}) Initializing VictoriaEnhanced with EventBus ID: {id(bus)}")
+        
+        # Запускаем VictoriaEnhanced для обработки событий (мониторинг, диалоги)
+        victoria = VictoriaEnhanced()
+        await victoria.start()
+        
+        bridge = await start_redis_bridge(bus)
+        controller = start_dialogue_controller(bus)
+        logger.info(f"🎭 [DAEMONS] (PID: {os.getpid()}) DialogueController, VictoriaEnhanced and Redis Bridge integrated on EventBus ID: {id(bus)}")
+    except Exception as e:
+        logger.error(f"❌ [DAEMONS] Failed to start DialogueController: {e}")

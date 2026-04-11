@@ -1,0 +1,31 @@
+{
+  "ts": "2026-04-08T21:45:27.047788+00:00",
+  "victoria_url": "http://127.0.0.1:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "RCA: почему в OpenCode (локальный UI) интеграция с локальной Victoria Agent ведёт себя неправильно (нет ответа, таймаут, пустой стрим, ошибки). Контекст проекта atra-web-ide. Цепочка для проверки: браузер → фронт (nginx/vite, типично :3000) → backend (:8080 или прокси на :8000) → переменная VICTORIA_URL / конфиг → Victoria Agent (с хоста часто :8010, в Docker-сети :8000). Задача: (1) восстанови фактическую схему из кода и docker-compose; (2) перечисли наиболее вероятные точки отказа (URL, CORS, таймауты HTTP/SSE, неверный endpoint /run vs чат, версия API); (3) дай пошаговую диагностику для разработчика (curl, health, минимальный POST /run); (4) сформулируй конкретные правки конфигов или кода, если найдёшь несоответствие. Сверься с docs при наличии (OPENWEBUI_*, MASTER_REFERENCE, opencode). На выходе: структурированный отчёт с гипотезами, отсортированными по вероятности, и чеклист проверки.",
+      "status": "success",
+      "error": null,
+      "output_preview": "**Очередь задач (сейчас, pending + in_progress)**\n- in_progress: 5\n- pending: 7\n\n**Активность за последние 8 ч (по updated_at)**\n- completed: 16\n- failed: 7\n- in_progress: 5\n- pending: 7\n\n**Новых задач создано за окно (created_at):** 23\n\n**Провалено (failed) за окно — детали (до 30):**\n\n1. `6c7562cb-c86e-44f3-a5c5-97991883a896` | 2026-04-08 17:18:47.021715+00:00 | 📊 Дашборд: Проверить LEFT(content,N) в запросах к knowledge_nodes\n   description: Избегать загрузки полного content: использовать LEF",
+      "output_length": 1224,
+      "correlation_id": "2ee2e29f-4a13-487d-a497-bbb76b49bbbb",
+      "execution_trace": {
+        "method": "simple",
+        "metadata": {
+          "source": "corporation_data_tool",
+          "fast_mode": true,
+          "model_used": "local"
+        },
+        "correlation_id": "2ee2e29f-4a13-487d-a497-bbb76b49bbbb",
+        "strategy_reason": "fallback",
+        "confidence": 0.5,
+        "uncertainty_reason": "fallback"
+      },
+      "elapsed_seconds": 5.07,
+      "artifact_file": "task_1_2026-04-08_21-45-21.json"
+    }
+  ]
+}

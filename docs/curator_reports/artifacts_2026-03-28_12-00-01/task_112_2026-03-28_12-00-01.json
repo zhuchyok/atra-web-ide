@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/health_check.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "6b2d649b-cd43-44ff-8cf5-8ba0f0c186e6"
+}

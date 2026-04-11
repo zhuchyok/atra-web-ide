@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/checklist_generator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "e0a25090-8089-4412-ae0a-7effcbe6c03c"
+}

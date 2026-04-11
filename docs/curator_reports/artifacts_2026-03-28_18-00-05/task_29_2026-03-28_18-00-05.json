@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/react_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "81ebf3dc-4f3c-4737-9033-d05d799d8424"
+}

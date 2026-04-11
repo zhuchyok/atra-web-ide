@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/federated_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "59079b77-ee49-4549-985f-593ccd0fd2f4"
+}

@@ -19,7 +19,10 @@ async def test_victoria_initiative():
     print("1️⃣ Проверка импортов...")
     try:
         from app.victoria_enhanced import VictoriaEnhanced
-        from app.event_bus import get_event_bus
+        try:
+            from app.event_bus import get_event_bus
+        except ImportError:
+            from event_bus import get_event_bus
         from app.skill_registry import get_skill_registry
         from app.file_watcher import FileWatcher
         from app.service_monitor import ServiceMonitor

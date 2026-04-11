@@ -1,0 +1,17 @@
+{
+  "goal": "RCA: почему в OpenCode (локальный UI) интеграция с локальной Victoria Agent ведёт себя неправильно (нет ответа, таймаут, пустой стрим, ошибки). Контекст проекта atra-web-ide. Цепочка для проверки: браузер → фронт (nginx/vite, типично :3000) → backend (:8080 или прокси на :8000) → переменная VICTORIA_URL / конфиг → Victoria Agent (с хоста часто :8010, в Docker-сети :8000). Задача: (1) восстанови фактическую схему из кода и docker-compose; (2) перечисли наиболее вероятные точки отказа (URL, CORS, таймауты HTTP/SSE, неверный endpoint /run vs чат, версия API); (3) дай пошаговую диагностику для разработчика (curl, health, минимальный POST /run); (4) сформулируй конкретные правки конфигов или кода, если найдёшь несоответствие. Сверься с docs при наличии (OPENWEBUI_*, MASTER_REFERENCE, opencode). На выходе: структурированный отчёт с гипотезами, отсортированными по вероятности, и чеклист проверки.",
+  "output": "**Очередь задач (сейчас, pending + in_progress)**\n- in_progress: 5\n- pending: 7\n\n**Активность за последние 8 ч (по updated_at)**\n- completed: 16\n- failed: 7\n- in_progress: 5\n- pending: 7\n\n**Новых задач создано за окно (created_at):** 23\n\n**Провалено (failed) за окно — детали (до 30):**\n\n1. `6c7562cb-c86e-44f3-a5c5-97991883a896` | 2026-04-08 17:18:47.021715+00:00 | 📊 Дашборд: Проверить LEFT(content,N) в запросах к knowledge_nodes\n   description: Избегать загрузки полного content: использовать LEFT(content, N) или substring для больших полей.\n   result: Task timed out after 1800.0s (Circuit Breaker)\n\n2. `38d62b30-6f08-4725-a01e-65c13529fe0b` | 2026-04-08 16:48:34.612659+00:00 | 🚀 EVOLUTION: Autonomous Red Teaming (Self-Adversarial Verification)\n   description: 1. Create adversarial_critic.py to challenge new SOPs. 2. Integrate critic into the SOP generation pipeline.\n\n3. `ee676afd-267d-4f0c-acaf-8729b0cd6bc2` | 2026-04-08 16:41:55.344029+00:00 | 🔥 ИССЛЕДОВАНИЕ: Communication\n   description: Проведи глубокое исследование новых технологий и трендов 2026 в области Communication. Найди 3 прорывных инсайта.\n\n4. `32ee8ef7-f85a-43aa-952a-d62c3831ed33` | 2026-04-08 16:41:55.344029+00:00 | 🚀\n\n[... ответ обрезан ...]",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "2ee2e29f-4a13-487d-a497-bbb76b49bbbb",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  },
+  "correlation_id": "2ee2e29f-4a13-487d-a497-bbb76b49bbbb"
+}

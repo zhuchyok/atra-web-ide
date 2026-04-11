@@ -179,7 +179,7 @@ class CodebaseMutationEngine:
             import asyncpg
 
             db_url = os.getenv(
-                "DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os"
+                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
             )
             conn = await asyncpg.connect(db_url)
             try:
@@ -240,12 +240,19 @@ class CodebaseMutationEngine:
 
     async def _verify_patch_safety(self, file_path: str, patch_data: Dict) -> bool:
         """
-        Проверка безопасности патча: синтаксис, архитектурные стандарты [SINGULARITY 21.20] и тесты.
+        [SINGULARITY 23.1] Real Docker Sandbox Patch Verification:
+        Проверка безопасности патча в изолированном контейнере.
         """
+        import os
+        import sys
+        import uuid
+        from sandbox_manager import get_sandbox_manager
+
         temp_file = f"{file_path}.tmp"
         backup_file = f"{file_path}.bak"
+        
         try:
-            # 1. Создаем временную копию с патчем
+            # 1. Читаем текущий контент
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
@@ -263,63 +270,116 @@ class CodebaseMutationEngine:
                 logger.warning("🛡️ [ARCH GUARD] Патч отклонен: нарушение архитектурных стандартов.")
                 return False
 
-            # [SINGULARITY 21.21] Recursive Testing: Extract and run embedded tests
-            if "def test_" in new_code:
-                logger.info("🧪 [RECURSIVE TEST] Detected embedded tests. Running validation...")
+            sandbox = get_sandbox_manager()
+            if not sandbox or not sandbox.client:
+                logger.warning("⚠️ SandboxManager not available, falling back to local verification")
+                return await self._verify_patch_safety_fallback(file_path, new_content)
 
+            # 2. Подготовка песочницы
+            sandbox_id = f"mutation_{uuid.uuid4().hex[:8]}"
+            shared_dir = "./knowledge_os/sandbox_shared"
+            os.makedirs(shared_dir, exist_ok=True)
+            
+            # Копируем файл в песочницу
+            rel_path = os.path.relpath(file_path, os.getcwd())
+            sandbox_file_path = os.path.join(shared_dir, f"{sandbox_id}_{os.path.basename(file_path)}")
+            
+            with open(sandbox_file_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+
+            sandbox_filename = os.path.basename(sandbox_file_path)
+
+            # 3. Проверка синтаксиса в Docker
+            if file_path.endswith(".py"):
+                compile_res = await sandbox.run_in_sandbox("Mutation", f"python3 -m py_compile {sandbox_filename}")
+                if compile_res.get("exit_code", 1) != 0:
+                    logger.warning(f"⚠️ [MUTATION] Патч нарушает синтаксис: {compile_res.get('output')}")
+                    return False
+
+            # 4. Запуск тестов в Docker (если есть)
+            test_file = self._find_related_test(file_path)
+            
+            # [SINGULARITY 24.0] Dependency-Aware Regression Guard
+            from dependency_mapper import get_dependency_mapper
+            mapper = get_dependency_mapper()
+            affected_files = mapper.get_affected_files(file_path)
+            
+            related_tests = [test_file] if test_file else []
+            for aff_file in affected_files:
+                aff_test = self._find_related_test(os.path.join(self.project_root, aff_file))
+                if aff_test and aff_test not in related_tests:
+                    related_tests.append(aff_test)
+                    logger.info(f"🧪 [DEPENDENCY GUARD] Added test for affected file: {aff_file}")
+            
+            for t_file in related_tests:
+                logger.info(f"🧪 [MUTATION] Запуск теста {t_file} в песочнице...")
+                # Копируем тест в песочницу
+                sandbox_test_path = os.path.join(shared_dir, f"{sandbox_id}_{os.path.basename(t_file)}")
+                with open(t_file, "r", encoding="utf-8") as f:
+                    test_content = f.read()
+                
+                # В тесте нужно подменить импорт тестируемого файла на временный sandbox_filename (без .py)
+                module_name = os.path.basename(file_path).replace(".py", "")
+                sandbox_module_name = sandbox_filename.replace(".py", "")
+                test_content = test_content.replace(f"from {module_name}", f"import {sandbox_module_name} as {module_name} # patched\n# from {module_name}")
+                test_content = test_content.replace(f"import {module_name}", f"import {sandbox_module_name} as {module_name}")
+                
+                with open(sandbox_test_path, "w", encoding="utf-8") as f:
+                    f.write(test_content)
+
+                test_res = await sandbox.run_in_sandbox("Mutation", f"pytest {os.path.basename(sandbox_test_path)}")
+                
+                # Чистим тесты из песочницы
+                if os.path.exists(sandbox_test_path): os.remove(sandbox_test_path)
+
+                if test_res.get("exit_code", 1) != 0:
+                    logger.warning(f"❌ [MUTATION] Тест {t_file} провален в песочнице! {test_res.get('output')}")
+                    return False
+
+            if related_tests:
+                logger.info(f"✅ [MUTATION] Все тесты ({len(related_tests)}) пройдены в песочнице успешно!")
+
+            # Чистим файл из песочницы
+            if os.path.exists(sandbox_file_path): os.remove(sandbox_file_path)
+            
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ [MUTATION] Ошибка проверки в песочнице: {e}")
+            return False
+
+    async def _verify_patch_safety_fallback(self, file_path: str, new_content: str) -> bool:
+        """Fallback to local verification if Docker is not available."""
+        temp_file = f"{file_path}.tmp"
+        backup_file = f"{file_path}.bak"
+        try:
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write(new_content)
 
-            # 2. Проверяем синтаксис
             if file_path.endswith(".py"):
-                process = subprocess.run(
-                    [sys.executable, "-m", "py_compile", temp_file], capture_output=True
-                )
-                if process.returncode != 0:
-                    logger.warning(
-                        f"⚠️ [MUTATION] Патч нарушает синтаксис: {process.stderr.decode()}"
-                    )
-                    return False
+                process = subprocess.run([sys.executable, "-m", "py_compile", temp_file], capture_output=True)
+                if process.returncode != 0: return False
 
-            # 3. Поиск и запуск тестов (если это не SyntaxError в новом файле)
             test_file = self._find_related_test(file_path)
             if test_file:
-                logger.info(f"🧪 [MUTATION] Запуск тестов {test_file} для верификации патча...")
                 os.rename(file_path, backup_file)
                 os.rename(temp_file, file_path)
-
                 try:
-                    pytest_cmd = [sys.executable, "-m", "pytest", test_file]
-                    test_process = subprocess.run(pytest_cmd, capture_output=True, timeout=30)
-
+                    test_process = subprocess.run([sys.executable, "-m", "pytest", test_file], capture_output=True, timeout=30)
                     if test_process.returncode != 0:
-                        logger.warning("❌ [MUTATION] Тесты провалены после патча! Откат.")
                         os.rename(file_path, temp_file)
                         os.rename(backup_file, file_path)
                         return False
-
-                    logger.info("✅ [MUTATION] Тесты пройдены успешно!")
-                    if os.path.exists(backup_file):
-                        os.remove(backup_file)
+                    if os.path.exists(backup_file): os.remove(backup_file)
                     return True
-                except Exception as test_err:
-                    logger.error(f"❌ [MUTATION] Ошибка при запуске тестов: {test_err}")
+                except Exception:
                     if os.path.exists(backup_file):
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
+                        if os.path.exists(file_path): os.remove(file_path)
                         os.rename(backup_file, file_path)
                     return False
-
-            logger.info(
-                f"🛡️ [MUTATION] Патч прошел проверку синтаксиса для {file_path} (тесты не найдены)"
-            )
             return True
-        except Exception as e:
-            logger.error(f"❌ [MUTATION] Ошибка проверки безопасности: {e}")
-            return False
         finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            if os.path.exists(temp_file): os.remove(temp_file)
 
     async def _architectural_guard(self, code: str, file_path: str) -> bool:
         """[SINGULARITY 21.20] Harness: Проверка кода на соответствие стандартам гигантов."""

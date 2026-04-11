@@ -15,7 +15,7 @@ if [ ! -f "$ROOT/scripts/curator_send_tasks_to_victoria.py" ]; then
 fi
 mkdir -p docs/curator_reports
 TASKS_FILE="${CURATOR_TASKS_FILE:-scripts/curator_tasks.txt}"
-MAX_WAIT="${CURATOR_MAX_WAIT:-600}"
+MAX_WAIT="${CURATOR_MAX_WAIT:-3600}"
 export VICTORIA_URL="${VICTORIA_URL:-http://localhost:8010}"
 CURATOR_SCRIPT="$ROOT/scripts/curator_send_tasks_to_victoria.py"
 if [ ! -f "$TASKS_FILE" ]; then

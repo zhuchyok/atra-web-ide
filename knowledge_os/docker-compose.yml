@@ -14,7 +14,7 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    mem_limit: 8g
+    mem_limit: 2g
     shm_size: 256mb
     command:
       [
@@ -123,6 +123,8 @@ services:
     user: root
     networks:
       - atra-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # mem_limit жёсткий — защита от kernel panic (был watchdog timeout 2026-03-15)
     # Снижен с 24g → 4g: zombie-процессы fixed (2026-03-22), реальное RSS = 0.26 GB
     # Повышен до 25g: 20g не хватало при нагрузке (2026-03-08)
@@ -263,8 +265,8 @@ services:
       ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-50}
       # Stability & Performance Watchdog: Backpressure
       SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
-      # Circuit Breaker: таймаут задачи (1800s = 30 мин для сложных LLM-задач)
-      WORKER_TASK_TOTAL_TIMEOUT: ${WORKER_TASK_TOTAL_TIMEOUT:-1800}
+      # Circuit Breaker: таймаут задачи (3600s = 60 мин для сложных LLM-задач)
+      WORKER_TASK_TOTAL_TIMEOUT: ${WORKER_TASK_TOTAL_TIMEOUT:-3600}
     ports:
       - "8010:8000" # ✅ ОБЩИЙ порт для всех проектов (atra, atra-web-ide, новые проекты)
     volumes:
@@ -312,7 +314,7 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
     restart: always
-    mem_limit: 4g
+    mem_limit: 2g
     ports:
       - "3005:8080"
     extra_hosts:
@@ -428,12 +430,13 @@ services:
       SMART_WORKER_MAX_CONCURRENT: "2"
       WORKER_TYPE: "light"
       SMART_WORKER_LLM_TIMEOUT: "600"
-      WORKER_TASK_TOTAL_TIMEOUT: "1800"
+      WORKER_TASK_TOTAL_TIMEOUT: "3600"
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
       - ../src:/app/src
       - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: python3 knowledge_os/app/expert_worker.py
@@ -542,11 +545,11 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     restart: unless-stopped
-    mem_limit: 8g
+    mem_limit: 2g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
     ports:
@@ -596,9 +599,10 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       OLLAMA_EMBED_URL: http://host.docker.internal:11434/api/embeddings
@@ -606,12 +610,16 @@ services:
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
       # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
-      SMART_WORKER_MAX_CONCURRENT: "1"
+      SMART_WORKER_MAX_CONCURRENT: "2"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
       # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
-      ADAPTIVE_MLX_SAFE_MAX: "2"
+      ADAPTIVE_MLX_SAFE_MAX: "3"
       # Жёсткий таймаут на LLM вызов (600 сек = 10 мин) — 35B может ждать в очереди пока куратор/nightly не освободят Ollama
       SMART_WORKER_LLM_TIMEOUT: "600"
+      # Таймаут для «Делегировано» задач (MONSTER delegation) — до 60 мин (дольше стандартного LLM timeout)
+      WORKER_TASK_TOTAL_TIMEOUT: "3600"
+      # Worker уступает Ollama victoria-agent (low priority → пропускает перегруженный Ollama, уходит на MLX)
+      OLLAMA_REQUEST_PRIORITY: "low"
       # Больше попыток и задержка перед повтором — меньше накопления в ручной очереди
       SMART_WORKER_MAX_ATTEMPTS: "5"
       SMART_WORKER_RETRY_DELAY_SEC: "180"
@@ -648,14 +656,20 @@ services:
       resources:
         limits:
           memory: 8g
+    healthcheck:
+      test: ["CMD", "sh", "-c", "pgrep -f nightly_learner.py > /dev/null || exit 0"]
+      interval: 30m
+      timeout: 10s
+      retries: 2
+      start_period: 5m
     networks:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
@@ -702,7 +716,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -733,10 +747,10 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
@@ -751,6 +765,7 @@ services:
       # Живой организм: при недоступности Ollama/MLX оркестратор шлёт POST сюда; на хосте запустить scripts/host_recovery_listener.py
       RECOVERY_WEBHOOK_URL: ${RECOVERY_WEBHOOK_URL:-http://host.docker.internal:9099/recover}
       ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
+      ENABLE_EVENT_MONITORING: "true"
       # Stability & Performance Watchdog: Backpressure
       SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
       # Phase 1.6: batch_group для задач одного domain (low/medium)
@@ -787,7 +802,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
@@ -816,7 +831,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -880,7 +895,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app
+      PYTHONPATH: /app/knowledge_os
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
@@ -911,10 +926,10 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
-      PYTHONPATH: /app/knowledge_os/app:/app/knowledge_os:/app
+      PYTHONPATH: /app/knowledge_os:/app/knowledge_os:/app
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}

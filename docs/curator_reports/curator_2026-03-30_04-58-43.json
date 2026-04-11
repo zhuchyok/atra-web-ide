@@ -1,0 +1,36 @@
+{
+  "ts": "2026-03-30T05:08:42.316543+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "d707ded1-a585-45d8-b9eb-3fc0a414715c",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 338.01,
+      "artifact_file": "task_1_2026-03-30_04-58-43.json"
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=10)",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 260.38,
+      "artifact_file": null
+    }
+  ]
+}

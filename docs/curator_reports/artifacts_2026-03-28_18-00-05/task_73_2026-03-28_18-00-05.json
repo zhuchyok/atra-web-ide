@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/consensus_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "262f63cf-8097-4297-9ed0-bbaf2a7b6b92"
+}

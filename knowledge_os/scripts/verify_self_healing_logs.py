@@ -8,7 +8,10 @@ from datetime import datetime, timezone
 
 # Add parent dir to path to import app
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from app.event_bus import Event, EventType, get_event_bus
+try:
+    from app.event_bus import Event, EventType, get_event_bus
+except ImportError:
+    from event_bus import Event, EventType, get_event_bus
 from app.victoria_event_handlers import VictoriaEventHandlers
 
 logging.basicConfig(level=logging.INFO)

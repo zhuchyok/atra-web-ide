@@ -23,9 +23,9 @@ DB_SCHEMA_CONTEXT = """
    - is_active, created_at, updated_at
 
 2. tasks (задачи):
-   - id (UUID), title, description, status ('pending', 'in_progress', 'completed', 'cancelled')
+   - id (UUID), title, description, status ('pending', 'in_progress', 'completed', 'failed', 'cancelled')
    - priority, assignee_expert_id (FK → experts), creator_expert_id
-   - created_at, updated_at, deadline, result
+   - metadata (JSONB), created_at, updated_at, deadline, result (TEXT)
 
 3. knowledge_nodes (узлы знаний):
    - id (UUID), domain_id (FK → domains), content (текст знания)
@@ -211,6 +211,11 @@ async def query_corporation_data(question: str) -> Dict[str, Any]:
             "success": sys_result.get("success", False),
         }
 
+    # Диагностика очереди задач — только SQL, без LLM (стабильно в Docker)
+    if is_tasks_queue_diagnostics_question(question):
+        logger.info("📋 [CORP DATA] Детерминированная диагностика tasks (без Text-to-SQL)")
+        return await query_tasks_queue_diagnostics(question)
+
     # Определяем URL для LLM
     is_docker = (
         os.path.exists("/.dockerenv") or os.getenv("DOCKER_CONTAINER", "false").lower() == "true"
@@ -313,6 +318,177 @@ def is_system_metrics_question(question: str) -> bool:
             "ресурс",
         ]
     )
+
+
+def parse_hours_from_question(question: str, default: float = 8.0) -> float:
+    """Извлекает окно в часах из текста (напр. «за 24 часа»). Максимум 168 (неделя)."""
+    import re
+
+    q = (question or "").lower()
+    for pat in (
+        r"(\d+)\s*(?:час|часа|часов)\b",
+        r"(\d+)\s*(?:hour|hours)\b",
+        r"\b(?:за|last|past)\s+(\d+)\s*h\b",
+    ):
+        m = re.search(pat, q)
+        if m:
+            try:
+                return min(float(m.group(1)), 168.0)
+            except ValueError:
+                break
+    return default
+
+
+def is_tasks_queue_diagnostics_question(question: str) -> bool:
+    """
+    Длинные вопросы куратора про очередь / failed / pending — всё равно маршрутизировать в БД,
+    иначе is_data_question отрежет их по len>300 и Text-to-SQL может не сработать на MLX.
+    """
+    q = (question or "").lower()
+    if "задач" not in q and "task" not in q:
+        return False
+    triggers = (
+        "failed",
+        "провал",
+        "pending",
+        "in_progress",
+        "in progress",
+        "висят",
+        "висит",
+        "очеред",
+        "бэклог",
+        "backlog",
+        "статус задач",
+        "knowledge_os",
+        "postgres",
+        "баз",
+        "8 час",
+        "за последн",
+        "за послед",
+        "куратор",
+        "curator",
+        "rca",
+        "причин",
+        "диагност",
+        "updated_at",
+    )
+    return any(t in q for t in triggers)
+
+
+async def query_tasks_queue_diagnostics(question: str) -> Dict[str, Any]:
+    """
+    Детерминированные SELECT по tasks — без LLM (надёжно из victoria-agent / workers).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    hours = parse_hours_from_question(question, 8.0)
+    since = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    try:
+        import asyncpg
+
+        db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+        conn = await asyncpg.connect(db_url, timeout=8.0)
+        try:
+            backlog = await conn.fetch(
+                """
+                SELECT status, COUNT(*)::bigint AS cnt
+                FROM tasks
+                WHERE status IN ('pending', 'in_progress')
+                GROUP BY status
+                ORDER BY status
+                """
+            )
+            window = await conn.fetch(
+                """
+                SELECT status, COUNT(*)::bigint AS cnt
+                FROM tasks
+                WHERE updated_at > $1
+                GROUP BY status
+                ORDER BY status
+                """,
+                since,
+            )
+            created_n = await conn.fetchval(
+                "SELECT COUNT(*)::bigint FROM tasks WHERE created_at > $1", since
+            )
+            failed_rows = await conn.fetch(
+                """
+                SELECT id::text AS id, title,
+                       updated_at,
+                       LEFT(COALESCE(description, ''), 400) AS description_snip,
+                       LEFT(COALESCE(result, ''), 600) AS result_snip,
+                       COALESCE(metadata->>'error', '') AS metadata_error
+                FROM tasks
+                WHERE status = 'failed' AND updated_at > $1
+                ORDER BY updated_at DESC
+                LIMIT 30
+                """,
+                since,
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.error("query_tasks_queue_diagnostics: %s", e)
+        return {
+            "answer": f"Не удалось прочитать задачи из БД: {e}\nПроверьте DATABASE_URL (в Docker: knowledge_pgbouncer:6432).",
+            "sql": None,
+            "raw_data": None,
+            "count": None,
+            "success": False,
+        }
+
+    lines = [
+        f"**Очередь задач (сейчас, pending + in_progress)**",
+    ]
+    if backlog:
+        for r in backlog:
+            lines.append(f"- {r['status']}: {r['cnt']}")
+    else:
+        lines.append("- (нет записей в pending/in_progress)")
+
+    lines.append(f"\n**Активность за последние {hours:g} ч (по updated_at)**")
+    if window:
+        for r in window:
+            lines.append(f"- {r['status']}: {r['cnt']}")
+    else:
+        lines.append("- (нет обновлений в окне)")
+
+    lines.append(f"\n**Новых задач создано за окно (created_at):** {created_n}")
+
+    lines.append(f"\n**Провалено (failed) за окно — детали (до 30):**")
+    if failed_rows:
+        for i, r in enumerate(failed_rows, 1):
+            title = (r["title"] or "")[:120]
+            lines.append(f"\n{i}. `{r['id']}` | {r['updated_at']} | {title}")
+            if r["metadata_error"]:
+                lines.append(f"   metadata.error: {r['metadata_error'][:300]}")
+            if r["description_snip"]:
+                lines.append(f"   description: {r['description_snip'][:350]}")
+            if r["result_snip"]:
+                lines.append(f"   result: {r['result_snip'][:400]}")
+    else:
+        lines.append("- за это окно failed не было")
+
+    answer = "\n".join(lines)
+    answer += "\n\n_Источник: детерминированный SQL (corporation_data_tool.query_tasks_queue_diagnostics), без Text-to-SQL._"
+
+    raw = {
+        "backlog": [dict(x) for x in backlog],
+        "window_by_status": [dict(x) for x in window],
+        "created_in_window": created_n,
+        "failed_rows": [dict(x) for x in failed_rows],
+        "hours": hours,
+        "since_utc": since.isoformat(),
+    }
+
+    return {
+        "answer": answer,
+        "sql": "-- deterministic tasks diagnostics",
+        "raw_data": raw,
+        "count": len(failed_rows),
+        "success": True,
+    }
 
 
 async def query_system_metrics() -> Dict[str, Any]:
@@ -429,6 +605,10 @@ def is_data_question(question: str) -> bool:
     if has_word(q, action_verbs):
         return False
 
+    # Куратор / RCA по задачам: не отрезать длинные промпты (иначе не попадаем в corporation_data_tool)
+    if is_tasks_queue_diagnostics_question(question):
+        return True
+
     # ПРИОРИТЕТ 1.1: Специфические фразы-исключения (не данные)
     if any(p in q for p in ["во сколько", "когда будет", "когда начинается"]):
         return False
@@ -516,11 +696,21 @@ def is_data_question(question: str) -> bool:
     has_data_kw = has_word(q, data_keywords)
     has_entity_kw = has_word(q, entity_keywords)
 
-    # Дополнительная защита: если вопрос слишком длинный, это скорее всего сложная задача, а не простой запрос данных
-    if len(q) > 300:
+    if not (has_data_kw and has_entity_kw):
         return False
 
-    return has_data_kw and has_entity_kw
+    # Раньше лимит 300 символов резал длинные запросы куратора с контекстом. Оставляем защиту только от
+    # аномально длинных вставок (paste). Настройка: CORP_DATA_QUESTION_MAX_CHARS (по умолчанию 16000).
+    _max = int(os.getenv("CORP_DATA_QUESTION_MAX_CHARS", "16000"))
+    if len(q) > _max:
+        logger.info(
+            "is_data_question: длина %s > CORP_DATA_QUESTION_MAX_CHARS=%s, не маршрутизируем в data-tool",
+            len(q),
+            _max,
+        )
+        return False
+
+    return True
 
 
 # Тест

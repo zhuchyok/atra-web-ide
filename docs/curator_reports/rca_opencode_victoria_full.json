@@ -1,0 +1,16 @@
+{
+  "goal": "RCA: почему в OpenCode (локальный UI) интеграция с локальной Victoria Agent ведёт себя неправильно (нет ответа, таймаут, пустой стрим, ошибки). Контекст проекта atra-web-ide. Цепочка для проверки: браузер → фронт (nginx/vite, типично :3000) → backend (:8080 или прокси на :8000) → переменная VICTORIA_URL / конфиг → Victoria Agent (с хоста часто :8010, в Docker-сети :8000). Задача: (1) восстанови фактическую схему из кода и docker-compose; (2) перечисли наиболее вероятные точки отказа (URL, CORS, таймауты HTTP/SSE, неверный endpoint /run vs чат, версия API); (3) дай пошаговую диагностику для разработчика (curl, health, минимальный POST /run); (4) сформулируй конкретные правки конфигов или кода, если найдёшь несоответствие. Сверься с docs при наличии (OPENWEBUI_*, MASTER_REFERENCE, opencode). На выходе: структурированный отчёт с гипотезами, отсортированными по вероятности, и чеклист проверки.",
+  "output": "**Очередь задач (сейчас, pending + in_progress)**\n- in_progress: 1\n- pending: 9\n\n**Активность за последние 8 ч (по updated_at)**\n- cancelled: 2\n- completed: 1\n- failed: 1\n- in_progress: 1\n- pending: 9\n\n**Новых задач создано за окно (created_at):** 4\n\n**Провалено (failed) за окно — детали (до 30):**\n\n1. `0ee23da8-106f-4a4b-84b4-4a43069a541b` | 2026-04-09 07:21:03.657906+00:00 | 🤖 Делегировано: Анастасия (39adb58f-ef81-4be9-8b44-2a287509420e)\n   description: Задача от Team Lead Victoria: Назови 3 самых больших океана на Земле.\nСтратегия оркестратора: simple\n\nТвоя роль: Анастасия. Выполни свою часть работы и дай краткий отчет.\n   result: FATAL EXCEPTION after retries: TimeoutError: \nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.11/asyncio/tasks.py\", line 500, in wait_for\n    return fut.result()\n           ^^^^^^^^^^^^\n  File \"/app/src/agents/bridge/../../../knowledge_os/app/ai_core.py\", line 1227, in run_smart_agent_async\n    return await run_smart_agent_async_impl(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n\n_Источник: детерминированный SQL (corporation_data_tool.query_tasks_queue_diagnostics), без Text-to-SQL._",
+  "knowledge": {
+    "method": "simple",
+    "metadata": {
+      "source": "corporation_data_tool",
+      "fast_mode": true,
+      "model_used": "local"
+    },
+    "correlation_id": "f1b6f0b4-7aed-4108-a20c-1ddf02f5c94a",
+    "strategy_reason": "fallback",
+    "confidence": 0.5,
+    "uncertainty_reason": "fallback"
+  }
+}

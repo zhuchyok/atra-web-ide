@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/autonomous_tester.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "ac135614-ac0f-4991-8095-13d45d3b54ba"
+}

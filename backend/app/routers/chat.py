@@ -186,8 +186,9 @@ async def stream_message(
                     pass
             raise
         except Exception as e:
-            logger.error(f"Stream error for session {session_id}: {e}")
+            logger.error("Stream error for session %s: %s", session_id, e, exc_info=True)
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'end'})}\n\n"
         finally:
             release_victoria_slot()
 

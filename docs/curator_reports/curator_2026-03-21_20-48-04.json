@@ -1,0 +1,39 @@
+{
+  "ts": "2026-03-21T20:48:18.453545+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 2,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет",
+      "output_length": 6,
+      "correlation_id": "0d1a267b-cb18-49fa-a803-783da3290508",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "mlx"
+      },
+      "elapsed_seconds": 8.97
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "success",
+      "error": null,
+      "output_preview": "В разработке",
+      "output_length": 12,
+      "correlation_id": "a5d2c7d3-64d3-421d-8f37-2b554ab5d994",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "mlx"
+      },
+      "elapsed_seconds": 5.19
+    }
+  ]
+}

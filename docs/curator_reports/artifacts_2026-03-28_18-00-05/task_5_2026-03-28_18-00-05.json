@@ -1,0 +1,11 @@
+{
+  "goal": "напиши одну строку кода на Python: вывод текущей даты",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "57073f31-34a8-4293-8efb-1a7bf687af97"
+}

@@ -1,0 +1,20 @@
+{
+  "ts": "2026-04-08T20:57:16.762355+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "RCA: почему в OpenCode (локальный UI) интеграция с локальной Victoria Agent ведёт себя неправильно (нет ответа, таймаут, пустой стрим, ошибки). Контекст проекта atra-web-ide. Цепочка для проверки: браузер → фронт (nginx/vite, типично :3000) → backend (:8080 или прокси на :8000) → переменная VICTORIA_URL / конфиг → Victoria Agent (с хоста часто :8010, в Docker-сети :8000). Задача: (1) восстанови фактическую схему из кода и docker-compose; (2) перечисли наиболее вероятные точки отказа (URL, CORS, таймауты HTTP/SSE, неверный endpoint /run vs чат, версия API); (3) дай пошаговую диагностику для разработчика (curl, health, минимальный POST /run); (4) сформулируй конкретные правки конфигов или кода, если найдёшь несоответствие. Сверься с docs при наличии (OPENWEBUI_*, MASTER_REFERENCE, opencode). На выходе: структурированный отчёт с гипотезами, отсортированными по вероятности, и чеклист проверки.",
+      "status": "error",
+      "error": "HTTPConnectionPool(host='0.0.0.0', port=8010): Max retries exceeded with url: /run?async_mode=true (Caused by NewConnectionError(\"HTTPConnection(host='0.0.0.0', port=8010): Failed to establish a new connection: [Errno 61] Connection refused\"))",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": null,
+      "execution_trace": {},
+      "elapsed_seconds": 202.39,
+      "artifact_file": null
+    }
+  ]
+}

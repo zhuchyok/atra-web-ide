@@ -198,7 +198,7 @@ async def victoria_execute_plan(
         # 2. Выполнить plan через ExecutionPlanExecutor
         # Для простоты пока выполним вручную через httpx к user-filesystem MCP
         results = []
-        filesystem_mcp_url = os.getenv("FILESYSTEM_MCP_URL", "http://localhost:8013")
+        filesystem_mcp_url = os.getenv("FILESYSTEM_MCP_URL", "http://localhost:8012") # Синхронизировано с victoria-mcp port
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             for i, step in enumerate(execution_plan, 1):
@@ -467,4 +467,8 @@ async def victoria_batch_grep(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "--sse":
+        mcp.run(transport="sse")
+    else:
+        mcp.run(transport="stdio")

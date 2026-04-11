@@ -30,9 +30,13 @@ TASKS_FILE = ROOT / "scripts" / "curator_tasks.txt"
 REPORTS_DIR = ROOT / "docs" / "curator_reports"
 
 # Сколько новых задач добавлять за один прогон.
-# FAST_ACTION_PATH обрабатывает каждую за ~0ms (прямое чтение файла без LLM),
-# поэтому 20 задач добавляют ~2-3 секунды к общему времени прогона.
-NEW_TASKS_PER_RUN = 20
+# Ограничено 5-ю: каждая file_check идёт к 35B модели (~10 мин каждая) →
+# 20 задач = 3+ часа блокировки LLM. При 5 задачах = ~50 мин за прогон.
+NEW_TASKS_PER_RUN = 5
+
+# Максимум file_check задач в curator_tasks.txt (лимит очереди).
+# Превышение → система не успевает обрабатывать быстрее чем добавляет.
+MAX_FILE_CHECK_TASKS = 20
 
 # Уведомления
 NTFY_URL = os.getenv("NTFY_URL", "")
@@ -65,7 +69,8 @@ async def notify(text: str) -> None:
     """ntfy → TG fallback."""
     if NTFY_URL:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as c:
+            # trust_env=False — отключаем ALL_PROXY из env (socks5h без httpx-socks падает)
+            async with httpx.AsyncClient(timeout=5.0, trust_env=False) as c:
                 await asyncio.wait_for(
                     c.post(NTFY_URL, content=text.encode(),
                            headers={"Title": "Victoria Task Generator"}),
@@ -371,8 +376,16 @@ async def main(dry_run: bool = False) -> None:
 
     logger.info("Кандидаты для расширения: %d", len(unchecked))
 
-    # Генерируем новые задачи
-    new_tasks = generate_new_tasks(problems, unchecked, tasks_after_rotation, NEW_TASKS_PER_RUN)
+    # Генерируем новые задачи (с лимитом file_check в очереди)
+    current_file_check_count = sum(1 for t in tasks_after_rotation if "проверь файл" in t.lower())
+    slots_available = max(0, MAX_FILE_CHECK_TASKS - current_file_check_count)
+    effective_limit = min(NEW_TASKS_PER_RUN, slots_available)
+    if effective_limit < NEW_TASKS_PER_RUN:
+        logger.warning(
+            "⏸️ [QUEUE LIMIT] file_check в очереди: %d/%d. Добавляем max %d новых (вместо %d)",
+            current_file_check_count, MAX_FILE_CHECK_TASKS, effective_limit, NEW_TASKS_PER_RUN,
+        )
+    new_tasks = generate_new_tasks(problems, unchecked, tasks_after_rotation, effective_limit)
 
     rotated_count = len(existing_tasks) - len(tasks_after_rotation)
     final_tasks = tasks_after_rotation + new_tasks

@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/anomaly_detector.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "588a8e46-cc92-4a80-9ffc-90bc09c86bbc"
+}

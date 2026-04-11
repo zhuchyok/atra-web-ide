@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/autonomous_policy_enforcer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "57704f96-2788-4d30-a96b-be292222cb31"
+}

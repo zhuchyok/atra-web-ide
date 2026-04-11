@@ -98,15 +98,17 @@ def restart_victoria() -> None:
 async def notify(title: str, msg: str, priority: str = "default") -> None:
     ntfy = _get_ntfy_url()
     try:
-        import urllib.request
-        req = urllib.request.Request(
-            ntfy,
-            data=msg.encode(),
-            headers={"Title": title, "Priority": priority},
-            method="POST",
-        )
+        import httpx
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, urllib.request.urlopen, req)
+
+        def _send() -> None:
+            # trust_env=False — отключаем ALL_PROXY (socks5h без httpx-socks даёт gaierror)
+            # ntfy.sh доступен напрямую без прокси
+            with httpx.Client(trust_env=False, timeout=10.0) as client:
+                client.post(ntfy, content=msg.encode(),
+                            headers={"Title": title, "Priority": priority})
+
+        await loop.run_in_executor(None, _send)
     except Exception as e:
         log.warning("ntfy уведомление не отправлено: %s", e)
 

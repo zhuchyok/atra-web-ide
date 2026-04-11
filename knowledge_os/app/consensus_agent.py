@@ -54,7 +54,7 @@ class ConsensusAgent:
 
     def __init__(
         self,
-        model_name: str = "phi3.5:3.8b",
+        model_name: str = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest"),
         ollama_url: str = OLLAMA_URL,
         quorum_threshold: float = 0.67,  # 67% для консенсуса
         max_iterations: int = 5,
@@ -76,9 +76,48 @@ class ConsensusAgent:
             agents = agents + ["Скептик"]
             logger.info("🕵️ [SINGULARITY 22.5] Pre-mortem: Skeptic added to the debate")
 
-        logger.info(f"🤝 Начинаю консенсус между {len(agents)} агентами: {question[:80]}")
+        logger.info(f"🤝 [CONSENSUS] Начинаю консенсус между {len(agents)} агентами: {question[:80]}")
 
         agent_responses: List[AgentResponse] = []
+        
+        # [SINGULARITY 24.3] Если ответы уже собраны (Живой Чат), используем их для первого раунда
+        if initial_context and "responses" in initial_context:
+            logger.info(f"📥 [CONSENSUS] Using {len(initial_context['responses'])} pre-collected responses from initial_context")
+            for name, text in initial_context["responses"].items():
+                if text and len(text.strip()) > 5:
+                    agent_responses.append(AgentResponse(
+                        agent_name=name,
+                        response=text,
+                        confidence=self._confidence_from_response_length(text)
+                    ))
+                else:
+                    logger.warning(f"⚠️ [CONSENSUS] Skipping empty/short response from {name}")
+            
+            # Если ответов достаточно, можем сразу перейти к синтезу или проверке кворума
+            # [SINGULARITY 24.3] ВАЖНО: Мы переходим к кворуму только если у нас есть хотя бы 2 реальных ответа
+            if len(agent_responses) >= 2:
+                iterations = 1
+                previous_responses = [agent_responses]
+                sycophancy_detected = self._detect_sycophancy(agent_responses)
+                consensus_reached, consensus_answer = self._check_quorum_convergence(agent_responses)
+                
+                if consensus_reached:
+                    logger.info(f"✅ [CONSENSUS] Quorum reached immediately with {len(agent_responses)} pre-collected responses")
+                    final_answer, consensus_score = self._synthesize_final_answer(agent_responses)
+                    agreement_level = self._calculate_agreement_level(agent_responses)
+                    return ConsensusResult(
+                        final_answer=final_answer,
+                        consensus_score=consensus_score,
+                        agreement_level=agreement_level,
+                        agent_responses=agent_responses,
+                        sycophancy_detected=sycophancy_detected,
+                        iterations=iterations,
+                    )
+                else:
+                    logger.info(f"🔄 [CONSENSUS] No immediate quorum (score low), proceeding to debate iterations")
+            else:
+                logger.warning(f"⚠️ [CONSENSUS] Not enough valid pre-collected responses ({len(agent_responses)}), starting full debate")
+
         iterations = 0
         previous_responses: List[List[AgentResponse]] = []
 
@@ -454,47 +493,52 @@ class ConsensusAgent:
 
     async def _generate_agent_response(self, agent_name: str, prompt: str) -> Dict:
         """Генерировать ответ агента"""
-        import httpx
-
+        from ai_core import run_smart_agent_async
+        
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={
-                        "model": self.model_name,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {"temperature": 0.7, "num_predict": 1024},
-                    },
-                )
-
-                if response.status_code == 200:
-                    result = response.json().get("response", "")
-                    confidence = self._confidence_from_response_length(result)
-                    return {"response": result, "confidence": confidence, "reasoning": None}
-                else:
-                    return {"response": "", "confidence": 0.0}
+            # [SINGULARITY 24.3] DEBUG: Log agent response generation start
+            logger.info(f"🤖 [CONSENSUS] Generating response for {agent_name}...")
+            
+            # Используем run_smart_agent_async для автоматического роутинга (MLX -> Ollama -> Cloud)
+            # и применения всех оптимизаций (кэш, RAG и т.д.)
+            result = await run_smart_agent_async(
+                prompt=prompt,
+                expert_name=agent_name,
+                category="reasoning",
+                is_vip=True
+            )
+            
+            if result and not result.startswith(("⚠️", "❌")):
+                confidence = self._confidence_from_response_length(result)
+                logger.info(f"✅ [CONSENSUS] Received response from {agent_name} ({len(result)} chars)")
+                return {"response": result, "confidence": confidence, "reasoning": None}
+            else:
+                logger.warning(f"⚠️ [CONSENSUS] Получен пустой или ошибочный ответ от {agent_name}: {result[:100] if result else 'None'}")
+                return {"response": "", "confidence": 0.0}
         except Exception as e:
-            logger.error(f"Ошибка генерации ответа: {e}")
+            logger.error(f"❌ [CONSENSUS] Ошибка генерации ответа через ai_core для {agent_name}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return {"response": "", "confidence": 0.0}
 
     async def _generate_response(self, prompt: str) -> str:
-        """Генерировать ответ через модель"""
-        import httpx
-
+        """Генерировать ответ через модель (вспомогательный метод)"""
+        from ai_core import run_smart_agent_async
+        
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={"model": self.model_name, "prompt": prompt, "stream": False},
-                )
-
-                if response.status_code == 200:
-                    return response.json().get("response", "")
-                else:
-                    return ""
+            logger.info("🤖 [CONSENSUS] Generating final synthesis/refinement...")
+            result = await run_smart_agent_async(
+                prompt=prompt,
+                expert_name="Виктория",
+                category="reasoning",
+                is_vip=True
+            )
+            if result and not result.startswith(("⚠️", "❌")):
+                logger.info(f"✅ [CONSENSUS] Synthesis generated ({len(result)} chars)")
+                return result
+            return ""
         except Exception as e:
-            logger.error(f"Ошибка генерации: {e}")
+            logger.error(f"❌ [CONSENSUS] Ошибка генерации через ai_core: {e}")
             return ""
 
 

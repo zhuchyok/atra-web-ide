@@ -47,6 +47,15 @@ class EventType(Enum):
     SKILL_REMOVED = "skill_removed"
     SKILL_LOADED = "skill_loaded"
 
+    # [SINGULARITY 24.3] События для Живого Чата (Autonomous Dialogue)
+    DIALOGUE_REQUEST = "dialogue_request"
+    EXPERT_THOUGHT = "expert_thought"
+    EXPERT_RESPONSE = "expert_response"
+    DIALOGUE_CONSENSUS = "dialogue_consensus"
+
+    # [SINGULARITY 24.3] Системные события для Redis Bridge
+    REDIS_BRIDGE_SYNC = "redis_bridge_sync"
+
 
 @dataclass
 class Event:
@@ -119,6 +128,9 @@ class EventBus:
             event_type: Тип события
             handler: Обработчик (async функция)
         """
+        # [SINGULARITY 24.3] DEBUG: Log subscription
+        import os
+        logger.info(f"🔗 [EVENT_BUS] (PID: {os.getpid()}) Subscribing {handler.__name__} to {event_type.value} on EventBus ID: {id(self)}")
         self.subscribers[event_type].append(handler)
         logger.debug(f"✅ Подписка на {event_type.value}: {handler.__name__}")
 
@@ -193,7 +205,11 @@ class EventBus:
                     async def wrapped_handler(h, e):
                         async with self._handler_semaphore:
                             try:
-                                return await h(e)
+                                logger.info(f"🏃 [EVENT_BUS] Calling handler {h.__name__} for {e.event_type.value}")
+                                if asyncio.iscoroutinefunction(h):
+                                    return await h(e)
+                                else:
+                                    return h(e)
                             except Exception as ex:
                                 logger.error(f"❌ Ошибка в обработчике {h.__name__}: {ex}")
 
@@ -250,8 +266,29 @@ _global_event_bus: Optional[EventBus] = None
 def get_event_bus() -> EventBus:
     """Получить глобальный Event Bus"""
     global _global_event_bus
+    
+    # [SINGULARITY 24.3] Fix singleton for Docker (absolute vs relative imports)
+    import sys
+    if 'app.event_bus' in sys.modules and 'event_bus' in sys.modules:
+        app_eb = sys.modules['app.event_bus']
+        eb = sys.modules['event_bus']
+        if app_eb is not eb:
+            # Link them to ensure they share the same _global_event_bus
+            if hasattr(app_eb, '_global_event_bus') and app_eb._global_event_bus is not None:
+                eb._global_event_bus = app_eb._global_event_bus
+            elif hasattr(eb, '_global_event_bus') and eb._global_event_bus is not None:
+                app_eb._global_event_bus = eb._global_event_bus
+
     if _global_event_bus is None:
         _global_event_bus = EventBus()
+    
+    # [SINGULARITY 24.3] Link modules again to be sure
+    import sys
+    if 'app.event_bus' in sys.modules:
+        sys.modules['app.event_bus']._global_event_bus = _global_event_bus
+    if 'event_bus' in sys.modules:
+        sys.modules['event_bus']._global_event_bus = _global_event_bus
+        
     return _global_event_bus
 
 

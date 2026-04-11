@@ -62,6 +62,20 @@ class CircuitBreaker:
         self.last_failure_time: Optional[datetime] = None
         self.last_success_time: Optional[datetime] = None
         self._previous_state: Optional[CircuitState] = None
+        # Защита от thundering herd: только ОДИН probe-запрос в HALF_OPEN одновременно
+        # (паттерн Microsoft Polly: PermittedNumberOfCallsInHalfOpenState=1)
+        self._probe_in_flight: bool = False
+
+    def start_probe(self) -> bool:
+        """
+        Атомарно захватить право на probe-запрос в HALF_OPEN.
+        Возвращает True если probe разрешён (первый вызов), False если уже выполняется.
+        Безопасно в asyncio: проверка и установка флага до первого await — атомарно.
+        """
+        if self._probe_in_flight:
+            return False
+        self._probe_in_flight = True
+        return True
 
     def _should_attempt_reset(self) -> bool:
         """Проверяет, можно ли попробовать сбросить circuit breaker"""
@@ -76,37 +90,37 @@ class CircuitBreaker:
 
     def _on_success(self):
         """Обработка успешного вызова"""
+        self._probe_in_flight = False  # Освобождаем probe-слот
         self.last_success_time = datetime.now()
         old_state = self.state
 
         if self.state == CircuitState.HALF_OPEN:
-            # Успешный вызов в HALF_OPEN -> переходим в CLOSED
+            # Успешный probe в HALF_OPEN -> CLOSED
             self.state = CircuitState.CLOSED
             self.failure_count = 0
             self.success_count = 0
             logger.info(f"✅ [CIRCUIT BREAKER {self.name}] Восстановлен, переход в CLOSED")
-            # Логируем событие восстановления
             asyncio.create_task(self._log_event("state_change", old_state.value, self.state.value))
         elif self.state == CircuitState.CLOSED:
             # Сбрасываем счетчик ошибок при успехе
             if self.failure_count > 0:
                 self.failure_count = max(0, self.failure_count - 1)
-            # Логируем успешный вызов
             asyncio.create_task(self._log_event("success", None, None))
 
     def _on_failure(self, error_message: Optional[str] = None):
         """Обработка неудачного вызова"""
+        self._probe_in_flight = False  # Освобождаем probe-слот
         self.last_failure_time = datetime.now()
-        self.failure_count += 1
         old_state = self.state
 
         if self.state == CircuitState.HALF_OPEN:
-            # Ошибка в HALF_OPEN -> возвращаемся в OPEN
+            # Probe провалился -> возврат в OPEN
+            # failure_count сбрасываем к порогу (не накапливаем бесконечно при повторных попытках)
+            self.failure_count = self.failure_threshold
             self.state = CircuitState.OPEN
             logger.warning(
                 f"⚠️ [CIRCUIT BREAKER {self.name}] Восстановление не удалось, возврат в OPEN"
             )
-            # Логируем событие с отправкой алерта
             asyncio.create_task(
                 self._log_event(
                     "state_change",
@@ -118,6 +132,7 @@ class CircuitBreaker:
             )
         elif self.state == CircuitState.CLOSED:
             # Проверяем, не превысили ли порог ошибок
+            self.failure_count += 1
             if self.failure_count >= self.failure_threshold:
                 self.state = CircuitState.OPEN
                 logger.error(

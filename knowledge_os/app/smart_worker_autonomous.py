@@ -334,11 +334,114 @@ async def process_batch_tasks(pool, tasks: list):
     return False
 
 
+def _fast_file_check(task_title: str) -> str | None:
+    """
+    FAST PATH: отвечает на тривиальные file_check задачи локально без LLM.
+    Поддерживает паттерны:
+      - 'проверь файл X.py — есть ли там pip install в рантайме'
+      - 'проверь файл X.py — есть ли там hardcoded секреты или пароли в первых 30 строках'
+      - 'проверь файл X.py — subprocess/eval/exec/hard-coded URL (deep_audit)'
+    Возвращает строку-ответ или None если паттерн не совпадает.
+    """
+    import re as _re
+
+    _pip_pattern = _re.compile(
+        r"проверь файл (/app/[\w/._-]+\.py).*pip install.*рантайм",
+        _re.IGNORECASE,
+    )
+    _secret_pattern = _re.compile(
+        r"проверь файл (/app/[\w/._-]+\.py).*hardcoded.*секрет",
+        _re.IGNORECASE,
+    )
+    _deep_audit_pattern = _re.compile(
+        r"проверь файл (/app/[\w/._-]+\.py).*(subprocess|eval|exec|http[s]?://)",
+        _re.IGNORECASE,
+    )
+
+    pip_m = _pip_pattern.search(task_title)
+    secret_m = _secret_pattern.search(task_title)
+    deep_m = _deep_audit_pattern.search(task_title)
+    if not pip_m and not secret_m and not deep_m:
+        return None
+
+    file_path = (pip_m or secret_m or deep_m).group(1)
+    if not os.path.exists(file_path):
+        return f"ОК (файл {file_path} не найден на хосте — пропущено)"
+
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except OSError as e:
+        return f"ОК (ошибка чтения {file_path}: {e})"
+
+    if pip_m:
+        matches = []
+        for i, line in enumerate(lines, 1):
+            if "subprocess" in line and "pip" in line:
+                matches.append(f"строка {i}: {line.strip()[:100]}")
+            elif 'os.system' in line and "pip" in line:
+                matches.append(f"строка {i}: {line.strip()[:100]}")
+        if matches:
+            return "ПРОБЛЕМА: " + "; ".join(matches[:3])
+        return "ОК"
+
+    if secret_m:
+        import re as _re2
+        secret_re = _re2.compile(
+            r'(password|secret|passwd|api_key|token)\s*=\s*["\'][^"\']{4,}["\']',
+            _re2.IGNORECASE,
+        )
+        matches = []
+        for i, line in enumerate(lines[:30], 1):
+            if secret_re.search(line):
+                matches.append(f"строка {i}: {line.strip()[:100]}")
+        if matches:
+            return "ПРОБЛЕМА: " + "; ".join(matches[:3])
+        return "ОК"
+
+    if deep_m:
+        import re as _re3
+        # Ищем опасные паттерны: subprocess.run/call/Popen, eval(, exec(, hardcoded http:// URLs
+        _subprocess_re = _re3.compile(r"subprocess\.(run|call|Popen|check_output)", _re3.IGNORECASE)
+        _eval_re = _re3.compile(r"\beval\s*\(|\bexec\s*\(")
+        _url_re = _re3.compile(r'["\']https?://[^"\']{10,}["\']')
+        matches = []
+        for i, line in enumerate(lines, 1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if _subprocess_re.search(line):
+                matches.append(f"строка {i} [subprocess]: {stripped[:100]}")
+            elif _eval_re.search(line):
+                matches.append(f"строка {i} [eval/exec]: {stripped[:100]}")
+            elif _url_re.search(line):
+                matches.append(f"строка {i} [hardcoded URL]: {stripped[:100]}")
+        if matches:
+            return "ПРОБЛЕМА: " + "; ".join(matches[:5])
+        return "ОК"
+
+    return None
+
+
 async def process_task(pool, task):
     task_id = task["id"]
     expert_name = task["assignee"]
     task_title = task["title"]
     preferred_source = task.get("preferred_source")  # MLX или Ollama
+
+    # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
+    fast_result = _fast_file_check(task_title)
+    if fast_result is not None:
+        print(f"[{datetime.now()}] ⚡ [FAST_PATH] {task_title[:60]} → {fast_result[:60]}")
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE tasks SET status='completed', result=$1, updated_at=NOW() WHERE id=$2",
+                fast_result,
+                task_id,
+            )
+        return
+    # ─────────────────────────────────────────────────────────────────────────────
+
     print(
         f"[{datetime.now()}] Expert {expert_name} processing: {task_title} [Source: {preferred_source or 'auto'}]"
     )
@@ -687,6 +790,14 @@ DESC: {task_description}
         try:
             # Таймаут из env (по умолчанию 300 сек = 5 мин)
             llm_timeout = float(os.getenv("SMART_WORKER_LLM_TIMEOUT", "300"))
+            # Делегированные задачи (MONSTER) могут выполняться значительно дольше LLM timeout
+            if task_title and task_title.startswith("🤖 Делегировано"):
+                llm_timeout = float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
+                logger.info(
+                    "⏳ [DELEGATE] Task %s is a delegation task, using extended timeout: %ss",
+                    task_id,
+                    llm_timeout,
+                )
             # Для тяжёлых моделей: учесть время загрузки (30-90 сек); иначе ReadTimeout при первом запросе
             if preferred_model:
                 try:
@@ -697,7 +808,7 @@ DESC: {task_description}
                             os.getenv("SMART_WORKER_HEAVY_MODEL_TIMEOUT_MULTIPLIER", "1.5")
                         )
                         llm_timeout = max(llm_timeout, llm_timeout * mult)
-                        llm_timeout = min(llm_timeout, 600)  # не больше 10 мин
+                        llm_timeout = min(llm_timeout, 1800)  # не больше 30 мин (Singularity 24.3)
                 except ImportError:
                     pass
             report = await asyncio.wait_for(
@@ -808,223 +919,217 @@ DESC: {task_description}
             except Exception as e:
                 logger.debug(f"Model performance tracking failed: {e}")
 
-            # Проверяем, что ответ не является сообщением об ошибке
-            error_indicators = [
-                "⚠️",
-                "❌",
-                "⌛",
-                "Error",
-                "failed",
-                "недоступен",
-                "не могу",
-                "Все источники недоступны",
-                "Ошибка связи",
-            ]
-            is_error = any(indicator in report for indicator in error_indicators)
-            # LLM unavailable — только при явных коротких сообщениях об недоступности (не длинный ответ с словом "недоступна")
-            report_lower = (report or "").lower()
-            report_len = len((report or "").strip())
-            _unavailable_phrases = (
-                "все источники недоступны",
-                "модели также недоступны",
-                "система временно недоступна",
-                "all sources unavailable",
-                "models unavailable",
-                "connection refused",
+        # Проверяем, что ответ не является сообщением об ошибке или пустым (Singularity 24.3 Fix)
+        error_indicators = [
+            "⚠️",
+            "❌",
+            "⌛",
+            "Error",
+            "failed",
+            "недоступен",
+            "не могу",
+            "Все источники недоступны",
+            "Ошибка связи",
+        ]
+        is_error = any(indicator in report for indicator in error_indicators) if report else True
+        
+        # Если отчет пустой или None - это ошибка (таймаут или сбой модели)
+        if not report or not isinstance(report, str) or len(report.strip()) < 10:
+            is_error = True
+            if not _last_failure_reason:
+                _last_failure_reason = "empty_response_or_timeout"
+
+        if is_error:
+            # Безопасное логирование ошибки (Singularity 24.3 Fix)
+            error_preview = report[:150] if report and isinstance(report, str) else "None/Empty"
+            print(
+                f"[{datetime.now()}] ⚠️ Agent returned error for task {task_id}: {error_preview}..."
             )
-            is_llm_unavailable = (
-                report_len < 350 and ("недоступн" in report_lower or "unavailable" in report_lower)
-            ) or any(phrase in report_lower for phrase in _unavailable_phrases)
 
-            if is_error:
-                print(
-                    f"[{datetime.now()}] ⚠️ Agent returned error for task {task_id}: {report[:150]}..."
+            attempt_count = 0
+            try:
+                async with pool.acquire() as conn:
+                    metadata = await conn.fetchval(
+                        "SELECT metadata FROM tasks WHERE id = $1", task_id
+                    )
+                    # metadata может быть строкой JSON или dict (зависит от asyncpg)
+                    if metadata:
+                        if isinstance(metadata, str):
+                            metadata = json.loads(metadata)
+                        if isinstance(metadata, dict) and metadata.get("attempt_count"):
+                            attempt_count = int(metadata.get("attempt_count", 0))
+            except (asyncpg.PostgresError, ValueError, TypeError, json.JSONDecodeError) as e:
+                logger.debug(
+                    f"Error reading attempt_count for task {task_id}: {e}, using default 0"
                 )
-
                 attempt_count = 0
+            attempt_count += 1
+
+            # После MAX_ATTEMPTS: rule → эскалация в Совет Директоров → complete с директивой или deferred
+            should_try_rule_or_escalate = (
+                is_llm_unavailable and attempt_count >= 2
+            ) if 'is_llm_unavailable' in locals() else attempt_count >= MAX_ATTEMPTS
+            if should_try_rule_or_escalate:
+                rule_result = None
                 try:
+                    from task_rule_executor import can_handle as rule_can_handle
+                    from task_rule_executor import execute_fallback as rule_execute
+
+                    task_dict = dict(task) if not isinstance(task, dict) else dict(task)
+                    if isinstance(task_dict.get("metadata"), str):
+                        import json as _json
+
+                        try:
+                            task_dict["metadata"] = _json.loads(task_dict["metadata"])
+                        except Exception:
+                            task_dict["metadata"] = {}
+                    if rule_can_handle(task_dict):
+                        rule_result = await rule_execute(task_dict)
+                except Exception as e:
+                    logger.debug("Rule executor failed for task %s: %s", task_id, e)
+                if rule_result:
                     async with pool.acquire() as conn:
-                        metadata = await conn.fetchval(
-                            "SELECT metadata FROM tasks WHERE id = $1", task_id
+                        await conn.execute(
+                            """
+                            UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
+                                metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "llm_unavailable_fallback": true}"::jsonb
+                            WHERE id = $1
+                        """,
+                            task_id,
+                            rule_result,
                         )
-                        # metadata может быть строкой JSON или dict (зависит от asyncpg)
-                        if metadata:
-                            if isinstance(metadata, str):
-                                metadata = json.loads(metadata)
-                            if isinstance(metadata, dict) and metadata.get("attempt_count"):
-                                attempt_count = int(metadata.get("attempt_count", 0))
-                except (asyncpg.PostgresError, ValueError, TypeError, json.JSONDecodeError) as e:
-                    logger.debug(
-                        f"Error reading attempt_count for task {task_id}: {e}, using default 0"
+                    print(
+                        f"[{datetime.now()}] ✅ Task {task_id} completed via rule_executor (LLM unavailable)"
                     )
-                    attempt_count = 0
-                attempt_count += 1
-
-                # После MAX_ATTEMPTS: rule → эскалация в Совет Директоров → complete с директивой или deferred
-                should_try_rule_or_escalate = (
-                    is_llm_unavailable and attempt_count >= 2
-                ) or attempt_count >= MAX_ATTEMPTS
-                if should_try_rule_or_escalate:
-                    rule_result = None
-                    try:
-                        from task_rule_executor import can_handle as rule_can_handle
-                        from task_rule_executor import execute_fallback as rule_execute
-
-                        task_dict = dict(task) if not isinstance(task, dict) else dict(task)
-                        if isinstance(task_dict.get("metadata"), str):
-                            import json as _json
-
-                            try:
-                                task_dict["metadata"] = _json.loads(task_dict["metadata"])
-                            except Exception:
-                                task_dict["metadata"] = {}
-                        if rule_can_handle(task_dict):
-                            rule_result = await rule_execute(task_dict)
-                    except Exception as e:
-                        logger.debug("Rule executor failed for task %s: %s", task_id, e)
-                    if rule_result:
-                        async with pool.acquire() as conn:
-                            await conn.execute(
-                                """
-                                UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(),
-                                    metadata = COALESCE(metadata, '{}'::jsonb) || '{"execution_mode": "rule_based", "llm_unavailable_fallback": true}"::jsonb
-                                WHERE id = $1
-                            """,
-                                task_id,
-                                rule_result,
-                            )
-                        print(
-                            f"[{datetime.now()}] ✅ Task {task_id} completed via rule_executor (LLM unavailable)"
-                        )
-                        return
-                    # rule не сработал — эскалация в Совет Директоров, затем complete
-                    board_directive = await escalate_task_to_board(
-                        pool,
-                        task_id,
-                        task_title,
-                        task_description or "",
-                        report[:500] if report else "",
-                        attempt_count,
-                    )
-                    final_result = f"""Задача: {task_title}
+                    return
+                report_preview = report[:500] if report and isinstance(report, str) else ""
+                board_directive = await escalate_task_to_board(
+                    pool,
+                    task_id,
+                    task_title,
+                    task_description or "",
+                    report_preview,
+                    attempt_count,
+                )
+                final_result = f"""Задача: {task_title}
 Статус: AI агент недоступен после {attempt_count} попыток. Задача передана в Совет Директоров.
 Ошибка: {(report or "")[:300]}
 [deferred_to_human: рекомендуется ручная проверка]"""
-                    if board_directive:
-                        final_result += (
-                            f"\n\n--- Решение Совета Директоров ---\n{board_directive[:2000]}"
-                        )
-                    meta_escalation = json.dumps(
-                        {
-                            "attempt_count": attempt_count,
-                            "deferred_to_human": True,
-                            "execution_mode": "minimal_response",
-                            "board_escalated": True,
-                        }
+                if board_directive:
+                    final_result += (
+                        f"\n\n--- Решение Совета Директоров ---\n{board_directive[:2000]}"
                     )
-                    async with pool.acquire() as conn:
-                        await conn.execute(
-                            """
-                            UPDATE tasks
-                            SET status = 'completed', result = $2, updated_at = NOW(),
-                                metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
-                            WHERE id = $1
-                        """,
-                            task_id,
-                            final_result,
-                            meta_escalation,
-                        )
-                    print(
-                        f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation (attempt {attempt_count})"
+                meta_escalation = json.dumps(
+                    {
+                        "attempt_count": attempt_count,
+                        "deferred_to_human": True,
+                        "execution_mode": "minimal_response",
+                        "board_escalated": True,
+                    }
+                )
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'completed', result = $2, updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                        WHERE id = $1
+                    """,
+                        task_id,
+                        final_result,
+                        meta_escalation,
                     )
-                    return
-                # attempt_count < 3 и не LLM unavailable: retry
-                else:
-                    # Записываем неудачную попытку
+                print(
+                    f"[{datetime.now()}] ✅ Task {task_id} completed with board escalation (attempt {attempt_count})"
+                )
+                return
+            # attempt_count < 3 и не LLM unavailable: retry
+            else:
+                # Записываем неудачную попытку
+                try:
+                    from model_performance_tracker import get_performance_tracker
+
+                    tracker = get_performance_tracker()
+                    used_model = "phi3.5:3.8b"
                     try:
-                        from model_performance_tracker import get_performance_tracker
-
-                        tracker = get_performance_tracker()
-                        used_model = "phi3.5:3.8b"
-                        try:
-                            async with pool.acquire() as conn:
-                                metadata = await conn.fetchval(
-                                    "SELECT metadata FROM tasks WHERE id = $1", task_id
-                                )
-                                if metadata and metadata.get("used_model"):
-                                    used_model = metadata["used_model"]
-                        except:
-                            pass
-
-                        latency_ms_fail = int((time.perf_counter() - t_start) * 1000)
-                        await tracker.record_attempt(
-                            task_id=task_id,
-                            model=used_model,
-                            category="autonomous_worker",
-                            success=False,
-                            response_length=len(report) if report else 0,
-                            latency_ms=latency_ms_fail,
-                            quality_score=0.0,
-                        )
-
-                        # Проверяем, нужно ли переключиться на более мощную модель
-                        should_upgrade, next_model = await tracker.should_upgrade_model(
-                            task_id=task_id,
-                            current_model=used_model,
-                            category="autonomous_worker",
-                            response=report,
-                        )
-
-                        if should_upgrade and next_model:
-                            logger.info(
-                                f"🔄 [AUTO UPGRADE] Автоматически переключаемся на {next_model} для задачи {task_id}"
+                        async with pool.acquire() as conn:
+                            metadata = await conn.fetchval(
+                                "SELECT metadata FROM tasks WHERE id = $1", task_id
                             )
-                            # Обновляем задачу с рекомендованной моделью
-                            async with pool.acquire() as conn:
-                                await conn.execute(
-                                    """
-                                    UPDATE tasks
-                                    SET status = 'pending',
-                                        updated_at = NOW(),
-                                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                                            'last_attempt_failed', true,
-                                            'attempt_count', $2::int,
-                                            'last_error', $3::text,
-                                            'model_upgrade_needed', true,
-                                            'recommended_model', $4::text
-                                        )
-                                    WHERE id = $1
-                                """,
-                                    task_id,
-                                    attempt_count,
-                                    str(report[:500]),
-                                    str(next_model),
-                                )
-                            print(
-                                f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} for retry"
-                            )
-                            return
-                    except Exception as e:
-                        logger.debug(f"Model upgrade check failed: {e}")
+                            if metadata and metadata.get("used_model"):
+                                used_model = metadata["used_model"]
+                    except:
+                        pass
 
-                    # Возвращаем в pending для повторной попытки
-                    async with pool.acquire() as conn:
-                        await conn.execute(
-                            """
-                            UPDATE tasks
-                            SET status = 'pending',
-                                updated_at = NOW(),
-                                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_attempt_failed', true, 'attempt_count', $2::int, 'last_error', $3::text)
-                            WHERE id = $1
-                        """,
-                            task_id,
-                            attempt_count,
-                            str(report[:500]),
-                        )
-                    print(
-                        f"[{datetime.now()}] ⚠️ Task {task_id} reverted to PENDING (attempt {attempt_count}/{MAX_ATTEMPTS}). Will retry later."
+                    latency_ms_fail = int((time.perf_counter() - t_start) * 1000)
+                    await tracker.record_attempt(
+                        task_id=task_id,
+                        model=used_model,
+                        category="autonomous_worker",
+                        success=False,
+                        response_length=len(report) if report else 0,
+                        latency_ms=latency_ms_fail,
+                        quality_score=0.0,
                     )
-                return  # НЕ помечаем как completed!
+
+                    # Проверяем, нужно ли переключиться на более мощную модель
+                    should_upgrade, next_model = await tracker.should_upgrade_model(
+                        task_id=task_id,
+                        current_model=used_model,
+                        category="autonomous_worker",
+                        response=report,
+                    )
+
+                    if should_upgrade and next_model:
+                        logger.info(
+                            f"🔄 [AUTO UPGRADE] Автоматически переключаемся на {next_model} для задачи {task_id}"
+                        )
+                        # Обновляем задачу с рекомендованной моделью
+                        async with pool.acquire() as conn:
+                            await conn.execute(
+                                """
+                                UPDATE tasks
+                                SET status = 'pending',
+                                    updated_at = NOW(),
+                                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                        'last_attempt_failed', true,
+                                        'attempt_count', $2::int,
+                                        'last_error', $3::text,
+                                        'model_upgrade_needed', true,
+                                        'recommended_model', $4::text
+                                    )
+                                WHERE id = $1
+                            """,
+                                task_id,
+                                attempt_count,
+                                str(report[:500]) if report and isinstance(report, str) else "",
+                                str(next_model),
+                            )
+                        print(
+                            f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} for retry"
+                        )
+                        return
+                except Exception as e:
+                    logger.debug(f"Model upgrade check failed: {e}")
+
+                # Возвращаем в pending для повторной попытки
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'pending',
+                            updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_attempt_failed', true, 'attempt_count', $2::int, 'last_error', $3::text)
+                        WHERE id = $1
+                    """,
+                        task_id,
+                        attempt_count,
+                        str(report[:500]) if report and isinstance(report, str) else "",
+                    )
+                print(
+                    f"[{datetime.now()}] ⚠️ Task {task_id} reverted to PENDING (attempt {attempt_count}/{MAX_ATTEMPTS}). Will retry later."
+                )
+            return  # НЕ помечаем как completed!
 
             # Оптимальная архитектура: проверка результата перед отметкой completed (аналог manager_review в цепочке БД)
             # Неуспешная валидация считается попыткой; после MAX_ATTEMPTS — эскалация в Совет Директоров

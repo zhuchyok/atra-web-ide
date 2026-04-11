@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/episodic_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "8b5e02fe-fb3e-4737-a2c2-db8d460bcd55"
+}

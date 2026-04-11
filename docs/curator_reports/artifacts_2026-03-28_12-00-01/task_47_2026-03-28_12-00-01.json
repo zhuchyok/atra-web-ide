@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/tests/test_deep_memory.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "eeeec019-7988-4131-a7d9-369f7b7cbe16"
+}

@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 # URL Veronica на Mac Studio
-VERONICA_URL = os.getenv("VERONICA_URL", "http://192.168.1.64:8011")
+VERONICA_URL = os.getenv("VERONICA_URL", "http://veronica-agent:8000")
 
 def get_chat_context():
     """Собирает контекст из всех файлов миграции и отчетов"""

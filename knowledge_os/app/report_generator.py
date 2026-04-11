@@ -191,40 +191,42 @@ class ReportGenerator:
                     report_lines.append(f"- **Модели Ollama:** {len(models.ollama_models)} активны")
                     report_lines.append(f"- **Модели MLX:** {len(models.mlx_models)} активны")
                     if "victoria-wisdom-v3.5" in models.mlx_models:
-                        report_lines.append("  - ✅ Victoria Wisdom 30B (MLX) доступна")
+                        report_lines.append("  - ✅ Victoria Wisdom v3.5 (35B MoE, MLX) доступна")
                 except Exception as me:
                     report_lines.append(f"- ⚠️ Ошибка сканирования моделей: {me}")
                 report_lines.append("")
 
-                # 1. Статистика запросов за день
+                # 1. Статистика задач за день (из таблицы tasks — реальная активность системы)
                 stats = await conn.fetchrow("""
                     SELECT
                         COUNT(*) as total_requests,
-                        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour') as requests_last_hour
-                    FROM semantic_ai_cache
-                    WHERE created_at > CURRENT_DATE
+                        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour') as requests_last_hour,
+                        COUNT(*) FILTER (WHERE status = 'completed') as completed_today,
+                        COUNT(*) FILTER (WHERE status = 'failed') as failed_today
+                    FROM tasks
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
                 """)
 
                 if stats:
-                    report_lines.append("## 📈 Статистика запросов")
-                    report_lines.append(f"- Всего запросов за день: {stats['total_requests'] or 0}")
-                    report_lines.append(
-                        f"- Запросов за последний час: {stats['requests_last_hour'] or 0}\n"
-                    )
+                    report_lines.append("## 📈 Статистика задач (последние 24ч)")
+                    report_lines.append(f"- Всего задач за 24ч: {stats['total_requests'] or 0}")
+                    report_lines.append(f"- Задач за последний час: {stats['requests_last_hour'] or 0}")
+                    report_lines.append(f"- Завершено успешно: {stats['completed_today'] or 0}")
+                    report_lines.append(f"- Ошибок: {stats['failed_today'] or 0}\n")
 
                 # 2. Cache hit rate
                 cache_stats = await conn.fetchrow("""
                     SELECT
                         COUNT(*) FILTER (WHERE usage_count > 0)::float / NULLIF(COUNT(*), 0) as hit_rate
                     FROM semantic_ai_cache
-                    WHERE created_at > CURRENT_DATE
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
                 """)
 
                 if cache_stats and cache_stats["hit_rate"]:
                     report_lines.append("## 🚀 Cache Hit Rate")
                     report_lines.append(f"- Hit rate: {cache_stats['hit_rate']:.2%}\n")
 
-                # [SINGULARITY 24.0] 3. Аудит новых знаний и SOP
+                # [SINGULARITY 24.0] 3. Аудит новых знаний и SOP (за последние 24ч, не с полуночи)
                 sop_stats = await conn.fetchrow("""
                     SELECT
                         COUNT(*) as total_nodes,
@@ -232,11 +234,11 @@ class ReportGenerator:
                         COUNT(*) FILTER (WHERE metadata->>'type' = 'evolution_log') as evolution_nodes,
                         COUNT(*) FILTER (WHERE metadata->>'injected_as_sop' = 'true') as injected_sops
                     FROM knowledge_nodes
-                    WHERE created_at > CURRENT_DATE
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
                 """)
 
                 if sop_stats:
-                    report_lines.append("## 🧠 Эволюция мудрости")
+                    report_lines.append("## 🧠 Эволюция мудрости (последние 24ч)")
                     report_lines.append(f"- Новых узлов знаний: {sop_stats['total_nodes']}")
                     report_lines.append(
                         f"- Верифицировано экспертами: {sop_stats['verified_nodes']}"
@@ -250,14 +252,14 @@ class ReportGenerator:
                 expert_stats = await conn.fetch("""
                     SELECT expert_name, COUNT(*) as request_count
                     FROM semantic_ai_cache
-                    WHERE created_at > CURRENT_DATE
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
                     GROUP BY expert_name
                     ORDER BY request_count DESC
                     LIMIT 5
                 """)
 
                 if expert_stats:
-                    report_lines.append("## 👥 Активность экспертов")
+                    report_lines.append("## 👥 Активность экспертов (последние 24ч)")
                     for row in expert_stats:
                         report_lines.append(f"- {row['expert_name']}: {row['request_count']} задач")
                     report_lines.append("")

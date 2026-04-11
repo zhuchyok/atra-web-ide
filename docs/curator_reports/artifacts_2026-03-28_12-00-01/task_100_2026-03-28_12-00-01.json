@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/experience_retriever.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "8918ee0a-ce77-4594-83b0-a3349b300d83"
+}

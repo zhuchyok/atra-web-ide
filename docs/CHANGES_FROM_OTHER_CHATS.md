@@ -1,5 +1,158 @@
 # Правки из других чатов — сводка для агента
 
+## § Последние изменения (2026-04-09 v61) — Singularity 25.4: Circuit Breaker Complete Fix + System 100% ✅
+
+### Что изменилось (v61)
+
+#### 1. Circuit Breaker state machine — полный фикс (3 бага)
+**Корень проблемы:** воркер держал оба CB (MLX + Ollama) в состоянии OPEN часами, даже когда LLM сервисы восстановились.
+
+**Баг 1 — MLXMonitor deadlock (Hystrix rolling window):**
+- `mlx_monitor.py`: `success_history` был простым счётчиком без временнóго компонента.
+- Когда ошибки заполняли deque (maxlen=10), `get_health_score()` всегда возвращал 0, блокируя MLX навсегда.
+- **Фикс:** `_timed_history: deque[Tuple[float, bool]]` (maxlen=500) + `window_seconds=120`. Старые ошибки "вымываются" через 2 минуты → авто-восстановление (паттерн Hystrix rolling window).
+
+**Баг 2 — CB HALF_OPEN state machine не переключался:**
+- `local_router.py` логировал "HALF_OPEN. Testing..." но **не менял** `breaker.state`.
+- Когда probe успешно завершался, `_on_success()` видел state=OPEN → не закрывал CB → дедлок.
+- **Фикс:** явное `breaker.state = CircuitState.HALF_OPEN` перед отправкой probe.
+
+**Баг 3 — Thundering Herd в HALF_OPEN:**
+- При `MAX_CONCURRENT > 1` несколько корутин одновременно пытались сделать probe → один отказ снова открывал CB при уже восстановившемся сервисе.
+- **Фикс:** `_probe_in_flight: bool` в `circuit_breaker.py` + `start_probe()` метод. Только первая корутина проходит, остальные пропускают узел (`continue`).
+
+#### 2. `execute_assignments.py` — ON CONFLICT для Делегировано задач
+- **Проблема:** `INSERT INTO tasks` без `ON CONFLICT` → `duplicate key value violates unique constraint idx_tasks_active_dedup` → задача падала с `failed`.
+- **Фикс:** `ON CONFLICT (title, COALESCE(project_context, 'default')) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW() RETURNING id` — всегда возвращает id, дубли не создаются.
+
+#### 3. `smart_worker_autonomous.py` — расширенный timeout + fast_path
+- **Делегировано таймаут:** задачи `"🤖 Делегировано: ..."` теперь используют `WORKER_TASK_TOTAL_TIMEOUT=3600` вместо `SMART_WORKER_LLM_TIMEOUT=600` — монстр-задачи не вылетают по таймауту.
+- **`_fast_file_check` deep_audit:** добавлен 3-й паттерн — `subprocess.*eval|exec|http` → статический grep на `subprocess.run/call/Popen`, `eval(`, `exec(`, hardcoded URLs. Задачи типа "проверь файл X.py — subprocess/eval/exec" обрабатываются за <1ms без LLM.
+
+#### 4. `perpetual_evolution.py` — история тем в промпте
+- **Проблема:** LLM предлагал одну и ту же тему ("Pytest тестирование") каждый цикл.
+- **Фикс:** перед генерацией запрос к `tasks` на последние 30 эволюционных задач → вставка в промпт блока `"ТЕМЫ, УЖЕ ПРЕДЛОЖЕННЫЕ (НЕ ПОВТОРЯТЬ)"`.
+
+#### 5. `proxy/main.py` — X-Forwarded-For fix
+- Victoria видела GitHub CDN IP (`185.199.x.x`) как клиента → rate-limiter применял внешние лимиты.
+- **Фикс:** прокси явно ставит `"X-Forwarded-For": "127.0.0.1"` при форвардинге к Victoria.
+
+#### 6. `docker-compose.yml` — Ollama приоритизация + воркер concurrency
+- `SMART_WORKER_MAX_CONCURRENT: "1"` → `"2"`, `ADAPTIVE_MLX_SAFE_MAX: "2"` → `"3"`.
+- Добавлен `OLLAMA_REQUEST_PRIORITY: "low"` для воркера → при перегрузке Ollama воркер уступает victoria-agent и уходит на MLX.
+- Добавлен `WORKER_TASK_TOTAL_TIMEOUT: "3600"` для Делегировано задач.
+- Добавлен `healthcheck` для `knowledge_nightly` — теперь видно "healthy/unhealthy" в `docker ps`.
+
+#### 7. `local_router.py` — backpressure для low-priority worker
+- При `OLLAMA_REQUEST_PRIORITY=low`: если Ollama занята (`running >= OLLAMA_NUM_PARALLEL`), воркер пропускает Ollama → переходит к MLX. Victoria-agent всегда получает Ollama первым.
+
+---
+
+## § Последние изменения (2026-04-11 v60) — Singularity 25.3: RCA Stuck Tasks + File Check Fast Path ✅
+
+### Что изменилось сегодня (v60)
+
+#### Проблема: зависшие задачи в knowledge_os (86 pending → 25)
+**Корневые причины:**
+1. **Источник flood**: Куратор (`run_curator_autonomous.sh`) отправляет задачи ПОСЛЕДОВАТЕЛЬНО из `curator_tasks.txt` к Victoria API. При 233 file_check задачах (96.7% очереди) и 10 мин на каждую → цикл занимал 33+ часов и никогда не завершался.
+2. **Двойной cascade**: Каждая "проверь файл X.py" задача, обработанная Victoria MONSTER, создавала делегированный subtask в knowledge_os DB → 2 задачи на каждую проверку.
+3. **MAX_CONCURRENT=1**: Воркер обрабатывал 6 задач/час, но создавалось 6+/час → очередь не уменьшалась.
+4. **STUCK_MINUTES=15**: Задачи сбрасывались в pending раньше чем 35B модель успевала ответить → бесконечный retry loop.
+
+**Применённые исправления:**
+- **`scripts/victoria_task_generator.py`**: `NEW_TASKS_PER_RUN: 20→5`, добавлен `MAX_FILE_CHECK_TASKS=20` с runtime check — новые file_check задачи не добавляются если в очереди уже 20.
+- **`scripts/curator_tasks.txt`**: Сокращён с 241 до 28 задач (удалено 213 избыточных file_check, оставлены только 20 приоритетных worker/orchestrator файлов + 8 non-file-check стандартов).
+- **`knowledge_os/app/smart_worker_autonomous.py`**: Добавлена функция `_fast_file_check()` — FAST PATH для тривиальных проверок (pip install в рантайме, hardcoded секреты) без вызова LLM. Обрабатывает задачу через локальный grep/regex за <1ms вместо 10 минут через 35B модель.
+- **БД**: Отменены 62 stuck file_check + 7 stuck delegated задач (>2 часа в pending). Очередь: 86→25 pending.
+
+#### Факт о источнике запросов
+Все POST /run запросы к Victoria Agent приходят с IP `185.199.109.133` (`cdn-185-199-109-133.github.com` — GitHub CDN). Это НЕ GitHub Actions, а куратор `run_curator_autonomous.sh` запущенный с хоста, который подключается к Victoria через localhost:8010. IP отображается как GitHub CDN из-за особенностей Docker networking на macOS.
+
+---
+
+## § Последние изменения (2026-04-09 v59) — Singularity 25.2: SSE Keep-Alive Heartbeat + Task Timeout + Bug Fixes ✅
+
+### Что изменилось сегодня (v59)
+
+#### 1. Task Timeout увеличен до 3600s (Circuit Breaker Alignment)
+Причина: задачи с моделью 35B (victoria-wisdom-v3.5) требуют до 40–60 мин при высокой нагрузке. Прежний дефолт 1800s вызывал преждевременный `failed`.
+
+- **`knowledge_os/app/expert_worker.py`**: `WORKER_TASK_TOTAL_TIMEOUT` default `"1800"` → `"3600"`.
+- **`knowledge_os/docker-compose.yml`**: `WORKER_TASK_TOTAL_TIMEOUT` для `victoria-agent` и `expert-worker-light` → `"3600"`.
+- **`knowledge_os/app/redis_manager.py`**: TTL Redis-локов дедупликации задач синхронизирован с таймаутом (`_TASK_DEDUP_LOCK_TTL = int(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))`).
+
+#### 2. SSE Keep-Alive Heartbeat в `/stream` (Singularity 25.2)
+**Корень проблемы (Принцип первых принципов Маска):** модель 35B даёт первый токен через 2–4 мин. За это время SSE-соединение молчало → браузер/прокси закрывали поток.
+
+**Мировая практика (Netflix/Cloudflare):** пинговать клиента каждые 15–30 сек SSE-комментарием `": keep-alive\n\n"`.
+
+- **`src/agents/bridge/victoria_server.py`** — `/stream` endpoint, Expert Path: заменён `await run_task(...)` на `asyncio.create_task` + цикл `asyncio.wait(timeout=heartbeat_sec)` с `yield ": keep-alive\n\n"` каждые N секунд (default 15, задаётся через `VICTORIA_STREAM_HEARTBEAT_SEC`).
+- Heartbeat уже был реализован в `/v1/chat/completions` — теперь унифицирован.
+- **`frontend/nginx.conf`**: проверен — `proxy_buffering off`, `proxy_read_timeout 86400s` уже были корректны.
+
+**Результат (live-тест):** 9 keep-alive через полную цепочку `backend:8080 → nginx:3000 → Victoria:8010` — соединение не рвётся, ждёт ответа модели столько, сколько нужно.
+
+#### 3. Критические баги victoria_enhanced.py — исправлены (предыдущая сессия)
+- `SyntaxError: unexpected indent` (line 110) — лишний отступ `self.use_cache = False`.
+- `NameError: name 'REACT_AVAILABLE' is not defined` — флаги вынесены за `try-except ImportError`.
+- `AttributeError: 'VictoriaEnhanced' object has no attribute 'start'` — добавлен `async def start(self)`.
+
+#### 4. Баг в backend/app/routers/chat.py (SSE error handling) — исправлен (предыдущая сессия)
+- В `proxy_generator`: `logger.error` без аргументов → исправлен на `logger.error(..., exc_info=True)`.
+- Отсутствовало `yield f"data: {json.dumps({'type': 'end'})}\n\n"` в ветке `except` → добавлено. Без этого браузер зависал при ошибке стрима, не зная что поток закончен.
+
+---
+
+## § Последние изменения (2026-03-08 v54) — Singularity 24.7: Autonomous Activation & Self-Healing ✅
+
+**Проблема:** Автономные системы (`Event Bus`, `Sentinel`) находились в "спящем режиме" и не запускались автоматически в контейнере. Критическая ошибка DNS (`Name or service not known`) блокировала связь с LLM-бэкендами на хосте. Mutation Engine падал с `AttributeError` при попытке обработки ошибок.
+
+**Решение:**
+1. **Автозапуск:** Внедрена логика инициализации `Event Bus` и `Sentinel` в конструктор `VictoriaEnhanced`.
+2. **Сетевой мост:** Исправлен `extra_hosts` в `docker-compose.yml` и `DATABASE_URL` в коде для корректной маршрутизации внутри Docker-сети.
+3. **Mutation Engine:** Исправлен парсинг событий в `VictoriaEventHandlers` и расширен метод `solve()` для поддержки глубокого анализа ошибок.
+4. **Верификация:** Проведен полный цикл: Ошибка в логах → Mutation Engine → Создание задачи в БД.
+
+**Результат:** Система перешла в активную фазу автономности. Самоисцеление (Self-Healing) теперь работает "из коробки" при старте контейнера.
+
+---
+
+## § Последние изменения (2026-03-08 v53) — Singularity 24.7: Adaptive Resource Steering & Memory Recovery ✅
+
+**Проблема:** Высокое потребление RAM (128GB почти полностью занято) и Swap (4.6GB) из-за тяжелых моделей (Ollama/MLX) и неоптимизированных лимитов Docker. Elasticsearch занимал 4.6GB RSS, PostgreSQL — 0.9GB, Open WebUI — 1GB. Это приводило к деградации производительности и таймаутам.
+
+**Решение (Adaptive Resource Steering):**
+1. **Infrastructure (DevOps):**
+   - **Elasticsearch:** Снижены лимиты `mem_limit` с 8GB до **2GB**, Java Heap (`ES_JAVA_OPTS`) ограничен **1GB** (`-Xms1g -Xmx1g`). Реальное потребление снизилось до ~1.3GB.
+   - **PostgreSQL:** Снижен лимит `mem_limit` с 8GB до **2GB**.
+   - **Open WebUI:** Снижен лимит `mem_limit` с 4GB до **2GB**.
+2. **Backend (Igor):**
+   - **DB Pool:** Лимит `max_size` в `expert_worker.py` снижен с 10 до **5**, синхронизирован с `db_pool.py`.
+3. **Inference (Dmitry):**
+   - **Ollama Policy:** В `ollama_keep_alive_policy.py` внедрена логика `Aggressive Resource Steering`. При RAM > 85% тяжелые модели и эмбеддинги выгружаются **мгновенно** (`keep_alive=0`), легкие — через **60с**.
+4. **Documentation (Tatiana):**
+   - Обновлен `MASTER_REFERENCE.md` (v53), зафиксирован протокол Resource Stewardship.
+
+**Результат:** Высвобождено ~4-5GB физической RAM, снижена нагрузка на Swap, система стала более отзывчивой при параллельной работе MLX и Ollama.
+
+---
+
+## § Последние изменения (2026-03-30 v51) — Task Management Autopilot 2.0 ✅
+
+**Проблема:** Очередь задач (`tasks`) забивалась дубликатами от `Curator` и `MutationEngine`. После сбоев/рестартов задачи зависали в `in_progress` или накапливались в `failed`, создавая "информационный шум" и перегружая воркеры.
+
+**Решение (Золотой стандарт):**
+1. **Дедупликация на уровне БД:** Создан `UNIQUE INDEX idx_tasks_active_dedup` на `(title, COALESCE(project_context, 'default'))` для задач со статусом `pending` или `in_progress`. Теперь БД физически не принимает дубликаты активных задач.
+2. **Safe API:** В `db_pool.py` добавлен метод `create_task_safe()`, использующий `ON CONFLICT DO NOTHING`. Воркеры больше не падают при попытке создать существующую задачу.
+3. **Enhanced Watchdog:** Скрипт `reset_stuck_tasks.py` теперь:
+   - Сбрасывает зависшие `in_progress` (>1ч).
+   - Удаляет `failed` задачи старше 3 дней.
+   - Удаляет `cancelled` задачи старше 7 дней.
+   - Проводит финальную чистку дублей `pending`.
+4. **Queue Monitoring:** В `ServiceMonitor.py` добавлена проверка глубины очереди. При `PENDING > 100` генерируется событие `PERFORMANCE_DEGRADED` для активации backpressure.
+
+**Результат:** Очередь задач всегда в актуальном состоянии, риск перегрузки Mac Studio из-за "мусорных" задач сведен к нулю.
+
 ## § Последние изменения (2026-03-29 v50) — Gateway KnowledgeEngine Retry Fix ✅
 
 **Проблема:** После рестарта Docker — `atra-web-ide-gateway` стартует раньше, чем Docker-сеть регистрирует DNS для `knowledge_postgres`. `KnowledgeEngine::new()` падает один раз → устанавливает `None` навсегда → все `POST /api/knowledge/search_v2` возвращают **503** всю сессию. Воркеры не могут делать RAG-поиск по базе знаний.
@@ -4843,6 +4996,58 @@ _Сводка актуализирована с учётом правок из �
   5. **Task Integration:** Результаты анализа (патчи, объяснения) сохраняются в таблицу `tasks` со статусом `awaiting_approval` (для предложений) или `completed` (для авто-исправлений).
 - **Файлы:** `knowledge_os/app/docker_log_monitor.py`, `knowledge_os/app/event_bus.py`, `knowledge_os/app/codebase_mutation_engine.py`, `knowledge_os/app/victoria_event_handlers.py`.
 - **Итог:** Система перешла в режим проактивного самоисцеления. Виктория теперь дежурит в логах 24/7 и самостоятельно устраняет критические баги или готовит решения для одобрения.
+
+### §92. Stability 2.0: Health-Aware Backpressure & Retry Intelligence (2026-03-08)
+**Задача:** Решить проблему массовых провалов задач (264 Failed) из-за таймаутов и перегрузки Mac Studio.
+**Решение:**
+1.  **Health-Aware Backpressure:** В `enhanced_orchestrator.py` добавлен динамический лимит `max_pending` на основе RAM (85% -> 1 задача, 70% -> 3 задачи).
+2.  **Retry Intelligence:** В `expert_worker.py` добавлен fallback на категорию `fast` при провале диалоговой задачи на `wisdom`.
+3.  **Failed Tasks Analyzer:** Создан `scripts/failed_tasks_analyzer.py` для дедупликации ошибок и создания системных аудит-задач. Удалено 93 дубликата таймаутов.
+4.  **Adaptive Resource Allocation:** Внедрены адаптивные таймауты (300с вместо 1800с) и пониженный приоритет (`low`) для фоновых аудитов, чтобы они не блокировали основные задачи.
+**Результат:** Снижение нагрузки на Mac Studio, автоматическая очистка очереди, гарантированные ответы в чате.
+
+---
+
+## 59. Singularity 25.0: Expert Priority System (2026-03-08)
+
+- **Expert-Based Prioritization:**
+  - Внедрена система ранжирования экспертов (VIP, Standard, Background).
+  - Виктория и CEO получили VIP-статус для гарантированного приоритета в очереди.
+- **System-Wide Integration:**
+  - `LocalAIRouter` приоритизирует VIP-запросы на уровне HTTP-заголовков.
+  - `EnhancedOrchestrator` автоматически переводит задачи VIP-экспертов в статус `urgent`.
+  - `ExpertWorker` обеспечивает ускоренную обработку VIP-диалогов.
+- **Database Update:** Добавлена колонка `priority` в таблицу `experts`.
+
+---
+
+## 58. Singularity 24.8: Adaptive Ollama Context (2026-03-08)
+
+- **Adaptive Context Window:**
+  - В `LocalAIRouter` реализована логика динамического выбора `num_ctx` для Ollama.
+  - Система мониторит свободную RAM перед каждым запросом и масштабирует контекст от 16k до 128k.
+  - Это решает проблему «раздувания» Phi-3.5 до 62 ГБ при умеренной нагрузке.
+- **Immortal Models Consistency:**
+  - Подтвержден статус `phi3.5:3.8b` как бессмертной модели для мгновенных ответов.
+  - Совместно с адаптивным контекстом это обеспечивает баланс между скоростью и потреблением ресурсов.
+
+---
+
+## 57. Singularity 24.7: Autonomous Activation & Self-Healing (2026-03-08)
+
+- **Autonomous Systems Activation (Event Bus & Sentinel):**
+  - Ликвидирован "спящий режим" автономных систем: в `VictoriaEnhanced` внедрена логика автоматического запуска `Event Bus` и `Autonomous Sentinel` при старте.
+  - Подключены базовые обработчики событий (создание файлов, ошибки логов, деградация производительности).
+- **DNS & Network Alignment (Docker-to-Host):**
+  - Исправлена критическая проблема связи контейнеров с хостом (Mac Studio) через `extra_hosts` в `docker-compose.yml`.
+  - Восстановлен доступ к `Ollama` (11434) и `MLX` (11435) из контейнеров.
+- **Self-Healing & Mutation Engine (Phase 1):**
+  - Восстановлена работоспособность системы самоисцеления. Исправлен `AttributeError` в `VictoriaEventHandlers`.
+  - Метод `VictoriaEnhanced.solve()` расширен поддержкой `**kwargs` и `method`, что необходимо для `Mutation Engine`.
+- **Memory & Resource Optimization (Singularity 24.7):**
+  - **Immortal Models Alignment:** Модель `phi3.5:3.8b` возвращена в список `IMMORTAL_MODELS` согласно Библии (Wisdom Era Status), несмотря на аномальное потребление VRAM (62 ГБ), для обеспечения стабильности критических подзадач.
+  - **Aggressive RAM Management:** Порог `RAM_CRITICAL_PERCENT` снижен до **80%** (с 85%) для более раннего срабатывания выгрузки тяжелых моделей при дефиците памяти.
+  - **Brain/Hands Redundancy:** Подтверждена архитектурная необходимость дублирования `victoria-wisdom-v3.5` в MLX (Мозг) и Ollama (Руки) для обеспечения отказоустойчивости и разделения ролей.
 
 ---
 

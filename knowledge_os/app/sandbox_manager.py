@@ -23,6 +23,7 @@ class SandboxManager:
             logger.error(f"❌ SandboxManager: Ошибка подключения к Docker: {e}")
 
         self.network_name = "atra-sandbox-net"
+        self.host_shared_dir = os.environ.get("HOST_SANDBOX_SHARED_DIR")
         self._ensure_network()
 
     def _ensure_network(self):
@@ -49,6 +50,11 @@ class SandboxManager:
             return {"error": "Docker client not available"}
 
         container_name = self.get_container_name(expert_name)
+        
+        # Определяем путь для монтирования
+        # Если задан HOST_SANDBOX_SHARED_DIR, используем его (для Docker-in-Docker на macOS)
+        # Иначе используем абсолютный путь в текущей ФС
+        mount_path = self.host_shared_dir or os.path.abspath("./knowledge_os/sandbox_shared")
 
         try:
             try:
@@ -56,7 +62,7 @@ class SandboxManager:
                 if container.status != "running":
                     container.start()
             except docker.errors.NotFound:
-                logger.info(f"🚀 Создание новой песочницы для {expert_name}...")
+                logger.info(f"🚀 Создание новой песочницы для {expert_name}... Mount: {mount_path}")
                 container = self.client.containers.run(
                     image,
                     command="tail -f /dev/null",  # Держим контейнер запущенным
@@ -67,7 +73,7 @@ class SandboxManager:
                     nano_cpus=1000000000,  # 1.0 CPU для 10/10
                     working_dir="/workspace",
                     volumes={
-                        os.path.abspath("./knowledge_os/sandbox_shared"): {
+                        mount_path: {
                             "bind": "/workspace",
                             "mode": "rw",
                         }

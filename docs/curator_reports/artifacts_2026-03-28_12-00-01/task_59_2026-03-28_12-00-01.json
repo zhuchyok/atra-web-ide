@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/auto_fixer.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "2d5f8ce6-c458-495c-bd4c-1703cf1b6ba9"
+}

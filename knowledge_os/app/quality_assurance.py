@@ -371,12 +371,14 @@ class QualityAssurance:
 
     async def _run_sandbox_grounding(self, response: str) -> Tuple[bool, float, Optional[str]]:
         """
-        [SINGULARITY 22.4] Sandbox Grounding:
-        Извлекает код из ответа и запускает его в изолированном процессе для проверки.
+        [SINGULARITY 23.7] Real Docker Sandbox Grounding with Regression Guard:
+        Извлекает код из ответа и запускает его в изолированном Docker-контейнере,
+        проверяя не только новый код, но и связанные зависимости.
         """
         import re
-        import subprocess
-        import tempfile
+        import os
+        import uuid
+        from sandbox_manager import get_sandbox_manager
 
         # Извлекаем блоки кода Python
         code_blocks = re.findall(r"```python\n(.*?)\n```", response, re.DOTALL)
@@ -391,13 +393,91 @@ class QualityAssurance:
             if f in combined_code:
                 return False, 0.0, f"Forbidden operation detected: {f}"
 
+        sandbox = get_sandbox_manager()
+        if not sandbox or not sandbox.client:
+            logger.warning("⚠️ SandboxManager not available, falling back to subprocess grounding")
+            return await self._run_subprocess_grounding_fallback(combined_code)
+
+        # Сохраняем код во временный файл в общей директории песочницы
+        sandbox_id = f"grounding_{uuid.uuid4().hex[:8]}"
+        shared_dir = "./knowledge_os/sandbox_shared"
+        os.makedirs(shared_dir, exist_ok=True)
+        
+        tmp_filename = f"{sandbox_id}.py"
+        tmp_path = os.path.join(shared_dir, tmp_filename)
+        
+        try:
+            with open(tmp_path, "w") as f:
+                f.write(combined_code)
+
+            # 1. Проверка синтаксиса в Docker
+            compile_res = await sandbox.run_in_sandbox("QA", f"python3 -m py_compile {tmp_filename}")
+            if compile_res.get("exit_code", 1) != 0:
+                return False, 0.3, f"Syntax Error: {compile_res.get('output')}"
+
+            # 2. Regression Guard: Поиск зависимых тестов
+            # [SINGULARITY 24.0] Dependency-Aware Regression Guard
+            try:
+                from dependency_mapper import get_dependency_mapper
+                mapper = get_dependency_mapper()
+                affected_files = mapper.get_affected_files(tmp_path)
+            except Exception as e:
+                logger.warning(f"⚠️ dependency_mapper error: {e}, skipping regression guard")
+                affected_files = []
+            
+            test_commands = [f"python3 {tmp_filename}"] # Основной запуск
+            
+            # Если в коде есть тесты, запускаем pytest
+            if "def test_" in combined_code or "assert " in combined_code:
+                test_commands.append(f"pytest {tmp_filename}")
+
+            # Добавляем тесты для зависимых файлов
+            for aff_file in affected_files:
+                test_file = self._find_related_test(os.path.join(self.project_root, aff_file))
+                if test_file:
+                    test_commands.append(f"pytest {test_file}")
+                    logger.info(f"🧪 [DEPENDENCY GUARD] Added test for affected file: {aff_file}")
+
+            for cmd in test_commands:
+                run_res = await sandbox.run_in_sandbox("QA", cmd)
+                if run_res.get("exit_code", 1) != 0:
+                    return False, 0.5, f"Execution Error ({cmd}): {run_res.get('output')}"
+
+            return True, 1.0, None
+
+        except Exception as e:
+            return False, 0.1, f"Sandbox Error: {str(e)}"
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def _find_related_test(self, file_path: str) -> Optional[str]:
+        """Находит связанный тест для файла"""
+        # Базовая реализация: ищем файл с префиксом test_ в той же папке или в папке tests/
+        base_name = os.path.basename(file_path)
+        dir_name = os.path.dirname(file_path)
+        
+        test_candidates = [
+            os.path.join(dir_name, f"test_{base_name}"),
+            os.path.join(dir_name, "tests", f"test_{base_name}"),
+            os.path.join(os.path.dirname(dir_name), "tests", f"test_{base_name}")
+        ]
+        
+        for candidate in test_candidates:
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
+    async def _run_subprocess_grounding_fallback(self, combined_code: str) -> Tuple[bool, float, Optional[str]]:
+        """Fallback to local subprocess if Docker is not available."""
+        import tempfile
+        import subprocess
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as tmp:
                 tmp.write(combined_code)
                 tmp_path = tmp.name
 
-            # Запускаем с таймаутом и ограничением ресурсов
             process = await asyncio.create_subprocess_exec(
                 "python3", "-m", "py_compile", tmp_path,
                 stdout=asyncio.subprocess.PIPE,
@@ -406,10 +486,8 @@ class QualityAssurance:
             stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
 
             if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                return False, 0.3, f"Syntax Error: {error_msg}"
+                return False, 0.3, f"Syntax Error: {stderr.decode().strip()}"
 
-            # Если синтаксис ок, пробуем выполнить (только если это не деструктивный код)
             if "def test_" in combined_code or "assert " in combined_code:
                 test_process = await asyncio.create_subprocess_exec(
                     "python3", tmp_path,
@@ -421,11 +499,8 @@ class QualityAssurance:
                     return False, 0.5, f"Runtime/Assertion Error: {stderr.decode().strip()}"
 
             return True, 1.0, None
-
-        except asyncio.TimeoutError:
-            return False, 0.2, "Execution Timeout (Infinite loop?)"
         except Exception as e:
-            return False, 0.1, f"Grounding Error: {str(e)}"
+            return False, 0.1, f"Fallback Error: {str(e)}"
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.remove(tmp_path)

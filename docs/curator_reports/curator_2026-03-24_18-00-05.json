@@ -1,0 +1,429 @@
+{
+  "ts": "2026-03-25T00:49:44.545411+00:00",
+  "victoria_url": "http://localhost:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 41,
+  "results": [
+    {
+      "goal": "привет",
+      "status": "success",
+      "error": null,
+      "output_preview": "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?",
+      "output_length": 63,
+      "correlation_id": "fedb0287-bfdb-4686-94d6-153e7315a039",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 727.41
+    },
+    {
+      "goal": "какой статус проекта?",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ac54fb96-8a7c-4f6d-98b0-db51dc412f5e",
+      "execution_trace": {},
+      "elapsed_seconds": 601.44
+    },
+    {
+      "goal": "покажи список файлов в корне проекта",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9155b2f0-f293-4d7f-8a25-9bad5ed3c4be",
+      "execution_trace": {},
+      "elapsed_seconds": 601.76
+    },
+    {
+      "goal": "что ты умеешь?",
+      "status": "success",
+      "error": null,
+      "output_preview": "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?",
+      "output_length": 222,
+      "correlation_id": "bb6f943a-d9c0-4730-a00e-8e63c8437b9d",
+      "execution_trace": {
+        "strategy": "quick_answer",
+        "confidence": 1.0,
+        "fast_path": true,
+        "source": "static_fallback"
+      },
+      "elapsed_seconds": 331.04
+    },
+    {
+      "goal": "напиши одну строку кода на Python: вывод текущей даты",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8db31cc5-4e0d-482d-b7ce-a8c50d9b31c0",
+      "execution_trace": {},
+      "elapsed_seconds": 602.43
+    },
+    {
+      "goal": "проверь файл /app/src/agents/core/executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9ffca634-4689-4ec8-b691-0ab1b0c612d1",
+      "execution_trace": {},
+      "elapsed_seconds": 602.74
+    },
+    {
+      "goal": "проверь файл /app/scripts/git_guardian.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7905691a-7e49-40e1-b9b3-03b236518f8a",
+      "execution_trace": {},
+      "elapsed_seconds": 602.1
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/run_evolution_loop.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "eb337ab5-c613-4f81-9cce-244a395943d7",
+      "execution_trace": {},
+      "elapsed_seconds": 602.64
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fdc526bb-80fd-4bb5-93b7-7fdbee6feef8",
+      "execution_trace": {},
+      "elapsed_seconds": 602.45
+    },
+    {
+      "goal": "проверь файл /app/scripts/cloud_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "feceed96-1b2a-462a-a2d8-f11960fcb2f6",
+      "execution_trace": {},
+      "elapsed_seconds": 603.26
+    },
+    {
+      "goal": "проверь файл /app/scripts/curator_compare_to_standard.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "feaf920e-2d5e-4e1b-8d2b-cc78577fea83",
+      "execution_trace": {},
+      "elapsed_seconds": 604.06
+    },
+    {
+      "goal": "проверь файл /app/scripts/ingest_docs_to_rag.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b6e5295e-ed8d-4bea-b5fe-f81d828c060b",
+      "execution_trace": {},
+      "elapsed_seconds": 602.97
+    },
+    {
+      "goal": "проверь файл /app/src/agents/tools/system_tools.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b4cf8ef1-0d97-45ba-a0fb-5507c936b3fe",
+      "execution_trace": {},
+      "elapsed_seconds": 604.59
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/performance_watchdog.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "2170e19c-e566-4ba0-80c4-322d0a65e3c5",
+      "execution_trace": {},
+      "elapsed_seconds": 602.06
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/enhanced_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d0cce2a7-8ef5-46bd-ae0d-d4899e680c2f",
+      "execution_trace": {},
+      "elapsed_seconds": 603.56
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/smart_worker_autonomous.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4d7bd930-9c49-473e-b21c-876565bedf4e",
+      "execution_trace": {},
+      "elapsed_seconds": 601.2
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/circuit_breaker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a32f8782-c596-4155-8d5d-025bd257fd85",
+      "execution_trace": {},
+      "elapsed_seconds": 604.61
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/nightly_learner.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "964f9701-3f63-43b8-b290-a109026c8fef",
+      "execution_trace": {},
+      "elapsed_seconds": 607.07
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/corporation_knowledge_system.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "937d9542-17df-453d-989d-312bfc72fee6",
+      "execution_trace": {},
+      "elapsed_seconds": 605.93
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_services.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d6a02ae5-6fd9-4b8d-9ea2-9c5a42a8f74b",
+      "execution_trace": {},
+      "elapsed_seconds": 603.98
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/service_monitor.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a5a0f40c-2bfa-46e1-b471-cda58e0a2027",
+      "execution_trace": {},
+      "elapsed_seconds": 601.9
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/ui_audit_agent.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "6b1e5fb1-1a47-441f-bb0c-de0044ff73fb",
+      "execution_trace": {},
+      "elapsed_seconds": 602.02
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/swarm_orchestrator.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7c876152-7b88-4c7f-97b6-0022f7a4c0b8",
+      "execution_trace": {},
+      "elapsed_seconds": 602.66
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_evolver.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8a1d1fde-4a57-4e73-a151-8219853a4c9b",
+      "execution_trace": {},
+      "elapsed_seconds": 601.56
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b35f588f-4424-495e-ab19-694450b1cc45",
+      "execution_trace": {},
+      "elapsed_seconds": 602.26
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/streaming_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "272f7a8c-dbf0-4479-a70f-94f3d3ab1716",
+      "execution_trace": {},
+      "elapsed_seconds": 603.66
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/worker_v3_1.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "11989a76-c4d5-4ea4-84ef-257c884d9b4f",
+      "execution_trace": {},
+      "elapsed_seconds": 603.53
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_chaos_injector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "e16110dc-1cdc-404a-96df-e5f331a348fe",
+      "execution_trace": {},
+      "elapsed_seconds": 602.7
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/react_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "7e5655d7-2a2b-4c16-8613-c91021a70050",
+      "execution_trace": {},
+      "elapsed_seconds": 602.98
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_self_assessment.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f066bc9d-7a98-46f3-9881-61aeafdbba6d",
+      "execution_trace": {},
+      "elapsed_seconds": 602.81
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/veronica_web_researcher.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "32f929e2-81cc-4351-8c61-97e3147446e9",
+      "execution_trace": {},
+      "elapsed_seconds": 602.95
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/parallel_orchestrator.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "78b35b6a-29d9-425b-bb3c-762f47c3c1f9",
+      "execution_trace": {},
+      "elapsed_seconds": 602.68
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/agent_protocol.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4ef59d57-a793-4476-b4e9-ff17163160f7",
+      "execution_trace": {},
+      "elapsed_seconds": 603.9
+    },
+    {
+      "goal": "проверь файл /app/scripts/run_orchestrator_version_migration.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1bca9ab8-966c-4b16-97cf-6bb6232e435b",
+      "execution_trace": {},
+      "elapsed_seconds": 603.44
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/self_learning_agent.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "d2feace9-1401-40e1-ac91-02d55570a738",
+      "execution_trace": {},
+      "elapsed_seconds": 603.49
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/expert_worker.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "485b09a0-e0e4-4f2c-b45b-a7b6bc57fff0",
+      "execution_trace": {},
+      "elapsed_seconds": 604.25
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_collaboration.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "eb82e2fb-38de-4abe-87f6-bc11b4587416",
+      "execution_trace": {},
+      "elapsed_seconds": 601.09
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/multi_agent_debate.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "8c2ef2bc-9902-40d8-89a7-98007f715b12",
+      "execution_trace": {},
+      "elapsed_seconds": 605.11
+    },
+    {
+      "goal": "проверь файл /app/scripts/test_agent_suggestions.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4c0e34d0-4b3a-41df-8307-4f8377b2081d",
+      "execution_trace": {},
+      "elapsed_seconds": 600.36
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/task_rule_executor.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "4760c0df-304f-41c5-ab4b-ac590b542b30",
+      "execution_trace": {},
+      "elapsed_seconds": 604.96
+    },
+    {
+      "goal": "проверь файл /app/knowledge_os/app/force_worker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "b0141182-a614-445c-b2bd-fb9a7e57453c",
+      "execution_trace": {},
+      "elapsed_seconds": 602.98
+    }
+  ]
+}

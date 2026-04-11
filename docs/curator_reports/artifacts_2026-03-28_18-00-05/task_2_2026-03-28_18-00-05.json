@@ -1,0 +1,11 @@
+{
+  "goal": "какой статус проекта?",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "e6607f0a-0ff5-44ed-8d6a-b3a8a88f8b97"
+}

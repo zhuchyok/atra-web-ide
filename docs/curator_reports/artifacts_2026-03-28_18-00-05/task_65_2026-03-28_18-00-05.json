@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/cache_cleanup_task.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "7cc0fd7d-16e5-418b-87d4-feea8dd2cef0"
+}

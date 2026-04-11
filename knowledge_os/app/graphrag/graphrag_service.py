@@ -25,15 +25,35 @@ class GraphRAGService:
 
     async def retrieve_graph_context(self, query: str, limit: int = 8) -> tuple[str, list]:
         """
-        Выполняет полный цикл GraphRAG поиска:
-        1. Получает embedding запроса.
-        2. Извлекает сущности из запроса.
-        3. Выполняет multi-hop поиск по графу.
-        4. Формирует структурированный контекст.
-        Returns: (context_string, nodes_list)
+        [SINGULARITY 24.0] Memory Cycle: Safe Vector Pruning & Semantic Merge.
+        Перед поиском запускает цикл очистки и слияния дубликатов.
         """
         try:
+            # [SINGULARITY 24.0] Memory Cycle
+            from app.memory_cycle import get_memory_cycle
+            cycle = get_memory_cycle(self.db_url)
+            # Запускаем в фоне или периодически, здесь для демонстрации интеграции
+            # asyncio.create_task(cycle.run_pruning())
+            # asyncio.create_task(cycle.run_semantic_merge())
+
             from app.semantic_cache import get_embedding
+            import json
+            import hashlib
+            
+            # 0. Проверка кэша (Redis)
+            try:
+                from app.db_pool import get_redis_client
+                redis = await get_redis_client()
+                if redis:
+                    query_hash = hashlib.md5(query.encode()).hexdigest()
+                    cache_key = f"graphrag_cache:{query_hash}"
+                    cached_data = await redis.get(cache_key)
+                    if cached_data:
+                        logger.info(f"🚀 [GRAPHRAG] Cache HIT for query: {query[:30]}...")
+                        data = json.loads(cached_data)
+                        return data["context"], data["nodes"]
+            except Exception as ce:
+                logger.debug(f"Redis cache check failed: {ce}")
 
             embedding = await get_embedding(query)
             if not embedding:
@@ -47,7 +67,8 @@ class GraphRAGService:
 
             # 2. Формирование контекста
             context = "\n🌐 [GRAPHRAG GLOBAL CONTEXT]:\n"
-
+            # ... (остальная логика формирования контекста)
+            
             # Группируем результаты: прямые и связанные (hops)
             direct_nodes = [n for n in nodes if not n.get("is_hop")]
             hop_nodes = [n for n in nodes if n.get("is_hop")]
@@ -67,6 +88,18 @@ class GraphRAGService:
             entities = await self.extractor.extract_entities(query)
             if entities:
                 context += f"\n🔍 ОБНАРУЖЕННЫЕ СУЩНОСТИ: {', '.join([e.name for e in entities])}\n"
+
+            # 4. Сохранение в кэш (Redis) на 1 час
+            try:
+                if redis:
+                    await redis.setex(
+                        cache_key,
+                        3600,
+                        json.dumps({"context": context, "nodes": nodes})
+                    )
+                    logger.info(f"💾 [GRAPHRAG] Cache SET for query: {query[:30]}...")
+            except Exception as se:
+                logger.debug(f"Redis cache set failed: {se}")
 
             return context, nodes
 

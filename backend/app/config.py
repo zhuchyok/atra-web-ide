@@ -97,7 +97,7 @@ class Settings(BaseSettings):
 
     # Ограничение одновременных запросов к Victoria (снижение 500 при нагрузке).
     # На Mac Studio рекомендуется 10–20, чтобы не перегружать Ollama/MLX (см. docs/MAC_STUDIO_LOAD_AND_VICTORIA.md).
-    max_concurrent_victoria: int = int(os.getenv("MAX_CONCURRENT_VICTORIA", "50"))
+    max_concurrent_victoria: int = int(os.getenv("MAX_CONCURRENT_VICTORIA", "10"))
     victoria_concurrent_wait_sec: float = float(os.getenv("VICTORIA_CONCURRENT_WAIT_SEC", "45.0"))
     # Лимит шагов Victoria для чата (чтобы не упираться в 500 и не ждать долго на локальных моделях)
     victoria_max_steps_chat: int = int(os.getenv("VICTORIA_MAX_STEPS_CHAT", "50"))

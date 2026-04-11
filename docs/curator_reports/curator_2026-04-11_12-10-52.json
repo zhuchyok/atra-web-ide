@@ -1,0 +1,20 @@
+{
+  "ts": "2026-04-11T12:20:57.743513+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 1,
+  "results": [
+    {
+      "goal": "RCA: Circuit Breaker OPEN для node_http_host_docker_internal_11434 (Ollama) и node_http_host_docker_internal_11435 (MLX) — 2026-04-11. Контекст: 1) В логах victoria-agent обнаружены три подряд HTTP 503 от Ollama: {\"error\":\"server busy, please try again. maximum pending requests exceeded\"} → circuit breaker сработал (порог 3/3, recovery 120s). 2) Цепочка: local_router.py внутри Docker контейнера → host.docker.internal:11434 (Ollama) → 503 из-за перегрузки очереди запросов. 3) Оба сервиса сейчас HEALTHY (Ollama 13 моделей, MLX healthy, RAM 72.8%). Задание (применяй метод 5 Почему из COGNITIVE_CODE.md): (A) Определи корневую причину — почему Ollama уходит в \"maximum pending requests exceeded\": перегрузка параллельными запросами? неправильный num_ctx? RAM-pressure? очередь задач? (B) Почему circuit breaker threshold=3 — достаточно ли это или слишком агрессивно для текущей нагрузки? (C) Найди в коде knowledge_os/app/local_router.py и knowledge_os/app/circuit_breaker.py конкретные параметры: FAILURE_THRESHOLD, recovery_timeout, max_pending, num_concurrent. (D) Предложи конкретные правки: увеличить threshold? добавить jitter в retry? настроить Ollama OLLAMA_MAX_QUEUE? добавить backpressure? (E) Проверь есть ли у нас OLLAMA_MAX_QUEUE или OLLAMA_NUM_PARALLEL в docker-compose.yml или .env. Ответ: структурированный RCA с конкретными параметрами для правки.",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "07d7b34a-b808-49ad-b7a4-cd422adebe98",
+      "execution_trace": {},
+      "elapsed_seconds": 604.96,
+      "artifact_file": null
+    }
+  ]
+}

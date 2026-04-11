@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/anti_hallucination.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "75fe4972-b6b7-4353-ac29-98797e6c8916"
+}

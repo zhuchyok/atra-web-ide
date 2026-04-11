@@ -47,7 +47,7 @@ async def get_db_pool():
         _db_pool = await asyncpg.create_pool(
             DB_URL,
             min_size=1,
-            max_size=10,
+            max_size=5,
             max_inactive_connection_lifetime=300,
             command_timeout=60,
         )
@@ -89,9 +89,15 @@ async def process_task(task_data: dict):
             logger.warning(f"⚠️ Task ID {task_id} is not a valid UUID, skipping DB update")
 
         # [SINGULARITY 21.9] Circuit Breaker: Таймаут задачи
-        # Для диалоговых задач — 60s (быстрый ответ), иначе 30 минут
+        # Для диалоговых задач — 300s, иначе WORKER_TASK_TOTAL_TIMEOUT (по умолчанию 3600s)
         is_dialogue_task = bool(task_data.get("metadata", {}).get("is_dialogue"))
-        TASK_TOTAL_TIMEOUT = 200.0 if is_dialogue_task else float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "1800"))
+        
+        # [SINGULARITY 24.7] Adaptive Timeout: Reduce timeout for autonomous audit tasks
+        is_monster_audit = task_data.get("metadata", {}).get("source") == "victoria_monster_delegation"
+        if is_monster_audit:
+            TASK_TOTAL_TIMEOUT = 300.0  # 5 минут для аудита (вместо полного лимита)
+        else:
+            TASK_TOTAL_TIMEOUT = 300.0 if is_dialogue_task else float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
 
         # [SINGULARITY 24.3] Если активен флаг dialogue_active — не-диалоговые задачи пропускаем
         # Это гарантирует что воркеры не заблокированы тяжёлыми задачами во время Живого Чата
@@ -150,6 +156,20 @@ async def process_task(task_data: dict):
                     logger.info(f"🎯 [DIALOGUE FAST PATH] Запуск для {expert_name} (task {task_id})")
                     try:
                         import httpx
+                        
+                        # [SINGULARITY 25.0] Expert Priority Detection for Dialogue
+                        is_vip_expert = False
+                        try:
+                            async with pool.acquire() as conn:
+                                expert_priority = await conn.fetchval(
+                                    "SELECT priority FROM experts WHERE name = $1", expert_name
+                                )
+                                if expert_priority == 'VIP':
+                                    is_vip_expert = True
+                                    logger.info(f"🌟 [VIP DIALOGUE] Expert {expert_name} has VIP priority")
+                        except Exception as e:
+                            logger.debug(f"Failed to fetch expert priority for dialogue: {e}")
+
                         _ollama_base = (
                             os.getenv("OLLAMA_BASE_URL")
                             or os.getenv("OLLAMA_API_URL")
@@ -158,16 +178,7 @@ async def process_task(task_data: dict):
                         _mlx_base = "http://host.docker.internal:11435"
                         _dialogue_model = os.getenv("DIALOGUE_MODEL", "victoria-wisdom-v3.5")
 
-                        # Персональности экспертов из TEAM_PERSONALITIES.md
-                        _expert_personas = {
-                            "Игорь": "Ты — Игорь, Backend Developer корпорации Singularity. Технический перфекционист: точный, любишь детали, показываешь код. Говоришь: 'Проверяю...', 'Вижу проблему!', 'Это должно работать'. Иногда саркастичен. Ведёшь себя как живой опытный разработчик.",
-                            "Дмитрий": "Ты — Дмитрий, ML Engineer корпорации Singularity. Специалист по Ollama/MLX и локальным моделям. Любопытный исследователь: видишь связи, говоришь 'Интересно...', 'А что если...', 'Кстати...'. Вникаешь в технические детали AI/ML.",
-                            "Сергей": "Ты — Сергей, DevOps корпорации Singularity. Быстрый и оперативный: короткие фразы, команды. Говоришь: 'Делаю...', 'Готово!', 'Деплою'. Фокус на инфраструктуре и CI/CD.",
-                            "Анна": "Ты — Анна, QA Engineer корпорации Singularity. Внимательная и методичная: задаёшь уточняющие вопросы, проверяешь детали. Говоришь: 'А что если...', 'Нужно проверить...', 'Давайте убедимся'.",
-                            "Елена": "Ты — Елена, Frontend/Monitor корпорации Singularity. Следишь за мониторингом и UI. Говоришь: 'Проверяю логи...', 'Вижу проблему...', 'Всё под контролем'.",
-                            "Роман": "Ты — Роман, Database Engineer корпорации Singularity. Хранитель схемы PostgreSQL. Точный, по делу. Говоришь: 'Источник истины — БД', 'Один пул — один процесс', 'Проверяю миграции...'.",
-                            "Виктория": "Ты — Виктория, Team Lead корпорации Singularity. Стратег и лидер команды. Чёткая, конструктивная, задаёшь вектор решения.",
-                        }
+                        # ... (personas) ...
                         _persona = _expert_personas.get(expert_name, f"Ты — {expert_name}, эксперт корпорации Singularity 21.5.")
                         _system = f"{_persona} Отвечай от первого лица кратко (2-3 предложения), в своём стиле."
 
@@ -185,13 +196,18 @@ async def process_task(task_data: dict):
                         # phi3.5/другие → Ollama (MLX накапливает stuck requests для малых моделей)
                         _use_mlx = "victoria-wisdom" in _dialogue_model or "wisdom" in _dialogue_model
 
+                        _headers = {}
+                        if is_vip_expert:
+                            _headers["X-Request-Priority"] = "high"
+
                         if _use_mlx:
                             logger.info(f"🎯 [FAST PATH] MLX victoria-wisdom для {expert_name}")
                             try:
-                                async with httpx.AsyncClient(timeout=185.0) as _hc:
+                                async with httpx.AsyncClient(timeout=300.0) as _hc:
                                     _resp = await _hc.post(
                                         f"{_mlx_base}/api/chat",
                                         json={"model": _dialogue_model, "messages": _messages, "stream": False, "options": {"num_predict": 100}},
+                                        headers=_headers,
                                     )
                                     logger.info(f"🔍 [FAST PATH] MLX status={_resp.status_code} for {expert_name}")
                                     if _resp.status_code == 200:
@@ -213,10 +229,11 @@ async def process_task(task_data: dict):
                             # Ollama с retry для небольших моделей (phi3.5 и др.)
                             for _attempt in range(3):
                                 try:
-                                    async with httpx.AsyncClient(timeout=90.0) as _hc:
+                                    async with httpx.AsyncClient(timeout=180.0) as _hc:
                                         _resp = await _hc.post(
                                             f"{_ollama_base}/api/chat",
                                             json={"model": _dialogue_model, "messages": _messages, "stream": False},
+                                            headers=_headers,
                                         )
                                         logger.info(f"🔍 [FAST PATH] Ollama status={_resp.status_code} for {expert_name} (attempt {_attempt+1})")
                                         if _resp.status_code == 200:
@@ -235,16 +252,20 @@ async def process_task(task_data: dict):
                                     logger.warning(f"⚠️ [FAST PATH] Ollama exception (attempt {_attempt+1}): {_oe}")
                                     if _attempt < 2:
                                         await asyncio.sleep(5)
+                        # ... (rest of the code) ...
 
                         if not report_text:
                             raise ValueError(f"LLM не ответил ({'MLX' if _use_mlx else 'Ollama'})")
                         logger.info(f"✅ [DIALOGUE FAST PATH] {expert_name} ответил ({len(report_text)} chars)")
                     except Exception as fast_err:
                         logger.warning(f"⚠️ [DIALOGUE FAST PATH] Fallback на ai_core: {fast_err}")
+                        
+                        # [SINGULARITY 24.7] Retry Intelligence: Downgrade model on failure
+                        _retry_category = "fast" if "wisdom" in _dialogue_model else "general"
                         report = await run_smart_agent_async(
                             description,
                             expert_name=expert_name,
-                            category="general",
+                            category=_retry_category,
                             is_vip=True,
                         )
                         report_text = str(report.get("result") if isinstance(report, dict) else report)
@@ -417,31 +438,101 @@ async def worker_loop():
     except Exception as e:
         logger.warning(f"⚠️ [WORKER] Не удалось запустить EventBus Bridge: {e}")
 
+    # [FULL FIX 2026-04-08] Get DB pool once for the worker lifetime
+    db_pool = await get_db_pool()
+
+    # [FULL FIX 2026-04-08 / Sergey] Cleanup stale event_bus_stream consumer groups on startup.
+    # Each restart/reconnect creates a new group. After months they accumulate (248+).
+    # Safe cleanup: groups with 0 pending and 0 consumers are orphaned.
+    try:
+        eb_groups = await client.xinfo_groups("event_bus_stream")
+        stale_eb_groups = [
+            g["name"] for g in eb_groups
+            if g.get("pending", 0) == 0 and g.get("consumers", 0) == 0
+        ]
+        if stale_eb_groups:
+            for gname in stale_eb_groups:
+                try:
+                    await client.xgroup_destroy("event_bus_stream", gname)
+                except Exception:
+                    pass
+            logger.info(f"🧹 [WORKER] Cleaned up {len(stale_eb_groups)} stale event_bus_stream groups")
+    except Exception as e:
+        logger.warning(f"⚠️ [WORKER] event_bus_stream cleanup skipped: {e}")
+
     while True:
         try:
-            # [SINGULARITY 24.3] Fix: Claim pending messages from ANY consumer in this group
-            # This handles cases where worker names change (e.g. docker container ID changes)
+            # [FULL FIX 2026-04-08] Three-phase pending management:
+            # Phase 1: Kill zombie messages (>10 deliveries) → ACK Redis + mark PostgreSQL failed
+            # Phase 2: Xclaim legitimately stale messages (idle >5min, deliveries ≤10)
+            # Phase 3: xreadgroup("0") reads OUR pending (including just-xclaimed) + new + autoclaim
+
             pending_info = await client.xpending(f"stream:{STREAM_NAME}", GROUP_NAME)
             if pending_info["pending"] > 0:
                 p_range = await client.xpending_range(f"stream:{STREAM_NAME}", GROUP_NAME, "-", "+", 10)
                 if p_range:
-                    ids = [p["message_id"] for p in p_range]
-                    logger.info(f"🛠️ [WORKER] Claiming {len(ids)} pending tasks for {CONSUMER_NAME}")
-                    await client.xclaim(f"stream:{STREAM_NAME}", GROUP_NAME, CONSUMER_NAME, 0, ids)
+                    # Phase 1: Zombies → DLQ + PostgreSQL sync
+                    zombie_msg_ids = [p["message_id"] for p in p_range if p["times_delivered"] > 10]
+                    if zombie_msg_ids:
+                        zombie_task_ids = []
+                        for zmid in zombie_msg_ids:
+                            try:
+                                raw = await client.xrange(f"stream:{STREAM_NAME}", zmid, zmid)
+                                if raw:
+                                    _, zdata = raw[0]
+                                    raw_payload = zdata.get("payload") or zdata.get(b"payload")
+                                    if raw_payload:
+                                        zpayload = json.loads(raw_payload) if isinstance(raw_payload, (str, bytes)) else raw_payload
+                                        task_id = zpayload.get("task_id")
+                                        if task_id:
+                                            zombie_task_ids.append(task_id)
+                            except Exception as ze:
+                                logger.warning(f"⚠️ [DLQ] Could not read zombie payload {zmid}: {ze}")
+                        logger.warning(f"💀 [DLQ] Killing {len(zombie_msg_ids)} zombie messages, task_ids={zombie_task_ids}")
+                        await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, *zombie_msg_ids)
+                        if zombie_task_ids:
+                            async with db_pool.acquire() as conn:
+                                updated = await conn.execute(
+                                    """UPDATE tasks
+                                       SET status = 'failed', updated_at = NOW(),
+                                           metadata = jsonb_set(
+                                               COALESCE(metadata::jsonb, '{}'::jsonb),
+                                               '{dlq_reason}',
+                                               '"zombie_redis_exceeded_delivery_limit"'
+                                           )
+                                       WHERE id = ANY($1::uuid[])
+                                         AND status IN ('pending', 'in_progress')""",
+                                    zombie_task_ids,
+                                )
+                            logger.warning(f"💀 [DLQ] PostgreSQL updated: {updated} zombie tasks → failed")
 
-            # Сингулярность 10.0: Сначала проверяем зависшие задачи других воркеров (Autoclaim)
-            # Если задача висит более 5 минут (300000 мс), перехватываем её
+                    # Phase 2: Xclaim legitimately stale (idle >5min, not zombies)
+                    claimable = [
+                        p["message_id"] for p in p_range
+                        if p["times_delivered"] <= 10 and p["time_since_delivered"] > 300000
+                    ]
+                    if claimable:
+                        logger.info(f"🛠️ [WORKER] Claiming {len(claimable)} stale tasks for {CONSUMER_NAME}")
+                        await client.xclaim(f"stream:{STREAM_NAME}", GROUP_NAME, CONSUMER_NAME, 300000, claimable)
+
+            # Phase 3a: Read OUR pending messages (id="0" — includes just-xclaimed ones)
+            pending_mine = await client.xreadgroup(
+                GROUP_NAME, CONSUMER_NAME, {f"stream:{STREAM_NAME}": "0"}, count=5
+            )
+
+            # Phase 3b: Autoclaim stale messages from OTHER consumers (idle >5min)
             stale_messages = await redis_manager.autoclaim_tasks(
                 STREAM_NAME, GROUP_NAME, CONSUMER_NAME, min_idle_time_ms=300000
             )
 
-            # Читаем новые сообщения
+            # Phase 3c: New messages (blocking 5s)
             messages = await client.xreadgroup(
                 GROUP_NAME, CONSUMER_NAME, {f"stream:{STREAM_NAME}": ">"}, count=1, block=5000
             )
 
-            # Объединяем зависшие и новые сообщения
             all_messages = []
+            if pending_mine:
+                all_messages.extend(pending_mine)
             if stale_messages:
                 all_messages.append((f"stream:{STREAM_NAME}", stale_messages))
             if messages:
@@ -453,24 +544,19 @@ async def worker_loop():
             for stream, msgs in all_messages:
                 for msg_id, data in msgs:
                     try:
-                        # Проверяем количество попыток (Dead Letter Queue logic)
-                        # Если задача провалилась более 3 раз, помечаем как failed
+                        # Belt-and-suspenders: drop any zombie that slipped through Phase 1
                         info = await client.xpending_range(
                             f"stream:{STREAM_NAME}", GROUP_NAME, msg_id, msg_id, 1
                         )
-                        if info and info[0]["times_delivered"] > 3:
-                            logger.error(
-                                f"💀 [DLQ] Задача {msg_id} превысила лимит попыток (3). Удаляем из очереди."
-                            )
+                        if info and info[0]["times_delivered"] > 10:
+                            logger.error(f"💀 [DLQ] Message {msg_id} slipped through Phase 1. Dropping.")
                             await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
                             continue
 
-                        # Сингулярность 10.0: поддержка как JSON-строки, так и прямого словаря
                         raw_payload = data.get(b"payload") or data.get("payload")
                         if isinstance(raw_payload, (str, bytes)):
                             payload = json.loads(raw_payload)
                         else:
-                            # Если данные уже в виде словаря (пришли не как JSON строка)
                             payload = {
                                 k.decode() if isinstance(k, bytes) else k: v.decode()
                                 if isinstance(v, bytes)
@@ -479,7 +565,6 @@ async def worker_loop():
                             }
 
                         await process_task(payload)
-                        # Подтверждаем обработку
                         await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
                     except Exception as e:
                         logger.error(f"❌ [WORKER] Ошибка обработки сообщения {msg_id}: {e}")

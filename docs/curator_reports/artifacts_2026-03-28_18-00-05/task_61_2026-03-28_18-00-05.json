@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/autonomous_distillation.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "29ab8f61-0ba0-4a0a-89f8-b62570102478"
+}

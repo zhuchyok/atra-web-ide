@@ -148,6 +148,10 @@ class PerpetualEvolution:
             "🔍 [EVOLUTION] Researching next upgrade from AI Giants (Google, OpenAI, Meta)..."
         )
 
+        # [SINGULARITY 23.6] CPU Offloading for Evolution
+        import asyncio
+        from functools import partial
+
         # ВРЕМЕННЫЙ ПЛАН (Fallback), если модель галлюцинирует с форматом
         fallback_task = {
             "title": "Autonomous Red Teaming (Self-Adversarial Verification)",
@@ -156,23 +160,54 @@ class PerpetualEvolution:
             "test_scenario": "Generate a new SOP and verify that the critic identifies potential flaws or edge cases.",
         }
 
-        prompt = """
+        # Загружаем историю уже предложенных тем за последние 30 дней,
+        # чтобы модель не повторяла одно и то же (напр. "Pytest тестирование" 3 раза подряд).
+        history_block = ""
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                recent_rows = await conn.fetch(
+                    """
+                    SELECT DISTINCT title
+                    FROM tasks
+                    WHERE title LIKE '🚀 EVOLUTION:%'
+                      AND created_at > NOW() - INTERVAL '30 days'
+                    ORDER BY title
+                    LIMIT 30
+                    """
+                )
+            if recent_rows:
+                items = "\n".join(
+                    f"  - {r['title'].replace('🚀 EVOLUTION: ', '').strip()}"
+                    for r in recent_rows
+                )
+                history_block = f"""
+ТЕМЫ, УЖЕ ПРЕДЛОЖЕННЫЕ ЗА ПОСЛЕДНИЕ 30 ДНЕЙ (НЕ ПОВТОРЯТЬ НИ ОДНУ ИЗ НИХ!):
+{items}
+
+"""
+                logger.info(f"📚 [EVOLUTION] История: {len(recent_rows)} тем за 30 дней загружена в промпт.")
+        except Exception as hist_err:
+            logger.warning(f"⚠️ [EVOLUTION] Не удалось загрузить историю тем: {hist_err}")
+
+        prompt = f"""
         ТЫ - ВЕРХОВНЫЙ АРХИТЕКТОР ЭВОЛЮЦИИ.
         ПРОАНАЛИЗИРУЙ базу знаний гигантов и текущее состояние нашей системы.
-
+{history_block}
         ЗАДАЧА: Выбери ОДНУ конкретную техническую фичу или архитектурный паттерн (из практик Google, OpenAI, Anthropic или Meta),
         которого у нас еще нет, но который сделает Викторию умнее или стабильнее.
+        ВЫБИРАЙ ТОЛЬКО ТО, ЧТО НЕ БЫЛО ПРЕДЛОЖЕНО ВЫШЕ.
 
-        ОТВЕТЬ СТРОГО В ФОРМАТЕ JSON. ТВОЙ ОТВЕТ ДОЛЖЕН НАЧИНАТЬСЯ С '{' И ЗАКАНЧИВАТЬСЯ '}'.
+        ОТВЕТЬ СТРОГО В ФОРМАТЕ JSON. ТВОЙ ОТВЕТ ДОЛЖЕН НАЧИНАТЬСЯ С '{{' И ЗАКАНЧИВАТЬСЯ '}}'.
         НИКАКОГО ТЕКСТА ДО ИЛИ ПОСЛЕ JSON. НИКАКИХ БЛОКОВ ```json. ТОЛЬКО ЧИСТЫЙ ОБЪЕКТ.
 
         ФОРМАТ:
-        {
+        {{
             "title": "Название фичи",
             "reasoning": "Почему это важно (ссылка на гиганта)",
             "implementation_plan": "Пошаговый план для Python/Docker",
             "test_scenario": "Как проверить, что это работает"
-        }
+        }}
         """
 
         try:
@@ -211,7 +246,8 @@ class PerpetualEvolution:
 
             if start_idx != -1 and end_idx != -1:
                 clean_response = clean_response[start_idx : end_idx + 1]
-                return json.loads(clean_response)
+                # [SINGULARITY 23.6] Offload heavy JSON parsing to thread pool
+                return await asyncio.to_thread(json.loads, clean_response)
             else:
                 logger.warning("No JSON found in response, using fallback task.")
                 return fallback_task
@@ -220,31 +256,36 @@ class PerpetualEvolution:
             return fallback_task
 
     async def execute_upgrade(self, task: dict) -> bool:
-        """Delegates the implementation to the expert team."""
+        """Delegates the implementation to the expert team with deduplication and backpressure."""
         logger.info(f"🛠️ [EVOLUTION] Implementing: {task['title']}")
 
-        exec_prompt = f"""
-        ЗАДАЧА: Внедрить новую возможность в систему Singularity 20.0.
-        ФИЧА: {task["title"]}
-        ПЛАН: {task["implementation_plan"]}
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            # 1. Backpressure Check: Don't flood the queue
+            # Считаем только NON-EVOLUTION pending задачи — эволюция не должна блокироваться своими же задачами
+            pending_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'pending' AND title NOT LIKE '🚀 EVOLUTION:%'")
+            if pending_count > 150:
+                logger.warning(f"⏸️ [EVOLUTION] Queue full ({pending_count}/150). Skipping task creation.")
+                return False
 
-        ДЕЙСТВУЙ АВТОНОМНО. Создай необходимые файлы или обнови существующие.
-        """
+            # 2. Deduplication Check: Don't create the same task twice
+            exists = await conn.fetchval("SELECT 1 FROM tasks WHERE title = $1 AND status = 'pending' LIMIT 1", f"🚀 EVOLUTION: {task['title']}")
+            if exists:
+                logger.info(f"⏭️ [EVOLUTION] Task already exists in pending: {task['title']}")
+                return True
 
-        # В реальной системе здесь вызывается оркестратор или Veronica
-        # Для прототипа мы логируем это как задачу в БД
-        conn = await asyncpg.connect(DB_URL)
-        await conn.execute(
-            """
-            INSERT INTO tasks (title, description, status, priority, metadata)
-            VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-        """,
-            f"🚀 EVOLUTION: {task['title']}",
-            task["implementation_plan"],
-            json.dumps(task),
-        )
-        await conn.close()
-
+            # 3. Create Task
+            await conn.execute(
+                """
+                INSERT INTO tasks (title, description, status, priority, metadata)
+                VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+            """,
+                f"🚀 EVOLUTION: {task['title']}",
+                task["implementation_plan"],
+                # [SINGULARITY 23.6] Offload heavy JSON dumps to thread pool
+                await asyncio.to_thread(json.dumps, task),
+            )
+        
         return True
 
     async def verify_and_log(self, task: dict):
@@ -252,15 +293,18 @@ class PerpetualEvolution:
         logger.info(f"🧪 [EVOLUTION] Verifying: {task['title']}")
         # Логируем успех в базу знаний как верифицированный инсайт
         conn = await asyncpg.connect(DB_URL)
-        await conn.execute(
-            """
-            INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
-            VALUES ((SELECT id FROM domains WHERE name = 'Strategy' LIMIT 1), $1, 1.0, $2, true)
-        """,
-            f"✅ УСПЕШНОЕ ВНЕДРЕНИЕ: {task['title']}. {task['reasoning']}",
-            json.dumps({"type": "evolution_log", "task": task}),
-        )
-        await conn.close()
+        try:
+            await conn.execute(
+                """
+                INSERT INTO knowledge_nodes (domain_id, content, confidence_score, metadata, is_verified)
+                VALUES ((SELECT id FROM domains WHERE name = 'Strategy' LIMIT 1), $1, 1.0, $2, true)
+            """,
+                f"✅ УСПЕШНОЕ ВНЕДРЕНИЕ: {task['title']}. {task['reasoning']}",
+                # [SINGULARITY 23.6] CPU Offloading
+                await asyncio.to_thread(json.dumps, {"type": "evolution_log", "task": task}),
+            )
+        finally:
+            await conn.close()
 
     async def update_domain_passports(self):
         """
@@ -414,8 +458,6 @@ class PerpetualEvolution:
 
             except Exception as e:
                 logger.error(f"❌ [EVOLUTION] Error updating domain passports: {e}")
-        finally:
-            await conn.close()
 
 
 if __name__ == "__main__":

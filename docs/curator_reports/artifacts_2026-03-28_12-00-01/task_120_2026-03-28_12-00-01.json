@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/local_mind_dashboard.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "b100e832-70bd-4d08-bea1-23e6fc55e0ca"
+}

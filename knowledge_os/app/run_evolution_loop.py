@@ -1,6 +1,6 @@
 """
 [SINGULARITY 21.28] Perpetual Evolution Loop Runner.
-Запускает один цикл эволюции каждые EVOLUTION_INTERVAL_SEC секунд (по умолчанию 7200 = 2 ч).
+Запускает один цикл эволюции каждые EVOLUTION_INTERVAL_SEC секунд (по умолчанию 21600 = 6 ч).
 """
 
 import asyncio
@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("evolution_loop")
 
-INTERVAL = int(os.getenv("EVOLUTION_INTERVAL_SEC", "7200"))
+INTERVAL = int(os.getenv("EVOLUTION_INTERVAL_SEC", "28800"))
 
 
 async def main():

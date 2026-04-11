@@ -300,6 +300,188 @@ except ImportError:
     get_distillation_engine = None
 
 
+
+class TeamDiscussionEngine:
+    """
+    [SINGULARITY 24.2] Local Team Discussion Engine.
+    Simulates collective intelligence by generating multi-expert dialogues locally.
+    """
+
+    _expert_styles_cache: Dict[str, str] = {}
+    _last_cache_time: float = 0
+    CACHE_TTL = 3600  # 1 hour
+
+    def __init__(self, router: Optional["LocalAIRouter"] = None):
+        self.router = router
+
+    def _get_expert_styles(self, expert_names: List[str]) -> str:
+        """
+        Extracts personality traits and styles for the requested experts.
+        Uses caching to avoid redundant file reads.
+        """
+        current_time = time.time()
+        if not self._expert_styles_cache or (current_time - self._last_cache_time > self.CACHE_TTL):
+            self._refresh_styles_cache()
+
+        styles = []
+        for name in expert_names:
+            # Try exact match or case-insensitive match
+            style = self._expert_styles_cache.get(name)
+            if not style:
+                # Try to find by partial match (e.g. "Igor" in "Igor (Backend Developer)")
+                for cache_key, cache_val in self._expert_styles_cache.items():
+                    if name.lower() in cache_key.lower():
+                        style = cache_val
+                        break
+            
+            if style:
+                styles.append(f"### {name} Style:\n{style}")
+            else:
+                styles.append(f"### {name} Style:\nProfessional, technical, and focused on the task.")
+        
+        return "\n\n".join(styles)
+
+    def _refresh_styles_cache(self):
+        """Parses TEAM_PERSONALITIES.md and populates the cache."""
+        try:
+            # Try multiple potential locations for docs/TEAM_PERSONALITIES.md
+            possible_paths = [
+                # Path relative to ai_core.py
+                os.path.abspath(os.path.join(os.path.dirname(__file__), "../../docs/TEAM_PERSONALITIES.md")),
+                # Path relative to workspace root (absolute)
+                "/Users/bikos/Documents/atra-web-ide/docs/TEAM_PERSONALITIES.md",
+                # Path relative to workspace root (if running from root)
+                os.path.abspath("docs/TEAM_PERSONALITIES.md"),
+                # Path relative to knowledge_os (if running from knowledge_os)
+                os.path.abspath("../docs/TEAM_PERSONALITIES.md"),
+                # Path relative to knowledge_os/app (if running from there)
+                os.path.abspath("../../docs/TEAM_PERSONALITIES.md"),
+                # Path relative to current working directory
+                os.path.join(os.getcwd(), "docs/TEAM_PERSONALITIES.md"),
+                os.path.join(os.getcwd(), "../docs/TEAM_PERSONALITIES.md"),
+            ]
+            
+            personalities_path = None
+            for p in possible_paths:
+                if os.path.exists(p):
+                    personalities_path = p
+                    break
+            
+            if not personalities_path:
+                # One last attempt: search for docs/TEAM_PERSONALITIES.md in parent directories
+                curr = os.path.abspath(os.path.dirname(__file__))
+                for _ in range(5):
+                    p = os.path.join(curr, "docs/TEAM_PERSONALITIES.md")
+                    if os.path.exists(p):
+                        personalities_path = p
+                        break
+                    curr = os.path.dirname(curr)
+            
+            if not personalities_path:
+                logger.warning(f"⚠️ [TEAM ENGINE] Personalities file not found. Using empty cache.")
+                return
+
+            with open(personalities_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Simple parsing: split by "### " and extract name + style
+            sections = content.split("### ")[1:]
+            for section in sections:
+                lines = section.split("\n")
+                if not lines:
+                    continue
+                header = lines[0].strip()
+                # Extract name (e.g. "Igor" from "2. Igor (Backend Developer) - ...")
+                name_part = header
+                if ". " in header:
+                    name_part = header.split(". ", 1)[1]
+                if " (" in name_part:
+                    name_part = name_part.split(" (", 1)[0]
+                
+                # Extract style (everything until the next "---" or end of section)
+                style_content = "\n".join(lines[1:]).split("---")[0].strip()
+                if name_part and style_content:
+                    self._expert_styles_cache[name_part] = style_content
+                    # Add English mapping for common experts
+                    eng_mapping = {
+                        "Виктория": "Victoria",
+                        "Игорь": "Igor",
+                        "Сергей": "Sergey",
+                        "Анна": "Anna",
+                        "Максим": "Maxim",
+                        "Елена": "Elena",
+                        "Дмитрий": "Dmitry",
+                        "Роман": "Roman",
+                        "Татьяна": "Tatiana"
+                    }
+                    if name_part in eng_mapping:
+                        self._expert_styles_cache[eng_mapping[name_part]] = style_content
+            
+            self._last_cache_time = time.time()
+            # logger.info(f"🧠 [TEAM ENGINE] Refreshed styles cache for {len(self._expert_styles_cache)} experts from {personalities_path}.")
+        except Exception as e:
+            logger.error(f"❌ [TEAM ENGINE] Error refreshing styles cache: {e}")
+
+    async def generate_discussion(
+        self,
+        task_title: str,
+        task_description: str,
+        experts: List[str],
+        context_data: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """
+        Generates a multi-expert discussion for a given task.
+        Optimized for victoria-wisdom-v3.5 (MLX).
+        """
+        logger.info(f"🧠 [TEAM ENGINE] Generating discussion for: {task_title}")
+
+        expert_styles = self._get_expert_styles(experts)
+        
+        prompt = f"""### ROLE: AI Director & Team Orchestrator
+### TASK: Simulate a technical discussion between the following experts to solve the task.
+
+### TASK TITLE: {task_title}
+### TASK DESCRIPTION:
+{task_description}
+
+### EXPERTS INVOLVED:
+{", ".join(experts)}
+
+### EXPERT PERSONALITIES & STYLES:
+{expert_styles}
+
+### CONTEXT / CODE / DATA:
+{context_data if context_data else "No additional context provided."}
+
+### INSTRUCTIONS FOR THE MODEL:
+1. Act as a Director coordinating a live dialogue between the experts.
+2. Each expert MUST maintain their unique voice, catchphrases, and technical focus as described in their style.
+3. The discussion should be highly technical, focused on solving the task, and identifying edge cases.
+4. Experts should interact with each other (ask questions, confirm findings, suggest improvements).
+5. Format the output in Markdown. Use **Expert Name:** for each turn.
+6. Start with a brief intro by Victoria (Team Lead) and end with a summary/next steps by Victoria.
+7. Keep the dialogue concise but meaningful.
+
+### DISCUSSION:
+"""
+        if not self.router:
+            from local_router import LocalAIRouter
+            self.router = LocalAIRouter()
+
+        # Target MLX (port 11435) via specific category/flag
+        result = await self.router.run_local_llm(
+            prompt,
+            category="team_discussion",
+            is_vip=True,  # Team discussions are high priority
+            expert_name=expert_name,
+        )
+
+        if isinstance(result, tuple):
+            return result[0] or "⚠️ Failed to generate team discussion locally."
+        return result or "⚠️ Failed to generate team discussion locally."
+
+
 class FactExtractor:
     """
     [SINGULARITY 14.2] Fact Extraction Layer (MapReduce Pattern).
@@ -465,7 +647,7 @@ async def _get_db_pool():
             _DB_POOL = await asyncpg.create_pool(
                 db_url,
                 min_size=1,
-                max_size=5,  # Уменьшено для предотвращения перегрузки БД
+                max_size=20,  # Увеличено для Singularity 24.1 (max_connections=500)
                 max_inactive_connection_lifetime=300,
             )
         except Exception as exc:
@@ -474,7 +656,7 @@ async def _get_db_pool():
 
 
 async def _run_cloud_agent_async(
-    prompt: str, category: Optional[str] = "general", is_vip: bool = False
+    prompt: str, category: Optional[str] = "general", is_vip: bool = False, expert_name: str = "Виктория"
 ):
     """Приоритет: локальные модели (Ollama/MLX) → cursor-agent. Локальные модели корпорации используются первыми."""
     # ПРИОРИТЕТ 1: локальные модели (Ollama/MLX) — политика корпорации
@@ -493,7 +675,7 @@ async def _run_cloud_agent_async(
 
         async def _try_local():
             router = LocalAIRouter()
-            result = await router.run_local_llm(prompt, category=category, is_vip=is_vip)
+            result = await router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name)
             if isinstance(result, tuple):
                 response, _ = result
             else:
@@ -569,7 +751,7 @@ async def _run_cloud_agent_async(
                     router = LocalAIRouter()
                     # Быстрый fallback на локальные модели с таймаутом 15 секунд
                     result = await asyncio.wait_for(
-                        router.run_local_llm(prompt, category=category, is_vip=is_vip), timeout=15
+                        router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name), timeout=15
                     )
                     if isinstance(result, tuple):
                         response, _ = result
@@ -588,6 +770,14 @@ async def _run_cloud_agent_async(
                 "⌛ Облачный запрос занял слишком много времени. Локальные модели также недоступны."
             )
     except FileNotFoundError:
+        # [SINGULARITY 23.2] Inference Optimizer: Pre-loading next model
+        try:
+            from app.inference_optimizer import get_inference_optimizer
+            optimizer = get_inference_optimizer()
+            asyncio.create_task(optimizer.predict_and_preload(category))
+        except Exception as e:
+            logger.debug(f"Inference Optimizer failed: {e}")
+
         # 🍎 ПРИОРИТЕТ 1: Попробовать MLX (Apple Neural Engine) на Mac Studio
         try:
             from knowledge_os.app.mlx_router import get_mlx_router, is_mlx_available
@@ -659,9 +849,14 @@ async def _run_cloud_agent_async(
                         # Mac Studio: доступны лучшие модели
                         # Локальные модели (70b удалены)
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
-                        if "localhost" in ollama_url or "127.0.0.1" in ollama_url:
+                        if "localhost" in ollama_url or "127.0.0.1" in ollama_url or "host.docker.internal" in ollama_url:
                             # Mac Studio - лучшие модели
-                            models_to_try = ["qwen3-coder:30b", "glm-4.7-flash:q8_0", "phi3.5:3.8b"]
+                            models_to_try = [
+                                "victoria-wisdom-v3.5:latest",
+                                "qwen3.5:35b",
+                                "phi3.5:3.8b",
+                                "tinyllama:1.1b-chat"
+                            ]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)
                             models_to_try = [
@@ -946,6 +1141,17 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     if not rows:
                         return ""
 
+                    # [SINGULARITY 23.3] Cross-Encoder Reranking for Python RAG
+                    try:
+                        from app.rag_reranker import get_rag_reranker
+                        reranker = get_rag_reranker()
+                        # Преобразуем Record в dict для reranker
+                        nodes_to_rerank = [dict(row) for row in rows]
+                        reranked_nodes = reranker.rerank(query, nodes_to_rerank, top_k=5)
+                        rows = reranked_nodes # Используем переранжированные узлы
+                    except Exception as e:
+                        logger.debug(f"Reranking failed: {e}")
+
                     # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
                     deep_memory = await _enrich_with_deep_memory(rows, pool)
 
@@ -1047,13 +1253,53 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
+    # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
+    async def _get_memory_crystals(project_context: str, pool) -> str:
+        """Fetch project-specific memory crystals for attention anchoring."""
+        if not pool or not project_context:
+            return ""
+        try:
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at ASC",
+                    project_context
+                )
+                if not rows:
+                    return ""
+                crystals = "\n<memory_crystals>\n"
+                for row in rows:
+                    crystals += f"  [{row['crystal_type'].upper()}] {row['content']}\n"
+                crystals += "</memory_crystals>\n"
+                return crystals
+        except Exception as e:
+            logger.debug(f"Failed to fetch memory crystals: {e}")
+            return ""
+
+    # 1. Initialization
+    pool = await _get_db_pool()
+    
+    # [SINGULARITY 25.0] Expert Priority Detection
+    if not is_vip and expert_name and pool:
+        try:
+            async with pool.acquire() as conn:
+                expert_priority = await conn.fetchval(
+                    "SELECT priority FROM experts WHERE name = $1", expert_name
+                )
+                if expert_priority == 'VIP':
+                    is_vip = True
+                    logger.info(f"🌟 [VIP DETECTED] Expert {expert_name} has VIP priority")
+        except Exception as e:
+            logger.debug(f"Failed to fetch expert priority: {e}")
+
+    memory_crystals = await _get_memory_crystals(project_context, pool)
+    
     # [SINGULARITY 21.32] Token Efficiency Audit
     prompt = audit_efficiency(prompt)
     
-    # [SINGULARITY 21.33] Chain of Density (CoD) for reasoning tasks
-    if category == "reasoning" or "анализ" in prompt.lower():
-        from token_auditor import _auditor
-        prompt = _auditor.apply_chain_of_density(prompt)
+    # [SINGULARITY 23.0] U-Shape Context Assembly (TOP)
+    if memory_crystals:
+        prompt = memory_crystals + "\n" + prompt
+        logger.info(f"💎 [MEMORY CRYSTALS] Injected into TOP of context for {project_context}")
 
     # [SINGULARITY 21.33] Skeleton-of-Thought (SoT) Prototype
     if "создай" in prompt.lower() and "план" in prompt.lower():
@@ -1193,7 +1439,7 @@ async def run_smart_agent_async_impl(
         try:
             if router:
                 result = await router.run_local_llm(
-                    introspection_prompt, category="reasoning", model_hint="lfm2.5-thinking"
+                    introspection_prompt, category="reasoning", model_hint="lfm2.5-thinking", expert_name=expert_name
                 )
                 refined_text = result[0] if isinstance(result, tuple) else result
 
@@ -1742,10 +1988,15 @@ async def run_smart_agent_async_impl(
             )
             _saved_preferred = getattr(router, "_preferred_source", None)
             if _in_docker_strategist:
-                router._preferred_source = "ollama"
+                # В Docker MLX часто недоступен из контейнера — предпочитаем Ollama для стратега,
+                # но только если это НЕ модель Виктории (мозг Виктории всегда в MLX)
+                if strategist_model and "victoria-wisdom-v3.5" in strategist_model.lower():
+                    router._preferred_source = "mlx"
+                else:
+                    router._preferred_source = "ollama"
             try:
                 spec_result = await router.run_local_llm(
-                    spec_prompt, category="reasoning", model_hint=strategist_model
+                    spec_prompt, category="reasoning", model_hint=strategist_model, expert_name=expert_name
                 )
                 spec = spec_result[0] if isinstance(spec_result, tuple) else spec_result
             finally:
@@ -1755,7 +2006,7 @@ async def run_smart_agent_async_impl(
         # Fallback to cloud if strategist failed
         if not spec or spec.startswith(("❌", "⚠️")):
             logger.warning("⚠️ [STRATEGIST FAILED] Falling back to cloud for planning...")
-            spec = await _run_cloud_agent_async(spec_prompt, category="reasoning", is_vip=is_vip)
+            spec = await _run_cloud_agent_async(spec_prompt, category="reasoning", is_vip=is_vip, expert_name=expert_name)
 
         if spec and not spec.startswith(("❌", "⚠️")):
             # Phase 2: Executor executes the spec (Ollama call)
@@ -1791,7 +2042,7 @@ async def run_smart_agent_async_impl(
                 try:
                     if router:
                         local_result = await router.run_local_llm(
-                            worker_prompt, category="coding", model_hint=executor_model
+                            worker_prompt, category="coding", model_hint=executor_model, expert_name=expert_name
                         )
                     else:
                         local_result = None
@@ -1849,7 +2100,7 @@ async def run_smart_agent_async_impl(
                             )
                             try:
                                 retry_resp = await router.run_local_llm(
-                                    improved_prompt, category=category, is_vip=is_vip
+                                    improved_prompt, category=category, is_vip=is_vip, expert_name=expert_name
                                 )
                                 if isinstance(retry_resp, tuple):
                                     retry_resp = retry_resp[0]
@@ -1917,7 +2168,7 @@ async def run_smart_agent_async_impl(
                         )
                         try:
                             retry_resp = await router.run_local_llm(
-                                safe_prompt, category=category, is_vip=is_vip
+                                safe_prompt, category=category, is_vip=is_vip, expert_name=expert_name
                             )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
@@ -1957,7 +2208,7 @@ async def run_smart_agent_async_impl(
                 )
                 # Use cloud for execution if local failed
                 local_resp = await _run_cloud_agent_async(
-                    worker_prompt, category="coding", is_vip=is_vip
+                    worker_prompt, category="coding", is_vip=is_vip, expert_name=expert_name
                 )
                 if local_resp and not local_resp.startswith(("❌", "⚠️")):
                     logger.info("✅ [CLOUD FALLBACK] Cloud executed the task successfully")
@@ -2019,11 +2270,12 @@ async def run_smart_agent_async_impl(
                             category="reasoning",
                             model_hint=strategist_model,
                             is_vip=is_vip,
+                            expert_name=expert_name,
                         )
                         audit_result = audit_res[0] if isinstance(audit_res, tuple) else audit_res
                     else:
                         audit_result = await _run_cloud_agent_async(
-                            audit_prompt, category="reasoning", is_vip=is_vip
+                            audit_prompt, category="reasoning", is_vip=is_vip, expert_name=expert_name
                         )
 
                     if audit_result and "APPROVED" not in audit_result.upper():
@@ -2185,7 +2437,7 @@ async def run_smart_agent_async_impl(
                         )
 
                 final_prompt = f"ПЛАН ИСПРАВЛЕНИЯ ОТ ТИМЛИДА:\n{audit_result}\n\nИСПРАВЬТЕ КОД:"
-                final_result = await router.run_local_llm(final_prompt, category="coding")
+                final_result = await router.run_local_llm(final_prompt, category="coding", expert_name=expert_name)
                 final_resp, _ = (
                     final_result if isinstance(final_result, tuple) else (final_result, None)
                 )
@@ -2303,11 +2555,11 @@ async def run_smart_agent_async_impl(
                 try:
                     if local_breaker:
                         result = await local_breaker.call(
-                            router.run_local_llm, prompt, category=category, images=images
+                            router.run_local_llm, prompt, category=category, images=images, expert_name=expert_name
                         )
                     else:
                         result = await router.run_local_llm(
-                            prompt, category=category, images=images
+                            prompt, category=category, images=images, expert_name=expert_name
                         )
                     if isinstance(result, tuple):
                         return result[0]
@@ -2352,7 +2604,7 @@ async def run_smart_agent_async_impl(
                 if router:
                     logger.info("🏠 [LOCAL ROUTE] %s", expert_name)
                     local_result = await router.run_local_llm(
-                        prompt, category=category, images=images
+                        prompt, category=category, images=images, expert_name=expert_name
                     )
                     local_resp, routing_source = (
                         local_result if isinstance(local_result, tuple) else (local_result, None)
@@ -2368,7 +2620,7 @@ async def run_smart_agent_async_impl(
             if router:
                 logger.info("🏠 [LOCAL ROUTE] %s", expert_name)
                 local_result = await router.run_local_llm(
-                    prompt, category=category, images=images, is_vip=is_vip
+                    prompt, category=category, images=images, is_vip=is_vip, expert_name=expert_name
                 )
                 local_resp, routing_source = (
                     local_result if isinstance(local_result, tuple) else (local_result, None)
@@ -2411,7 +2663,7 @@ async def run_smart_agent_async_impl(
                     try:
                         if router:
                             retry_resp = await router.run_local_llm(
-                                safe_prompt, category=category, is_vip=is_vip
+                                safe_prompt, category=category, is_vip=is_vip, expert_name=expert_name
                             )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
@@ -2644,6 +2896,63 @@ async def run_smart_agent_async_impl(
         self_correct_instruction = "\n### [SYSTEM: SELF-CORRECTION ENABLED]\nЕсли ты не уверен в ответе на 100%, начни с анализа своих сомнений в теге <thought> и предложи альтернативный вариант."
         full_prompt += self_correct_instruction
 
+    # [SINGULARITY 23.0] U-Shape Context Assembly (BOTTOM): Instruction Re-injection
+    # Повторяем главную роль и правила в самом конце для борьбы с Lost in the Middle
+    
+    # [SINGULARITY 24.2] Local Team Discussion Hook
+    if category == "team_discussion" or (isinstance(prompt, str) and "### TEAM_DISCUSSION" in prompt):
+        logger.info("🧠 [TEAM ENGINE] Intercepted team discussion request.")
+        
+        # Parse experts if provided in the prompt string
+        selected_experts = ["Виктория", "Игорь", "Анна", "Дмитрий"] # Default team
+        task_title = "Team Discussion"
+        task_description = prompt
+        
+        if isinstance(prompt, str) and "### EXPERTS:" in prompt:
+            try:
+                experts_line = [line for line in prompt.split("\n") if "### EXPERTS:" in line][0]
+                selected_experts = [e.strip() for e in experts_line.replace("### EXPERTS:", "").split(",")]
+            except Exception:
+                pass
+        
+        if isinstance(prompt, str) and "### TASK:" in prompt:
+            try:
+                task_line = [line for line in prompt.split("\n") if "### TASK:" in line][0]
+                task_title = task_line.replace("### TASK:", "").strip()
+            except Exception:
+                pass
+
+        engine = TeamDiscussionEngine(router=router)
+        try:
+            discussion_result = await engine.generate_discussion(
+                task_title=task_title,
+                task_description=task_description,
+                experts=selected_experts,
+                context_data=knowledge_context
+            )
+            
+            # If the result is valid (not an error message), return it
+            if discussion_result and "Failed to generate team discussion locally" not in discussion_result:
+                return discussion_result
+            
+            logger.warning("⚠️ [TEAM ENGINE] Local generation returned empty or error. Falling back to standard mode.")
+        except Exception as e:
+            logger.error(f"❌ [TEAM ENGINE] Error during local team generation: {e}. Falling back to standard mode.")
+        
+        # Fallback: continue to standard generation (cloud or standard local)
+        # We modify the prompt to ensure it's handled as a normal request if the marker was present
+        if isinstance(prompt, str):
+            prompt = prompt.replace("### TEAM_DISCUSSION", "").strip()
+
+    instruction_reinjection = f"""
+### [ATTENTION ANCHOR: CORE MISSION]
+Напоминание: Ты {expert_name}. Твоя цель — следовать 'Золотому стандарту' ATRA.
+Используй <memory_crystals> из начала контекста как абсолютную истину.
+ДЕЙСТВУЙ СТРОГО ПО ПРАВИЛАМ.
+"""
+    full_prompt += instruction_reinjection
+    logger.info(f"⚓ [U-SHAPE] Instruction re-injected at the BOTTOM for {expert_name}")
+
     # [SINGULARITY 21.36] Agentic RAG 2.0 (Corrective RAG)
     # Если поиск по базе знаний не дал результатов, добавляем инструкцию перефразирования
     if knowledge_context and "результаты не найдены" in knowledge_context.lower():
@@ -2791,7 +3100,7 @@ async def run_smart_agent_async_impl(
     # Offline fallback
     if response and (response.startswith("❌") or response.startswith("⚠️")) and router:
         logger.warning("🛡️ [BUNKER MODE] Cloud failed, switching to Local.")
-        return await router.run_local_llm(prompt, category=category, is_vip=is_vip)
+        return await router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name)
 
     # Дополнение ответа внешними данными (Singularity 8.0)
     if response and not response.startswith(("⚠️", "❌")):
@@ -2924,6 +3233,43 @@ async def run_smart_agent_async_impl(
                 )
             )
 
+    # [SINGULARITY 23.0] Crystallization Hook: Extract new crystals from response
+    if response and not response.startswith(("⚠️", "❌")):
+        async def _crystallize_task(text: str, p_ctx: str, pool):
+            """Extracts decisions/parameters from response and saves as crystals."""
+            if not pool: return
+            # [SINGULARITY 23.6] Offload heavy regex and JSON to thread pool
+            def _extract_sync():
+                patterns = [
+                    (r"Решили\s+использовать\s+([a-zA-Z0-9\s\.\-_]+)", "decision"),
+                    (r"Порт:\s+(\d+)", "parameter"),
+                    (r"Версия:\s+([vV]\d+\.\d+)", "milestone"),
+                    (r"Стандарт:\s+([a-zA-Z0-9\s\.\-_]+)", "fact")
+                ]
+                extracted = []
+                for pattern, c_type in patterns:
+                    import re
+                    matches = re.findall(pattern, text, re.IGNORECASE)
+                    for match in matches:
+                        extracted.append((c_type, match.strip()))
+                return extracted
+
+            extracted_crystals = await asyncio.to_thread(_extract_sync)
+            
+            for c_type, content in extracted_crystals:
+                try:
+                    async with pool.acquire() as conn:
+                        metadata_json = await asyncio.to_thread(json.dumps, {"source": "auto_crystallizer"})
+                        await conn.execute(
+                            "INSERT INTO memory_crystals (project_context, crystal_type, content, metadata) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
+                            p_ctx, c_type, content, metadata_json
+                        )
+                        logger.info(f"💎 [CRYSTALLIZER] New crystal saved: {content}")
+                except Exception as e:
+                    logger.debug(f"Crystallization save failed: {e}")
+
+        asyncio.create_task(_crystallize_task(response, project_context, pool))
+
     # [SINGULARITY 14.0] Shadow Prompt Evolution: Trigger shadow execution if mutations exist
     if response and not response.startswith(("⚠️", "❌")):
         asyncio.create_task(
@@ -3001,7 +3347,7 @@ async def _trigger_shadow_execution(
                         if LocalAIRouter:
                             router = LocalAIRouter()
                             res = await router.run_local_llm(
-                                shadow_prompt, category=category or "general"
+                                shadow_prompt, category=category or "general", expert_name=expert_name
                             )
                             return res[0] if isinstance(res, tuple) else res
                         else:

@@ -14,7 +14,14 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 # Подхват DATABASE_URL и др. из .env при запуске по cron/launchd
+# Сохраняем VICTORIA_URL до source .env (wrapper/caller мог задать localhost:8010)
+_pre_victoria_url="$VICTORIA_URL"
 if [ -f "$ROOT/.env" ]; then set -a; source "$ROOT/.env"; set +a; fi
+# Восстанавливаем VICTORIA_URL если он был задан явно из вызывающей среды (wrapper/launchd)
+# — это важно: .env содержит victoria-agent:8000 (Docker-сеть), но куратор запускается на хосте
+if [ -n "$_pre_victoria_url" ]; then
+  VICTORIA_URL="$_pre_victoria_url"
+fi
 REPORTS_DIR="${ROOT}/docs/curator_reports"
 STANDARDS="status_project greeting what_can_you_do list_files one_line_code code_audit"
 VICTORIA_URL="${VICTORIA_URL:-http://localhost:8010}"
@@ -66,7 +73,7 @@ echo ""
 echo "=== 1. Прогон куратора ==="
 if [ -n "$FULL" ]; then
   echo "Режим: полный"
-  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 600
+  python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --max-wait 3600
 else
   echo "Режим: быстрый (2 задачи)"
   python3 scripts/curator_send_tasks_to_victoria.py --file scripts/curator_tasks.txt --async --quick

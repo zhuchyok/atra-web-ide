@@ -163,14 +163,14 @@ _MODELS_CACHE_TTL = 120  # 2 минуты
 OLLAMA_MODELS_FALLBACK = {
     "reasoning": os.getenv("MODEL_REASONING", "victoria-wisdom-v3.5:latest"),
     "coding": os.getenv("MODEL_CODER", "victoria-wisdom-v3.5:latest"),
-    "chat": "victoria-wisdom-v3.5",
+    "chat": "victoria-wisdom-v3.5:latest",
     "fast": os.getenv("MODEL_FAST", "tinyllama:1.1b-chat"),
     "vision": os.getenv("MODEL_VISION", "moondream:latest"),
     "vision_hd": "minicpm-v:latest",
     "vision_pdf": "llava:7b",
     "thinking": os.getenv("MODEL_THINKING", "lfm2.5-thinking:1.2b"),
-    "default": "victoria-wisdom-v3.5",
-    "vip": "victoria-wisdom-v3.5",
+    "default": "victoria-wisdom-v3.5:latest",
+    "vip": "victoria-wisdom-v3.5:latest",
 }
 
 # MLX: только лёгкие — 70b/104b/32b удалены (Metal/память); не подставлять удалённые.
@@ -279,7 +279,7 @@ class LocalAIRouter:
             )
             self._node_breakers[node_url] = get_circuit_breaker(
                 name=breaker_name,
-                failure_threshold=3,  # 3 ошибки и узел в OPEN
+                failure_threshold=5,  # 5 ошибок → OPEN (было 3, слишком агрессивно при пиках нагрузки)
                 recovery_timeout=120,  # 2 минуты на восстановление
             )
             logger.debug(f"🛡️ [CIRCUIT BREAKER] Initialized for {node_url} as {breaker_name}")
@@ -802,6 +802,7 @@ class LocalAIRouter:
         model_hint: Optional[str] = None,
         is_vip: bool = False,
         session_id: Optional[str] = None,
+        expert_name: Optional[str] = None,
     ) -> Optional[tuple]:
         """
         Запускает локальную LLM модель.
@@ -830,6 +831,11 @@ class LocalAIRouter:
         logger.info("[ROUTER] Category: %s", category)
         logger.info("[ROUTER] Prompt length: %d chars", len(prompt))
         logger.info("[ROUTER] Prompt preview: %s...", prompt[:150])
+
+        # [SINGULARITY 24.3] Persona Injection for Experts
+        if expert_name and not system_prompt:
+            system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
+            logger.info(f"🎭 [PERSONA] Injected persona for {expert_name}")
 
         # 🔄 ДИНАМИЧЕСКОЕ ОБНОВЛЕНИЕ СПИСКА МОДЕЛЕЙ (если истёк TTL)
         # Это позволяет подхватывать новые модели и замечать удалённые
@@ -1080,19 +1086,59 @@ class LocalAIRouter:
             node_url_base = node["url"]
 
             # [SINGULARITY 21.10] Circuit Breaker Check
+            # Мировая практика (Polly, Hystrix): при переходе OPEN→HALF_OPEN нужно
+            # явно установить state=HALF_OPEN ДО probe-запроса, иначе _on_success()
+            # не переводит CB в CLOSED (проверяет state == HALF_OPEN).
+            # start_probe() защищает от thundering herd: только ОДИН probe одновременно.
             breaker = self._node_breakers.get(node_url_base)
             if breaker and breaker.state == CircuitState.OPEN:
                 if not breaker._should_attempt_reset():
                     logger.warning(f"🚨 [CIRCUIT BREAKER] Node {node_url_base} is OPEN. Skipping.")
                     continue
                 else:
+                    if not breaker.start_probe():
+                        # Другая корутина уже отправила probe — пропускаем
+                        logger.debug(
+                            "⏳ [CIRCUIT BREAKER] Node %s probe already in flight. Skipping.", node_url_base
+                        )
+                        continue
+                    breaker.state = CircuitState.HALF_OPEN  # ← обязательно до probe
                     logger.info(
-                        f"🔄 [CIRCUIT BREAKER] Node {node_url_base} is HALF_OPEN. Testing..."
+                        f"🔄 [CIRCUIT BREAKER] Node {node_url_base} OPEN→HALF_OPEN. Sending probe..."
                     )
+            elif breaker and breaker.state == CircuitState.HALF_OPEN:
+                # Уже в HALF_OPEN (установлено параллельной корутиной) — probe в процессе
+                if breaker._probe_in_flight:
+                    logger.debug(
+                        "⏳ [CIRCUIT BREAKER] Node %s HALF_OPEN probe in flight. Skipping.", node_url_base
+                    )
+                    continue
 
             # Определяем, это Ollama или MLX API Server
             is_ollama = "11434" in node_url_base or "ollama" in node_url_base.lower()
             is_mlx = "11435" in node_url_base or "mlx" in node_url_base.lower()
+
+            # [Prioritization] Worker с OLLAMA_REQUEST_PRIORITY=low уступает Ollama victoria-agent.
+            # При перегрузке (очередь >= 80% от OLLAMA_MAX_QUEUE) пропускаем запрос → уходим на MLX.
+            if is_ollama and os.getenv("OLLAMA_REQUEST_PRIORITY", "").lower() == "low":
+                try:
+                    ollama_max_queue = int(os.getenv("OLLAMA_MAX_QUEUE", "16"))
+                    async with httpx.AsyncClient(timeout=3.0) as hc:
+                        resp = await hc.get(f"{node_url_base}/api/ps")
+                    if resp.status_code == 200:
+                        ps_data = resp.json()
+                        running = len(ps_data.get("models", []))
+                        # Ollama не предоставляет длину очереди напрямую, но если нет свободных слотов — skip
+                        ollama_num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "4"))
+                        if running >= ollama_num_parallel:
+                            logger.info(
+                                "⏩ [LOW-PRIORITY] Ollama full (%d/%d running), skipping for low-prio worker.",
+                                running,
+                                ollama_num_parallel,
+                            )
+                            continue
+                except Exception as _prio_err:
+                    logger.debug("Ollama priority check failed: %s", _prio_err)
 
             # [SINGULARITY 21.10] MLX Admission Control: Protect brain from overload
             if is_mlx:
@@ -1260,6 +1306,9 @@ class LocalAIRouter:
                     messages.append({"role": "user", "content": prompt})
 
                 payload = {"model": model, "messages": messages, "stream": False}
+                # [SINGULARITY 24.8] Adaptive Context Window
+                payload["options"] = self._get_adaptive_options(model)
+
                 mlx_alive = any(
                     "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
                     for n in healthy_nodes
@@ -1289,6 +1338,9 @@ class LocalAIRouter:
                     full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
 
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
+                # [SINGULARITY 24.8] Adaptive Context Window
+                payload["options"] = self._get_adaptive_options(model)
+
                 mlx_alive = any(
                     "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
                     for n in healthy_nodes
@@ -1398,9 +1450,9 @@ class LocalAIRouter:
 
                             # Включаем стриминг в полезной нагрузке
                             payload["stream"] = True
-                            # Таймаут стриминга: read до 20 мин (первый токен у 30B+ может быть 2–5 мин), connect 60 с
+                            # Таймаут стриминга: read до 30 мин (первый токен у 35B+ может быть долгим), connect 60 с
                             _stream_timeout = float(
-                                os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1200")
+                                os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1800")
                             )
                             _stream_connect = float(
                                 os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60")
@@ -1640,10 +1692,14 @@ class LocalAIRouter:
                                 return result, routing_source
                             else:
                                 logger.warning(
-                                    "[ROUTER] ⚠️ Node %s returned empty response for model %s",
+                                    "[ROUTER] ⚠️ Node %s returned empty response for model %s. Retrying next node...",
                                     node["name"],
                                     model,
                                 )
+                                # [SINGULARITY 23.9] Force retry on empty response
+                                if breaker:
+                                    breaker._on_failure("EmptyResponse")
+                                continue
                         else:
                             # [SINGULARITY 21.10] Record failure for node breaker
                             if breaker:
@@ -1814,6 +1870,9 @@ class LocalAIRouter:
 
         full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
         payload = {"model": model, "prompt": full_prompt, "stream": True}
+        # [SINGULARITY 24.8] Adaptive Context Window
+        payload["options"] = self._get_adaptive_options(model)
+
         mlx_alive = any(
             "mlx" in n["url"].lower() or "mlx" in n.get("routing_key", "").lower()
             for n in healthy_nodes
@@ -1869,6 +1928,49 @@ class LocalAIRouter:
 
             logger.error(f"❌ [STREAMING] Error: {e}")
             return
+
+    def _get_adaptive_options(self, model_name: str) -> Dict:
+        """
+        [SINGULARITY 24.8] Adaptive Context Window.
+        Выбирает оптимальный num_ctx на основе доступной RAM и возможностей модели.
+        """
+        options = {}
+        try:
+            import psutil
+
+            ram = psutil.virtual_memory()
+            available_gb = ram.available / (1024**3)
+
+            # Базовые лимиты моделей (максимальный контекст)
+            model_max_ctx = 32768  # По умолчанию
+            if "phi3.5" in model_name.lower():
+                model_max_ctx = 131072
+            elif "victoria-wisdom" in model_name.lower() or "qwen35moe" in model_name.lower():
+                model_max_ctx = 65536
+            elif "tinyllama" in model_name.lower():
+                model_max_ctx = 2048
+
+            # Адаптивное решение
+            if available_gb > 64:
+                # RAM очень много: используем максимум (но не более 128k)
+                options["num_ctx"] = min(131072, model_max_ctx)
+            elif available_gb > 32:
+                # RAM много: ограничиваем до 64k
+                options["num_ctx"] = min(65536, model_max_ctx)
+            elif available_gb > 16:
+                # RAM средне: ограничиваем до 32k
+                options["num_ctx"] = min(32768, model_max_ctx)
+            else:
+                # RAM мало: жестко ограничиваем до 16k
+                options["num_ctx"] = min(16384, model_max_ctx)
+
+            logger.info(
+                f"🧠 [ADAPTIVE CONTEXT] Model: {model_name} | RAM Available: {available_gb:.1f}GB | Selected num_ctx: {options['num_ctx']}"
+            )
+        except Exception as e:
+            logger.debug(f"Failed to calculate adaptive context: {e}")
+
+        return options
 
     def _determine_task_type(self, prompt: str, category: Optional[str] = None) -> str:
         """Определяет тип задачи для сбора данных"""

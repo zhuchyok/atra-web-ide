@@ -13,9 +13,15 @@ Best practices (2026, 12-Factor + asyncpg):
 
 import os
 
+import json
+import logging
+from datetime import datetime, timezone
+
 import asyncpg
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=knowledge_pool")
+logger = logging.getLogger(__name__)
+
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool")
 
 # Читаем из env, чтобы можно было тюнить без rebuild (например, при включённом PgBouncer ставим 20)
 _MAX_POOL_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "5"))
@@ -44,3 +50,61 @@ async def close_pool():
     if _pool is not None:
         await _pool.close()
         _pool = None
+
+
+async def create_task_safe(
+    title: str,
+    description: str,
+    status: str = "pending",
+    priority: str = "medium",
+    project_context: str = "default",
+    creator_expert_id: str = None,
+    assignee_expert_id: str = None,
+    domain_id: str = None,
+    metadata: dict = None,
+    parent_task_id: str = None,
+) -> str:
+    """
+    Безопасное создание задачи с дедупликацией на уровне БД.
+    Использует ON CONFLICT DO NOTHING для предотвращения дублей в PENDING/IN_PROGRESS.
+    """
+    pool = await get_pool()
+    meta = metadata or {}
+    
+    query = """
+        INSERT INTO tasks (
+            title, description, status, priority, project_context, 
+            creator_expert_id, assignee_expert_id, domain_id, metadata, 
+            parent_task_id, created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $11)
+        ON CONFLICT (title, COALESCE(project_context, 'default')) 
+        WHERE status IN ('pending', 'in_progress') 
+        DO NOTHING
+        RETURNING id;
+    """
+    
+    now = datetime.now(timezone.utc)
+    
+    async with pool.acquire() as conn:
+        task_id = await conn.fetchval(
+            query,
+            title,
+            description,
+            status,
+            priority,
+            project_context,
+            creator_expert_id,
+            assignee_expert_id,
+            domain_id,
+            json.dumps(meta),
+            parent_task_id,
+            now
+        )
+        
+        if task_id:
+            logger.info(f"✅ Задача создана: {title} (ID: {task_id})")
+        else:
+            logger.debug(f"⏭️ Пропуск дубликата задачи: {title} (context: {project_context})")
+            
+        return task_id

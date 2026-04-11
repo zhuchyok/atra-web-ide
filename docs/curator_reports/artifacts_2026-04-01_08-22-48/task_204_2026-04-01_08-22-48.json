@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/iterative_discovery.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "d4e41a1f-5dc4-4340-9713-13909e7ea200"
+}

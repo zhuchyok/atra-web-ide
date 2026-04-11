@@ -13,7 +13,10 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, TypedDict
 
-from app.event_bus import Event, EventType
+try:
+    from app.event_bus import Event, EventType
+except ImportError:
+    from event_bus import Event, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -546,7 +549,10 @@ async def main():
     machine = SkillStateMachine(config)
 
     # Создаем тестовое событие
-    from app.event_bus import Event, EventType
+    try:
+        from app.event_bus import Event, EventType
+    except ImportError:
+        from event_bus import Event, EventType
 
     event = Event(
         event_id="test_event_1",

@@ -20,6 +20,7 @@ IMMORTAL_MODELS = {
     "moondream",
     "tinyllama",
     "phi3.5:3.8b",
+    "victoria-wisdom-v3.5:latest",
 }
 
 # Cooldown constant for recovery
@@ -40,7 +41,7 @@ DEFAULT_KEEP_ALIVE = 300
 MLX_RAM_RESERVE_GB = float(os.getenv("MLX_RAM_RESERVE_GB", "0"))
 MLX_RAM_RESERVE_PERCENT = float(os.getenv("MLX_RAM_RESERVE_PERCENT", "15"))
 # Порог «низкая память» для агрессивной выгрузки: используемая RAM выше этого (с учётом резерва MLX)
-RAM_CRITICAL_PERCENT = float(os.getenv("OLLAMA_RAM_CRITICAL_PERCENT", "85"))
+RAM_CRITICAL_PERCENT = float(os.getenv("OLLAMA_RAM_CRITICAL_PERCENT", "75"))
 
 
 def _effective_ram_percent() -> Optional[float]:
@@ -160,11 +161,11 @@ def get_keep_alive(
     ):
         # [SINGULARITY 24.3] В Blitz Mode при высокой нагрузке держим эмбеддинги 5 минут
         # Это предотвращает постоянную выгрузку/загрузку при пачках задач
+        # [SINGULARITY 24.7] Adaptive Resource Steering: Если RAM критична, выгружаем мгновенно
         try:
-            # Пытаемся получить количество задач в очереди Redis (если доступно)
-            # Если не получается, используем время дня или просто 300с как безопасный буфер
-            # Для простоты здесь: если RAM позволяет, держим 300с, иначе 0
             effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
+            if effective_ram is not None and effective_ram >= RAM_CRITICAL_PERCENT:
+                return 0
             if effective_ram is not None and effective_ram < RAM_CRITICAL_PERCENT:
                 return 300
         except:
@@ -185,10 +186,12 @@ def get_keep_alive(
     effective_ram = ram_percent if ram_percent is not None else _effective_ram_percent()
     size_gb = _model_size_gb(model_name)
     if effective_ram is not None and effective_ram >= RAM_CRITICAL_PERCENT:
+        # [SINGULARITY 24.7] Aggressive Resource Steering: Unload most models immediately if RAM is critical
+        if model_name and any(m in model_name for m in IMMORTAL_MODELS):
+            return -1
         if _is_heavy_model(model_name, size_gb):
-            return 60
-        if size_gb is not None and size_gb >= 5.0:
-            return 300
+            return 0  # Unload heavy models immediately
+        return 60  # Keep light models for only 1 minute
 
     # 6. Smart Keep-Alive по размеру
     if model_name:

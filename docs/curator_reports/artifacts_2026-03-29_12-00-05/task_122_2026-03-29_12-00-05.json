@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/long_term_memory.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "9f5c1598-c76b-4d7b-a921-97dafe307ff4"
+}

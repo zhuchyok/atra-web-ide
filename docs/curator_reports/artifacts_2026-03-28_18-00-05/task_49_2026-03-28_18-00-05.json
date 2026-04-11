@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/adaptive_learner.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "aba4a0c2-7b3b-4987-b610-2a7c8a65e2a2"
+}

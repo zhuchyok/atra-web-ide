@@ -1,0 +1,169 @@
+{
+  "ts": "2026-03-15T01:45:21.580762+00:00",
+  "victoria_url": "http://0.0.0.0:8010",
+  "project_context": "atra-web-ide",
+  "async_mode": true,
+  "tasks_count": 16,
+  "results": [
+    {
+      "goal": "Тебе предоставлен файл /data/downloads/2026-03-09.parquet — полный торговый день 9 марта 2026 (несколько млн записей, гранулярность 100ms).",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "718c27f0-0c50-4904-bd0a-3315fb8c2ca4",
+      "execution_trace": {},
+      "elapsed_seconds": 30.15
+    },
+    {
+      "goal": "ЗАДАЧА: Провести глубокий анализ торговых данных через python-development инструмент.",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "c0223e07-32ac-491f-a18a-104b0de20627",
+      "execution_trace": {},
+      "elapsed_seconds": 30.08
+    },
+    {
+      "goal": "ШАГ 1 — Изучи схему файла:",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "a45d4ba1-ecc0-4193-9a19-92ede10a3134",
+      "execution_trace": {},
+      "elapsed_seconds": 30.08
+    },
+    {
+      "goal": "```python",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "5f615d31-2d88-4be1-8cbe-d93a760343d2",
+      "execution_trace": {},
+      "elapsed_seconds": 30.08
+    },
+    {
+      "goal": "import duckdb",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "0bef1edd-31cb-4270-8791-a5d427cafb45",
+      "execution_trace": {},
+      "elapsed_seconds": 30.09
+    },
+    {
+      "goal": "conn = duckdb.connect()",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f6a7f317-9b3c-47ee-b8cc-84a6667fba1e",
+      "execution_trace": {},
+      "elapsed_seconds": 30.08
+    },
+    {
+      "goal": "df = conn.execute(\"DESCRIBE SELECT * FROM read_parquet('/data/downloads/2026-03-09.parquet') LIMIT 0\").fetchdf()",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "545cae86-aa98-4eb7-9a8d-991423fcae80",
+      "execution_trace": {},
+      "elapsed_seconds": 30.07
+    },
+    {
+      "goal": "print(\"SCHEMA:\", df.to_string())",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "448907cd-08bf-466c-b423-d71b12d90c26",
+      "execution_trace": {},
+      "elapsed_seconds": 30.07
+    },
+    {
+      "goal": "info = conn.execute(\"SELECT COUNT(*) as total, MIN(time) as t_min, MAX(time) as t_max FROM read_parquet('/data/downloads/2026-03-09.parquet')\").fetchdf()",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "1790d509-4dc5-4d82-ab49-3d46591e1be7",
+      "execution_trace": {},
+      "elapsed_seconds": 30.21
+    },
+    {
+      "goal": "print(\"INFO:\", info.to_string())",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "37ce38d2-275b-4fd9-85a8-e1226cf01195",
+      "execution_trace": {},
+      "elapsed_seconds": 30.07
+    },
+    {
+      "goal": "sample = conn.execute(\"SELECT * FROM read_parquet('/data/downloads/2026-03-09.parquet') LIMIT 3\").fetchdf()",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "9c0000bd-0c02-40c9-857a-6cc24e93d4d4",
+      "execution_trace": {},
+      "elapsed_seconds": 30.09
+    },
+    {
+      "goal": "print(\"SAMPLE:\", sample.to_string())",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "15182174-9f64-45b5-be57-a799bd9d98c8",
+      "execution_trace": {},
+      "elapsed_seconds": 30.12
+    },
+    {
+      "goal": "```",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "fe128b83-aeb0-4c9c-8749-8e3e6bb48780",
+      "execution_trace": {},
+      "elapsed_seconds": 30.07
+    },
+    {
+      "goal": "ШАГ 2 — Изучи структуру payload (первые 3 строки).",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "ad035da2-48f2-4f5d-9695-3c874f3c0e26",
+      "execution_trace": {},
+      "elapsed_seconds": 30.15
+    },
+    {
+      "goal": "ШАГ 3 — Найди аномалии: резкие ценовые движения (>0.3% за секунду), аномальные объёмы (>3 sigma), признаки spoofing/layering, активность китов.",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "f67e82c7-75ca-447e-ac88-e22acfd0dbb2",
+      "execution_trace": {},
+      "elapsed_seconds": 30.3
+    },
+    {
+      "goal": "ШАГ 4 — Верни итоговый отчёт с выводами по рынку 9 марта 2026: аномалии, маркет-мейкеры, киты, общие паттерны.",
+      "status": "error",
+      "error": "poll timeout",
+      "output_preview": null,
+      "output_length": 0,
+      "correlation_id": "74038700-71c9-41f9-bdda-4de0953ae8a5",
+      "execution_trace": {},
+      "elapsed_seconds": 30.47
+    }
+  ]
+}

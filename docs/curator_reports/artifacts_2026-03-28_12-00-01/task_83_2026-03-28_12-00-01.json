@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/deadline_tracker.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "59aced03-a3c5-401d-b533-9a3f7eece577"
+}

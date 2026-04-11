@@ -9,8 +9,8 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger("victoria_bridge")
 
-VERONICA_URL = (os.getenv("VERONICA_URL") or "http://localhost:8011").rstrip("/")
-DELEGATE_VERONICA_TIMEOUT = int(os.getenv("DELEGATE_VERONICA_TIMEOUT", "90"))
+VERONICA_URL = (os.getenv("VERONICA_URL") or "http://veronica-agent:8000").rstrip("/")
+DELEGATE_VERONICA_TIMEOUT = int(os.getenv("DELEGATE_VERONICA_TIMEOUT", "300"))
 
 # Лог при первом использовании (почему делегирование не срабатывает — часто неверный URL)
 _logged_url = False
@@ -20,7 +20,7 @@ def _log_delegation_url_once():
     global _logged_url
     if not _logged_url:
         logger.info(
-            "[DELEGATION] VERONICA_URL=%s (из контейнера Victoria должен быть http://veronica-agent:8000)",
+            "[DELEGATION] VERONICA_URL=%s (Docker service name prioritized)",
             VERONICA_URL,
         )
         _logged_url = True

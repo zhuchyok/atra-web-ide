@@ -901,8 +901,9 @@ async def run_enhanced_orchestration_cycle():
         try:
             from corporation_knowledge_system import update_all_agents_knowledge
 
-            await update_all_agents_knowledge()
-            logger.info("✅ Знания корпорации обновлены перед циклом оркестрации")
+            # [SINGULARITY 24.3] Запускаем обновление знаний в фоне, чтобы не блокировать оркестратор
+            asyncio.create_task(update_all_agents_knowledge())
+            logger.info("✅ Знания корпорации обновляются в фоне")
         except Exception as e:
             logger.debug("Не удалось обновить знания корпорации: %s", e)
 
@@ -1078,6 +1079,13 @@ async def run_enhanced_orchestration_cycle():
                 complex_unassigned = []
             for task in complex_unassigned:
                 try:
+                    # [SINGULARITY 24.6] Emergency Concurrency Guard
+                    # If more than 3 tasks are already in progress, skip decomposition to prevent RAM overload
+                    active_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'in_progress'")
+                    if active_count >= 3:
+                        logger.warning(f"⚠️ [CONCURRENCY GUARD] {active_count} tasks in progress. Skipping decomposition.")
+                        continue
+
                     goal = f"{task['title']}\n\n{task['description'] or ''}"
                     struct = await _decompose_via_victoria(goal)
                     if struct and struct.get("subtasks"):
@@ -1151,11 +1159,43 @@ async def run_enhanced_orchestration_cycle():
                                 if isinstance(_meta, str)
                                 else (_meta or {}).get("project_context")
                             )
-                            try:
+                        # [SINGULARITY 24.7] Adaptive Priority for Monster Audits
+                        _priority = st.get("priority", "medium")
+                        meta_json = json.loads(meta)
+                        if meta_json.get("source") == "victoria_monster_delegation":
+                            _priority = "low" # Аудиты не должны мешать основным задачам
+
+                        try:
+                            sub_id = await conn.fetchval(
+                                """
+                                INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id, project_context)
+                                VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7, $8)
+                                ON CONFLICT (title, COALESCE(project_context, 'default')) 
+                                WHERE status IN ('pending', 'in_progress') 
+                                DO NOTHING
+                                RETURNING id
+                            """,
+                                (st_desc[:255] if len(st_desc) > 255 else st_desc),
+                                st_desc,
+                                _priority,
+                                st_domain_id,
+                                victoria_id,
+                                meta,
+                                task["id"],
+                                parent_pc,
+                            )
+                        except Exception as col_err:
+                            if (
+                                "project_context" in str(col_err)
+                                or "column" in str(col_err).lower()
+                            ):
                                 sub_id = await conn.fetchval(
                                     """
-                                    INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id, project_context)
-                                    VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7, $8)
+                                    INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id)
+                                    VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7)
+                                    ON CONFLICT (title) 
+                                    WHERE status IN ('pending', 'in_progress') 
+                                    DO NOTHING
                                     RETURNING id
                                 """,
                                     (st_desc[:255] if len(st_desc) > 255 else st_desc),
@@ -1165,37 +1205,17 @@ async def run_enhanced_orchestration_cycle():
                                     victoria_id,
                                     meta,
                                     task["id"],
-                                    parent_pc,
                                 )
-                            except Exception as col_err:
-                                if (
-                                    "project_context" in str(col_err)
-                                    or "column" in str(col_err).lower()
-                                ):
-                                    sub_id = await conn.fetchval(
-                                        """
-                                        INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id)
-                                        VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7)
-                                        RETURNING id
-                                    """,
-                                        (st_desc[:255] if len(st_desc) > 255 else st_desc),
-                                        st_desc,
-                                        st.get("priority", "medium"),
-                                        st_domain_id,
-                                        victoria_id,
-                                        meta,
-                                        task["id"],
-                                    )
-                                else:
-                                    raise
-                            if sub_id:
-                                await assign_task_to_best_expert(
-                                    conn,
-                                    str(sub_id),
-                                    st_domain_id,
-                                    metadata={"assignee_hint": st.get("expert_role")},
-                                )
-                                decomposed_count += 1
+                            else:
+                                raise
+                        if sub_id:
+                            await assign_task_to_best_expert(
+                                conn,
+                                str(sub_id),
+                                st_domain_id,
+                                metadata={"assignee_hint": st.get("expert_role")},
+                            )
+                            decomposed_count += 1
                         await conn.execute(
                             """
                             UPDATE tasks
@@ -1400,25 +1420,38 @@ async def run_enhanced_orchestration_cycle():
             t2 = time.time()
             logger.info("👥 Phase 2: Assigning unassigned tasks...")
             unassigned_tasks = await conn.fetch("""
-                SELECT id, title, description, domain_id, priority, metadata
-                FROM tasks
-                WHERE assignee_expert_id IS NULL
-                AND status = 'pending'
-                AND (metadata->>'decomposed') IS DISTINCT FROM 'true'
+                SELECT t.id, t.title, t.description, t.domain_id, t.priority, t.metadata
+                FROM tasks t
+                WHERE t.assignee_expert_id IS NULL
+                AND t.status = 'pending'
+                AND (t.metadata->>'decomposed') IS DISTINCT FROM 'true'
                 ORDER BY
-                    CASE priority
+                    CASE t.priority
                         WHEN 'urgent' THEN 1
                         WHEN 'high' THEN 2
                         WHEN 'medium' THEN 3
                         WHEN 'low' THEN 4
                     END,
-                    created_at ASC
+                    t.created_at ASC
             """)
 
             for task in unassigned_tasks:
                 await assign_task_to_best_expert(
                     conn, task["id"], task["domain_id"], metadata=task.get("metadata")
                 )
+            
+            # [SINGULARITY 25.0] Expert-Based Task Prioritization
+            # Повышаем приоритет задач, назначенных VIP-экспертам
+            await conn.execute("""
+                UPDATE tasks t
+                SET priority = 'urgent'
+                FROM experts e
+                WHERE t.assignee_expert_id = e.id
+                AND e.priority = 'VIP'
+                AND t.status = 'pending'
+                AND t.priority != 'urgent'
+            """)
+            
             logger.info(
                 "[ENHANCED_ORCHESTRATOR] phase=2 duration_ms=%.0f result=%s tasks assigned",
                 (time.time() - t2) * 1000,
@@ -1595,7 +1628,23 @@ async def run_enhanced_orchestration_cycle():
                 pending_count = await conn.fetchval(
                     "SELECT count(*) FROM tasks WHERE status = 'pending'"
                 )
-                max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "10"))
+                # [SINGULARITY 24.6] Stricter Backpressure: Reduced from 10 to 5 to prevent RAM spikes
+                max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "5"))
+                
+                # [SINGULARITY 24.7] Health-Aware Backpressure
+                # If RAM usage is high, reduce max_pending even further
+                try:
+                    import psutil
+                    mem = psutil.virtual_memory()
+                    if mem.percent > 85:
+                        logger.warning(f"🚨 [HEALTH-AWARE] RAM usage high ({mem.percent}%). Reducing max_pending to 1.")
+                        max_pending = 1
+                    elif mem.percent > 70:
+                        logger.warning(f"⚠️ [HEALTH-AWARE] RAM usage moderate ({mem.percent}%). Reducing max_pending to 3.")
+                        max_pending = 3
+                except ImportError:
+                    pass
+
                 if pending_count >= max_pending:
                     logger.warning(
                         "⏸️ BACKPRESSURE: Too many pending tasks (%s/%s). Skipping Curiosity Engine research tasks.",
@@ -1952,6 +2001,32 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
         interval_seconds,
         quick_poll_seconds,
     )
+    
+    # [SINGULARITY 24.3] Запуск автономных демонов (Живой Чат, мониторинг)
+    try:
+        try:
+            from app.autonomous_daemons import setup_daemons
+        except ImportError:
+            from autonomous_daemons import setup_daemons
+        asyncio.create_task(setup_daemons())
+        logger.info("🎭 [ENHANCED_ORCHESTRATOR] Autonomous daemons started")
+        
+        # [SINGULARITY 24.3] Periodically log subscribers to verify they stay active
+        async def log_subscribers_periodically():
+            try:
+                from app.event_bus import get_event_bus
+            except ImportError:
+                from event_bus import get_event_bus
+                
+            while True:
+                await asyncio.sleep(30)
+                bus = get_event_bus()
+                logger.info(f"🔍 [DEBUG] Periodic check: EventBus ID: {id(bus)}, Subscribers: {list(bus.subscribers.keys())}")
+        asyncio.create_task(log_subscribers_periodically())
+        
+    except Exception as e:
+        logger.error(f"❌ [ENHANCED_ORCHESTRATOR] Failed to start autonomous daemons: {e}")
+
     health_monitor_interval = int(os.getenv("ORCHESTRATOR_HEALTH_MONITOR_INTERVAL", "300"))
     health_task = None
     if RECOVERY_WEBHOOK_URL:

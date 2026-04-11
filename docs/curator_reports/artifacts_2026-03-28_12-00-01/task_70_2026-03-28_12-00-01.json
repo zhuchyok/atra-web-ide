@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/codebase_mutation_engine.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "5c18911b-eec5-4b4a-9d41-f7b84b696c35"
+}

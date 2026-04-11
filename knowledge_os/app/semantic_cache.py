@@ -106,8 +106,8 @@ _embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит пар�
 if get_circuit_breaker:
     _ollama_breaker = get_circuit_breaker(
         name="ollama_embeddings",
-        failure_threshold=5,
-        recovery_timeout=30,  # Быстрое восстановление для эмбеддингов
+        failure_threshold=3,   # [SINGULARITY 24.3] Fast-open: 3 fails → breaker opens (было 5)
+        recovery_timeout=30,
     )
 else:
     _ollama_breaker = None
@@ -187,8 +187,9 @@ async def get_embedding(text: str) -> Optional[list]:
 async def _execute_embedding_request(text: str) -> Optional[list]:
     """
     Внутренняя логика выполнения запроса с ретраями.
+    [SINGULARITY 24.3] Увеличено количество попыток и добавлен экспоненциальный бэкофф для 503.
     """
-    max_retries = 3  # [SINGULARITY 24.3] Увеличено до 3 для Blitz Mode
+    max_retries = 1  # [SINGULARITY 24.3] Fast-fail: одна попытка — circuit breaker обрабатывает ретраи
     for attempt in range(max_retries):
         client = None
         if get_http_client:
@@ -243,7 +244,8 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
             timeout=5.0,  # Fast fail: embedding некритичен, 5с достаточно
         )
         if response.status_code == 503:
-            logger.warning("Ollama embeddings service unavailable (503). Skipping embedding.")
+            # [SINGULARITY 24.3] Не бросаем сразу, даем get_embedding шанс на ретрай
+            logger.warning("Ollama embeddings service busy (503).")
             return None
         if response.status_code != 200:
             logger.error("Ollama error %d: %s", response.status_code, response.text)

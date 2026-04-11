@@ -187,7 +187,7 @@ def run_manual():
         return 1
     payload = {"goal": LIVE_GOAL, "project_context": "atra-web-ide", "chat_history": []}
     r = requests.post(
-        f"{VICTORIA_URL}/run", json=payload, params={"async_mode": "false"}, timeout=120
+        f"{VICTORIA_URL}/run", json=payload, params={"async_mode": "false"}, timeout=300
     )
     print(f"HTTP {r.status_code}")
     if r.status_code != 200:

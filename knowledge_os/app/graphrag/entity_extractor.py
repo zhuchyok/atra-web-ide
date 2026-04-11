@@ -31,24 +31,31 @@ class EntityExtractor:
         }
 
     async def extract_entities(self, content: str) -> List[Entity]:
-        """Основной метод экстракции сущностей."""
+        """
+        [SINGULARITY 23.8] Optimized Entity Extraction:
+        Использует Offloading для регулярных выражений и легкие модели.
+        """
+        import asyncio
         entities = []
 
-        # 1. Быстрая экстракция по паттернам
-        for e_type, pattern in self.patterns.items():
-            matches = re.finditer(pattern, content)
-            for match in matches:
-                entities.append(
-                    Entity(
+        def _extract_regex():
+            found = []
+            for e_type, pattern in self.patterns.items():
+                matches = re.finditer(pattern, content)
+                for match in matches:
+                    found.append(Entity(
                         name=match.group(1),
                         type=e_type,
                         confidence=0.8,
                         metadata={"source": "regex"},
-                    )
-                )
+                    ))
+            return found
+
+        # 1. Быстрая экстракция (Offloaded)
+        entities.extend(await asyncio.to_thread(_extract_regex))
 
         # 2. Глубокая экстракция через LLM (если текст длинный и важный)
-        if len(content) > 200:
+        if len(content) > 300: # Повышен порог для экономии ресурсов
             try:
                 from app.ai_core import run_smart_agent_async
 

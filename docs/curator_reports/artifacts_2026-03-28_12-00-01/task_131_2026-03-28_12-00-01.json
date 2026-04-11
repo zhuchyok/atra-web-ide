@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/ml_router_ab_test.py — есть ли там hardcoded секреты или пароли в первых 30 строках? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "aae4571d-a380-402e-a85e-ae551d42c34a"
+}

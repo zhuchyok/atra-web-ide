@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/emotion_detector.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "da0188d9-8286-4233-bc25-5bb67ace3971"
+}

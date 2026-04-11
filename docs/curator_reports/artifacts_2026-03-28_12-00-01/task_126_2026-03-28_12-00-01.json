@@ -1,0 +1,11 @@
+{
+  "goal": "проверь файл /app/knowledge_os/app/meta_architect.py — есть ли там pip install в рантайме (subprocess pip или os.system pip)? Ответь: ОК или ПРОБЛЕМА + цитата",
+  "output": null,
+  "knowledge": {
+    "metadata": {
+      "model_used": "local",
+      "source": "local"
+    }
+  },
+  "correlation_id": "0a06669b-439b-47ed-b07e-a4ebbab7f4ff"
+}

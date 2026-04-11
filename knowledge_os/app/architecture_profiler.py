@@ -32,7 +32,7 @@ class ArchitectureProfiler:
     async def get_pool(self):
         if self._pool is None and asyncpg:
             try:
-                self._pool = await asyncpg.create_pool(self.db_url, min_size=1, max_size=5)
+                self._pool = await asyncpg.create_pool(self.db_url, min_size=1, max_size=20)
             except Exception as e:
                 logger.error(f"Failed to create profiler DB pool: {e}")
         return self._pool
