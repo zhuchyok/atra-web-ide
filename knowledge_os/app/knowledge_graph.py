@@ -43,6 +43,8 @@ class LinkType(Enum):
     RELATED_TO = "related_to"  # Связано с
     SUPERSEDES = "supersedes"  # Заменяет
     PART_OF = "part_of"  # Является частью
+    DEPICTS = "depicts"  # Изображает (для визуальных артефактов)
+    IMPLEMENTS_UI = "implements_ui"  # Реализует интерфейс (код -> скриншот)
 
 
 @dataclass

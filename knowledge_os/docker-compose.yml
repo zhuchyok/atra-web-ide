@@ -945,6 +945,32 @@ services:
       db:
         condition: service_healthy
 
+  # Omni-RAG v3: Мультимодальный визуальный поиск (VRAG/VimRAG)
+  victoria-visual-search:
+    image: python:3.10-slim
+    container_name: victoria-visual-search
+    restart: unless-stopped
+    mem_limit: 4g
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app
+      # Модель для визуальных эмбеддингов (будет скачана при старте или примонтирована)
+      EMBEDDING_MODEL: "Alibaba-NLP/GVE-2B"
+      DEVICE: "cpu" # Mac Studio CPU достаточно для 2B модели в инференсе
+    ports:
+      - "8005:8005"
+    volumes:
+      - ../knowledge_os/app/visual_search:/app
+      - ../knowledge_os/models:/app/models
+      - ../docs:/app/corpus/docs:ro
+      - ../frontend:/app/corpus/frontend:ro
+    working_dir: /app
+    command: ["python", "search_engine_api.py"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   open-webui-data:
   # Используем atra_knowledge_postgres_data (86 экспертов, 26k узлов) — данные atra/atra-web-ide

@@ -1003,7 +1003,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         await tm.mirror_request("ai_core", "_get_knowledge_context", query)
 
     try:
-        # [SINGULARITY 21.22] Parallel RAG Execution: GraphRAG + VectorRAG
+        # [SINGULARITY 21.22] Parallel RAG Execution: GraphRAG + VectorRAG + VisualRAG
         async def fetch_graph():
             try:
                 from app.graphrag.graphrag_service import get_graphrag_service
@@ -1022,6 +1022,25 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
             except Exception as ge:
                 logger.debug(f"GraphRAG failed: {ge}")
                 return None
+
+        async def fetch_visual():
+            """[OMNI-RAG v3] Coarse-to-Fine Visual Context Retrieval."""
+            try:
+                if not LocalAIRouter:
+                    return ""
+                router = LocalAIRouter()
+                visual_results = await router.search_visual_context(query)
+                if not visual_results:
+                    return ""
+                
+                context = "\n🖼️ [VISUAL CONTEXT (OMNI-RAG v3)]:\n"
+                for res in visual_results:
+                    context += f"\n[IMAGE/PDF: {res.get('file_path')}] (similarity: {res.get('similarity', 0):.2f}):\n"
+                    context += f"Description: {res.get('description', 'N/A')}\n"
+                return context
+            except Exception as e:
+                logger.debug(f"VisualRAG failed: {e}")
+                return ""
 
         async def fetch_vector():
             try:
@@ -1185,16 +1204,22 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 logger.error(f"Vector RAG failed: {ve}")
                 return ""
 
-        # Execute both in parallel
+        # Execute all in parallel
         graph_task = asyncio.create_task(fetch_graph())
         vector_task = asyncio.create_task(fetch_vector())
+        visual_task = asyncio.create_task(fetch_visual())
 
-        graph_context, vector_context = await asyncio.gather(graph_task, vector_task)
+        graph_context, vector_context, visual_context = await asyncio.gather(
+            graph_task, vector_task, visual_task
+        )
 
         full_context = ""
         if graph_context:
             logger.info("🌐 [GRAPHRAG] Context retrieved.")
             full_context += graph_context + "\n"
+        if visual_context:
+            logger.info("🖼️ [OMNI-RAG] Visual context retrieved.")
+            full_context += visual_context + "\n"
         if vector_context:
             full_context += vector_context
 

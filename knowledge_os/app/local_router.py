@@ -791,6 +791,25 @@ class LocalAIRouter:
 
         return False
 
+    async def search_visual_context(self, query: str, top_k: int = 3) -> List[Dict]:
+        """
+        [OMNI-RAG v3] Поиск по визуальным артефактам через victoria-visual-search.
+        """
+        visual_search_url = os.getenv("VISUAL_SEARCH_URL", "http://victoria-visual-search:8005")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{visual_search_url}/search",
+                    json={"queries": [query], "top_k": top_k}
+                )
+                if response.status_code == 200:
+                    results = response.json().get("results", [])
+                    logger.info(f"🖼️ [VISUAL SEARCH] Found {len(results)} matches for: {query[:50]}...")
+                    return results
+        except Exception as e:
+            logger.debug(f"Visual search failed: {e}")
+        return []
+
     async def run_local_llm(
         self,
         prompt: str,
@@ -814,6 +833,17 @@ class LocalAIRouter:
         Returns:
             tuple: (response, routing_source)
         """
+        # [OMNI-RAG v3] Автоматическое обогащение визуальным контекстом
+        prompt_lower = prompt.lower()
+        if "#multimodal" in prompt_lower or any(kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]):
+            visual_results = await self.search_visual_context(prompt)
+            if visual_results:
+                visual_block = "\n\n🖼️ [VISUAL CONTEXT]:\n"
+                for res in visual_results:
+                    visual_block += f"- {res.get('file_path')}: {res.get('description', 'No description available')}\n"
+                prompt += visual_block
+                logger.info("🎨 [OMNI-RAG] Injected visual context into prompt")
+
         # VIP-коридор: форсируем категорию и приоритет
         if is_vip:
             category = "vip"

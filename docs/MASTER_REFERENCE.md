@@ -1,3 +1,17 @@
+## § Последние изменения (2026-04-11 v61) — Omni-RAG v3: Multimodal Integration 🚀
+
+### Что изменилось сегодня (v61)
+
+#### 1. Omni-RAG v3: Мультимодальный визуальный поиск (VRAG/VimRAG)
+Внедрена поддержка визуального контекста для Knowledge OS:
+- **Инфраструктура:** Добавлен сервис `victoria-visual-search` в `docker-compose.yml` (порт 8005) на базе модели `Alibaba-NLP/GVE-2B` и FAISS.
+- **Индексация:** Создан `multimodal_indexer.py` для автоматического сканирования PDF, скриншотов и UI-дизайнов.
+- **Local Router:** Интегрирован метод `search_visual_context`. Теперь при наличии тега `#multimodal` или ключевых слов (интерфейс, схема, ui) Victoria автоматически получает визуальные описания в промпт.
+- **Knowledge Graph:** Добавлены новые типы связей `DEPICTS` и `IMPLEMENTS_UI` для связывания кода с визуальными артефактами.
+- **AI Core:** Реализован параллельный VisualRAG. Теперь поиск знаний идет по трем каналам одновременно: GraphRAG + VectorRAG + VisualRAG.
+
+---
+
 ## § Последние изменения (2026-04-11 v60) — Circuit Breaker RCA: Ollama 503 + failure_threshold fix ✅
 
 ### RCA: Circuit Breaker OPEN для node_http_host_docker_internal_11434 (Ollama) и 11435 (MLX)
