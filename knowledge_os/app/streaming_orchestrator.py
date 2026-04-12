@@ -165,6 +165,9 @@ class StreamingOrchestrator:
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
+                    ON CONFLICT (title, COALESCE(project_context, 'default'))
+                    WHERE status IN ('pending', 'in_progress')
+                    DO NOTHING
                     RETURNING id
                 """,
                     f"🔬 Валидация гипотезы: {event.source_domain} ↔ {event.target_domain}",
@@ -424,6 +427,9 @@ class StreamingOrchestrator:
                     """
                     INSERT INTO tasks (title, description, status, assignee_expert_id, creator_expert_id, metadata)
                     VALUES ($1, $2, 'pending', $3, $4, $5)
+                    ON CONFLICT (title, COALESCE(project_context, 'default'))
+                    WHERE status IN ('pending', 'in_progress')
+                    DO NOTHING
                     RETURNING id
                 """,
                     title_curiosity,

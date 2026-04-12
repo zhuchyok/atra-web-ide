@@ -20,6 +20,55 @@ from knowledge_os.app.resource_guard import get_resource_guard
 logger = logging.getLogger(__name__)
 
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
+
+
+async def _wait_for_task_via_pubsub(task_id: str, timeout_sec: int = 1800) -> bool:
+    """
+    [SWISS-CLOCK] Ждёт завершения задачи через Redis pub/sub.
+    Канал: task:completed:{task_id}
+    Возвращает True если задача завершилась, False если таймаут.
+    """
+    channel = f"task:completed:{task_id}"
+    try:
+        import redis.asyncio as aioredis
+        client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        pubsub = client.pubsub()
+        await pubsub.subscribe(channel)
+        logger.info(f"📡 [EVOLUTION] Subscribed to {channel} (timeout={timeout_sec}s)")
+        try:
+            deadline = asyncio.get_event_loop().time() + timeout_sec
+            async for message in pubsub.listen():
+                if asyncio.get_event_loop().time() > deadline:
+                    logger.info(f"⏰ [EVOLUTION] Timeout waiting for {task_id}")
+                    return False
+                if message.get("type") == "message":
+                    logger.info(f"✅ [EVOLUTION] Got completion signal for {task_id}")
+                    return True
+        finally:
+            await pubsub.unsubscribe(channel)
+            await client.aclose()
+    except Exception as e:
+        logger.debug(f"[EVOLUTION] Redis pub/sub unavailable ({e}), falling back to DB poll")
+        # Fallback: простой DB poll с нормальным интервалом
+        try:
+            import asyncpg as _apg
+            conn = await _apg.connect(DB_URL)
+            try:
+                for _ in range(timeout_sec // 30):
+                    status = await conn.fetchval(
+                        "SELECT status FROM tasks WHERE id = $1", task_id
+                    )
+                    if status == "completed":
+                        return True
+                    if status == "failed":
+                        return False
+                    await asyncio.sleep(30)
+            finally:
+                await conn.close()
+        except Exception as db_err:
+            logger.debug(f"[EVOLUTION] DB poll fallback failed: {db_err}")
+    return False
 
 
 class PerpetualEvolution:
@@ -294,23 +343,28 @@ class PerpetualEvolution:
                 logger.warning(f"⏸️ [EVOLUTION] Queue full ({pending_count}/150). Skipping task creation.")
                 return False
 
-            # 2. Deduplication Check: Don't create the same task twice
-            exists = await conn.fetchval("SELECT 1 FROM tasks WHERE title = $1 AND status = 'pending' LIMIT 1", f"🚀 EVOLUTION: {task['title']}")
-            if exists:
-                logger.info(f"⏭️ [EVOLUTION] Task already exists in pending: {task['title']}")
-                return True
-
-            # 3. Create Task
-            await conn.execute(
-                """
-                INSERT INTO tasks (title, description, status, priority, metadata)
-                VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-            """,
-                f"🚀 EVOLUTION: {task['title']}",
-                task["implementation_plan"],
-                # [SINGULARITY 23.6] Offload heavy JSON dumps to thread pool
-                await asyncio.to_thread(json.dumps, task),
+            # 2+3. Atomic dedup + insert via create_task_safe (ON CONFLICT DO NOTHING — нет TOCTOU race)
+            from db_pool import create_task_safe
+            task_meta = await asyncio.to_thread(json.dumps, task)
+            task_id = await create_task_safe(
+                title=f"🚀 EVOLUTION: {task['title']}",
+                description=task["implementation_plan"],
+                priority="high",
+                metadata={"evolution": True, "task_data": task.get("title", "")},
             )
+            if task_id:
+                logger.info(f"✅ [EVOLUTION] Task created: {task['title']} → {task_id}")
+                # [SWISS-CLOCK] Ждём завершения через Redis pub/sub (не polling)
+                # Таймаут 30 мин — после этого считаем успехом (задача в очереди)
+                completed = await _wait_for_task_via_pubsub(str(task_id), timeout_sec=1800)
+                if completed:
+                    logger.info(f"🎉 [EVOLUTION] Task confirmed completed: {task_id}")
+                else:
+                    logger.info(f"⏳ [EVOLUTION] Task timeout/pending — marked as submitted: {task_id}")
+            else:
+                logger.info(f"⏭️ [EVOLUTION] Task already exists (dedup): {task['title']}")
+
+
         
         return True
 

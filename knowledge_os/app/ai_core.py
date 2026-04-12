@@ -603,7 +603,9 @@ logger = logging.getLogger(__name__)
 _last_tool_creator_log_time = [0.0]
 
 # Retry config for transient LLM failures (503, timeout, connection)
-RETRY_BACKOFF_DELAYS = (2, 5, 10)  # seconds
+# При CB OPEN (recovery_timeout=120s) короткие 2/5/10s бесполезны —
+# добавляем более длинный финальный retry (30s) для случаев когда CB начинает восстанавливаться
+RETRY_BACKOFF_DELAYS = (5, 15, 30)  # seconds (увеличены: 2/5/10 → 5/15/30)
 RETRY_MAX_ATTEMPTS = 3
 
 # Global user identification for conditional logic
@@ -611,7 +613,7 @@ USER_NAME = getpass.getuser()
 
 
 def _is_transient_llm_error(e_or_msg) -> bool:
-    """Check if error/message indicates transient LLM failure (503, timeout, etc.)."""
+    """Check if error/message indicates transient LLM failure (503, timeout, all-sources-unavailable)."""
     if e_or_msg is None:
         return False
     s = str(e_or_msg).lower()
@@ -621,6 +623,9 @@ def _is_transient_llm_error(e_or_msg) -> bool:
         or "timeout" in s
         or "connection" in s
         or "unavailable" in s
+        or "все источники недоступны" in s  # заглушка из _run_cloud_agent_async — тоже transient
+        or "circuit breaker" in s
+        or "maximum pending requests" in s
     )
 
 
@@ -1149,10 +1154,12 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                             context = "\n📚 [KNOWLEDGE CONTEXT (RUST-ACCELERATED)]:\n"
                             for node in nodes:
-                                if node.get("similarity", 0) >= 0.55:
+                                # (node.get("similarity") or 0) — защита от similarity=null в JSON
+                                sim = node.get("similarity") or 0
+                                if sim >= 0.55:
                                     meta = node.get("metadata") or {}
                                     file_path = meta.get("file_path", "N/A")
-                                    context += f"\n[NODE: {file_path}] (релевантность: {node['similarity']:.2f}):\n"
+                                    context += f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
                                     context += f"{node['content'][:1200]}\n"
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 

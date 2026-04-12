@@ -92,18 +92,17 @@ class AutonomousTester:
     async def log_healing_task(self, test_name: str, proposal: str):
         """Logs the healing proposal as a task in DB."""
         try:
-            conn = await asyncpg.connect(DB_URL)
-            await conn.execute(
-                """
-                INSERT INTO tasks (title, description, status, priority, metadata)
-                VALUES ($1, $2, 'pending', 'high', $3::jsonb)
-            """,
-                f"💊 SELF-HEALING: Fix {test_name}",
-                proposal,
-                json.dumps({"type": "self_healing", "test": test_name}),
+            from db_pool import create_task_safe
+            task_id = await create_task_safe(
+                title=f"💊 SELF-HEALING: Fix {test_name}",
+                description=proposal,
+                priority="high",
+                metadata={"type": "self_healing", "test": test_name},
             )
-            await conn.close()
-            logger.info(f"📝 [TESTER] Healing task created for {test_name}")
+            if task_id:
+                logger.info(f"📝 [TESTER] Healing task created for {test_name}: {task_id}")
+            else:
+                logger.info(f"⏭️ [TESTER] Healing task already exists for {test_name} (dedup)")
         except Exception as e:
             logger.error(f"❌ [TESTER] Failed to log task: {e}")
 

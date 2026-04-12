@@ -563,6 +563,13 @@ async def process_task(task_data: dict):
 
                 logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
 
+                # [SWISS-CLOCK] PUBLISH completion event для pub/sub подписчиков (perpetual_evolution и др.)
+                try:
+                    _redis_client = await redis_manager.get_client()
+                    await _redis_client.publish(f"task:completed:{task_id}", "completed")
+                except Exception as _pub_err:
+                    logger.debug(f"[PUBSUB] Publish failed (non-critical): {_pub_err}")
+
                 # [SINGULARITY 26.4] Детерминированный handoff — без LLM-тегов
                 try:
                     from explicit_handoffs import detect_deterministic_handoff
@@ -609,8 +616,67 @@ async def process_task(task_data: dict):
 
 
 async def _handle_task_error(task_id, error_msg, is_valid_uuid):
-    """Вспомогательная функция для обработки ошибок задачи"""
+    """
+    Обработка ошибок задачи с retry-логикой.
+    [SWISS-CLOCK] Унифицировано со smart_worker: transient errors → re-queue с exp backoff + jitter.
+    Постоянные ошибки (attempt_count >= 3) → failed.
+    """
+    import random as _random
+    from datetime import datetime, timezone
+
+    _is_transient = any(m in (error_msg or "").lower() for m in (
+        "timeout", "503", "circuit breaker", "maximum pending", "все источники недоступны",
+        "connection", "unavailable",
+    ))
+
     try:
+        if is_valid_uuid and _is_transient:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                # Читаем текущий attempt_count из metadata
+                meta_raw = await conn.fetchval("SELECT metadata FROM tasks WHERE id = $1", task_id)
+                try:
+                    meta = json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
+                except Exception:
+                    meta = {}
+                attempt_count = int(meta.get("attempt_count", 0)) + 1
+
+                if attempt_count < 3:
+                    # Exponential backoff + jitter (AWS best practice)
+                    base = 120  # seconds (CB recovery_timeout = 120s)
+                    exp_delay = min(base * (2 ** max(attempt_count - 1, 0)), 600)
+                    jitter = _random.randint(0, 30)
+                    retry_delay = exp_delay + jitter
+                    retry_after = datetime.fromtimestamp(
+                        datetime.utcnow().timestamp() + retry_delay, tz=timezone.utc
+                    ).isoformat()
+
+                    await conn.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'pending',
+                            updated_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb
+                        WHERE id = $1
+                        """,
+                        task_id,
+                        json.dumps({
+                            "last_attempt_failed": True,
+                            "attempt_count": attempt_count,
+                            "last_error": error_msg[:300],
+                            "next_retry_after": retry_after,
+                            "llm_unavailable": True,
+                        }),
+                    )
+                    await redis_manager.update_task_status(task_id, "pending")
+                    logger.warning(
+                        f"⏳ [RETRY] Task {task_id} re-queued (attempt {attempt_count}/3, "
+                        f"retry in {retry_delay}s): {error_msg[:80]}"
+                    )
+                    await redis_manager.release_task_lock(task_id)
+                    return  # не fail — будет повтор
+
+        # Постоянная ошибка или исчерпаны попытки → fail
         await redis_manager.update_task_status(task_id, "failed", result=error_msg)
         if is_valid_uuid:
             pool = await get_db_pool()
@@ -622,7 +688,7 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
                         result = $2,
                         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_error', $3::text)
                     WHERE id = $1
-                """,
+                    """,
                     task_id,
                     error_msg,
                     error_msg[:200],

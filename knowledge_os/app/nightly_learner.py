@@ -919,6 +919,9 @@ async def nightly_learning_cycle():
                         """
                         INSERT INTO tasks (title, description, status, priority, metadata)
                         VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+                        ON CONFLICT (title, COALESCE(project_context, 'default'))
+                        WHERE status IN ('pending', 'in_progress')
+                        DO NOTHING
                     """,
                         "🔧 Исправить падающие автотесты (Nightly Learner)",
                         content_kn[:2000],

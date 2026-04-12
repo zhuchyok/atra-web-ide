@@ -932,10 +932,22 @@ DESC: {task_description}
             "Ошибка связи",
         ]
         is_error = any(indicator in report for indicator in error_indicators) if report else True
+
+        # [SWISS-CLOCK] Детектируем LLM-недоступность отдельно —
+        # эти случаи нужно re-queue с задержкой, а не эскалировать как логические ошибки
+        is_llm_unavailable = bool(report and isinstance(report, str) and any(
+            marker in report for marker in (
+                "Все источники недоступны",
+                "circuit breaker",
+                "maximum pending requests",
+                "503",
+            )
+        ))
         
         # Если отчет пустой или None - это ошибка (таймаут или сбой модели)
         if not report or not isinstance(report, str) or len(report.strip()) < 10:
             is_error = True
+            is_llm_unavailable = True  # пустой ответ = LLM не ответил
             if not _last_failure_reason:
                 _last_failure_reason = "empty_response_or_timeout"
 
@@ -966,9 +978,8 @@ DESC: {task_description}
             attempt_count += 1
 
             # После MAX_ATTEMPTS: rule → эскалация в Совет Директоров → complete с директивой или deferred
-            should_try_rule_or_escalate = (
-                is_llm_unavailable and attempt_count >= 2
-            ) if 'is_llm_unavailable' in locals() else attempt_count >= MAX_ATTEMPTS
+            # [SWISS-CLOCK] LLM-недоступность не эскалируем раньше времени — даём MAX_ATTEMPTS попыток
+            should_try_rule_or_escalate = attempt_count >= MAX_ATTEMPTS
             if should_try_rule_or_escalate:
                 rule_result = None
                 try:
@@ -1453,8 +1464,14 @@ DESC: {task_description}
                 f"[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (mode={exec_mode}, board_escalated={not bool(rule_result)})."
             )
         else:
-            # Обновляем счетчик попыток, сохраняем причину сбоя и задержку перед повтором (чтобы не бить LLM сразу)
-            retry_delay_sec = int(os.getenv("SMART_WORKER_RETRY_DELAY_SEC", "90"))
+            # [SWISS-CLOCK] Exponential backoff with jitter (AWS best practice — предотвращает thundering herd)
+            # base_delay зависит от причины: LLM недоступен → 120s (CB recovery), иначе → 90s
+            import random as _random
+            base_delay = 120 if is_llm_unavailable else int(os.getenv("SMART_WORKER_RETRY_DELAY_SEC", "90"))
+            # delay = min(base * 2^(attempt-1), 600) + jitter(0..30)
+            exp_delay = min(base_delay * (2 ** max(attempt_count - 1, 0)), 600)
+            jitter = _random.randint(0, 30)
+            retry_delay_sec = exp_delay + jitter
             next_retry_after = (
                 (datetime.utcnow().timestamp() + retry_delay_sec) if retry_delay_sec > 0 else None
             )
@@ -1462,6 +1479,7 @@ DESC: {task_description}
                 "last_attempt_failed": True,
                 "attempt_count": attempt_count,
                 "last_error": last_error_text[:500],
+                "llm_unavailable": is_llm_unavailable,
             }
             if next_retry_after is not None:
                 from datetime import timezone
@@ -1605,6 +1623,7 @@ async def main():
                       AND (t.metadata->>'next_retry_after' IS NULL OR (t.metadata->>'next_retry_after')::timestamptz < NOW())
                     ORDER BY
                         COALESCE((t.metadata->>'bug_probability')::float, 0.0) DESC,  -- Приоритет: задачи с высокой bug_probability
+                        COALESCE((t.metadata->>'attempt_count')::int, 0) ASC,  -- [SWISS-CLOCK] retry-задачи ниже свежих (thundering herd guard)
                         t.created_at ASC
                     LIMIT $1
                 """,
