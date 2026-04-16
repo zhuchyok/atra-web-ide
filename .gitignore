@@ -83,8 +83,40 @@ frontend/blob-report/
 frontend/playwright/.cache/
 
 # Curator reports (генерируемые)
-docs/curator_reports/*.md
-!docs/curator_reports/README.md
+docs/curator_reports/
+docs/curator_findings.jsonl
+docs/CHANGES_FROM_OTHER_CHATS.md
+scripts/curator_tasks.txt
+
+# Skills procedural artifacts (временные/генерируемые)
+knowledge_os/app/skills/procedural/#*/
+knowledge_os/app/skills/procedural/*отчет*/
+knowledge_os/app/skills/procedural/*выполнение*/
+knowledge_os/app/skills/procedural/*система*/
+knowledge_os/app/skills/procedural/*статус*/
+knowledge_os/app/skills/procedural/*анализ*/
+knowledge_os/app/skills/procedural/*процедура*/
+knowledge_os/app/skills/procedural/*фоновая*/
+knowledge_os/app/skills/procedural/*рекомендация*/
+knowledge_os/app/skills/procedural/*план*/
+knowledge_os/app/skills/procedural/*список*/
+knowledge_os/app/skills/procedural/*мониторинг*/
+knowledge_os/app/skills/procedural/*голосование*/
+knowledge_os/app/skills/procedural/*задача*/
+knowledge_os/app/skills/procedural/*проверка*/
+knowledge_os/app/skills/procedural/*контроль*/
+knowledge_os/app/skills/procedural/*аудит*/
+knowledge_os/app/skills/procedural/*оценка*/
+knowledge_os/app/skills/procedural/*функционал*/
+knowledge_os/app/skills/procedural/*🧠-фундаментальное*/
+knowledge_os/app/skills/procedural/*🎀-performance-hypothesis*/
+knowledge_os/app/skills/procedural/dynamic-knowledge-graph-integration/
+knowledge_os/app/skills/procedural/hierarchical-temporal-memory-(htm)/
+knowledge_os/app/skills/procedural/```json/
+
+# Local DB migrations
+knowledge_os/app/db/migrations/
+knowledge_os/app/knowledge_os/
 
 # Артефакты сборки / зеркала (чтобы не раздувать число «active changes» в Cursor)
 fused_model/
