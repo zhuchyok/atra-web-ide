@@ -88,14 +88,10 @@ docs/curator_findings.jsonl
 docs/CHANGES_FROM_OTHER_CHATS.md
 scripts/curator_tasks.txt
 
-# Skills procedural artifacts (временные/генерируемые)
-knowledge_os/app/skills/procedural/#*/
-knowledge_os/app/skills/procedural/*тз*/
-knowledge_os/app/skills/procedural/*архитектура*/
-knowledge_os/app/skills/procedural/*репозитор*/
-knowledge_os/app/skills/procedural/*подготовк*/
-knowledge_os/app/skills/procedural/*🧠*/
-knowledge_os/app/skills/procedural/*🎀*/
+# Skills procedural artifacts (все кроме базовых)
+knowledge_os/app/skills/procedural/*/
+!knowledge_os/app/skills/procedural/README.md
+!knowledge_os/app/skills/procedural/skills.json
 
 # Local DB migrations
 knowledge_os/app/db/migrations/
