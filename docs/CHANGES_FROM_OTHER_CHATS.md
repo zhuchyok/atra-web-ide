@@ -1,6 +1,36 @@
 # Правки из других чатов — сводка для агента
 
-## § Последние изменения (2026-04-11 v63) — Hierarchical Swarm Orchestration: Explicit Handoffs & Contracts 🐝
+## § Последние изменения (2026-04-12 v64) — Singularity 27.0: Real Swarm, Real Retries 💯
+
+### Что изменилось сегодня (v64)
+
+#### 1. HANDOFF → реальные DB-задачи (критический фикс)
+- Обнаружен и устранён баг в `explicit_handoffs.py`: `get_handoff_manager()` не имел `return` → возвращал `None` → ни один HANDOFF никогда не создавался.
+- `expert_worker.py`: при обнаружении тега `HANDOFF:` теперь создаётся реальная строка в таблице `tasks` с `parent_task_id` (linked subtask). До фикса: 0 subtasks за всю историю.
+- Это делает систему **реально** мультиагентной: делегация создаёт видимые задачи в очереди, которые подхватываются воркерами.
+
+#### 2. Stub requeue вместо false-completed
+- `expert_worker.py`: результат `"Все источники недоступны"` больше не помечает задачу `completed`.
+- Вместо этого: `status = 'pending'` + exponential backoff (`retry_after` = +5/10/20 минут), `retry_count++`.
+- После `TASK_MAX_RETRIES=3` попыток — статус `failed` (честный), не `completed`.
+- Добавлена DB миграция: `tasks.retry_count`, `tasks.retry_after` (с индексом).
+
+#### 3. Real AgentScope (исправлен путь импорта)
+- `agentscope >= 1.0` перенёс `AgentBase` из `agentscope.agents` → `agentscope.agent` (без 's').
+- `expert_worker.py` обновлён: сначала пробует `agentscope.agent`, затем legacy `agentscope.agents`, затем shim.
+- Добавлены зависимости в `requirements.txt`: `sqlalchemy`, `tiktoken`, `aiofiles`, `python-frontmatter`, `python-socketio`, `python-datauri`, `dashscope`.
+- Теперь `VictoriaExpertActor` работает на реальном AgentScope с памятью через SQLAlchemy.
+
+### Затронутые файлы
+- `knowledge_os/app/explicit_handoffs.py` — фикс return в get_handoff_manager()
+- `knowledge_os/app/expert_worker.py` — HANDOFF→subtask, stub requeue, AgentScope import fix, retry_count fetch
+- `knowledge_os/app/requirements.txt` — добавлены зависимости agentscope
+- `knowledge_os/app/smart_worker_autonomous.py` — SELECT добавлен фильтр `retry_after`
+- `knowledge_os/app/db/migrations/add_task_retry.sql` — новая миграция
+
+---
+
+
 
 ### Что изменилось сегодня (v63)
 
