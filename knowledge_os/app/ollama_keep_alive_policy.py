@@ -15,12 +15,14 @@ logger = logging.getLogger(__name__)
 _last_mlx_failure_time: float = 0
 
 # Бессмертные модели (держать в памяти всегда) — дублируем список, чтобы не импортировать local_router
+# Финальный состав по §53 (2026-03-08 Singularity 24.7 Immortal Models Alignment):
+# nomic, moondream, tinyllama, phi3.5 — всегда в памяти.
+# victoria-wisdom-v3.5:latest НЕ здесь: при живом MLX → 60с (Wisdom Era §825), immortal только при падении MLX.
 IMMORTAL_MODELS = {
     "nomic-embed-text",
     "moondream",
     "tinyllama",
-    "phi3.5:3.8b",
-    "victoria-wisdom-v3.5:latest",
+    "phi3.5:3.8b",  # §53: финально, с адаптивным контекстом 16384 (21GB at OLLAMA_NUM_PARALLEL=6 → 128GB OK)
 }
 
 # Cooldown constant for recovery

@@ -1395,7 +1395,8 @@ class VictoriaAgent(BaseAgent):
                 "prometheus",
                 "docker",
             ],
-            "security": ["безопасность", "security", "уязвимость", "аудит"],
+            "security": ["безопасность", "security", "уязвимость", "аудит безопасности", "xss", "sql injection", "csrf"],
+            "analytics": ["аудит", "audit", "анализ системы", "статистика", "метрики", "отчёт", "отчет", "throughput", "производительность системы", "успешных задач", "активных экспертов"],
             "database": ["база данных", "миграция", "схема", "индекс", "postgresql", "sqlite"],
             "performance": ["производительность", "оптимизация", "скорость", "latency"],
         }
@@ -1451,6 +1452,11 @@ class VictoriaAgent(BaseAgent):
                     "Security Engineer",
                     "Performance Engineer",
                     "Lead DevOps Architect",
+                ],
+                "analytics": [
+                    "Data Analyst",
+                    "ML Engineer",
+                    "Team Lead",
                 ],
                 "security": ["Security Engineer", "DevOps Engineer", "Code Reviewer"],
                 "database": ["Database Engineer", "Backend Developer", "DevOps Engineer"],
@@ -3724,7 +3730,11 @@ def _format_ide_context(request: TaskRequest) -> str:
 async def _record_orchestration_task_start(
     agent, goal: str, orchestrator_version: str
 ) -> Optional[str]:
-    """Записать старт задачи в knowledge_os.tasks для A/B метрик. Возвращает task_id (UUID) или None."""
+    """Записать старт чата в knowledge_os.tasks для A/B метрик. Возвращает task_id (UUID) или None.
+
+    ВАЖНО: задача создаётся со status='cancelled' и source='orchestration_tracking' — воркеры её
+    НЕ подбирают. Это только метрическая запись, не реальная рабочая задача.
+    """
     if not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
         return None
     pool = await agent._get_db_pool()
@@ -3732,16 +3742,19 @@ async def _record_orchestration_task_start(
         return None
     title = (goal or "Task")[:255]
     description = (goal or "")[:10000]
+    import json as _json
+    tracking_meta = _json.dumps({"source": "orchestration_tracking"})
     try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO tasks (title, description, status, orchestrator_version)
-                VALUES ($1, $2, 'in_progress', $3)
+                INSERT INTO tasks (title, description, status, metadata, orchestrator_version)
+                VALUES ($1, $2, 'cancelled', $3::jsonb, $4)
                 RETURNING id
                 """,
                 title,
                 description,
+                tracking_meta,
                 orchestrator_version,
             )
             return str(row["id"]) if row else None
@@ -3750,9 +3763,10 @@ async def _record_orchestration_task_start(
             try:
                 async with pool.acquire() as conn:
                     row = await conn.fetchrow(
-                        "INSERT INTO tasks (title, description, status) VALUES ($1, $2, 'in_progress') RETURNING id",
+                        "INSERT INTO tasks (title, description, status, metadata) VALUES ($1, $2, 'cancelled', $3::jsonb) RETURNING id",
                         title,
                         description,
+                        tracking_meta,
                     )
                     return str(row["id"]) if row else None
             except Exception:

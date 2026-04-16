@@ -1464,11 +1464,15 @@ This block will be analyzed by other agents for collective verification.
     # Only inject for Victoria (orchestrator role) — other experts should not initiate handoffs.
     swarm_instruction = """
 ### SWARM & HANDOFF PROTOCOL:
-If the task requires another expert (e.g. writing tests, security audit, deployment),
-add at the END of your answer:
-HANDOFF: @expert_name
+If the task requires another expert, add at the END of your answer (use LATIN names only):
+HANDOFF: @ExpertName
 TASK: task description for the colleague
-CONTRACT: {json_schema}
+CONTRACT: {"expected_output": "description", "format": "text"}
+
+Available experts: @Igor (backend/code), @Dmitry (ML/models), @Sergey (DevOps/deploy),
+@Anna (QA/tests), @Elena (monitoring/logs), @Alexey (security), @Roman (database),
+@Olga (performance), @Maxim (analytics), @Pavel (trading strategy).
+Use HANDOFF only if delegation genuinely improves the result.
 """
     if expert_name in ("Виктория", "Victoria", "виктория"):
         prompt = swarm_instruction + "\n" + prompt

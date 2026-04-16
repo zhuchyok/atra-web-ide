@@ -10,6 +10,106 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
+
+def _structured_cancel_reason(reason_code: str, component: str, details: str = "") -> dict:
+    """Структурированная причина системного сброса/отмены задачи."""
+    payload = {
+        "reason_code": reason_code,
+        "component": component,
+        "policy": "auto_requeue_delegation_v1",
+        "at": datetime.utcnow().isoformat() + "Z",
+    }
+    if details:
+        payload["details"] = details[:500]
+    return payload
+
+
+async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
+    """Печатает метрики и алерт по stuck delegation задачам."""
+    try:
+        row = await conn.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'pending') AS pending_cnt,
+                COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_cnt,
+                COUNT(*) FILTER (WHERE status = 'failed') AS failed_cnt,
+                COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_cnt
+            FROM tasks
+            WHERE metadata->>'source' = 'victoria_monster_delegation'
+            """
+        )
+        if not row:
+            return
+        pending_cnt = int(row["pending_cnt"] or 0)
+        in_progress_cnt = int(row["in_progress_cnt"] or 0)
+        failed_cnt = int(row["failed_cnt"] or 0)
+        cancelled_cnt = int(row["cancelled_cnt"] or 0)
+        print(
+            f"[{datetime.now()}] 📊 [DELEGATION_METRICS] pending={pending_cnt} in_progress={in_progress_cnt} failed={failed_cnt} cancelled={cancelled_cnt}"
+        )
+        stuck_total = failed_cnt + cancelled_cnt
+        if stuck_total >= alert_threshold:
+            print(
+                f"[{datetime.now()}] 🚨 [DELEGATION_ALERT] stuck_delegation={stuck_total} (failed={failed_cnt}, cancelled={cancelled_cnt}) threshold={alert_threshold}"
+            )
+    except Exception as _metrics_err:
+        logger.debug("Delegation metrics failed: %s", _metrics_err)
+
+
+async def _auto_requeue_delegation(
+    conn,
+    max_rows: int,
+    max_requeues_per_task: int,
+) -> int:
+    """Policy-driven восстановление delegation задач без активных дублей."""
+    try:
+        result = await conn.execute(
+            """
+            WITH candidate AS (
+                SELECT t.id, t.title, COALESCE(t.project_context, 'default') AS pc
+                FROM tasks t
+                WHERE t.status IN ('cancelled', 'failed')
+                  AND t.metadata->>'source' = 'victoria_monster_delegation'
+                  AND COALESCE((t.metadata->>'auto_requeue_count')::int, 0) < $2::int
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM tasks t2
+                      WHERE t2.status IN ('pending', 'in_progress')
+                        AND t2.title = t.title
+                        AND COALESCE(t2.project_context, 'default') = COALESCE(t.project_context, 'default')
+                  )
+                ORDER BY t.updated_at ASC
+                LIMIT $1::int
+            )
+            UPDATE tasks t
+            SET status = 'pending',
+                updated_at = NOW(),
+                metadata = COALESCE(t.metadata, '{}'::jsonb)
+                    || jsonb_build_object(
+                        'restored_from', t.status,
+                        'restored_by', 'auto_requeue_delegation_policy',
+                        'auto_requeue_count', COALESCE((t.metadata->>'auto_requeue_count')::int, 0) + 1,
+                        'cancel_reason', $3::jsonb
+                    )
+            FROM candidate c
+            WHERE t.id = c.id
+            """,
+            max_rows,
+            max_requeues_per_task,
+            json.dumps(
+                _structured_cancel_reason(
+                    "delegation_auto_requeued",
+                    "smart_worker_autonomous",
+                    "restored from failed/cancelled by policy",
+                )
+            ),
+        )
+        if result and result.startswith("UPDATE"):
+            return int(result.split()[-1])
+    except Exception as _requeue_err:
+        logger.debug("Auto requeue delegation failed: %s", _requeue_err)
+    return 0
+
 # Маппинг role/department → папки скиллов (П.2 PRINCIPLE_EXPERTS_FIRST). Ключи — подстроки для role/department (lower).
 ROLE_DEPARTMENT_TO_SKILLS = {
     "backend": ["backend-development", "code-review"],
@@ -484,16 +584,29 @@ async def process_task(pool, task):
         async with conn.transaction():
             # Порог «зависшая in_progress» — тот же, что и в главном цикле (STUCK_MINUTES), иначе слоты заняты до 1 ч
             stuck_mins = int(os.getenv("SMART_WORKER_STUCK_MINUTES", "15"))
+            # [BUG FIX] RAG-loop stuck: задача обновляет updated_at через heartbeat каждые 15с,
+            # поэтому стандартный STUCK_MINUTES не работает.
+            # Дополнительный критерий: last_llm_call_at IS NULL (нет LLM-вызова вообще) после 10 мин
+            # или last_llm_call_at старше LLM_STUCK_MINUTES (LLM call есть, но завис).
+            llm_stuck_mins = int(os.getenv("SMART_WORKER_LLM_STUCK_MINUTES", "10"))
             # Обновляем статус с проверкой, что задача не обрабатывается другим worker'ом
             result = await conn.execute(
                 """
                 UPDATE tasks
                 SET status = 'in_progress', updated_at = NOW()
                 WHERE id = $1
-                AND (status = 'pending' OR (status = 'in_progress' AND updated_at < NOW() - make_interval(mins => $2::int)))
+                AND (
+                    status = 'pending'
+                    OR (status = 'in_progress' AND updated_at < NOW() - make_interval(mins => $2::int))
+                    OR (status = 'in_progress'
+                        AND created_at < NOW() - make_interval(mins => $3::int)
+                        AND (last_llm_call_at IS NULL
+                             OR last_llm_call_at < NOW() - make_interval(mins => $3::int)))
+                )
             """,
                 task_id,
                 stuck_mins,
+                llm_stuck_mins,
             )
 
             # Если задача уже обрабатывается (не обновилась), пропускаем
@@ -811,6 +924,17 @@ DESC: {task_description}
                         llm_timeout = min(llm_timeout, 1800)  # не больше 30 мин (Singularity 24.3)
                 except ImportError:
                     pass
+            # [BUG FIX] Mark LLM call BEFORE the actual call so RAG-loop guard knows
+            # we're past the RAG phase. Heartbeat updates updated_at every 15s and masks
+            # stuck tasks — last_llm_call_at is the only reliable indicator of real progress.
+            try:
+                async with pool.acquire() as _llm_mark_conn:
+                    await _llm_mark_conn.execute(
+                        "UPDATE tasks SET last_llm_call_at = NOW() WHERE id = $1 AND status = 'in_progress'",
+                        task_id,
+                    )
+            except Exception as _lm_err:
+                logger.debug(f"[LLM_CALL_MARK] smart_worker: failed for {task_id}: {_lm_err}")
             report = await asyncio.wait_for(
                 run_cursor_agent_smart(prompt, expert_name, router=router_instance),
                 timeout=llm_timeout,
@@ -1518,6 +1642,15 @@ async def main():
     print(f"[{datetime.now()}] 🚀 AUTONOMOUS SMART WORKER v4.0 (PARALLEL) starting...")
     pool = await get_pool()
 
+    # [SINGULARITY 25.0] Reset Ollama global slots counter on startup.
+    # Анна (QA): if the worker was killed (kill -9) mid-request, slots may not have been released.
+    # The TTL (60s) handles it eventually, but resetting here ensures immediate clean slate.
+    try:
+        from redis_manager import RedisManager as _StartupRM
+        await _StartupRM().reset_ollama_slots()
+    except Exception as _rst_err:
+        print(f"[{datetime.now()}] ⚠️ [STARTUP] Ollama slots reset failed: {_rst_err}")
+
     # Конфигурация параллельной обработки (Backend/SRE: пул достаточен при динамическом N — max_size по потолку)
     MAX_CONCURRENT_TASKS = int(os.getenv("SMART_WORKER_MAX_CONCURRENT", "10"))
     BATCH_SIZE = int(os.getenv("SMART_WORKER_BATCH_SIZE", "50"))
@@ -1544,6 +1677,17 @@ async def main():
 
     # Интервал сброса зависших in_progress: по умолчанию 15 мин (раньше 1 ч — из‑за этого при 10 зависших только 5 pending обрабатывались за цикл, ~5 задач/час)
     STUCK_MINUTES = int(os.getenv("SMART_WORKER_STUCK_MINUTES", "15"))
+    # [BUG FIX] RAG-loop stuck detection: сбрасываем задачи у которых нет LLM-вызова > N мин,
+    # даже если heartbeat обновляет updated_at. Этот порог защищает от RAG infinite loop.
+    LLM_STUCK_MINUTES = int(os.getenv("SMART_WORKER_LLM_STUCK_MINUTES", "10"))
+    AUTO_REQUEUE_DELEGATION = os.getenv("AUTO_REQUEUE_DELEGATION", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    AUTO_REQUEUE_BATCH = int(os.getenv("AUTO_REQUEUE_DELEGATION_BATCH", "10"))
+    AUTO_REQUEUE_MAX_PER_TASK = int(os.getenv("AUTO_REQUEUE_MAX_PER_TASK", "3"))
+    DELEGATION_ALERT_THRESHOLD = int(os.getenv("DELEGATION_STUCK_ALERT_THRESHOLD", "3"))
 
     while True:
         try:
@@ -1554,12 +1698,20 @@ async def main():
                     UPDATE tasks
                     SET status = 'pending', updated_at = NOW(),
                         metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                            'stuck_reset', true, 'previous_status', 'in_progress'
+                            'stuck_reset', true, 'previous_status', 'in_progress',
+                            'cancel_reason', $2::jsonb
                         )
                     WHERE status = 'in_progress'
                       AND updated_at < NOW() - make_interval(mins => $1::int)
                 """,
                     STUCK_MINUTES,
+                    json.dumps(
+                        _structured_cancel_reason(
+                            "stuck_in_progress_timeout",
+                            "smart_worker_watchdog",
+                            f"no progress by updated_at for >{STUCK_MINUTES} minutes",
+                        )
+                    ),
                 )
                 if stuck_result and stuck_result.startswith("UPDATE"):
                     n = stuck_result.split()[-1]
@@ -1567,6 +1719,55 @@ async def main():
                         print(
                             f"[{datetime.now()}] 🔄 Вернуто в очередь зависших задач (>{STUCK_MINUTES} мин): {n}"
                         )
+
+                # [BUG FIX] RAG-loop guard: задачи, у которых нет LLM-вызова > LLM_STUCK_MINUTES,
+                # застряли в RAG-петле. Heartbeat маскирует их от стандартного STUCK check.
+                rag_stuck_result = await conn.execute(
+                    """
+                    UPDATE tasks
+                    SET status = 'pending', updated_at = NOW(),
+                        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                            'stuck_reset', true, 'reset_reason', 'rag_loop_no_llm_call',
+                            'previous_status', 'in_progress',
+                            'cancel_reason', $2::jsonb
+                        )
+                    WHERE status = 'in_progress'
+                      AND created_at < NOW() - make_interval(mins => $1::int)
+                      AND (
+                          last_llm_call_at IS NULL
+                          OR last_llm_call_at < NOW() - make_interval(mins => $1::int)
+                      )
+                """,
+                    LLM_STUCK_MINUTES,
+                    json.dumps(
+                        _structured_cancel_reason(
+                            "rag_loop_no_llm_call",
+                            "smart_worker_watchdog",
+                            f"last_llm_call_at is stale or null for >{LLM_STUCK_MINUTES} minutes",
+                        )
+                    ),
+                )
+                if rag_stuck_result and rag_stuck_result.startswith("UPDATE"):
+                    n = rag_stuck_result.split()[-1]
+                    if n != "0":
+                        print(
+                            f"[{datetime.now()}] 🔁 [RAG-LOOP GUARD] Сброшено задач без LLM-вызова (>{LLM_STUCK_MINUTES} мин): {n}"
+                        )
+
+                # [POLICY] Автовосстановление delegation-задач из failed/cancelled в pending.
+                if AUTO_REQUEUE_DELEGATION:
+                    restored_n = await _auto_requeue_delegation(
+                        conn,
+                        max_rows=AUTO_REQUEUE_BATCH,
+                        max_requeues_per_task=AUTO_REQUEUE_MAX_PER_TASK,
+                    )
+                    if restored_n > 0:
+                        print(
+                            f"[{datetime.now()}] ♻️ [AUTO_REQUEUE_DELEGATION] Restored tasks: {restored_n}"
+                        )
+
+                # Метрики + alert по stuck delegation (failed+cancelled).
+                await _emit_delegation_metrics(conn, DELEGATION_ALERT_THRESHOLD)
 
             # ═══════════════════════════════════════════════════════════════════════════════
             # BACKPRESSURE: проверка перегрузки MLX/Ollama ПЕРЕД взятием задач (SRE, Елена)
@@ -1621,6 +1822,8 @@ async def main():
                     LEFT JOIN experts e ON t.assignee_expert_id = e.id
                     WHERE t.status = 'pending'
                       AND (t.metadata->>'next_retry_after' IS NULL OR (t.metadata->>'next_retry_after')::timestamptz < NOW())
+                      AND (t.retry_after IS NULL OR t.retry_after < NOW())
+                      AND COALESCE(t.metadata->>'source', '') != 'orchestration_tracking'
                     ORDER BY
                         COALESCE((t.metadata->>'bug_probability')::float, 0.0) DESC,  -- Приоритет: задачи с высокой bug_probability
                         COALESCE((t.metadata->>'attempt_count')::int, 0) ASC,  -- [SWISS-CLOCK] retry-задачи ниже свежих (thundering herd guard)

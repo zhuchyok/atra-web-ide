@@ -224,6 +224,8 @@ services:
       SERVICE_MONITOR_ENABLED: ${SERVICE_MONITOR_ENABLED:-true}
       RAG_PRELOAD_TYPICAL_QUERIES: ${RAG_PRELOAD_TYPICAL_QUERIES:-true}
       # Опционально: лёгкая MLX-классификация для запросов с category=general и 5–25 слов (docs/MLX_STRATEGY_LIGHT_AND_VITALITY.md)
+      # Мозг Виктории: при VICTORIA_MLX_BRAIN=true все victoria-wisdom-v3.5 запросы идут в MLX (быстрее, не блокирует Ollama очередь)
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       VICTORIA_MLX_LIGHT_CLASSIFY: ${VICTORIA_MLX_LIGHT_CLASSIFY:-false}
       DEADLINE_TRACKER_ENABLED: ${DEADLINE_TRACKER_ENABLED:-true}
       SKILLS_WATCHER_ENABLED: ${SKILLS_WATCHER_ENABLED:-true}
@@ -374,6 +376,8 @@ services:
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
+      MLX_API_URL: http://host.docker.internal:11435
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       # Тяжелая модель для кода и архитектуры
       VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-victoria-wisdom-v3.5}
       ENABLE_COLLECTIVE_LEARNING: "true"
@@ -423,6 +427,8 @@ services:
       REDIS_URL: redis://knowledge_os_redis:6379/0
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
+      MLX_API_URL: http://host.docker.internal:11435
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       # Легкая модель для классификации и простых ответов
       VICTORIA_MODEL: ${VICTORIA_LIGHT_MODEL:-lfm2.5-thinking:1.2b}
       ENABLE_COLLECTIVE_LEARNING: "true"
@@ -545,11 +551,14 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     restart: unless-stopped
-    mem_limit: 2g
+    # mem_limit: 4g — было 2g: OOM kills 04:16 и 05:15 UTC 2026-04-12.
+    # Правило ES: JVM heap = 50% от лимита контейнера; остаток — Lucene page cache.
+    # При 2g/1g_heap не хватало буфера → OOM. Теперь 4g/2g_heap — стабильно.
+    mem_limit: 4g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
     ports:
@@ -609,6 +618,7 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       SERVER_LLM_URL: http://host.docker.internal:11434
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
       SMART_WORKER_MAX_CONCURRENT: "2"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
@@ -958,12 +968,15 @@ services:
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app
-      EMBEDDING_MODEL: "stub"
+      EMBEDDING_MODEL: "nomic-embed-text"
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
       DEVICE: "cpu"
     ports:
       - "8005:8005"
     volumes:
       - ../knowledge_os/models:/app/models
+      - ../docs:/app/corpus/docs:ro
+      - ../knowledge_os/app:/app/corpus/knowledge_os:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

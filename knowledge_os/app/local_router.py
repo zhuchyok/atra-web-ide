@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import time
 from collections.abc import AsyncGenerator
 from functools import lru_cache
@@ -50,6 +51,18 @@ except ImportError:
 
         def record_llm_request(*args, **kwargs):
             pass
+
+try:
+    from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
+except ImportError:
+    try:
+        import sys as _sys, os as _os
+        _sys.path.append(_os.path.join(_os.path.dirname(__file__), "../../backend/app/metrics"))
+        from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
+    except ImportError:
+        class _DummyCounter:
+            def inc(self, *a, **kw): pass
+        _OLLAMA_BP_SKIPS = _DummyCounter()
 
 
 logger = logging.getLogger(__name__)
@@ -279,10 +292,32 @@ class LocalAIRouter:
             )
             self._node_breakers[node_url] = get_circuit_breaker(
                 name=breaker_name,
-                failure_threshold=5,  # 5 ошибок → OPEN (было 3, слишком агрессивно при пиках нагрузки)
-                recovery_timeout=120,  # 2 минуты на восстановление
+                failure_threshold=10,  # [SINGULARITY 25.0] 10 failures → OPEN (tolerates burst post-recovery; was 5)
+                recovery_timeout=60,   # [SINGULARITY 25.0] 60s probe cycle (was 120s — faster recovery)
             )
             logger.debug(f"🛡️ [CIRCUIT BREAKER] Initialized for {node_url} as {breaker_name}")
+
+        # [SINGULARITY 25.0] Startup sanity-check: warn if Ollama semaphore and NUM_PARALLEL are out of sync.
+        # Ольга (Performance Engineer): меняя OLLAMA_NUM_PARALLEL без OLLAMA_GLOBAL_MAX_SLOTS → рассинхронизация.
+        _num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "6"))
+        _max_slots = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "5"))
+        if _max_slots >= _num_parallel:
+            logger.warning(
+                "⚠️ [CONFIG SYNC] OLLAMA_GLOBAL_MAX_SLOTS=%d >= OLLAMA_NUM_PARALLEL=%d — "
+                "semaphore provides no buffer! Set OLLAMA_GLOBAL_MAX_SLOTS to NUM_PARALLEL-1 or less.",
+                _max_slots, _num_parallel,
+            )
+        elif _num_parallel - _max_slots > 2:
+            logger.warning(
+                "⚠️ [CONFIG SYNC] OLLAMA_GLOBAL_MAX_SLOTS=%d is %d below OLLAMA_NUM_PARALLEL=%d — "
+                "large buffer may under-utilize Ollama capacity.",
+                _max_slots, _num_parallel - _max_slots, _num_parallel,
+            )
+        else:
+            logger.info(
+                "✅ [CONFIG SYNC] Ollama semaphore: %d/%d slots (buffer=%d) — OK",
+                _max_slots, _num_parallel, _num_parallel - _max_slots,
+            )
 
     @property
     def memory_manager(self):
@@ -1054,16 +1089,38 @@ class LocalAIRouter:
         # УЛУЧШЕНИЕ: Если есть предпочтительный источник (из worker'а), пробуем его первым
         preferred_source = getattr(self, "_preferred_source", None)
 
-        # [SINGULARITY 21.3] God Mode: Victoria Brain always prefers MLX
+        # [SINGULARITY 21.3] God Mode: Victoria Brain → MLX, Victoria Hands → Ollama
+        # victoria-wisdom-v3.5 (без тега)  = мозг  → MLX (планировщик, reasoning)
+        # victoria-wisdom-v3.5:latest       = руки  → Ollama (executor, step execution)
         is_victoria = model and "victoria-wisdom-v3.5" in model.lower()
-        if is_victoria:
-            preferred_source = "mlx"
-            logger.info("🧠 [GOD MODE] Victoria model detected, forcing MLX priority")
-            # Warmup is now handled by the unified logic below
-
-        # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks OR MLX overload OR Victoria
+        # Руки — модель с явным тегом :latest → всегда Ollama
+        is_victoria_hands = is_victoria and model and model.lower().endswith(":latest")
+        # Мозг — без тега, или тег явно не :latest
+        is_victoria_brain = is_victoria and not is_victoria_hands
         monitor = get_mlx_monitor()
         health_score = monitor.get_health_score()
+        mlx_healthy = health_score >= 0.6 and bool(mlx_nodes)
+        victoria_mlx_brain = os.environ.get("VICTORIA_MLX_BRAIN", "false").lower() == "true"
+
+        if is_victoria_hands and ollama_nodes:
+            # Руки — executor/steps → всегда Ollama, не перегружаем MLX
+            preferred_source = "ollama"
+            logger.info("🤲 [HANDS] Victoria:latest → Ollama (executor path)")
+        elif is_victoria_brain:
+            if victoria_mlx_brain and mlx_healthy:
+                preferred_source = "mlx"
+                logger.info("🧠 [BRAIN] Victoria (no tag) → MLX (VICTORIA_MLX_BRAIN=true, health=%.2f)", health_score)
+            elif mlx_healthy and not ollama_nodes:
+                preferred_source = "mlx"
+                logger.info("🧠 [BRAIN] Victoria → MLX (no Ollama available)")
+            else:
+                preferred_source = "ollama"
+                logger.info(
+                    "⚡ [BRAIN FALLBACK] Victoria → Ollama (MLX health=%.2f, Ollama available=%s)",
+                    health_score, bool(ollama_nodes)
+                )
+
+        # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks OR MLX overload OR Victoria
         should_warmup = category in ("reasoning", "complex") or health_score < 0.5 or is_victoria
 
         if should_warmup and ollama_nodes:
@@ -1136,6 +1193,30 @@ class LocalAIRouter:
                     logger.info(
                         f"🔄 [CIRCUIT BREAKER] Node {node_url_base} OPEN→HALF_OPEN. Sending probe..."
                     )
+                    # [FIX] Light-weight probe: use /api/tags instead of full LLM request.
+                    # This avoids model-load timeout killing the probe.
+                    try:
+                        _health_ep = node_url_base.rstrip("/") + "/api/tags"
+                        async with httpx.AsyncClient(timeout=5.0) as _hc:
+                            _hr = await _hc.get(_health_ep)
+                        if _hr.status_code == 200:
+                            breaker._on_success()
+                            logger.info("✅ [CIRCUIT BREAKER] Node %s health probe OK → CLOSED", node_url_base)
+                            # [SINGULARITY 25.0] Post-recovery jitter: stagger burst after probe succeeds.
+                            # Without jitter all blocked coroutines rush Ollama simultaneously after CLOSED,
+                            # causing 5+ simultaneous requests that re-fill the queue and reopen the CB.
+                            _jitter = random.uniform(0.3, 2.0)
+                            logger.info("[CIRCUIT BREAKER] ⏱️ Post-recovery jitter %.2fs for node %s", _jitter, node_url_base)
+                            await asyncio.sleep(_jitter)
+                            # Continue normally (CB is now CLOSED, request goes through after jitter)
+                        else:
+                            breaker._on_failure(f"HealthProbe HTTP {_hr.status_code}")
+                            logger.warning("🔴 [CIRCUIT BREAKER] Node %s health probe failed (%d) → OPEN", node_url_base, _hr.status_code)
+                            continue
+                    except Exception as _probe_err:
+                        breaker._on_failure(f"HealthProbe: {_probe_err}")
+                        logger.warning("🔴 [CIRCUIT BREAKER] Node %s health probe error → OPEN: %s", node_url_base, _probe_err)
+                        continue
             elif breaker and breaker.state == CircuitState.HALF_OPEN:
                 # Уже в HALF_OPEN (установлено параллельной корутиной) — probe в процессе
                 if breaker._probe_in_flight:
@@ -1419,14 +1500,18 @@ class LocalAIRouter:
                     async with httpx.AsyncClient() as client:
                         request_start = time.time()
                         headers = {}
-                        if (
-                            category == "reasoning"
-                            or is_vip
-                            or str(model).lower() == "victoria-wisdom-v3.5"
-                        ):
+                        # VIP = только живой диалог с пользователем (is_vip=True).
+                        # Воркеры с brain-задачами НЕ получают high — иначе они забивают VIP-очередь
+                        # и запросы пользователя не получают приоритета.
+                        if is_vip:
                             headers["X-Request-Priority"] = "high"
                             logger.info(
-                                f"🌟 [VIP HEADER] Added X-Request-Priority: high for {category or model or 'VIP'}"
+                                f"🌟 [VIP HEADER] User dialogue → high priority for {category or model}"
+                            )
+                        elif category == "reasoning":
+                            headers["X-Request-Priority"] = "medium"
+                            logger.info(
+                                f"⚙️ [WORKER HEADER] Worker reasoning task → medium priority"
                             )
                         else:
                             headers["X-Request-Priority"] = "normal"
@@ -1463,16 +1548,42 @@ class LocalAIRouter:
                         except Exception:
                             pass
 
+                        # [SINGULARITY 25.0] Global Ollama Backpressure Semaphore
+                        # Acquire a global slot before any Ollama HTTP call to prevent
+                        # concurrent overload across all containers → 503 → CB OPEN cycle.
+                        # If Redis is unavailable, fail-open (allow request).
+                        _ollama_slot_acquired = False
+                        if is_ollama:
+                            try:
+                                from redis_manager import RedisManager as _RM
+                                _slot_acquired = await _RM().acquire_ollama_slot()
+                                if not _slot_acquired:
+                                    logger.warning(
+                                        "[ROUTER] ⏳ [BACKPRESSURE] Ollama global slots full, skipping node %s (no CB penalty)",
+                                        node["name"],
+                                    )
+                                    try:
+                                        _OLLAMA_BP_SKIPS.inc()
+                                    except Exception:
+                                        pass
+                                    continue  # skip to MLX or next retry — NOT a CB failure
+                                _ollama_slot_acquired = True
+                            except Exception as _sem_err:
+                                logger.debug("[ROUTER] Ollama slot acquire error (%s), proceeding", _sem_err)
+                                _ollama_slot_acquired = True  # fail-open
+
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, или используется тяжелая модель, используем стриминг для предотвращения ReadTimeout
                         is_heavy_model = any(
                             heavy in str(model).lower()
                             for heavy in ["32b", "30b", "70b", "104b", "qwq", "victoria-wisdom-v3.5"]
                         )
-                        if (
+                        # [SINGULARITY 25.0] try/finally: release Ollama slot after HTTP call (streaming OR non-streaming)
+                        try:
+                          if (
                             getattr(self, "force_local", False)
                             or category in ("reasoning", "vip")
                             or is_heavy_model
-                        ):
+                          ):
                             logger.info(
                                 f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]..."
                             )
@@ -1489,6 +1600,7 @@ class LocalAIRouter:
                             )
 
                             # [SINGULARITY 21.5] Predictive Warmup logic moved up
+                            _streaming_error_text = ""  # Will be set if streaming returns error status
 
                             async with client.stream(
                                 "POST",
@@ -1570,8 +1682,9 @@ class LocalAIRouter:
                                 else:
                                     # Если ошибка — считываем текст ошибки
                                     error_text = await response.aread()
-                                    logger.error(f"Streaming error: {response.status_code}")
-                        else:
+                                    _streaming_error_text = error_text.decode("utf-8", errors="replace") if error_text else ""
+                                    logger.error(f"Streaming error: {response.status_code}: {_streaming_error_text[:200]}")
+                          else:
                             # [SINGULARITY 21.5] Predictive Warmup logic moved up
 
                             # Обычный запрос для легких задач
@@ -1581,6 +1694,15 @@ class LocalAIRouter:
                                 headers=headers,
                                 timeout=httpx.Timeout(_node_timeout, connect=30.0),
                             )
+                        finally:
+                          # Release global Ollama slot regardless of outcome (success or exception)
+                          if _ollama_slot_acquired and is_ollama:
+                            try:
+                                from redis_manager import RedisManager as _RM2
+                                await _RM2().release_ollama_slot()
+                                _ollama_slot_acquired = False
+                            except Exception as _rel_err:
+                                logger.debug("[ROUTER] Ollama slot release error (%s), ignoring", _rel_err)
                         latency_ms = (time.time() - request_start) * 1000
 
                         # Load Balancing: обновляем метрики загрузки
@@ -1731,19 +1853,28 @@ class LocalAIRouter:
                                     breaker._on_failure("EmptyResponse")
                                 continue
                         else:
-                            # [SINGULARITY 21.10] Record failure for node breaker
-                            if breaker:
+                            # [FIX] 503 from Ollama = "server busy" (not broken) → do NOT open CB
+                            # 503 means the queue is full or model loading, NOT a real failure.
+                            # Real failures are: 500, 502, 504, connection errors, timeouts.
+                            is_queue_full_503 = (response.status_code == 503 and is_ollama)
+                            if breaker and not is_queue_full_503:
                                 breaker._on_failure(f"HTTP {response.status_code}")
 
                             # Log error response body for debugging
                             try:
                                 error_text = response.text[:500]
-                                logger.error(
-                                    "[ROUTER] ❌ Node %s returned HTTP %d: %s",
-                                    node["name"],
-                                    response.status_code,
-                                    error_text,
-                                )
+                                if is_queue_full_503:
+                                    logger.warning(
+                                        "[ROUTER] ⏳ Node %s busy (queue full), skipping CB failure. Retrying...",
+                                        node["name"],
+                                    )
+                                else:
+                                    logger.error(
+                                        "[ROUTER] ❌ Node %s returned HTTP %d: %s",
+                                        node["name"],
+                                        response.status_code,
+                                        error_text,
+                                    )
                             except Exception:
                                 logger.error(
                                     "[ROUTER] ❌ Node %s returned HTTP %d",
@@ -1911,13 +2042,15 @@ class LocalAIRouter:
         if images:
             payload["images"] = images
 
-        # VIP Header
+        # VIP Header — только живой диалог (is_vip=True), воркеры идут на medium
         headers = {}
-        if category == "reasoning" or is_vip or str(model).lower() == "victoria-wisdom-v3.5":
+        if is_vip:
             headers["X-Request-Priority"] = "high"
             logger.info(
-                f"🌟 [VIP HEADER] Added X-Request-Priority: high for streaming {category or model or 'VIP'}"
+                f"🌟 [VIP HEADER] User dialogue streaming → high priority for {category or model}"
             )
+        elif category == "reasoning":
+            headers["X-Request-Priority"] = "medium"
 
         try:
             async with httpx.AsyncClient(timeout=300.0) as client:
@@ -1961,38 +2094,34 @@ class LocalAIRouter:
 
     def _get_adaptive_options(self, model_name: str) -> Dict:
         """
-        [SINGULARITY 24.8] Adaptive Context Window.
-        Выбирает оптимальный num_ctx на основе доступной RAM и возможностей модели.
+        [SINGULARITY 24.9] Adaptive Context Window — NUM_PARALLEL-aware.
+
+        КРИТИЧНО: OLLAMA_NUM_PARALLEL=6 → Ollama pre-allocates KV cache for ALL 6 slots per model.
+        Формула: total_vram = num_parallel × kv_cache(num_ctx) + model_weights
+        При num_ctx=32768 × 6 parallel → phi3.5 = 47GB, victoria = 50GB → OOM → 503 → CB OPEN.
+        При num_ctx=16384 × 6 parallel → phi3.5 = 21GB, victoria = 40GB → 128GB RAM → OK.
         """
         options = {}
         try:
-            import psutil
+            # SAFE CONTEXT: 32768 is safe for Qwen3.5-35B-A3B on 128GB Mac Studio.
+            # Qwen3.5-35B-A3B uses only 2 KV heads (GQA) + head_dim=256 + 40 layers →
+            # KV per slot: 2 × 40 × 2 × 256 × 2 = 82KB/token → 2.7GB at 32K × 6 slots = 16GB
+            # Model weights Q4_K_M: ~21GB + KV 16GB + compute 6GB → ~43GB total → 128GB OK.
+            SAFE_MAX_CTX = 32768
 
+            model_lower = model_name.lower()
+            if "tinyllama" in model_lower or "moondream" in model_lower or "nomic" in model_lower:
+                options["num_ctx"] = 4096  # Small models need only small context
+            elif "phi3.5" in model_lower or "phi3" in model_lower:
+                # §53 библии: phi3.5 immortal с адаптивным контекстом 16384.
+                # С OLLAMA_NUM_PARALLEL=6: 6 × 3.5GB KV = 21GB + 2GB weights = 23GB → на 128GB OK.
+                options["num_ctx"] = 16384
+            else:
+                options["num_ctx"] = SAFE_MAX_CTX
+
+            import psutil
             ram = psutil.virtual_memory()
             available_gb = ram.available / (1024**3)
-
-            # Базовые лимиты моделей (максимальный контекст)
-            model_max_ctx = 32768  # По умолчанию
-            if "phi3.5" in model_name.lower():
-                model_max_ctx = 131072
-            elif "victoria-wisdom" in model_name.lower() or "qwen35moe" in model_name.lower():
-                model_max_ctx = 65536
-            elif "tinyllama" in model_name.lower():
-                model_max_ctx = 2048
-
-            # Адаптивное решение
-            if available_gb > 64:
-                # RAM очень много: используем максимум (но не более 128k)
-                options["num_ctx"] = min(131072, model_max_ctx)
-            elif available_gb > 32:
-                # RAM много: ограничиваем до 64k
-                options["num_ctx"] = min(65536, model_max_ctx)
-            elif available_gb > 16:
-                # RAM средне: ограничиваем до 32k
-                options["num_ctx"] = min(32768, model_max_ctx)
-            else:
-                # RAM мало: жестко ограничиваем до 16k
-                options["num_ctx"] = min(16384, model_max_ctx)
 
             logger.info(
                 f"🧠 [ADAPTIVE CONTEXT] Model: {model_name} | RAM Available: {available_gb:.1f}GB | Selected num_ctx: {options['num_ctx']}"

@@ -88,3 +88,7 @@ elasticsearch_data/
 .cursor_chats_backup/
 agent-transcripts/
 terminals/
+
+# Skills procedural — папки с длинными именами (артефакты LLM, не нужны в контейнере)
+knowledge_os/app/skills/procedural/
+knowledge_os/app/knowledge_os/

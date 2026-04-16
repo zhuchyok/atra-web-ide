@@ -209,6 +209,54 @@ class RedisManager:
         except Exception as e:
             logger.warning(f"⚠️ [REDIS] Не удалось снять блокировку {task_id}: {e}")
 
+    # --- GLOBAL OLLAMA SEMAPHORE ---
+    # Limits concurrent Ollama requests across ALL containers to prevent 503 overload.
+    # Pattern: Redis INCR/DECR counter with safety TTL (used by knowledge_os_worker via local_router.py).
+    # If Redis is unavailable, falls back to True (allow request) for graceful degradation.
+    _OLLAMA_SEM_KEY = "ollama:global_slots"
+    _OLLAMA_MAX_SLOTS = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "5"))  # 6 NUM_PARALLEL − 1 buffer
+
+    async def reset_ollama_slots(self) -> None:
+        """
+        Reset the global Ollama semaphore counter to 0 on worker startup.
+        Анна (QA): prevents stale counters after kill-9 (slots not released) from blocking new requests.
+        Call this once during worker initialization — safe only if a single worker process initialises.
+        """
+        try:
+            client = await self.get_client()
+            await client.set(self._OLLAMA_SEM_KEY, 0)
+            logger.info("🔄 [REDIS] Ollama global slots counter reset to 0 on startup")
+        except Exception as e:
+            logger.warning("[REDIS] reset_ollama_slots failed (%s), continuing without reset", e)
+
+    async def acquire_ollama_slot(self) -> bool:
+        """
+        Claim one of _OLLAMA_MAX_SLOTS globally shared Ollama request slots.
+        Returns True if slot acquired, False if all slots are taken.
+        Redis unavailable → returns True (fail-open for graceful degradation).
+        """
+        try:
+            client = await self.get_client()
+            count = await client.incr(self._OLLAMA_SEM_KEY)
+            await client.expire(self._OLLAMA_SEM_KEY, 60)  # safety TTL in case of crashes
+            if count <= self._OLLAMA_MAX_SLOTS:
+                return True
+            await client.decr(self._OLLAMA_SEM_KEY)  # over limit — release immediately
+            return False
+        except Exception as e:
+            logger.debug("[REDIS] acquire_ollama_slot failed (%s), allowing request", e)
+            return True  # Redis down → degrade gracefully
+
+    async def release_ollama_slot(self) -> None:
+        """Release a previously acquired Ollama slot."""
+        try:
+            client = await self.get_client()
+            val = await client.decr(self._OLLAMA_SEM_KEY)
+            if val < 0:
+                await client.set(self._OLLAMA_SEM_KEY, 0)  # guard against negative counter
+        except Exception as e:
+            logger.debug("[REDIS] release_ollama_slot failed (%s), ignoring", e)
+
     async def close(self):
         """Закрывает пул соединений."""
         if self._pool:

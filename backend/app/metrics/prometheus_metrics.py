@@ -68,6 +68,9 @@ SEMANTIC_CACHE_HITS = get_metric(Counter, "semantic_cache_hits_total", "Total se
 EMBEDDING_COLLAPSED = get_metric(Counter, "embedding_requests_collapsed_total", "Total embedding requests collapsed")
 EMBEDDING_BACKPRESSURE_THROTTLE = get_metric(Counter, "embedding_backpressure_throttle_total", "Total embedding requests delayed by backpressure")
 
+# === [SINGULARITY 25.0] Ollama Backpressure Metrics ===
+OLLAMA_BACKPRESSURE_SKIPS = get_metric(Counter, "ollama_backpressure_skips_total", "Ollama requests skipped due to global slot limit (Redis semaphore full)")
+
 # === LLM метрики ===
 LLM_REQUESTS = get_metric(Counter, "llm_requests_total", "Total LLM requests", ["provider", "model"])
 LLM_DURATION = get_metric(Histogram, "llm_duration_seconds", "LLM response duration", ["provider"])

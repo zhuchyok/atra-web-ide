@@ -119,7 +119,7 @@ class CircuitBreaker:
             self.failure_count = self.failure_threshold
             self.state = CircuitState.OPEN
             logger.warning(
-                f"⚠️ [CIRCUIT BREAKER {self.name}] Восстановление не удалось, возврат в OPEN"
+                f"⚠️ [CIRCUIT BREAKER {self.name}] Восстановление не удалось, возврат в OPEN. Error: {error_message}"
             )
             asyncio.create_task(
                 self._log_event(

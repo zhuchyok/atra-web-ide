@@ -287,6 +287,7 @@ def get_handoff_manager() -> HandoffManager:
     global _handoff_manager
     if _handoff_manager is None:
         _handoff_manager = HandoffManager()
+    return _handoff_manager
 
 
 # ---------------------------------------------------------------------------

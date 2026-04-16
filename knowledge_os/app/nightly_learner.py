@@ -1291,6 +1291,21 @@ async def nightly_learning_cycle():
         except Exception as e:
             print(f"⚠️ knowledge_nodes TTL cleanup error: {e}")
 
+        # --- ФАЗА 20.9: VISUAL SEARCH INDEXING (Omni-RAG v3) ---
+        # [SINGULARITY 25.0] Ночная индексация docs/ в FAISS через nomic-embed-text.
+        # Запускается в off-peak, когда Ollama свободен от задач воркеров.
+        _log_step("🖼️ Running Omni-RAG Visual Search indexing...")
+        try:
+            try:
+                from multimodal_indexer import MultimodalIndexer
+            except ImportError:
+                from app.multimodal_indexer import MultimodalIndexer
+            indexer = MultimodalIndexer()
+            await indexer.scan_and_index()
+            print("✅ Phase 20.9: Visual Search indexing completed.")
+        except Exception as e:
+            print(f"⚠️ Visual Search indexing error: {e}")
+
         await pool.release(conn)
         await pool.close()
         _log_step(f"[{datetime.now()}] Total cycle with Council Review finished.")

@@ -58,20 +58,26 @@ async def get_db_pool():
 # [SINGULARITY 26.1] AgentScope Actor Model Integration
 # Try real agentscope first, fall back to lightweight shim (same interface)
 try:
-    from agentscope.agents import AgentBase
+    from agentscope.agent import AgentBase
     from agentscope.message import Msg
     _AGENTSCOPE_REAL = True
     logger.info("✅ [ACTOR] Using real AgentScope library")
 except ImportError:
     try:
-        from agentscope_shim import AgentBase, Msg
-        _AGENTSCOPE_REAL = False
-        logger.info("⚡ [ACTOR] Using AgentScope shim (minimal fallback)")
+        from agentscope.agents import AgentBase  # legacy path (agentscope < 1.0)
+        from agentscope.message import Msg
+        _AGENTSCOPE_REAL = True
+        logger.info("✅ [ACTOR] Using real AgentScope library (legacy path)")
     except ImportError:
-        AgentBase = object
-        Msg = dict
-        _AGENTSCOPE_REAL = False
-        logger.warning("⚠️ [ACTOR] No AgentScope or shim available")
+        try:
+            from agentscope_shim import AgentBase, Msg
+            _AGENTSCOPE_REAL = False
+            logger.info("⚡ [ACTOR] Using AgentScope shim (minimal fallback)")
+        except ImportError:
+            AgentBase = object
+            Msg = dict
+            _AGENTSCOPE_REAL = False
+            logger.warning("⚠️ [ACTOR] No AgentScope or shim available")
 
 
 class VictoriaExpertActor(AgentBase):
@@ -169,6 +175,21 @@ class VictoriaExpertActor(AgentBase):
             logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
         return None
 
+async def _mark_llm_call(conn, task_id: str) -> None:
+    """[BUG FIX] Обновляет last_llm_call_at перед реальным LLM-вызовом.
+    Защита от RAG-infinite-loop: сбрасывалка проверяет это поле, а не updated_at
+    (который обновляет heartbeat каждые 15с, маскируя зависание в RAG-фазе).
+    Google SRE principle: track the operation that matters, not the heartbeat proxy.
+    """
+    try:
+        await conn.execute(
+            "UPDATE tasks SET last_llm_call_at = NOW() WHERE id = $1 AND status = 'in_progress'",
+            task_id,
+        )
+    except Exception as _e:
+        logger.debug(f"[LLM_CALL_MARK] Failed to update last_llm_call_at for {task_id}: {_e}")
+
+
 async def process_task(task_data: dict):
     """Выполняет задачу и сохраняет результат."""
     task_id = task_data["task_id"]
@@ -209,11 +230,35 @@ async def process_task(task_data: dict):
         # [SINGULARITY 21.9] Circuit Breaker: Таймаут задачи
         # Для диалоговых задач — 300s, иначе WORKER_TASK_TOTAL_TIMEOUT (по умолчанию 3600s)
         is_dialogue_task = bool(task_data.get("metadata", {}).get("is_dialogue"))
-        
-        # [SINGULARITY 24.7] Adaptive Timeout: Reduce timeout for autonomous audit tasks
+
+        # [SINGULARITY 27.2] Three-tier adaptive timeout (Netflix Hystrix + AWS practice):
+        #
+        #  Tier 1 — Dialogue / live chat     : 300s   (must be fast, user waiting)
+        #  Tier 2 — Quick orchestrator tasks  : 900s   (simple delegated: audit, review, analysis)
+        #  Tier 3 — Heavy orchestrator tasks  : 1800s  (complex: write module, refactor, deep analysis)
+        #  Tier 4 — victoria_monster_delegation: 300s  (background scan, fail-fast & retry)
+        #  Default (non-orchestrator)          : WORKER_TASK_TOTAL_TIMEOUT env (default 3600s)
+        #
+        # "Heavy" signal: title starts with "[HANDOFF" or description > 500 chars
+        # or metadata.complex=true set by enhanced_orchestrator.
+        #
+        # Rationale: 600s was too tight for coding/refactor tasks (LLM needs 5-15 min on MLX).
+        # But 3600s blocks a worker for 1 hour on a failed attempt.
+        # → 900s/1800s is the sweet spot: enough for real work, fast enough for retry.
         is_monster_audit = task_data.get("metadata", {}).get("source") == "victoria_monster_delegation"
+        is_orchestrator_task = task_data.get("category") == "orchestrator_assignment"
+        _task_meta = task_data.get("metadata", {}) or {}
+        _is_complex = bool(_task_meta.get("complex")) or len(task_data.get("description", "")) > 500
+
         if is_monster_audit:
-            TASK_TOTAL_TIMEOUT = 300.0  # 5 минут для аудита (вместо полного лимита)
+            TASK_TOTAL_TIMEOUT = 300.0
+        elif is_orchestrator_task:
+            if _is_complex:
+                # Heavy delegated task: give it up to 30 min, but env-overridable
+                TASK_TOTAL_TIMEOUT = float(os.getenv("ORCHESTRATOR_HEAVY_TIMEOUT", "1800"))
+            else:
+                # Quick delegated task: 15 min is enough; fail fast → retry via backoff
+                TASK_TOTAL_TIMEOUT = float(os.getenv("ORCHESTRATOR_TASK_TIMEOUT", "900"))
         else:
             TASK_TOTAL_TIMEOUT = 300.0 if is_dialogue_task else float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
 
@@ -243,10 +288,41 @@ async def process_task(task_data: dict):
             pool = await get_db_pool()
             async with pool.acquire() as conn:
                 if is_valid_uuid:
+                    # [SINGULARITY 27.1] Guard: skip if task already completed/failed in DB.
+                    # This prevents the stale-xclaim loop: when Ollama times out, the Redis stream
+                    # message stays in XPENDING past the 5-min threshold, gets re-claimed by another
+                    # worker, and the task is processed again concurrently even though it's done.
+                    _current_status, _task_updated_at = await conn.fetchrow(
+                        "SELECT status, updated_at FROM tasks WHERE id = $1", task_id
+                    ) or (None, None)
+                    if _current_status in ("completed", "failed", "cancelled"):
+                        logger.info(
+                            f"⏭️ [SKIP] Task {task_id} already {_current_status} in DB — "
+                            f"skipping re-processing (stale stream message)"
+                        )
+                        return
+                    # Zombie guard: in_progress but untouched for > 10 min means previous worker crashed.
+                    # We re-claim and process. If updated recently → another worker is on it → skip.
+                    if _current_status == "in_progress" and _task_updated_at is not None:
+                        from datetime import datetime, timezone
+                        _age_sec = (datetime.now(timezone.utc) - _task_updated_at).total_seconds()
+                        if _age_sec < 600:  # another worker updated it < 10 min ago → skip
+                            logger.info(
+                                f"⏭️ [SKIP] Task {task_id} in_progress, updated {_age_sec:.0f}s ago — "
+                                f"another worker is likely processing it"
+                            )
+                            return
+
                     await conn.execute(
                         "UPDATE tasks SET status = 'in_progress', updated_at = NOW() WHERE id = $1",
                         task_id,
                     )
+                    # Fetch retry_count from DB (not in Redis stream payload)
+                    _db_retry_count = await conn.fetchval(
+                        "SELECT COALESCE(retry_count, 0) FROM tasks WHERE id = $1", task_id
+                    )
+                    if _db_retry_count is not None:
+                        task_data["retry_count"] = _db_retry_count
 
                 await redis_manager.update_task_status(
                     task_id, "in_progress", metadata={"expert": expert_name}
@@ -343,6 +419,7 @@ async def process_task(task_data: dict):
                         if _use_mlx:
                             logger.info(f"🎯 [FAST PATH] MLX victoria-wisdom для {expert_name}")
                             try:
+                                await _mark_llm_call(conn, task_id)
                                 async with httpx.AsyncClient(timeout=300.0) as _hc:
                                     _resp = await _hc.post(
                                         f"{_mlx_base}/api/chat",
@@ -369,6 +446,7 @@ async def process_task(task_data: dict):
                             # Ollama с retry для небольших моделей (phi3.5 и др.)
                             for _attempt in range(3):
                                 try:
+                                    await _mark_llm_call(conn, task_id)
                                     async with httpx.AsyncClient(timeout=180.0) as _hc:
                                         _resp = await _hc.post(
                                             f"{_ollama_base}/api/chat",
@@ -402,6 +480,7 @@ async def process_task(task_data: dict):
                         
                         # [SINGULARITY 24.7] Retry Intelligence: Downgrade model on failure
                         _retry_category = "fast" if "wisdom" in _dialogue_model else "general"
+                        await _mark_llm_call(conn, task_id)
                         report = await run_smart_agent_async(
                             description,
                             expert_name=expert_name,
@@ -418,6 +497,7 @@ async def process_task(task_data: dict):
                         print(f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-v3.5:latest'}")
                         agent = ReActAgent(agent_name=expert_name, model_name=model_hint or "victoria-wisdom-v3.5:latest")
                         print(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
+                        await _mark_llm_call(conn, task_id)
                         report = await agent.run(goal=description)
                         print(f"DEBUG_PRINT: agent.run() finished for task {task_id}")
                         # [SINGULARITY 21.26] Fix: ReActAgent returns 'response', not 'result'
@@ -427,6 +507,7 @@ async def process_task(task_data: dict):
                             report_text = str(report.get("result") if isinstance(report, dict) else report)
                     except Exception as e:
                         logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
+                        await _mark_llm_call(conn, task_id)
                         report = await run_smart_agent_async(
                             description,
                             expert_name=expert_name,
@@ -435,6 +516,7 @@ async def process_task(task_data: dict):
                         )
                         report_text = str(report.get("result") if isinstance(report, dict) else report)
                 else:
+                    await _mark_llm_call(conn, task_id)
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
@@ -453,10 +535,11 @@ async def process_task(task_data: dict):
                 if "HANDOFF:" in report_text and "TASK:" in report_text:
                     try:
                         import re as _re
-                        _to_expert = _re.search(r'HANDOFF:\s*@?(\w+)', report_text)
-                        _task_desc = _re.search(r'TASK:\s*(.+)', report_text, _re.DOTALL)
-                        _contract = _re.search(r'CONTRACT:\s*(\{.*\})', report_text, _re.DOTALL)
-                        
+                        # [FIX] Support both latin and cyrillic expert names (Игорь, Viktor, etc.)
+                        _to_expert = _re.search(r'HANDOFF:\s*@?([\w\u0400-\u04FF_-]+)', report_text)
+                        _task_desc = _re.search(r'TASK:\s*(.+?)(?=CONTRACT:|HANDOFF:|$)', report_text, _re.DOTALL)
+                        _contract = _re.search(r'CONTRACT:\s*(\{.*?\})', report_text, _re.DOTALL)
+
                         if _to_expert and _task_desc:
                             to_name = _to_expert.group(1)
                             task_msg = _task_desc.group(1).strip()
@@ -465,7 +548,7 @@ async def process_task(task_data: dict):
                                 try:
                                     contract_json = json.loads(_contract.group(1))
                                 except: pass
-                            
+
                             from explicit_handoffs import get_handoff_manager
                             manager = get_handoff_manager()
                             if manager:
@@ -477,14 +560,104 @@ async def process_task(task_data: dict):
                                     expected_output=f"Swarm handoff result for {to_name}"
                                 )
                                 if contract_json:
-                                    # Находим созданный handoff и ставим схему
                                     h_list = manager.get_pending_handoffs(to_name)
                                     if h_list:
                                         h_list[0].validation_schema = contract_json
-                                
-                                logger.info(f"🐝 [SWARM] {expert_name} successfully initiated handoff to {to_name}")
+
+                            # [SINGULARITY 27.0] Create real DB subtask so workers actually pick it up
+                            # parent_task_id links this new task to its origin for tracing
+                            try:
+                                import uuid as _uuid_mod
+                                _subtask_id = _uuid_mod.uuid4()
+                                _subtask_title = f"[HANDOFF from {expert_name}] {task_msg[:120]}"
+                                _subtask_meta = json.dumps({
+                                    "handoff_from": expert_name,
+                                    "parent_task_id": str(task_id),
+                                    "contract": contract_json,
+                                    "is_handoff": True,
+                                })
+                                # Idempotent insert: wrap in try/except for unique violation (23505).
+                                # The dedup index prevents duplicate pending/in_progress tasks with same title.
+                                # Erlang principle: let it crash → catch gracefully, not loudly fail.
+                                try:
+                                    await conn.execute(
+                                        """
+                                        INSERT INTO tasks
+                                            (id, parent_task_id, title, description, status, priority,
+                                             metadata, created_at, updated_at)
+                                        VALUES
+                                            ($1, $2, $3, $4, 'pending', 5, $5::jsonb, NOW(), NOW())
+                                        """,
+                                        _subtask_id,
+                                        uuid.UUID(str(task_id)) if is_valid_uuid else None,
+                                        _subtask_title,
+                                        task_msg,
+                                        _subtask_meta,
+                                    )
+                                except Exception as _ins_err:
+                                    _err_str = str(_ins_err)
+                                    if "unique" in _err_str.lower() or "23505" in _err_str or "dedup" in _err_str.lower():
+                                        logger.info(
+                                            f"⏭️ [SWARM] Subtask already queued for handoff from {expert_name} "
+                                            f"(dedup — idempotent skip)"
+                                        )
+                                    else:
+                                        raise
+                                logger.info(
+                                    f"🐝 [SWARM] {expert_name} → {to_name}: subtask {_subtask_id} created in DB "
+                                    f"(parent={task_id})"
+                                )
+                                await actor.record_event("handoff_created", {
+                                    "to_agent": to_name,
+                                    "subtask_id": str(_subtask_id),
+                                    "task_msg": task_msg[:200],
+                                })
+                            except Exception as _sub_err:
+                                logger.error(f"❌ [SWARM] Failed to create subtask in DB: {_sub_err}")
+
                     except Exception as he:
                         logger.error(f"❌ [SWARM] Handoff detection failed: {he}")
+
+                # [SINGULARITY 27.0] Stub/unavailable result → requeue with exponential backoff
+                # "Все источники недоступны" = ALL LLM routes failed — not a result, just a miss.
+                # Do NOT mark completed; put back in queue so a worker can retry when LLMs free up.
+                _STUB_MARKER = "все источники недоступны"
+                _MAX_RETRIES = int(os.getenv("TASK_MAX_RETRIES", "3"))
+                _is_stub = _STUB_MARKER in report_text.lower()
+                _retry_count = task_data.get("retry_count") or 0
+
+                if _is_stub and is_valid_uuid:
+                    if _retry_count < _MAX_RETRIES:
+                        _backoff_minutes = 2 ** _retry_count * 5  # 5, 10, 20 minutes
+                        await conn.execute(
+                            """
+                            UPDATE tasks
+                            SET status = 'pending',
+                                retry_count = retry_count + 1,
+                                retry_after = NOW() + ($2 || ' minutes')::INTERVAL,
+                                updated_at = NOW()
+                            WHERE id = $1
+                            """,
+                            task_id,
+                            str(_backoff_minutes),
+                        )
+                        await redis_manager.update_task_status(task_id, "pending")
+                        logger.warning(
+                            f"♻️ [REQUEUE] Task {task_id} got stub result "
+                            f"(attempt {_retry_count + 1}/{_MAX_RETRIES}) "
+                            f"— requeueing in {_backoff_minutes}m"
+                        )
+                        return
+                    else:
+                        logger.warning(
+                            f"🚫 [REQUEUE] Task {task_id} exhausted {_MAX_RETRIES} retries — marking failed"
+                        )
+                        await conn.execute(
+                            "UPDATE tasks SET status='failed', result=$2, updated_at=NOW() WHERE id=$1",
+                            task_id, report_text,
+                        )
+                        await redis_manager.update_task_status(task_id, "failed", result=report_text)
+                        return
 
                 if is_valid_uuid:
                     print(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
@@ -633,7 +806,6 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
         if is_valid_uuid and _is_transient:
             pool = await get_db_pool()
             async with pool.acquire() as conn:
-                # Читаем текущий attempt_count из metadata
                 meta_raw = await conn.fetchval("SELECT metadata FROM tasks WHERE id = $1", task_id)
                 try:
                     meta = json.loads(meta_raw) if isinstance(meta_raw, str) else (meta_raw or {})
@@ -641,11 +813,16 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
                     meta = {}
                 attempt_count = int(meta.get("attempt_count", 0)) + 1
 
-                if attempt_count < 3:
+                # [SINGULARITY 27.2] Increased max retries: 3 → 5 for transient LLM overload.
+                # Netflix Hystrix principle: distinguishing transient (Ollama busy) from permanent failures.
+                # Backoff: 120s, 240s, 480s, 600s, 600s (+jitter 0-60s each)
+                _MAX_ATTEMPTS = int(os.getenv("TASK_MAX_ATTEMPTS", "5"))
+                if attempt_count < _MAX_ATTEMPTS:
                     # Exponential backoff + jitter (AWS best practice)
+                    # Wider jitter (0-60s) spreads thundering herd when Ollama recovers
                     base = 120  # seconds (CB recovery_timeout = 120s)
                     exp_delay = min(base * (2 ** max(attempt_count - 1, 0)), 600)
-                    jitter = _random.randint(0, 30)
+                    jitter = _random.randint(0, 60)
                     retry_delay = exp_delay + jitter
                     retry_after = datetime.fromtimestamp(
                         datetime.utcnow().timestamp() + retry_delay, tz=timezone.utc
@@ -670,7 +847,7 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
                     )
                     await redis_manager.update_task_status(task_id, "pending")
                     logger.warning(
-                        f"⏳ [RETRY] Task {task_id} re-queued (attempt {attempt_count}/3, "
+                        f"⏳ [RETRY] Task {task_id} re-queued (attempt {attempt_count}/{_MAX_ATTEMPTS}, "
                         f"retry in {retry_delay}s): {error_msg[:80]}"
                     )
                     await redis_manager.release_task_lock(task_id)

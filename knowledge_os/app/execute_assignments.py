@@ -117,23 +117,33 @@ async def execute_assignments_async(
                 # ON CONFLICT: idx_tasks_active_dedup защищает от дублей (title+project_context, active only).
                 # DO UPDATE SET updated_at=NOW() гарантирует RETURNING id даже при конфликте.
                 task_title = f"🤖 Делегировано: {expert_name} ({key})"
+                # Idempotent upsert pattern (Google SRE): UPDATE first → INSERT if no rows touched.
+                # Avoids partial-index ON CONFLICT expression mismatch with COALESCE cast.
                 task_id = await conn.fetchval(
                     """
-                    INSERT INTO tasks (title, description, status, priority, assignee_expert_id, creator_expert_id, metadata)
-                    VALUES ($1, $2, 'pending', 'high', $3, $4, $5)
-                    ON CONFLICT (title, COALESCE(project_context, 'default'))
-                        WHERE status IN ('pending', 'in_progress')
-                    DO UPDATE SET updated_at = NOW()
+                    UPDATE tasks SET updated_at = NOW()
+                    WHERE title = $1
+                      AND status IN ('pending', 'in_progress')
+                      AND COALESCE(project_context, 'default') = 'default'
                     RETURNING id
-                """,
+                    """,
                     task_title,
-                    subtask_desc,
-                    expert_id,
-                    victoria_id,
-                    json.dumps(
-                        {"source": "victoria_monster_delegation", "parent_goal": goal[:200]}
-                    ),
                 )
+                if not task_id:
+                    task_id = await conn.fetchval(
+                        """
+                        INSERT INTO tasks (title, description, status, priority, assignee_expert_id, creator_expert_id, metadata)
+                        VALUES ($1, $2, 'pending', 'high', $3, $4, $5)
+                        RETURNING id
+                        """,
+                        task_title,
+                        subtask_desc,
+                        expert_id,
+                        victoria_id,
+                        json.dumps(
+                            {"source": "victoria_monster_delegation", "parent_goal": goal[:200]}
+                        ),
+                    )
 
                 logger.info(f"🚀 [MONSTER] Создана/найдена задача {task_id} для {expert_name}")
 

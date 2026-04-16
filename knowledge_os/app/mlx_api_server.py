@@ -218,7 +218,7 @@ MODEL_PATHS = {
     "qwen_3b": os.path.join(MLX_BASE, "qwen2.5-3b"),
     "phi3_mini": os.path.join(MLX_BASE, "phi3-mini-4k"),
     "phi3.5:3.8b": os.path.join(MLX_BASE, "phi3.5-mini-4k"),
-    "victoria-wisdom-v3.5": "/Users/bikos/mlx-models/victoria-wisdom-v3.5-mlx",
+    "victoria-wisdom-v3.5": "/Users/bikos/mlx-models/victoria-wisdom-v3.5-mlx-new",
 }
 
 # Можно также использовать переменную окружения
@@ -291,8 +291,8 @@ MODEL_TIME_ESTIMATES = {
     "qwen_3b": {"load_sec": 20, "inference_sec_per_1k": 12, "margin_sec": 120},
     "tinyllama:1.1b-chat": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 120},
     "tiny": {"load_sec": 10, "inference_sec_per_1k": 5, "margin_sec": 120},
-    "victoria-wisdom-v3.5": {"load_sec": 90, "inference_sec_per_1k": 45, "margin_sec": 300},
-    "victoria-wisdom-v3.5": {"load_sec": 90, "inference_sec_per_1k": 45, "margin_sec": 300},
+    # Qwen3.5-35B-A3B mxfp4: 3B active params → fast inference, 17GB model load ~45s
+    "victoria-wisdom-v3.5": {"load_sec": 45, "inference_sec_per_1k": 15, "margin_sec": 200},
     "qwen3.5:35b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
     "deepseek-r1:32b": {"load_sec": 120, "inference_sec_per_1k": 60, "margin_sec": 300},
 }
@@ -1147,6 +1147,13 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
             model_key = CATEGORY_TO_MODEL.get(request.category, "default")
         else:
             model_key = "default"
+
+        # [BUG FIX] Resolve 'default' alias to actual model for correct timeout calc.
+        # When VICTORIA_MLX_BRAIN=true, 'default' → victoria-wisdom-v3.5 (35B).
+        # Using MODEL_TIME_ESTIMATES['default'] (margin=120) gives 151s timeout —
+        # not enough for 35B generation. Must use actual model's estimates.
+        if model_key == "default" and _VICTORIA_MLX_BRAIN:
+            model_key = CATEGORY_TO_MODEL.get("default", "victoria-wisdom-v3.5")
 
         # Отмечаем, что модель используется (защита от выгрузки)
         with _request_lock:
