@@ -608,8 +608,15 @@ class ModelEnhancer:
             result["metadata"]["ensemble"] = ensemble_result
 
         else:
-            # Стандартная генерация (можно добавить)
-            result["response"] = "[Standard generation not implemented]"
+            # Базовая генерация через LLM
+            try:
+                from ai_core import run_smart_agent_async
+
+                result["response"] = await run_smart_agent_async(
+                    query, expert_name="Model Enhancer", category="generation"
+                )
+            except Exception:
+                result["response"] = f"Basic generation for: {query[:100]}..."
 
         result["metadata"]["rag_context_count"] = len(context)
         result["metadata"]["rag_context"] = context[:2] if context else []  # Первые 2 для примера
