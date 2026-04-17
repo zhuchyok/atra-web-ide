@@ -13,18 +13,54 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
+import json
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Swarm Studio", version="1.0.0")
+app = FastAPI(title="Swarm Studio", version="1.1.0")
+
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
 
 _swarm_state: Dict[str, Any] = {
     "agents": {},
     "tasks": [],
     "messages": [],
 }
+
+
+async def _load_agents_from_db():
+    """Load agents from database."""
+    try:
+        import asyncpg
+
+        conn = await asyncpg.connect(DATABASE_URL)
+        rows = await conn.fetch("""
+            SELECT id, name, role, system_prompt, department, created_at 
+            FROM experts 
+            WHERE is_active = TRUE 
+            ORDER BY name
+            LIMIT 50
+        """)
+        await conn.close()
+        return [
+            {
+                "id": str(r["id"]),
+                "name": r["name"],
+                "role": r["role"],
+                "department": r.get("department", ""),
+                "status": "running" if r["name"] in _swarm_state["agents"] else "idle",
+                "started_at": r["created_at"].isoformat()
+                if r["created_at"]
+                else datetime.now(timezone.utc).isoformat(),
+                "messages_count": 0,
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        logger.warning(f"[SwarmStudio] DB error: {e}")
+        return []
 
 
 class AgentInfo(BaseModel):
@@ -87,7 +123,19 @@ async def dashboard():
 
 @app.get("/api/state")
 async def get_state():
-    return _swarm_state
+    """Get full state with agents from DB."""
+    agents = await _load_agents_from_db()
+    return {
+        "agents": agents,
+        "tasks": _swarm_state.get("tasks", []),
+        "messages_count": len(_swarm_state.get("messages", [])),
+    }
+
+
+@app.get("/api/agents")
+async def list_agents():
+    """List all agents from DB."""
+    return await _load_agents_from_db()
 
 
 @app.post("/api/agents")
@@ -113,6 +161,31 @@ async def get_tasks():
 async def add_task(task: TaskInfo):
     _swarm_state["tasks"].append(task.dict())
     return {"status": "ok"}
+
+
+@app.get("/api/stream")
+async def stream_state():
+    """Server-Sent Events stream for real-time updates."""
+
+    async def event_generator():
+        while True:
+            state = await get_state()
+            yield f"data: {json.dumps(state)}\n\n"
+            await asyncio.sleep(2)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.get("/api/experts/{expert_name}/chat")
+async def expert_chat(expert_name: str, message: str):
+    """Chat with specific expert via ai_core."""
+    try:
+        from ai_core import run_smart_agent_async
+
+        result = await run_smart_agent_async(message, expert_name=expert_name, category="chat")
+        return {"expert": expert_name, "response": result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 def get_swarm_studio():
