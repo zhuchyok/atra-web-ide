@@ -1453,8 +1453,23 @@ async def run_smart_agent_async_impl(
 
     memory_crystals = await _get_memory_crystals(project_context, pool)
 
+    # [SINGULARITY 27.1] Load expert's system_prompt from DB
+    expert_system_prompt = ""
+    try:
+        from expert_services import get_expert_system_prompt
+
+        expert_system_prompt = get_expert_system_prompt(expert_name) or ""
+        if expert_system_prompt:
+            logger.info(f"🎭 [SYSTEM_PROMPT] Loaded for {expert_name}")
+    except Exception as e:
+        logger.debug(f"Failed to load system_prompt: {e}")
+
     # [SINGULARITY 21.32] Token Efficiency Audit
     prompt = audit_efficiency(prompt)
+
+    # [SINGULARITY 27.1] Inject expert's system_prompt FIRST
+    if expert_system_prompt:
+        prompt = f"### ТЫ — {expert_name.upper()}\n{expert_system_prompt}\n\n{prompt}"
 
     # [SINGULARITY 27.0] Anti-Hallucination Instruction
     if expert_name in ("Виктория", "Victoria", "victoria"):
