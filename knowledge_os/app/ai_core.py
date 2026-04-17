@@ -40,6 +40,7 @@ except ImportError:
     async def get_embedding(text: str) -> Optional[List[float]]:
         return None
 
+
 # [SINGULARITY 21.32] Prompt Master Integration
 try:
     from memory_block import get_memory_block
@@ -60,8 +61,10 @@ except ImportError:
 try:
     from explicit_handoffs import get_handoff_manager
 except ImportError:
+
     def get_handoff_manager():
         return None
+
 
 # [SINGULARITY 22.8] Iterative Discovery
 try:
@@ -307,7 +310,6 @@ except ImportError:
     get_distillation_engine = None
 
 
-
 class TeamDiscussionEngine:
     """
     [SINGULARITY 24.2] Local Team Discussion Engine.
@@ -340,12 +342,14 @@ class TeamDiscussionEngine:
                     if name.lower() in cache_key.lower():
                         style = cache_val
                         break
-            
+
             if style:
                 styles.append(f"### {name} Style:\n{style}")
             else:
-                styles.append(f"### {name} Style:\nProfessional, technical, and focused on the task.")
-        
+                styles.append(
+                    f"### {name} Style:\nProfessional, technical, and focused on the task."
+                )
+
         return "\n\n".join(styles)
 
     def _refresh_styles_cache(self):
@@ -354,7 +358,9 @@ class TeamDiscussionEngine:
             # Try multiple potential locations for docs/TEAM_PERSONALITIES.md
             possible_paths = [
                 # Path relative to ai_core.py
-                os.path.abspath(os.path.join(os.path.dirname(__file__), "../../docs/TEAM_PERSONALITIES.md")),
+                os.path.abspath(
+                    os.path.join(os.path.dirname(__file__), "../../docs/TEAM_PERSONALITIES.md")
+                ),
                 # Path relative to workspace root (absolute)
                 "/Users/bikos/Documents/atra-web-ide/docs/TEAM_PERSONALITIES.md",
                 # Path relative to workspace root (if running from root)
@@ -367,13 +373,13 @@ class TeamDiscussionEngine:
                 os.path.join(os.getcwd(), "docs/TEAM_PERSONALITIES.md"),
                 os.path.join(os.getcwd(), "../docs/TEAM_PERSONALITIES.md"),
             ]
-            
+
             personalities_path = None
             for p in possible_paths:
                 if os.path.exists(p):
                     personalities_path = p
                     break
-            
+
             if not personalities_path:
                 # One last attempt: search for docs/TEAM_PERSONALITIES.md in parent directories
                 curr = os.path.abspath(os.path.dirname(__file__))
@@ -383,7 +389,7 @@ class TeamDiscussionEngine:
                         personalities_path = p
                         break
                     curr = os.path.dirname(curr)
-            
+
             if not personalities_path:
                 logger.warning(f"⚠️ [TEAM ENGINE] Personalities file not found. Using empty cache.")
                 return
@@ -404,7 +410,7 @@ class TeamDiscussionEngine:
                     name_part = header.split(". ", 1)[1]
                 if " (" in name_part:
                     name_part = name_part.split(" (", 1)[0]
-                
+
                 # Extract style (everything until the next "---" or end of section)
                 style_content = "\n".join(lines[1:]).split("---")[0].strip()
                 if name_part and style_content:
@@ -419,11 +425,11 @@ class TeamDiscussionEngine:
                         "Елена": "Elena",
                         "Дмитрий": "Dmitry",
                         "Роман": "Roman",
-                        "Татьяна": "Tatiana"
+                        "Татьяна": "Tatiana",
                     }
                     if name_part in eng_mapping:
                         self._expert_styles_cache[eng_mapping[name_part]] = style_content
-            
+
             self._last_cache_time = time.time()
             # logger.info(f"🧠 [TEAM ENGINE] Refreshed styles cache for {len(self._expert_styles_cache)} experts from {personalities_path}.")
         except Exception as e:
@@ -448,36 +454,42 @@ class TeamDiscussionEngine:
             import agentscope
             from agentscope.msghub import MsgHub
             from agentscope.agents import UserAgent, DialogAgent
-            
+
             # Инициализация AgentScope если еще не сделано
-            agentscope.init(model_configs=[{
-                "config_name": "victoria_mlx",
-                "model_type": "openai_chat",
-                "api_key": "empty",
-                "base_url": "http://host.docker.internal:11435/v1"
-            }])
+            agentscope.init(
+                model_configs=[
+                    {
+                        "config_name": "victoria_mlx",
+                        "model_type": "openai_chat",
+                        "api_key": "empty",
+                        "base_url": "http://host.docker.internal:11435/v1",
+                    }
+                ]
+            )
 
             # Создаем агентов для обсуждения
             expert_agents = []
             for name in experts:
                 style = self._expert_styles_cache.get(name, "Professional expert.")
-                expert_agents.append(DialogAgent(
-                    name=name,
-                    sys_prompt=f"ТЫ - {name}. {style} Внедряй фазу 'Радикальной правды': критикуй неоптимальные идеи.",
-                    model_config_name="victoria_mlx"
-                ))
+                expert_agents.append(
+                    DialogAgent(
+                        name=name,
+                        sys_prompt=f"ТЫ - {name}. {style} Внедряй фазу 'Радикальной правды': критикуй неоптимальные идеи.",
+                        model_config_name="victoria_mlx",
+                    )
+                )
 
             # Запускаем MsgHub
             with MsgHub(participants=expert_agents) as hub:
                 # Начальное сообщение от Виктории (Team Lead)
                 intro = f"Команда, задача: {task_title}. Описание: {task_description}. Контекст: {context_data[:500] if context_data else 'N/A'}"
                 hub.broadcast({"role": "user", "content": intro})
-                
+
                 # Симулируем 2 круга обсуждения (мировые практики: дебаты повышают качество)
                 for _ in range(2):
                     for agent in expert_agents:
                         agent.reply()
-                
+
                 # Собираем историю обсуждения
                 discussion_history = hub.get_transcript()
                 return discussion_history
@@ -486,7 +498,7 @@ class TeamDiscussionEngine:
             logger.warning(f"⚠️ [AGENT SCOPE] MsgHub failed, falling back to legacy discussion: {e}")
             # Legacy fallback code...
             expert_styles = self._get_expert_styles(experts)
-            
+
             prompt = f"""### ROLE: AI Director & Team Orchestrator
 ### TASK: Simulate a technical discussion between the following experts to solve the task.
 
@@ -516,6 +528,7 @@ class TeamDiscussionEngine:
 """
         if not self.router:
             from local_router import LocalAIRouter
+
             self.router = LocalAIRouter()
 
         # Target MLX (port 11435) via specific category/flag
@@ -710,7 +723,10 @@ async def _get_db_pool():
 
 
 async def _run_cloud_agent_async(
-    prompt: str, category: Optional[str] = "general", is_vip: bool = False, expert_name: str = "Виктория"
+    prompt: str,
+    category: Optional[str] = "general",
+    is_vip: bool = False,
+    expert_name: str = "Виктория",
 ):
     """Приоритет: локальные модели (Ollama/MLX) → cursor-agent. Локальные модели корпорации используются первыми."""
     # ПРИОРИТЕТ 1: локальные модели (Ollama/MLX) — политика корпорации
@@ -729,7 +745,9 @@ async def _run_cloud_agent_async(
 
         async def _try_local():
             router = LocalAIRouter()
-            result = await router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name)
+            result = await router.run_local_llm(
+                prompt, category=category, is_vip=is_vip, expert_name=expert_name
+            )
             if isinstance(result, tuple):
                 response, _ = result
             else:
@@ -805,7 +823,10 @@ async def _run_cloud_agent_async(
                     router = LocalAIRouter()
                     # Быстрый fallback на локальные модели с таймаутом 15 секунд
                     result = await asyncio.wait_for(
-                        router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name), timeout=15
+                        router.run_local_llm(
+                            prompt, category=category, is_vip=is_vip, expert_name=expert_name
+                        ),
+                        timeout=15,
                     )
                     if isinstance(result, tuple):
                         response, _ = result
@@ -827,6 +848,7 @@ async def _run_cloud_agent_async(
         # [SINGULARITY 23.2] Inference Optimizer: Pre-loading next model
         try:
             from app.inference_optimizer import get_inference_optimizer
+
             optimizer = get_inference_optimizer()
             asyncio.create_task(optimizer.predict_and_preload(category))
         except Exception as e:
@@ -838,19 +860,14 @@ async def _run_cloud_agent_async(
 
             if is_mlx_available():
                 mlx_router = get_mlx_router()
-                logger.info("🍎 [MLX] Пробуем использовать Apple MLX (Neural Engine) на Mac Studio")
                 mlx_response = await mlx_router.generate_response(
                     prompt=prompt, max_tokens=512, temperature=0.7
                 )
                 if mlx_response and len(mlx_response) > 10:
-                    logger.info("✅ [MLX] Использован Apple MLX (Neural Engine) на Mac Studio")
+                    logger.info("✅ [MLX] Использован Apple MLX")
                     return mlx_response
-                else:
-                    logger.debug("⚠️ [MLX] MLX не вернул ответ, пробуем Ollama")
-        except ImportError:
-            logger.debug("⚠️ MLX Router недоступен, пробуем Ollama")
         except Exception as e:
-            logger.debug(f"⚠️ [MLX] Ошибка при использовании MLX: {e}, пробуем Ollama")
+            logger.debug(f"⚠️ [MLX] Ошибка: {e}")
 
         # ПРИОРИТЕТ 2: cursor-agent not found - use direct Ollama call as fallback
         _in_docker = (
@@ -903,13 +920,14 @@ async def _run_cloud_agent_async(
                         # Mac Studio: доступны лучшие модели
                         # Локальные модели (70b удалены)
                         # Ollama модели: glm-4.7-flash:q8_0, phi3.5:3.8b
-                        if "localhost" in ollama_url or "127.0.0.1" in ollama_url or "host.docker.internal" in ollama_url:
-                            # Mac Studio - лучшие модели
+                        if (
+                            "localhost" in ollama_url
+                            or "127.0.0.1" in ollama_url
+                            or "host.docker.internal" in ollama_url
+                        ):
+                            # Mac Studio - только victoria-wisdom (убраны fallback-ы для скорости)
                             models_to_try = [
                                 "victoria-wisdom-v3.5:latest",
-                                "qwen3.5:35b",
-                                "phi3.5:3.8b",
-                                "tinyllama:1.1b-chat"
                             ]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)
@@ -1008,7 +1026,7 @@ async def _enrich_with_deep_memory(nodes: list, pool) -> str:
         else:
             # Fallback for other node structures if any
             did = getattr(node, "domain_id", None)
-        
+
         if did:
             domain_ids.add(did)
 
@@ -1035,7 +1053,7 @@ async def _enrich_with_deep_memory(nodes: list, pool) -> str:
             enrichment = "\n<deep_memory>\n"
             for row in rows:
                 enrichment += f'  <domain name="{row["domain_name"]}">\n'
-                enrichment += f'    {row["content"]}\n'
+                enrichment += f"    {row['content']}\n"
                 enrichment += "  </domain>\n"
             enrichment += "</deep_memory>\n"
             return enrichment
@@ -1064,14 +1082,14 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                 graphrag = get_graphrag_service()
                 graph_context, graph_nodes = await graphrag.retrieve_graph_context(query)
-                
+
                 # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
                 if graph_nodes:
                     pool = await _get_db_pool()
                     deep_memory = await _enrich_with_deep_memory(graph_nodes, pool)
                     if deep_memory:
                         graph_context = deep_memory + graph_context
-                
+
                 return graph_context
             except Exception as ge:
                 logger.debug(f"GraphRAG failed: {ge}")
@@ -1087,7 +1105,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 visual_results = await router.search_visual_context(search_query)
                 if not visual_results:
                     return ""
-                
+
                 context = "\n🖼️ [VISUAL CONTEXT (OMNI-RAG v3)]:\n"
                 for res in visual_results:
                     context += f"\n[IMAGE/PDF: {res.get('file_path')}] (similarity: {res.get('similarity', 0):.2f}):\n"
@@ -1102,6 +1120,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 # [AGENT SCOPE] ReMe Memory Integration (optional — falls through if not available)
                 try:
                     from agentscope.memory import ReMe
+
                     reme = ReMe(config={"type": "hybrid", "top_k": 5})
                     reme_context = reme.retrieve(query)
                     if reme_context:
@@ -1159,7 +1178,9 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                                 if sim >= 0.55:
                                     meta = node.get("metadata") or {}
                                     file_path = meta.get("file_path", "N/A")
-                                    context += f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
+                                    context += (
+                                        f"\n[NODE: {file_path}] (релевантность: {sim:.2f}):\n"
+                                    )
                                     context += f"{node['content'][:1200]}\n"
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 
@@ -1231,11 +1252,12 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     # [SINGULARITY 23.3] Cross-Encoder Reranking for Python RAG
                     try:
                         from app.rag_reranker import get_rag_reranker
+
                         reranker = get_rag_reranker()
                         # Преобразуем Record в dict для reranker
                         nodes_to_rerank = [dict(row) for row in rows]
                         reranked_nodes = reranker.rerank(query, nodes_to_rerank, top_k=5)
-                        rows = reranked_nodes # Используем переранжированные узлы
+                        rows = reranked_nodes  # Используем переранжированные узлы
                     except Exception as e:
                         logger.debug(f"Reranking failed: {e}")
 
@@ -1281,22 +1303,30 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
         # Step 2: Fine search (Visual) if needed
         visual_context = ""
         prompt_lower = query.lower()
-        is_multimodal = "#multimodal" in prompt_lower or any(kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"])
-        
+        is_multimodal = "#multimodal" in prompt_lower or any(
+            kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]
+        )
+
         if is_multimodal:
             logger.info("🎨 [OMNI-RAG] Multimodal query detected, performing fine visual search...")
             visual_context = await fetch_visual()
         elif graph_context or vector_context:
             # Анализируем текстовый контекст: если там есть упоминания визуальных артефактов, делаем fine search
             combined_text = (graph_context or "") + (vector_context or "")
-            if any(kw in combined_text.lower() for kw in ["image", "screenshot", "diagram", "pdf", "ui_design"]):
-                logger.info("🔍 [OMNI-RAG] Visual artifacts mentioned in text context, refining search...")
+            if any(
+                kw in combined_text.lower()
+                for kw in ["image", "screenshot", "diagram", "pdf", "ui_design"]
+            ):
+                logger.info(
+                    "🔍 [OMNI-RAG] Visual artifacts mentioned in text context, refining search..."
+                )
                 visual_context = await fetch_visual()
 
         if visual_context:
             logger.info("🖼️ [OMNI-RAG] Visual context retrieved. Verifying via ConsensusAgent...")
             try:
                 from consensus_agent import ConsensusAgent
+
                 consensus = ConsensusAgent()
                 # Упрощенная верификация: проверяем, не противоречит ли визуальный контекст текстовому
                 verification_prompt = f"""
@@ -1389,7 +1419,7 @@ async def run_smart_agent_async_impl(
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
                     "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at ASC",
-                    project_context
+                    project_context,
                 )
                 if not rows:
                     return ""
@@ -1404,7 +1434,7 @@ async def run_smart_agent_async_impl(
 
     # 1. Initialization
     pool = await _get_db_pool()
-    
+
     # [SINGULARITY 25.0] Expert Priority Detection
     if not is_vip and expert_name and pool:
         try:
@@ -1412,17 +1442,30 @@ async def run_smart_agent_async_impl(
                 expert_priority = await conn.fetchval(
                     "SELECT priority FROM experts WHERE name = $1", expert_name
                 )
-                if expert_priority == 'VIP':
+                if expert_priority == "VIP":
                     is_vip = True
                     logger.info(f"🌟 [VIP DETECTED] Expert {expert_name} has VIP priority")
         except Exception as e:
             logger.debug(f"Failed to fetch expert priority: {e}")
 
     memory_crystals = await _get_memory_crystals(project_context, pool)
-    
+
     # [SINGULARITY 21.32] Token Efficiency Audit
     prompt = audit_efficiency(prompt)
-    
+
+    # [SINGULARITY 27.0] Anti-Hallucination Instruction
+    if expert_name in ("Виктория", "Victoria", "victoria"):
+        anti_hallucination = """
+### [CRITICAL: ANTI-HALLUCINATION - ОБЯЗАТЕЛЬНО]
+Ты маленький помощник. Большая модель (Brain) планирует, ты только выполняешь.
+ПРАВИЛА:
+1. НИКОГДА не выдумывай факты, файлы, директории
+2. Если не знаешь — отвечай "Не знаю" или "Нужно уточнить"
+3. Не притворяйся, что помнишь разговор
+4. Выполняй ТОЛЬКО то, что сказано в запросе
+"""
+        prompt = anti_hallucination + "\n" + prompt
+
     # [SINGULARITY 23.0] U-Shape Context Assembly (TOP)
     if memory_crystals:
         prompt = memory_crystals + "\n" + prompt
@@ -1446,8 +1489,10 @@ async def run_smart_agent_async_impl(
 
     # [SINGULARITY 26.3] COLLECTIVE REFLECTION LOOP (Reasoning Trace)
     # Only inject for large models or reasoning/vip categories — small models (phi3.5 3.8B) ignore it.
-    _is_large_model = is_vip or category in ("reasoning", "vip") or any(
-        x in str(expert_name).lower() for x in ("виктория", "victoria")
+    _is_large_model = (
+        is_vip
+        or category in ("reasoning", "vip")
+        or any(x in str(expert_name).lower() for x in ("виктория", "victoria"))
     )
     reflection_instruction = """
 ### COLLECTIVE REFLECTION PROTOCOL:
@@ -1599,7 +1644,10 @@ Use HANDOFF only if delegation genuinely improves the result.
         try:
             if router:
                 result = await router.run_local_llm(
-                    introspection_prompt, category="reasoning", model_hint="lfm2.5-thinking", expert_name=expert_name
+                    introspection_prompt,
+                    category="reasoning",
+                    model_hint="lfm2.5-thinking",
+                    expert_name=expert_name,
                 )
                 refined_text = result[0] if isinstance(result, tuple) else result
 
@@ -2063,29 +2111,41 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 22.8] Iterative Discovery
     # Если задача сложная и требует глубокого анализа, запускаем итеративную разведку
-    if IterativeDiscovery and (is_critical or category == "reasoning" or "#complex" in user_part.lower()):
+    if IterativeDiscovery and (
+        is_critical or category == "reasoning" or "#complex" in user_part.lower()
+    ):
         logger.info(f"🕵️ [SINGULARITY 22.8] Starting Iterative Discovery for: {expert_name}")
         import sys
+
         ai_processor = sys.modules[__name__]
         discovery = IterativeDiscovery(ai_processor=ai_processor, max_iterations=3)
         return await discovery.run(
-            user_part, expert_name, category or "general", 
-            context=knowledge_context, project_context=project_context
+            user_part,
+            expert_name,
+            category or "general",
+            context=knowledge_context,
+            project_context=project_context,
         )
 
     # [SINGULARITY 22.1] Real-time Multi-Agent Debate
     # Если задача сложная и требует консенсуса, запускаем дебаты
     if ConsensusAgent and (is_critical or category == "reasoning" or "обсуди" in user_part.lower()):
-        logger.info(f"🤝 [SINGULARITY 22.1] Starting Real-time Multi-Agent Debate for: {expert_name}")
+        logger.info(
+            f"🤝 [SINGULARITY 22.1] Starting Real-time Multi-Agent Debate for: {expert_name}"
+        )
         consensus = ConsensusAgent(model_name=strategist_model)
         # Выбираем экспертов для дебатов на основе задачи
-        debate_experts = ["Виктория", "Игорь", "Анна"] # Базовая тройка
+        debate_experts = ["Виктория", "Игорь", "Анна"]  # Базовая тройка
         if is_coding_task:
             debate_experts = ["Игорь", "Максим", "Виктория"]
-        
-        debate_res = await consensus.reach_consensus(debate_experts, user_part, {"kb_context": kb_context_rag})
+
+        debate_res = await consensus.reach_consensus(
+            debate_experts, user_part, {"kb_context": kb_context_rag}
+        )
         if debate_res and debate_res.consensus_score > 0.7:
-            logger.info(f"✅ [SINGULARITY 22.1] Consensus reached with score {debate_res.consensus_score:.2f}")
+            logger.info(
+                f"✅ [SINGULARITY 22.1] Consensus reached with score {debate_res.consensus_score:.2f}"
+            )
             # Сохраняем результат в кэш и возвращаем
             if cache:
                 await cache.save_to_cache(user_part, debate_res.final_answer, expert_name)
@@ -2156,7 +2216,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                     router._preferred_source = "ollama"
             try:
                 spec_result = await router.run_local_llm(
-                    spec_prompt, category="reasoning", model_hint=strategist_model, expert_name=expert_name
+                    spec_prompt,
+                    category="reasoning",
+                    model_hint=strategist_model,
+                    expert_name=expert_name,
                 )
                 spec = spec_result[0] if isinstance(spec_result, tuple) else spec_result
             finally:
@@ -2166,7 +2229,9 @@ Use HANDOFF only if delegation genuinely improves the result.
         # Fallback to cloud if strategist failed
         if not spec or spec.startswith(("❌", "⚠️")):
             logger.warning("⚠️ [STRATEGIST FAILED] Falling back to cloud for planning...")
-            spec = await _run_cloud_agent_async(spec_prompt, category="reasoning", is_vip=is_vip, expert_name=expert_name)
+            spec = await _run_cloud_agent_async(
+                spec_prompt, category="reasoning", is_vip=is_vip, expert_name=expert_name
+            )
 
         if spec and not spec.startswith(("❌", "⚠️")):
             # Phase 2: Executor executes the spec (Ollama call)
@@ -2202,7 +2267,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                 try:
                     if router:
                         local_result = await router.run_local_llm(
-                            worker_prompt, category="coding", model_hint=executor_model, expert_name=expert_name
+                            worker_prompt,
+                            category="coding",
+                            model_hint=executor_model,
+                            expert_name=expert_name,
                         )
                     else:
                         local_result = None
@@ -2260,7 +2328,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                             )
                             try:
                                 retry_resp = await router.run_local_llm(
-                                    improved_prompt, category=category, is_vip=is_vip, expert_name=expert_name
+                                    improved_prompt,
+                                    category=category,
+                                    is_vip=is_vip,
+                                    expert_name=expert_name,
                                 )
                                 if isinstance(retry_resp, tuple):
                                     retry_resp = retry_resp[0]
@@ -2328,7 +2399,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                         )
                         try:
                             retry_resp = await router.run_local_llm(
-                                safe_prompt, category=category, is_vip=is_vip, expert_name=expert_name
+                                safe_prompt,
+                                category=category,
+                                is_vip=is_vip,
+                                expert_name=expert_name,
                             )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
@@ -2435,7 +2509,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                         audit_result = audit_res[0] if isinstance(audit_res, tuple) else audit_res
                     else:
                         audit_result = await _run_cloud_agent_async(
-                            audit_prompt, category="reasoning", is_vip=is_vip, expert_name=expert_name
+                            audit_prompt,
+                            category="reasoning",
+                            is_vip=is_vip,
+                            expert_name=expert_name,
                         )
 
                     if audit_result and "APPROVED" not in audit_result.upper():
@@ -2597,7 +2674,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                         )
 
                 final_prompt = f"ПЛАН ИСПРАВЛЕНИЯ ОТ ТИМЛИДА:\n{audit_result}\n\nИСПРАВЬТЕ КОД:"
-                final_result = await router.run_local_llm(final_prompt, category="coding", expert_name=expert_name)
+                final_result = await router.run_local_llm(
+                    final_prompt, category="coding", expert_name=expert_name
+                )
                 final_resp, _ = (
                     final_result if isinstance(final_result, tuple) else (final_result, None)
                 )
@@ -2715,7 +2794,11 @@ Use HANDOFF only if delegation genuinely improves the result.
                 try:
                     if local_breaker:
                         result = await local_breaker.call(
-                            router.run_local_llm, prompt, category=category, images=images, expert_name=expert_name
+                            router.run_local_llm,
+                            prompt,
+                            category=category,
+                            images=images,
+                            expert_name=expert_name,
                         )
                     else:
                         result = await router.run_local_llm(
@@ -2823,7 +2906,10 @@ Use HANDOFF only if delegation genuinely improves the result.
                     try:
                         if router:
                             retry_resp = await router.run_local_llm(
-                                safe_prompt, category=category, is_vip=is_vip, expert_name=expert_name
+                                safe_prompt,
+                                category=category,
+                                is_vip=is_vip,
+                                expert_name=expert_name,
                             )
                             if isinstance(retry_resp, tuple):
                                 retry_resp = retry_resp[0]
@@ -3048,7 +3134,9 @@ Use HANDOFF only if delegation genuinely improves the result.
     if len(full_prompt) > 8000:
         instruction_reminder = f"\n\n### [SYSTEM REMINDER: STAY IN CHARACTER]\nНапоминание: Ты {expert_name}. Следуй своим инструкциям и правилам 'Золотого стандарта' ATRA."
         full_prompt += instruction_reminder
-        logger.info(f"🔄 [RE-INJECTION] System instructions re-injected for {expert_name} (len={len(full_prompt)})")
+        logger.info(
+            f"🔄 [RE-INJECTION] System instructions re-injected for {expert_name} (len={len(full_prompt)})"
+        )
 
     # [SINGULARITY 21.35] Confidence-Guided Self-Correction (CoRefine Pattern)
     # Если в промпте есть сомнение или задача сложная, добавляем инструкцию самопроверки
@@ -3058,23 +3146,27 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 23.0] U-Shape Context Assembly (BOTTOM): Instruction Re-injection
     # Повторяем главную роль и правила в самом конце для борьбы с Lost in the Middle
-    
+
     # [SINGULARITY 24.2] Local Team Discussion Hook
-    if category == "team_discussion" or (isinstance(prompt, str) and "### TEAM_DISCUSSION" in prompt):
+    if category == "team_discussion" or (
+        isinstance(prompt, str) and "### TEAM_DISCUSSION" in prompt
+    ):
         logger.info("🧠 [TEAM ENGINE] Intercepted team discussion request.")
-        
+
         # Parse experts if provided in the prompt string
-        selected_experts = ["Виктория", "Игорь", "Анна", "Дмитрий"] # Default team
+        selected_experts = ["Виктория", "Игорь", "Анна", "Дмитрий"]  # Default team
         task_title = "Team Discussion"
         task_description = prompt
-        
+
         if isinstance(prompt, str) and "### EXPERTS:" in prompt:
             try:
                 experts_line = [line for line in prompt.split("\n") if "### EXPERTS:" in line][0]
-                selected_experts = [e.strip() for e in experts_line.replace("### EXPERTS:", "").split(",")]
+                selected_experts = [
+                    e.strip() for e in experts_line.replace("### EXPERTS:", "").split(",")
+                ]
             except Exception:
                 pass
-        
+
         if isinstance(prompt, str) and "### TASK:" in prompt:
             try:
                 task_line = [line for line in prompt.split("\n") if "### TASK:" in line][0]
@@ -3088,17 +3180,24 @@ Use HANDOFF only if delegation genuinely improves the result.
                 task_title=task_title,
                 task_description=task_description,
                 experts=selected_experts,
-                context_data=knowledge_context
+                context_data=knowledge_context,
             )
-            
+
             # If the result is valid (not an error message), return it
-            if discussion_result and "Failed to generate team discussion locally" not in discussion_result:
+            if (
+                discussion_result
+                and "Failed to generate team discussion locally" not in discussion_result
+            ):
                 return discussion_result
-            
-            logger.warning("⚠️ [TEAM ENGINE] Local generation returned empty or error. Falling back to standard mode.")
+
+            logger.warning(
+                "⚠️ [TEAM ENGINE] Local generation returned empty or error. Falling back to standard mode."
+            )
         except Exception as e:
-            logger.error(f"❌ [TEAM ENGINE] Error during local team generation: {e}. Falling back to standard mode.")
-        
+            logger.error(
+                f"❌ [TEAM ENGINE] Error during local team generation: {e}. Falling back to standard mode."
+            )
+
         # Fallback: continue to standard generation (cloud or standard local)
         # We modify the prompt to ensure it's handled as a normal request if the marker was present
         if isinstance(prompt, str):
@@ -3128,7 +3227,11 @@ Use HANDOFF only if delegation genuinely improves the result.
     # [SINGULARITY 21.28] Оптимизация сжатия: повышаем пороги, чтобы не терять важный код
     _compression_threshold = int(os.getenv("CONTEXT_COMPRESSION_THRESHOLD", "32000"))
     _compression_limit = int(os.getenv("CONTEXT_COMPRESSION_LIMIT", "16000"))
-    _compression_enabled = os.getenv("ENABLE_CONTEXT_COMPRESSION", "true").lower() in ("true", "1", "yes")
+    _compression_enabled = os.getenv("ENABLE_CONTEXT_COMPRESSION", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     if _compression_enabled and ContextAnalyzer and len(full_prompt) > _compression_threshold:
         # Проверяем, есть ли предсжатый контекст (Predictive Compression)
@@ -3260,7 +3363,9 @@ Use HANDOFF only if delegation genuinely improves the result.
     # Offline fallback
     if response and (response.startswith("❌") or response.startswith("⚠️")) and router:
         logger.warning("🛡️ [BUNKER MODE] Cloud failed, switching to Local.")
-        return await router.run_local_llm(prompt, category=category, is_vip=is_vip, expert_name=expert_name)
+        return await router.run_local_llm(
+            prompt, category=category, is_vip=is_vip, expert_name=expert_name
+        )
 
     # Дополнение ответа внешними данными (Singularity 8.0)
     if response and not response.startswith(("⚠️", "❌")):
@@ -3395,34 +3500,43 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 23.0] Crystallization Hook: Extract new crystals from response
     if response and not response.startswith(("⚠️", "❌")):
+
         async def _crystallize_task(text: str, p_ctx: str, pool):
             """Extracts decisions/parameters from response and saves as crystals."""
-            if not pool: return
+            if not pool:
+                return
+
             # [SINGULARITY 23.6] Offload heavy regex and JSON to thread pool
             def _extract_sync():
                 patterns = [
                     (r"Решили\s+использовать\s+([a-zA-Z0-9\s\.\-_]+)", "decision"),
                     (r"Порт:\s+(\d+)", "parameter"),
                     (r"Версия:\s+([vV]\d+\.\d+)", "milestone"),
-                    (r"Стандарт:\s+([a-zA-Z0-9\s\.\-_]+)", "fact")
+                    (r"Стандарт:\s+([a-zA-Z0-9\s\.\-_]+)", "fact"),
                 ]
                 extracted = []
                 for pattern, c_type in patterns:
                     import re
+
                     matches = re.findall(pattern, text, re.IGNORECASE)
                     for match in matches:
                         extracted.append((c_type, match.strip()))
                 return extracted
 
             extracted_crystals = await asyncio.to_thread(_extract_sync)
-            
+
             for c_type, content in extracted_crystals:
                 try:
                     async with pool.acquire() as conn:
-                        metadata_json = await asyncio.to_thread(json.dumps, {"source": "auto_crystallizer"})
+                        metadata_json = await asyncio.to_thread(
+                            json.dumps, {"source": "auto_crystallizer"}
+                        )
                         await conn.execute(
                             "INSERT INTO memory_crystals (project_context, crystal_type, content, metadata) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING",
-                            p_ctx, c_type, content, metadata_json
+                            p_ctx,
+                            c_type,
+                            content,
+                            metadata_json,
                         )
                         logger.info(f"💎 [CRYSTALLIZER] New crystal saved: {content}")
                 except Exception as e:
@@ -3442,7 +3556,34 @@ Use HANDOFF only if delegation genuinely improves the result.
             )
         )
 
+    # Cleanup internal metadata markers from response
+    response = _clean_response(response)
+
     return response
+
+
+def _clean_response(response: str) -> str:
+    """Remove internal orchestration markers from response."""
+    if not response or not isinstance(response, str):
+        return response
+
+    lines = response.split("\n")
+    cleaned = []
+    # Patterns to remove (case-insensitive startswith)
+    markers = (
+        "Solved:",
+        "ЗАДАЧА:",
+        "План от",
+        "Результаты работы",
+        "Назначения оркестратора:",
+        "Стратегия оркестратора:",
+        "strategy_line",
+    )
+    for line in lines:
+        stripped = line.strip()
+        if not any(stripped.startswith(m) for m in markers):
+            cleaned.append(line)
+    return "\n".join(cleaned)
 
 
 async def _trigger_shadow_execution(
@@ -3507,7 +3648,9 @@ async def _trigger_shadow_execution(
                         if LocalAIRouter:
                             router = LocalAIRouter()
                             res = await router.run_local_llm(
-                                shadow_prompt, category=category or "general", expert_name=expert_name
+                                shadow_prompt,
+                                category=category or "general",
+                                expert_name=expert_name,
                             )
                             return res[0] if isinstance(res, tuple) else res
                         else:

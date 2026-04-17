@@ -1930,6 +1930,11 @@ class VictoriaAgent(BaseAgent):
                 # Fallback: выполняем сами
                 return await self.run(goal, max_steps=500)
 
+        elif complexity == "swarm":
+            # Полный Swarm для критических задач - используем 8 экспертов параллельно
+            logger.info("🐝🐝🐝 CRITICAL: Полный Swarm подход (8 экспертов)")
+            return await self._run_extended_swarm(goal)
+
         elif complexity == "complex":
             # Сложная задача → Swarm (3-5 экспертов параллельно)
             logger.info("🐝 Сложная задача → Swarm подход")
@@ -2075,6 +2080,54 @@ class VictoriaAgent(BaseAgent):
             # Пока используем Swarm подход как fallback
             return await self.orchestrate_task(goal)  # Рекурсивно, но с use_multiple=True
 
+    async def _run_extended_swarm(self, goal: str) -> str:
+        """Extended Swarm with 8 experts for critical tasks"""
+        logger.info("🐝🚀 Extended Swarm: collecting 8 experts...")
+        try:
+            experts = []
+            for _ in range(4):
+                p, _, a = await self.select_expert_for_task(goal, use_multiple=True)
+                if p and p not in experts:
+                    experts.append(p)
+                for n, _ in (a or [])[:2]:
+                    if n and n not in experts:
+                        experts.append(n)
+                if len(experts) >= 8:
+                    break
+            if not experts:
+                return await self.run(goal, max_steps=600)
+            experts = experts[:8]
+            logger.info(f"👥 Swarm team ({len(experts)}): {experts}")
+            # Use run_smart_agent_async via ai_core
+            import os, sys
+
+            for p in ["/app/app/ai_core.py", "/app/knowledge_os/app/ai_core.py"]:
+                if os.path.exists(p):
+                    sys.path.insert(0, os.path.dirname(p))
+                    try:
+                        from ai_core import run_smart_agent_async
+
+                        tasks = [
+                            run_smart_agent_async(
+                                f"{e}: {goal[:500]}", expert_name=e, category="swarm"
+                            )
+                            for e in experts
+                        ]
+                        responses = await asyncio.gather(*tasks, return_exceptions=True)
+                        opinions = "\n".join(
+                            f"**{e}**: {str(r)[:400]}"
+                            for e, r in zip(experts, responses)
+                            if not isinstance(r, Exception)
+                        )
+                        synth = await self.run(f"Синтезируй: {opinions[:2000]}", max_steps=300)
+                        return f"🐝 **SWARM ({len(experts)}):**\n{opinions}\n** итог:**\n{synth}"
+                    except:
+                        pass
+            return await self.run(goal, max_steps=600)
+        except Exception as e:
+            logger.error(f"Swarm error: {e}")
+            return await self.run(goal, max_steps=600)
+
     def _assess_complexity(self, goal: str) -> str:
         """Оценить сложность задачи
 
@@ -2105,6 +2158,17 @@ class VictoriaAgent(BaseAgent):
             "critical",
         ]
 
+        # Ключевые слова для полного Swarm (16 агентов)
+        swarm_keywords = [
+            "архитектура системы",
+            "system design",
+            "полная миграция",
+            "стратегический",
+            "end-to-end",
+            "распределенная система",
+            "deep analysis",
+        ]
+
         # Ключевые слова для межотдельных задач
         multi_dept_keywords = [
             "backend и frontend",
@@ -2114,6 +2178,10 @@ class VictoriaAgent(BaseAgent):
             "межотдельный",
             "комплексное решение",
         ]
+
+        # Проверка полного Swarm
+        if any(keyword in goal_lower for keyword in swarm_keywords):
+            return "swarm"
 
         # Проверка межотдельных
         if any(keyword in goal_lower for keyword in multi_dept_keywords):

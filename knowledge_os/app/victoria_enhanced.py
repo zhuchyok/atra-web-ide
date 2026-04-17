@@ -32,28 +32,73 @@ try:
 except ImportError:
     ORCHESTRATION_V2_ENABLED = False
 
+try:
+    from ai_core import run_smart_agent_async
+
+    VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+except ImportError:
+    try:
+        from app.ai_core import run_smart_agent_async
+
+        VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+    except ImportError:
+        run_smart_agent_async = None
+
+
 class ReActAgent:
-    def __init__(self, agent_name, model_name): pass
+    def __init__(self, agent_name, model_name):
+        pass
+
+
 class ExtendedThinkingEngine:
-    def __init__(self, model_name): pass
+    def __init__(self, model_name):
+        pass
+
+
 class SwarmIntelligence:
-    def __init__(self, swarm_size, model_name): pass
+    def __init__(self, swarm_size, model_name):
+        pass
+
+
 class ConsensusAgent:
-    def __init__(self, model_name): pass
+    def __init__(self, model_name):
+        pass
+
+
 class CollectiveMemorySystem:
-    def __init__(self): pass
+    def __init__(self):
+        pass
+
+
 class HierarchicalOrchestrator:
-    def __init__(self, root_agent): pass
+    def __init__(self, root_agent):
+        pass
+
+
 class ReCAPFramework:
-    def __init__(self, model_name): pass
+    def __init__(self, model_name):
+        pass
+
+
 class TreeOfThoughts:
-    def __init__(self, model_name): pass
+    def __init__(self, model_name):
+        pass
+
+
 class MetacognitiveLearner:
-    def __init__(self, agent_name): pass
+    def __init__(self, agent_name):
+        pass
+
+
 class AgentLifecycleManager:
-    def __init__(self): pass
+    def __init__(self):
+        pass
+
+
 class AgentEvolver:
-    def __init__(self, agent_name): pass
+    def __init__(self, agent_name):
+        pass
+
 
 class EventType(Enum):
     FILE_CREATED = "file_created"
@@ -64,10 +109,14 @@ class EventType(Enum):
     EXPERT_RESPONSE = "expert_response"
     DIALOGUE_CONSENSUS = "dialogue_consensus"
 
+
 class VictoriaEnhanced:
     """
     Victoria Enhanced - Victoria с интеграцией всех новых компонентов
     """
+
+    _run_smart_agent_async = None
+    _local_router = None
 
     def __init__(
         self,
@@ -128,19 +177,27 @@ class VictoriaEnhanced:
 
                 self.event_bus = get_event_bus()
                 self.event_handlers = VictoriaEventHandlers(self)
-                
+
                 # Регистрация обработчиков
-                self.event_bus.subscribe(EventType.FILE_CREATED, self.event_handlers.handle_file_created)
-                self.event_bus.subscribe(EventType.LOG_ERROR_DETECTED, self.event_handlers.handle_log_error_detected)
-                self.event_bus.subscribe(EventType.PERFORMANCE_DEGRADED, self.event_handlers.handle_performance_degraded)
-                self.event_bus.subscribe(EventType.SERVICE_DOWN, self.event_handlers.handle_service_down)
-                
+                self.event_bus.subscribe(
+                    EventType.FILE_CREATED, self.event_handlers.handle_file_created
+                )
+                self.event_bus.subscribe(
+                    EventType.LOG_ERROR_DETECTED, self.event_handlers.handle_log_error_detected
+                )
+                self.event_bus.subscribe(
+                    EventType.PERFORMANCE_DEGRADED, self.event_handlers.handle_performance_degraded
+                )
+                self.event_bus.subscribe(
+                    EventType.SERVICE_DOWN, self.event_handlers.handle_service_down
+                )
+
                 # Запуск шины и стража
                 asyncio.create_task(self.event_bus.start())
-                
+
                 sentinel = get_autonomous_sentinel()
                 asyncio.create_task(sentinel.start())
-                
+
                 self.monitoring_started = True
                 logger.info("🚀 [AUTO-START] Event Bus and Autonomous Sentinel started")
             except Exception as e:
@@ -187,39 +244,55 @@ class VictoriaEnhanced:
 
     async def start(self):
         """Запуск фоновых компонентов мониторинга (вызывается при lifespan startup)."""
-        logger.info("✅ [VictoriaEnhanced] start() вызван — мониторинг уже инициализирован в __init__")
+        logger.info(
+            "✅ [VictoriaEnhanced] start() вызван — мониторинг уже инициализирован в __init__"
+        )
 
     async def solve(self, goal: str, **kwargs):
         """
         Основной метод решения задач.
         [SINGULARITY 24.7] Added support for 'method' argument and proper LLM routing.
         """
-        # [SINGULARITY 24.7] Handle 'method' argument (e.g. from Mutation Engine)
         method = kwargs.get("method", "auto")
         category = kwargs.get("category") or self._categorize_task(goal)
 
-        logger.info(f"🧠 [VICTORIA] Solving goal: {goal[:50]}... (Method: {method}, Category: {category})")
+        logger.info(
+            f"🧠 [VICTORIA] Solving goal: {goal[:50]}... (Method: {method}, Category: {category})"
+        )
 
-        # [SINGULARITY 24.7] Ensure backends are available before proceeding
-        await self._ensure_llm_backends_available()
+        if VictoriaEnhanced._run_smart_agent_async is None:
+            try:
+                from ai_core import run_smart_agent_async
 
-        # [SINGULARITY 24.7] Mock response for testing if no real LLM is available or for specific prompts
-        if "Верни ТОЛЬКО JSON" in goal and "decision" in goal:
-            # Эмулируем ответ для Mutation Engine
-            mock_response = {
-                "decision": "propose",
-                "confidence": 0.8,
-                "explanation": "Тестовое исправление: аргумент 'category' добавлен в solve().",
-                "fix_description": "Добавление поддержки произвольных именованных аргументов в метод solve.",
-                "old_code": "async def solve(self, goal: str, **kwargs):",
-                "new_code": "async def solve(self, goal: str, **kwargs):"
-            }
-            return {"result": json.dumps(mock_response)}
+                VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+            except ImportError:
+                try:
+                    from app.ai_core import run_smart_agent_async
+
+                    VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+                except ImportError:
+                    pass
+
+        if VictoriaEnhanced._run_smart_agent_async is not None:
+            try:
+                result = await VictoriaEnhanced._run_smart_agent_async(
+                    goal,
+                    expert_name="Виктория",
+                    category=category,
+                    local_router=VictoriaEnhanced._local_router,
+                )
+                return {"result": result}
+            except Exception as e:
+                logger.error(f"❌ [VICTORIA] LLM call failed: {e}")
+                return {"result": f"Ошибка вызова LLM: {e}"}
 
         return {"result": f"Solved: {goal}"}
 
     def _categorize_task(self, goal: str) -> str:
-            return "general"
-
-    async def _ensure_llm_backends_available(self):
-        pass
+        if any(k in goal.lower() for k in ["код", "напиши", "создай", "write", "code"]):
+            return "coding"
+        if any(k in goal.lower() for k in ["анализ", "анализируй", "analysis", "analyze"]):
+            return "reasoning"
+        if any(k in goal.lower() for k in ["найди", "поиск", "search", "find"]):
+            return "search"
+        return "general"
