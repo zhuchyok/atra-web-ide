@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import sys
 from typing import Any, Optional
 
@@ -46,6 +47,20 @@ async def _get_veronica_db_pool():
     return _veronica_db_pool
 
 
+def _validate_search_pattern(goal: str, max_len: int = 50) -> str:
+    """Validate and sanitize search pattern to prevent SQL injection in ILIKE queries."""
+    try:
+        if not goal:
+            return "%"
+        pattern = goal[:max_len]
+        pattern = re.sub(r"['\";%_\\)]*", "", pattern)
+        if not re.match(r"^[\w\sа-яА-ЯёЁ.,!?:;-]*$", pattern):
+            return "%"
+        return f"%{pattern}%"
+    except Exception:
+        return "%"
+
+
 async def get_knowledge_context_veronica(goal: str, limit: int = 5) -> str:
     """Релевантные знания из той же базы (knowledge_nodes)."""
     pool = await _get_veronica_db_pool()
@@ -61,7 +76,7 @@ async def get_knowledge_context_veronica(goal: str, limit: int = 5) -> str:
                 ORDER BY confidence_score DESC, usage_count DESC
                 LIMIT $2
             """,
-                f"%{goal[:50]}%",
+                _validate_search_pattern(goal),
                 limit,
             )
             if not rows:

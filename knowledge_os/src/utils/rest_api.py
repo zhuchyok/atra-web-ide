@@ -41,10 +41,28 @@ if RATE_LIMITING_AVAILABLE:
     app.add_middleware(RateLimitMiddleware)
     logger.info("✅ Rate limiting middleware enabled")
 
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3002",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3002",
+    "http://127.0.0.1:5173",
+    "tauri://localhost",
+    "tauri://127.0.0.1",
+    "https://atra.local",
+]
+
+import os
+
+env_origins = os.getenv("CORS_ORIGINS", "").split(",")
+if env_origins and env_origins[0]:
+    ALLOWED_ORIGINS.extend([o.strip() for o in env_origins if o.strip()])
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

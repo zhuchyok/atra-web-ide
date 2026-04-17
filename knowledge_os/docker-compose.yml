@@ -45,7 +45,7 @@ services:
     environment:
       TZ: Europe/Moscow
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secret # pragma: allowlist secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
       - "5432:5432"
     volumes:
@@ -329,8 +329,8 @@ services:
       - TZ=Europe/Moscow
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OPENAI_API_BASE_URL=http://victoria-agent:8000/v1
-      - OPENAI_API_KEY=atra-secret
-      - WEBUI_SECRET_KEY=atra-webui-secret-2026
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
       - ENABLE_SIGNUP=false
       - DEFAULT_MODELS=Victoria
       - ENV=dev

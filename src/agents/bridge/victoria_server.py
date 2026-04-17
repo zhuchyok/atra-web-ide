@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import time
 import uuid
@@ -576,6 +577,20 @@ async def _rag_cache_set(key: str, value: str, ttl_sec: int) -> None:
     while len(_rag_ctx_cache) > _RAG_CTX_CACHE_MAX:
         k_old = min(_rag_ctx_cache.keys(), key=lambda k: _rag_ctx_cache[k][1])
         del _rag_ctx_cache[k_old]
+
+
+def _validate_search_pattern(goal: str, max_len: int = 50) -> str:
+    """Validate and sanitize search pattern to prevent SQL injection in ILIKE queries."""
+    try:
+        if not goal:
+            return "%"
+        pattern = goal[:max_len]
+        pattern = re.sub(r"['\";%_\\)]*", "", pattern)
+        if not re.match(r"^[\w\sа-яА-ЯёЁ.,!?:;-]*$", pattern):
+            return "%"
+        return f"%{pattern}%"
+    except Exception:
+        return "%"
 
 
 # Метрики латентности RAG+ для отслеживания и проверки «тормозит ли» (GET /status, алерты по логам)
@@ -1495,7 +1510,7 @@ class VictoriaAgent(BaseAgent):
                     ORDER BY confidence_score DESC NULLS LAST, usage_count DESC NULLS LAST, created_at DESC
                     LIMIT $2
                 """,
-                    f"%{goal[:50]}%",
+                    _validate_search_pattern(goal),
                     limit,
                 )
                 if rows:

@@ -24,6 +24,67 @@ VICTORIA_MCP_RUN_TIMEOUT_SEC = float(os.getenv("VICTORIA_MCP_RUN_TIMEOUT_SEC", "
 
 mcp = FastMCP("VictoriaATRA")
 
+ALLOWED_COMMANDS = {
+    "pytest",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "npm",
+    "node",
+    "cargo",
+    "go",
+    "make",
+    "cmake",
+    "ruff",
+    "mypy",
+    "tsc",
+    "eslint",
+    "pylint",
+    "git",
+    "ls",
+    "cat",
+    "find",
+    "grep",
+    "curl",
+}
+
+
+def _validate_command(command: str) -> str:
+    """Validate command against allowlist."""
+    if not command:
+        raise ValueError("Empty command not allowed")
+
+    parts = command.strip().split()
+    base_cmd = parts[0] if parts else ""
+
+    if base_cmd not in ALLOWED_COMMANDS:
+        raise ValueError(
+            f"Command '{base_cmd}' not allowed. Use: {', '.join(sorted(ALLOWED_COMMANDS))}"
+        )
+
+    dangerous_patterns = [
+        "&&",
+        "||",
+        ";",
+        "|",
+        ">",
+        ">>",
+        "<",
+        "$(",
+        "`",
+        "\\",
+        "&&",
+        "2>",
+        "0>",
+        "1>",
+    ]
+    for pattern in dangerous_patterns:
+        if pattern in command:
+            raise ValueError(f"Dangerous pattern '{pattern}' not allowed in commands")
+
+    return command
+
 
 def _parse_run_result(result: dict) -> str:
     """Разбор ответа /run: поддержка goal→output и prompt→response."""
@@ -198,7 +259,9 @@ async def victoria_execute_plan(
         # 2. Выполнить plan через ExecutionPlanExecutor
         # Для простоты пока выполним вручную через httpx к user-filesystem MCP
         results = []
-        filesystem_mcp_url = os.getenv("FILESYSTEM_MCP_URL", "http://localhost:8012") # Синхронизировано с victoria-mcp port
+        filesystem_mcp_url = os.getenv(
+            "FILESYSTEM_MCP_URL", "http://localhost:8012"
+        )  # Синхронизировано с victoria-mcp port
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             for i, step in enumerate(execution_plan, 1):
@@ -228,7 +291,7 @@ async def victoria_execute_plan(
                         results.append(f"✅ Шаг {i}: {action} - {result_text}")
 
                     elif action == "run":
-                        command = step.get("command", "")
+                        command = _validate_command(step.get("command", ""))
                         result_text = f"[Выполнена команда: {command}]"
                         results.append(f"✅ Шаг {i}: {action} - {result_text}")
 
@@ -468,6 +531,7 @@ async def victoria_batch_grep(
 
 if __name__ == "__main__":
     import sys
+
     if len(sys.argv) > 1 and sys.argv[1] == "--sse":
         mcp.run(transport="sse")
     else:

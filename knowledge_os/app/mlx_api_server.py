@@ -126,10 +126,26 @@ async def _mlx_lifespan(app: FastAPI):
 
 app = FastAPI(title="MLX Model Server", version="2.0.0", lifespan=_mlx_lifespan)
 
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:3002",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3002",
+    "http://127.0.0.1:5173",
+    "tauri://localhost",
+    "tauri://127.0.0.1",
+    "https://atra.local",
+]
+
+env_origins = os.getenv("CORS_ORIGINS", "").split(",")
+if env_origins and env_origins[0]:
+    ALLOWED_ORIGINS.extend([o.strip() for o in env_origins if o.strip()])
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # В продакшене указать конкретные домены
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

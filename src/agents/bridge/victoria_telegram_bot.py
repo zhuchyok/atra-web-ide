@@ -97,6 +97,43 @@ except ImportError:
     logger.warning("⚠️ pypdf не установлен. Установите в окружении бота: %s", _PIP_CMD)
 
 
+# Whitelist of allowed environment variables
+ALLOWED_ENV_VARS = {
+    "DATABASE_URL",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_USER",
+    "POSTGRES_DB",
+    "REDIS_URL",
+    "REDIS_PASSWORD",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_USER_ID",
+    "TELEGRAM_CHAT_ID",
+    "TG_TOKEN",
+    "ALLOWED_USER_ID",
+    "OPENAI_API_KEY",
+    "OLLAMA_API_KEY",
+    "VICTORIA_MODEL",
+    "VICTORIA_PLANNER_MODEL",
+    "VICTORIA_URL",
+    "LOG_LEVEL",
+    "LOG_FORMAT",
+    "WORKSPACE_PATH",
+    "DATA_PATH",
+}
+
+
+def _validate_env_var(key: str, value: str) -> bool:
+    """Validate env var name against whitelist."""
+    if key not in ALLOWED_ENV_VARS:
+        logger.warning(f"Env var '{key}' not in allowlist, skipping")
+        return False
+    if any(bad in value.lower() for bad in ["password", "secret", "token"]):
+        if len(value) < 8:
+            logger.warning(f"Value for '{key}' too short, skipping")
+            return False
+    return True
+
+
 # Загрузка переменных из .env файла
 def load_env_file():
     """Загружает переменные из .env файла"""
@@ -112,7 +149,7 @@ def load_env_file():
                     key, value = line.split("=", 1)
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
-                    if key and value:
+                    if key and value and _validate_env_var(key, value):
                         os.environ[key] = value
 
 
