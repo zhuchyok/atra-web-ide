@@ -310,7 +310,9 @@ dependencies — массив индексов подзадач (0-based), от 
 Задача: {task_description[:2000]}
 JSON:"""
         try:
-            out = await run_smart_agent_async(prompt, max_tokens=1500)
+            out = await run_smart_agent_async(
+                prompt, expert_name="Task Planner", category="planning", max_tokens=1500
+            )
             if not out or not isinstance(out, str):
                 return None
             text = out.strip()

@@ -68,4 +68,6 @@ class ParallelOrchestrator:
         except Exception as e:
             logger.error(f"Parallel decomposition error: {e}")
             # Fallback to normal execution
-            return await run_smart_agent_async(main_prompt)
+            return await run_smart_agent_async(
+                main_prompt, expert_name="Parallel Orchestrator", category="orchestration"
+            )
