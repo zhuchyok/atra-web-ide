@@ -3,6 +3,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - "alerts.yml"
+
 scrape_configs:
   - job_name: "chat-backend"
     static_configs:
@@ -15,6 +18,29 @@ scrape_configs:
   - job_name: "victoria-agent"
     static_configs:
       - targets: ["victoria-agent:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+
+  # Expert Workers: task execution metrics (ports for --metrics flag)
+  - job_name: "expert-workers"
+    static_configs:
+      - targets: ["expert-worker-heavy:8001", "expert-worker-light:8001"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+    params:
+      worker: ["expert"]
+
+  # Smart Worker: task execution metrics (port 8002 for --metrics flag)
+  - job_name: "smart-worker"
+    static_configs:
+      - targets: ["knowledge_os_worker:8002"]
+    metrics_path: "/metrics"
+    scrape_interval: 30s
+
+  # Orchestrator: task distribution metrics
+  - job_name: "orchestrator"
+    static_configs:
+      - targets: ["knowledge_os_orchestrator:8000"]
     metrics_path: "/metrics"
     scrape_interval: 30s
 

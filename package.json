@@ -7,7 +7,9 @@
     "commit": "cz",
     "prepare": "husky || echo 'Husky not installed yet'",
     "setki21:dev": "bash scripts/dev_setki21.sh",
-    "setki21:preview": "bash scripts/preview_setki21.sh"
+    "setki21:preview": "bash scripts/preview_setki21.sh",
+    "security:scan": "bash scripts/security-scan.sh",
+    "bandit:scan": "pip install bandit && bandit -r src/ -f txt || echo 'Bandit not available'"
   },
   "config": {
     "commitizen": {

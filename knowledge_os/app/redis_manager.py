@@ -7,7 +7,18 @@ from typing import Any, Dict, List, Optional
 
 import redis.asyncio as redis
 
+try:
+    from prometheus_client import Gauge
+
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+    Gauge = None
+
 logger = logging.getLogger(__name__)
+
+if _PROMETHEUS_AVAILABLE:
+    _queue_depth = Gauge("worker_queue_depth", "Number of tasks in Redis queue", ["queue_name"])
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 # Дедуп-lock при push в stream: не короче таймаута задачи (expert_worker)
@@ -35,27 +46,37 @@ class RedisManager:
             self.url = url or os.getenv("REDIS_URL", "redis://localhost:6379")
             self.initialized = True
             import os as system_os
+
             # [SINGULARITY 24.3] Логируем всегда для отладки
-            print(f"DEBUG: [REDIS_MANAGER] Initialized with URL: {self.url} (PID: {system_os.getpid()})")
+            print(
+                f"DEBUG: [REDIS_MANAGER] Initialized with URL: {self.url} (PID: {system_os.getpid()})"
+            )
             # [SINGULARITY 24.3] Сбрасываем пул при инициализации, если он был
             self._pool = None
         else:
             # [SINGULARITY 24.3] Если уже инициализирован, но передан новый URL - обновляем
             if url and url != self.url:
                 import os as system_os
-                print(f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {url} (PID: {system_os.getpid()})")
+
+                print(
+                    f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {url} (PID: {system_os.getpid()})"
+                )
                 self.url = url
                 self._pool = None
             elif os.getenv("REDIS_URL") and os.getenv("REDIS_URL") != self.url:
                 # Также проверяем окружение, если url не передан явно
                 import os as system_os
+
                 new_url = os.getenv("REDIS_URL")
-                print(f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {new_url} from ENV (PID: {system_os.getpid()})")
+                print(
+                    f"DEBUG: [REDIS_MANAGER] Updating URL from {self.url} to {new_url} from ENV (PID: {system_os.getpid()})"
+                )
                 self.url = new_url
                 self._pool = None
-        
+
         # [SINGULARITY 24.3] Глобальная переменная модуля тоже должна быть актуальной
         import redis_manager as rm_module
+
         rm_module.REDIS_URL = self.url
         print(f"DEBUG: [REDIS_MANAGER] Module REDIS_URL is now: {rm_module.REDIS_URL}")
 
@@ -64,7 +85,7 @@ class RedisManager:
         # [SINGULARITY 24.3] Если пул устарел (URL изменился), пересоздаем его
         if self._pool is not None:
             # Проверим, соответствует ли пул текущему URL
-            # В redis-py пул не хранит URL напрямую в доступном виде, 
+            # В redis-py пул не хранит URL напрямую в доступном виде,
             # но мы сбрасываем self._pool при обновлении self.url
             pass
 
@@ -208,6 +229,18 @@ class RedisManager:
             await client.delete(f"lock:task:{task_id}")
         except Exception as e:
             logger.warning(f"⚠️ [REDIS] Не удалось снять блокировку {task_id}: {e}")
+
+    async def get_queue_depth(self, queue_name: str) -> int:
+        """Returns the current depth of a Redis stream queue and updates the metric."""
+        try:
+            client = await self.get_client()
+            depth = await client.xlen(f"stream:{queue_name}")
+            if _PROMETHEUS_AVAILABLE:
+                _queue_depth.labels(queue_name=queue_name).set(depth)
+            return depth
+        except Exception as e:
+            logger.warning(f"⚠️ [REDIS] Failed to get queue depth for {queue_name}: {e}")
+            return 0
 
     # --- GLOBAL OLLAMA SEMAPHORE ---
     # Limits concurrent Ollama requests across ALL containers to prevent 503 overload.

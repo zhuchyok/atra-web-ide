@@ -17,10 +17,69 @@ import fcntl  # [SINGULARITY 21.30] Для блокировки файлов н�
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Tuple
 
+try:
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry
+
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+
+if _PROMETHEUS_AVAILABLE:
+    _orch_tasks_assigned = Counter(
+        "orchestrator_tasks_assigned_total",
+        "Total tasks assigned by orchestrator",
+        ["phase", "status"],
+    )
+    _orch_task_duration = Histogram(
+        "orchestrator_task_duration_seconds",
+        "Time to assign single task",
+        ["phase"],
+    )
+    _orch_active_cycles = Gauge(
+        "orchestrator_active_cycles",
+        "Number of active orchestration cycles",
+    )
+    _orch_errors = Counter(
+        "orchestrator_errors_total",
+        "Total orchestrator errors",
+        ["phase", "error_type"],
+    )
+    _orch_tasks_per_phase = Counter(
+        "orchestrator_tasks_per_phase_total",
+        "Tasks processed per orchestration phase",
+        ["phase"],
+    )
+    _orch_registry = CollectorRegistry()
+    _orch_registry.register(_orch_tasks_assigned)
+    _orch_registry.register(_orch_task_duration)
+    _orch_registry.register(_orch_active_cycles)
+    _orch_registry.register(_orch_errors)
+    _orch_registry.register(_orch_tasks_per_phase)
+
+
+def _record_orch_metric(metric_type, name, *args, **kwargs):
+    """Record a metric, safely wrapped in try/except."""
+    if not _PROMETHEUS_AVAILABLE:
+        return
+    try:
+        if metric_type == "counter":
+            name.labels(*args, **kwargs).inc()
+        elif metric_type == "histogram":
+            name.labels(*args, **kwargs).observe(kwargs.get("value", 0))
+        elif metric_type == "gauge_inc":
+            name.inc(*args, **kwargs)
+        elif metric_type == "gauge_dec":
+            name.dec(*args, **kwargs)
+    except Exception:
+        pass
+
+
 # ... (остальные импорты)
+
 
 class PIDLock:
     """[SINGULARITY 21.30] Механизм предотвращения запуска дубликатов процесса."""
+
     def __init__(self, lock_file="/tmp/enhanced_orchestrator.pid"):
         self.lock_file = lock_file
         self.fd = None
@@ -354,8 +413,10 @@ try:
     from swarm_orchestrator import SwarmOrchestrator
     from explicit_handoffs import get_handoff_manager
 except ImportError:
+
     class SwarmOrchestrator:
         """Fallback for SwarmOrchestrator."""
+
         async def handle_critical_failures(self):
             pass
 
@@ -901,30 +962,32 @@ async def rebalance_workload(conn):
 
 async def run_enhanced_orchestration_cycle():
     """Запуск цикла Enhanced Orchestrator с обновлением знаний корпорации"""
-    # Живой организм: проверка Ollama/MLX перед циклом; при недоступности — не грузим эмбеддинги (избегаем OOM) и запрашиваем восстановление
-    ollama_ok, mlx_ok = await check_llm_services_health()
-    if not ollama_ok:
-        logger.warning(
-            "[ENHANCED_ORCHESTRATOR] Ollama недоступен — пропускаю обновление знаний корпорации (избегаем OOM), запрашиваю восстановление"
-        )
-        await trigger_recovery_webhook(ollama_down=True, mlx_down=not mlx_ok)
-    if not mlx_ok:
-        logger.warning("[ENHANCED_ORCHESTRATOR] MLX недоступен — запрашиваю восстановление")
+    _record_orch_metric("gauge_inc", _orch_active_cycles)
+
+    try:
+        ollama_ok, mlx_ok = await check_llm_services_health()
+        if not ollama_ok:
+            logger.warning(
+                "[ENHANCED_ORCHESTRATOR] Ollama недоступен — пропускаю обновление знаний корпорации (избегаем OOM), запрашиваю восстановление"
+            )
+            await trigger_recovery_webhook(ollama_down=True, mlx_down=not mlx_ok)
+        if not mlx_ok:
+            logger.warning("[ENHANCED_ORCHESTRATOR] MLX недоступен — запрашиваю восстановление")
+            if ollama_ok:
+                await trigger_recovery_webhook(ollama_down=False, mlx_down=True)
+
         if ollama_ok:
-            await trigger_recovery_webhook(ollama_down=False, mlx_down=True)
+            try:
+                from corporation_knowledge_system import update_all_agents_knowledge
 
-    # Обновляем знания корпорации только если Ollama доступен (иначе множество get_embedding → таймауты и риск OOM)
-    if ollama_ok:
-        try:
-            from corporation_knowledge_system import update_all_agents_knowledge
+                asyncio.create_task(update_all_agents_knowledge())
+                logger.info("✅ Знания корпорации обновляются в фоне")
+            except Exception as e:
+                logger.debug("Не удалось обновить з��ания корпорации: %s", e)
+    except Exception as e:
+        _record_orch_metric("counter", _orch_errors, phase="health_check", error_type="exception")
+        logger.debug("Health check error: %s", e)
 
-            # [SINGULARITY 24.3] Запускаем обновление знаний в фоне, чтобы не блокировать оркестратор
-            asyncio.create_task(update_all_agents_knowledge())
-            logger.info("✅ Знания корпорации обновляются в фоне")
-        except Exception as e:
-            logger.debug("Не удалось обновить знания корпорации: %s", e)
-
-    """Основной цикл улучшенного Orchestrator"""
     if not ASYNCPG_AVAILABLE:
         logger.error("❌ asyncpg is not installed. Orchestration aborted.")
         return
@@ -947,10 +1010,10 @@ async def run_enhanced_orchestration_cycle():
             # --- ФАЗА 0: AUTONOMOUS ERROR FIXING (Автоматическое исправление ошибок) ---
             t0 = time.time()
             logger.info("🔧 Phase 0: Auto-fixing errors...")
-            
+
             # [SINGULARITY 21.29] Apply Time Decay before starting new work
             await apply_time_decay(conn)
-            
+
             phase_result = "skipped"
             try:
                 from error_auto_fixer import auto_fix_all_errors
@@ -1062,32 +1125,32 @@ async def run_enhanced_orchestration_cycle():
                 len(unprioritized_tasks),
             )
 
-# --- ФАЗА 1.5: ДЕКОМПОЗИЦИЯ СЛОЖНЫХ ЗАДАЧ (Pipelines & First Principles) ---
+            # --- ФАЗА 1.5: ДЕКОМПОЗИЦИЯ СЛОЖНЫХ ЗАДАЧ (Pipelines & First Principles) ---
             t15 = time.time()
             decomposed_count = 0
-            
+
             # [AGENT SCOPE] Orchestration Pipeline
             try:
                 from agentscope.pipelines import SequentialPipeline
                 from agentscope.agents import DialogAgent
-                
+
                 # 1. Decomposition Agent (First Principles)
                 decomposer = DialogAgent(
                     name="Decomposer",
                     sys_prompt="ТЫ - Архитектор. Разложи задачу на атомарные части (First Principles Thinking).",
-                    model_config_name="victoria_mlx"
+                    model_config_name="victoria_mlx",
                 )
-                
+
                 # 2. Red Team Auditor (Pre-mortem)
                 auditor = DialogAgent(
                     name="Auditor",
                     sys_prompt="ТЫ - Red Team. Найди 3 причины, почему этот план провалится (Pre-mortem).",
-                    model_config_name="victoria_mlx"
+                    model_config_name="victoria_mlx",
                 )
-                
+
                 # Pipeline: Decompose -> Audit -> Execute
                 orch_pipeline = SequentialPipeline([decomposer, auditor])
-                
+
             except ImportError:
                 orch_pipeline = None
 
@@ -1124,9 +1187,13 @@ async def run_enhanced_orchestration_cycle():
                 try:
                     # [SINGULARITY 24.6] Emergency Concurrency Guard
                     # If more than 3 tasks are already in progress, skip decomposition to prevent RAM overload
-                    active_count = await conn.fetchval("SELECT count(*) FROM tasks WHERE status = 'in_progress'")
+                    active_count = await conn.fetchval(
+                        "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
+                    )
                     if active_count >= 3:
-                        logger.warning(f"⚠️ [CONCURRENCY GUARD] {active_count} tasks in progress. Skipping decomposition.")
+                        logger.warning(
+                            f"⚠️ [CONCURRENCY GUARD] {active_count} tasks in progress. Skipping decomposition."
+                        )
                         continue
 
                     goal = f"{task['title']}\n\n{task['description'] or ''}"
@@ -1184,14 +1251,17 @@ async def run_enhanced_orchestration_cycle():
 
                         # [SINGULARITY 26.2] Swarm MsgHub Integration
                         is_swarm = bool(struct.get("is_swarm", False))
-                        
+
                         # [SINGULARITY 26.3] Dynamic Sub-Agent Spawning (Micro-Agent Factory)
                         # Если задача требует ультра-специфичного навыка, которого нет у экспертов
                         if struct.get("needs_micro_agent"):
                             try:
                                 from expert_generator import recruit_expert
+
                                 micro_domain = struct.get("micro_agent_domain", st_dept)
-                                logger.info(f"🧬 [SPAWNING] Spawning micro-agent for domain: {micro_domain}")
+                                logger.info(
+                                    f"🧬 [SPAWNING] Spawning micro-agent for domain: {micro_domain}"
+                                )
                                 await recruit_expert(micro_domain, is_micro=True)
                             except Exception as se:
                                 logger.error(f"❌ [SPAWNING] Failed to spawn micro-agent: {se}")
@@ -1211,18 +1281,18 @@ async def run_enhanced_orchestration_cycle():
                                 "SELECT id FROM domains WHERE name = $1", st_dept
                             )
                             st_domain_id = domain_row["id"] if domain_row else task["domain_id"]
-                            
+
                             # [SINGULARITY 26.2] Contract & Handoff metadata
                             st_contract = st.get("contract")
-                            
+
                             meta = {
                                 "source": "orchestrator_decompose",
                                 "parent_task_id": str(task["id"]),
                                 "expert_role": st.get("expert_role", ""),
                                 "is_swarm": is_swarm,
-                                "contract": st_contract
+                                "contract": st_contract,
                             }
-                            
+
                             _meta = task.get("metadata")
                             parent_pc = task.get("project_context") or (
                                 json.loads(_meta).get("project_context")
@@ -1233,7 +1303,7 @@ async def run_enhanced_orchestration_cycle():
                         _priority = st.get("priority", "medium")
                         meta_json = json.loads(meta)
                         if meta_json.get("source") == "victoria_monster_delegation":
-                            _priority = "low" # Аудиты не должны мешать основным задачам
+                            _priority = "low"  # Аудиты не должны мешать основным задачам
 
                         try:
                             sub_id = await conn.fetchval(
@@ -1505,11 +1575,38 @@ async def run_enhanced_orchestration_cycle():
                     t.created_at ASC
             """)
 
+            assigned_count = 0
+            failed_assign_count = 0
             for task in unassigned_tasks:
-                await assign_task_to_best_expert(
-                    conn, task["id"], task["domain_id"], metadata=task.get("metadata")
+                task_start = time.time()
+                try:
+                    result = await assign_task_to_best_expert(
+                        conn, task["id"], task["domain_id"], metadata=task.get("metadata")
+                    )
+                    if result:
+                        assigned_count += 1
+                        _record_orch_metric(
+                            "counter", _orch_tasks_assigned, phase="phase2", status="success"
+                        )
+                    else:
+                        failed_assign_count += 1
+                        _record_orch_metric(
+                            "counter", _orch_tasks_assigned, phase="phase2", status="no_expert"
+                        )
+                except Exception as assign_err:
+                    failed_assign_count += 1
+                    _record_orch_metric(
+                        "counter", _orch_tasks_assigned, phase="phase2", status="error"
+                    )
+                    _record_orch_metric(
+                        "counter", _orch_errors, phase="phase2", error_type="assignment"
+                    )
+                    logger.debug("Task assignment error: %s", assign_err)
+                _record_orch_metric(
+                    "histogram", _orch_task_duration, "phase2", value=time.time() - task_start
                 )
-            
+            _record_orch_metric("counter", _orch_tasks_per_phase, "phase2")
+
             # [SINGULARITY 25.0] Expert-Based Task Prioritization
             # Повышаем приоритет задач, назначенных VIP-экспертам
             await conn.execute("""
@@ -1521,11 +1618,12 @@ async def run_enhanced_orchestration_cycle():
                 AND t.status = 'pending'
                 AND t.priority != 'urgent'
             """)
-            
+
             logger.info(
-                "[ENHANCED_ORCHESTRATOR] phase=2 duration_ms=%.0f result=%s tasks assigned",
+                "[ENHANCED_ORCHESTRATOR] phase=2 duration_ms=%.0f result=%s assigned, %s failed",
                 (time.time() - t2) * 1000,
-                len(unassigned_tasks),
+                assigned_count,
+                failed_assign_count,
             )
 
             # --- ФАЗА 2.5: ORCHESTRATOR FALLBACK (задачи с attempt_count >= 3, rule-based) ---
@@ -1700,17 +1798,22 @@ async def run_enhanced_orchestration_cycle():
                 )
                 # [SINGULARITY 24.6] Stricter Backpressure: Reduced from 10 to 5 to prevent RAM spikes
                 max_pending = int(os.getenv("SMART_WORKER_MAX_PENDING", "5"))
-                
+
                 # [SINGULARITY 24.7] Health-Aware Backpressure
                 # If RAM usage is high, reduce max_pending even further
                 try:
                     import psutil
+
                     mem = psutil.virtual_memory()
                     if mem.percent > 85:
-                        logger.warning(f"🚨 [HEALTH-AWARE] RAM usage high ({mem.percent}%). Reducing max_pending to 1.")
+                        logger.warning(
+                            f"🚨 [HEALTH-AWARE] RAM usage high ({mem.percent}%). Reducing max_pending to 1."
+                        )
                         max_pending = 1
                     elif mem.percent > 70:
-                        logger.warning(f"⚠️ [HEALTH-AWARE] RAM usage moderate ({mem.percent}%). Reducing max_pending to 3.")
+                        logger.warning(
+                            f"⚠️ [HEALTH-AWARE] RAM usage moderate ({mem.percent}%). Reducing max_pending to 3."
+                        )
                         max_pending = 3
                 except ImportError:
                     pass
@@ -2028,11 +2131,16 @@ async def run_enhanced_orchestration_cycle():
         except Exception as cycle_exc:  # pylint: disable=broad-exception-caught
             logger.error("[ENHANCED_ORCHESTRATOR] cycle exception: %s", cycle_exc)
             logger.error(traceback.format_exc())
+            _record_orch_metric(
+                "counter", _orch_errors, phase="orchestration", error_type="cycle_exception"
+            )
             try:
                 await conn.close()
             except Exception:
                 pass
             raise
+        finally:
+            _record_orch_metric("gauge_dec", _orch_active_cycles)
 
 
 async def _health_monitor_loop(interval_seconds: int = 300):
@@ -2071,7 +2179,7 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
         interval_seconds,
         quick_poll_seconds,
     )
-    
+
     # [SINGULARITY 24.3] Запуск автономных демонов (Живой Чат, мониторинг)
     try:
         try:
@@ -2080,20 +2188,23 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
             from autonomous_daemons import setup_daemons
         asyncio.create_task(setup_daemons())
         logger.info("🎭 [ENHANCED_ORCHESTRATOR] Autonomous daemons started")
-        
+
         # [SINGULARITY 24.3] Periodically log subscribers to verify they stay active
         async def log_subscribers_periodically():
             try:
                 from app.event_bus import get_event_bus
             except ImportError:
                 from event_bus import get_event_bus
-                
+
             while True:
                 await asyncio.sleep(30)
                 bus = get_event_bus()
-                logger.info(f"🔍 [DEBUG] Periodic check: EventBus ID: {id(bus)}, Subscribers: {list(bus.subscribers.keys())}")
+                logger.info(
+                    f"🔍 [DEBUG] Periodic check: EventBus ID: {id(bus)}, Subscribers: {list(bus.subscribers.keys())}"
+                )
+
         asyncio.create_task(log_subscribers_periodically())
-        
+
     except Exception as e:
         logger.error(f"❌ [ENHANCED_ORCHESTRATOR] Failed to start autonomous daemons: {e}")
 
@@ -2198,3 +2309,28 @@ if __name__ == "__main__":
         )
     else:
         asyncio.run(run_enhanced_orchestration_cycle())
+
+
+async def metrics_handler(request=None):
+    """Prometheus metrics endpoint for orchestrator."""
+    try:
+        from fastapi.responses import Response
+    except ImportError:
+        try:
+            from starlette.responses import Response
+        except ImportError:
+            Response = None
+
+    if _PROMETHEUS_AVAILABLE and Response:
+        try:
+            metrics_output = generate_latest(_orch_registry).decode("utf-8")
+            return Response(content=metrics_output, media_type="text/plain")
+        except Exception as e:
+            return (
+                Response(content=f"# ERROR: {e}\n", media_type="text/plain", status_code=500)
+                if Response
+                else None
+            )
+    if Response:
+        return Response(content="# No metrics available\n", media_type="text/plain")
+    return None

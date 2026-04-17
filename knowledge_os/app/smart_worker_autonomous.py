@@ -8,7 +8,34 @@ from datetime import datetime
 from functools import partial
 from typing import List, Optional
 
+try:
+    from aiohttp import web
+
+    _AIOHTTP_AVAILABLE = True
+except ImportError:
+    _AIOHTTP_AVAILABLE = False
+    web = None
+
+try:
+    from prometheus_client import Counter, Histogram, Gauge
+
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+    Counter = Histogram = Gauge = None
+
 logger = logging.getLogger(__name__)
+
+if _PROMETHEUS_AVAILABLE:
+    _smart_worker_tasks_total = Counter(
+        "smart_worker_tasks_total", "Total tasks processed by smart worker", ["status"]
+    )
+    _smart_worker_task_duration_seconds = Histogram(
+        "smart_worker_task_duration_seconds", "Smart worker task execution duration", ["category"]
+    )
+    _smart_worker_active = Gauge(
+        "smart_worker_active_tasks", "Number of active tasks being processed by smart worker"
+    )
 
 
 def _structured_cancel_reason(reason_code: str, component: str, details: str = "") -> dict:
@@ -109,6 +136,7 @@ async def _auto_requeue_delegation(
     except Exception as _requeue_err:
         logger.debug("Auto requeue delegation failed: %s", _requeue_err)
     return 0
+
 
 # Маппинг role/department → папки скиллов (П.2 PRINCIPLE_EXPERTS_FIRST). Ключи — подстроки для role/department (lower).
 ROLE_DEPARTMENT_TO_SKILLS = {
@@ -479,7 +507,7 @@ def _fast_file_check(task_title: str) -> str | None:
         for i, line in enumerate(lines, 1):
             if "subprocess" in line and "pip" in line:
                 matches.append(f"строка {i}: {line.strip()[:100]}")
-            elif 'os.system' in line and "pip" in line:
+            elif "os.system" in line and "pip" in line:
                 matches.append(f"строка {i}: {line.strip()[:100]}")
         if matches:
             return "ПРОБЛЕМА: " + "; ".join(matches[:3])
@@ -487,6 +515,7 @@ def _fast_file_check(task_title: str) -> str | None:
 
     if secret_m:
         import re as _re2
+
         secret_re = _re2.compile(
             r'(password|secret|passwd|api_key|token)\s*=\s*["\'][^"\']{4,}["\']',
             _re2.IGNORECASE,
@@ -501,6 +530,7 @@ def _fast_file_check(task_title: str) -> str | None:
 
     if deep_m:
         import re as _re3
+
         # Ищем опасные паттерны: subprocess.run/call/Popen, eval(, exec(, hardcoded http:// URLs
         _subprocess_re = _re3.compile(r"subprocess\.(run|call|Popen|check_output)", _re3.IGNORECASE)
         _eval_re = _re3.compile(r"\beval\s*\(|\bexec\s*\(")
@@ -528,6 +558,11 @@ async def process_task(pool, task):
     expert_name = task["assignee"]
     task_title = task["title"]
     preferred_source = task.get("preferred_source")  # MLX или Ollama
+    task_category = task.get("_effective_category", "default")
+    task_start_time = time.perf_counter()
+
+    if _PROMETHEUS_AVAILABLE:
+        _smart_worker_active.inc()
 
     # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
     fast_result = _fast_file_check(task_title)
@@ -1059,15 +1094,20 @@ DESC: {task_description}
 
         # [SWISS-CLOCK] Детектируем LLM-недоступность отдельно —
         # эти случаи нужно re-queue с задержкой, а не эскалировать как логические ошибки
-        is_llm_unavailable = bool(report and isinstance(report, str) and any(
-            marker in report for marker in (
-                "Все источники недоступны",
-                "circuit breaker",
-                "maximum pending requests",
-                "503",
+        is_llm_unavailable = bool(
+            report
+            and isinstance(report, str)
+            and any(
+                marker in report
+                for marker in (
+                    "Все источники недоступны",
+                    "circuit breaker",
+                    "maximum pending requests",
+                    "503",
+                )
             )
-        ))
-        
+        )
+
         # Если отчет пустой или None - это ошибка (таймаут или сбой модели)
         if not report or not isinstance(report, str) or len(report.strip()) < 10:
             is_error = True
@@ -1424,12 +1464,21 @@ DESC: {task_description}
 
                         traceback.print_exc()
         print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
+
+        if _PROMETHEUS_AVAILABLE:
+            duration = time.perf_counter() - task_start_time
+            _smart_worker_tasks_total.labels(status="completed").inc()
+            _smart_worker_task_duration_seconds.labels(category=task_category).observe(duration)
+            _smart_worker_active.dec()
     except Exception as e:
         _last_failure_reason = str(e)[:500]
         print(f"[{datetime.now()}] ❌ Error processing task {task_id}: {e}")
         import traceback
 
         traceback.print_exc()
+        if _PROMETHEUS_AVAILABLE:
+            _smart_worker_tasks_total.labels(status="failed").inc()
+            _smart_worker_active.dec()
         # Возвращаем задачу в pending при ошибке
         async with pool.acquire() as conn:
             await conn.execute(
@@ -1587,11 +1636,17 @@ DESC: {task_description}
             print(
                 f"[{datetime.now()}] ✅ Task {task_id} AUTO-COMPLETED after {attempt_count} attempts (mode={exec_mode}, board_escalated={not bool(rule_result)})."
             )
+            if _PROMETHEUS_AVAILABLE:
+                _smart_worker_tasks_total.labels(status="completed").inc()
+                _smart_worker_active.dec()
         else:
             # [SWISS-CLOCK] Exponential backoff with jitter (AWS best practice — предотвращает thundering herd)
             # base_delay зависит от причины: LLM недоступен → 120s (CB recovery), иначе → 90s
             import random as _random
-            base_delay = 120 if is_llm_unavailable else int(os.getenv("SMART_WORKER_RETRY_DELAY_SEC", "90"))
+
+            base_delay = (
+                120 if is_llm_unavailable else int(os.getenv("SMART_WORKER_RETRY_DELAY_SEC", "90"))
+            )
             # delay = min(base * 2^(attempt-1), 600) + jitter(0..30)
             exp_delay = min(base_delay * (2 ** max(attempt_count - 1, 0)), 600)
             jitter = _random.randint(0, 30)
@@ -1627,6 +1682,9 @@ DESC: {task_description}
             print(
                 f"[{datetime.now()}] ⚠️ Task {task_id} FAILED (attempt {attempt_count}/{MAX_ATTEMPTS}, reason: {last_error_text[:60]}...). Reverted to pending (retry after {retry_delay_sec}s)."
             )
+            if _PROMETHEUS_AVAILABLE:
+                _smart_worker_tasks_total.labels(status="retry").inc()
+                _smart_worker_active.dec()
 
     # Останавливаем heartbeat в любом случае
     heartbeat_stopped = True
@@ -1647,6 +1705,7 @@ async def main():
     # The TTL (60s) handles it eventually, but resetting here ensures immediate clean slate.
     try:
         from redis_manager import RedisManager as _StartupRM
+
         await _StartupRM().reset_ollama_slots()
     except Exception as _rst_err:
         print(f"[{datetime.now()}] ⚠️ [STARTUP] Ollama slots reset failed: {_rst_err}")
@@ -2156,4 +2215,101 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import sys
+
+    enable_metrics = os.getenv("ENABLE_METRICS", "false").lower() in ("true", "1", "yes")
+    metrics_port = int(os.getenv("METRICS_PORT", "8002"))
+    run_as_metrics_only = "--metrics-only" in sys.argv
+
+    async def metrics_handler(request):
+        from prometheus_client import generate_latest, REGISTRY
+
+        metrics = generate_latest(REGISTRY)
+        return web.Response(body=metrics, content_type="text/plain")
+
+    async def health_handler(request):
+        return web.json_response({"status": "healthy", "worker": "smart"})
+
+    def start_metrics_server(port=8002):
+        app = web.Application()
+        app.router.add_get("/metrics", metrics_handler)
+        app.router.add_get("/health", health_handler)
+        return app
+
+    def run_metrics_only(port=8002):
+        """Запуск только HTTP сервера для метрик (без воркера)."""
+        app = start_metrics_server(port)
+        logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
+        web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
+
+
+def run_worker_with_metrics(port=8002):
+    """Запуск и воркера и HTTP сервера метрик параллельно."""
+
+    async def run_both():
+        metrics_app = start_metrics_server(port)
+        metrics_runner = web.AppRunner(metrics_app)
+        await metrics_runner.setup()
+        metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
+        await metrics_site.start()
+        logger.info(f"📊 [METRICS] Metrics server started on port {port}")
+        try:
+            await main()
+        finally:
+            await metrics_runner.cleanup()
+
+    asyncio.get_event_loop().run_until_complete(run_both())
+
+
+if __name__ == "__main__":
+    import sys
+
+    enable_metrics = os.getenv("ENABLE_METRICS", "false").lower() in ("true", "1", "yes")
+    metrics_port = int(os.getenv("METRICS_PORT", "8002"))
+    run_as_metrics_only = "--metrics-only" in sys.argv
+
+    async def metrics_handler(request):
+        from prometheus_client import generate_latest, REGISTRY
+
+        metrics = generate_latest(REGISTRY)
+        return web.Response(body=metrics, content_type="text/plain")
+
+    async def health_handler(request):
+        return web.json_response({"status": "healthy", "worker": "smart"})
+
+    def start_metrics_server(port=8002):
+        app = web.Application()
+        app.router.add_get("/metrics", metrics_handler)
+        app.router.add_get("/health", health_handler)
+        return app
+
+    def run_metrics_only(port=8002):
+        """Запуск только HTTP сервера для метрик (без воркера)."""
+        app = start_metrics_server(port)
+        logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
+        web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
+
+    def run_worker_with_metrics(port=8002):
+        """Запуск и воркера и HTTP сервера метрик параллельно."""
+
+        async def run_both():
+            metrics_app = start_metrics_server(port)
+            metrics_runner = web.AppRunner(metrics_app)
+            await metrics_runner.setup()
+            metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
+            await metrics_site.start()
+            logger.info(f"📊 [METRICS] Metrics server started on port {port}")
+            try:
+                await main()
+            finally:
+                await metrics_runner.cleanup()
+
+        asyncio.get_event_loop().run_until_complete(run_both())
+
+    if "--metrics" in sys.argv or enable_metrics:
+        if run_as_metrics_only:
+            run_metrics_only(metrics_port)
+        else:
+            run_worker_with_metrics(metrics_port)
+    else:
+        asyncio.run(main())

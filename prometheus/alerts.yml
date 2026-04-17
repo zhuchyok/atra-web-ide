@@ -1,0 +1,145 @@
+groups:
+  - name: atra_slos
+    rules:
+      - alert: VictoriaHighErrorRate
+        expr: rate(ask_victoria_total{status="error"}[5m]) / rate(ask_victoria_total[5m]) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: victoria
+        annotations:
+          summary: "Victoria error rate > 0.1%"
+          description: "Victoria ask_victoria error rate is {{ $value | humanizePercentage }}"
+
+      - alert: VictoriaSlowLatency
+        expr: histogram_quantile(0.95, rate(victoria_enhanced_task_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: victoria
+        annotations:
+          summary: "Victoria p95 latency > 5s"
+          description: "Victoria task duration p95 is {{ $value | humanizeDuration }}"
+
+      - alert: VictoriaComponentUnavailable
+        expr: victoria_enhanced_component_available == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: victoria
+        annotations:
+          summary: "Victoria component unavailable"
+          description: "Component {{ $labels.component }} is unavailable"
+
+      - alert: BackendHighErrorRate
+        expr: rate(errors_total{component="chat"}[5m]) / rate(chat_requests_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "Backend error rate > 1%"
+          description: "Backend error rate is {{ $value | humanizePercentage }}"
+
+      - alert: BackendHighLatency
+        expr: histogram_quantile(0.95, rate(chat_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "Backend p95 latency > 5s"
+          description: "Backend request duration p95 is {{ $value | humanizeDuration }}"
+
+      - alert: LLMHighLatency
+        expr: histogram_quantile(0.95, rate(llm_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM p95 latency > 60s"
+          description: "LLM response duration p95 is {{ $value | humanizeDuration }}"
+
+      - alert: LLMRequestFailures
+        expr: rate(errors_total{component="llm"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM request failures detected"
+          description: "LLM error rate is {{ $value | humanizePercentage }}"
+
+      - alert: RAGHighCacheMissRate
+        expr: rate(rag_cache_hits_total[5m]{cache_type="miss"}) / rate(rag_requests_total[5m]) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG cache miss rate > 50%"
+          description: "RAG cache miss rate is {{ $value | humanizePercentage }}"
+
+      - alert: RAGHighLatency
+        expr: histogram_quantile(0.95, rate(rag_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RAG p95 latency > 10s"
+          description: "RAG processing duration p95 is {{ $value | humanizeDuration }}"
+
+      - alert: QueueDepthHigh
+        expr: queue_size > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue {{ $labels.queue_name }} depth > 100"
+          description: "Queue {{ $labels.queue_name }} has {{ $value }} pending items"
+
+      - alert: QueueDepthCritical
+        expr: queue_size > 500
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Queue {{ $labels.queue_name }} depth critical > 500"
+          description: "Queue {{ $labels.queue_name }} has {{ $value }} pending items - CRITICAL"
+
+      - alert: WorkerTasksStalled
+        expr: victoria_enhanced_active_tasks > 0
+        for: 15m
+        labels:
+          severity: warning
+          service: worker
+        annotations:
+          summary: "Worker tasks stalled"
+          description: "{{ $value }} tasks have been active for > 15 minutes"
+
+      - alert: WorkerFailure
+        expr: victoria_enhanced_tasks_total{status="failed"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: worker
+        annotations:
+          summary: "Worker task failures detected"
+          description: "{{ $value }} tasks failed in the last 5 minutes"
+
+  - name: atra_infrastructure
+    rules:
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus config reload failed"
+
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Target {{ $labels.job }} is down"
+          description: "{{ $labels.job }} ({{ $labels.instance }}) has been down for more than 2 minutes"

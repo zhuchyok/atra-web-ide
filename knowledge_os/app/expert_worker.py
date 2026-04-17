@@ -3,10 +3,38 @@ import json
 import logging
 import os
 import signal
+import time
 import uuid
 from datetime import datetime, timezone
 
 import asyncpg
+
+try:
+    from aiohttp import web
+
+    _AIOHTTP_AVAILABLE = True
+except ImportError:
+    _AIOHTTP_AVAILABLE = False
+    web = None
+
+try:
+    from prometheus_client import Counter, Histogram, Gauge
+
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+    Counter = Histogram = Gauge = None
+
+if _PROMETHEUS_AVAILABLE:
+    _worker_tasks_total = Counter(
+        "worker_tasks_total", "Total tasks processed", ["queue", "status"]
+    )
+    _worker_task_duration_seconds = Histogram(
+        "worker_task_duration_seconds", "Task execution duration", ["queue"]
+    )
+    _worker_active = Gauge(
+        "worker_active_tasks", "Number of active tasks being processed", ["queue"]
+    )
 
 # Сингулярность 10.0: Импорты с поддержкой разных путей (Docker/Local)
 try:
@@ -60,17 +88,20 @@ async def get_db_pool():
 try:
     from agentscope.agent import AgentBase
     from agentscope.message import Msg
+
     _AGENTSCOPE_REAL = True
     logger.info("✅ [ACTOR] Using real AgentScope library")
 except ImportError:
     try:
         from agentscope.agents import AgentBase  # legacy path (agentscope < 1.0)
         from agentscope.message import Msg
+
         _AGENTSCOPE_REAL = True
         logger.info("✅ [ACTOR] Using real AgentScope library (legacy path)")
     except ImportError:
         try:
             from agentscope_shim import AgentBase, Msg
+
             _AGENTSCOPE_REAL = False
             logger.info("⚡ [ACTOR] Using AgentScope shim (minimal fallback)")
         except ImportError:
@@ -88,6 +119,7 @@ class VictoriaExpertActor(AgentBase):
     [SINGULARITY 26.3] Event Sourcing & State Recovery.
     Works with real agentscope OR with the lightweight agentscope_shim.
     """
+
     def __init__(self, name: str, role: str, persona: str, task_id: str = None):
         super().__init__(name=name, sys_prompt=persona)
         self.role = role
@@ -105,7 +137,10 @@ class VictoriaExpertActor(AgentBase):
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO actor_events (actor_name, task_id, event_type, payload) VALUES ($1, $2, $3, $4)",
-                self.name, uuid.UUID(self.task_id) if self.task_id else None, event_type, json.dumps(payload)
+                self.name,
+                uuid.UUID(self.task_id) if self.task_id else None,
+                event_type,
+                json.dumps(payload),
             )
 
     async def save_snapshot(self):
@@ -115,17 +150,21 @@ class VictoriaExpertActor(AgentBase):
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO actor_states (actor_name, task_id, state_data) VALUES ($1, $2, $3)",
-                self.name, uuid.UUID(self.task_id) if self.task_id else None, json.dumps(state)
+                self.name,
+                uuid.UUID(self.task_id) if self.task_id else None,
+                json.dumps(state),
             )
 
     async def recover_state(self):
         """Восстановить состояние из последнего снимка и лога событий"""
-        if not self.task_id: return
+        if not self.task_id:
+            return
         pool = await self._get_conn()
         async with pool.acquire() as conn:
             snapshot = await conn.fetchrow(
                 "SELECT state_data FROM actor_states WHERE actor_name = $1 AND task_id = $2 ORDER BY created_at DESC LIMIT 1",
-                self.name, uuid.UUID(self.task_id)
+                self.name,
+                uuid.UUID(self.task_id),
             )
             if snapshot:
                 self.load_state_dict(json.loads(snapshot["state_data"]))
@@ -135,9 +174,13 @@ class VictoriaExpertActor(AgentBase):
         # Sync stub for AgentScope pipeline compatibility.
         # Real async processing goes through process_async() called from process_task().
         logger.info(f"🎭 [ACTOR:{self.name}] Processing message (sync stub)...")
-        if x and 'content' in x:
-            asyncio.create_task(self.record_event("receive_message", {"content": x['content']}))
-        res = {"role": "assistant", "content": f"[Actor {self.name}: use process_async() for real work]", "name": self.name}
+        if x and "content" in x:
+            asyncio.create_task(self.record_event("receive_message", {"content": x["content"]}))
+        res = {
+            "role": "assistant",
+            "content": f"[Actor {self.name}: use process_async() for real work]",
+            "name": self.name,
+        }
         asyncio.create_task(self.record_event("reply_generated", res))
         return res
 
@@ -153,11 +196,14 @@ class VictoriaExpertActor(AgentBase):
         await self.record_event("task_finished", {"result_len": len(text)})
         return text
 
-    async def initiate_handoff(self, to_expert: str, task: str, context: dict, contract: dict = None):
+    async def initiate_handoff(
+        self, to_expert: str, task: str, context: dict, contract: dict = None
+    ):
         """Инициализировать передачу задачи другому эксперту (Singularity 26.2)"""
         try:
             await self.record_event("handoff_initiated", {"to": to_expert, "task": task})
             from explicit_handoffs import get_handoff_manager
+
             manager = get_handoff_manager()
             if manager:
                 handoff = manager.create_handoff(
@@ -165,7 +211,7 @@ class VictoriaExpertActor(AgentBase):
                     to_agent=to_expert,
                     task=task,
                     context=context,
-                    expected_output=f"Result matching contract: {contract}"
+                    expected_output=f"Result matching contract: {contract}",
                 )
                 if contract:
                     handoff.validation_schema = contract
@@ -174,6 +220,7 @@ class VictoriaExpertActor(AgentBase):
         except Exception as e:
             logger.error(f"❌ [SWARM] Handoff initiation failed: {e}")
         return None
+
 
 async def _mark_llm_call(conn, task_id: str) -> None:
     """[BUG FIX] Обновляет last_llm_call_at перед реальным LLM-вызовом.
@@ -195,9 +242,14 @@ async def process_task(task_data: dict):
     task_id = task_data["task_id"]
     expert_name = task_data["expert_name"]
     description = task_data["description"]
+    queue_name = task_data.get("queue_name", STREAM_NAME)
 
     logger.info(f"🛠️ [WORKER] Начало выполнения задачи {task_id} для {expert_name}")
     print(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
+
+    task_start_time = time.perf_counter()
+    if _PROMETHEUS_AVAILABLE:
+        _worker_active.labels(queue=queue_name).inc()
 
     # actor объявлен на уровне функции, чтобы блок except мог записать task_failed event
     actor = None
@@ -210,7 +262,9 @@ async def process_task(task_data: dict):
                 task_created_at = datetime.fromisoformat(created_at_str)
                 age_seconds = (datetime.now(timezone.utc) - task_created_at).total_seconds()
                 if age_seconds > 300:  # 5 минут
-                    logger.warning(f"⏭️ [STALE] Пропускаем диалоговую задачу {task_id} для {expert_name} (возраст: {age_seconds:.0f}s > 300s)")
+                    logger.warning(
+                        f"⏭️ [STALE] Пропускаем диалоговую задачу {task_id} для {expert_name} (возраст: {age_seconds:.0f}s > 300s)"
+                    )
                     return
             except Exception as age_err:
                 logger.debug(f"⚠️ [TTL] Не удалось проверить возраст задачи: {age_err}")
@@ -245,7 +299,9 @@ async def process_task(task_data: dict):
         # Rationale: 600s was too tight for coding/refactor tasks (LLM needs 5-15 min on MLX).
         # But 3600s blocks a worker for 1 hour on a failed attempt.
         # → 900s/1800s is the sweet spot: enough for real work, fast enough for retry.
-        is_monster_audit = task_data.get("metadata", {}).get("source") == "victoria_monster_delegation"
+        is_monster_audit = (
+            task_data.get("metadata", {}).get("source") == "victoria_monster_delegation"
+        )
         is_orchestrator_task = task_data.get("category") == "orchestrator_assignment"
         _task_meta = task_data.get("metadata", {}) or {}
         _is_complex = bool(_task_meta.get("complex")) or len(task_data.get("description", "")) > 500
@@ -260,7 +316,9 @@ async def process_task(task_data: dict):
                 # Quick delegated task: 15 min is enough; fail fast → retry via backoff
                 TASK_TOTAL_TIMEOUT = float(os.getenv("ORCHESTRATOR_TASK_TIMEOUT", "900"))
         else:
-            TASK_TOTAL_TIMEOUT = 300.0 if is_dialogue_task else float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
+            TASK_TOTAL_TIMEOUT = (
+                300.0 if is_dialogue_task else float(os.getenv("WORKER_TASK_TOTAL_TIMEOUT", "3600"))
+            )
 
         # [SINGULARITY 24.3] Если активен флаг dialogue_active — не-диалоговые задачи пропускаем
         # Это гарантирует что воркеры не заблокированы тяжёлыми задачами во время Живого Чата
@@ -269,7 +327,9 @@ async def process_task(task_data: dict):
                 _flag_client = await redis_manager.get_client()
                 _dialogue_active = await _flag_client.get("dialogue_active")
                 if _dialogue_active:
-                    logger.info(f"⏭️ [PRIORITY] Пропускаем не-диалоговую задачу {task_id} — активен dialogue_active флаг")
+                    logger.info(
+                        f"⏭️ [PRIORITY] Пропускаем не-диалоговую задачу {task_id} — активен dialogue_active флаг"
+                    )
                     return
             except Exception:
                 pass  # Если Redis недоступен — продолжаем обычно
@@ -279,6 +339,7 @@ async def process_task(task_data: dict):
         if is_swarm:
             try:
                 from agentscope.msghub import msghub
+
                 # Воркер подключается к MsgHub задачи
                 logger.info(f"🐝 [SWARM] Expert {expert_name} joining MsgHub for task {task_id}")
             except ImportError:
@@ -305,6 +366,7 @@ async def process_task(task_data: dict):
                     # We re-claim and process. If updated recently → another worker is on it → skip.
                     if _current_status == "in_progress" and _task_updated_at is not None:
                         from datetime import datetime, timezone
+
                         _age_sec = (datetime.now(timezone.utc) - _task_updated_at).total_seconds()
                         if _age_sec < 600:  # another worker updated it < 10 min ago → skip
                             logger.info(
@@ -330,19 +392,24 @@ async def process_task(task_data: dict):
 
                 # [SINGULARITY 26.3] Actor Recovery & State Management
                 try:
-                    actor = VictoriaExpertActor(name=expert_name, role="Expert", persona="", task_id=str(task_id))
+                    actor = VictoriaExpertActor(
+                        name=expert_name, role="Expert", persona="", task_id=str(task_id)
+                    )
                     await actor.recover_state()
                     # Записываем старт НЕМЕДЛЕННО — до LLM-вызова, чтобы событие было даже при падении
-                    await actor.record_event("task_started", {
-                        "description": description[:200],
-                        "category": task_data.get("category", "general"),
-                    })
+                    await actor.record_event(
+                        "task_started",
+                        {
+                            "description": description[:200],
+                            "category": task_data.get("category", "general"),
+                        },
+                    )
                 except Exception as actor_err:
                     logger.warning(f"⚠️ [ACTOR] Recovery failed: {actor_err}")
 
                 # 2. Выполняем через AI Core или ReAct Agent (Singularity 14.0)
                 # ... (логика выбора агента) ...
-                
+
                 # [SINGULARITY 24.3] Живой Чат: Публикация мысли эксперта
                 if task_data.get("metadata", {}).get("is_dialogue"):
                     try:
@@ -351,28 +418,33 @@ async def process_task(task_data: dict):
                             from app.event_bus import get_event_bus, Event, EventType
                         except ImportError:
                             from event_bus import get_event_bus, Event, EventType
-                            
+
                         bus = get_event_bus()
                         import uuid
-                        await bus.publish(Event(
-                            event_id=str(uuid.uuid4()),
-                            event_type=EventType.EXPERT_THOUGHT,
-                            payload={
-                                "dialogue_id": task_data.get("metadata", {}).get("dialogue_id"),
-                                "expert_name": expert_name,
-                                "thought": f"Приступаю к анализу вопроса: {description[:100]}..."
-                            },
-                            source=expert_name
-                        ))
+
+                        await bus.publish(
+                            Event(
+                                event_id=str(uuid.uuid4()),
+                                event_type=EventType.EXPERT_THOUGHT,
+                                payload={
+                                    "dialogue_id": task_data.get("metadata", {}).get("dialogue_id"),
+                                    "expert_name": expert_name,
+                                    "thought": f"Приступаю к анализу вопроса: {description[:100]}...",
+                                },
+                                source=expert_name,
+                            )
+                        )
                     except Exception as e:
                         logger.debug(f"⚠️ [DIALOGUE] Failed to publish thought: {e}")
 
                 # [SINGULARITY 24.3] Fast Path для диалоговых задач — MLX (victoria-wisdom) или Ollama (phi3.5)
                 if is_dialogue_task:
-                    logger.info(f"🎯 [DIALOGUE FAST PATH] Запуск для {expert_name} (task {task_id})")
+                    logger.info(
+                        f"🎯 [DIALOGUE FAST PATH] Запуск для {expert_name} (task {task_id})"
+                    )
                     try:
                         import httpx
-                        
+
                         # [SINGULARITY 25.0] Expert Priority Detection for Dialogue
                         is_vip_expert = False
                         try:
@@ -380,9 +452,11 @@ async def process_task(task_data: dict):
                                 expert_priority = await conn.fetchval(
                                     "SELECT priority FROM experts WHERE name = $1", expert_name
                                 )
-                                if expert_priority == 'VIP':
+                                if expert_priority == "VIP":
                                     is_vip_expert = True
-                                    logger.info(f"🌟 [VIP DIALOGUE] Expert {expert_name} has VIP priority")
+                                    logger.info(
+                                        f"🌟 [VIP DIALOGUE] Expert {expert_name} has VIP priority"
+                                    )
                         except Exception as e:
                             logger.debug(f"Failed to fetch expert priority for dialogue: {e}")
 
@@ -395,12 +469,17 @@ async def process_task(task_data: dict):
                         _dialogue_model = os.getenv("DIALOGUE_MODEL", "victoria-wisdom-v3.5")
 
                         # ... (personas) ...
-                        _persona = _expert_personas.get(expert_name, f"Ты — {expert_name}, эксперт корпорации Singularity 21.5.")
+                        _persona = _expert_personas.get(
+                            expert_name, f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
+                        )
                         _system = f"{_persona} Отвечай от первого лица кратко (2-3 предложения), в своём стиле."
 
                         # Очищаем description от служебного префикса "УЧАСТИЕ В ДИАЛОГЕ [id]: ..."
                         import re as _re
-                        _clean_desc = _re.sub(r'^УЧАСТИЕ В ДИАЛОГЕ \[[\w\-]+\]:\s*', '', description).strip()
+
+                        _clean_desc = _re.sub(
+                            r"^УЧАСТИЕ В ДИАЛОГЕ \[[\w\-]+\]:\s*", "", description
+                        ).strip()
 
                         _messages = [
                             {"role": "system", "content": _system},
@@ -410,7 +489,9 @@ async def process_task(task_data: dict):
 
                         # victoria-wisdom → MLX (в Ollama не работает для чата)
                         # phi3.5/другие → Ollama (MLX накапливает stuck requests для малых моделей)
-                        _use_mlx = "victoria-wisdom" in _dialogue_model or "wisdom" in _dialogue_model
+                        _use_mlx = (
+                            "victoria-wisdom" in _dialogue_model or "wisdom" in _dialogue_model
+                        )
 
                         _headers = {}
                         if is_vip_expert:
@@ -423,21 +504,36 @@ async def process_task(task_data: dict):
                                 async with httpx.AsyncClient(timeout=300.0) as _hc:
                                     _resp = await _hc.post(
                                         f"{_mlx_base}/api/chat",
-                                        json={"model": _dialogue_model, "messages": _messages, "stream": False, "options": {"num_predict": 100}},
+                                        json={
+                                            "model": _dialogue_model,
+                                            "messages": _messages,
+                                            "stream": False,
+                                            "options": {"num_predict": 100},
+                                        },
                                         headers=_headers,
                                     )
-                                    logger.info(f"🔍 [FAST PATH] MLX status={_resp.status_code} for {expert_name}")
+                                    logger.info(
+                                        f"🔍 [FAST PATH] MLX status={_resp.status_code} for {expert_name}"
+                                    )
                                     if _resp.status_code == 200:
-                                        report_text = _resp.json().get("message", {}).get("content", "")
+                                        report_text = (
+                                            _resp.json().get("message", {}).get("content", "")
+                                        )
                                         # Убираем артефакты модели: ведущие точки/пробелы и эхо вопроса
                                         if report_text:
                                             report_text = report_text.strip().lstrip(".\n").strip()
                                             # Regex: удаляем эхо вопроса в начале (с любыми обёртками)
                                             _echo = _re.escape(_clean_desc)
-                                            report_text = _re.sub(rf'^[\s\.]*{_echo}[\s\.]*', '', report_text).strip()
-                                        logger.info(f"✅ [FAST PATH] MLX ответил для {expert_name} ({len(report_text or '')} chars)")
+                                            report_text = _re.sub(
+                                                rf"^[\s\.]*{_echo}[\s\.]*", "", report_text
+                                            ).strip()
+                                        logger.info(
+                                            f"✅ [FAST PATH] MLX ответил для {expert_name} ({len(report_text or '')} chars)"
+                                        )
                                     else:
-                                        logger.warning(f"⚠️ [FAST PATH] MLX вернул {_resp.status_code}")
+                                        logger.warning(
+                                            f"⚠️ [FAST PATH] MLX вернул {_resp.status_code}"
+                                        )
                             except asyncio.CancelledError:
                                 raise
                             except Exception as _mlx_err:
@@ -450,34 +546,52 @@ async def process_task(task_data: dict):
                                     async with httpx.AsyncClient(timeout=180.0) as _hc:
                                         _resp = await _hc.post(
                                             f"{_ollama_base}/api/chat",
-                                            json={"model": _dialogue_model, "messages": _messages, "stream": False},
+                                            json={
+                                                "model": _dialogue_model,
+                                                "messages": _messages,
+                                                "stream": False,
+                                            },
                                             headers=_headers,
                                         )
-                                        logger.info(f"🔍 [FAST PATH] Ollama status={_resp.status_code} for {expert_name} (attempt {_attempt+1})")
+                                        logger.info(
+                                            f"🔍 [FAST PATH] Ollama status={_resp.status_code} for {expert_name} (attempt {_attempt + 1})"
+                                        )
                                         if _resp.status_code == 200:
-                                            report_text = _resp.json().get("message", {}).get("content", "")
-                                            logger.info(f"✅ [FAST PATH] Ollama ответил для {expert_name} ({len(report_text or '')} chars)")
+                                            report_text = (
+                                                _resp.json().get("message", {}).get("content", "")
+                                            )
+                                            logger.info(
+                                                f"✅ [FAST PATH] Ollama ответил для {expert_name} ({len(report_text or '')} chars)"
+                                            )
                                             break
                                         elif _resp.status_code == 503 and _attempt < 2:
-                                            logger.info(f"⏳ [FAST PATH] Ollama 503, retry {_attempt+1}/3 через 5s...")
+                                            logger.info(
+                                                f"⏳ [FAST PATH] Ollama 503, retry {_attempt + 1}/3 через 5s..."
+                                            )
                                             await asyncio.sleep(5)
                                         else:
-                                            logger.warning(f"⚠️ [FAST PATH] Ollama вернул {_resp.status_code}: {_resp.text[:100]}")
+                                            logger.warning(
+                                                f"⚠️ [FAST PATH] Ollama вернул {_resp.status_code}: {_resp.text[:100]}"
+                                            )
                                             break
                                 except asyncio.CancelledError:
                                     raise
                                 except Exception as _oe:
-                                    logger.warning(f"⚠️ [FAST PATH] Ollama exception (attempt {_attempt+1}): {_oe}")
+                                    logger.warning(
+                                        f"⚠️ [FAST PATH] Ollama exception (attempt {_attempt + 1}): {_oe}"
+                                    )
                                     if _attempt < 2:
                                         await asyncio.sleep(5)
                         # ... (rest of the code) ...
 
                         if not report_text:
                             raise ValueError(f"LLM не ответил ({'MLX' if _use_mlx else 'Ollama'})")
-                        logger.info(f"✅ [DIALOGUE FAST PATH] {expert_name} ответил ({len(report_text)} chars)")
+                        logger.info(
+                            f"✅ [DIALOGUE FAST PATH] {expert_name} ответил ({len(report_text)} chars)"
+                        )
                     except Exception as fast_err:
                         logger.warning(f"⚠️ [DIALOGUE FAST PATH] Fallback на ai_core: {fast_err}")
-                        
+
                         # [SINGULARITY 24.7] Retry Intelligence: Downgrade model on failure
                         _retry_category = "fast" if "wisdom" in _dialogue_model else "general"
                         await _mark_llm_call(conn, task_id)
@@ -487,15 +601,21 @@ async def process_task(task_data: dict):
                             category=_retry_category,
                             is_vip=True,
                         )
-                        report_text = str(report.get("result") if isinstance(report, dict) else report)
+                        report_text = str(
+                            report.get("result") if isinstance(report, dict) else report
+                        )
 
                 elif task_data.get("metadata", {}).get("complex") or expert_name == "Виктория":
                     logger.info(f"🧠 [WORKER] Используем ReAct Agent для сложной задачи {task_id}")
                     try:
-
                         model_hint = task_data.get("metadata", {}).get("model_hint")
-                        print(f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-v3.5:latest'}")
-                        agent = ReActAgent(agent_name=expert_name, model_name=model_hint or "victoria-wisdom-v3.5:latest")
+                        print(
+                            f"DEBUG_PRINT: Initializing ReActAgent with model: {model_hint or 'victoria-wisdom-v3.5:latest'}"
+                        )
+                        agent = ReActAgent(
+                            agent_name=expert_name,
+                            model_name=model_hint or "victoria-wisdom-v3.5:latest",
+                        )
                         print(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
                         await _mark_llm_call(conn, task_id)
                         report = await agent.run(goal=description)
@@ -504,7 +624,9 @@ async def process_task(task_data: dict):
                         if isinstance(report, dict) and "response" in report:
                             report_text = report["response"]
                         else:
-                            report_text = str(report.get("result") if isinstance(report, dict) else report)
+                            report_text = str(
+                                report.get("result") if isinstance(report, dict) else report
+                            )
                     except Exception as e:
                         logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
                         await _mark_llm_call(conn, task_id)
@@ -514,7 +636,9 @@ async def process_task(task_data: dict):
                             category=task_data.get("category", "general"),
                             is_vip=is_dialogue_task,
                         )
-                        report_text = str(report.get("result") if isinstance(report, dict) else report)
+                        report_text = str(
+                            report.get("result") if isinstance(report, dict) else report
+                        )
                 else:
                     await _mark_llm_call(conn, task_id)
                     report = await run_smart_agent_async(
@@ -535,10 +659,13 @@ async def process_task(task_data: dict):
                 if "HANDOFF:" in report_text and "TASK:" in report_text:
                     try:
                         import re as _re
+
                         # [FIX] Support both latin and cyrillic expert names (Игорь, Viktor, etc.)
-                        _to_expert = _re.search(r'HANDOFF:\s*@?([\w\u0400-\u04FF_-]+)', report_text)
-                        _task_desc = _re.search(r'TASK:\s*(.+?)(?=CONTRACT:|HANDOFF:|$)', report_text, _re.DOTALL)
-                        _contract = _re.search(r'CONTRACT:\s*(\{.*?\})', report_text, _re.DOTALL)
+                        _to_expert = _re.search(r"HANDOFF:\s*@?([\w\u0400-\u04FF_-]+)", report_text)
+                        _task_desc = _re.search(
+                            r"TASK:\s*(.+?)(?=CONTRACT:|HANDOFF:|$)", report_text, _re.DOTALL
+                        )
+                        _contract = _re.search(r"CONTRACT:\s*(\{.*?\})", report_text, _re.DOTALL)
 
                         if _to_expert and _task_desc:
                             to_name = _to_expert.group(1)
@@ -547,17 +674,22 @@ async def process_task(task_data: dict):
                             if _contract:
                                 try:
                                     contract_json = json.loads(_contract.group(1))
-                                except: pass
+                                except:
+                                    pass
 
                             from explicit_handoffs import get_handoff_manager
+
                             manager = get_handoff_manager()
                             if manager:
                                 manager.create_handoff(
                                     from_agent=expert_name,
                                     to_agent=to_name,
                                     task=task_msg,
-                                    context={"parent_result": report_text, "parent_task_id": task_id},
-                                    expected_output=f"Swarm handoff result for {to_name}"
+                                    context={
+                                        "parent_result": report_text,
+                                        "parent_task_id": task_id,
+                                    },
+                                    expected_output=f"Swarm handoff result for {to_name}",
                                 )
                                 if contract_json:
                                     h_list = manager.get_pending_handoffs(to_name)
@@ -568,14 +700,17 @@ async def process_task(task_data: dict):
                             # parent_task_id links this new task to its origin for tracing
                             try:
                                 import uuid as _uuid_mod
+
                                 _subtask_id = _uuid_mod.uuid4()
                                 _subtask_title = f"[HANDOFF from {expert_name}] {task_msg[:120]}"
-                                _subtask_meta = json.dumps({
-                                    "handoff_from": expert_name,
-                                    "parent_task_id": str(task_id),
-                                    "contract": contract_json,
-                                    "is_handoff": True,
-                                })
+                                _subtask_meta = json.dumps(
+                                    {
+                                        "handoff_from": expert_name,
+                                        "parent_task_id": str(task_id),
+                                        "contract": contract_json,
+                                        "is_handoff": True,
+                                    }
+                                )
                                 # Idempotent insert: wrap in try/except for unique violation (23505).
                                 # The dedup index prevents duplicate pending/in_progress tasks with same title.
                                 # Erlang principle: let it crash → catch gracefully, not loudly fail.
@@ -596,7 +731,11 @@ async def process_task(task_data: dict):
                                     )
                                 except Exception as _ins_err:
                                     _err_str = str(_ins_err)
-                                    if "unique" in _err_str.lower() or "23505" in _err_str or "dedup" in _err_str.lower():
+                                    if (
+                                        "unique" in _err_str.lower()
+                                        or "23505" in _err_str
+                                        or "dedup" in _err_str.lower()
+                                    ):
                                         logger.info(
                                             f"⏭️ [SWARM] Subtask already queued for handoff from {expert_name} "
                                             f"(dedup — idempotent skip)"
@@ -607,13 +746,18 @@ async def process_task(task_data: dict):
                                     f"🐝 [SWARM] {expert_name} → {to_name}: subtask {_subtask_id} created in DB "
                                     f"(parent={task_id})"
                                 )
-                                await actor.record_event("handoff_created", {
-                                    "to_agent": to_name,
-                                    "subtask_id": str(_subtask_id),
-                                    "task_msg": task_msg[:200],
-                                })
+                                await actor.record_event(
+                                    "handoff_created",
+                                    {
+                                        "to_agent": to_name,
+                                        "subtask_id": str(_subtask_id),
+                                        "task_msg": task_msg[:200],
+                                    },
+                                )
                             except Exception as _sub_err:
-                                logger.error(f"❌ [SWARM] Failed to create subtask in DB: {_sub_err}")
+                                logger.error(
+                                    f"❌ [SWARM] Failed to create subtask in DB: {_sub_err}"
+                                )
 
                     except Exception as he:
                         logger.error(f"❌ [SWARM] Handoff detection failed: {he}")
@@ -628,7 +772,7 @@ async def process_task(task_data: dict):
 
                 if _is_stub and is_valid_uuid:
                     if _retry_count < _MAX_RETRIES:
-                        _backoff_minutes = 2 ** _retry_count * 5  # 5, 10, 20 minutes
+                        _backoff_minutes = 2**_retry_count * 5  # 5, 10, 20 minutes
                         await conn.execute(
                             """
                             UPDATE tasks
@@ -654,9 +798,12 @@ async def process_task(task_data: dict):
                         )
                         await conn.execute(
                             "UPDATE tasks SET status='failed', result=$2, updated_at=NOW() WHERE id=$1",
-                            task_id, report_text,
+                            task_id,
+                            report_text,
                         )
-                        await redis_manager.update_task_status(task_id, "failed", result=report_text)
+                        await redis_manager.update_task_status(
+                            task_id, "failed", result=report_text
+                        )
                         return
 
                 if is_valid_uuid:
@@ -676,7 +823,10 @@ async def process_task(task_data: dict):
                 if "<reasoning_trace>" in report_text and is_valid_uuid:
                     try:
                         import re as _re
-                        _trace_match = _re.search(r'<reasoning_trace>(.*?)</reasoning_trace>', report_text, _re.DOTALL)
+
+                        _trace_match = _re.search(
+                            r"<reasoning_trace>(.*?)</reasoning_trace>", report_text, _re.DOTALL
+                        )
                         if _trace_match:
                             _trace = _trace_match.group(1).strip()
                             await conn.execute(
@@ -714,27 +864,37 @@ async def process_task(task_data: dict):
                             from app.event_bus import get_event_bus, Event, EventType
                         except ImportError:
                             from event_bus import get_event_bus, Event, EventType
-                            
+
                         import uuid
-                        
+
                         bus = get_event_bus()
                         dialogue_id = task_data.get("metadata", {}).get("dialogue_id")
-                        
-                        await bus.publish(Event(
-                            event_id=str(uuid.uuid4()),
-                            event_type=EventType.EXPERT_RESPONSE,
-                            payload={
-                                "dialogue_id": dialogue_id,
-                                "expert_name": expert_name,
-                                "response": report_text
-                            },
-                            source=expert_name
-                        ))
-                        logger.info(f"🎭 [DIALOGUE] Expert {expert_name} published response for {dialogue_id}")
+
+                        await bus.publish(
+                            Event(
+                                event_id=str(uuid.uuid4()),
+                                event_type=EventType.EXPERT_RESPONSE,
+                                payload={
+                                    "dialogue_id": dialogue_id,
+                                    "expert_name": expert_name,
+                                    "response": report_text,
+                                },
+                                source=expert_name,
+                            )
+                        )
+                        logger.info(
+                            f"🎭 [DIALOGUE] Expert {expert_name} published response for {dialogue_id}"
+                        )
                     except Exception as e:
                         logger.error(f"⚠️ [DIALOGUE] Failed to publish response: {e}")
 
                 logger.info(f"✅ [WORKER] Задача {task_id} успешно завершена")
+
+                if _PROMETHEUS_AVAILABLE:
+                    duration = time.perf_counter() - task_start_time
+                    _worker_tasks_total.labels(queue=queue_name, status="completed").inc()
+                    _worker_task_duration_seconds.labels(queue=queue_name).observe(duration)
+                    _worker_active.labels(queue=queue_name).dec()
 
                 # [SWISS-CLOCK] PUBLISH completion event для pub/sub подписчиков (perpetual_evolution и др.)
                 try:
@@ -746,6 +906,7 @@ async def process_task(task_data: dict):
                 # [SINGULARITY 26.4] Детерминированный handoff — без LLM-тегов
                 try:
                     from explicit_handoffs import detect_deterministic_handoff
+
                     auto_handoff = detect_deterministic_handoff(
                         from_agent=expert_name,
                         task_description=description,
@@ -758,10 +919,13 @@ async def process_task(task_data: dict):
                             f"| ID: {auto_handoff.handoff_id}"
                         )
                         if actor:
-                            await actor.record_event("handoff_created", {
-                                "to_agent": auto_handoff.to_agent,
-                                "handoff_id": auto_handoff.handoff_id,
-                            })
+                            await actor.record_event(
+                                "handoff_created",
+                                {
+                                    "to_agent": auto_handoff.to_agent,
+                                    "handoff_id": auto_handoff.handoff_id,
+                                },
+                            )
                 except Exception as _hf_err:
                     logger.debug(f"[HANDOFF] Deterministic check failed (non-critical): {_hf_err}")
 
@@ -772,9 +936,14 @@ async def process_task(task_data: dict):
         error_msg = f"Task timed out after {TASK_TOTAL_TIMEOUT}s (Circuit Breaker)"
         if actor:
             try:
-                await actor.record_event("task_failed", {"reason": "timeout", "timeout_sec": TASK_TOTAL_TIMEOUT})
+                await actor.record_event(
+                    "task_failed", {"reason": "timeout", "timeout_sec": TASK_TOTAL_TIMEOUT}
+                )
             except Exception:
                 pass
+        if _PROMETHEUS_AVAILABLE:
+            _worker_tasks_total.labels(queue=queue_name, status="timeout").inc()
+            _worker_active.labels(queue=queue_name).dec()
         await _handle_task_error(task_id, error_msg, is_valid_uuid)
 
     except Exception as e:
@@ -785,6 +954,9 @@ async def process_task(task_data: dict):
                 await actor.record_event("task_failed", {"reason": error_msg[:300]})
             except Exception:
                 pass
+        if _PROMETHEUS_AVAILABLE:
+            _worker_tasks_total.labels(queue=queue_name, status="failed").inc()
+            _worker_active.labels(queue=queue_name).dec()
         await _handle_task_error(task_id, error_msg, is_valid_uuid)
 
 
@@ -797,10 +969,18 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
     import random as _random
     from datetime import datetime, timezone
 
-    _is_transient = any(m in (error_msg or "").lower() for m in (
-        "timeout", "503", "circuit breaker", "maximum pending", "все источники недоступны",
-        "connection", "unavailable",
-    ))
+    _is_transient = any(
+        m in (error_msg or "").lower()
+        for m in (
+            "timeout",
+            "503",
+            "circuit breaker",
+            "maximum pending",
+            "все источники недоступны",
+            "connection",
+            "unavailable",
+        )
+    )
 
     try:
         if is_valid_uuid and _is_transient:
@@ -837,13 +1017,15 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
                         WHERE id = $1
                         """,
                         task_id,
-                        json.dumps({
-                            "last_attempt_failed": True,
-                            "attempt_count": attempt_count,
-                            "last_error": error_msg[:300],
-                            "next_retry_after": retry_after,
-                            "llm_unavailable": True,
-                        }),
+                        json.dumps(
+                            {
+                                "last_attempt_failed": True,
+                                "attempt_count": attempt_count,
+                                "last_error": error_msg[:300],
+                                "next_retry_after": retry_after,
+                                "llm_unavailable": True,
+                            }
+                        ),
                     )
                     await redis_manager.update_task_status(task_id, "pending")
                     logger.warning(
@@ -905,8 +1087,9 @@ async def worker_loop():
             from app.event_bus import get_event_bus
         except ImportError:
             from event_bus import get_event_bus
-            
+
         from event_bus_redis_bridge import start_redis_bridge
+
         bus = get_event_bus()
         await bus.start()
         await start_redis_bridge(bus)
@@ -923,8 +1106,7 @@ async def worker_loop():
     try:
         eb_groups = await client.xinfo_groups("event_bus_stream")
         stale_eb_groups = [
-            g["name"] for g in eb_groups
-            if g.get("pending", 0) == 0 and g.get("consumers", 0) == 0
+            g["name"] for g in eb_groups if g.get("pending", 0) == 0 and g.get("consumers", 0) == 0
         ]
         if stale_eb_groups:
             for gname in stale_eb_groups:
@@ -932,7 +1114,9 @@ async def worker_loop():
                     await client.xgroup_destroy("event_bus_stream", gname)
                 except Exception:
                     pass
-            logger.info(f"🧹 [WORKER] Cleaned up {len(stale_eb_groups)} stale event_bus_stream groups")
+            logger.info(
+                f"🧹 [WORKER] Cleaned up {len(stale_eb_groups)} stale event_bus_stream groups"
+            )
     except Exception as e:
         logger.warning(f"⚠️ [WORKER] event_bus_stream cleanup skipped: {e}")
 
@@ -945,7 +1129,9 @@ async def worker_loop():
 
             pending_info = await client.xpending(f"stream:{STREAM_NAME}", GROUP_NAME)
             if pending_info["pending"] > 0:
-                p_range = await client.xpending_range(f"stream:{STREAM_NAME}", GROUP_NAME, "-", "+", 10)
+                p_range = await client.xpending_range(
+                    f"stream:{STREAM_NAME}", GROUP_NAME, "-", "+", 10
+                )
                 if p_range:
                     # Phase 1: Zombies → DLQ + PostgreSQL sync
                     zombie_msg_ids = [p["message_id"] for p in p_range if p["times_delivered"] > 10]
@@ -958,13 +1144,21 @@ async def worker_loop():
                                     _, zdata = raw[0]
                                     raw_payload = zdata.get("payload") or zdata.get(b"payload")
                                     if raw_payload:
-                                        zpayload = json.loads(raw_payload) if isinstance(raw_payload, (str, bytes)) else raw_payload
+                                        zpayload = (
+                                            json.loads(raw_payload)
+                                            if isinstance(raw_payload, (str, bytes))
+                                            else raw_payload
+                                        )
                                         task_id = zpayload.get("task_id")
                                         if task_id:
                                             zombie_task_ids.append(task_id)
                             except Exception as ze:
-                                logger.warning(f"⚠️ [DLQ] Could not read zombie payload {zmid}: {ze}")
-                        logger.warning(f"💀 [DLQ] Killing {len(zombie_msg_ids)} zombie messages, task_ids={zombie_task_ids}")
+                                logger.warning(
+                                    f"⚠️ [DLQ] Could not read zombie payload {zmid}: {ze}"
+                                )
+                        logger.warning(
+                            f"💀 [DLQ] Killing {len(zombie_msg_ids)} zombie messages, task_ids={zombie_task_ids}"
+                        )
                         await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, *zombie_msg_ids)
                         if zombie_task_ids:
                             async with db_pool.acquire() as conn:
@@ -980,16 +1174,23 @@ async def worker_loop():
                                          AND status IN ('pending', 'in_progress')""",
                                     zombie_task_ids,
                                 )
-                            logger.warning(f"💀 [DLQ] PostgreSQL updated: {updated} zombie tasks → failed")
+                            logger.warning(
+                                f"💀 [DLQ] PostgreSQL updated: {updated} zombie tasks → failed"
+                            )
 
                     # Phase 2: Xclaim legitimately stale (idle >5min, not zombies)
                     claimable = [
-                        p["message_id"] for p in p_range
+                        p["message_id"]
+                        for p in p_range
                         if p["times_delivered"] <= 10 and p["time_since_delivered"] > 300000
                     ]
                     if claimable:
-                        logger.info(f"🛠️ [WORKER] Claiming {len(claimable)} stale tasks for {CONSUMER_NAME}")
-                        await client.xclaim(f"stream:{STREAM_NAME}", GROUP_NAME, CONSUMER_NAME, 300000, claimable)
+                        logger.info(
+                            f"🛠️ [WORKER] Claiming {len(claimable)} stale tasks for {CONSUMER_NAME}"
+                        )
+                        await client.xclaim(
+                            f"stream:{STREAM_NAME}", GROUP_NAME, CONSUMER_NAME, 300000, claimable
+                        )
 
             # Phase 3a: Read OUR pending messages (id="0" — includes just-xclaimed ones)
             pending_mine = await client.xreadgroup(
@@ -1025,7 +1226,9 @@ async def worker_loop():
                             f"stream:{STREAM_NAME}", GROUP_NAME, msg_id, msg_id, 1
                         )
                         if info and info[0]["times_delivered"] > 10:
-                            logger.error(f"💀 [DLQ] Message {msg_id} slipped through Phase 1. Dropping.")
+                            logger.error(
+                                f"💀 [DLQ] Message {msg_id} slipped through Phase 1. Dropping."
+                            )
                             await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
                             continue
 
@@ -1039,6 +1242,7 @@ async def worker_loop():
                                 else v
                                 for k, v in data.items()
                             }
+                        payload["queue_name"] = STREAM_NAME
 
                         await process_task(payload)
                         await client.xack(f"stream:{STREAM_NAME}", GROUP_NAME, msg_id)
@@ -1050,8 +1254,101 @@ async def worker_loop():
             await asyncio.sleep(5)
 
 
+async def metrics_handler(request):
+    from prometheus_client import generate_latest, REGISTRY
+
+    metrics = generate_latest(REGISTRY)
+    return web.Response(body=metrics, content_type="text/plain")
+
+
+async def health_handler(request):
+    return web.json_response({"status": "healthy", "worker": "expert"})
+
+
+def start_metrics_server(port=8001):
+    app = web.Application()
+    app.router.add_get("/metrics", metrics_handler)
+    app.router.add_get("/health", health_handler)
+    return app
+
+
+def run_metrics_only(port=8001):
+    """Запуск только HTTP сервера для метрик (без воркера)."""
+    app = start_metrics_server(port)
+    logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
+    web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
+
+
+def run_worker_with_metrics(port=8001):
+    """Запуск и воркера и HTTP сервера метрик параллельно."""
+
+    async def run_both():
+        metrics_app = start_metrics_server(port)
+        metrics_runner = web.AppRunner(metrics_app)
+        await metrics_runner.setup()
+        metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
+        await metrics_site.start()
+        logger.info(f"📊 [METRICS] Metrics server started on port {port}")
+        try:
+            await worker_loop()
+        finally:
+            await metrics_runner.cleanup()
+
+    asyncio.get_event_loop().run_until_complete(run_both())
+
+
 if __name__ == "__main__":
-    try:
-        asyncio.run(worker_loop())
-    except KeyboardInterrupt:
-        logger.info("🛑 [WORKER] Остановка по сигналу пользователя")
+    import sys
+
+    enable_metrics = os.getenv("ENABLE_METRICS", "false").lower() in ("true", "1", "yes")
+    metrics_port = int(os.getenv("METRICS_PORT", "8001"))
+    run_as_metrics_only = "--metrics-only" in sys.argv
+
+    async def metrics_handler(request):
+        from prometheus_client import generate_latest, REGISTRY
+
+        metrics = generate_latest(REGISTRY)
+        return web.Response(body=metrics, content_type="text/plain")
+
+    async def health_handler(request):
+        return web.json_response({"status": "healthy", "worker": "expert"})
+
+    def start_metrics_server(port=8001):
+        app = web.Application()
+        app.router.add_get("/metrics", metrics_handler)
+        app.router.add_get("/health", health_handler)
+        return app
+
+    def run_metrics_only(port=8001):
+        """Запуск только HTTP сервера для метрик (без воркера)."""
+        app = start_metrics_server(port)
+        logger.info(f"📊 [METRICS] Starting metrics server on port {port}")
+        web.run_app(app, host="0.0.0.0", port=port, print=lambda x: None)
+
+    def run_worker_with_metrics(port=8001):
+        """Запуск и воркера и HTTP сервера метрик параллельно."""
+
+        async def run_both():
+            metrics_app = start_metrics_server(port)
+            metrics_runner = web.AppRunner(metrics_app)
+            await metrics_runner.setup()
+            metrics_site = web.TCPSite(metrics_runner, "0.0.0.0", port)
+            await metrics_site.start()
+            logger.info(f"📊 [METRICS] Metrics server started on port {port}")
+            try:
+                await worker_loop()
+            finally:
+                await metrics_runner.cleanup()
+
+        asyncio.get_event_loop().run_until_complete(run_both())
+
+    if "--metrics" in sys.argv or enable_metrics:
+        if run_as_metrics_only:
+            run_metrics_only(metrics_port)
+        else:
+            run_worker_with_metrics(metrics_port)
+    else:
+        try:
+            asyncio.run(worker_loop())
+        except KeyboardInterrupt:
+            logger.info("🛑 [WORKER] Остановка по сигналу пользователя")

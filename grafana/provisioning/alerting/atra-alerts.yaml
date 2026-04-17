@@ -1,0 +1,500 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: atra_slo_alerts
+    folder: ATRA Alerts
+    interval: 60s
+    rules:
+      - uid: victoria-slo-breach
+        title: Victoria SLO Breach - Error Rate
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: rate(ask_victoria_total{status="error"}[5m]) / rate(ask_victoria_total[5m])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.001]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [B]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Victoria SLO breach: Error rate > 0.1%"
+          description: "Victoria ask_victoria API error rate exceeded SLO threshold (99.9% availability)"
+          runbook_url: "https://wiki.atra.corp/runbooks/victoria-slo"
+        labels:
+          severity: critical
+          service: victoria
+          slo: availability
+
+      - uid: victoria-latency-high
+        title: Victoria High Latency
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: histogram_quantile(0.95, rate(victoria_enhanced_task_duration_seconds_bucket[5m]))
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Victoria p95 latency > 5s"
+          description: "Victoria task processing p95 latency exceeded 5 seconds"
+        labels:
+          severity: warning
+          service: victoria
+
+      - uid: backend-slo-breach
+        title: Backend SLO Breach - Error Rate
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: rate(errors_total{component="chat"}[5m]) / rate(chat_requests_total[5m])
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.01]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              refId: B
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [B]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: B
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Backend SLO breach: Error rate > 1%"
+          description: "Backend chat API error rate exceeded SLO threshold (99% availability)"
+          runbook_url: "https://wiki.atra.corp/runbooks/backend-slo"
+        labels:
+          severity: warning
+          service: backend
+          slo: availability
+
+      - uid: llm-latency-high
+        title: LLM High Latency
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: histogram_quantile(0.95, rate(llm_duration_seconds_bucket[5m]))
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [60]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "LLM p95 latency > 60s"
+          description: "LLM response generation p95 latency exceeded 60 seconds"
+        labels:
+          severity: warning
+          service: llm
+
+      - uid: rag-latency-high
+        title: RAG High Latency
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: histogram_quantile(0.95, rate(rag_duration_seconds_bucket[5m]))
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "RAG p95 latency > 10s"
+          description: "RAG processing p95 latency exceeded 10 seconds"
+        labels:
+          severity: warning
+          service: rag
+
+  - orgId: 1
+    name: atra_worker_alerts
+    folder: ATRA Alerts
+    interval: 60s
+    rules:
+      - uid: worker-failures
+        title: Worker Task Failures
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: increase(victoria_enhanced_tasks_total{status="failed"}[5m])
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "Worker task failures detected"
+          description: "Multiple worker tasks have failed in the last 5 minutes"
+          runbook_url: "https://wiki.atra.corp/runbooks/worker-failures"
+        labels:
+          severity: critical
+          service: worker
+
+      - uid: worker-stalled
+        title: Worker Tasks Stalled
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: victoria_enhanced_active_tasks
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: "Worker tasks stalled for > 15 minutes"
+          description: "{{ $values.A }} tasks have been in active state for more than 15 minutes"
+        labels:
+          severity: warning
+          service: worker
+
+      - uid: worker-component-down
+        title: Worker Component Unavailable
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 120
+              to: 0
+            model:
+              expr: victoria_enhanced_component_available
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Worker component {{ $labels.component }} unavailable"
+          description: "Component {{ $labels.component }} has been unavailable for > 2 minutes"
+          runbook_url: "https://wiki.atra.corp/runbooks/component-down"
+        labels:
+          severity: critical
+          service: worker
+
+  - orgId: 1
+    name: atra_queue_alerts
+    folder: ATRA Alerts
+    interval: 60s
+    rules:
+      - uid: queue-depth-high
+        title: Queue Depth High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: queue_size
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [100]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "Queue {{ $labels.queue_name }} depth > 100"
+          description: "Queue {{ $labels.queue_name }} has {{ $values.A }} pending items"
+        labels:
+          severity: warning
+
+      - uid: queue-depth-critical
+        title: Queue Depth Critical
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 120
+              to: 0
+            model:
+              expr: queue_size
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [500]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Queue {{ $labels.queue_name }} depth CRITICAL > 500"
+          description: "Queue {{ $labels.queue_name }} has {{ $values.A }} pending items - IMMEDIATE ACTION REQUIRED"
+          runbook_url: "https://wiki.atra.corp/runbooks/queue-depth-critical"
+        labels:
+          severity: critical
+
+      - uid: rag-cache-miss-high
+        title: RAG Cache Miss Rate High
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              expr: rate(rag_cache_hits_total{cache_type="miss"}[5m]) / rate(rag_requests_total[5m])
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              expression: A
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "RAG cache miss rate > 50%"
+          description: "RAG cache miss rate is {{ $values.A | printf \"%.1f\" }}% - consider expanding cache"
+        labels:
+          severity: warning
+          service: rag

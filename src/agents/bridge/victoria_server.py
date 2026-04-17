@@ -22,6 +22,21 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
+try:
+    from prometheus_client import (
+        REGISTRY,
+        CollectorRegistry,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    Counter = Gauge = Histogram = None
+
 # Загружаем .env при старте
 load_dotenv()
 
@@ -567,6 +582,76 @@ async def _rag_cache_set(key: str, value: str, ttl_sec: int) -> None:
 _rag_latency_last: Dict[str, float] = {"embed_ms": 0.0, "prepare_ms": 0.0, "llm_plan_ms": 0.0}
 _rag_latency_slow_count: int = 0
 _rag_latency_last_slow_at: Optional[str] = None
+
+# === RED Metrics для multi-agent observability ===
+_victoria_registry = CollectorRegistry() if PROMETHEUS_AVAILABLE else None
+
+
+def _create_metric(name: str, metric_class, documentation: str, labelnames=(), **kwargs):
+    """Безопасное создание метрик в изолированном реестре."""
+    if not PROMETHEUS_AVAILABLE or _victoria_registry is None:
+
+        class Dummy:
+            def labels(self, *args, **kwargs):
+                return self
+
+            def inc(self, *args, **kwargs):
+                pass
+
+            def dec(self, *args, **kwargs):
+                pass
+
+            def set(self, *args, **kwargs):
+                pass
+
+            def observe(self, *args, **kwargs):
+                pass
+
+        return Dummy()
+    try:
+        return metric_class(name, documentation, labelnames, registry=_victoria_registry, **kwargs)
+    except ValueError:
+        if (
+            hasattr(_victoria_registry, "_names_to_collectors")
+            and name in _victoria_registry._names_to_collectors
+        ):
+            return _victoria_registry._names_to_collectors[name]
+
+        class Dummy:
+            def labels(self, *args, **kwargs):
+                return self
+
+            def inc(self, *args, **kwargs):
+                pass
+
+            def dec(self, *args, **kwargs):
+                pass
+
+            def set(self, *args, **kwargs):
+                pass
+
+            def observe(self, *args, **kwargs):
+                pass
+
+        return Dummy()
+
+
+VICTORIA_REQUESTS = _create_metric(
+    "victoria_requests_total", Counter, "Total Victoria requests", ["endpoint", "mode"]
+)
+VICTORIA_ERRORS = _create_metric(
+    "victoria_errors_total", Counter, "Total Victoria errors", ["error_type", "endpoint"]
+)
+VICTORIA_REQUEST_DURATION = _create_metric(
+    "victoria_request_duration_seconds",
+    Histogram,
+    "Victoria request duration",
+    ["endpoint", "mode"],
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+VICTORIA_ACTIVE_REQUESTS = _create_metric(
+    "victoria_active_requests", Gauge, "Number of active Victoria requests"
+)
 
 # Лимит шагов агента. Для чата/Telegram клиенты передают max_steps=50 (VICTORIA_MAX_STEPS_CHAT / VICTORIA_MAX_STEPS)
 DEFAULT_MAX_STEPS = int(os.getenv("VICTORIA_MAX_STEPS", "500"))
@@ -4970,12 +5055,20 @@ async def _generate_via_mlx_or_ollama(
 async def run_task_stream(body: TaskRequest, request: Request):
     """
     SSE стриминг ответа (Singularity 14.0 Unified).
-    Цепочка выбора: Fast Path (MLX/Ollama) → Expert Path (Victoria Enhanced).
+    Цепочка вызова: Fast Path (MLX/Ollama) → Expert Path (Victoria Enhanced).
     """
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
     logger.info(
         "[STREAM] correlation_id=%s goal_preview=%s", correlation_id[:8], (body.goal or "")[:50]
     )
+
+    # === RED Metrics ===
+    _stream_start_time = time.time()
+    try:
+        VICTORIA_REQUESTS.labels(endpoint="/stream", mode="sync").inc()
+        VICTORIA_ACTIVE_REQUESTS.inc()
+    except Exception:
+        pass
 
     # ✅ SKILL DISCIPLINE: автоопределение и вызов скилла перед выполнением
     skill_context = None
@@ -5162,10 +5255,22 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
             except Exception as e:
                 logger.error("Stream expert path error: %s", e, exc_info=True)
+                try:
+                    VICTORIA_ERRORS.labels(error_type=type(e).__name__, endpoint="/stream").inc()
+                except Exception:
+                    pass
                 err_msg = f"Критическая ошибка стриминга: {str(e)}"
                 yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
 
             yield f"data: {json.dumps({'type': 'end'})}\n\n"
+
+    try:
+        VICTORIA_REQUEST_DURATION.labels(endpoint="/stream", mode="sync").observe(
+            time.time() - _stream_start_time
+        )
+        VICTORIA_ACTIVE_REQUESTS.dec()
+    except Exception:
+        pass
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
@@ -5185,6 +5290,15 @@ async def run_task(
     """
     global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
+
+    # === RED Metrics ===
+    _start_time = time.time()
+    _mode = "async" if async_mode else "sync"
+    try:
+        VICTORIA_REQUESTS.labels(endpoint="/run", mode=_mode).inc()
+        VICTORIA_ACTIVE_REQUESTS.inc()
+    except Exception:
+        pass
 
     # === REQUEST FLOW TRACING ===
     logger.info(
@@ -6016,10 +6130,21 @@ async def run_task(
         )
     except Exception as e:
         logger.exception("[EXECUTE] ❌ Ошибка выполнения задачи: %s", e)
+        try:
+            VICTORIA_ERRORS.labels(error_type=type(e).__name__, endpoint="/run").inc()
+        except Exception:
+            pass
         orch_ctx["status"] = "failed"
         orch_ctx["result"] = str(e)[:5000]
         raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
+        try:
+            VICTORIA_REQUEST_DURATION.labels(endpoint="/run", mode=_mode).observe(
+                time.time() - _start_time
+            )
+            VICTORIA_ACTIVE_REQUESTS.dec()
+        except Exception:
+            pass
         if knowledge_os_task_id:
             await _record_orchestration_task_complete(
                 agent, knowledge_os_task_id, orch_ctx["status"], orch_ctx["result"]
@@ -6640,6 +6765,14 @@ async def metrics():
         "# TYPE victoria_rag_slow_requests_total counter\n"
         f"victoria_rag_slow_requests_total {_rag_latency_slow_count}\n"
     )
+
+    # === RED Metrics from isolated registry ===
+    if PROMETHEUS_AVAILABLE and _victoria_registry is not None:
+        try:
+            body += generate_latest(_victoria_registry).decode("utf-8")
+        except Exception:
+            pass
+
     return PlainTextResponse(body, media_type="text/plain; charset=utf-8")
 
 
