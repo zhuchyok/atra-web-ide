@@ -925,9 +925,12 @@ async def _run_cloud_agent_async(
                             or "127.0.0.1" in ollama_url
                             or "host.docker.internal" in ollama_url
                         ):
-                            # Mac Studio - только victoria-wisdom (убраны fallback-ы для скорости)
+                            # Mac Studio - лучшие модели (victoria-wisdom приоритет)
                             models_to_try = [
                                 "victoria-wisdom-v3.5:latest",
+                                "phi3.5:3.8b",
+                                "qwen3.5:35b",
+                                "tinyllama:1.1b-chat",
                             ]
                         else:
                             # Внешний сервер - легкие модели (если потребуется)

@@ -2789,6 +2789,17 @@ Q: "покажи файлы в текущей директории" → План
         logger.info("[AGENT_RUN] Goal: %s", goal[:150] if goal else "(empty)")
         logger.info("[AGENT_RUN] Max steps: %s", max_steps or DEFAULT_MAX_STEPS)
 
+        # Auto-select strategy based on complexity
+        complexity = self._assess_complexity(goal)
+        logger.info("[AGENT_RUN] ===== Complexity detected: %s =====", complexity)
+        logger.info("[AGENT_RUN] Goal: %s", goal[:100])
+        if complexity == "swarm":
+            logger.info("[AGENT_RUN] 🚀 Launching SWARM (8 experts)")
+            return await self._run_extended_swarm(goal)
+        elif complexity == "complex":
+            logger.info("[AGENT_RUN] 🐝 Launching COMPLEX (3-5 experts)")
+            return await self.orchestrate_task(goal)  # This uses multi-expert
+
         if max_steps is None:
             max_steps = DEFAULT_MAX_STEPS
         # Проверка кэша
