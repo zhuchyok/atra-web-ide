@@ -15,6 +15,7 @@ Cursor-агент может читать отчёт и писать вывод�
 времени задавать timeout не меньше: для --quick ≥ 10 мин (600000 ms), для полного прогона
 (5 задач) ≥ 30 мин. Иначе процесс будет убит по внешнему лимиту до завершения. См. CURATOR_RUNBOOK §1.
 """
+
 import json
 import os
 import sys
@@ -31,11 +32,10 @@ except ImportError:
     print("pip install requests")
     sys.exit(1)
 
-VICTORIA_URL = os.getenv("VICTORIA_URL", "http://0.0.0.0:8010")
+VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
 REPORTS_DIR = ROOT / "docs" / "curator_reports"
-SYNC_TIMEOUT = int(os.getenv("CURATOR_SYNC_TIMEOUT", "1200"))
-# Таймаут первого POST /run при async: до 202 Victoria выполняет стратегию и understand_goal (LLM); холодный старт может 3–5 мин
-POST_RUN_TIMEOUT = int(os.getenv("CURATOR_POST_RUN_TIMEOUT", "600"))
+SYNC_TIMEOUT = int(os.getenv("CURATOR_SYNC_TIMEOUT", "1800"))
+POST_RUN_TIMEOUT = int(os.getenv("CURATOR_POST_RUN_TIMEOUT", "900"))
 POLL_INTERVAL = 5.0
 DEFAULT_TASKS = [
     "привет",
@@ -54,26 +54,52 @@ def check_health(url: str) -> bool:
         return False
 
 
-def run_sync(url: str, goal: str, project_context: str = "atra-web-ide", max_steps: int = 50) -> dict:
+def run_sync(
+    url: str, goal: str, project_context: str = "atra-web-ide", max_steps: int = 50
+) -> dict:
     """Синхронный POST /run (без async_mode). Возвращает полный ответ с correlation_id и knowledge."""
     payload = {"goal": goal, "max_steps": max_steps, "project_context": project_context}
     try:
-        r = requests.post(f"{url}/run", json=payload, params={"async_mode": "false"}, timeout=SYNC_TIMEOUT)
+        r = requests.post(
+            f"{url}/run", json=payload, params={"async_mode": "false"}, timeout=SYNC_TIMEOUT
+        )
         r.raise_for_status()
         return r.json()
     except requests.exceptions.Timeout:
-        return {"status": "error", "error": "timeout", "output": None, "knowledge": None, "correlation_id": None}
+        return {
+            "status": "error",
+            "error": "timeout",
+            "output": None,
+            "knowledge": None,
+            "correlation_id": None,
+        }
     except requests.exceptions.RequestException as e:
-        return {"status": "error", "error": str(e), "output": None, "knowledge": None, "correlation_id": None}
+        return {
+            "status": "error",
+            "error": str(e),
+            "output": None,
+            "knowledge": None,
+            "correlation_id": None,
+        }
     except Exception as e:
-        return {"status": "error", "error": str(e), "output": None, "knowledge": None, "correlation_id": None}
+        return {
+            "status": "error",
+            "error": str(e),
+            "output": None,
+            "knowledge": None,
+            "correlation_id": None,
+        }
 
 
-def run_async_poll(url: str, goal: str, project_context: str, max_steps: int, max_wait: float) -> dict:
+def run_async_poll(
+    url: str, goal: str, project_context: str, max_steps: int, max_wait: float
+) -> dict:
     """POST async_mode=true, затем опрос GET /run/status/{task_id}. Возвращает тот же формат что и sync."""
     payload = {"goal": goal, "max_steps": max_steps, "project_context": project_context}
     try:
-        r = requests.post(f"{url}/run", json=payload, params={"async_mode": "true"}, timeout=POST_RUN_TIMEOUT)
+        r = requests.post(
+            f"{url}/run", json=payload, params={"async_mode": "true"}, timeout=POST_RUN_TIMEOUT
+        )
         if r.status_code == 200:
             # Fast Track или мгновенный ответ
             data = r.json()
@@ -81,7 +107,7 @@ def run_async_poll(url: str, goal: str, project_context: str, max_steps: int, ma
                 "status": "success",
                 "output": data.get("output") or "",
                 "knowledge": data.get("knowledge") or {},
-                "correlation_id": data.get("correlation_id")
+                "correlation_id": data.get("correlation_id"),
             }
         if r.status_code != 202:
             r.raise_for_status()
@@ -89,7 +115,13 @@ def run_async_poll(url: str, goal: str, project_context: str, max_steps: int, ma
         task_id = data.get("task_id")
         correlation_id = data.get("correlation_id")
         if not task_id:
-            return {"status": "error", "error": "202 without task_id", "output": None, "knowledge": None, "correlation_id": correlation_id}
+            return {
+                "status": "error",
+                "error": "202 without task_id",
+                "output": None,
+                "knowledge": None,
+                "correlation_id": correlation_id,
+            }
         deadline = time.monotonic() + max_wait
         poll_get_retries = 3  # повторы GET при connection reset, чтобы не терять задачу
         last_log = 0.0
@@ -126,26 +158,72 @@ def run_async_poll(url: str, goal: str, project_context: str, max_steps: int, ma
                 know = rec.get("knowledge") or {}
                 if correlation_id is None:
                     correlation_id = rec.get("correlation_id")
-                return {"status": "success", "output": out, "knowledge": know, "correlation_id": correlation_id}
+                return {
+                    "status": "success",
+                    "output": out,
+                    "knowledge": know,
+                    "correlation_id": correlation_id,
+                }
             if st == "failed":
-                return {"status": "error", "error": rec.get("error", "failed"), "output": None, "knowledge": rec.get("knowledge"), "correlation_id": correlation_id}
+                return {
+                    "status": "error",
+                    "error": rec.get("error", "failed"),
+                    "output": None,
+                    "knowledge": rec.get("knowledge"),
+                    "correlation_id": correlation_id,
+                }
             time.sleep(POLL_INTERVAL)
-        return {"status": "error", "error": "poll timeout", "output": None, "knowledge": None, "correlation_id": correlation_id}
+        return {
+            "status": "error",
+            "error": "poll timeout",
+            "output": None,
+            "knowledge": None,
+            "correlation_id": correlation_id,
+        }
     except requests.exceptions.RequestException as e:
-        return {"status": "error", "error": str(e), "output": None, "knowledge": None, "correlation_id": None}
+        return {
+            "status": "error",
+            "error": str(e),
+            "output": None,
+            "knowledge": None,
+            "correlation_id": None,
+        }
     except Exception as e:
-        return {"status": "error", "error": str(e), "output": None, "knowledge": None, "correlation_id": None}
+        return {
+            "status": "error",
+            "error": str(e),
+            "output": None,
+            "knowledge": None,
+            "correlation_id": None,
+        }
 
 
 def main():
     import argparse
+
     p = argparse.ArgumentParser(description="Куратор: отправить задачи Victoria и сохранить отчёт")
     p.add_argument("--tasks", nargs="*", help="Цели (по одной); если не задано — встроенный список")
     p.add_argument("--file", type=str, help="Файл с целями (одна на строку)")
-    p.add_argument("--async", dest="async_mode", action="store_true", help="Использовать async 202 + poll")
-    p.add_argument("--max-wait", type=float, default=360.0, help="Макс. сек ожидания при async (по умолчанию 360)")
-    p.add_argument("--quick", action="store_true", help="Быстрый прогон: только 2 задачи, max-wait 180 с (для проверки)")
-    p.add_argument("--project", type=str, default=os.getenv("PROJECT_CONTEXT", "atra-web-ide"), help="project_context")
+    p.add_argument(
+        "--async", dest="async_mode", action="store_true", help="Использовать async 202 + poll"
+    )
+    p.add_argument(
+        "--max-wait",
+        type=float,
+        default=360.0,
+        help="Макс. сек ожидания при async (по умолчанию 360)",
+    )
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="Быстрый прогон: только 2 задачи, max-wait 180 с (для проверки)",
+    )
+    p.add_argument(
+        "--project",
+        type=str,
+        default=os.getenv("PROJECT_CONTEXT", "atra-web-ide"),
+        help="project_context",
+    )
     args = p.parse_args()
 
     if args.quick:
@@ -158,7 +236,9 @@ def main():
         if not path.exists():
             print(f"❌ Файл не найден: {path}")
             sys.exit(1)
-        tasks = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        tasks = [
+            line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+        ]
         if not tasks:
             print("❌ В файле нет непустых строк с задачами.")
             sys.exit(1)
@@ -171,13 +251,17 @@ def main():
         tasks = tasks[:2]
         print("--quick: только первые 2 задачи, max-wait 180 с")
 
-    print(f"Задач: {len(tasks)}, макс. ожидание на задачу: {args.max_wait:.0f} с (одна задача ~1–5 мин на Mac Studio)")
+    print(
+        f"Задач: {len(tasks)}, макс. ожидание на задачу: {args.max_wait:.0f} с (одна задача ~1–5 мин на Mac Studio)"
+    )
     if args.async_mode:
         print("Режим: async (202 + опрос /run/status каждые 2.5 с, прогресс раз в 15 с)")
 
     if not check_health(VICTORIA_URL):
         print(f"❌ Victoria недоступна: {VICTORIA_URL}")
-        print("   Запустите: docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent")
+        print(
+            "   Запустите: docker compose -f knowledge_os/docker-compose.yml up -d victoria-agent"
+        )
         sys.exit(1)
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -188,12 +272,14 @@ def main():
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     results = []
-    rec_ts = ts # Используем общую метку времени для артефактов
+    rec_ts = ts  # Используем общую метку времени для артефактов
     for i, goal in enumerate(tasks, 1):
         print(f"[{i}/{len(tasks)}] {goal[:60]}...")
         start = time.perf_counter()
         if args.async_mode:
-            out = run_async_poll(VICTORIA_URL, goal, args.project, max_steps=50, max_wait=args.max_wait)
+            out = run_async_poll(
+                VICTORIA_URL, goal, args.project, max_steps=50, max_wait=args.max_wait
+            )
         else:
             out = run_sync(VICTORIA_URL, goal, args.project, max_steps=50)
         # До двух повторов при обрыве соединения или read timeout (холодный старт Victoria)
@@ -201,17 +287,24 @@ def main():
             if out.get("status") != "error" or not out.get("error"):
                 break
             err_str = str(out.get("error")).lower()
-            if "connection" not in err_str and "reset" not in err_str and "aborted" not in err_str and "timed out" not in err_str:
+            if (
+                "connection" not in err_str
+                and "reset" not in err_str
+                and "aborted" not in err_str
+                and "timed out" not in err_str
+            ):
                 break
             print("    повтор через 3 с (обрыв соединения или таймаут)...")
             time.sleep(3)
             if args.async_mode:
-                out = run_async_poll(VICTORIA_URL, goal, args.project, max_steps=50, max_wait=args.max_wait)
+                out = run_async_poll(
+                    VICTORIA_URL, goal, args.project, max_steps=50, max_wait=args.max_wait
+                )
             else:
                 out = run_sync(VICTORIA_URL, goal, args.project, max_steps=50)
         elapsed = time.perf_counter() - start
         trace = (out.get("knowledge") or {}).get("execution_trace") or (out.get("knowledge") or {})
-        
+
         # [SINGULARITY 22.8] Artifact-Driven Reporting
         artifact_path = None
         if out.get("output") or out.get("knowledge"):
@@ -221,9 +314,11 @@ def main():
                 "goal": goal,
                 "output": out.get("output"),
                 "knowledge": out.get("knowledge"),
-                "correlation_id": out.get("correlation_id")
+                "correlation_id": out.get("correlation_id"),
             }
-            artifact_path.write_text(json.dumps(artifact_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            artifact_path.write_text(
+                json.dumps(artifact_data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
 
         rec = {
             "goal": goal,
@@ -234,10 +329,12 @@ def main():
             "correlation_id": out.get("correlation_id"),
             "execution_trace": trace,
             "elapsed_seconds": round(elapsed, 2),
-            "artifact_file": str(artifact_path.name) if artifact_path else None
+            "artifact_file": str(artifact_path.name) if artifact_path else None,
         }
         results.append(rec)
-        print(f"    -> {rec['status']} ({elapsed:.1f}s) correlation_id={ (rec.get('correlation_id') or '')[:8]}")
+        print(
+            f"    -> {rec['status']} ({elapsed:.1f}s) correlation_id={(rec.get('correlation_id') or '')[:8]}"
+        )
 
     report = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -265,7 +362,9 @@ def main():
         if r.get("correlation_id"):
             md_lines.append(f"- **correlation_id:** {r['correlation_id']}")
         if r.get("execution_trace"):
-            md_lines.append(f"- **Трассировка:** `{json.dumps(r['execution_trace'], ensure_ascii=False)[:200]}...`")
+            md_lines.append(
+                f"- **Трассировка:** `{json.dumps(r['execution_trace'], ensure_ascii=False)[:200]}...`"
+            )
         if r.get("output_preview"):
             md_lines.append(f"- **Превью ответа:** {r['output_preview'][:300]}...")
         md_lines.append("")
@@ -273,7 +372,9 @@ def main():
 
     print(f"\n✅ Отчёт сохранён: {report_json}")
     print(f"   Превью: {report_md}")
-    print("   Куратор (Cursor) может проанализировать отчёт и записать выводы в docs/curator_reports/FINDINGS_*.md")
+    print(
+        "   Куратор (Cursor) может проанализировать отчёт и записать выводы в docs/curator_reports/FINDINGS_*.md"
+    )
 
 
 if __name__ == "__main__":

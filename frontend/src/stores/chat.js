@@ -95,6 +95,23 @@ export async function loadExperts() {
   }
 }
 
+// Ключевые слова для диалогов экспертов
+const EXPERT_DIALOGUE_KEYWORDS = ['дебаты', 'дискуссия', 'спор', 'мнения', 'эксперты', 'обсудить', 'debate', 'discuss', 'experts']
+
+function detectDialogueMode(content) {
+  const lower = content.toLowerCase()
+  if (lower.includes('дебаты') || lower.includes('debate') || lower.includes('спор')) return 'debate'
+  if (lower.includes('дебаты') || lower.includes('debate') || lower.includes('спор')) return 'debate'
+  if (lower.includes('обсудить') || lower.includes('discuss') || lower.includes('спроектируй')) return 'collaboration'
+  if (lower.includes('совет') || lower.includes('эксперты') || lower.includes('мнения')) return 'sequential'
+  return 'debate' // По умолчанию debate
+}
+
+function isExpertDialogueRequest(content) {
+  const lower = content.toLowerCase()
+  return EXPERT_DIALOGUE_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 // Отправить сообщение через SSE
 export async function sendMessage(content, mode = null) {
   const expertValue = get(selectedExpert)
@@ -109,24 +126,52 @@ export async function sendMessage(content, mode = null) {
   try {
     const { fetchSSE } = await import('../utils/sse.js')
     
-    // Используем порт 8080 для FastAPI Backend /api/chat/stream
-    await fetchSSE(`http://${window.location.hostname}:8080/api/chat/stream`, {
-      content: content,
-      expert_name: expertValue?.name,
-      mode: modeValue
-    }, (data) => {
-      if (data.type === 'chunk') {
-        updateLastMessage(data.content)
-      } else if (data.type === 'step') {
-        appendStep({
-          title: data.title,
-          content: data.content,
-          stepType: data.step_type || 'thought'
-        })
-      } else if (data.type === 'error') {
-        throw new Error(data.content)
-      }
-    })
+    // Проверяем запрос на диалог экспертов
+    if (isExpertDialogueRequest(content)) {
+      const dialogueMode = detectDialogueMode(content)
+      await fetchSSE(`http://${window.location.hostname}:8080/api/expert-dialogue/stream`, {
+        topic: content,
+        mode: dialogueMode,
+        beautiful_mode: true
+      }, (data) => {
+        if (data.type === 'log' || data.type === 'start') {
+          appendStep({
+            title: '🎭 Диалог экспертов',
+            content: data.content,
+            stepType: 'thought'
+          })
+        } else if (data.type === 'opinion') {
+          appendStep({
+            title: data.expert,
+            content: data.content,
+            stepType: 'action'
+          })
+        } else if (data.type === 'complete') {
+          updateLastMessage(`✅ Решение: ${data.final_decision}\n\n📊 Consensus: ${(data.consensus_score * 100).toFixed(0)}%`)
+        } else if (data.type === 'error') {
+          throw new Error(data.content)
+        }
+      })
+    } else {
+      // Обычный чат с Victoria
+      await fetchSSE(`http://${window.location.hostname}:8080/api/chat/stream`, {
+        content: content,
+        expert_name: expertValue?.name,
+        mode: modeValue
+      }, (data) => {
+        if (data.type === 'chunk') {
+          updateLastMessage(data.content)
+        } else if (data.type === 'step') {
+          appendStep({
+            title: data.title,
+            content: data.content,
+            stepType: data.step_type || 'thought'
+          })
+        } else if (data.type === 'error') {
+          throw new Error(data.content)
+        }
+      })
+    }
 
   } catch (e) {
     let errorMessage = e.message || 'Ошибка при отправке сообщения.'

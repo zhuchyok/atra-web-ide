@@ -13,14 +13,23 @@
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-# Подхват DATABASE_URL и др. из .env при запуске по cron/launchd
-# Сохраняем VICTORIA_URL до source .env (wrapper/caller мог задать localhost:8010)
+# Подхват переменных из .env при запуске по cron/launchd
+# Сохраняем VICTORIA_URL и DATABASE_URL до source .env (wrapper/caller мог задать localhost)
 _pre_victoria_url="$VICTORIA_URL"
+_pre_database_url="$DATABASE_URL"
+_pre_redis_url="$REDIS_URL"
 if [ -f "$ROOT/.env" ]; then set -a; source "$ROOT/.env"; set +a; fi
-# Восстанавливаем VICTORIA_URL если он был задан явно из вызывающей среды (wrapper/launchd)
-# — это важно: .env содержит victoria-agent:8000 (Docker-сеть), но куратор запускается на хосте
+# Восстанавливаем переменные если они были заданы явно из вызывающей среды (wrapper/launchd)
+# — это важно: .env содержит victoria-agent:8000 и knowledge_pgbouncer:6432 (Docker-сеть),
+#   но куратор запускается на хосте и использует localhost:8010, localhost:5432, localhost:6381
 if [ -n "$_pre_victoria_url" ]; then
   VICTORIA_URL="$_pre_victoria_url"
+fi
+if [ -n "$_pre_database_url" ]; then
+  DATABASE_URL="$_pre_database_url"
+fi
+if [ -n "$_pre_redis_url" ]; then
+  REDIS_URL="$_pre_redis_url"
 fi
 REPORTS_DIR="${ROOT}/docs/curator_reports"
 STANDARDS="status_project greeting what_can_you_do list_files one_line_code code_audit"

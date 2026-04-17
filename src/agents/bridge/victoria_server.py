@@ -35,11 +35,13 @@ QueryType = None
 get_skill_mapper = None
 get_expert_dna_manager = None
 
+
 def _ensure_knowledge_os_path() -> bool:
     ko_path = os.path.join(os.getcwd(), "knowledge_os/app")
     if ko_path not in sys.path:
         sys.path.insert(0, ko_path)
     return os.path.exists(ko_path)
+
 
 def _lazy_emotion_detector():
     global EmotionDetector, EMOTION_DETECTOR_AVAILABLE
@@ -56,6 +58,7 @@ def _lazy_emotion_detector():
             pass
     return EmotionDetector
 
+
 def _lazy_query_orchestrator():
     global QueryOrchestrator, QueryType
     if QueryOrchestrator is None:
@@ -71,6 +74,7 @@ def _lazy_query_orchestrator():
             pass
     return QueryOrchestrator
 
+
 def _lazy_skill_mapper():
     global get_skill_mapper
     if get_skill_mapper is None:
@@ -85,6 +89,7 @@ def _lazy_skill_mapper():
             pass
     return get_skill_mapper
 
+
 def _lazy_expert_dna_manager():
     global get_expert_dna_manager
     if get_expert_dna_manager is None:
@@ -98,6 +103,7 @@ def _lazy_expert_dna_manager():
         except ImportError:
             pass
     return get_expert_dna_manager
+
 
 # Простые сообщения для которых не нужен агент Victoria (быстрый путь через MLX/Ollama)
 SIMPLE_PATTERNS = [
@@ -358,7 +364,7 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
                 except:
                     meta = {}
             meta["is_user_requested"] = True
-            
+
             if embedding:
                 await conn.execute(
                     """
@@ -413,7 +419,7 @@ async def _cleanup_stale_tasks():
             now = datetime.now(timezone.utc)
             stale_ids = []
             for task_id, store in list(_run_task_store.items()):
-                if store.get("status") != "processing":
+                if store.get("status") not in ("processing", "running"):
                     continue
                 updated_raw = store.get("updated_at") or store.get("created_at")
                 if not updated_raw:
@@ -447,6 +453,28 @@ async def _cleanup_stale_tasks():
                     task_id[:8],
                     STALE_THRESHOLD_SEC // 60,
                 )
+            if KNOWLEDGE_OS_AVAILABLE and agent:
+                try:
+                    pool = await agent._get_db_pool()
+                    if pool:
+                        async with pool.acquire() as conn:
+                            updated = await conn.execute(
+                                """
+                                UPDATE tasks 
+                                SET status = 'failed', 
+                                    result = result || E'\\n[Auto-cleanup: task timed out after {threshold}m]',
+                                    updated_at = NOW()
+                                WHERE status IN ('pending', 'in_progress', 'processing', 'running')
+                                AND updated_at < NOW() - INTERVAL '%s seconds'
+                                """.format(threshold=STALE_THRESHOLD_SEC // 60),
+                                (STALE_THRESHOLD_SEC,),
+                            )
+                            if updated and updated != "UPDATE 0":
+                                logger.warning(
+                                    "[CLEANUP] Marked %s stale DB tasks as failed", updated
+                                )
+                except Exception as db_e:
+                    logger.debug("[CLEANUP] DB cleanup error: %s", db_e)
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -834,7 +862,12 @@ async def _memory_watchdog():
         except Exception:
             pass
 
-    logger.info("[MEM WATCHDOG] Запущен (warn=%.0fGB restart=%.0fGB interval=%ds)", _WARN_GB, _RESTART_GB, _INTERVAL_SEC)
+    logger.info(
+        "[MEM WATCHDOG] Запущен (warn=%.0fGB restart=%.0fGB interval=%ds)",
+        _WARN_GB,
+        _RESTART_GB,
+        _INTERVAL_SEC,
+    )
 
     while True:
         await asyncio.sleep(_INTERVAL_SEC)
@@ -842,16 +875,26 @@ async def _memory_watchdog():
             gc.collect()
             _trim()
             rss = _rss_gb()
-            logger.info("[MEM WATCHDOG] После gc+trim: RSS=%.1f GB (warn=%.0f restart=%.0f)", rss, _WARN_GB, _RESTART_GB)
+            logger.info(
+                "[MEM WATCHDOG] После gc+trim: RSS=%.1f GB (warn=%.0f restart=%.0f)",
+                rss,
+                _WARN_GB,
+                _RESTART_GB,
+            )
             if rss >= _RESTART_GB:
                 logger.error(
                     "[MEM WATCHDOG] RSS=%.1f GB >= %.0f GB — инициируем мягкий перезапуск для защиты системы",
-                    rss, _RESTART_GB
+                    rss,
+                    _RESTART_GB,
                 )
                 # restart: always поднимет контейнер снова
                 sys.exit(0)
             elif rss >= _WARN_GB:
-                logger.warning("[MEM WATCHDOG] RSS=%.1f GB >= %.0f GB — высокое потребление памяти", rss, _WARN_GB)
+                logger.warning(
+                    "[MEM WATCHDOG] RSS=%.1f GB >= %.0f GB — высокое потребление памяти",
+                    rss,
+                    _WARN_GB,
+                )
         except Exception as e:
             logger.warning("[MEM WATCHDOG] Ошибка: %s", e)
 
@@ -908,6 +951,7 @@ async def lifespan(app: FastAPI):
                     try:
                         ko_app_for_dc = ko_root
                         import sys as _sys
+
                         if ko_app_for_dc not in _sys.path:
                             _sys.path.insert(0, ko_app_for_dc)
                         try:
@@ -919,7 +963,9 @@ async def lifespan(app: FastAPI):
                         _dc = start_dialogue_controller(_get_eb())
                         logger.info("🎭 [DIALOGUE] DialogueController запущен при старте сервера")
                     except Exception as dc_err:
-                        logger.warning(f"⚠️ [DIALOGUE] Не удалось запустить DialogueController: {dc_err}")
+                        logger.warning(
+                            f"⚠️ [DIALOGUE] Не удалось запустить DialogueController: {dc_err}"
+                        )
                     break
                 except ImportError as imp_e:
                     logger.debug(f"Не удалось импортировать VictoriaEnhanced из {ko_root}: {imp_e}")
@@ -1031,11 +1077,15 @@ async def ip_rate_limit_middleware(request: Request, call_next):
         if len(_ip_request_counts[real_ip]) >= _IP_RATE_MAX_POST:
             logger.warning(
                 "🚦 [RATE_LIMIT] IP %s exceeded %d POST/min limit on %s",
-                real_ip, _IP_RATE_MAX_POST, request.url.path,
+                real_ip,
+                _IP_RATE_MAX_POST,
+                request.url.path,
             )
             return JSONResponse(
                 status_code=429,
-                content={"detail": f"Rate limit: max {_IP_RATE_MAX_POST} POST requests per {_IP_RATE_WINDOW_SEC}s"},
+                content={
+                    "detail": f"Rate limit: max {_IP_RATE_MAX_POST} POST requests per {_IP_RATE_WINDOW_SEC}s"
+                },
                 headers={"Retry-After": str(_IP_RATE_WINDOW_SEC)},
             )
         _ip_request_counts[real_ip].append(now)
@@ -1168,6 +1218,7 @@ class VictoriaAgent(BaseAgent):
                         min_size=1,
                         max_size=5,
                         command_timeout=_pool_cmd_timeout,
+                        ssl=False,
                     )
                 else:
                     logger.error("❌ asyncpg не загружен, невозможно создать pool")
@@ -1395,8 +1446,28 @@ class VictoriaAgent(BaseAgent):
                 "prometheus",
                 "docker",
             ],
-            "security": ["безопасность", "security", "уязвимость", "аудит безопасности", "xss", "sql injection", "csrf"],
-            "analytics": ["аудит", "audit", "анализ системы", "статистика", "метрики", "отчёт", "отчет", "throughput", "производительность системы", "успешных задач", "активных экспертов"],
+            "security": [
+                "безопасность",
+                "security",
+                "уязвимость",
+                "аудит безопасности",
+                "xss",
+                "sql injection",
+                "csrf",
+            ],
+            "analytics": [
+                "аудит",
+                "audit",
+                "анализ системы",
+                "статистика",
+                "метрики",
+                "отчёт",
+                "отчет",
+                "throughput",
+                "производительность системы",
+                "успешных задач",
+                "активных экспертов",
+            ],
             "database": ["база данных", "миграция", "схема", "индекс", "postgresql", "sqlite"],
             "performance": ["производительность", "оптимизация", "скорость", "latency"],
         }
@@ -3743,6 +3814,7 @@ async def _record_orchestration_task_start(
     title = (goal or "Task")[:255]
     description = (goal or "")[:10000]
     import json as _json
+
     tracking_meta = _json.dumps({"source": "orchestration_tracking"})
     try:
         async with pool.acquire() as conn:
@@ -3878,7 +3950,11 @@ async def _get_long_term_memory_context(
 
                 if embedding:
                     ctx = await mgr.get_relevant_threads(
-                        embedding, project_context or "unknown", user_key=user_key, limit=limit, max_chars=600
+                        embedding,
+                        project_context or "unknown",
+                        user_key=user_key,
+                        limit=limit,
+                        max_chars=600,
                     )
                 else:
                     ctx = await mgr.get_recent_threads(
@@ -4238,7 +4314,9 @@ async def _run_task_background(
                             get_recent_completed_tasks_context as _get_recent,
                         )
 
-                    last_tasks_context = await _get_recent(project_context or "unknown", limit=5) or ""
+                    last_tasks_context = (
+                        await _get_recent(project_context or "unknown", limit=5) or ""
+                    )
                     if last_tasks_context:
                         logger.info(
                             "[UNDERSTAND_GOAL] Контекст последних задач подставлен для «как тогда» (фон)"
@@ -4302,6 +4380,7 @@ async def _run_task_background(
     goal_for_exec = (restated_goal or goal).strip() or goal
     knowledge_os_task_id = None
     orchestration_plan_bg = None
+    orchestration_context_bg = None
     logger.info(
         f"[ORCHESTRATOR_DEBUG] V2_ENABLED={ORCHESTRATION_V2_ENABLED}, KO_AVAILABLE={KNOWLEDGE_OS_AVAILABLE}"
     )
@@ -4607,7 +4686,9 @@ async def _run_task_background(
                 _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             else:
                 _enhanced_meta = enhanced_result.get("metadata")
-                _enhanced_meta_typed: dict = dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
+                _enhanced_meta_typed: dict = (
+                    dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
+                )
                 knowledge = {
                     "method": enhanced_result.get("method"),
                     "metadata": _enhanced_meta_typed,
@@ -4821,38 +4902,66 @@ async def _generate_via_mlx_or_ollama(
     full_prompt: str,
     ideal_model: str,
     system: str = "Ты - полезный ИИ-ассистент корпорации ATRA. Отвечай кратко на русском.",
+    max_retries: int = 1,
 ) -> tuple:
-    """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None)."""
-    # 1) MLX
-    try:
-        mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(agent.executor, "mlx_url", None)
-        if mlx_url:
-            # [SINGULARITY 24.3] Увеличен таймаут до 300с для VIP-запросов пользователя
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                r = await client.post(
-                    f"{mlx_url}/api/chat",
-                    json={
-                        "model": ideal_model,
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": full_prompt},
-                        ],
-                        "stream": False,
-                    },
-                )
-                if r.status_code == 200:
-                    data = r.json()
-                    return (data.get("message", {}).get("content", "").strip(), "mlx")
-    except Exception as e:
-        logger.debug(f"MLX generate failed: {e}")
+    """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None).
 
-    # 2) Ollama
-    try:
-        res = await agent.executor.ask(full_prompt, system=system, model=ideal_model)
-        if res:
-            return (res.strip(), "ollama")
-    except Exception as e:
-        logger.debug(f"Ollama generate failed: {e}")
+    [FIX] Retry with backoff on 503 (server busy). Circuit breaker: executor fallback в _ask_with_fallback.
+    """
+    import asyncio
+
+    # 1) MLX с retry
+    for attempt in range(max_retries):
+        try:
+            mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(
+                agent.executor, "mlx_url", None
+            )
+            if mlx_url:
+                async with httpx.AsyncClient(timeout=300.0) as client:
+                    r = await client.post(
+                        f"{mlx_url}/api/chat",
+                        json={
+                            "model": ideal_model,
+                            "messages": [
+                                {"role": "system", "content": system},
+                                {"role": "user", "content": full_prompt},
+                            ],
+                            "stream": False,
+                        },
+                    )
+                    if r.status_code == 200:
+                        data = r.json()
+                        return (data.get("message", {}).get("content", "").strip(), "mlx")
+                    elif r.status_code == 503 and attempt < max_retries - 1:
+                        wait = 2**attempt
+                        logger.info(
+                            f"[MLX] 503 server busy, retry {attempt + 1}/{max_retries} in {wait}s"
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+        except Exception as e:
+            logger.debug(f"MLX generate failed: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)
+                continue
+
+    # 2) Ollama с retry
+    for attempt in range(max_retries):
+        try:
+            res = await agent.executor.ask(full_prompt, system=system, model=ideal_model)
+            if res:
+                return (res.strip(), "ollama")
+        except Exception as e:
+            err_str = str(e)
+            if "503" in err_str or "server busy" in err_str.lower():
+                if attempt < max_retries - 1:
+                    wait = 2**attempt
+                    logger.info(
+                        f"[OLLAMA] 503 server busy, retry {attempt + 1}/{max_retries} in {wait}s"
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+            logger.debug(f"Ollama generate failed: {e}")
 
     return (None, None)
 
@@ -4970,7 +5079,10 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
                 temp_enhanced = VictoriaEnhanced()
                 ai_research_context = await asyncio.wait_for(
-                    getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(body.goal), timeout=3.0  # pyright: ignore[reportAttributeAccessIssue]
+                    getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(
+                        body.goal
+                    ),
+                    timeout=3.0,  # pyright: ignore[reportAttributeAccessIssue]
                 )
             except Exception as e:
                 logger.debug("AI Research context fetch failed for stream: %s", e)
@@ -5044,7 +5156,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
                     else:
                         body_str = body_bytes
                     data = json.loads(body_str)
-                    err_msg = f"Ошибка Victoria Enhanced: {data.get('message', 'Неизвестная ошибка')}"
+                    err_msg = (
+                        f"Ошибка Victoria Enhanced: {data.get('message', 'Неизвестная ошибка')}"
+                    )
                     yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg})}\n\n"
             except Exception as e:
                 logger.error("Stream expert path error: %s", e, exc_info=True)
@@ -5750,7 +5864,9 @@ async def run_task(
                             f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
                         )
                         _enhanced_meta = enhanced_result.get("metadata")
-                        _enhanced_meta_typed: dict = dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
+                        _enhanced_meta_typed: dict = (
+                            dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
+                        )
                         knowledge = {
                             "method": enhanced_result.get("method"),
                             "metadata": _enhanced_meta_typed,
@@ -6681,7 +6797,10 @@ async def omni_rag_search(request: OmniSearchRequest):
         logger.info(f"🔍 [OMNI-RAG] Search request: {request.query} (domain: {request.domain})")
 
         results = await enhanced_search_knowledge(
-            query=request.query, domain=request.domain, mode=SearchMode.HYBRID, limit=request.limit or 3
+            query=request.query,
+            domain=request.domain,
+            mode=SearchMode.HYBRID,
+            limit=request.limit or 3,
         )
         return results
     except Exception as e:

@@ -141,7 +141,7 @@ _models_cache = {}
 
 # Защита от перегрузки (настраивается через env — меньше 429, чаще успешные запросы)
 _active_requests = 0
-_max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "2"))
+_max_concurrent_requests = int(os.getenv("MLX_MAX_CONCURRENT", "6"))
 # Семафор: запросы ждут слот вместо немедленного 503 (дожидаются очереди)
 _concurrent_semaphore = asyncio.Semaphore(_max_concurrent_requests)
 # VIP Семафор для Виктории (Dual-Channel Priority)
@@ -177,9 +177,9 @@ except ImportError:
     if not REQUEST_QUEUE_AVAILABLE:
 
         class RequestPriority:
-            HIGH = type('Priority', (), {'name': 'HIGH'})()
-            MEDIUM = type('Priority', (), {'name': 'MEDIUM'})()
-            LOW = type('Priority', (), {'name': 'LOW'})()
+            HIGH = type("Priority", (), {"name": "HIGH"})()
+            MEDIUM = type("Priority", (), {"name": "MEDIUM"})()
+            LOW = type("Priority", (), {"name": "LOW"})()
 
 
 # Отслеживание активных запросов к моделям (защита от выгрузки используемых моделей)
@@ -760,20 +760,26 @@ def get_model(model_key: str):
                 f"🔄 Загрузка модели: {model_key} из {model_path} (память: {memory_info['used_percent'] * 100:.1f}%)"
             )
             load_start = time.time()
-            
+
             # [SINGULARITY 24.0] MLX Dynamic KV Cache Quantization
             # Настраиваем квантование KV Cache в зависимости от доступной RAM перед каждым инференсом
             # В mlx-lm 0.31.1+ параметры квантования передаются через model_config
             model_config = {}
             if memory_info["available_gb"] < 16:
                 model_config = {"kv_cache_quantization": "q4"}
-                logger.info(f"💾 [SINGULARITY 24.0] Low memory ({memory_info['available_gb']:.1f}GB), using Q4 KV Cache")
+                logger.info(
+                    f"💾 [SINGULARITY 24.0] Low memory ({memory_info['available_gb']:.1f}GB), using Q4 KV Cache"
+                )
             elif memory_info["available_gb"] < 32:
                 model_config = {"kv_cache_quantization": "q8"}
-                logger.info(f"💾 [SINGULARITY 24.0] Moderate memory ({memory_info['available_gb']:.1f}GB), using Q8 KV Cache")
+                logger.info(
+                    f"💾 [SINGULARITY 24.0] Moderate memory ({memory_info['available_gb']:.1f}GB), using Q8 KV Cache"
+                )
             else:
                 model_config = {"kv_cache_quantization": "fp16"}
-                logger.info(f"💾 [SINGULARITY 24.0] Sufficient memory ({memory_info['available_gb']:.1f}GB), using FP16 KV Cache")
+                logger.info(
+                    f"💾 [SINGULARITY 24.0] Sufficient memory ({memory_info['available_gb']:.1f}GB), using FP16 KV Cache"
+                )
 
             model, tokenizer = load(model_path, model_config=model_config)
             load_duration = time.time() - load_start
@@ -948,22 +954,24 @@ async def list_running_models():
         running_models = []
         for name, data in _models_cache.items():
             # Эмулируем формат Ollama ps
-            running_models.append({
-                "name": name,
-                "model": name,
-                "size": 0,
-                "digest": f"mlx-{name}",
-                "details": {
-                    "parent_model": "",
-                    "format": "mlx",
-                    "family": "mlx",
-                    "families": ["mlx"],
-                    "parameter_size": "unknown",
-                    "quantization_level": "unknown"
-                },
-                "expires_at": (data.get("last_used") or datetime.now(timezone.utc)).isoformat(),
-                "size_vram": 0  # MLX использует Unified Memory
-            })
+            running_models.append(
+                {
+                    "name": name,
+                    "model": name,
+                    "size": 0,
+                    "digest": f"mlx-{name}",
+                    "details": {
+                        "parent_model": "",
+                        "format": "mlx",
+                        "family": "mlx",
+                        "families": ["mlx"],
+                        "parameter_size": "unknown",
+                        "quantization_level": "unknown",
+                    },
+                    "expires_at": (data.get("last_used") or datetime.now(timezone.utc)).isoformat(),
+                    "size_vram": 0,  # MLX использует Unified Memory
+                }
+            )
         return {"models": running_models}
     except Exception as e:
         logger.error(f"❌ Ошибка получения списка активных моделей: {e}", exc_info=True)
@@ -1196,21 +1204,26 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                 loop = asyncio.get_event_loop()
                 try:
                     # [SINGULARITY 22.2] Speculative Decoding (35B + 1B)
-                    # Если используется тяжелая модель (например, Qwen-35B), 
+                    # Если используется тяжелая модель (например, Qwen-35B),
                     # мы можем использовать легкую модель (например, Phi-3.5-mini) для спекулятивного декодирования.
                     # Это ускоряет инференс в 1.5-2 раза.
-                    use_speculative = os.getenv("MLX_SPECULATIVE_DECODING", "true").lower() == "true"
+                    use_speculative = (
+                        os.getenv("MLX_SPECULATIVE_DECODING", "true").lower() == "true"
+                    )
                     draft_model_data = None
                     if use_speculative and model_key in ("reasoning", "coding", "qwen-35b"):
                         try:
                             draft_model_data = get_model("phi-3.5-mini")
-                            logger.info(f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi-3.5-mini")
+                            logger.info(
+                                f"🚀 [SINGULARITY 22.2] Speculative Decoding enabled for {model_key} using phi-3.5-mini"
+                            )
                         except Exception as e:
                             logger.debug(f"⚠️ [SINGULARITY 22.2] Failed to load draft model: {e}")
 
                     def generate_with_lock():
                         """Генерация с глобальной блокировкой Metal для защиты от конфликтов"""
                         import mlx.core as mx
+
                         with _metal_global_lock:
                             # [SINGULARITY 24.5] Aggressive Metal Cache Clear
                             mx.metal.clear_cache()
@@ -1222,7 +1235,7 @@ async def _generate_text_internal(request: GenerateRequest, start_time: float):
                                     prompt=request.prompt,
                                     max_tokens=request.max_tokens,
                                     draft_model=draft_model_data["model"],
-                                    draft_tokenizer=draft_model_data["tokenizer"]
+                                    draft_tokenizer=draft_model_data["tokenizer"],
                                 )
                             else:
                                 return generate(

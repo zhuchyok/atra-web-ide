@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+import aiofiles
+
 logger = logging.getLogger(__name__)
 
 
@@ -206,13 +208,15 @@ async def run_brainstorming(topic: str, context: Optional[str] = None):
 
     os.makedirs("docs/plans", exist_ok=True)
 
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"# Brainstorming: {topic}\n\n")
-        f.write(f"## 🏛 Final Design\n\n{result['design']}\n\n")
-        f.write(f"## 📋 Implementation Plan\n\n{result['plan']}\n\n")
-        f.write("## 🗣 Full Dialogue History\n\n")
+    async with aiofiles.open(filename, "w", encoding="utf-8") as f:
+        await f.write(f"# Brainstorming: {topic}\n\n")
+        await f.write(f"## 🏛 Final Design\n\n{result['design']}\n\n")
+        await f.write(f"## 📋 Implementation Plan\n\n{result['plan']}\n\n")
+        await f.write("## 🗣 Full Dialogue History\n\n")
         for m in result["dialogue"]:
-            f.write(f"### {m['sender']} ({m['role']}) - Phase: {m['phase']}\n{m['content']}\n\n")
+            await f.write(
+                f"### {m['sender']} ({m['role']}) - Phase: {m['phase']}\n{m['content']}\n\n"
+            )
 
     logger.info(f"✅ [BRAINSTORMING COMPLETE] Result saved to {filename}")
     return result

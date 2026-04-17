@@ -51,7 +51,9 @@ class SwarmOrchestrator:
     def __init__(self, db_url: str = DB_URL):
         self.db_url = db_url
 
-    async def assemble_swarm(self, task_description: str, expert_names: List[str]) -> str:
+    async def assemble_swarm(
+        self, task_description: str, expert_names: List[str], domain: str = "Risk"
+    ) -> str:
         """Run parallel expert consultations and synthesize a final decision."""
         logger.info("🐝 Assembling Swarm: %s", expert_names)
 
@@ -83,7 +85,7 @@ class SwarmOrchestrator:
         )
         return final_decision
 
-    async def handle_critical_failures(self):
+    async def handle_critical_failures(self, domain: str = "Risk"):
         """Find repeated failures and resolve them via Swarm."""
         if not ASYNCPG_AVAILABLE:
             logger.error("❌ asyncpg is not installed. Swarm orchestration aborted.")
@@ -114,7 +116,7 @@ class SwarmOrchestrator:
                 war_room_experts = ["Дмитрий", "Мария", "Максим"]
 
                 decision = await self.assemble_swarm(
-                    f"Повторяющийся сбой на запрос: {query}", war_room_experts
+                    f"Повторяющийся сбой на запрос: {query}", war_room_experts, domain
                 )
 
                 # Log the swarm decision
@@ -126,10 +128,11 @@ class SwarmOrchestrator:
                 await conn.execute(
                     """
                     INSERT INTO knowledge_nodes (domain_id, content, is_verified, confidence_score, metadata)
-                    VALUES ((SELECT id FROM domains WHERE name = 'Risk' LIMIT 1), $1, true, 0.99, $2)
+                    VALUES ((SELECT id FROM domains WHERE name = $3 LIMIT 1), $1, true, 0.99, $2)
                 """,
                     node_content,
                     node_meta,
+                    domain,
                 )
 
                 logger.info("✅ Swarm resolved failure for: %s", query)
@@ -143,4 +146,4 @@ class SwarmOrchestrator:
 
 if __name__ == "__main__":
     swarm_instance = SwarmOrchestrator()
-    asyncio.run(swarm_instance.handle_critical_failures())
+    asyncio.run(swarm_instance.handle_critical_failures("Risk"))

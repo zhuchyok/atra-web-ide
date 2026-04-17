@@ -40,13 +40,13 @@ class MultiAgentDebate:
         # Default participants with different strengths
         self.participants = [
             DebateParticipant(
-                "Architect", "qwen2.5-coder:32b", "Focus on structure, scalability, and patterns."
+                "Architect", "qwen3.5:35b", "Focus on structure, scalability, and patterns."
             ),
             DebateParticipant(
                 "Security", "phi3.5:3.8b", "Focus on safety, vulnerabilities, and edge cases."
             ),
             DebateParticipant(
-                "Pragmatist", "phi3:mini-4k", "Focus on simplicity, speed, and immediate results."
+                "Pragmatist", "fast", "Focus on simplicity, speed, and immediate results."
             ),
         ]
 
@@ -100,10 +100,13 @@ class MultiAgentDebate:
         # Final synthesis by Victoria (Team Lead)
         final_decision = await self._synthesize_decision(topic, history)
 
+        # Calculate consensus score based on agreement
+        consensus_score = self._calculate_consensus(history)
+
         return DebateResult(
             topic=topic,
             final_decision=final_decision,
-            consensus_score=0.85,  # Heuristic for now
+            consensus_score=consensus_score,
             history=history,
         )
 
@@ -140,10 +143,49 @@ Analyze the opinions of other experts. Point out flaws in their logic or support
 Refine your own position to reach the best possible solution.
 """
 
+    def _calculate_consensus(self, history: List[Dict[str, str]]) -> float:
+        """Calculate consensus score based on debate history.
+
+        Higher score = more agreement between experts.
+        Based on keyword overlap and shared recommendations.
+        """
+        if not history:
+            return 0.0
+
+        # Get opinions from final round
+        final_round = max(h["round"] for h in history)
+        final_opinions = [h["opinion"].lower() for h in history if h["round"] == final_round]
+
+        if len(final_opinions) < 2:
+            return 0.5
+
+        # Calculate word overlap between opinions
+        all_words = set()
+        for op in final_opinions:
+            words = set(op.split())
+            all_words.update(words)
+
+        # Jaccard similarity between pairs
+        similarities = []
+        for i, op1 in enumerate(final_opinions):
+            words1 = set(op1.split())
+            for op2 in final_opinions[i + 1 :]:
+                words2 = set(op2.split())
+                if words1 or words2:
+                    intersection = len(words1 & words2)
+                    union = len(words1 | words2)
+                    similarity = intersection / union if union > 0 else 0
+                    similarities.append(similarity)
+
+        if similarities:
+            avg_similarity = sum(similarities) / len(similarities)
+            # Scale to 0.5-1.0 range (even low similarity has some consensus)
+            return 0.5 + (avg_similarity * 0.5)
+        return 0.5
+
     async def _get_expert_opinion(self, participant: DebateParticipant, prompt: str) -> str:
         try:
-            # Use local router if available, else direct Ollama
-            from local_router import LocalAIRouter
+            from knowledge_os.app.local_router import LocalAIRouter
 
             router = LocalAIRouter()
             result = await router.run_local_llm(
@@ -152,6 +194,11 @@ Refine your own position to reach the best possible solution.
             if isinstance(result, tuple):
                 return result[0]
             return result
+        except ImportError:
+            logger.warning(f"LocalAIRouter not available, using run_smart_agent_async")
+            from ai_core import run_smart_agent_async
+
+            return await run_smart_agent_async(prompt, expert_name=participant.name)
         except Exception as e:
             logger.error(f"Debate expert {participant.name} failed: {e}")
             return "Failed to provide opinion."

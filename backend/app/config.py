@@ -3,12 +3,15 @@ ATRA Web IDE - Конфигурация (Улучшенная версия)
 Валидация, безопасность, лучшие практики
 """
 
+import json
 import logging
 import os
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic import model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -78,14 +81,29 @@ class Settings(BaseSettings):
     ]
 
     # CORS - Безопасность
-    cors_origins: list[str] = [
+    cors_origins: Union[str, list[str]] = [
         "http://localhost:3000",
         "http://localhost:3002",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3002",
         "http://127.0.0.1:5173",
+        "tauri://localhost",
+        "tauri://127.0.0.1",
     ]
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        v = self.cors_origins
+        if isinstance(v, str):
+            if v.startswith("["):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
+
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     cors_allow_headers: list[str] = ["*"]

@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 from typing import Any, Dict, Optional, Union
 
 # [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
@@ -62,8 +63,9 @@ try:
     from backend.app.metrics.prometheus_metrics import (
         record_semantic_cache_hit,
         record_embedding_collapsed,
-        record_embedding_throttle
+        record_embedding_throttle,
     )
+
     _METRICS_AVAILABLE = True
 except ImportError:
     # Try alternate path if called from different context
@@ -71,26 +73,37 @@ except ImportError:
         from app.metrics.prometheus_metrics import (
             record_semantic_cache_hit,
             record_embedding_collapsed,
-            record_embedding_throttle
+            record_embedding_throttle,
         )
+
         _METRICS_AVAILABLE = True
     except ImportError:
         _METRICS_AVAILABLE = False
 
+
 def _safe_record_hit(cache_type: str):
     if _METRICS_AVAILABLE:
-        try: record_semantic_cache_hit(cache_type)
-        except: pass
+        try:
+            record_semantic_cache_hit(cache_type)
+        except:
+            pass
+
 
 def _safe_record_collapsed():
     if _METRICS_AVAILABLE:
-        try: record_embedding_collapsed()
-        except: pass
+        try:
+            record_embedding_collapsed()
+        except:
+            pass
+
 
 def _safe_record_throttle():
     if _METRICS_AVAILABLE:
-        try: record_embedding_throttle()
-        except: pass
+        try:
+            record_embedding_throttle()
+        except:
+            pass
+
 
 # nomic-embed-text (v1/v1.5) output dimension; БД и кэш должны совпадать (миграция fix_embedding_dimensions_768)
 EMBEDDING_DIM = 768
@@ -106,7 +119,7 @@ _embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит пар�
 if get_circuit_breaker:
     _ollama_breaker = get_circuit_breaker(
         name="ollama_embeddings",
-        failure_threshold=3,   # [SINGULARITY 24.3] Fast-open: 3 fails → breaker opens (было 5)
+        failure_threshold=3,  # [SINGULARITY 24.3] Fast-open: 3 fails → breaker opens (было 5)
         recovery_timeout=30,
     )
 else:
@@ -189,7 +202,7 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     Внутренняя логика выполнения запроса с ретраями.
     [SINGULARITY 24.3] Увеличено количество попыток и добавлен экспоненциальный бэкофф для 503.
     """
-    max_retries = 1  # [SINGULARITY 24.3] Fast-fail: одна попытка — circuit breaker обрабатывает ретраи
+    max_retries = 3  # [ATRA v1] Увеличено 1→3: Ollama embeddings busy часто временный
     for attempt in range(max_retries):
         client = None
         if get_http_client:
@@ -212,14 +225,20 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
 
             # [SINGULARITY 24.3] Graceful Degradation: Search by Hash if Ollama fails
             if attempt == max_retries - 1:
-                logger.warning("🔍 [GRACEFUL DEGRADATION] Ollama failed, trying exact hash match in DB...")
+                logger.warning(
+                    "🔍 [GRACEFUL DEGRADATION] Ollama failed, trying exact hash match in DB..."
+                )
                 # Поиск по хэшу в БД будет реализован в методах класса SemanticAICache
                 # Здесь мы просто возвращаем None, чтобы сигнализировать о провале Ollama
 
-            # Если вернулось None (например, 503), пробуем еще раз
+            # Если вернулось None (например, 503), пробуем еще раз с экспоненциальным бэкоффом + jitter
             if attempt < max_retries - 1:
-                wait_time = 2**attempt
-                logger.debug(f"⏳ [RETRY] Embedding attempt {attempt + 1} failed, waiting {wait_time}s...")
+                wait_time = 2**attempt + random.uniform(
+                    0, 1
+                )  # jitter для предотвращения thundering herd
+                logger.debug(
+                    f"⏳ [RETRY] Embedding attempt {attempt + 1} failed, waiting {wait_time:.2f}s..."
+                )
                 await asyncio.sleep(wait_time)
 
         except Exception as exc:
@@ -334,21 +353,23 @@ class SemanticAICache:
                 return embedding
 
             # [SINGULARITY 24.3] Graceful Degradation: Search by exact text if Ollama failed
-            logger.warning(f"🔍 [GRACEFUL DEGRADATION] Ollama failed, attempting exact match for: {text[:50]}...")
+            logger.warning(
+                f"🔍 [GRACEFUL DEGRADATION] Ollama failed, attempting exact match for: {text[:50]}..."
+            )
             conn, _ = await self._get_conn()
             if conn:
                 try:
                     # Ищем в основной таблице кэша по тексту запроса
                     row = await conn.fetchrow(
                         "SELECT embedding FROM semantic_ai_cache WHERE query_text = $1 LIMIT 1",
-                        text
+                        text,
                     )
                     if row and row["embedding"]:
                         emb_val = row["embedding"]
                         # Если это вектор в БД, он может вернуться как список или строка
                         if isinstance(emb_val, str):
                             try:
-                                emb = [float(x) for x in emb_val.strip('[]').split(',')]
+                                emb = [float(x) for x in emb_val.strip("[]").split(",")]
                                 logger.info("✅ [GRACEFUL DEGRADATION] Found exact match in DB")
                                 _safe_record_hit("graceful_degradation")
                                 return emb
@@ -361,7 +382,8 @@ class SemanticAICache:
                     await conn.close()
                 except Exception as e:
                     logger.error(f"Error in graceful degradation: {e}")
-                    if conn: await conn.close()
+                    if conn:
+                        await conn.close()
             return None
 
         # Fallback на старую логику (для обратной совместимости); ключ = хэш нормализованного текста

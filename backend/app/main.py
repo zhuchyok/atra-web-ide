@@ -2,6 +2,7 @@
 ATRA Web IDE - FastAPI Backend (Улучшенная версия)
 Браузерная оболочка для Singularity 14.0
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -9,11 +10,33 @@ import logging
 import sys
 
 from app.config import get_settings
-from app.routers import chat, files, experts, preview, domains, knowledge, editor, terminal, plan_cache, rag_optimization, metrics, ab_testing, quality_metrics, latency, cache_stats, auto_optimizer, data_retention, multimodal, system_metrics, sandbox
+from app.routers import (
+    chat,
+    files,
+    experts,
+    preview,
+    domains,
+    knowledge,
+    editor,
+    terminal,
+    plan_cache,
+    rag_optimization,
+    metrics,
+    ab_testing,
+    quality_metrics,
+    latency,
+    cache_stats,
+    auto_optimizer,
+    data_retention,
+    multimodal,
+    system_metrics,
+    sandbox,
+    expert_dialogue,
+)
 from app.middleware.error_handler import (
     http_exception_handler,
     validation_exception_handler,
-    general_exception_handler
+    general_exception_handler,
 )
 from app.middleware.rate_limiter import RateLimitMiddleware
 from app.middleware.logging_middleware import StructuredLoggingMiddleware
@@ -25,14 +48,14 @@ if settings.log_format == "json":
     # Structured JSON logging
     logging.basicConfig(
         level=getattr(logging, settings.log_level),
-        format='%(message)s',
-        handlers=[logging.StreamHandler(sys.stdout)]
+        format="%(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
     )
 else:
     # Text logging
     logging.basicConfig(
         level=getattr(logging, settings.log_level),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
 logger = logging.getLogger(__name__)
@@ -46,7 +69,9 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 ATRA Web IDE запускается...")
     logger.info(f"   Victoria: {settings.victoria_url}")
     logger.info(f"   Ollama: {settings.ollama_url}")
-    logger.info(f"   Database: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'N/A'}")
+    logger.info(
+        f"   Database: {settings.database_url.split('@')[-1] if '@' in settings.database_url else 'N/A'}"
+    )
     logger.info(f"   Workspace: {settings.workspace_root}")
     logger.info(f"   Rate Limiting: {'enabled' if settings.rate_limit_enabled else 'disabled'}")
 
@@ -98,6 +123,7 @@ async def lifespan(app: FastAPI):
         import asyncio
         from app.services.ollama import get_ollama_client
         from app.services.mlx import get_mlx_client
+
         interval = getattr(settings, "health_check_interval", 30)
         while True:
             await asyncio.sleep(interval)
@@ -109,23 +135,31 @@ async def lifespan(app: FastAPI):
                 o_ok = oh.get("status") == "healthy"
                 m_ok = mh.get("status") in ("healthy", "degraded")
                 if not o_ok:
-                    logger.warning("[Health] Ollama недоступна — запустите Ollama или проверьте OLLAMA_URL")
+                    logger.warning(
+                        "[Health] Ollama недоступна — запустите Ollama или проверьте OLLAMA_URL"
+                    )
                 if not m_ok:
-                    logger.warning("[Health] MLX недоступен — запустите MLX API Server или проверьте MLX_API_URL")
+                    logger.warning(
+                        "[Health] MLX недоступен — запустите MLX API Server или проверьте MLX_API_URL"
+                    )
             except Exception as e:
                 logger.debug(f"[Health] LLM check: {e}")
 
     _health_task = None
     if getattr(settings, "health_check_enabled", True):
         import asyncio
+
         _health_task = asyncio.create_task(_periodic_llm_health())
-        logger.info(f"✅ Фоновая проверка Ollama/MLX каждые {getattr(settings, 'health_check_interval', 30)}с")
+        logger.info(
+            f"✅ Фоновая проверка Ollama/MLX каждые {getattr(settings, 'health_check_interval', 30)}с"
+        )
 
     # Прогрев embeddings при старте (P95 < 300ms)
     _warmup_pool = getattr(app.state, "knowledge_os_pool", None)
 
     async def _embedding_warmup():
         import asyncio
+
         if not getattr(settings, "rag_embedding_warmup_enabled", True):
             return
         if not _warmup_pool:
@@ -134,6 +168,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.services.knowledge_os import KnowledgeOSClient
             from app.services.rag_light import RAGLightService
+
             kos = KnowledgeOSClient(pool=_warmup_pool)
             kos._own_pool = False
             rag = RAGLightService(knowledge_os=kos)
@@ -148,17 +183,24 @@ async def lifespan(app: FastAPI):
 
     if _warmup_pool and getattr(settings, "rag_embedding_warmup_enabled", True):
         import asyncio
+
         asyncio.create_task(_embedding_warmup())
 
     _auto_optimizer_task = None
     if getattr(settings, "auto_optimizer_enabled", False):
         import asyncio
         from app.services.optimization.auto_optimizer import AutoOptimizer
+
         optimizer = AutoOptimizer()
-        optimizer.thresholds["cycle_interval_sec"] = getattr(settings, "auto_optimizer_interval_sec", 300)
+        optimizer.thresholds["cycle_interval_sec"] = getattr(
+            settings, "auto_optimizer_interval_sec", 300
+        )
         app.state.auto_optimizer = optimizer
         _auto_optimizer_task = asyncio.create_task(optimizer.start())
-        logger.info("✅ Auto-Optimizer запущен (интервал %s сек)", optimizer.thresholds["cycle_interval_sec"])
+        logger.info(
+            "✅ Auto-Optimizer запущен (интервал %s сек)",
+            optimizer.thresholds["cycle_interval_sec"],
+        )
     else:
         app.state.auto_optimizer = None
 
@@ -173,6 +215,7 @@ async def lifespan(app: FastAPI):
 
     if _health_task and not _health_task.done():
         import asyncio
+
         _health_task.cancel()
         try:
             await _health_task
@@ -194,7 +237,7 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
-    openapi_url="/openapi.json"
+    openapi_url="/openapi.json",
 )
 
 # Middleware (порядок важен!)
@@ -205,11 +248,11 @@ if settings.rate_limit_enabled:
 # CORS - Безопасная конфигурация
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=settings.cors_allow_credentials,
     allow_methods=settings.cors_allow_methods,
     allow_headers=settings.cors_allow_headers,
-    expose_headers=["X-Process-Time"]
+    expose_headers=["X-Process-Time"],
 )
 
 # Обработчики ошибок
@@ -220,6 +263,7 @@ app.add_exception_handler(Exception, general_exception_handler)
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(files.router, prefix="/api/files", tags=["Files"])
 app.include_router(experts.router, prefix="/api/experts", tags=["Experts"])
+app.include_router(expert_dialogue.router, prefix="/api/expert-dialogue", tags=["Expert Dialogue"])
 app.include_router(preview.router, prefix="/api/preview", tags=["Preview"])
 app.include_router(domains.router, prefix="/api/domains", tags=["Domains"])
 app.include_router(knowledge.router, prefix="/api/knowledge", tags=["Knowledge"])
@@ -258,8 +302,8 @@ async def root():
             "editor": "/api/editor",
             "terminal": "/api/terminal",
             "docs": "/docs",
-            "health": "/health"
-        }
+            "health": "/health",
+        },
     }
 
 
@@ -273,7 +317,7 @@ async def health():
     health_status = {
         "status": "healthy",
         "service": "atra-web-ide",
-        "version": settings.api_version
+        "version": settings.api_version,
     }
 
     try:
@@ -288,7 +332,7 @@ async def health():
         health_status["dependencies"] = {
             "victoria": victoria_health.get("status", "unknown"),
             "ollama": ollama_health.get("status", "unknown"),
-            "mlx": mlx_health.get("status", "unknown")
+            "mlx": mlx_health.get("status", "unknown"),
         }
 
         # Деградация, если ни один из LLM-бэкендов (Ollama/MLX) и Victoria недоступны
@@ -313,9 +357,5 @@ async def api_health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level=settings.log_level.lower()
-    )
+
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level=settings.log_level.lower())
