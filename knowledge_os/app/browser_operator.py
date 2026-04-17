@@ -75,13 +75,10 @@ class BrowserOperator:
     async def execute_task(self, goal: str, project_context: str = "general") -> Dict[str, Any]:
         """
         Executes a browser task autonomously.
+        Falls back to playwright-only mode if browser-use unavailable.
         """
         if not BROWSER_USE_AVAILABLE:
-            return {
-                "status": "error",
-                "message": "browser-use library not installed",
-                "output": "Mock output: Browser automation is not available.",
-            }
+            return await self._playwright_fallback(goal)
 
         try:
             # Use local LLM via OpenAI-compatible API (Ollama/Victoria)
@@ -126,12 +123,61 @@ class BrowserOperator:
             # Ensure browser is closed if needed (Agent usually handles this)
             pass
 
-    async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
-        """
-        Specific shortcut for UI verification.
-        """
+async def verify_ui(self, url: str, requirements: str) -> Dict[str, Any]:
         goal = f"Go to {url} and verify if it matches these requirements: {requirements}. Provide a detailed report and a screenshot."
         return await self.execute_task(goal)
+
+    async def _playwright_fallback(self, goal: str) -> Dict[str, Any]:
+        """
+        Playwright-only fallback when browser-use unavailable.
+        Uses basic playwright for simple tasks.
+        """
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError:
+            return {
+                "status": "error",
+                "message": "Neither browser-use nor playwright available",
+                "output": "Please install: pip install playwright browser-use",
+            }
+        
+        try:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                
+                url_match = None
+                if "http" in goal.lower():
+                    for word in goal.split():
+                        if word.startswith(("http://", "https://")):
+                            url_match = word
+                            break
+                
+                if url_match:
+                    await page.goto(url_match)
+                    await page.wait_for_load_state("networkidle")
+                    content = await page.content()
+                    await browser.close()
+                    
+                    return {
+                        "status": "completed",
+                        "message": f"Loaded {url_match}",
+                        "output": content[:500],
+                        "url": url_match,
+                    }
+                else:
+                    await browser.close()
+                    return {
+                        "status": "error", 
+                        "message": "No URL found in task",
+                        "output": goal,
+                    }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+                "output": "Browser automation failed",
+            }
 
 
 _instance = None

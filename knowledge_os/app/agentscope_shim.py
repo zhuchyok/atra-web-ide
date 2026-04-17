@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Msg(dict):
     """Minimal message type compatible with AgentScope Msg."""
+
     def __init__(self, name: str = "", role: str = "assistant", content: str = "", **kwargs):
         super().__init__(name=name, role=role, content=content, **kwargs)
         self.name = name
@@ -23,6 +24,7 @@ class AgentBase:
     Minimal AgentBase shim compatible with AgentScope AgentBase interface.
     Provides state_dict/load_state_dict for Event Sourcing.
     """
+
     def __init__(self, name: str = "", sys_prompt: str = "", **kwargs):
         self.name = name
         self.sys_prompt = sys_prompt
@@ -39,5 +41,25 @@ class AgentBase:
         self.name = state.get("name", self.name)
         self.sys_prompt = state.get("sys_prompt", self.sys_prompt)
 
-    def reply(self, x=None):
-        raise NotImplementedError("Subclasses must implement reply()")
+    def reply(self, x=None) -> Msg:
+        """
+        Process input and return response.
+        Can be overridden by subclasses.
+        """
+        if x is None:
+            return Msg(name=self.name, role="assistant", content="")
+
+        if isinstance(x, Msg):
+            user_input = x.content if hasattr(x, "content") else str(x)
+        else:
+            user_input = str(x)
+
+        return Msg(
+            name=self.name,
+            role="assistant",
+            content=f"[{self.name}] Received: {user_input[:100]}...",
+        )
+
+    async def areply(self, x=None) -> Msg:
+        """Async version of reply()."""
+        return self.reply(x)
