@@ -248,10 +248,29 @@ class VictoriaEnhanced:
             "✅ [VictoriaEnhanced] start() вызван — мониторинг уже инициализирован в __init__"
         )
 
+    async def _init_extended_thinking(self):
+        """Ленивая инициализация Extended Thinking Engine."""
+        if self.extended_thinking is None and EXTENDED_THINKING_AVAILABLE:
+            try:
+                from extended_thinking import ExtendedThinkingEngine
+
+                self.extended_thinking = ExtendedThinkingEngine(
+                    model_name=self.model_name,
+                    thinking_budget=15000,
+                    max_steps=12,
+                    use_intelligent_routing=True,
+                    dual_channel=True,
+                )
+                logger.info("✅ [VICTORIA] ExtendedThinkingEngine инициализирован")
+            except ImportError as e:
+                logger.warning(f"⚠️ ExtendedThinkingEngine недоступен: {e}")
+                self.extended_thinking = None
+
     async def solve(self, goal: str, **kwargs):
         """
         Основной метод решения задач.
         [SINGULARITY 24.7] Added support for 'method' argument and proper LLM routing.
+        [SINGULARITY 26.4] Extended Thinking полностью интегрирован.
         """
         method = kwargs.get("method", "auto")
         category = kwargs.get("category") or self._categorize_task(goal)
@@ -259,6 +278,32 @@ class VictoriaEnhanced:
         logger.info(
             f"🧠 [VICTORIA] Solving goal: {goal[:50]}... (Method: {method}, Category: {category})"
         )
+
+        if method == "extended_thinking" and self.use_extended_thinking:
+            await self._init_extended_thinking()
+            if self.extended_thinking:
+                try:
+                    context = {
+                        "kb_context": kwargs.get("context", ""),
+                        "session_id": kwargs.get("session_id", "default"),
+                    }
+                    result = await self.extended_thinking.think(goal, context, category=category)
+                    return {
+                        "result": result.final_answer,
+                        "thinking_steps": [
+                            {
+                                "step": s.step_number,
+                                "thought": s.thought,
+                                "conclusion": s.conclusion,
+                            }
+                            for s in result.thinking_steps
+                        ],
+                        "confidence": result.confidence,
+                        "thinking_time": result.thinking_time_seconds,
+                    }
+                except Exception as e:
+                    logger.error(f"❌ Extended Thinking failed: {e}")
+                    method = "auto"
 
         if VictoriaEnhanced._run_smart_agent_async is None:
             try:
