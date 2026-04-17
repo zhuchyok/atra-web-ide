@@ -188,6 +188,75 @@ async def expert_chat(expert_name: str, message: str):
         raise HTTPException(500, str(e))
 
 
+@app.get("/api/checkpoints")
+async def list_checkpoints(task_id: str = None, limit: int = 20):
+    """List checkpoints from DB."""
+    try:
+        import asyncpg
+
+        conn = await asyncpg.connect(DATABASE_URL)
+        if task_id:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM checkpoints 
+                WHERE task_id = $1 
+                ORDER BY created_at DESC 
+                LIMIT $2
+            """,
+                task_id,
+                limit,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM checkpoints 
+                ORDER BY created_at DESC 
+                LIMIT $1
+            """,
+                limit,
+            )
+        await conn.close()
+        return [
+            {
+                "checkpoint_id": r["checkpoint_id"],
+                "task_id": r["task_id"],
+                "agent": r["agent_name"],
+                "step": r["step"],
+                "progress": r["progress"],
+                "created": r["created_at"].isoformat(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return []
+
+
+@app.get("/api/plans")
+async def list_plans(status: str = None):
+    """Get long-term plans from long_term_memory."""
+    try:
+        import asyncpg
+
+        conn = await asyncpg.connect(DATABASE_URL)
+        rows = await conn.fetch("""
+            SELECT goal_summary, outcome_summary, created_at 
+            FROM long_term_memory 
+            ORDER BY created_at DESC 
+            LIMIT 20
+        """)
+        await conn.close()
+        return [
+            {
+                "goal": r["goal_summary"],
+                "outcome": r["outcome_summary"],
+                "created": r["created_at"].isoformat(),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return []
+
+
 def get_swarm_studio():
     return app
 
