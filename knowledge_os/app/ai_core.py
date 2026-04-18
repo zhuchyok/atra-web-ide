@@ -2672,6 +2672,22 @@ Use HANDOFF only if delegation genuinely improves the result.
                     except Exception as e:
                         logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
 
+                # [SINGULARITY 26.6] Quality Pipeline - enhance response before returning
+                try:
+                    from quality_pipeline import enhance_response, is_quality_enabled
+
+                    if is_quality_enabled():
+                        logger.info("🚀 [QUALITY PIPELINE] Enhancing response...")
+                        local_resp, quality_meta = await enhance_response(
+                            prompt, local_resp, enable_full=True
+                        )
+                        metadata_dict["quality"] = quality_meta
+                        logger.info(
+                            f"✅ Quality: {quality_meta.get('quality', 0):.2f}, passed: {quality_meta.get('passed', False)}"
+                        )
+                except Exception as qe:
+                    logger.warning(f"⚠️ Quality pipeline failed: {qe}")
+
                 return local_resp
             else:
                 # FEEDBACK LOOP: Send back to local with audit notes
