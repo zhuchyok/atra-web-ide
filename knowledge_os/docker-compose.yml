@@ -108,6 +108,22 @@ services:
       timeout: 3s
       retries: 5
 
+  quality-service:
+    build:
+      context: app
+      dockerfile: Dockerfile.quality
+    container_name: quality-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   victoria-agent:
     depends_on:
       db:

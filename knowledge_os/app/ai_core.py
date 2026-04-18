@@ -2672,15 +2672,28 @@ Use HANDOFF only if delegation genuinely improves the result.
                     except Exception as e:
                         logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
 
-                # [SINGULARITY 26.6] Quality Pipeline disabled - causes recursion
-                # try:
-                #     from quality_pipeline import enhance_response, is_quality_enabled
-                #     if is_quality_enabled():
-                #         logger.info("🚀 [QUALITY PIPELINE] Enhancing response...")
-                #         local_resp, quality_meta = await enhance_response(prompt, local_resp, enable_full=False)
-                #         metadata_dict["quality"] = quality_meta
-                # except Exception as qe:
-                #     logger.warning(f"⚠️ Quality pipeline failed: {qe}")
+                # [SINGULARITY 26.6] Quality Pipeline - call external service
+                try:
+                    import httpx
+
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        resp = await client.post(
+                            "http://quality-service:8003/quality/enhance",
+                            json={
+                                "prompt": prompt[:500],
+                                "response": local_resp[:2000],
+                                "enable_full": False,
+                            },
+                        )
+                        if resp.status_code == 200:
+                            result = resp.json()
+                            local_resp = result["enhanced_response"]
+                            metadata_dict["quality"] = result
+                            logger.info(
+                                f"✅ Quality: {result.get('quality', 0):.2f}, passed: {result.get('passed', False)}"
+                            )
+                except Exception as qe:
+                    logger.debug(f"⚠️ Quality service unavailable: {qe}")
 
                 return local_resp
             else:
