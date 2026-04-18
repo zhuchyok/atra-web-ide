@@ -1470,11 +1470,10 @@ async def run_smart_agent_async_impl(
     project_context: Optional[str] = None,
 ):
     import sys
-    start_time = time.time()
+    # Force lower limit BEFORE any async - prevents deep recursion stack
+    sys.setrecursionlimit(500)
     
-    # RECURSION GUARD - prevent deep recursion
-    if sys.getrecursionlimit() > 2000:
-        sys.setrecursionlimit(1500)
+    try:
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
@@ -2536,6 +2535,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                     if cache:
                         await cache.save_to_cache(user_part, local_resp, expert_name)
                     return local_resp
+    finally:
+        import sys
+        sys.setrecursionlimit(2000)  # Restore default
 
             if local_resp:
                 # --- MODEL ENSEMBLE ACTIVATION ---
@@ -2765,6 +2767,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                     logger.debug(f"⚠️ Quality service unavailable: {qe}")
 
                 return local_resp
+    finally:
+        import sys
+        sys.setrecursionlimit(2000)  # Restore default
             else:
                 # FEEDBACK LOOP: Send back to local with audit notes
                 logger.warning(
@@ -2795,6 +2800,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                         "⚠️ [REVISION FAILED] Local model failed on revision, returning original"
                     )
                     return local_resp
+    finally:
+        import sys
+        sys.setrecursionlimit(2000)  # Restore default
                 return final_resp  # Return revised version
 
     # 4. Web-Enabled Local Route (Вероника с веб-поиском)
@@ -3114,6 +3122,9 @@ Use HANDOFF only if delegation genuinely improves the result.
                 logger.debug(f"Metrics collection failed: {e}")
 
             return local_resp
+    finally:
+        import sys
+        sys.setrecursionlimit(2000)  # Restore default
 
     # 5. Query Orchestrator: нормализация запроса и сборка role-aware промпта
     query_orchestrator = None
