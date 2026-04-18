@@ -5411,6 +5411,24 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+
+    # [SINGULARITY 26.10] Queue CODE tasks BEFORE processing
+    goal_lower = (goal or "").lower()
+    if "код" in goal_lower or "code" in goal_lower:
+        try:
+            import redis as redis_lib
+
+            r = redis_lib.Redis(host="redis", port=6379, decode_responses=False)
+            task_id = f"task_{correlation_id[:8]}"
+            import json as json_lib
+
+            r.rpush("victoria_queue", json_lib.dumps({"goal": goal, "task_id": task_id}))
+            return TaskResponse(
+                status="processing", output=f"⏳ {task_id} queued", knowledge={"strategy": "queued"}
+            )
+        except Exception as e:
+            pass
+
     if body.images_base64:
         goal = await _enhance_goal_with_vision(goal, body.images_base64) or goal
         logger.info("[REQUEST] Goal enhanced with %d image(s) via vision", len(body.images_base64))
