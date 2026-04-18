@@ -5025,7 +5025,21 @@ async def _run_task_background(
 async def get_run_status(task_id: str):
     """Статус фоновой задачи. status: queued|processing|completed|failed."""
     rec = None
-    if redis_manager:
+
+    # [SINGULARITY 26.10] Check worker results directly
+    try:
+        import redis
+
+        r = redis.Redis(host="redis", port=6379, decode_responses=True)
+        task_data = r.get(f"task:{task_id}")
+        if task_data:
+            import json
+
+            rec = json.loads(task_data)
+    except:
+        pass
+
+    if rec is None and redis_manager:
         rec = await redis_manager.get_task_status(task_id)
 
     if rec is None:
@@ -5423,8 +5437,22 @@ async def run_task(
             import json as json_lib
 
             r.rpush("victoria_queue", json_lib.dumps({"goal": goal, "task_id": task_id}))
+            # Store initial status
+            r.set(
+                f"task:{task_id}",
+                json_lib.dumps(
+                    {
+                        "task_id": task_id,
+                        "status": "queued",
+                        "output": "Processing...",
+                        "knowledge": {"strategy": "queued"},
+                    }
+                ),
+            )
             return TaskResponse(
-                status="processing", output=f"⏳ {task_id} queued", knowledge={"strategy": "queued"}
+                status="processing",
+                output=f"⏳ {task_id} queued - check /run/status/{task_id}",
+                knowledge={"strategy": "queued"},
             )
         except Exception as e:
             pass

@@ -339,7 +339,10 @@ services:
       # и /workspace/atra-web-ide/docs/MASTER_REFERENCE.md (файловые маунты убраны —
       # Docker Desktop на macOS путает file-bind-mount с директорией после рестарта)
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
-    command: python -m src.agents.bridge.victoria_server
+    command: >
+      sh -c "python -c 'import sys; sys.setrecursionlimit(1000)' & 
+      python /app/knowledge_os/app/victoria_worker.py & 
+      python -m src.agents.bridge.victoria_server"
 
   # Victoria-Mini: fallback minimal service
   victoria-mini:

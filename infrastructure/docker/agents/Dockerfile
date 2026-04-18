@@ -70,26 +70,4 @@ RUN echo "import sys; sys.setrecursionlimit(1000)" > /app/force_recursion.py
 # Simple worker script
 RUN echo 'import asyncio,redis,json,aiohttp; r=redis.Redis(host="redis",port=6379); print("W"); asyncio.run(asyncio.gather())' > /app/worker.py
 
-CMD ["python", "-c", "
-import sys; sys.setrecursionlimit(1000)
-import subprocess
-# Worker script
-worker_code = '''
-import asyncio, redis, json, aiohttp
-r = redis.Redis(host=\"redis\", port=6379)
-print(\"Worker START\")
-async def w():
-    while True:
-        try:
-            result = r.blpop(\"victoria_queue\", timeout=2)
-            if result:
-                _, d = result
-                t = json.loads(d)
-                tid = t.get(\"task_id\", \"x\")[:8]
-                print(f\"GOT: {tid}\")
-        except: pass
-        await asyncio.sleep(1)
-asyncio.run(w())
-'''
-subprocess.Popen([sys.executable, '-c', worker_code])
-from src.agents.bridge.victoria_server import *"]
+CMD ["sh", "-c", "python -c 'import sys; sys.setrecursionlimit(1000)' && cd /app && python knowledge_os/app/victoria_worker.py & python -m uvicorn src.agents.bridge.victoria_server:app --host 0.0.0.0 --port 8010"]
