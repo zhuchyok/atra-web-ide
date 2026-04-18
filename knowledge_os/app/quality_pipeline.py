@@ -22,10 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class QualityConfig(BaseModel):
-    reflection: bool = True
+    reflection: bool = True  # Light - pattern-based
     ensemble: bool = False  # Heavy - only for complex tasks
     constitutional: bool = False  # Heavy - only for critical
-    fact_check: bool = True
+    fact_check: bool = False  # Disabled - requires RAG
     confidence_threshold: float = 0.7
     max_iterations: int = 1  # Reduced for speed
 
