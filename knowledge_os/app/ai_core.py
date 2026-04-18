@@ -619,7 +619,7 @@ _last_tool_creator_log_time = [0.0]
 # При CB OPEN (recovery_timeout=120s) короткие 2/5/10s бесполезны —
 # добавляем более длинный финальный retry (30s) для случаев когда CB начинает восстанавливаться
 RETRY_BACKOFF_DELAYS = (5, 15, 30)  # seconds (увеличены: 2/5/10 → 5/15/30)
-RETRY_MAX_ATTEMPTS = 3
+RETRY_MAX_ATTEMPTS = 1  # Reduced to prevent recursion
 
 # Global user identification for conditional logic
 USER_NAME = getpass.getuser()
