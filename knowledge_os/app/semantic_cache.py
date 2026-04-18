@@ -119,8 +119,8 @@ _embedding_semaphore = asyncio.Semaphore(5)  # Базовый лимит пар�
 if get_circuit_breaker:
     _ollama_breaker = get_circuit_breaker(
         name="ollama_embeddings",
-        failure_threshold=3,  # [SINGULARITY 24.3] Fast-open: 3 fails → breaker opens (было 5)
-        recovery_timeout=30,
+        failure_threshold=10,  # [FIX v66] Increased: 3 too aggressive under Swarm load
+        recovery_timeout=60,
     )
 else:
     _ollama_breaker = None
@@ -260,7 +260,7 @@ async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[li
                 "model": OLLAMA_MODEL,
                 "prompt": text,
             },  # [FIX] Removed keep_alive: 0 to avoid constant unloading
-            timeout=5.0,  # Fast fail: embedding некритичен, 5с достаточно
+            timeout=30.0,  # [FIX v66] Increased: embedding critical for Swarm, 5s too short under load
         )
         if response.status_code == 503:
             # [SINGULARITY 24.3] Не бросаем сразу, даем get_embedding шанс на ретрай
