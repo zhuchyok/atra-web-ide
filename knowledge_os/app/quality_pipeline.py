@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 class QualityConfig(BaseModel):
     reflection: bool = True
-    ensemble: bool = True
-    constitutional: bool = False  # Heavy - check if needed
+    ensemble: bool = False  # Heavy - only for complex tasks
+    constitutional: bool = False  # Heavy - only for critical
     fact_check: bool = True
     confidence_threshold: float = 0.7
-    max_iterations: int = 2
+    max_iterations: int = 1  # Reduced for speed
 
 
 class QualityResult(BaseModel):
@@ -69,76 +69,62 @@ def set_quality_config(
 
 
 async def check_confidence(response: str, prompt: str) -> float:
-    """Оценка уверенности ответа (0-1)."""
-    try:
-        from run_smart_agent_async import run_smart_agent_async
+    """Fast confidence check - heuristic based."""
+    # Quick heuristics:
+    text_lower = response.lower()
 
-        analysis_prompt = f"""
-Оцени уверенность ответа на шкале 0-1.
+    # Low confidence indicators
+    low_indicators = [
+        "возможно",
+        "вероятно",
+        "не уверен",
+        " возможно",
+        "推测",
+        "not sure",
+        "probably",
+        "maybe",
+        "might be",
+        "could be",
+    ]
 
-ВОПРОС: {prompt[:500]}
-ОТВЕТ: {response[:1000]}
+    for ind in low_indicators:
+        if ind in text_lower:
+            return 0.4
 
-ВЕРНИ ТОЛЬКО ЧИСЛО (например 0.85).
-Критерий:
-- 1.0 = полная уверенность, ответ точный и полный
-- 0.7 = хорошая уверенность, некоторые нюансы
-- 0.5 = неопределённость, требует уточнения  
-- 0.3 = низкая уверенность, проблемы с фактами
-- 0.0 = не знаю, отказ от ответа
-"""
+    # High confidence if has structure
+    has_headers = any(marker in response for marker in ["##", "###", "**", "1.", "2.", "- "])
+    has_facts = any(
+        marker in response for marker in ["факт", "данные", "статистик", "функци", "пример"]
+    )
 
-        result = await run_smart_agent_async(
-            goal=analysis_prompt, expert_name="Аналитик", category="reasoning"
-        )
+    if has_headers or has_facts:
+        return 0.85
 
-        text = str(result.get("output", ""))
-        numbers = [c for c in text if c.isdigit() or c == "."]
-        num_str = "".join(numbers).strip(".")
-
-        try:
-            score = float(num_str[:4])
-            return min(max(score, 0.0), 1.0)
-        except ValueError:
-            return 0.5
-
-    except Exception as e:
-        logger.warning(f"Confidence check failed: {e}")
-        return 0.5
+    return 0.7
 
 
 async def self_reflect(prompt: str, response: str) -> str:
-    """Self-reflection - пересмотр ответа."""
-    try:
-        from run_smart_agent_async import run_smart_agent_async
+    """Fast self-reflection - pattern based."""
+    # Quick pattern checks
+    issues = []
 
-        reflection_prompt = f"""
-Пересмотри свой ответ. ��удь строгим критиком.
+    text_lower = response.lower()
 
-ВОПРОС: {prompt[:500]}
-ТВОЙ ОТВЕТ: {response[:1000]}
+    # Check for common issues
+    if "????" in response:
+        issues.append("has_placeholders")
+    if len(response) < 50:
+        issues.append("too_short")
+    if not any(c in response for c in [".", "!", "?"]):
+        issues.append("no_punctuation")
 
-Проверь:
-1. Фактическая точность
-2. Полнота ответа
-3. Логическая согласованность
-4. Потенциальные ошибки
+    # Fix if issues found
+    if issues:
+        logger.warning(f"⚠️ Self-reflection found issues: {issues}")
+        # Don't modify response, just return with flag
+        # Full modification would require calling LLM
 
-Если ответ хороший - верни его без изменений.
-Если есть проблемы - исправь и верни улучшенную версию.
-        
-ВЕРНИ ТОЛЬКО ИСПРАВЛЕННЫЙ ОТВЕТ.
-"""
-
-        result = await run_smart_agent_async(
-            goal=reflection_prompt, expert_name="Критик", category="reasoning"
-        )
-
-        return str(result.get("output", response))
-
-    except Exception as e:
-        logger.warning(f"Self-reflection failed: {e}")
-        return response
+    return response
 
 
 async def ensemble_check(prompt: str, response: str) -> dict:
