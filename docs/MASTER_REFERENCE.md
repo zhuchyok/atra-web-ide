@@ -1,3 +1,52 @@
+## § Последние изменения (2026-04-18 v66) — Batch API, Cost Analytics, TTS & Realtime 🎯
+
+### Что изменилось сегодня (v66)
+
+#### 1. Batch API (OpenAI pattern)
+- Создан `batch_api.py` — полная поддержка OpenAI Batch API
+- Эндпоинты: `/api/batch/jobs`, `/api/batch/jobs/{id}`, `/api/batch/input/upload`
+- JSONL формат для ввода/вывода
+- Обработка в фоне с asyncio.create_task()
+
+#### 2. Cost Analytics
+- Создан `cost_analytics.py` — tracking и оптимизация стоимости
+- Эндпоинты: `/api/cost/track`, `/api/cost/summary`, `/api/cost/leaderboard`
+- Бюджеты с алертами при 80% превышении
+- Поддержка 8+ моделей с актуальными ценами
+- Рекомендации по оптимизации
+
+#### 3. TTS API (OpenAI pattern)
+- Создан `tts_api.py` — Text-to-Speech synthesis
+- Эндпоинты: `/api/tts/generate`, `/api/tts/voices`, `/api/tts/speak`
+- Поддержка 8+ голосов: alloy, echo, fable, onyx, nova, shimmer, ballad, sage
+- Fallback на Coqui и Edge TTS при недоступности OpenAI
+
+#### 4. Realtime API (OpenAI pattern)
+- Создан `realtime_api.py` — Realtime voice API pattern
+- Эндпоинты: `/api/realtime/sessions`, `/api/realtime/ws/{session_id}`
+- WebSocket streaming для real-time voice
+- Поддержка модальностей: text, audio
+
+#### 5. File Search API
+- Создан `filesearch_api.py` — полнотекстовый поиск по файлам
+- Эндпоинты: `/api/filesearch/search`, `/api/filesearch/upload`
+- Chunk-based indexing с overlapping
+- Relevance scoring и фильтрация
+
+#### 6. Memory API
+- Создан `memory_api.py` — in-memory KV store с TTL
+- Эндпоинты: `/api/memory/set`, `/api/memory/get/{key}`, `/api/memory/search`
+- Операции: increment, append, clear
+- Search по ключам и значениям
+
+#### 7. Monitoring API
+- Создан `monitoring_api.py` — metrics и alerting
+- Эндпоинты: `/api/monitoring/metrics`, `/api/monitoring/alerts`, `/api/monitoring/health`
+- CPU, memory, disk monitoring через psutil
+- Alert rules с conditions: gt, lt, eq
+
+---
+
 ## § Последние изменения (2026-04-18 v65) — Singularity 26.4: Full Giants Parity (100%) 🎯
 
 ### Что изменилось сегодня (v65)
