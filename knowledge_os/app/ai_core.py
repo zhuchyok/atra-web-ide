@@ -699,26 +699,44 @@ async def _retry_llm_with_backoff(coro):
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
 _DB_POOL = None
+_DB_POOL_INITIALIZING = False  # Prevent concurrent initialization
 
 
 async def _get_db_pool():
-    """Lazy initialization of the PostgreSQL connection pool."""
+    """Lazy initialization of the PostgreSQL connection pool with recursion protection."""
     global _DB_POOL
+    global _DB_POOL_INITIALIZING
+
+    # Prevent concurrent initialization (recursion guard)
+    if _DB_POOL_INITIALIZING:
+        return None
+
+    if _DB_POOL is not None and not _DB_POOL._closed:
+        return _DB_POOL
+
     if _DB_POOL is None and asyncpg:
         try:
+            _DB_POOL_INITIALIZING = True  # Mark as initializing
             default_url = (
                 os.getenv("DATABASE_URL")
                 or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
             )
             db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
-            _DB_POOL = await asyncpg.create_pool(
-                db_url,
-                min_size=1,
-                max_size=20,  # Увеличено для Singularity 24.1 (max_connections=500)
-                max_inactive_connection_lifetime=300,
+            _DB_POOL = await asyncio.wait_for(
+                asyncpg.create_pool(
+                    db_url,
+                    min_size=1,
+                    max_size=20,
+                    max_inactive_connection_lifetime=300,
+                    command_timeout=5,
+                ),
+                timeout=10.0,  # 10 second timeout
             )
         except Exception as exc:
             logger.error("❌ Failed to create DB pool: %s", exc)
+            _DB_POOL = None
+        finally:
+            _DB_POOL_INITIALIZING = False  # Always reset flag
     return _DB_POOL
 
 
