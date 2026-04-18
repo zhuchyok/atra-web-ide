@@ -5415,20 +5415,25 @@ async def run_task(
     # [SINGULARITY 26.9] EARLY CHECK - queue BEFORE any processing
     goal_check = goal.lower()
     if len(goal) > 50 and any(
-        kw in goal_check for kw in ["код", "code", "анализ", "напиши", "write", "write"]
+        kw in goal_check for kw in ["код", "code", "анализ", "напиши", "write", "create"]
     ):
         try:
-            import redis, json, uuid
+            import json
 
+            task_id = (
+                f"task_{body.correlation_id[:8]}"
+                if body.correlation_id
+                else f"task_{uuid.uuid4().hex[:8]}"
+            )
             r = redis.Redis(host="redis", port=6379, decode_responses=False)
-            task_id = f"task_{uuid.uuid4().hex[:8]}"
             r.rpush("victoria_queue", json.dumps({"goal": goal, "task_id": task_id}))
             return TaskResponse(
                 status="processing",
-                output=f"⏳ Task {task_id} queued",
+                output=f"⏳ Task {task_id} queued to worker",
                 knowledge={"strategy": "queued"},
             )
-        except:
+        except Exception as qe:
+            logger.warning(f"Queue failed: {qe}")
             pass
 
     if body.images_base64:
