@@ -1493,11 +1493,8 @@ async def run_smart_agent_async_impl(
             logger.debug(f"Failed to fetch memory crystals: {e}")
             return ""
 
-    # 1. Initialization
-    try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+    # 1. Initialization - DISABLED to prevent recursion
+    pool = None  # Disabled: was causing recursion
 
     # [SINGULARITY 25.0] Expert Priority Detection
     if not is_vip and expert_name and pool:
