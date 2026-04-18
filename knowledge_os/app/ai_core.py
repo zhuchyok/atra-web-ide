@@ -1420,6 +1420,23 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
+    # [SINGULARITY 26.7] Celery offload BEFORE any processing (fixes recursion)
+    goal_lower = prompt.lower() if prompt else ""
+    if len(prompt) > 100 and any(
+        kw in goal_lower for kw in ["код", "code", "анализ", "generate", "создай", "напиши"]
+    ):
+        try:
+            from knowledge_os.app.celery_tasks import offload_to_celery
+
+            job_id = await offload_to_celery(prompt, expert_name, category)
+            return {
+                "status": "queued",
+                "job_id": job_id,
+                "output": f"⏳ Task {job_id} queued to Celery",
+            }
+        except Exception as ce:
+            pass  # Fall through to normal processing
+
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
         """Fetch project-specific memory crystals for attention anchoring."""
