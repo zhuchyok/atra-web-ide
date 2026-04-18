@@ -306,7 +306,7 @@ services:
       # и /workspace/atra-web-ide/docs/MASTER_REFERENCE.md (файловые маунты убраны —
       # Docker Desktop на macOS путает file-bind-mount с директорией после рестарта)
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
-    command: python -m src.agents.bridge.victoria_server
+    command: python -c "import sys; sys.setrecursionlimit(1000); from src.agents.bridge import victoria_server"
 
   # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
   # [SINGULARITY 21.5] Автономность: Victoria использует SearXNG вместо внешних API
