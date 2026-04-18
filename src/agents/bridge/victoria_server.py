@@ -5411,6 +5411,26 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+
+    # [SINGULARITY 26.9] EARLY CHECK - queue BEFORE any processing
+    goal_check = goal.lower()
+    if len(goal) > 50 and any(
+        kw in goal_check for kw in ["код", "code", "анализ", "напиши", "write", "write"]
+    ):
+        try:
+            import redis, json, uuid
+
+            r = redis.Redis(host="redis", port=6379, decode_responses=False)
+            task_id = f"task_{uuid.uuid4().hex[:8]}"
+            r.rpush("victoria_queue", json.dumps({"goal": goal, "task_id": task_id}))
+            return TaskResponse(
+                status="processing",
+                output=f"⏳ Task {task_id} queued",
+                knowledge={"strategy": "queued"},
+            )
+        except:
+            pass
+
     if body.images_base64:
         goal = await _enhance_goal_with_vision(goal, body.images_base64) or goal
         logger.info("[REQUEST] Goal enhanced with %d image(s) via vision", len(body.images_base64))
