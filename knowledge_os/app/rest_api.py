@@ -1424,6 +1424,37 @@ async def get_all_skills():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/experts/skills/reload")
+async def reload_skills():
+    """Hot-reload skills без перезагрузки сервера"""
+    try:
+        from skill_registry import get_skill_registry
+
+        registry = get_skill_registry(allow_reload=True)
+        stats = registry.get_stats()
+        return {"success": True, "message": "Skills reloaded", "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/experts/skills/categories")
+async def get_skills_by_category():
+    """Получить skills сгруппированные по категориям"""
+    try:
+        from skill_registry import get_skill_registry
+
+        registry = get_skill_registry()
+        categories = {}
+        for skill in registry.list_skills():
+            cat = skill.category or "other"
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append({"name": skill.name, "description": skill.description})
+        return categories
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/files/comments")
 async def get_file_comments(file_path: str):
     """Получить все активные комментарии для файла."""

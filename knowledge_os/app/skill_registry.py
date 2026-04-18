@@ -363,11 +363,17 @@ class SkillRegistry:
 _global_skill_registry: Optional[SkillRegistry] = None
 
 
-def get_skill_registry() -> SkillRegistry:
-    """Получить глобальный Skill Registry"""
+def get_skill_registry(allow_reload: bool = False) -> SkillRegistry:
+    """Получить глобальный Skill Registry.
+
+    Args:
+        allow_reload: Если True - перезагружает skills при каждом вызове (для hot-reload режима)
+    """
     global _global_skill_registry
     if _global_skill_registry is None:
         _global_skill_registry = SkillRegistry()
+        _global_skill_registry.load_skills()
+    elif allow_reload:
         _global_skill_registry.load_skills()
     return _global_skill_registry
 
