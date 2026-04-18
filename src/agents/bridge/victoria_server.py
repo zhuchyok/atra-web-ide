@@ -5407,39 +5407,10 @@ async def run_task(
     logger.info("[REQUEST] Async mode: %s", async_mode)
     logger.info("[REQUEST] Project context: %s", body.project_context)
     logger.info("[REQUEST] Max steps: %s", body.max_steps)
-
-    # [SINGULARITY 26.9] DIRECT BYPASS for code/analysis tasks
-    if "код" in (goal or "").lower() or "code" in (goal or "").lower():
-        return TaskResponse(
-            status="processing",
-            output="⏳ Code tasks processed by worker",
-            knowledge={"strategy": "queue_bypass"},
-        )
+    logger.info("[REQUEST] Current executor model: %s", getattr(agent.executor, "model", "unknown"))
+    logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
-    goal_check = goal.lower()
-    if len(goal) > 50 and any(
-        kw in goal_check for kw in ["код", "code", "анализ", "напиши", "write", "create"]
-    ):
-        try:
-            import json
-
-            task_id = (
-                f"task_{body.correlation_id[:8]}"
-                if body.correlation_id
-                else f"task_{uuid.uuid4().hex[:8]}"
-            )
-            r = redis.Redis(host="redis", port=6379, decode_responses=False)
-            r.rpush("victoria_queue", json.dumps({"goal": goal, "task_id": task_id}))
-            return TaskResponse(
-                status="processing",
-                output=f"⏳ Task {task_id} queued to worker",
-                knowledge={"strategy": "queued"},
-            )
-        except Exception as qe:
-            logger.warning(f"Queue failed: {qe}")
-            pass
-
     if body.images_base64:
         goal = await _enhance_goal_with_vision(goal, body.images_base64) or goal
         logger.info("[REQUEST] Goal enhanced with %d image(s) via vision", len(body.images_base64))
