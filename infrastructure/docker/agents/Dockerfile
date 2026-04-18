@@ -67,26 +67,29 @@ ENV PYTHONUNBUFFERED=1
 # Victoria's complex async pipeline needs recursionlimit=1000 (default is 1000)
 RUN echo "import sys; sys.setrecursionlimit(1000)" > /app/force_recursion.py
 
+# Simple worker script
+RUN echo 'import asyncio,redis,json,aiohttp; r=redis.Redis(host="redis",port=6379); print("W"); asyncio.run(asyncio.gather())' > /app/worker.py
+
 CMD ["python", "-c", "
 import sys; sys.setrecursionlimit(1000)
-import subprocess, os
-# Start worker in SEPARATE process - truly isolated stack
-worker_proc = subprocess.Popen([sys.executable, '-c', '''
+import subprocess
+# Worker script
+worker_code = '''
 import asyncio, redis, json, aiohttp
+r = redis.Redis(host=\"redis\", port=6379)
+print(\"Worker START\")
 async def w():
-    r = redis.Redis(host=\"redis\", port=6379, decode_responses=True)
-    print(\"Worker SEPARATE process started\")
     while True:
         try:
             result = r.blpop(\"victoria_queue\", timeout=2)
             if result:
                 _, d = result
                 t = json.loads(d)
-                print(f\"Worker: {t.get(\\\\"task_id\\\", \\\"x\\\")[:8]}\")
+                tid = t.get(\"task_id\", \"x\")[:8]
+                print(f\"GOT: {tid}\")
         except: pass
         await asyncio.sleep(1)
 asyncio.run(w())
-'''], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-# Give worker time to start
-import time; time.sleep(2)
+'''
+subprocess.Popen([sys.executable, '-c', worker_code])
 from src.agents.bridge.victoria_server import *"]
