@@ -4,6 +4,13 @@ Handles caching, routing, knowledge retrieval (RAG), and consensus across agents
 Optimized for Hybrid Intelligence (Cloud Architect + Local Worker).
 """
 
+import sys
+
+# CRITICAL: Set recursion BEFORE any async operations to prevent deep recursion stack crashes
+# Victoria's complex async pipeline with 200+ loggers needs this
+if hasattr(sys, "setrecursionlimit"):
+    sys.setrecursionlimit(1500)
+
 import asyncio
 import getpass
 import json
