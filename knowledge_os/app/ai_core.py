@@ -1420,24 +1420,27 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
-    # [SINGULARITY 26.8] Fast subprocess check without importing ai_core
+    # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()
     is_code_task = len(prompt) > 50 and any(
-        kw in goal_lower for kw in ["код", "code", "анализ", "напиши", "создай"]
+        kw in goal_lower for kw in ["код", "code", "анализ", "напиши", "создай", "write"]
     )
 
     if is_code_task:
-        # DIRECT OLLAMA CALL - bypasses ai_core recursion completely
-        import subprocess
+        # Queue to Redis worker - bypasses recursion
+        import redis
+        import json
+        import uuid
         try:
-            # Build prompt for code generation
-            system_prompt = "Ты эксперт по Python. Напиши чистый, рабочий код."
-            full_prompt = f"{system_prompt}\n\n{prompt[:300]}"
-            
-            result = subprocess.run(
-                ["curl", "-s", "-X", "POST", "http://host.docker.internal:11434/api/generate",
-                 "-H", "Content-Type: application/json",
-                 "-d", '{"model":"qwen3.5:35b","prompt":' + json.dumps(full_prompt) + ',"stream":false}'],
+            r = redis.Redis(host="redis", port=6379, decode_responses=False)
+            task_id = f"task_{uuid.uuid4().hex[:8]}"
+            r.rpush("victoria_queue", json.dumps({"goal": prompt, "task_id": task_id}))
+            r.expire(task_id, 300)
+            return {"status": "processing", "job_id": task_id, "output": f"⏳ Task {task_id} queued to worker"}
+        except Exception as e:
+            pass  # Fall through to normal processing
+
+    # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
                 capture_output=True, timeout=60
             )
             if result.returncode == 0:
