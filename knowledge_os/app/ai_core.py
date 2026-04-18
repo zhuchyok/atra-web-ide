@@ -1420,20 +1420,18 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
-    # [SINGULARITY 26.7] Celery offload BEFORE any processing (fixes recursion)
+    # [SINGULARITY 26.8] Subprocess offload for complex tasks (bypasses recursion)
     goal_lower = prompt.lower() if prompt else ""
-    if len(prompt) > 100 and any(
-        kw in goal_lower for kw in ["код", "code", "анализ", "generate", "создай", "напиши"]
+    if len(prompt) > 50 and any(
+        kw in goal_lower
+        for kw in ["код", "code", "анализ", "generate", "создай", "напиши", "сложн"]
     ):
         try:
-            from knowledge_os.app.celery_tasks import offload_to_celery
+            from knowledge_os.app.subprocess_runner import run_in_subprocess, is_complex_task
 
-            job_id = await offload_to_celery(prompt, expert_name, category)
-            return {
-                "status": "queued",
-                "job_id": job_id,
-                "output": f"⏳ Task {job_id} queued to Celery",
-            }
+            if is_complex_task(prompt):
+                result = await run_in_subprocess(prompt, expert_name, category, timeout=120)
+                return result
         except Exception as ce:
             pass  # Fall through to normal processing
 
