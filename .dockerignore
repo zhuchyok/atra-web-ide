@@ -89,6 +89,5 @@ elasticsearch_data/
 agent-transcripts/
 terminals/
 
-# Skills procedural — папки с длинными именами (артефакты LLM, не нужны в контейнере)
-knowledge_os/app/skills/procedural/
-knowledge_os/app/knowledge_os/
+# Skills ALL — exclude from build (too many edge cases with long names)
+knowledge_os/app/skills/

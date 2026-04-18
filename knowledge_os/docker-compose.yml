@@ -118,8 +118,11 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://admin:secret@db:5432/knowledge_os
+      - PYTHONPATH=/app:/app/knowledge_os/app
     networks:
       - default
+    volumes:
+      - ../knowledge_os/app:/app/knowledge_os:ro
 
   quality-service:
     build:
@@ -320,6 +323,25 @@ services:
       # Docker Desktop на macOS путает file-bind-mount с директорией после рестарта)
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
     command: python -m src.agents.bridge.victoria_server
+
+  # Victoria-Mini: fallback minimal service
+  victoria-mini:
+    build:
+      context: ..
+      dockerfile: knowledge_os/app/Dockerfile
+    container_name: victoria-mini
+    restart: unless-stopped
+    ports:
+      - "8011:8000"
+    volumes:
+      - ../knowledge_os/app:/app/knowledge_os:ro
+    environment:
+      - PYTHONPATH=/app
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://admin:secret@db:6432/knowledge_os
+    command: python -c "import uvicorn; from knowledge_os.app._minimal_victoria import app; uvicorn.run(app, host='0.0.0.0', port=8000)"
+    networks:
+      - default
 
   # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
   # [SINGULARITY 21.5] Автономность: Victoria использует SearXNG вместо внешних API
