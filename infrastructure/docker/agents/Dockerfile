@@ -63,7 +63,9 @@ RUN mkdir -p logs data cache
 ENV PYTHONPATH=/app:/app/knowledge_os/app:/app/app
 ENV PYTHONUNBUFFERED=1
 
-# Apply recursion limit at container start (before ANY Python code runs)
-RUN echo "import sys; sys.setrecursionlimit(400)" > /app/recursion_fix.py
+# CRITICAL: Set recursion BEFORE any Python imports (at container start)
+# This prevents the deep recursion that crashes complex queries
 
-CMD ["python", "-c", "import sys; sys.setrecursionlimit(400); from src.agents.bridge.victoria_server import *"]
+RUN echo "import sys; sys.setrecursionlimit(300)" > /app/force_recursion.py
+
+CMD ["python", "-c", "import sys; sys.setrecursionlimit(300); exec(open('/app/force_recursion.py').read()); from src.agents.bridge.victoria_server import *"]
