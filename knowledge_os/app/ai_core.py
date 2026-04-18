@@ -699,20 +699,46 @@ async def _retry_llm_with_backoff(coro):
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
 _DB_POOL = None
-_DB_POOL_INITIALIZING = False  # Prevent concurrent initialization
+_DB_POOL_INITIALIZING = False
+_RECURSION_GUARD = False  # Full recursion guard
 
 
 async def _get_db_pool():
-    """Lazy initialization of the PostgreSQL connection pool with recursion protection."""
-    global _DB_POOL
-    global _DB_POOL_INITIALIZING
-
-    # Prevent concurrent initialization (recursion guard)
-    if _DB_POOL_INITIALIZING:
+    """Simple DB pool - NO logger, NO recursion"""
+    global _DB_POOL, _DB_POOL_INITIALIZING
+    
+    if _DB_POOL_INITIALIZING or _DB_POOL is None:
         return None
+    return _DB_POOL
+        except:
+            _DB_POOL = None
 
-    if _DB_POOL is not None and not _DB_POOL._closed:
-        return _DB_POOL
+    if _DB_POOL is None and asyncpg:
+        try:
+            _RECURSION_GUARD = True  # Block all recursive calls
+            _DB_POOL_INITIALIZING = True
+
+            default_url = (
+                os.getenv("DATABASE_URL")
+                or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
+            )
+            db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
+            _DB_POOL = await asyncio.wait_for(
+                asyncpg.create_pool(
+                    db_url,
+                    min_size=1,
+                    max_size=5,
+                    max_inactive_connection_lifetime=60,
+                    command_timeout=5,
+                ),
+                timeout=8.0,
+            )
+        except Exception:
+            _DB_POOL = None
+        finally:
+            _DB_POOL_INITIALIZING = False
+            _RECURSION_GUARD = False
+    return _DB_POOL
 
     if _DB_POOL is None and asyncpg:
         try:
