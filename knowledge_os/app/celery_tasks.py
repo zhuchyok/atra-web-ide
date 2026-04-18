@@ -199,8 +199,15 @@ def is_complex_task(goal: str) -> bool:
         "спроектируй",
         "design",
     ]
-
     return any(kw in goal_lower for kw in complex_keywords)
+
+
+async def offload_to_celery(goal: str, expert_name: str = "Виктория", category: str = None) -> str:
+    """Async wrapper for Celery task queueing"""
+    if is_complex_task(goal):
+        task = queue_task.delay(goal, expert_name=expert_name, category=category)
+        return task.id
+    raise ValueError("Task not complex enough for Celery")
 
 
 def queue_task(goal: str, **kwargs) -> Dict[str, Any]:

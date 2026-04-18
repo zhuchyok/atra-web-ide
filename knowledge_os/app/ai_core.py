@@ -3051,6 +3051,22 @@ Use HANDOFF only if delegation genuinely improves the result.
             except Exception as e:
                 logger.debug(f"Metrics collection failed: {e}")
 
+            # [SINGULARITY 26.7] Offload complex tasks to Celery (fixes recursion)
+            if len(user_part) > 100 or any(
+                kw in user_part.lower()
+                for kw in ["код", "code", "анализ", "analysis", "generate", "создай"]
+            ):
+                try:
+                    from knowledge_os.app.celery_tasks import offload_to_celery
+
+                    job_id = await offload_to_celery(prompt, expert_name, category)
+                    local_resp = (
+                        f"⏳ [Celery] Task queued: {job_id}. Check status at /api/tasks/{job_id}"
+                    )
+                    metadata_dict["celery_job_id"] = job_id
+                except Exception as ce:
+                    logger.warning(f"⚠️ Celery offload failed: {ce}")
+
             return local_resp
 
     # 5. Query Orchestrator: нормализация запроса и сборка role-aware промпта
