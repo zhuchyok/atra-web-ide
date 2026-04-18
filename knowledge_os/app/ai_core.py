@@ -1420,20 +1420,35 @@ async def run_smart_agent_async_impl(
 ):
     start_time = time.time()
 
-    # [SINGULARITY 26.8] Subprocess offload for complex tasks (bypasses recursion)
-    goal_lower = prompt.lower() if prompt else ""
-    if len(prompt) > 50 and any(
-        kw in goal_lower
-        for kw in ["код", "code", "анализ", "generate", "создай", "напиши", "сложн"]
-    ):
-        try:
-            from knowledge_os.app.subprocess_runner import run_in_subprocess, is_complex_task
+    # [SINGULARITY 26.8] Fast subprocess check without importing ai_core
+    goal_lower = (prompt or "").lower()
+    is_code_task = len(prompt) > 50 and any(
+        kw in goal_lower for kw in ["код", "code", "анализ", "напиши", "создай"]
+    )
 
-            if is_complex_task(prompt):
-                result = await run_in_subprocess(prompt, expert_name, category, timeout=120)
-                return result
-        except Exception as ce:
-            pass  # Fall through to normal processing
+if is_code_task:
+        # Direct subprocess - NO imports from ai_core to avoid recursion
+        import os
+        import subprocess
+        import sys
+        try:
+            result = subprocess.run(
+                [sys.executable, "-c", f'''
+import asyncio
+import sys
+sys.path.insert(0, "/app/knowledge_os/app")
+async def main():
+    from ai_core import run_smart_agent_async
+    r = await run_smart_agent_async(goal="{prompt[:200]}", expert_name="{expert_name}")
+    print(r.get("output", "")[:3000])
+asyncio.run(main())
+'''],
+                capture_output=True, timeout=90, env={**os.environ, "PYTHONPATH": "/app:/app/knowledge_os/app"}
+            )
+            if result.returncode == 0 and result.stdout:
+                return {"status": "success", "output": result.stdout.decode()[:5000]}
+        except Exception:
+            pass  # Fall through
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
