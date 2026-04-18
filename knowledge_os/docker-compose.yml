@@ -140,6 +140,23 @@ services:
       timeout: 5s
       retries: 3
 
+  # Simple Worker: processes code tasks via Redis queue
+  simple-worker:
+    build:
+      context: ..
+      dockerfile: knowledge_os/app/Dockerfile
+    container_name: simple-worker
+    restart: unless-stopped
+    volumes:
+      - ../knowledge_os/app:/app/knowledge_os:ro
+    environment:
+      - PYTHONPATH=/app
+    command: python -c "import asyncio; from knowledge_os.app.simple_worker import main; asyncio.run(main())"
+    networks:
+      - default
+    depends_on:
+      - redis
+
   victoria-agent:
     depends_on:
       db:
