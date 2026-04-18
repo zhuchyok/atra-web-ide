@@ -698,12 +698,19 @@ async def _retry_llm_with_backoff(coro):
 
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
-# Lazy import to prevent recursion on startup
+# Initialize lazily, never during import
 _DB_POOL = None
 
 
-def _get_db_pool_sync():
-    """Synchronous wrapper for DB pool access"""
+async def _get_db_pool():
+    """Get or create pool lazily"""
+    global _DB_POOL
+    if _DB_POOL is None and asyncpg:
+        try:
+            url = os.getenv("DATABASE_URL", "postgresql://admin:secret@db:6432/knowledge_os")
+            _DB_POOL = await asyncpg.create_pool(url, min_size=1, max_size=3, command_timeout=3)
+        except:
+            _DB_POOL = None
     return _DB_POOL
         except:
             _DB_POOL = None
