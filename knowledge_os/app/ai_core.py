@@ -703,13 +703,16 @@ _DB_POOL = None
 
 
 async def _get_db_pool():
-    """Get or create pool lazily"""
+    """Get DB pool - with MAXIMUM safety"""
     global _DB_POOL
-    if _DB_POOL is None and asyncpg:
+    if _DB_POOL is None:
         try:
             url = os.getenv("DATABASE_URL", "postgresql://admin:secret@db:6432/knowledge_os")
-            _DB_POOL = await asyncpg.create_pool(url, min_size=1, max_size=3, command_timeout=3)
-        except:
+            _DB_POOL = await asyncio.wait_for(
+                asyncpg.create_pool(url, min_size=1, max_size=2, command_timeout=2, timeout=3),
+                timeout=3.0
+            )
+        except Exception:
             _DB_POOL = None
     return _DB_POOL
         except:
@@ -1134,7 +1137,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                 # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
                 if graph_nodes:
-                    pool = await _get_db_pool()
+                    try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
                     deep_memory = await _enrich_with_deep_memory(graph_nodes, pool)
                     if deep_memory:
                         graph_context = deep_memory + graph_context
@@ -1234,7 +1240,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 
                             # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
-                            pool = await _get_db_pool()
+                            try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
                             deep_memory = await _enrich_with_deep_memory(nodes, pool)
                             if deep_memory:
                                 context = deep_memory + context
@@ -1244,7 +1253,10 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     logger.warning(f"⚠️ Rust RAG failed, falling back to Python: {re}")
 
                 # Fallback to Python RAG (old logic)
-                pool = await _get_db_pool()
+                try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
                 if not pool:
                     return ""
 
@@ -1482,7 +1494,10 @@ async def run_smart_agent_async_impl(
             return ""
 
     # 1. Initialization
-    pool = await _get_db_pool()
+    try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
 
     # [SINGULARITY 25.0] Expert Priority Detection
     if not is_vip and expert_name and pool:
@@ -1605,7 +1620,10 @@ Use HANDOFF only if delegation genuinely improves the result.
 
         constitution_context = get_constitution_context()
 
-        pool = await _get_db_pool()
+        try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
         if pool:
             async with pool.acquire() as conn:
                 # 1. Meta-Strategies
@@ -1876,7 +1894,10 @@ Use HANDOFF only if delegation genuinely improves the result.
     async def _track_knowledge_usage(node_ids: List[str]):
         if not node_ids:
             return
-        pool = await _get_db_pool()
+        try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
         if pool:
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -3688,7 +3709,10 @@ async def _trigger_shadow_execution(
         return
 
     try:
-        pool = await _get_db_pool()
+        try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
         if not pool:
             return
 
@@ -3788,7 +3812,10 @@ async def _get_expert_id(name: str) -> str:
             "victoria": "Виктория",
             "VICTORIA": "Виктория",
         }.get(n, name)
-    pool = await _get_db_pool()
+    try:
+                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                except:
+                    pool = None
     if not pool:
         return None
     async with pool.acquire() as conn:
