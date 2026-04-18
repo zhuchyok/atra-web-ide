@@ -1391,6 +1391,17 @@ async def run_smart_agent_async(
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
     project_context: scopes RAG and prompt to that project (e.g. setki-21).
     """
+    # [SINGULARITY 26.9] IMMEDIATE queue check at entry point
+    if prompt and len(prompt) > 50 and any(kw in prompt.lower() for kw in ["код", "code", "анализ", "напиши", "создай", "write"]):
+        import redis, json, uuid
+        try:
+            r = redis.Redis(host="redis", port=6379, decode_responses=False)
+            task_id = f"task_{uuid.uuid4().hex[:8]}"
+            r.rpush("victoria_queue", json.dumps({"goal": prompt, "task_id": task_id}))
+            return {"status": "processing", "job_id": task_id, "output": f"⏳ Task {task_id} queued"}
+        except:
+            pass
+    
     return await run_smart_agent_async_impl(
         prompt,
         expert_name,
