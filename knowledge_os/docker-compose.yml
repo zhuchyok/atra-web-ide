@@ -108,6 +108,19 @@ services:
       timeout: 3s
       retries: 5
 
+  celery-worker:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    command: celery -A app.celery_tasks worker --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://admin:secret@db:5432/knowledge_os
+    networks:
+      - default
+
   quality-service:
     build:
       context: app
