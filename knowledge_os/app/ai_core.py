@@ -698,26 +698,27 @@ async def _retry_llm_with_backoff(coro):
 
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
-# Initialize lazily, never during import
 _DB_POOL = None
 
 
 async def _get_db_pool():
-    """Get DB pool - simplified, no recursion"""
+    """Lazy initialization of the PostgreSQL connection pool."""
     global _DB_POOL
-    if _DB_POOL is not None:
-        return _DB_POOL
-    
-    if asyncpg:
+    if _DB_POOL is None and asyncpg:
         try:
-            url = os.getenv("DATABASE_URL", "postgresql://admin:secret@db:6432/knowledge_os")
-            _DB_POOL = await asyncio.wait_for(
-                asyncpg.create_pool(url, min_size=1, max_size=2, command_timeout=2),
-                timeout=3.0
+            default_url = (
+                os.getenv("DATABASE_URL")
+                or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
             )
-        except Exception:
-            _DB_POOL = None
-    
+            db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
+            _DB_POOL = await asyncpg.create_pool(
+                db_url,
+                min_size=1,
+                max_size=20,  # Увеличено для Singularity 24.1 (max_connections=500)
+                max_inactive_connection_lifetime=300,
+            )
+        except Exception as exc:
+            logger.error("❌ Failed to create DB pool: %s", exc)
     return _DB_POOL
 
 
@@ -1087,10 +1088,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                 # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
                 if graph_nodes:
-                    try:
-                        pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                    except:
-                        pool = None
+                    pool = await _get_db_pool()
                     deep_memory = await _enrich_with_deep_memory(graph_nodes, pool)
                     if deep_memory:
                         graph_context = deep_memory + graph_context
@@ -1190,10 +1188,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                             logger.info("🚀 [RUST RAG] Successfully retrieved context.")
 
                             # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
-                            try:
-                                pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                            except:
-                                pool = None
+                            pool = await _get_db_pool()
                             deep_memory = await _enrich_with_deep_memory(nodes, pool)
                             if deep_memory:
                                 context = deep_memory + context
@@ -1203,10 +1198,7 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                     logger.warning(f"⚠️ Rust RAG failed, falling back to Python: {re}")
 
                 # Fallback to Python RAG (old logic)
-                try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+                pool = await _get_db_pool()
                 if not pool:
                     return ""
 
@@ -1419,11 +1411,7 @@ async def run_smart_agent_async_impl(
     is_vip: bool = False,
     project_context: Optional[str] = None,
 ):
-    import sys
-    # Force lower limit BEFORE any async - prevents deep recursion stack
-    sys.setrecursionlimit(500)
-    
-    try:
+    start_time = time.time()
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
@@ -1447,8 +1435,8 @@ async def run_smart_agent_async_impl(
             logger.debug(f"Failed to fetch memory crystals: {e}")
             return ""
 
-    # 1. Initialization - DISABLED to prevent recursion
-    pool = None  # Disabled: was causing recursion
+    # 1. Initialization
+    pool = await _get_db_pool()
 
     # [SINGULARITY 25.0] Expert Priority Detection
     if not is_vip and expert_name and pool:
@@ -1571,10 +1559,7 @@ Use HANDOFF only if delegation genuinely improves the result.
 
         constitution_context = get_constitution_context()
 
-        try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+        pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
                 # 1. Meta-Strategies
@@ -1845,10 +1830,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     async def _track_knowledge_usage(node_ids: List[str]):
         if not node_ids:
             return
-        try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+        pool = await _get_db_pool()
         if pool:
             async with pool.acquire() as conn:
                 await conn.execute(
@@ -2485,9 +2467,6 @@ Use HANDOFF only if delegation genuinely improves the result.
                     if cache:
                         await cache.save_to_cache(user_part, local_resp, expert_name)
                     return local_resp
-    finally:
-        import sys
-        sys.setrecursionlimit(2000)  # Restore default
 
             if local_resp:
                 # --- MODEL ENSEMBLE ACTIVATION ---
@@ -2716,26 +2695,7 @@ Use HANDOFF only if delegation genuinely improves the result.
                 except Exception as qe:
                     logger.debug(f"⚠️ Quality service unavailable: {qe}")
 
-                # [SINGULARITY 26.7] Celery offload for heavy tasks - prevents recursion
-                if local_resp and len(local_resp) > 500:
-                    is_heavy = any(kw in prompt.lower() for kw in ["код", "code", "анализ", "analysis", "implement", "создай", "напиши"])
-                    if is_heavy:
-                        try:
-                            from celery_tasks import process_heavy_task
-                            task_id = process_heavy_task.delay(prompt, local_resp, expert_name, project_context)
-                            return {
-                                "status": "processing",
-                                "task_id": task_id,
-                                "message": "Task queued for heavy processing. Use task_id to check status.",
-                                "interim_response": local_resp[:500]
-                            }
-                        except Exception as ce:
-                            logger.debug(f"Celery unavailable: {ce}")
-
                 return local_resp
-    finally:
-        import sys
-        sys.setrecursionlimit(2000)  # Restore default
             else:
                 # FEEDBACK LOOP: Send back to local with audit notes
                 logger.warning(
@@ -2766,9 +2726,6 @@ Use HANDOFF only if delegation genuinely improves the result.
                         "⚠️ [REVISION FAILED] Local model failed on revision, returning original"
                     )
                     return local_resp
-    finally:
-        import sys
-        sys.setrecursionlimit(2000)  # Restore default
                 return final_resp  # Return revised version
 
     # 4. Web-Enabled Local Route (Вероника с веб-поиском)
@@ -3088,9 +3045,6 @@ Use HANDOFF only if delegation genuinely improves the result.
                 logger.debug(f"Metrics collection failed: {e}")
 
             return local_resp
-    finally:
-        import sys
-        sys.setrecursionlimit(2000)  # Restore default
 
     # 5. Query Orchestrator: нормализация запроса и сборка role-aware промпта
     query_orchestrator = None
@@ -3688,10 +3642,7 @@ async def _trigger_shadow_execution(
         return
 
     try:
-        try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+        pool = await _get_db_pool()
         if not pool:
             return
 
@@ -3791,10 +3742,7 @@ async def _get_expert_id(name: str) -> str:
             "victoria": "Виктория",
             "VICTORIA": "Виктория",
         }.get(n, name)
-    try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+    pool = await _get_db_pool()
     if not pool:
         return None
     async with pool.acquire() as conn:
