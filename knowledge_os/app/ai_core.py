@@ -1469,7 +1469,12 @@ async def run_smart_agent_async_impl(
     is_vip: bool = False,
     project_context: Optional[str] = None,
 ):
+    import sys
     start_time = time.time()
+    
+    # RECURSION GUARD - prevent deep recursion
+    if sys.getrecursionlimit() > 2000:
+        sys.setrecursionlimit(1500)
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
