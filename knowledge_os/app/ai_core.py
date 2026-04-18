@@ -698,17 +698,12 @@ async def _retry_llm_with_backoff(coro):
 
 
 # --- PERFORMANCE BOOST: DB CONNECTION POOLING ---
+# Lazy import to prevent recursion on startup
 _DB_POOL = None
-_DB_POOL_INITIALIZING = False
-_RECURSION_GUARD = False  # Full recursion guard
 
 
-async def _get_db_pool():
-    """Simple DB pool - NO logger, NO recursion"""
-    global _DB_POOL, _DB_POOL_INITIALIZING
-    
-    if _DB_POOL_INITIALIZING or _DB_POOL is None:
-        return None
+def _get_db_pool_sync():
+    """Synchronous wrapper for DB pool access"""
     return _DB_POOL
         except:
             _DB_POOL = None
