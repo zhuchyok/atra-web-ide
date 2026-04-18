@@ -703,71 +703,21 @@ _DB_POOL = None
 
 
 async def _get_db_pool():
-    """Get DB pool - with MAXIMUM safety"""
+    """Get DB pool - simplified, no recursion"""
     global _DB_POOL
-    if _DB_POOL is None:
+    if _DB_POOL is not None:
+        return _DB_POOL
+    
+    if asyncpg:
         try:
             url = os.getenv("DATABASE_URL", "postgresql://admin:secret@db:6432/knowledge_os")
             _DB_POOL = await asyncio.wait_for(
-                asyncpg.create_pool(url, min_size=1, max_size=2, command_timeout=2, timeout=3),
+                asyncpg.create_pool(url, min_size=1, max_size=2, command_timeout=2),
                 timeout=3.0
             )
         except Exception:
             _DB_POOL = None
-    return _DB_POOL
-        except:
-            _DB_POOL = None
-
-    if _DB_POOL is None and asyncpg:
-        try:
-            _RECURSION_GUARD = True  # Block all recursive calls
-            _DB_POOL_INITIALIZING = True
-
-            default_url = (
-                os.getenv("DATABASE_URL")
-                or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
-            )
-            db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
-            _DB_POOL = await asyncio.wait_for(
-                asyncpg.create_pool(
-                    db_url,
-                    min_size=1,
-                    max_size=5,
-                    max_inactive_connection_lifetime=60,
-                    command_timeout=5,
-                ),
-                timeout=8.0,
-            )
-        except Exception:
-            _DB_POOL = None
-        finally:
-            _DB_POOL_INITIALIZING = False
-            _RECURSION_GUARD = False
-    return _DB_POOL
-
-    if _DB_POOL is None and asyncpg:
-        try:
-            _DB_POOL_INITIALIZING = True  # Mark as initializing
-            default_url = (
-                os.getenv("DATABASE_URL")
-                or "postgresql://admin:secret@localhost:6432/knowledge_os?application_name=victoria_core"
-            )
-            db_url = os.getenv("DATABASE_URL_LOCAL", default_url)
-            _DB_POOL = await asyncio.wait_for(
-                asyncpg.create_pool(
-                    db_url,
-                    min_size=1,
-                    max_size=20,
-                    max_inactive_connection_lifetime=300,
-                    command_timeout=5,
-                ),
-                timeout=10.0,  # 10 second timeout
-            )
-        except Exception as exc:
-            logger.error("❌ Failed to create DB pool: %s", exc)
-            _DB_POOL = None
-        finally:
-            _DB_POOL_INITIALIZING = False  # Always reset flag
+    
     return _DB_POOL
 
 
@@ -1138,9 +1088,9 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                 # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment for GraphRAG
                 if graph_nodes:
                     try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+                        pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                    except:
+                        pool = None
                     deep_memory = await _enrich_with_deep_memory(graph_nodes, pool)
                     if deep_memory:
                         graph_context = deep_memory + graph_context
@@ -1241,9 +1191,9 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                             # [SINGULARITY 21.25] Deep Memory Hierarchical Enrichment
                             try:
-                    pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
-                except:
-                    pool = None
+                                pool = await asyncio.wait_for(_get_db_pool(), timeout=1.0)
+                            except:
+                                pool = None
                             deep_memory = await _enrich_with_deep_memory(nodes, pool)
                             if deep_memory:
                                 context = deep_memory + context
@@ -2765,6 +2715,22 @@ Use HANDOFF only if delegation genuinely improves the result.
                             )
                 except Exception as qe:
                     logger.debug(f"⚠️ Quality service unavailable: {qe}")
+
+                # [SINGULARITY 26.7] Celery offload for heavy tasks - prevents recursion
+                if local_resp and len(local_resp) > 500:
+                    is_heavy = any(kw in prompt.lower() for kw in ["код", "code", "анализ", "analysis", "implement", "создай", "напиши"])
+                    if is_heavy:
+                        try:
+                            from celery_tasks import process_heavy_task
+                            task_id = process_heavy_task.delay(prompt, local_resp, expert_name, project_context)
+                            return {
+                                "status": "processing",
+                                "task_id": task_id,
+                                "message": "Task queued for heavy processing. Use task_id to check status.",
+                                "interim_response": local_resp[:500]
+                            }
+                        except Exception as ce:
+                            logger.debug(f"Celery unavailable: {ce}")
 
                 return local_resp
     finally:
