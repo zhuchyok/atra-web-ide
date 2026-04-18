@@ -5406,14 +5406,14 @@ async def run_task(
     logger.info("[REQUEST] Goal: %s", body.goal[:200] if body.goal else "(empty)")
     logger.info("[REQUEST] Async mode: %s", async_mode)
     logger.info("[REQUEST] Project context: %s", body.project_context)
-logger.info("[REQUEST] Max steps: %s", body.max_steps)
+    logger.info("[REQUEST] Max steps: %s", body.max_steps)
 
     # [SINGULARITY 26.9] DIRECT BYPASS for code/analysis tasks
     if "код" in (goal or "").lower() or "code" in (goal or "").lower():
         return TaskResponse(
-            status="processing", 
+            status="processing",
             output="⏳ Code tasks processed by worker",
-            knowledge={"strategy": "queue_bypass"}
+            knowledge={"strategy": "queue_bypass"},
         )
 
     goal = body.goal or ""
