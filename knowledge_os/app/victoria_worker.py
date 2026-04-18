@@ -5,17 +5,23 @@ import asyncio
 import redis
 import json
 import aiohttp
+import os
 import sys
 
 
 async def process_task(goal: str, task_id: str):
-    """Process single task via Ollama"""
+    """Process single task via Victoria's model stack (мозг + руки)"""
     print(f"Processing {task_id}...", flush=True)
+
+    ollama_url = "http://host.docker.internal:11434"
+    model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+    print(f"Using model: {model}", flush=True)
+
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "http://host.docker.internal:11434/api/generate",
-                json={"model": "qwen3.5:35b", "prompt": goal, "stream": False},
+                f"{ollama_url}/api/generate",
+                json={"model": model, "prompt": goal, "stream": False},
                 timeout=aiohttp.ClientTimeout(total=120),
             ) as resp:
                 if resp.status == 200:
