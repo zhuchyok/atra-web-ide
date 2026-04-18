@@ -64,8 +64,7 @@ ENV PYTHONPATH=/app:/app/knowledge_os/app:/app/app
 ENV PYTHONUNBUFFERED=1
 
 # CRITICAL: Set recursion BEFORE any Python imports (at container start)
-# This prevents the deep recursion that crashes complex queries
+# Victoria's complex async pipeline needs recursionlimit=1000 (default is 1000)
+RUN echo "import sys; sys.setrecursionlimit(1000)" > /app/force_recursion.py
 
-RUN echo "import sys; sys.setrecursionlimit(300)" > /app/force_recursion.py
-
-CMD ["python", "-c", "import sys; sys.setrecursionlimit(300); exec(open('/app/force_recursion.py').read()); from src.agents.bridge.victoria_server import *"]
+CMD ["python", "-c", "import sys; sys.setrecursionlimit(1000); exec(open('/app/force_recursion.py').read()); from src.agents.bridge.victoria_server import *"]
