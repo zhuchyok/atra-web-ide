@@ -63,4 +63,7 @@ RUN mkdir -p logs data cache
 ENV PYTHONPATH=/app:/app/knowledge_os/app:/app/app
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "src.agents.bridge.victoria_server"]
+# Apply recursion limit at container start (before ANY Python code runs)
+RUN echo "import sys; sys.setrecursionlimit(400)" > /app/recursion_fix.py
+
+CMD ["python", "-c", "import sys; sys.setrecursionlimit(400); from src.agents.bridge.victoria_server import *"]
