@@ -1426,11 +1426,9 @@ async def run_smart_agent_async_impl(
         kw in goal_lower for kw in ["код", "code", "анализ", "напиши", "создай"]
     )
 
-if is_code_task:
+    if is_code_task:
         # DIRECT OLLAMA CALL - bypasses ai_core recursion completely
-        import os
         import subprocess
-        import sys
         try:
             # Build prompt for code generation
             system_prompt = "Ты эксперт по Python. Напиши чистый, рабочий код."
@@ -1443,6 +1441,14 @@ if is_code_task:
                 capture_output=True, timeout=60
             )
             if result.returncode == 0:
+                try:
+                    data = json.loads(result.stdout)
+                    if data.get("response"):
+                        return {"status": "success", "output": data["response"][:5000]}
+                except json.JSONDecodeError:
+                    pass
+        except Exception:
+            pass  # Fall through to normal flow
                 try:
                     data = json.loads(result.stdout)
                     if data.get("response"):
