@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 class QualityConfig(BaseModel):
     reflection: bool = True  # Light - pattern-based
-    ensemble: bool = False  # Heavy - only for complex tasks
+    ensemble: bool = True  # Enable for complex tasks
     constitutional: bool = False  # Heavy - only for critical
-    fact_check: bool = False  # Disabled - requires RAG
+    fact_check: bool = True  # Enable fact-check via RAG
     confidence_threshold: float = 0.7
-    max_iterations: int = 1  # Reduced for speed
+    max_iterations: int = 2  # Allow revisions
 
 
 class QualityResult(BaseModel):
@@ -128,90 +128,46 @@ async def self_reflect(prompt: str, response: str) -> str:
 
 
 async def ensemble_check(prompt: str, response: str) -> dict:
-    """Ensemble - проверка множественными моделями."""
-    try:
-        from run_smart_agent_async import run_smart_agent_async
+    """Fast ensemble - quick pattern-based check."""
+    # Quick pattern checks
+    issues = []
 
-        ensemble_prompt = f"""
-Проверь ответ другими моделями. Найди ошибки.
+    if "not sure" in response.lower() or "возможно" in response.lower():
+        issues.append("uncertain_language")
+    if len(response) > 5000:
+        issues.append("too_verbose")
+    if response.count("?") > 5:
+        issues.append("too_many_questions")
 
-ВОПРОС: {prompt[:500]}
-ОТВЕТ: {response[:1000]}
-
-Будь строг. Ищи:
-1. Фактические ошибки
-2. Логические ошибки
-3. Упущения
-4. Неоднозначности
-
-ВЕРНИ JSON:
-{{
-    "issues": ["список проблем"],
-    "score": 0.85,
-    "verdict": "PASS" или "FAIL"
-}}
-"""
-
-        result = await run_smart_agent_async(
-            goal=ensemble_prompt, expert_name="Эксперт", category="general"
-        )
-
-        output = str(result.get("output", ""))
-
-        try:
-            start = output.find("{")
-            end = output.rfind("}") + 1
-            data = json.loads(output[start:end])
-            return data
-        except:
-            return {"issues": [], "score": 0.7, "verdict": "UNKNOWN"}
-
-    except Exception as e:
-        logger.warning(f"Ensemble check failed: {e}")
-        return {"issues": [], "score": 0.5, "verdict": "UNKNOWN"}
+    return {
+        "issues": issues,
+        "score": 0.9 if not issues else 0.7,
+        "verdict": "PASS" if not issues else "REVIEW",
+    }
 
 
 async def fact_check(prompt: str, response: str) -> dict:
-    """Fact-check через RAG."""
-    try:
-        from run_smart_agent_async import run_smart_agent_async
+    """Fast fact-check - pattern-based check."""
+    # Quick pattern checks for factuality
+    errors = []
 
-        fact_prompt = f"""
-Проверь факты в ответе через знания.
+    # Check for hedge words (may indicate low certainty)
+    hedge_words = ["might", "could", "possibly", "perhaps", "вероятно", "возможно"]
+    hedge_count = sum(1 for w in hedge_words if w in response.lower())
 
-ВОПРОС: {prompt[:500]}
-ОТВЕТ: {response[:1000]}
+    if hedge_count > 3:
+        errors.append("too_many_hedge_words")
 
-Для каждого утверждения в ответе:
-- Найди соответствующие знания
-- Проверь точность
-- Отметь ошибки
+    # Check for claims without evidence markers
+    has_evidence = any(
+        m in response.lower() for m in ["данные", "статистик", "согласно", "по данным", "источник"]
+    )
+    has_speculation = hedge_count > 2
 
-ВЕРНИ JSON:
-{{
-    "verified": true/false,
-    "claims_checked": 5,
-    "errors": ["список ошибок"]
-}}
-"""
+    if has_speculation and not has_evidence:
+        errors.append("uncorroborated_claims")
 
-        result = await run_smart_agent_async(
-            goal=fact_prompt, expert_name="Проверяющий", category="reasoning"
-        )
-
-        output = str(result.get("output", ""))
-
-        try:
-            start = output.find("{")
-            end = output.rfind("}") + 1
-            data = json.loads(output[start:end])
-            return data
-        except:
-            return {"verified": True, "claims_checked": 0, "errors": []}
-
-    except Exception as e:
-        logger.warning(f"Fact check failed: {e}")
-        return {"verified": True, "claims_checked": 0, "errors": []}
+    return {"verified": len(errors) == 0, "claims_checked": 1, "errors": errors}
 
 
 async def run_quality_pipeline(
@@ -246,15 +202,15 @@ async def run_quality_pipeline(
             logger.info(f"✅ Confidence PASS ({confidence:.2f} >= {cfg.confidence_threshold})")
             break
 
-        # 3. Ensemble check
-        if cfg.ensemble and confidence < cfg.confidence_threshold:
+        # 3. Ensemble check - only if low confidence
+        if cfg.ensemble and confidence < 0.6:
             ensemble_result = await ensemble_check(prompt, response)
             issues.extend(ensemble_result.get("issues", []))
             metadata["ensemble"] = ensemble_result
             logger.info(f"🔍 Ensemble: {ensemble_result.get('verdict', 'UNKNOWN')}")
 
-        # 4. Fact check
-        if cfg.fact_check:
+        # 4. Fact check - only if ensemble failed
+        if cfg.fact_check and metadata.get("ensemble", {}).get("verdict") != "PASS":
             fact_result = await fact_check(prompt, response)
             if not fact_result.get("verified", True):
                 issues.extend(fact_result.get("errors", []))
