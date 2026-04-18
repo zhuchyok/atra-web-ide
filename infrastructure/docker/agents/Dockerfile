@@ -67,4 +67,26 @@ ENV PYTHONUNBUFFERED=1
 # Victoria's complex async pipeline needs recursionlimit=1000 (default is 1000)
 RUN echo "import sys; sys.setrecursionlimit(1000)" > /app/force_recursion.py
 
-CMD ["python", "-c", "import sys; sys.setrecursionlimit(1000); exec(open('/app/force_recursion.py').read()); from src.agents.bridge.victoria_server import *"]
+CMD ["python", "-c", "
+import sys; sys.setrecursionlimit(1000)
+import subprocess, os
+# Start worker in SEPARATE process - truly isolated stack
+worker_proc = subprocess.Popen([sys.executable, '-c', '''
+import asyncio, redis, json, aiohttp
+async def w():
+    r = redis.Redis(host=\"redis\", port=6379, decode_responses=True)
+    print(\"Worker SEPARATE process started\")
+    while True:
+        try:
+            result = r.blpop(\"victoria_queue\", timeout=2)
+            if result:
+                _, d = result
+                t = json.loads(d)
+                print(f\"Worker: {t.get(\\\\"task_id\\\", \\\"x\\\")[:8]}\")
+        except: pass
+        await asyncio.sleep(1)
+asyncio.run(w())
+'''], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+# Give worker time to start
+import time; time.sleep(2)
+from src.agents.bridge.victoria_server import *"]
