@@ -57,9 +57,10 @@ COPY --from=cache_normalizer_builder /out/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/cache_normalizer*.whl && rm /tmp/cache_normalizer*.whl
 
 COPY . .
+RUN ln -sf /app/knowledge_os/app /app/app 2>/dev/null || true
 RUN mkdir -p logs data cache
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/knowledge_os/app:/app/app
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-m", "src.agents.bridge.victoria_server"]

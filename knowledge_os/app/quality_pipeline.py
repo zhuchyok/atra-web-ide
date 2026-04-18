@@ -272,6 +272,9 @@ async def enhance_response(
 
 def is_quality_enabled() -> bool:
     """Check if quality pipeline is enabled."""
+    logger.info(
+        f"⚡ [QUALITY] Config check: reflection={_quality_config.reflection}, ensemble={_quality_config.ensemble}, fact_check={_quality_config.fact_check}"
+    )
     return _quality_config.reflection or _quality_config.ensemble or _quality_config.fact_check
 
 
