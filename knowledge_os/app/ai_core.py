@@ -1427,28 +1427,30 @@ async def run_smart_agent_async_impl(
     )
 
 if is_code_task:
-        # Direct subprocess - NO imports from ai_core to avoid recursion
+        # DIRECT OLLAMA CALL - bypasses ai_core recursion completely
         import os
         import subprocess
         import sys
         try:
+            # Build prompt for code generation
+            system_prompt = "Ты эксперт по Python. Напиши чистый, рабочий код."
+            full_prompt = f"{system_prompt}\n\n{prompt[:300]}"
+            
             result = subprocess.run(
-                [sys.executable, "-c", f'''
-import asyncio
-import sys
-sys.path.insert(0, "/app/knowledge_os/app")
-async def main():
-    from ai_core import run_smart_agent_async
-    r = await run_smart_agent_async(goal="{prompt[:200]}", expert_name="{expert_name}")
-    print(r.get("output", "")[:3000])
-asyncio.run(main())
-'''],
-                capture_output=True, timeout=90, env={**os.environ, "PYTHONPATH": "/app:/app/knowledge_os/app"}
+                ["curl", "-s", "-X", "POST", "http://host.docker.internal:11434/api/generate",
+                 "-H", "Content-Type: application/json",
+                 "-d", '{"model":"qwen3.5:35b","prompt":' + json.dumps(full_prompt) + ',"stream":false}'],
+                capture_output=True, timeout=60
             )
-            if result.returncode == 0 and result.stdout:
-                return {"status": "success", "output": result.stdout.decode()[:5000]}
+            if result.returncode == 0:
+                try:
+                    data = json.loads(result.stdout)
+                    if data.get("response"):
+                        return {"status": "success", "output": data["response"][:5000]}
+                except json.JSONDecodeError:
+                    pass
         except Exception:
-            pass  # Fall through
+            pass  # Fall through to normal flow
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
