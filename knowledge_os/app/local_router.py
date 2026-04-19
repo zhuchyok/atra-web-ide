@@ -52,16 +52,21 @@ except ImportError:
         def record_llm_request(*args, **kwargs):
             pass
 
+
 try:
     from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
 except ImportError:
     try:
         import sys as _sys, os as _os
+
         _sys.path.append(_os.path.join(_os.path.dirname(__file__), "../../backend/app/metrics"))
         from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
     except ImportError:
+
         class _DummyCounter:
-            def inc(self, *a, **kw): pass
+            def inc(self, *a, **kw):
+                pass
+
         _OLLAMA_BP_SKIPS = _DummyCounter()
 
 
@@ -293,30 +298,35 @@ class LocalAIRouter:
             self._node_breakers[node_url] = get_circuit_breaker(
                 name=breaker_name,
                 failure_threshold=10,  # [SINGULARITY 25.0] 10 failures → OPEN (tolerates burst post-recovery; was 5)
-                recovery_timeout=60,   # [SINGULARITY 25.0] 60s probe cycle (was 120s — faster recovery)
+                recovery_timeout=60,  # [SINGULARITY 25.0] 60s probe cycle (was 120s — faster recovery)
             )
             logger.debug(f"🛡️ [CIRCUIT BREAKER] Initialized for {node_url} as {breaker_name}")
 
         # [SINGULARITY 25.0] Startup sanity-check: warn if Ollama semaphore and NUM_PARALLEL are out of sync.
         # Ольга (Performance Engineer): меняя OLLAMA_NUM_PARALLEL без OLLAMA_GLOBAL_MAX_SLOTS → рассинхронизация.
-        _num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "6"))
-        _max_slots = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "5"))
+        _num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "5"))  # [FIX 2026-04-19] was 6
+        _max_slots = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "3"))  # [FIX 2026-04-19] was 5
         if _max_slots >= _num_parallel:
             logger.warning(
                 "⚠️ [CONFIG SYNC] OLLAMA_GLOBAL_MAX_SLOTS=%d >= OLLAMA_NUM_PARALLEL=%d — "
                 "semaphore provides no buffer! Set OLLAMA_GLOBAL_MAX_SLOTS to NUM_PARALLEL-1 or less.",
-                _max_slots, _num_parallel,
+                _max_slots,
+                _num_parallel,
             )
         elif _num_parallel - _max_slots > 2:
             logger.warning(
                 "⚠️ [CONFIG SYNC] OLLAMA_GLOBAL_MAX_SLOTS=%d is %d below OLLAMA_NUM_PARALLEL=%d — "
                 "large buffer may under-utilize Ollama capacity.",
-                _max_slots, _num_parallel - _max_slots, _num_parallel,
+                _max_slots,
+                _num_parallel - _max_slots,
+                _num_parallel,
             )
         else:
             logger.info(
                 "✅ [CONFIG SYNC] Ollama semaphore: %d/%d slots (buffer=%d) — OK",
-                _max_slots, _num_parallel, _num_parallel - _max_slots,
+                _max_slots,
+                _num_parallel,
+                _num_parallel - _max_slots,
             )
 
     @property
@@ -834,12 +844,13 @@ class LocalAIRouter:
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
-                    f"{visual_search_url}/search",
-                    json={"queries": [query], "top_k": top_k}
+                    f"{visual_search_url}/search", json={"queries": [query], "top_k": top_k}
                 )
                 if response.status_code == 200:
                     results = response.json().get("results", [])
-                    logger.info(f"🖼️ [VISUAL SEARCH] Found {len(results)} matches for: {query[:50]}...")
+                    logger.info(
+                        f"🖼️ [VISUAL SEARCH] Found {len(results)} matches for: {query[:50]}..."
+                    )
                     return results
         except Exception as e:
             logger.debug(f"Visual search failed: {e}")
@@ -870,7 +881,9 @@ class LocalAIRouter:
         """
         # [OMNI-RAG v3] Автоматическое обогащение визуальным контекстом
         prompt_lower = prompt.lower()
-        if "#multimodal" in prompt_lower or any(kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]):
+        if "#multimodal" in prompt_lower or any(
+            kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]
+        ):
             visual_results = await self.search_visual_context(prompt)
             if visual_results:
                 visual_block = "\n\n🖼️ [VISUAL CONTEXT]:\n"
@@ -1109,7 +1122,10 @@ class LocalAIRouter:
         elif is_victoria_brain:
             if victoria_mlx_brain and mlx_healthy:
                 preferred_source = "mlx"
-                logger.info("🧠 [BRAIN] Victoria (no tag) → MLX (VICTORIA_MLX_BRAIN=true, health=%.2f)", health_score)
+                logger.info(
+                    "🧠 [BRAIN] Victoria (no tag) → MLX (VICTORIA_MLX_BRAIN=true, health=%.2f)",
+                    health_score,
+                )
             elif mlx_healthy and not ollama_nodes:
                 preferred_source = "mlx"
                 logger.info("🧠 [BRAIN] Victoria → MLX (no Ollama available)")
@@ -1117,7 +1133,8 @@ class LocalAIRouter:
                 preferred_source = "ollama"
                 logger.info(
                     "⚡ [BRAIN FALLBACK] Victoria → Ollama (MLX health=%.2f, Ollama available=%s)",
-                    health_score, bool(ollama_nodes)
+                    health_score,
+                    bool(ollama_nodes),
                 )
 
         # [SINGULARITY 21.5] Predictive Warmup for reasoning/complex tasks OR MLX overload OR Victoria
@@ -1186,7 +1203,8 @@ class LocalAIRouter:
                     if not breaker.start_probe():
                         # Другая корутина уже отправила probe — пропускаем
                         logger.debug(
-                            "⏳ [CIRCUIT BREAKER] Node %s probe already in flight. Skipping.", node_url_base
+                            "⏳ [CIRCUIT BREAKER] Node %s probe already in flight. Skipping.",
+                            node_url_base,
                         )
                         continue
                     breaker.state = CircuitState.HALF_OPEN  # ← обязательно до probe
@@ -1201,27 +1219,43 @@ class LocalAIRouter:
                             _hr = await _hc.get(_health_ep)
                         if _hr.status_code == 200:
                             breaker._on_success()
-                            logger.info("✅ [CIRCUIT BREAKER] Node %s health probe OK → CLOSED", node_url_base)
+                            logger.info(
+                                "✅ [CIRCUIT BREAKER] Node %s health probe OK → CLOSED",
+                                node_url_base,
+                            )
                             # [SINGULARITY 25.0] Post-recovery jitter: stagger burst after probe succeeds.
                             # Without jitter all blocked coroutines rush Ollama simultaneously after CLOSED,
                             # causing 5+ simultaneous requests that re-fill the queue and reopen the CB.
                             _jitter = random.uniform(0.3, 2.0)
-                            logger.info("[CIRCUIT BREAKER] ⏱️ Post-recovery jitter %.2fs for node %s", _jitter, node_url_base)
+                            logger.info(
+                                "[CIRCUIT BREAKER] ⏱️ Post-recovery jitter %.2fs for node %s",
+                                _jitter,
+                                node_url_base,
+                            )
                             await asyncio.sleep(_jitter)
                             # Continue normally (CB is now CLOSED, request goes through after jitter)
                         else:
                             breaker._on_failure(f"HealthProbe HTTP {_hr.status_code}")
-                            logger.warning("🔴 [CIRCUIT BREAKER] Node %s health probe failed (%d) → OPEN", node_url_base, _hr.status_code)
+                            logger.warning(
+                                "🔴 [CIRCUIT BREAKER] Node %s health probe failed (%d) → OPEN",
+                                node_url_base,
+                                _hr.status_code,
+                            )
                             continue
                     except Exception as _probe_err:
                         breaker._on_failure(f"HealthProbe: {_probe_err}")
-                        logger.warning("🔴 [CIRCUIT BREAKER] Node %s health probe error → OPEN: %s", node_url_base, _probe_err)
+                        logger.warning(
+                            "🔴 [CIRCUIT BREAKER] Node %s health probe error → OPEN: %s",
+                            node_url_base,
+                            _probe_err,
+                        )
                         continue
             elif breaker and breaker.state == CircuitState.HALF_OPEN:
                 # Уже в HALF_OPEN (установлено параллельной корутиной) — probe в процессе
                 if breaker._probe_in_flight:
                     logger.debug(
-                        "⏳ [CIRCUIT BREAKER] Node %s HALF_OPEN probe in flight. Skipping.", node_url_base
+                        "⏳ [CIRCUIT BREAKER] Node %s HALF_OPEN probe in flight. Skipping.",
+                        node_url_base,
                     )
                     continue
 
@@ -1556,6 +1590,7 @@ class LocalAIRouter:
                         if is_ollama:
                             try:
                                 from redis_manager import RedisManager as _RM
+
                                 _slot_acquired = await _RM().acquire_ollama_slot()
                                 if not _slot_acquired:
                                     logger.warning(
@@ -1569,140 +1604,161 @@ class LocalAIRouter:
                                     continue  # skip to MLX or next retry — NOT a CB failure
                                 _ollama_slot_acquired = True
                             except Exception as _sem_err:
-                                logger.debug("[ROUTER] Ollama slot acquire error (%s), proceeding", _sem_err)
+                                logger.debug(
+                                    "[ROUTER] Ollama slot acquire error (%s), proceeding", _sem_err
+                                )
                                 _ollama_slot_acquired = True  # fail-open
 
                         # МОНСТР-ЛОГИКА: Если форсирован локальный роутинг или это REASONING/VIP, или используется тяжелая модель, используем стриминг для предотвращения ReadTimeout
                         is_heavy_model = any(
                             heavy in str(model).lower()
-                            for heavy in ["32b", "30b", "70b", "104b", "qwq", "victoria-wisdom-v3.5"]
+                            for heavy in [
+                                "32b",
+                                "30b",
+                                "70b",
+                                "104b",
+                                "qwq",
+                                "victoria-wisdom-v3.5",
+                            ]
                         )
                         # [SINGULARITY 25.0] try/finally: release Ollama slot after HTTP call (streaming OR non-streaming)
                         try:
-                          if (
-                            getattr(self, "force_local", False)
-                            or category in ("reasoning", "vip")
-                            or is_heavy_model
-                          ):
-                            logger.info(
-                                f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]..."
-                            )
-                            full_response = []
+                            if (
+                                getattr(self, "force_local", False)
+                                or category in ("reasoning", "vip")
+                                or is_heavy_model
+                            ):
+                                logger.info(
+                                    f"🚀 [STREAMING] Использование стриминга для поддержания соединения (Heartbeat) [Model: {model}, Category: {category}]..."
+                                )
+                                full_response = []
 
-                            # Включаем стриминг в полезной нагрузке
-                            payload["stream"] = True
-                            # Таймаут стриминга: read до 30 мин (первый токен у 35B+ может быть долгим), connect 60 с
-                            _stream_timeout = float(
-                                os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1800")
-                            )
-                            _stream_connect = float(
-                                os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60")
-                            )
+                                # Включаем стриминг в полезной нагрузке
+                                payload["stream"] = True
+                                # Таймаут стриминга: read до 30 мин (первый токен у 35B+ может быть долгим), connect 60 с
+                                _stream_timeout = float(
+                                    os.getenv("LOCAL_ROUTER_STREAM_READ_TIMEOUT", "1800")
+                                )
+                                _stream_connect = float(
+                                    os.getenv("LOCAL_ROUTER_STREAM_CONNECT_TIMEOUT", "60")
+                                )
 
-                            # [SINGULARITY 21.5] Predictive Warmup logic moved up
-                            _streaming_error_text = ""  # Will be set if streaming returns error status
+                                # [SINGULARITY 21.5] Predictive Warmup logic moved up
+                                _streaming_error_text = (
+                                    ""  # Will be set if streaming returns error status
+                                )
 
-                            async with client.stream(
-                                "POST",
-                                node_url,
-                                json=payload,
-                                headers=headers,
-                                timeout=httpx.Timeout(_stream_timeout, connect=_stream_connect),
-                            ) as response:
-                                if response.status_code == 200:
-                                    first_token_time = None
-                                    token_times = []
-                                    chunk_count = 0
+                                async with client.stream(
+                                    "POST",
+                                    node_url,
+                                    json=payload,
+                                    headers=headers,
+                                    timeout=httpx.Timeout(_stream_timeout, connect=_stream_connect),
+                                ) as response:
+                                    if response.status_code == 200:
+                                        first_token_time = None
+                                        token_times = []
+                                        chunk_count = 0
 
-                                    async for line in response.aiter_lines():
-                                        if not line:
-                                            continue
-                                        try:
-                                            chunk = json.loads(line)
-                                            now = time.time()
-                                            if first_token_time is None:
-                                                first_token_time = now
-                                            else:
-                                                token_times.append(now)
+                                        async for line in response.aiter_lines():
+                                            if not line:
+                                                continue
+                                            try:
+                                                chunk = json.loads(line)
+                                                now = time.time()
+                                                if first_token_time is None:
+                                                    first_token_time = now
+                                                else:
+                                                    token_times.append(now)
 
-                                            # Обработка разных форматов Ollama/MLX
-                                            if "message" in chunk:
-                                                content = chunk["message"].get("content", "")
-                                            elif "response" in chunk:
-                                                content = chunk.get("response", "")
-                                            else:
-                                                content = ""
+                                                # Обработка разных форматов Ollama/MLX
+                                                if "message" in chunk:
+                                                    content = chunk["message"].get("content", "")
+                                                elif "response" in chunk:
+                                                    content = chunk.get("response", "")
+                                                else:
+                                                    content = ""
 
-                                            if content:
-                                                full_response.append(content)
-                                                chunk_count += 1
+                                                if content:
+                                                    full_response.append(content)
+                                                    chunk_count += 1
 
-                                            if chunk.get("done"):
-                                                break
-                                        except (json.JSONDecodeError, KeyError, Exception):
-                                            continue
+                                                if chunk.get("done"):
+                                                    break
+                                            except (json.JSONDecodeError, KeyError, Exception):
+                                                continue
 
-                                    result = "".join(full_response)
+                                        result = "".join(full_response)
 
-                                    # Report metrics to MLXMonitor
-                                    if is_mlx and first_token_time:
-                                        ttft = first_token_time - request_start
-                                        tbt = 0.0
-                                        if len(token_times) > 1:
-                                            # Calculate average TBT
-                                            diffs = [
-                                                token_times[i] - token_times[i - 1]
-                                                for i in range(1, len(token_times))
-                                            ]
-                                            if not diffs:  # Only one token after first
-                                                diffs = [token_times[0] - first_token_time]
-                                            tbt = sum(diffs) / len(diffs)
+                                        # Report metrics to MLXMonitor
+                                        if is_mlx and first_token_time:
+                                            ttft = first_token_time - request_start
+                                            tbt = 0.0
+                                            if len(token_times) > 1:
+                                                # Calculate average TBT
+                                                diffs = [
+                                                    token_times[i] - token_times[i - 1]
+                                                    for i in range(1, len(token_times))
+                                                ]
+                                                if not diffs:  # Only one token after first
+                                                    diffs = [token_times[0] - first_token_time]
+                                                tbt = sum(diffs) / len(diffs)
 
-                                        total_duration = time.time() - request_start
-                                        tps = (
-                                            chunk_count / total_duration
-                                            if total_duration > 0
-                                            else 0
+                                            total_duration = time.time() - request_start
+                                            tps = (
+                                                chunk_count / total_duration
+                                                if total_duration > 0
+                                                else 0
+                                            )
+
+                                            get_mlx_monitor().report_metrics(
+                                                ttft=ttft, tbt=tbt, tps=tps
+                                            )
+
+                                        # Создаем фиктивный объект ответа для совместимости с кодом ниже
+                                        class MockResponse:
+                                            def __init__(self, text, status_code):
+                                                self.text = text
+                                                self.status_code = status_code
+
+                                            def json(self):
+                                                return {"message": {"content": self.text}}
+
+                                        response = MockResponse(result, 200)
+                                    else:
+                                        # Если ошибка — считываем текст ошибки
+                                        error_text = await response.aread()
+                                        _streaming_error_text = (
+                                            error_text.decode("utf-8", errors="replace")
+                                            if error_text
+                                            else ""
                                         )
-
-                                        get_mlx_monitor().report_metrics(
-                                            ttft=ttft, tbt=tbt, tps=tps
+                                        logger.error(
+                                            f"Streaming error: {response.status_code}: {_streaming_error_text[:200]}"
                                         )
+                            else:
+                                # [SINGULARITY 21.5] Predictive Warmup logic moved up
 
-                                    # Создаем фиктивный объект ответа для совместимости с кодом ниже
-                                    class MockResponse:
-                                        def __init__(self, text, status_code):
-                                            self.text = text
-                                            self.status_code = status_code
-
-                                        def json(self):
-                                            return {"message": {"content": self.text}}
-
-                                    response = MockResponse(result, 200)
-                                else:
-                                    # Если ошибка — считываем текст ошибки
-                                    error_text = await response.aread()
-                                    _streaming_error_text = error_text.decode("utf-8", errors="replace") if error_text else ""
-                                    logger.error(f"Streaming error: {response.status_code}: {_streaming_error_text[:200]}")
-                          else:
-                            # [SINGULARITY 21.5] Predictive Warmup logic moved up
-
-                            # Обычный запрос для легких задач
-                            response = await client.post(
-                                node_url,
-                                json=payload,
-                                headers=headers,
-                                timeout=httpx.Timeout(_node_timeout, connect=30.0),
-                            )
+                                # Обычный запрос для легких задач
+                                response = await client.post(
+                                    node_url,
+                                    json=payload,
+                                    headers=headers,
+                                    timeout=httpx.Timeout(_node_timeout, connect=30.0),
+                                )
                         finally:
-                          # Release global Ollama slot regardless of outcome (success or exception)
-                          if _ollama_slot_acquired and is_ollama:
-                            try:
-                                from redis_manager import RedisManager as _RM2
-                                await _RM2().release_ollama_slot()
-                                _ollama_slot_acquired = False
-                            except Exception as _rel_err:
-                                logger.debug("[ROUTER] Ollama slot release error (%s), ignoring", _rel_err)
+                            # Release global Ollama slot regardless of outcome (success or exception)
+                            if _ollama_slot_acquired and is_ollama:
+                                try:
+                                    from redis_manager import RedisManager as _RM2
+
+                                    await _RM2().release_ollama_slot()
+                                    _ollama_slot_acquired = False
+                                except Exception as _rel_err:
+                                    logger.debug(
+                                        "[ROUTER] Ollama slot release error (%s), ignoring",
+                                        _rel_err,
+                                    )
                         latency_ms = (time.time() - request_start) * 1000
 
                         # Load Balancing: обновляем метрики загрузки
@@ -1856,7 +1912,7 @@ class LocalAIRouter:
                             # [FIX] 503 from Ollama = "server busy" (not broken) → do NOT open CB
                             # 503 means the queue is full or model loading, NOT a real failure.
                             # Real failures are: 500, 502, 504, connection errors, timeouts.
-                            is_queue_full_503 = (response.status_code == 503 and is_ollama)
+                            is_queue_full_503 = response.status_code == 503 and is_ollama
                             if breaker and not is_queue_full_503:
                                 breaker._on_failure(f"HTTP {response.status_code}")
 
@@ -2120,6 +2176,7 @@ class LocalAIRouter:
                 options["num_ctx"] = SAFE_MAX_CTX
 
             import psutil
+
             ram = psutil.virtual_memory()
             available_gb = ram.available / (1024**3)
 

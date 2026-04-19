@@ -247,7 +247,7 @@ class RedisManager:
     # Pattern: Redis INCR/DECR counter with safety TTL (used by knowledge_os_worker via local_router.py).
     # If Redis is unavailable, falls back to True (allow request) for graceful degradation.
     _OLLAMA_SEM_KEY = "ollama:global_slots"
-    _OLLAMA_MAX_SLOTS = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "5"))  # 6 NUM_PARALLEL − 1 buffer
+    _OLLAMA_MAX_SLOTS = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "3"))  # [FIX 2026-04-19] was 5
 
     async def reset_ollama_slots(self) -> None:
         """
