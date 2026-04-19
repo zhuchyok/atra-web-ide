@@ -9,13 +9,65 @@ import os
 import sys
 
 
+async def wait_for_victoria(max_retries=30, delay=2):
+    """Wait for Victoria to be ready"""
+    victoria_url = "http://localhost:8000"
+    for i in range(max_retries):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{victoria_url}/health", timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        print(f"Victoria ready after {i + 1} attempts", flush=True)
+                        return True
+        except Exception:
+            pass
+        await asyncio.sleep(delay)
+    return False
+
+
 async def process_task(goal: str, task_id: str):
-    """Process single task via Victoria's model stack (мозг + руки)"""
+    """Process task via Victoria Multi-Agent System (calls with async_mode to skip queue detection)"""
     print(f"Processing {task_id}...", flush=True)
 
+    victoria_url = "http://localhost:8000"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Use async_mode=true to SKIP queue detection in Victoria (prevents infinite loop)
+            async with session.post(
+                f"{victoria_url}/run?async_mode=true",
+                json={"goal": goal},
+                timeout=aiohttp.ClientTimeout(total=300),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    output = data.get("output", "")[:5000]
+                    # Store in Redis with format expected by /run/status endpoint
+                    r.set(
+                        f"task:{task_id}",
+                        json.dumps(
+                            {
+                                "task_id": task_id,
+                                "status": "completed",
+                                "output": output,
+                                "knowledge": {
+                                    "strategy": "victoria_worker",
+                                    "source": data.get("knowledge", {}),
+                                },
+                            }
+                        ),
+                    )
+                    print(f"Done {task_id}", flush=True)
+                    return output
+    except Exception as e:
+        print(f"Error calling Victoria: {e}", flush=True)
+
+    # Fallback: direct Ollama if Victoria fails
+    print("Falling back to direct Ollama...", flush=True)
     ollama_url = "http://host.docker.internal:11434"
     model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
-    print(f"Using model: {model}", flush=True)
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -27,7 +79,6 @@ async def process_task(goal: str, task_id: str):
                 if resp.status == 200:
                     data = await resp.json()
                     output = data.get("response", "")[:5000]
-                    # Store in Redis with format expected by /run/status endpoint
                     r.set(
                         f"task:{task_id}",
                         json.dumps(
@@ -35,14 +86,14 @@ async def process_task(goal: str, task_id: str):
                                 "task_id": task_id,
                                 "status": "completed",
                                 "output": output,
-                                "knowledge": {"strategy": "worker"},
+                                "knowledge": {"strategy": "worker_fallback"},
                             }
                         ),
                     )
-                    print(f"Done {task_id}", flush=True)
+                    print(f"Done {task_id} (fallback)", flush=True)
                     return
     except Exception as e:
-        print(f"Error: {e}", flush=True)
+        print(f"Fallback error: {e}", flush=True)
 
     # Failed
     r.set(
@@ -56,6 +107,11 @@ r = redis.Redis(host="redis", port=6379)
 
 async def worker_loop():
     print("Worker connected to Redis", flush=True)
+
+    # Wait for Victoria to be ready before processing
+    print("Waiting for Victoria...", flush=True)
+    await wait_for_victoria()
+    print("Victoria ready, starting processing...", flush=True)
 
     while True:
         try:

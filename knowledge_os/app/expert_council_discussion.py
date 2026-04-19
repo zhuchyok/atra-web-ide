@@ -22,12 +22,22 @@ DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/kno
 class ExpertCouncil:
     def __init__(self, session_id=None):
         self.session_id = session_id
-        self.experts = [
+        self.base_experts = [
             {"name": "Игорь", "role": "backend_developer", "focus": "Architecture & Docker"},
             {"name": "Роман", "role": "database_engineer", "focus": "SQL & Migrations"},
             {"name": "Дмитрий", "role": "ml_engineer", "focus": "Ollama & MLX Performance"},
             {"name": "Анна", "role": "qa_engineer", "focus": "Testing & Reliability"},
+            {"name": "Борис", "role": "devops_engineer", "focus": "Infrastructure, Docker, Deploy"},
+            {"name": "Александр", "role": "security_architect", "focus": "Security, Audit"},
+            {"name": "Евгения", "role": "marketing_director", "focus": "PR, Growth, Marketing"},
+            {
+                "name": "Константин",
+                "role": "technical_lead",
+                "focus": "Architecture, Technical Decisions",
+            },
+            {"name": "Артём", "role": "ux_ui_designer", "focus": "UX/UI Design, Web Strategy"},
         ]
+        self.experts = self.base_experts.copy()
 
     async def start_debate(
         self, topic: str, initial_proposal: str, beautiful_mode: bool = True
@@ -42,23 +52,33 @@ class ExpertCouncil:
         try:
             conn = await asyncpg.connect(DB_URL)
 
-            # [SINGULARITY 24.0] Autonomous HR: Check if we need a specialist for this topic
+            # [FIX] HR: Add existing expert from DB or synthesize new
             try:
                 hr = ExpertSynthesizer()
                 specialist = await hr.find_or_synthesize_expert(
                     f"ТЕМА: {topic}\nПРЕДЛОЖЕНИЕ: {initial_proposal}"
                 )
-                if specialist and specialist.get("needs_new_expert"):
-                    new_expert = {
-                        "name": specialist["name"],
-                        "role": specialist["role"],
-                        "focus": specialist["metadata"].get("focus", specialist["role"]),
-                    }
-                    if new_expert not in self.experts:
+                if specialist:
+                    # Add existing OR new expert to council
+                    if specialist.get("needs_new_expert"):
+                        new_expert = {
+                            "name": specialist.get("suggested_name"),
+                            "role": specialist.get("suggested_role", "specialist"),
+                            "focus": specialist.get("focus_area", ""),
+                        }
+                    elif specialist.get("existing"):
+                        new_expert = {
+                            "name": specialist.get("suggested_name"),
+                            "role": specialist.get("suggested_role", "specialist"),
+                            "focus": specialist.get("focus_area", ""),
+                        }
+                    else:
+                        new_expert = None
+
+                    if new_expert and new_expert not in self.experts and len(self.experts) < 12:
                         self.experts.append(new_expert)
-                        logger.info(
-                            f"🧬 [COUNCIL] Added synthesized specialist: {new_expert['name']}"
-                        )
+                        source = "existing" if specialist.get("existing") else "synthesized"
+                        logger.info(f"🧬 [COUNCIL] Added {source} specialist: {new_expert['name']}")
             except Exception as hre:
                 logger.debug(f"HR synthesis skipped: {hre}")
 

@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
+
 try:
     from app.event_bus import Event, EventBus, EventType, get_event_bus
 except ImportError:
@@ -138,22 +139,35 @@ async def setup_daemons():
 
     # [SINGULARITY 24.3] Живой Чат: Автономные диалоги экспертов
     try:
-        from dialogue_controller import start_dialogue_controller
-        from event_bus_redis_bridge import start_redis_bridge
-        from victoria_enhanced import VictoriaEnhanced
-        
+        try:
+            from app.dialogue_controller import start_dialogue_controller
+        except ImportError:
+            from dialogue_controller import start_dialogue_controller
+        try:
+            from app.event_bus_redis_bridge import start_redis_bridge
+        except ImportError:
+            from event_bus_redis_bridge import start_redis_bridge
+        try:
+            from app.victoria_enhanced import VictoriaEnhanced
+        except ImportError:
+            from victoria_enhanced import VictoriaEnhanced
+
         bus = get_event_bus()
         await bus.start()
-        
+
         # [SINGULARITY 24.3] DEBUG: Log PID and Bus ID
-        logger.info(f"🎭 [DAEMONS] (PID: {os.getpid()}) Initializing VictoriaEnhanced with EventBus ID: {id(bus)}")
-        
+        logger.info(
+            f"🎭 [DAEMONS] (PID: {os.getpid()}) Initializing VictoriaEnhanced with EventBus ID: {id(bus)}"
+        )
+
         # Запускаем VictoriaEnhanced для обработки событий (мониторинг, диалоги)
         victoria = VictoriaEnhanced()
         await victoria.start()
-        
+
         bridge = await start_redis_bridge(bus)
         controller = start_dialogue_controller(bus)
-        logger.info(f"🎭 [DAEMONS] (PID: {os.getpid()}) DialogueController, VictoriaEnhanced and Redis Bridge integrated on EventBus ID: {id(bus)}")
+        logger.info(
+            f"🎭 [DAEMONS] (PID: {os.getpid()}) DialogueController, VictoriaEnhanced and Redis Bridge integrated on EventBus ID: {id(bus)}"
+        )
     except Exception as e:
         logger.error(f"❌ [DAEMONS] Failed to start DialogueController: {e}")

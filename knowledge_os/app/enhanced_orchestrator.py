@@ -23,8 +23,13 @@ try:
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
     _PROMETHEUS_AVAILABLE = False
+    Counter = Histogram = Gauge = None
 
-if _PROMETHEUS_AVAILABLE:
+_orch_active_cycles = _orch_tasks_assigned = _orch_task_duration = _orch_errors = (
+    _orch_tasks_per_phase
+) = None
+
+if _PROMETHEUS_AVAILABLE and Gauge is not None:
     _orch_tasks_assigned = Counter(
         "orchestrator_tasks_assigned_total",
         "Total tasks assigned by orchestrator",
@@ -671,10 +676,21 @@ async def assign_task_to_best_expert(
     metadata: Optional[Dict] = None,
 ) -> Optional[str]:
     """Назначение задачи лучшему эксперту с учетом загрузки и assignee_hint (Этап 6 плана)."""
+    # Fetch task details from DB
+    task = await conn.fetchrow(
+        "SELECT id, title, description, metadata FROM tasks WHERE id = $1", task_id
+    )
+    if not task:
+        logger.warning(f"Task {task_id} not found for assignment")
+        return None
+
+    task_dict = dict(task)
+
     # assignee_hint из metadata (например, "Frontend/Performance", "QA")
     assignee_hint = None
-    if metadata and isinstance(metadata, dict):
-        assignee_hint = metadata.get("assignee_hint")
+    task_meta = task_dict.get("metadata") or {}
+    if isinstance(task_meta, dict):
+        assignee_hint = task_meta.get("assignee_hint")
     if not required_role and assignee_hint:
         required_role = str(assignee_hint)
 
@@ -753,16 +769,17 @@ async def assign_task_to_best_expert(
             best_expert = expert
 
     if best_expert:
-        # Оркестратор назначает preferred_source (mlx/ollama) по отделу эксперта
-        # ML/Backend/R&D/Performance/Trading/Quant → mlx; остальные → ollama (тяжёлый/лёгкий pairing)
+        # [SINGULARITY 26.10] Smart model selection - по отделу (упрощено для стабильности)
         dept = (best_expert.get("department") or "").lower()
         mlx_depts = ("ml", "backend", "r&d", "performance", "trading", "quant", "devops", "sre")
         preferred_source = "mlx" if any(d in dept for d in mlx_depts) else "ollama"
+
         # Если создатель уже указал preferred_source в metadata — уважаем
-        if metadata and isinstance(metadata, dict) and metadata.get("preferred_source"):
-            preferred_source = str(metadata["preferred_source"]).lower()
-            if preferred_source not in ("mlx", "ollama"):
-                preferred_source = "ollama"
+        if task_dict.get("metadata") and isinstance(task_dict.get("metadata"), dict):
+            if task_dict["metadata"].get("preferred_source"):
+                preferred_source = str(task_dict["metadata"]["preferred_source"]).lower()
+                if preferred_source not in ("mlx", "ollama"):
+                    preferred_source = "ollama"
         meta_extra = {"preferred_source": preferred_source}
         await conn.execute(
             """
@@ -1888,27 +1905,37 @@ async def run_enhanced_orchestration_cycle():
                         )
                         continue
                 priority = "high" if desert["node_count"] < 20 else "medium"
-                task_id = await conn.fetchval(
-                    """
-                    INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
-                    VALUES ($1, $2, 'pending', $3, $4, $5, $6)
-                    RETURNING id
-                """,
-                    title_curiosity,
-                    curiosity_task,
-                    priority,
-                    victoria_id,
-                    desert["id"],
-                    json.dumps(
-                        {
-                            "reason": "curiosity_engine_starvation",
-                            "node_count": desert["node_count"],
-                            "justification": reason,
-                            "is_autonomous": True,
-                        }
-                    ),
-                )
-                await assign_task_to_best_expert(conn, task_id, desert["id"])
+                try:
+                    task_id = await conn.fetchval(
+                        """
+                        INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
+                        VALUES ($1, $2, 'pending', $3, $4, $5, $6)
+                        ON CONFLICT (title, COALESCE(project_context, 'default')) 
+                        WHERE status IN ('pending', 'in_progress') 
+                        DO UPDATE SET updated_at = NOW()
+                        RETURNING id
+                    """,
+                        title_curiosity,
+                        curiosity_task,
+                        priority,
+                        victoria_id,
+                        desert["id"],
+                        json.dumps(
+                            {
+                                "reason": "curiosity_engine_starvation",
+                                "node_count": desert["node_count"],
+                                "justification": reason,
+                                "is_autonomous": True,
+                            }
+                        ),
+                    )
+                    if task_id:
+                        await assign_task_to_best_expert(conn, task_id, desert["id"])
+                except Exception as task_err:
+                    if "duplicate" in str(task_err).lower() or "23505" in str(task_err):
+                        logger.info(f"  ⏭️ Task already exists (dedup): {title_curiosity[:50]}")
+                    else:
+                        raise
 
             logger.info("🌐 Phase 5: Running Global Scout validation...")
             try:
@@ -1958,6 +1985,7 @@ async def run_enhanced_orchestration_cycle():
                         """
                         INSERT INTO tasks (title, description, status, priority, creator_expert_id, metadata)
                         VALUES ($1, $2, 'pending', 'urgent', $3, $4)
+                        ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                     """,
                         "🚨 АВТО-РЕМОНТ: Ошибка",
                         repair_task,
@@ -2129,11 +2157,15 @@ async def run_enhanced_orchestration_cycle():
             await conn.close()
             logger.info("[ENHANCED_ORCHESTRATOR] cycle finished successfully.")
         except Exception as cycle_exc:  # pylint: disable=broad-exception-caught
-            logger.error("[ENHANCED_ORCHESTRATOR] cycle exception: %s", cycle_exc)
-            logger.error(traceback.format_exc())
-            _record_orch_metric(
-                "counter", _orch_errors, phase="orchestration", error_type="cycle_exception"
-            )
+            # Игнорируем duplicate key - это нормально (задача уже существует)
+            if "duplicate" in str(cycle_exc).lower() or "23505" in str(cycle_exc):
+                logger.info("[ENHANCED_ORCHESTRATOR] duplicate task ignored (dedup working)")
+            else:
+                logger.error("[ENHANCED_ORCHESTRATOR] cycle exception: %s", cycle_exc)
+                logger.error(traceback.format_exc())
+                _record_orch_metric(
+                    "counter", _orch_errors, phase="orchestration", error_type="cycle_exception"
+                )
             try:
                 await conn.close()
             except Exception:
@@ -2226,8 +2258,12 @@ async def run_continuous(interval_seconds: int = 60, quick_poll_seconds: int = 3
             try:
                 await run_enhanced_orchestration_cycle()
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error("[ENHANCED_ORCHESTRATOR] cycle error: %s", e)
-                logger.error(traceback.format_exc())
+                # Игнорируем duplicate key - это нормально (задача уже существует)
+                if "duplicate" in str(e).lower() or "23505" in str(e):
+                    logger.info("[ENHANCED_ORCHESTRATOR] duplicate task ignored (dedup working)")
+                else:
+                    logger.error("[ENHANCED_ORCHESTRATOR] cycle error: %s", e)
+                    logger.error(traceback.format_exc())
             # Решаем, сколько спать: если есть нераспределённые задачи — короткий сон
             sleep_sec = interval_seconds
             if ASYNCPG_AVAILABLE and interval_seconds > quick_poll_seconds:

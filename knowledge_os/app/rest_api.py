@@ -792,7 +792,8 @@ async def accept_recruitment_candidate(body: AcceptCandidateRequest):
                 if victoria_id:
                     await conn.execute(
                         """INSERT INTO tasks (title, description, status, priority, assignee_expert_id, metadata)
-                           VALUES ($1, $2, 'pending', 'medium', $3, $4::jsonb)""",
+                           VALUES ($1, $2, 'pending', 'medium', $3, $4::jsonb)
+                           ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()""",
                         f"Онбординг: проверить промпт эксперта {name}",
                         f"Кандидат принят из ревью: {name}, {role}, {department}. Проверить system_prompt и при необходимости обновить .cursorrules.",
                         victoria_id,
@@ -1547,6 +1548,56 @@ async def apply_file_patch(body: FilePatchRequest):
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===========================================================================
+# [SINGULARITY 26.10] Human-in-the-Loop Approval API
+# ===========================================================================
+
+
+@app.get("/api/approvals/pending")
+async def get_pending_approvals():
+    """Получить все ожидающие одобрения"""
+    from human_approval import get_approval_system
+
+    system = get_approval_system()
+    return {"approvals": system.get_pending()}
+
+
+@app.get("/api/approvals/{approval_id}/status")
+async def get_approval_status(approval_id: str):
+    """Статус конкретного одобрения"""
+    from human_approval import get_approval_system
+
+    system = get_approval_system()
+    status = system.get_status(approval_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    return status
+
+
+@app.post("/api/approvals/{approval_id}/approve")
+async def approve_request(approval_id: str, body: dict):
+    """Одобрить запрос (approver из body)"""
+    from human_approval import get_approval_system
+
+    system = get_approval_system()
+    approver = body.get("approver", "unknown")
+    reason = body.get("reason", "")
+    success = await system.approve(approval_id, approver, reason)
+    return {"ok": success, "approval_id": approval_id}
+
+
+@app.post("/api/approvals/{approval_id}/reject")
+async def reject_request(approval_id: str, body: dict):
+    """Отклонить запрос"""
+    from human_approval import get_approval_system
+
+    system = get_approval_system()
+    approver = body.get("approver", "unknown")
+    reason = body.get("reason", "Rejected by approver")
+    success = await system.reject(approval_id, approver, reason)
+    return {"ok": success, "approval_id": approval_id}
 
 
 if __name__ == "__main__":

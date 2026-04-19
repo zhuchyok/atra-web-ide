@@ -425,6 +425,7 @@ class SelfCheckSystem:
                     """
                     INSERT INTO tasks (title, description, status, priority, metadata)
                     VALUES ($1, $2, 'pending', 'high', $3::jsonb)
+                    ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                 """,
                     full_title,
                     description,

@@ -311,7 +311,9 @@ async def process_task(task_data: dict):
         elif is_orchestrator_task:
             if _is_complex:
                 # Heavy delegated task: give it up to 30 min, but env-overridable
-                TASK_TOTAL_TIMEOUT = float(os.getenv("ORCHESTRATOR_HEAVY_TIMEOUT", "1800"))
+                TASK_TOTAL_TIMEOUT = float(
+                    os.getenv("ORCHESTRATOR_HEAVY_TIMEOUT", "3600")
+                )  # [FIX] 60 min for heavy
             else:
                 # Quick delegated task: 15 min is enough; fail fast → retry via backoff
                 TASK_TOTAL_TIMEOUT = float(os.getenv("ORCHESTRATOR_TASK_TIMEOUT", "900"))

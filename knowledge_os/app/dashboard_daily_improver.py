@@ -257,6 +257,9 @@ async def _create_dashboard_improvement_tasks(conn, checklist: List[ChecklistIte
             """
             INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
             VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb)
+            ON CONFLICT (title, COALESCE(project_context, 'default'))
+            WHERE status IN ('pending', 'in_progress') 
+            DO UPDATE SET updated_at = NOW()
         """,
             full_title,
             description,

@@ -577,8 +577,13 @@ async def process_task(pool, task):
         return
     # ─────────────────────────────────────────────────────────────────────────────
 
+    # Generate trace_id для полного трейсинга
+    import uuid
+
+    trace_id = f"trace_{uuid.uuid4().hex[:12]}"
+
     print(
-        f"[{datetime.now()}] Expert {expert_name} processing: {task_title} [Source: {preferred_source or 'auto'}]"
+        f"[{datetime.now()}] [TRACE:{trace_id}] Expert {expert_name} processing: {task_title} [Source: {preferred_source or 'auto'}]"
     )
 
     # Heartbeat механизм - обновляем updated_at каждые 30 секунд, чтобы задача не считалась застрявшей
@@ -956,7 +961,11 @@ DESC: {task_description}
                             os.getenv("SMART_WORKER_HEAVY_MODEL_TIMEOUT_MULTIPLIER", "1.5")
                         )
                         llm_timeout = max(llm_timeout, llm_timeout * mult)
-                        llm_timeout = min(llm_timeout, 1800)  # не больше 30 мин (Singularity 24.3)
+                        llm_timeout = min(
+                            llm_timeout, 3600
+                        )  # [FIX] Increased: 60 min for heavy delegation tasks
+                    elif task_title and task_title.startswith("🤖 Делегировано"):
+                        llm_timeout = min(llm_timeout, 3600)  # [FIX] Delegation tasks get 60 min
                 except ImportError:
                     pass
             # [BUG FIX] Mark LLM call BEFORE the actual call so RAG-loop guard knows
@@ -1956,12 +1965,15 @@ async def main():
                             if tc.complexity_score > 0.6 and (
                                 tc.requires_reasoning or tc.requires_coding
                             ):
-                                task["preferred_source"] = "mlx"
+                                # Complex + reasoning/coding → ollama (heavy)
+                                task["preferred_source"] = "ollama"
                             elif (
                                 tc.complexity_score < 0.4 or getattr(tc, "task_type", "") == "fast"
                             ):
-                                task["preferred_source"] = "ollama"
+                                # Simple/fast → mlx (light, fast)
+                                task["preferred_source"] = "mlx"
                             else:
+                                # Medium - balance
                                 task["preferred_source"] = (
                                     "mlx" if len(mlx_tasks) <= len(ollama_tasks) else "ollama"
                                 )

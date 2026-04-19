@@ -1441,27 +1441,6 @@ async def run_smart_agent_async_impl(
             pass  # Fall through to normal processing
 
     # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
-                capture_output=True, timeout=60
-            )
-            if result.returncode == 0:
-                try:
-                    data = json.loads(result.stdout)
-                    if data.get("response"):
-                        return {"status": "success", "output": data["response"][:5000]}
-                except json.JSONDecodeError:
-                    pass
-        except Exception:
-            pass  # Fall through to normal flow
-                try:
-                    data = json.loads(result.stdout)
-                    if data.get("response"):
-                        return {"status": "success", "output": data["response"][:5000]}
-                except json.JSONDecodeError:
-                    pass
-        except Exception:
-            pass  # Fall through to normal flow
-
-    # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
     async def _get_memory_crystals(project_context: str, pool) -> str:
         """Fetch project-specific memory crystals for attention anchoring."""
         if not pool or not project_context:

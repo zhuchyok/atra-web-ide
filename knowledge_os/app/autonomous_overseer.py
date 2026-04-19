@@ -100,6 +100,7 @@ class AutonomousOverseer:
             """
             INSERT INTO tasks (title, description, priority, status, metadata)
             VALUES ($1, $2, $3, 'pending', $4)
+            ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
         """,
             issue["title"],
             issue["description"],

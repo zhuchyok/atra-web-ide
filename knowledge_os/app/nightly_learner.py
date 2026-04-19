@@ -989,6 +989,7 @@ async def nightly_learning_cycle():
                         """
                         INSERT INTO tasks (title, description, status, priority, metadata)
                         VALUES ($1, $2, 'pending', 'medium', $3::jsonb)
+                        ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                     """,
                         f"🧪 Сгенерировать pytest для {mod}",
                         f"Модуль изменён за 24ч. Создать тесты в {tests_dir_rel}/{test_name}. Модуль: {path}",
@@ -1100,6 +1101,7 @@ async def nightly_learning_cycle():
                             """
                             INSERT INTO tasks (title, description, status, priority, metadata)
                             VALUES ($1, $2, 'pending', 'low', $3::jsonb)
+                            ON CONFLICT (title) WHERE status IN ('pending', 'in_progress') DO UPDATE SET updated_at = NOW()
                         """,
                             "📝 Синхронизировать документацию с последними изменениями",
                             f"В main за 24ч было {merge_count} merge(ов). Проверить MASTER_REFERENCE, CHANGES_FROM_OTHER_CHATS и связанные доки (правило библии).",

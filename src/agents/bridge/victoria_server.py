@@ -5416,6 +5416,7 @@ async def run_task(
         async_mode,
     )
     logger.info("[REQUEST] ========== POST /run ==========")
+    logger.info("[REQUEST] Trace ID: %s", correlation_id)
     logger.info("[REQUEST] Correlation ID: %s", correlation_id)
     logger.info("[REQUEST] Goal: %s", body.goal[:200] if body.goal else "(empty)")
     logger.info("[REQUEST] Async mode: %s", async_mode)
@@ -5426,9 +5427,11 @@ async def run_task(
 
     goal = body.goal or ""
 
-    # [SINGULARITY 26.10] Queue CODE tasks BEFORE processing
+    # [SINGULARITY 26.10] Queue CODE tasks BEFORE processing - Worker handles in separate process
     goal_lower = (goal or "").lower()
-    if "код" in goal_lower or "code" in goal_lower:
+    if async_mode:
+        pass
+    elif "код" in goal_lower or "code" in goal_lower:
         try:
             import redis as redis_lib
 
@@ -5437,7 +5440,6 @@ async def run_task(
             import json as json_lib
 
             r.rpush("victoria_queue", json_lib.dumps({"goal": goal, "task_id": task_id}))
-            # Store initial status
             r.set(
                 f"task:{task_id}",
                 json_lib.dumps(
