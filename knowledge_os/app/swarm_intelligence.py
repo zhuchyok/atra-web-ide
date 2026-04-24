@@ -78,7 +78,7 @@ class SwarmIntelligence:
 
     def __init__(
         self,
-        swarm_size: int = 16,  # Оптимальный размер по исследованиям
+        swarm_size: int = 8,  # [SINGULARITY 26.5] Снижено с 16 для Mac Studio
         model_name: str = "phi3.5:3.8b",
         ollama_url: str = OLLAMA_URL,
         max_iterations: int = 20,
@@ -92,6 +92,17 @@ class SwarmIntelligence:
         self.global_best: Optional[Any] = None
         self.global_best_score: float = 0.0
         self.state = SwarmState.FORMING
+        # [SINGULARITY 26.5] Семафор для ограничения параллельных запросов к Ollama
+        # 2 слота оптимально для Mac Studio, чтобы не ронять раннер
+        self._llm_semaphore = asyncio.Semaphore(2)
+
+        # [SINGULARITY 26.5] Монитор ресурсов для адаптивного управления
+        try:
+            from app.resource_monitor import get_resource_monitor
+
+            self.resource_monitor = get_resource_monitor()
+        except ImportError:
+            self.resource_monitor = None
 
     async def solve(
         self,
@@ -246,6 +257,20 @@ AGENT FINDINGS:
 
     async def _explore_local(self, problem: str, iteration: int):
         """Каждый агент исследует локально (LLM-Powered)"""
+        # [SINGULARITY 26.5] Проверка нагрузки перед запуском тяжелых задач
+        if self.resource_monitor:
+            health = await self.resource_monitor.get_ollama_health()
+            if health.get("is_overloaded"):
+                logger.warning("🚨 СИСТЕМА ПЕРЕГРУЖЕНА. Снижаем интенсивность Swarm...")
+                # В режиме перегрузки работаем по одному агенту
+                for agent in self.agents:
+                    prompt = self._build_exploration_prompt(agent, problem, iteration)
+                    solution = await self._generate_solution(agent, prompt)
+                    if not isinstance(solution, Exception):
+                        agent.current_solution = solution.get("solution")
+                        agent.current_score = solution.get("score", 0.0)
+                return
+
         tasks = []
 
         for agent in self.agents:
@@ -425,35 +450,41 @@ AGENT FINDINGS:
         return prompt
 
     async def _generate_solution(self, agent: SwarmAgent, prompt: str) -> Dict:
-        """Генерировать решение через LLM"""
+        """Генерировать решение через LLM с использованием семафора"""
         import httpx
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={
-                        "model": self.model_name,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {
-                            "temperature": 0.8,  # Выше для разнообразия
-                            "num_predict": 1024,
+            # [SINGULARITY 26.5] Используем семафор для предотвращения перегрузки Ollama
+            async with self._llm_semaphore:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{self.ollama_url}/api/generate",
+                        json={
+                            "model": self.model_name,
+                            "prompt": prompt,
+                            "stream": False,
+                            "options": {
+                                "temperature": 0.8,  # Выше для разнообразия
+                                "num_predict": 1024,
+                            },
                         },
-                    },
-                )
+                    )
 
-                if response.status_code == 200:
-                    solution_text = response.json().get("response", "")
+                    if response.status_code == 200:
+                        solution_text = response.json().get("response", "")
 
-                    # Оцениваем решение (упрощенная оценка)
-                    score = self._evaluate_solution(solution_text)
+                        # Оцениваем решение (упрощенная оценка)
+                        score = self._evaluate_solution(solution_text)
 
-                    return {"solution": solution_text, "score": score}
-                else:
-                    return {"solution": "", "score": 0.0}
+                        return {"solution": solution_text, "score": score}
+                    elif response.status_code == 503:
+                        logger.warning(f"⏳ Ollama перегружена (503) для {agent.agent_name}")
+                        return {"solution": "Ollama busy", "score": 0.0}
+                    else:
+                        logger.warning(f"⚠️ Ollama ошибка {response.status_code} для {agent.agent_name}")
+                        return {"solution": "", "score": 0.0}
         except Exception as e:
-            logger.error(f"Ошибка генерации решения: {e}")
+            logger.error(f"Ошибка генерации решения для {agent.agent_name}: {e}")
             return {"solution": "", "score": 0.0}
 
     def _evaluate_solution(self, solution: str) -> float:
@@ -476,20 +507,22 @@ AGENT FINDINGS:
         return min(score, 1.0)
 
     async def _generate_response(self, prompt: str) -> str:
-        """Генерировать ответ через модель"""
+        """Генерировать ответ через модель с использованием семафора"""
         import httpx
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={"model": self.model_name, "prompt": prompt, "stream": False},
-                )
+            # [SINGULARITY 26.5] Используем семафор для предотвращения перегрузки Ollama
+            async with self._llm_semaphore:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{self.ollama_url}/api/generate",
+                        json={"model": self.model_name, "prompt": prompt, "stream": False},
+                    )
 
-                if response.status_code == 200:
-                    return response.json().get("response", "")
-                else:
-                    return ""
+                    if response.status_code == 200:
+                        return response.json().get("response", "")
+                    else:
+                        return ""
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return ""

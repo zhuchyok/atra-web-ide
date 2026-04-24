@@ -22,6 +22,7 @@ from app.services.concurrency_limiter import (
     with_victoria_slot,
 )
 from app.services.conversation_context import get_conversation_context_manager
+from app.services.ollama import OllamaClient, get_ollama_client
 from app.services.knowledge_os import KnowledgeOSClient, get_knowledge_os_client
 from app.services.victoria import VictoriaClient, get_victoria_client
 
@@ -39,6 +40,96 @@ class ChatMessage(BaseModel):
     mode: Optional[str] = Field(default="agent", description="agent | plan | ask — как в Cursor")
     user_id: Optional[str] = Field(default=None, max_length=128)
     session_id: Optional[str] = Field(default=None, max_length=128)
+    domain: Optional[str] = Field(default=None, max_length=255)
+
+
+class AIChatRequest(BaseModel):
+    """Запрос для публичного AI чата дилера"""
+    message: str
+    domain: str
+    session_id: Optional[str] = None
+
+
+@router.post("/public/send")
+async def send_public_message(
+    request: AIChatRequest,
+    ollama: OllamaClient = Depends(get_ollama_client),
+    knowledge_os: KnowledgeOSClient = Depends(get_knowledge_os_client)
+):
+    """
+    Публичный эндпоинт для чата дилера.
+    Использует локальный Ollama с контекстом конкретного дилера.
+    """
+    domain = request.domain.replace("www.", "")
+    
+    # 1. Получаем данные дилера из БД
+    async with knowledge_os._pool.acquire() as conn:
+        dealer = await conn.fetchrow(
+            "SELECT name, city, phone, email, address, branding, margin_config FROM dealers WHERE domain = $1 OR domain = $2",
+            domain, f"www.{domain}"
+        )
+    
+    if not dealer:
+        # Fallback на дефолтные настройки если домен не найден
+        dealer_info = "Компания 'Сетки 21', производство москитных сеток."
+    else:
+        branding = json.loads(dealer.get("branding") or "{}")
+        dealer_info = f"""
+        Название: {dealer['name']}
+        Город: {dealer['city']}
+        Телефон: {dealer['phone']}
+        Email: {dealer['email']}
+        Адрес: {dealer['address']}
+        Режим работы: {branding.get('working_hours', 'не указан')}
+        """
+
+    # 2. Получаем цены (динамически из БД)
+    async with knowledge_os._pool.acquire() as conn:
+        products_rows = await conn.fetch(
+            "SELECT name, price_config FROM products WHERE is_active = true"
+        )
+    
+    prices_info = ""
+    for p in products_rows:
+        p_config = json.loads(p.get("price_config") or "{}")
+        # Для клиента показываем dealer_price как базовую "от"
+        price = p_config.get("dealer_price", 0)
+        if price > 0:
+            prices_info += f"- {p['name']}: от {price} руб.\n"
+
+    # 3. Формируем системный промпт
+    system_prompt = f"""
+    Ты — умный ассистент компании по производству москитных сеток.
+    Твоя цель: помогать клиентам, отвечать на вопросы о сетках и мягко подводить к заказу.
+    
+    ИНФОРМАЦИЯ О ТЕКУЩЕМ ДИЛЕРЕ:
+    {dealer_info}
+    
+    АКТУАЛЬНЫЕ ЦЕНЫ:
+    {prices_info if prices_info else "- Уточняйте у менеджера"}
+    (Цены могут меняться в зависимости от размера, уточни у менеджера).
+    
+    СТИЛЬ ОБЩЕНИЯ:
+    - Вежливый, профессиональный, лаконичный.
+    - Используй только русский язык.
+    - Если клиент хочет заказать, попроси его оставить телефон или воспользоваться калькулятором на сайте.
+    
+    ОГРАНИЧЕНИЯ:
+    - Не выдумывай несуществующие услуги.
+    - Если не знаешь ответа, предложи связаться по телефону {dealer['phone'] if dealer else 'указанному на сайте'}.
+    """
+
+    # 4. Вызов Ollama
+    try:
+        response = await ollama.generate(
+            prompt=request.message,
+            model="qwen2.5:0.5b",
+            system=system_prompt
+        )
+        return {"content": response.get("response", "Извините, я временно не могу ответить.")}
+    except Exception as e:
+        logger.error(f"Ollama public chat error: {e}")
+        return {"content": "Произошла ошибка при обращении к ИИ. Пожалуйста, попробуйте позже."}
 
 
 class ChatResponse(BaseModel):

@@ -7,7 +7,7 @@ import random
 import time
 from collections.abc import AsyncGenerator
 from functools import lru_cache
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import asyncpg
 import httpx
@@ -197,7 +197,7 @@ MLX_MODELS_FALLBACK = {
     "reasoning": "victoria-wisdom-v3.5",
     "coding": "victoria-wisdom-v3.5",
     "chat": "victoria-wisdom-v3.5",
-    "fast": "phi3.5:3.8b",
+    "fast": "phi3.5:3.8b-stable",
     "default": "victoria-wisdom-v3.5",
 }
 
@@ -289,6 +289,14 @@ class LocalAIRouter:
 
         # [SINGULARITY 21.10] Per-node Circuit Breakers
         self._node_breakers = {}
+        
+        # [SINGULARITY 25.0] Context Compressor integration
+        try:
+            from context_compressor import ContextCompressor
+            self.compressor = ContextCompressor()
+        except ImportError:
+            self.compressor = None
+            
         for node in self.nodes:
             # Создаем уникальный CB для каждого URL
             node_url = node["url"]
@@ -702,7 +710,7 @@ class LocalAIRouter:
         if is_throttled:
             # При перегреве форсируем самые легкие модели
             if node_type == "mlx":
-                return "phi3.5:3.8b"
+                return "phi3.5:3.8b-stable"
             else:
                 return "tinyllama:1.1b-chat"
 
@@ -856,6 +864,15 @@ class LocalAIRouter:
             logger.debug(f"Visual search failed: {e}")
         return []
 
+    async def _get_system_resources(self) -> Dict[str, Any]:
+        """[SINGULARITY 28.0] Get current system resources (RAM/VRAM)."""
+        try:
+            from resource_monitor import get_resource_monitor
+            rm = get_resource_monitor()
+            return await rm.get_system_resources()
+        except Exception:
+            return {}
+
     async def run_local_llm(
         self,
         prompt: str,
@@ -926,6 +943,39 @@ class LocalAIRouter:
 
         # Модель: параметр вызова, или _preferred_model от воркера (батчи по модели — меньше load/unload)
         initial_model = model or getattr(self, "_preferred_model", None)
+
+        # [SINGULARITY 28.0] Dynamic Model Tiering: Downgrades model if RAM is low.
+        # [SINGULARITY 28.1] Quality Guard: Only downgrade for dialogue/fast tasks.
+        # For expert/heavy tasks, we wait for memory instead of sacrificing quality.
+        try:
+            res = await self._get_system_resources()
+            avail_gb = res.get("ram", {}).get("available_gb", 100)
+            is_dialogue = category == "chat" or (isinstance(prompt, str) and "#chat" in prompt.lower())
+            
+            if avail_gb < 8:
+                if is_dialogue:
+                    # For chat, speed is priority, so we downgrade
+                    if avail_gb < 4 and initial_model and "tinyllama" not in initial_model.lower():
+                        logger.warning(f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> tinyllama:1.1b-chat (Chat Priority)")
+                        initial_model = "tinyllama:1.1b-chat"
+                        model = initial_model
+                    elif avail_gb < 8 and initial_model and ("35b" in initial_model.lower() or "32b" in initial_model.lower()):
+                        logger.warning(f"📉 [TIERING] RAM low ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)")
+                        initial_model = "phi3.5:3.8b-stable"
+                        model = initial_model
+                else:
+                    # For expert tasks, quality is priority. We wait for ModelMemoryManager to free up space.
+                    logger.info(f"⏳ [QUALITY GUARD] RAM low ({avail_gb:.1f}GB) for expert task. Waiting for memory instead of downgrading...")
+                    if self._memory_manager:
+                        await self._memory_manager.cleanup_unused_models()
+                        # Give it a few seconds to settle
+                        await asyncio.sleep(5)
+                        # Re-check memory
+                        res = await self._get_system_resources()
+                        avail_gb = res.get("ram", {}).get("available_gb", 100)
+                        logger.info(f"🛡️ [QUALITY GUARD] RAM after cleanup: {avail_gb:.1f}GB")
+        except Exception as tier_err:
+            logger.debug(f"Dynamic tiering failed: {tier_err}")
 
         if images and MODEL_MAP.get("vision"):
             model = MODEL_MAP["vision"]
@@ -1482,6 +1532,23 @@ class LocalAIRouter:
                 if not full_prompt:
                     full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
 
+                # [SINGULARITY 25.0] Adaptive Context Guard
+                if self.compressor:
+                    try:
+                        from resource_monitor import get_resource_monitor
+                        rm = get_resource_monitor()
+                        sys_res = await rm.get_system_resources()
+                        avail_gb = sys_res.get("ram", {}).get("available_gb", 100)
+                        
+                        # Если RAM < 8GB или контекст слишком большой (грубая оценка по символам)
+                        if avail_gb < 8 or len(full_prompt) > 40000:
+                            logger.info(f"✂️ [CONTEXT GUARD] RAM low ({avail_gb:.1f}GB) or prompt long ({len(full_prompt)}). Compressing...")
+                            # Для отладки: принудительно сжимаем повторяющиеся строки
+                            full_prompt = self.compressor.squeeze_prompt(full_prompt)
+                            logger.info(f"✅ [CONTEXT GUARD] Squeezed prompt to {len(full_prompt)} chars")
+                    except Exception as cg_err:
+                        logger.debug(f"Context guard failed: {cg_err}")
+
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
                 # [SINGULARITY 24.8] Adaptive Context Window
                 payload["options"] = self._get_adaptive_options(model)
@@ -1952,7 +2019,10 @@ class LocalAIRouter:
                         max_retries + 1,
                     )
                     if attempt < max_retries:
-                        await asyncio.sleep(2**attempt)  # Exponential backoff
+                        # [SINGULARITY 25.0] Jittered exponential backoff
+                        import random
+                        delay = (2**attempt) + random.uniform(0, 1)
+                        await asyncio.sleep(delay)
                     continue
                 except httpx.ConnectError as e:
                     if is_mlx:
@@ -1963,7 +2033,10 @@ class LocalAIRouter:
                         breaker._on_failure(f"ConnectError: {e}")
                     logger.error("[ROUTER] ❌ Connection failed to %s: %s", node_url, e)
                     if attempt < max_retries:
-                        await asyncio.sleep(2**attempt)
+                        # [SINGULARITY 25.0] Jittered exponential backoff
+                        import random
+                        delay = (2**attempt) + random.uniform(0, 1)
+                        await asyncio.sleep(delay)
                     continue
                 except Exception as e:
                     # [SINGULARITY 21.10] Record failure for node breaker
@@ -1977,7 +2050,10 @@ class LocalAIRouter:
                         e,
                     )
                     if attempt < max_retries:
-                        await asyncio.sleep(2**attempt)
+                        # [SINGULARITY 25.0] Jittered exponential backoff
+                        import random
+                        delay = (2**attempt) + random.uniform(0, 1)
+                        await asyncio.sleep(delay)
                     continue
 
             # If we exhausted retries for this node, try next

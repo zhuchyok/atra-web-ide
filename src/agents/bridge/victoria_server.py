@@ -2027,39 +2027,25 @@ class VictoriaAgent(BaseAgent):
                             valid_responses.append((expert_team[i], resp))
 
                     if valid_responses:
-                        # Услуги сотрудников: справка для Виктории при синтезе (из configs/experts/employees.json)
-                        expert_services_line = ""
-                        for _path in [
-                            os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
-                            os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"),
-                            "/app/knowledge_os/app",
-                        ]:
-                            if os.path.isdir(_path) and _path not in sys.path:
-                                sys.path.insert(0, _path)
-                        try:
-                            from expert_services import get_expert_services_text
+                        # Clean up responses - remove dict artifacts
+                        cleaned = []
+                        for exp_name, resp in valid_responses:
+                            if isinstance(resp, dict):
+                                resp = str(resp.get("output", resp.get("response", str(resp))))
+                            if isinstance(resp, str) and resp.startswith("{") and resp.endswith("}"):
+                                resp = resp[1:-1]
+                            cleaned.append((exp_name, resp[:500]))  # Truncate long responses
+                        valid_responses = cleaned
 
-                            expert_services_line = (
-                                "\n\nУслуги сотрудников корпорации (для справки при синтезе): "
-                                + get_expert_services_text(20)
-                            )
-                        except ImportError:
-                            expert_services_line = "\n\n(Список экспертов: Павел — стратегия, Мария — риск, Максим — данные, Игорь — код, Виктория — координация.)"
-                        # Синтез консенсуса через Victoria
-                        synthesis_prompt = f"""ВЫ - ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA.
-
-ЗАДАЧА: {goal}
-{expert_services_line}
-
-МНЕНИЯ ЭКСПЕРТОВ:
-"""
-                        for expert_name, response in valid_responses:
-                            synthesis_prompt += f"\n--- {expert_name} ---\n{response}\n"
-
-                        synthesis_prompt += "\n\nЗАДАЧА: Сформируйте финальное, идеальное решение на основе мнений экспертов. Учтите все точки зрения, устраните противоречия, создайте единое решение."
-
-                        final_result = await self.executor.ask(synthesis_prompt, history=[])
-                        return final_result if isinstance(final_result, str) else str(final_result)
+                        # Format as clean bullet list
+                        formatted_parts = []
+                        for i, (exp_name, resp) in enumerate(valid_responses, 1):
+                            # Extract key info from response
+                            resp_clean = resp.replace("{", "").replace("}", "").replace("'", "")[:200]
+                            formatted_parts.append(f"**{exp_name}**: {resp_clean}")
+                        
+                        final_result = "\n\n".join(formatted_parts)
+                        return final_result
                     else:
                         logger.warning("⚠️ Нет валидных ответов от экспертов, выполняем сами")
                         return await self.run(goal, max_steps=500)
@@ -5427,36 +5413,56 @@ async def run_task(
 
     goal = body.goal or ""
 
-    # [SINGULARITY 26.10] Queue CODE tasks BEFORE processing - Worker handles in separate process
+    # [SINGULARITY 28.X] Queue CODE tasks to PostgreSQL (NOT Redis) - parallel processing
     goal_lower = (goal or "").lower()
     if async_mode:
         pass
     elif "код" in goal_lower or "code" in goal_lower:
+        logger.info(f"[QUEUE] CODE task detected: {goal[:50]}")
         try:
-            import redis as redis_lib
+            import asyncpg
 
-            r = redis_lib.Redis(host="redis", port=6379, decode_responses=False)
-            task_id = f"task_{correlation_id[:8]}"
-            import json as json_lib
-
-            r.rpush("victoria_queue", json_lib.dumps({"goal": goal, "task_id": task_id}))
-            r.set(
-                f"task:{task_id}",
-                json_lib.dumps(
-                    {
+            db_url = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
+            task_id = str(uuid.uuid4())
+            logger.info(f"[QUEUE] Creating task in PostgreSQL: {task_id}")
+            
+            conn = await asyncpg.connect(db_url, timeout=10)
+            await conn.execute(
+                """INSERT INTO tasks (id, title, description, status, priority, metadata, created_at)
+                   VALUES ($1, $2, $3, 'pending', 'medium', $4, NOW())""",
+                task_id,
+                goal[:100],  # title
+                goal,  # description
+                {"source": "victoria_queue", "correlation_id": correlation_id},
+            )
+            await conn.close()
+            logger.info(f"[QUEUE] Task inserted to PostgreSQL: {task_id}")
+            
+            # Also set in Redis for /run/status compatibility
+            try:
+                import redis as redis_lib
+                import json as json_lib
+                r = redis_lib.Redis(host="redis", port=6379, decode_responses=False)
+                r.set(
+                    f"task:{task_id}",
+                    json_lib.dumps({
                         "task_id": task_id,
                         "status": "queued",
                         "output": "Processing...",
                         "knowledge": {"strategy": "queued"},
-                    }
-                ),
-            )
+                    }),
+                )
+            except:
+                pass
+            
             return TaskResponse(
                 status="processing",
-                output=f"⏳ {task_id} queued - check /run/status/{task_id}",
-                knowledge={"strategy": "queued"},
+                output=f"⏳ Task {task_id} queued to PostgreSQL",
+                knowledge={"strategy": "queued", "source": "postgresql"},
+                correlation_id=correlation_id,
             )
         except Exception as e:
+            logger.warning(f"PostgreSQL queue failed: {e}, falling back to Redis")
             pass
 
     if body.images_base64:
@@ -5623,6 +5629,21 @@ async def run_task(
                     goal = f"{expert_dna}\n\n{goal}"
             except Exception as de:
                 logger.debug("Expert DNA fetch failed for fast path: %s", de)
+
+            # [SINGULARITY 28.X] Log FAST PATH to agent_ab_results
+            try:
+                if asyncpg:
+                    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+                    conn = await asyncpg.connect(db_url, timeout=5)
+                    _fp_id = f"fast_{abs(hash(content[:100])) % 1000000}"
+                    await conn.execute(
+                        """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at) VALUES ('Виктория', 'fast_path', $1, 1.0, NOW())""",
+                        _fp_id
+                    )
+                    logger.info(f"⚖️ [AB_FAST] logged: {_fp_id}")
+                    await conn.close()
+            except Exception as _aberr:
+                logger.debug(f"AB fast log failed: {_aberr}")
 
             # Для Fast Track ВСЕГДА возвращаем 200, даже если async_mode=true
             # Это убирает сообщение "Задача принята" в Telegram

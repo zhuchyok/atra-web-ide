@@ -55,6 +55,7 @@ services:
     networks:
       - atra-network
 
+  # Backend - FastAPI
   # ============================================
   # Backend - FastAPI
   # ============================================
@@ -62,7 +63,7 @@ services:
     build: ./backend
     container_name: atra-web-ide-backend
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 4g
     tty: true # нужен для PTY терминала в Web IDE
     env_file: .env # TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID — те же что у Victoria, для алертов
     ports:
@@ -88,6 +89,8 @@ services:
       - PYTHONPATH=/app:/workspace/atra-web-ide:/workspace/atra-web-ide/knowledge_os/app
       # Таймаут ожидания Victoria: 900 с — чтобы не обрывать сложные запросы на локальных моделях
       - VICTORIA_TIMEOUT=${VICTORIA_TIMEOUT:-900}
+      # [SINGULARITY 21.5] Ограничение одновременных запросов к Victoria
+      - MAX_CONCURRENT_VICTORIA=15
       # RAG-light оптимизации (Фаза 3, день 3–4)
       - EMBEDDING_BATCH_ENABLED=true
       - EMBEDDING_BATCH_SIZE=10

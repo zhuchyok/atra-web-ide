@@ -14,8 +14,8 @@ services:
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    mem_limit: 2g
-    shm_size: 256mb
+    mem_limit: 4g
+    shm_size: 512mb
     command:
       [
         "postgres",
@@ -108,22 +108,6 @@ services:
       timeout: 3s
       retries: 5
 
-  celery-worker:
-    build:
-      context: .
-      dockerfile: app/Dockerfile
-    command: celery -A app.celery_tasks worker --loglevel=info
-    depends_on:
-      - redis
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://admin:secret@db:5432/knowledge_os
-      - PYTHONPATH=/app:/app/knowledge_os/app
-    networks:
-      - default
-    volumes:
-      - ../knowledge_os/app:/app/knowledge_os:ro
-
   quality-service:
     build:
       context: app
@@ -144,16 +128,17 @@ services:
   simple-worker:
     build:
       context: ..
-      dockerfile: knowledge_os/app/Dockerfile
+      dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: simple-worker
     restart: unless-stopped
     volumes:
-      - ../knowledge_os/app:/app/knowledge_os:ro
+      - ..:/app
     environment:
-      - PYTHONPATH=/app
-    command: python -c "import asyncio; from knowledge_os.app.simple_worker import main; asyncio.run(main())"
+      - PYTHONPATH=/app:/app/knowledge_os/app
+      - REDIS_URL=redis://knowledge_os_redis:6379/0
+    command: python3 knowledge_os/app/simple_worker.py
     networks:
-      - default
+      - atra-network
     depends_on:
       - redis
 
@@ -172,13 +157,14 @@ services:
       resources:
         limits:
           cpus: '2'
+          memory: 8g
     oom_kill_disable: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
     user: root
     networks:
       - atra-network
@@ -195,6 +181,14 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
+      # [SINGULARITY 26.5] Оптимизация Ollama для Mac Studio
+      # OLLAMA_NUM_PARALLEL: 2 — позволяет выполнять 2 запроса одновременно
+      # OLLAMA_MAX_VRAM: 48GB — запас для 35B моделей на 64GB Mac Studio
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_MAX_VRAM: "48000000000"
+      # [SINGULARITY 26.6] Синхронизация слотов с параллелизмом Ollama
+      # OLLAMA_GLOBAL_MAX_SLOTS: 2 — предотвращает переполнение очереди Ollama (NUM_PARALLEL=2)
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
       # MLX API Server: используем нашу новую обученную модель
       MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
       MLX_HEALTH_URL: http://host.docker.internal:11435/health
@@ -344,25 +338,6 @@ services:
       python /app/knowledge_os/app/victoria_worker.py & 
       python -m src.agents.bridge.victoria_server"
 
-  # Victoria-Mini: fallback minimal service
-  victoria-mini:
-    build:
-      context: ..
-      dockerfile: knowledge_os/app/Dockerfile
-    container_name: victoria-mini
-    restart: unless-stopped
-    ports:
-      - "8011:8000"
-    volumes:
-      - ../knowledge_os/app:/app/knowledge_os:ro
-    environment:
-      - PYTHONPATH=/app
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://admin:secret@db:6432/knowledge_os
-    command: python -c "import uvicorn; from knowledge_os.app._minimal_victoria import app; uvicorn.run(app, host='0.0.0.0', port=8000)"
-    networks:
-      - default
-
   # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
   # [SINGULARITY 21.5] Автономность: Victoria использует SearXNG вместо внешних API
   searxng:
@@ -438,7 +413,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3g
+          memory: 6g
         reservations:
           memory: 512m
     networks:
@@ -459,8 +434,9 @@ services:
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "1"
       WORKER_TYPE: "heavy"
-      SMART_WORKER_LLM_TIMEOUT: "1200"
-      WORKER_TASK_TOTAL_TIMEOUT: "3600"
+      SMART_WORKER_LLM_TIMEOUT: "1800"
+      SMART_WORKER_LLM_STUCK_MINUTES: "30"
+      WORKER_TASK_TOTAL_TIMEOUT: "7200"
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
     volumes:
@@ -510,8 +486,9 @@ services:
       LEARNING_SYNC_INTERVAL: "300"
       SMART_WORKER_MAX_CONCURRENT: "2"
       WORKER_TYPE: "light"
-      SMART_WORKER_LLM_TIMEOUT: "600"
-      WORKER_TASK_TOTAL_TIMEOUT: "3600"
+      SMART_WORKER_LLM_TIMEOUT: "1800"
+      SMART_WORKER_LLM_STUCK_MINUTES: "30"
+      WORKER_TASK_TOTAL_TIMEOUT: "7200"
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
@@ -626,10 +603,10 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     restart: unless-stopped
-    # mem_limit: 4g — было 2g: OOM kills 04:16 и 05:15 UTC 2026-04-12.
+    # mem_limit: 6g — было 4g: OOM kills 04:16 и 05:15 UTC 2026-04-12.
     # Правило ES: JVM heap = 50% от лимита контейнера; остаток — Lucene page cache.
-    # При 2g/1g_heap не хватало буфера → OOM. Теперь 4g/2g_heap — стабильно.
-    mem_limit: 4g
+    # При 4g/2g_heap не хватало буфера → OOM. Теперь 6g/2g_heap — стабильно.
+    mem_limit: 6g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
@@ -695,14 +672,16 @@ services:
       SERVER_LLM_URL: http://host.docker.internal:11434
       VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
-      SMART_WORKER_MAX_CONCURRENT: "2"
+      SMART_WORKER_MAX_CONCURRENT: "1"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
       # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
       ADAPTIVE_MLX_SAFE_MAX: "3"
-      # Жёсткий таймаут на LLM вызов (600 сек = 10 мин) — 35B может ждать в очереди пока куратор/nightly не освободят Ollama
-      SMART_WORKER_LLM_TIMEOUT: "600"
-      # Таймаут для «Делегировано» задач (MONSTER delegation) — до 60 мин (дольше стандартного LLM timeout)
-      WORKER_TASK_TOTAL_TIMEOUT: "3600"
+      # [TTL FIX] Увеличено для delegation задач (SRE best practice: 3x ожидаемое время)
+      SMART_WORKER_LLM_TIMEOUT: "1800"
+      # [TTL FIX] RAG-Loop Guard — сброс если нет LLM вызова > 30 мин (было 10)
+      SMART_WORKER_LLM_STUCK_MINUTES: "30"
+      # [TTL FIX] Таймаут для delegation задач — 120 мин (было 60)
+      WORKER_TASK_TOTAL_TIMEOUT: "7200"
       # Worker уступает Ollama victoria-agent (low priority → пропускает перегруженный Ollama, уходит на MLX)
       OLLAMA_REQUEST_PRIORITY: "low"
       # Больше попыток и задержка перед повтором — меньше накопления в ручной очереди

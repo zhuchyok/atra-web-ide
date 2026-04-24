@@ -33,14 +33,10 @@ except ImportError:
     ORCHESTRATION_V2_ENABLED = False
 
 try:
-    from ai_core import run_smart_agent_async
-
-    VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+    from app.ai_core import run_smart_agent_async
 except ImportError:
     try:
-        from app.ai_core import run_smart_agent_async
-
-        VictoriaEnhanced._run_smart_agent_async = run_smart_agent_async
+        from ai_core import run_smart_agent_async
     except ImportError:
         run_smart_agent_async = None
 
@@ -115,7 +111,7 @@ class VictoriaEnhanced:
     Victoria Enhanced - Victoria с интеграцией всех новых компонентов
     """
 
-    _run_smart_agent_async = None
+    _run_smart_agent_async = run_smart_agent_async
     _local_router = None
 
     def __init__(
@@ -271,9 +267,29 @@ class VictoriaEnhanced:
         Основной метод решения задач.
         [SINGULARITY 24.7] Added support for 'method' argument and proper LLM routing.
         [SINGULARITY 26.4] Extended Thinking полностью интегрирован.
+        [SINGULARITY 28.0] LTM Integration: Recall memories before solving.
         """
         method = kwargs.get("method", "auto")
         category = kwargs.get("category") or self._categorize_task(goal)
+        session_id = kwargs.get("session_id", "default")
+
+        # [SINGULARITY 28.0] Long-term Memory Recall
+        ltm_context = ""
+        try:
+            from long_term_memory import get_ltm
+            ltm = get_ltm()
+            memories = await ltm.recall_memories(goal)
+            if memories:
+                ltm_context = "\n📜 [LONG-TERM MEMORY]:\n"
+                for m in memories:
+                    ltm_context += f"- {m['content'][:500]}\n"
+                logger.info(f"🧠 [VICTORIA] Recalled {len(memories)} memories for goal.")
+        except Exception as ltm_err:
+            logger.debug(f"LTM recall failed: {ltm_err}")
+
+        # Inject LTM into context
+        if ltm_context:
+            kwargs["context"] = (kwargs.get("context") or "") + ltm_context
 
         logger.info(
             f"🧠 [VICTORIA] Solving goal: {goal[:50]}... (Method: {method}, Category: {category})"
@@ -341,3 +357,14 @@ class VictoriaEnhanced:
         if any(k in goal.lower() for k in ["найди", "поиск", "search", "find"]):
             return "search"
         return "general"
+
+    async def get_status(self) -> Dict[str, Any]:
+        """Получить статус компонентов Victoria Enhanced."""
+        return {
+            "monitoring_started": self.monitoring_started,
+            "event_bus_available": self.event_bus is not None,
+            "skill_registry_available": self.skill_registry is not None,
+            "skills_count": 0,  # TODO: реализовать подсчет
+            "file_watcher_available": self.file_watcher is not None,
+            "service_monitor_available": self.service_monitor is not None,
+        }

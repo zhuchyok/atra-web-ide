@@ -1016,9 +1016,9 @@ async def _run_cloud_agent_async(
             logger.warning(f"Ollama fallback failed: {e}")
 
         # Final fallback: smart_worker распознаёт "недоступн" и вызывает rule_executor
-        return f"⚠️ Все источники недоступны. Запрос: {prompt[:100]}..."
+        return "[SYSTEM: All LLM sources unavailable]"
     except Exception as exc:
-        return f"❌ Ошибка связи с облаком: {exc}"
+        return "[SYSTEM: Cloud connection error]"
 
 
 async def _enrich_with_deep_memory(nodes: list, pool) -> str:
@@ -1385,12 +1385,23 @@ async def run_smart_agent_async(
     local_router=None,
     is_vip: bool = False,
     project_context: Optional[str] = None,
+    symbols: Optional[List[str]] = None,
 ):
     """
     Hybrid Intelligence Orchestrator with Model Ensemble (Singularity 14.0).
     Victoria (Cloud) generates the plan, Local Worker (DeepSeek/Qwen) executes.
     project_context: scopes RAG and prompt to that project (e.g. setki-21).
+    symbols: [SINGULARITY 28.X] Behavior symbols for Symbol Tuning (concise, creative, etc.)
     """
+    # [SINGULARITY 28.X] Apply Symbol Tuning if provided
+    if symbols:
+        try:
+            from symbol_tuner import get_symbol_tuner
+            tuner = get_symbol_tuner()
+            prompt = tuner.apply_symbols(prompt, symbols)
+        except ImportError:
+            pass
+
     return await run_smart_agent_async_impl(
         prompt,
         expert_name,
@@ -1666,6 +1677,13 @@ Use HANDOFF only if delegation genuinely improves the result.
 Если ты предлагаешь новый код или изменяешь существующую логику, ты ОБЯЗАН предоставить авто-тест (pytest).
 Твой ответ должен содержать блок кода с тестом, либо ты должен убедиться, что существующий тест в проекте покрывает твои изменения.
 Без теста твоё решение будет отклонено ArchitecturalGuard.
+
+### 🎯 FOCUS GUARD (Singularity 27.2):
+Твоя задача — ответить на КОНКРЕТНЫЙ вопрос пользователя.
+1. Сначала выдели ключевые параметры запроса (например: VRAM, модели, конкретные числа).
+2. Если запрос технический, начни ответ с ФАКТОВ и ДАННЫХ, а не с теории.
+3. ЗАПРЕЩЕНО уходить в общие рассуждения о "цифровой конституции" или "корпоративных стандартах", если об этом не просили напрямую.
+4. В конце ответа проверь: "Ответил ли я на все числовые и технические параметры запроса?".
 """
     experience_context = recursive_test_instruction + "\n" + experience_context
     # --- END RECURSIVE TESTING ---
@@ -1849,6 +1867,20 @@ Use HANDOFF only if delegation genuinely improves the result.
     # 1.1. RAG: Поиск знаний в базе (учимся у коллег)
     kb_context = ""
 
+    # [SINGULARITY 28.0] Long-term Memory Recall
+    ltm_context = ""
+    try:
+        from long_term_memory import get_ltm
+        ltm = get_ltm()
+        memories = await ltm.recall_memories(user_part)
+        if memories:
+            ltm_context = "\n### 📜 LONG-TERM MEMORY (PAST SESSIONS):\n"
+            for m in memories:
+                ltm_context += f"- {m['content'][:500]}\n"
+            logger.info(f"🧠 [LTM] Recalled {len(memories)} memories for {expert_name}")
+    except Exception as ltm_err:
+        logger.debug(f"LTM recall failed: {ltm_err}")
+
     # [SINGULARITY 20.0] Proactive Knowledge Utilization
     # Force RAG for all tasks to increase knowledge usage from 0.04%
     force_rag = os.getenv("FORCE_PROACTIVE_RAG", "true").lower() == "true"
@@ -1900,6 +1932,33 @@ Use HANDOFF only if delegation genuinely improves the result.
             if node_ids:
                 asyncio.create_task(_track_knowledge_usage(node_ids))
 
+                # [SINGULARITY 28.X] Log knowledge edges (links between query and retrieved knowledge)
+                try:
+                    pool = await _get_db_pool()
+                    if pool and node_ids:
+                        async def _log_knowledge_edges():
+                            pool = await _get_db_pool()
+                            if not pool:
+                                return
+                            async with pool.acquire() as conn:
+                                # Generate edge from query to each retrieved node
+                                query_hash = hash(prompt[:200])
+                                for node_id in node_ids[:5]:  # Limit to top 5
+                                    try:
+                                        await conn.execute(
+                                            """INSERT INTO knowledge_edges (source_id, target_id, relation_type, metadata)
+                                            VALUES ($1, $2, 'used_in_query', $3)
+                                            ON CONFLICT DO NOTHING""",
+                                            f"query_{query_hash}",
+                                            node_id,
+                                            json.dumps({"expert": expert_name, "relevance": 0.8}),
+                                        )
+                                    except:
+                                        pass
+                        asyncio.create_task(_log_knowledge_edges())
+                except Exception as ke:
+                    logger.debug(f"⚠️ Knowledge edges logging failed: {ke}")
+
             kb_context = "\n### ЗНАНИЯ ОТ КОЛЛЕГ (ИЗ БАЗЫ ЗНАНИЙ):\n"
 
             # [SINGULARITY 14.2] Fact Extraction for long contexts
@@ -1926,6 +1985,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     # Подмешиваем знания коллег в промпт
     if (
         kb_context
+        or ltm_context
         or meta_wisdom_context
         or mentorship_context
         or experience_context
@@ -1933,7 +1993,7 @@ Use HANDOFF only if delegation genuinely improves the result.
     ):
         # [SINGULARITY 14.2] Use ContextSwapper for kb_context
         swapper = ContextSwapper()
-        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{kb_context}"
+        full_context = f"{constitution_context}\n{meta_wisdom_context}\n{mentorship_context}\n{experience_context}\n{ltm_context}\n{kb_context}"
         kb_context = await swapper.swap_if_needed(full_context, f"kb_context_{request_id}")
         user_part = f"{kb_context}\n\nЗАПРОС: {user_part}"
 
@@ -2227,9 +2287,21 @@ Use HANDOFF only if delegation genuinely improves the result.
                 knowledge_context = f"{distilled_rules}\n\n{knowledge_context}"
 
         # Phase 1: Strategist generates a TECHNICAL SPECIFICATION (MLX call)
+        # [SINGULARITY 28.0] Agent A/B Testing: Select strategy/persona
+        current_strategy = "default"
+        try:
+            from agent_ab_testing import get_agent_ab_testing
+            ab_test = get_agent_ab_testing()
+            current_strategy = await ab_test.select_strategy(expert_name, ["default", "concise", "creative"])
+            logger.info(f"⚖️ [AB TEST] Selected strategy '{current_strategy}' for {expert_name}")
+        except Exception as ab_err:
+            logger.debug(f"Agent A/B testing failed: {ab_err}")
+
         spec_prompt = f"""
         Вы - ВИКТОРИЯ, Главный Стратег (Wisdom Era). Составьте краткое ТЕХНИЧЕСКОЕ ЗАДАНИЕ (ТЗ) для младшего разработчика
         на основе запроса пользователя. Укажите только ЧТО сделать, без написания самого кода.
+        
+        СТРАТЕГИЯ ОТВЕТА: {current_strategy}
 
         {style_modifier}
         {emotion_modifier}
@@ -2495,17 +2567,32 @@ Use HANDOFF only if delegation genuinely improves the result.
                         await cache.save_to_cache(user_part, local_resp, expert_name)
                     return local_resp
 
-            if local_resp:
-                # --- MODEL ENSEMBLE ACTIVATION ---
-                if is_coding_task or is_critical:
-                    local_resp = await _verify_and_refine(user_part, local_resp)
+            # [SINGULARITY 28.X] ALWAYS log AB results after getting response
+                _log_ab_id = f"{expert_name}_{abs(hash(str(local_resp)[:100])) % 1000000}"
+                try:
+                    pool = await _get_db_pool()
+                    if pool:
+                        async with pool.acquire() as conn:
+                            await conn.execute(
+                                """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
+                                VALUES ($1, $2, $3, 1.0, NOW())""",
+                                expert_name, current_strategy, _log_ab_id
+                            )
+                            logger.info(f"⚖️ [AB_LOG] {expert_name}/{current_strategy}/{_log_ab_id}")
+                except Exception as _abe:
+                    logger.debug(f"AB log error: {_abe}")
 
-                # Сохраняем метрики результата для ML-обучения
-                quality_metrics = None
-                if qa:
-                    _, quality_metrics, _ = await qa.validate_response(
-                        local_resp, user_part, response_type="code", source="local"
-                    )
+                if local_resp:
+                    # --- MODEL ENSEMBLE ACTIVATION ---
+                    if is_coding_task or is_critical:
+                        local_resp = await _verify_and_refine(user_part, local_resp)
+
+                    # Сохраняем метрики результата для ML-обучения
+                    quality_metrics = None
+                    if qa:
+                        _, quality_metrics, _ = await qa.validate_response(
+                            local_resp, user_part, response_type="code", source="local"
+                        )
 
                 # Phase 3: Strategist validates the result (Wisdom Era Audit)
                 # [SINGULARITY 20.0] Mandatory Audit for Critical or High-Level Tasks
@@ -2518,11 +2605,13 @@ Use HANDOFF only if delegation genuinely improves the result.
                 use_audit = os.getenv("USE_VICTORIA_AUDIT", "false").lower() in ("true", "1", "yes")
 
                 # Если задача критическая и включен принудительный аудит, игнорируем USE_VICTORIA_AUDIT=false
+                # Если задача критическая и включен принудительный аудит, игнорируем USE_VICTORIA_AUDIT=false
                 should_run_audit = use_audit or (
                     force_audit and (is_critical or is_critical_domain)
                 )
 
-                audit_result = "APPROVED"  # По умолчанию считаем результат одобренным
+                # [FIX] Инициализируем ЗАРАНЕЕ, чтобы избежать UnboundLocalError
+                audit_result = None  # По умолчанию None (если аудит не нужен)
                 if should_run_audit:
                     logger.info(
                         f"🏛️ [ARCHITECTURAL OVERSIGHT] {strategist_model} is auditing {expert_name}'s work..."
@@ -2567,7 +2656,8 @@ Use HANDOFF only if delegation genuinely improves the result.
                     else:
                         logger.info(f"✅ [AUDIT APPROVED] Victoria approved {expert_name}'s work.")
 
-            if audit_result and "APPROVED" in audit_result.upper():
+            # [FIX] Проверяем audit_result на None перед использованием
+            if audit_result is not None and audit_result and "APPROVED" in audit_result.upper():
                 # Estimate token savings (local execution vs full cloud)
                 estimated_cloud_tokens = len(user_part) // 4 + len(local_resp) // 4
                 estimated_local_tokens = (
@@ -2669,35 +2759,75 @@ Use HANDOFF only if delegation genuinely improves the result.
                     metadata_dict["style_similarity"] = style_similarity_score
                     metadata_dict["user_identifier"] = user_identifier
 
-                if EmotionDetector and emotion_result:
+                if emotion_result:
                     metadata_dict["detected_emotion"] = emotion_result.detected_emotion
                     metadata_dict["emotion_confidence"] = emotion_result.confidence
                     metadata_dict["tone_used"] = emotion_result.tone
                     metadata_dict["detail_level"] = emotion_result.detail_level
 
-                    # Логируем эмоцию в emotion_logs
+                # [SINGULARITY 28.0] Always log interaction for A/B testing
+                interaction_log_id = None
+                try:
+                    from token_logger import log_ai_interaction
+                    interaction_log_id = await log_ai_interaction(
+                        prompt=user_part,
+                        response=local_resp[:2000],
+                        expert_name=expert_name,
+                        model_type="local",
+                        source="ai_core",
+                        metadata=metadata_dict,
+                    )
+                except Exception as log_err:
+                    logger.debug(f"Interaction log failed: {log_err}")
+                    interaction_log_id = None
+
+                # [SINGULARITY 28.0] Agent A/B Testing: Log result (always, even if log_id is None)
+                final_score = 1.0
+                try:
+                    if quality_metrics:
+                        final_score = quality_metrics.overall_score
+                except:
+                    pass
+
+                log_id = str(interaction_log_id) if interaction_log_id else f"{expert_name}_{abs(hash(local_resp[:50])) % 100000}"
+
+                # Direct insert to avoid import issues
+                try:
+                    pool = await _get_db_pool()
+                    if pool:
+                        async with pool.acquire() as conn:
+                            await conn.execute(
+                                """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
+                                VALUES ($1, $2, $3, $4, NOW())""",
+                                expert_name, current_strategy, log_id, final_score
+                            )
+                            logger.warning(f"⚖️ [AB_TEST] INSERTED: {expert_name}/{current_strategy}/{log_id}/{final_score}")
+                except Exception as ab_err:
+                    logger.warning(f"⚖️ [AB_TEST] FAILED: {ab_err}")
+
+                    # [SINGULARITY 28.X] Constitutional Rewards logging
                     try:
-                        from token_logger import log_ai_interaction
-
-                        interaction_log_id = await log_ai_interaction(
+                        from constitutional_rewards import get_constitutional_rewards
+                        rewards = get_constitutional_rewards()
+                        reward_result = await rewards.evaluate_interaction(
                             prompt=user_part,
-                            response=local_resp[:2000],  # Ограничиваем длину для производительности
+                            response=local_resp,
                             expert_name=expert_name,
-                            model_type="local",
-                            source="ai_core",
-                            metadata=metadata_dict,
+                            interaction_log_id=str(interaction_log_id)
                         )
+                        if reward_result.get("total") != 0:
+                            logger.info(f"⚖️ [REWARDS] {expert_name}: {reward_result.get('total'):.2f}")
+                    except Exception as rew_err:
+                        logger.debug(f"Constitutional rewards log failed: {rew_err}")
 
-                        if interaction_log_id:
+                    # Emotion Detection logging (only if emotion_result exists)
+                    if emotion_result:
+                        try:
                             detector = EmotionDetector()
-                            feedback_score = (
-                                None  # Будет обновлен позже, когда пользователь даст feedback
-                            )
-                            await detector.log_emotion(
-                                interaction_log_id, emotion_result, feedback_score
-                            )
-                    except Exception as e:
-                        logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
+                            feedback_score = None
+                            await detector.log_emotion(interaction_log_id, emotion_result, feedback_score)
+                        except Exception as e:
+                            logger.debug(f"⚠️ [EMOTION DETECTOR] Error logging emotion: {e}")
 
                 # [SINGULARITY 26.6] Quality Pipeline - call external service
                 try:
@@ -2721,6 +2851,19 @@ Use HANDOFF only if delegation genuinely improves the result.
                             )
                 except Exception as qe:
                     logger.debug(f"⚠️ Quality service unavailable: {qe}")
+
+                # [SINGULARITY 28.X] Evaluate with Constitutional Rewards before returning
+                try:
+                    from constitutional_rewards import get_constitutional_rewards
+                    rewards = get_constitutional_rewards()
+                    await rewards.evaluate_and_score(
+                        interaction_log_id or "unknown",
+                        expert_name,
+                        local_resp,
+                        {"response_time_seconds": response_time_seconds}
+                    )
+                except ImportError:
+                    pass
 
                 return local_resp
             else:
@@ -3088,6 +3231,21 @@ Use HANDOFF only if delegation genuinely improves the result.
                     logger.warning(f"⚠️ Celery offload failed: {ce}")
 
             return local_resp
+
+    # [SINGULARITY 28.X] FINAL AB LOG - catches all exit paths
+    try:
+        pool = await _get_db_pool()
+        if pool and local_resp:
+            _final_id = f"{expert_name}_{abs(hash(str(local_resp)[:100])) % 1000000}"
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at)
+                    VALUES ($1, $2, $3, 1.0, NOW())""",
+                    expert_name, current_strategy, _final_id
+                )
+                logger.info(f"⚖️ [AB_FINAL] {expert_name}/{current_strategy}/{_final_id}")
+    except Exception as _fabe:
+        logger.debug(f"Final AB log error: {_fabe}")
 
     # 5. Query Orchestrator: нормализация запроса и сборка role-aware промпта
     query_orchestrator = None
@@ -3647,21 +3805,20 @@ Use HANDOFF only if delegation genuinely improves the result.
 
 
 def _clean_response(response: str) -> str:
-    """Remove internal orchestration markers from response."""
+    """Remove internal orchestration markers and system errors from response."""
     if not response or not isinstance(response, str):
         return response
 
+    # Remove system error messages
+    if "[SYSTEM:" in response or response.startswith("⚠️") or response.startswith("❌"):
+        return ""
+    
     lines = response.split("\n")
     cleaned = []
-    # Patterns to remove (case-insensitive startswith)
     markers = (
-        "Solved:",
-        "ЗАДАЧА:",
-        "План от",
-        "Результаты работы",
-        "Назначения оркестратора:",
-        "Стратегия оркестратора:",
-        "strategy_line",
+        "Solved:", "ЗАДАЧА:", "План от", "Результаты работы",
+        "Назначения оркестратора:", "Стратегия оркестратора:",
+        "strategy_line", "[SYSTEM:", "⚠️", "❌",
     )
     for line in lines:
         stripped = line.strip()
