@@ -12,11 +12,24 @@ class PerpetualEvolution:
     """
 
     async def run_one_cycle(self) -> bool:
-        """[SINGULARITY 21.28] Запускает один полный цикл эволюции."""
-        logger.info("⚗️ [EVOLUTION] Начало цикла...")
+        """[SINGULARITY 28.1] Запускает один полный цикл эволюции (Level 8)."""
+        logger.info("⚗️ [EVOLUTION:LEVEL-8] Начало рекурсивного цикла...")
 
         try:
-            # 1. Дистилляция знаний (Self-Distillation)
+            # 1. Рекурсивная эволюция ядра (Self-Improvement)
+            try:
+                from recursive_evolution import get_evolution_engine
+                engine = get_evolution_engine()
+                # Эволюционируем сам процесс эволюции (мета-обучение)
+                await engine.evolve_task(
+                    "Optimize evolution cycle efficiency",
+                    "def optimize(): pass",
+                    iterations=2
+                )
+            except Exception as e:
+                logger.error(f"⚠️ [EVOLUTION] Ошибка рекурсивного цикла: {e}")
+
+            # 2. Дистилляция знаний (Self-Distillation)
             try:
                 from distillation_engine import KnowledgeDistiller
                 distiller = KnowledgeDistiller()
@@ -24,7 +37,7 @@ class PerpetualEvolution:
             except Exception as e:
                 logger.error(f"⚠️ [EVOLUTION] Ошибка дистилляции: {e}")
 
-            # 2. Автономная дистилляция (Synthetic Data)
+            # 3. Автономная дистилляция (Synthetic Data)
             try:
                 from autonomous_distillation import get_autonomous_distiller
                 auto_distiller = get_autonomous_distiller()
