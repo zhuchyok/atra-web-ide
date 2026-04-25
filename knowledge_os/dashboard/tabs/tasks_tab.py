@@ -57,21 +57,27 @@ def format_msk(dt):
 def render_tasks_tab():
     """Основная функция рендеринга вкладки задач."""
     st.header("🛠️ Управление Задачами")
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    st.caption(f"📅 Фильтр времени: **{time_range}** (настройте в боковой панели)")
 
     tabs = st.tabs(["📋 Список задач", "➕ Поставить задачу", "📊 Аналитика"])
 
     with tabs[0]:
-        _render_tasks_list()
+        _render_tasks_list(time_range)
 
     with tabs[1]:
         _render_put_task()
 
     with tabs[2]:
-        _render_tasks_analytics()
+        _render_tasks_analytics(time_range)
 
 
-def _render_tasks_list():
+def _render_tasks_list(time_range):
     st.subheader("🛠️ Автономные Задачи и Оркестрация")
+    
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "created_at")
 
     # Статистика задач вверху (кэш 15 сек — чтобы увидеть рост «Завершено», нажмите «Обновить»)
     row_cap, row_btn = st.columns([4, 1])
@@ -92,7 +98,7 @@ def _render_tasks_list():
     # Принудительный сброс кэша: разный _cache_bust даёт новый запрос к БД после «Обновить»
     _cache_bust = st.session_state.get("tasks_refresh_ts", 0)
     task_overview = fetch_data_tasks(
-        """
+        f"""
         SELECT
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE status = 'completed') as completed,
@@ -105,6 +111,7 @@ def _render_tasks_list():
                 ELSE 0
             END as avg_hours
         FROM tasks
+        WHERE {t_filter}
     """,
         _cache_bust=_cache_bust,
     )
@@ -205,8 +212,11 @@ def _render_tasks_list():
     )
 
     # Запрос данных
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "t.created_at")
+    
     query_parts = [
-        "SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department, t.metadata, t.project_context FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE 1=1"
+        f"SELECT t.id, t.title, t.description, t.status, t.result, t.created_at, t.updated_at, COALESCE(e.name, 'Не назначен') as assignee, COALESCE(e.department, 'N/A') as department, t.metadata, t.project_context FROM tasks t LEFT JOIN experts e ON t.assignee_expert_id = e.id WHERE {t_filter}"
     ]
     query_params = []
 
@@ -365,23 +375,26 @@ def _render_put_task():
                     st.error("❌ Ошибка при создании задачи")
 
 
-def _render_tasks_analytics():
+def _render_tasks_analytics(time_range):
     """Дополнительная аналитика задач и SLA."""
     st.subheader("📊 Аналитика производительности и SLA")
+    
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "t.created_at")
 
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("### ⏱️ Мониторинг SLA (Среднее время)")
         try:
-            sla_data = fetch_data("""
+            sla_data = fetch_data(f"""
                 SELECT
                     e.name,
                     AVG(EXTRACT(EPOCH FROM (t.completed_at - t.created_at))) as avg_time_sec,
                     COUNT(t.id) as total_tasks
                 FROM experts e
                 JOIN tasks t ON t.assignee_expert_id = e.id
-                WHERE t.status = 'completed' AND t.completed_at IS NOT NULL
+                WHERE t.status = 'completed' AND t.completed_at IS NOT NULL AND {t_filter}
                 GROUP BY e.id, e.name
                 ORDER BY avg_time_sec ASC
             """)
@@ -401,10 +414,11 @@ def _render_tasks_analytics():
     with col2:
         st.markdown("### 🏆 Нагрузка по экспертам")
         try:
-            data = fetch_data("""
+            data = fetch_data(f"""
                 SELECT e.name as expert, COUNT(t.id) as task_count
                 FROM tasks t
                 JOIN experts e ON t.assignee_expert_id = e.id
+                WHERE {t_filter}
                 GROUP BY e.name
                 ORDER BY task_count DESC
             """)

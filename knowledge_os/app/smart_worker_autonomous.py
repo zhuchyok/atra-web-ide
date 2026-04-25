@@ -6,7 +6,9 @@ import sys
 import time
 from datetime import datetime
 from functools import partial
-from typing import List, Optional
+from typing import List, Optional, Union, Dict, Any
+
+from app.schemas import AgentResponse, TaskResult, parse_agent_response
 
 try:
     from aiohttp import web
@@ -567,13 +569,16 @@ async def process_task(pool, task):
     # ─── FAST PATH: тривиальные file_check задачи — без LLM, за <1ms ───────────
     fast_result = _fast_file_check(task_title)
     if fast_result is not None:
-        print(f"[{datetime.now()}] ⚡ [FAST_PATH] {task_title[:60]} → {fast_result[:60]}")
-        async with pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE tasks SET status='completed', result=$1, updated_at=NOW() WHERE id=$2",
-                fast_result,
-                task_id,
-            )
+            # [SINGULARITY 29.0] Guaranteed DB persistence
+            try:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE tasks SET status='completed', result=$1, updated_at=NOW(), completed_at=NOW(), last_real_progress_at=NOW() WHERE id=$2",
+                        fast_result,
+                        task_id,
+                    )
+        except Exception as db_err:
+            logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
         return
     # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1011,15 +1016,19 @@ DESC: {task_description}
                     str(used_model) if used_model else "",
                 )
         # Обрабатываем разные типы ответов
-        if report is None:
-            report = None
-        elif isinstance(report, tuple):
-            # Если кортеж - берем первый элемент (ответ)
-            report = report[0] if report[0] else (report[1] if len(report) > 1 else None)
-        elif isinstance(report, dict):
-            report = report.get("response", report.get("text", str(report)))
-        elif not isinstance(report, str):
-            report = str(report)
+        agent_resp = parse_agent_response(report)
+        report = agent_resp.output or agent_resp.error or str(report)
+        
+        if agent_resp.status == "processing":
+            is_error = True
+            _last_failure_reason = "delegation_queued_processing"
+            # Return to pending for polling
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "UPDATE tasks SET status = 'pending', updated_at = NOW() WHERE id = $1",
+                    task_id
+                )
+            return
 
         # Логируем ответ для отладки
         print(
@@ -1073,33 +1082,40 @@ DESC: {task_description}
                     logger.info(
                         f"🔄 [MODEL UPGRADE] Задача {task_id} требует более мощную модель: {next_model}"
                     )
-                    # Сохраняем информацию о необходимости апгрейда
+                    # Сохраняем информацию о необходимости апгрейда и возвращаем в pending
                     async with pool.acquire() as conn:
                         await conn.execute(
                             """
                             UPDATE tasks
-                            SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('model_upgrade_needed', true, 'recommended_model', $2::text)
+                            SET status = 'pending',
+                                metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('model_upgrade_needed', true, 'recommended_model', $2::text),
+                                updated_at = NOW(),
+                                last_real_progress_at = NOW()
                             WHERE id = $1
                         """,
                             task_id,
                             str(next_model) if next_model else "",
                         )
+                    print(f"[{datetime.now()}] 🔄 Task {task_id} reverted to PENDING for model upgrade to {next_model}")
+                    return # Прекращаем текущую обработку, так как задача ушла на апгрейд
             except Exception as e:
                 logger.debug(f"Model performance tracking failed: {e}")
 
         # Проверяем, что ответ не является сообщением об ошибке или пустым (Singularity 24.3 Fix)
-        error_indicators = [
-            "⚠️",
-            "❌",
-            "⌛",
-            "Error",
-            "failed",
-            "недоступен",
-            "не могу",
-            "Все источники недоступны",
-            "Ошибка связи",
-        ]
-        is_error = any(indicator in report for indicator in error_indicators) if report else True
+        is_error = agent_resp.status == "error"
+        if not is_error:
+            error_indicators = [
+                "⚠️",
+                "❌",
+                "⌛",
+                "Error",
+                "failed",
+                "недоступен",
+                "не могу",
+                "Все источники недоступны",
+                "Ошибка связи",
+            ]
+            is_error = any(indicator in str(report) for indicator in error_indicators) if report else True
 
         # [SWISS-CLOCK] Детектируем LLM-недоступность отдельно —
         # эти случаи нужно re-queue с задержкой, а не эскалировать как логические ошибки
@@ -1270,25 +1286,26 @@ DESC: {task_description}
                         )
                         # Обновляем задачу с рекомендованной моделью
                         async with pool.acquire() as conn:
-                            await conn.execute(
-                                """
-                                UPDATE tasks
-                                SET status = 'pending',
-                                    updated_at = NOW(),
-                                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                                        'last_attempt_failed', true,
-                                        'attempt_count', $2::int,
-                                        'last_error', $3::text,
-                                        'model_upgrade_needed', true,
-                                        'recommended_model', $4::text
-                                    )
-                                WHERE id = $1
-                            """,
-                                task_id,
-                                attempt_count,
-                                str(report[:500]) if report and isinstance(report, str) else "",
-                                str(next_model),
+                    await conn.execute(
+                        """
+                        UPDATE tasks
+                        SET status = 'pending',
+                            updated_at = NOW(),
+                            last_real_progress_at = NOW(),
+                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                'last_attempt_failed', true,
+                                'attempt_count', $2::int,
+                                'last_error', $3::text,
+                                'model_upgrade_needed', true,
+                                'recommended_model', $4::text
                             )
+                        WHERE id = $1
+                    """,
+                        task_id,
+                        attempt_count,
+                        str(report[:500]) if report and isinstance(report, str) else "",
+                        str(next_model),
+                    )
                         print(
                             f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} for retry"
                         )
@@ -1303,6 +1320,7 @@ DESC: {task_description}
                         UPDATE tasks
                         SET status = 'pending',
                             updated_at = NOW(),
+                            last_real_progress_at = NOW(),
                             metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('last_attempt_failed', true, 'attempt_count', $2::int, 'last_error', $3::text)
                         WHERE id = $1
                     """,
@@ -1472,7 +1490,21 @@ DESC: {task_description}
                         import traceback
 
                         traceback.print_exc()
-        print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
+                    # [SINGULARITY 29.0] Guaranteed DB persistence
+                    try:
+                        async with pool.acquire() as conn:
+                            await conn.execute(
+                                """
+                                UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW(), last_real_progress_at = NOW()
+                                WHERE id = $1
+                            """,
+                                task_id,
+                                report,
+                            )
+                    except Exception as db_err:
+                        logger.error(f"Failed to save final result for {task_id}: {db_err}")
+                    
+                    print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
 
         if _PROMETHEUS_AVAILABLE:
             duration = time.perf_counter() - task_start_time
@@ -1889,6 +1921,7 @@ async def main():
                     FROM tasks t
                     LEFT JOIN experts e ON t.assignee_expert_id = e.id
                     WHERE t.status = 'pending'
+                      AND (t.metadata->>'source' IN ('scout_orchestrator', 'dashboard_scout', 'enhanced_scout_orchestrator', 'dashboard_simulator', 'victoria_queue', 'expert_tasks') OR t.metadata->>'source' IS NULL)
                       AND (t.metadata->>'next_retry_after' IS NULL OR (t.metadata->>'next_retry_after')::timestamptz < NOW())
                       AND (t.retry_after IS NULL OR t.retry_after < NOW())
                       AND COALESCE(t.metadata->>'source', '') != 'orchestration_tracking'

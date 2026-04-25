@@ -20,6 +20,10 @@ def format_msk(dt):
 
 def render_strategy_tab():
     """Вкладка Стратегия и эксперты."""
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    st.caption(f"📅 Фильтр времени: **{time_range}**")
+
     tabs_strategy = st.tabs(
         [
             "💰 Финансы и ROI",
@@ -76,12 +80,16 @@ def render_aoi_status():
 def render_finance_and_roi():
     """💰 Финансы и ROI знаний."""
     st.subheader("📈 Финансовый Учет Интеллекта (Knowledge P&L)")
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "created_at")
 
     # Метрики ликвидности (всегда) и экспертов (если есть колонки virtual_budget, performance_score)
-    results = fetch_data("""
+    results = fetch_data(f"""
         SELECT
-            (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes) as total_liquidity,
-            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0) as active_nodes
+            (SELECT SUM(usage_count * confidence_score) FROM knowledge_nodes WHERE {t_filter}) as total_liquidity,
+            (SELECT COUNT(*) FROM knowledge_nodes WHERE usage_count > 0 AND {t_filter}) as active_nodes
     """)
     total_budget = None
     avg_performance = None

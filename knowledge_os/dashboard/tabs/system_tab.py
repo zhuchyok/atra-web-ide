@@ -421,16 +421,20 @@ def render_security():
 def render_singularity_metrics():
     """🚀 Метрики Оркестрации."""
     st.subheader("🚀 Эффективность Singularity 14.0")
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "created_at")
 
     # Метрики A/B теста оркестратора
-    orch_stats = fetch_data("""
+    orch_stats = fetch_data(f"""
         SELECT
             orchestrator_version,
             COUNT(*) as task_count,
             COUNT(*) FILTER (WHERE status = 'completed') as success_count,
             AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) FILTER (WHERE status = 'completed') as avg_duration
         FROM tasks
-        WHERE orchestrator_version IS NOT NULL
+        WHERE orchestrator_version IS NOT NULL AND {t_filter}
         GROUP BY orchestrator_version
     """)
 

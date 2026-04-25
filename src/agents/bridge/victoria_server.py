@@ -21,7 +21,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 try:
     from prometheus_client import (
@@ -6486,7 +6486,21 @@ async def plan_only(request: PlanRequest):
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: str | List[Dict[str, Any]]
+
+    @field_validator("content")
+    @classmethod
+    def convert_content(cls, v):
+        if isinstance(v, list):
+            text_parts = []
+            for item in v:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                    elif item.get("type") == "image_url":
+                        text_parts.append("[image]")
+            return "".join(text_parts)
+        return v
 
 
 class ChatCompletionRequest(BaseModel):

@@ -14,7 +14,7 @@ import json
 import os
 import uuid
 import logging
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, List
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -36,6 +36,9 @@ VICTORIA_RESPONSE_PREFIX = os.getenv("VICTORIA_RESPONSE_PREFIX", "Виктори
 # Один одновременный запрос к Victoria — избегаем обрывов при 2+ параллельных от Claude Code
 _victoria_semaphore = asyncio.Semaphore(1)
 
+# Хранилище диалогов: session_id → [{"user": "...", "assistant": "..."}]
+_dialogue_store: dict[str, list[dict]] = {}
+
 app = FastAPI(
     title="Claude Code → Victoria Proxy",
     description="Anthropic Messages API compatible proxy to Victoria (experts, orchestrators)",
@@ -55,28 +58,39 @@ def _extract_last_user_text(messages: list[dict]) -> str:
         content = m.get("content")
         
         if role == "user":
-            if isinstance(content, str):
-                parts.append(content.strip())
-            elif isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict):
-                        if block.get("type") == "text" and "text" in block:
-                            parts.append(block["text"])
-                        elif block.get("type") == "tool_result":
-                            # Добавляем результат инструмента в контекст цели
-                            result = block.get("content")
-                            parts.append(f"[Результат инструмента {block.get('tool_use_id')}]: {result}")
-            if parts:
-                break
+            text = _extract_text_from_content(content)
+            if text:
+                parts.append(text.strip())
+        if parts:
+            break
     
     return "\n\n".join(reversed(parts)).strip()
 
 
+def _extract_text_from_content(content) -> str:
+    """Универсальное извлечение текста из content (строка или массив block'ов)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                if block.get("type") == "text" and "text" in block:
+                    parts.append(block["text"])
+                elif block.get("type") == "tool_result":
+                    parts.append(f"[Результат: {block.get('content', '')}]")
+        return "".join(parts)
+    return ""
+
+
 # --- Victoria: POST /run → TaskResponse ---
-async def call_victoria_run(goal: str, correlation_id: str) -> dict:
+async def call_victoria_run(goal: str, correlation_id: str, chat_history: Optional[List[dict]] = None) -> dict:
     """Вызов Victoria POST /run (синхронный режим). Возвращает dict с status и output.
-    Семафор: не более одного запроса к Victoria одновременно — устраняет обрывы при 2+ параллельных от Claude Code."""
+    Семафор: не более одного запроса к Victoria одновременно — устраняет обрывы при 2+ параллельных от Claude Code.
+    chat_history — список {"user": "...", "assistant": "..."} для контекста диалога."""
     payload = {"goal": goal}
+    if chat_history:
+        payload["chat_history"] = chat_history
     # X-Forwarded-For явно ставим в 127.0.0.1 — иначе Victoria видит GitHub CDN IP (185.199.x.x)
     # от Claude Code/OpenCode и считает его внешним клиентом (rate-limit/блокировка).
     headers = {"Content-Type": "application/json", "X-Correlation-ID": correlation_id, "X-Forwarded-For": "127.0.0.1"}
@@ -200,193 +214,84 @@ def build_anthropic_response(text: str, request_id: str, model: Optional[str] = 
     }
 
 
+@app.get("/v1/models")
+async def list_models():
+    """Список доступных моделей (OpenAI совместимый)."""
+    return JSONResponse(content={
+        "object": "list",
+        "data": [
+            {
+                "id": "victoria-wisdom-v3.5",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "atra-corporation",
+                "permission": [],
+                "root": "victoria-wisdom-v3.5",
+            }
+        ]
+    })
+
+
 @app.get("/health")
 async def health():
-    """Проверка живости прокси и доступности Victoria."""
+    """Health check."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{VICTORIA_URL}/health")
-        vic_ok = r.status_code == 200
-    except Exception as e:
-        logger.debug("Victoria health check failed: %s", e)
-        vic_ok = False
-    return {
+            vic_resp = await client.get(f"{VICTORIA_URL}/health")
+            victoria_ok = vic_resp.status_code == 200
+    except Exception:
+        victoria_ok = False
+
+    return JSONResponse(content={
         "status": "ok",
         "proxy": "anthropic-victoria",
         "victoria_url": VICTORIA_URL,
-        "victoria_reachable": vic_ok,
-    }
-
-
-@app.post("/v1/messages/count_tokens")
-async def count_tokens(request: Request):
-    """
-    Anthropic count_tokens: клиент (Claude Code) дергает перед отправкой.
-    Возвращаем приблизительное число токенов, чтобы не было 404.
-    """
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-
-    messages_list = body.get("messages") or []
-    total_chars = 0
-    for m in messages_list:
-        content = m.get("content", "") if isinstance(m, dict) else ""
-        if isinstance(content, str):
-            total_chars += len(content)
-        elif isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and "text" in block:
-                    total_chars += len(str(block["text"]))
-    # ~4 символа на токен для английского/смешанного текста
-    input_tokens = max(1, total_chars // 4)
-    return JSONResponse(content={"input_tokens": input_tokens}, status_code=200)
-
-
-@app.get("/v1/tools")
-async def list_tools():
-    """
-    Anthropic list_tools: клиент (Claude Code) дергает при старте.
-    Возвращаем инструменты Victoria, чтобы Claude Code мог их использовать.
-    """
-    return {
-        "tools": [
-            {
-                "name": "victoria_run",
-                "description": "Запустить задачу через Victoria Agent (Team Lead ATRA). Используй для сложных архитектурных задач, делегирования экспертам или когда нужен 'мозг' корпорации.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "goal": {"type": "string", "description": "Цель/задача для выполнения"},
-                        "max_steps": {"type": "integer", "description": "Максимальное количество шагов (по умолчанию 500)"}
-                    },
-                    "required": ["goal"]
-                }
-            },
-            {
-                "name": "victoria_chat",
-                "description": "Написать сообщение Виктории и получить ответ (для диалога). Используй для уточнения деталей или обсуждения стратегии.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "message": {"type": "string", "description": "Сообщение/вопрос для Виктории"},
-                        "history_json": {"type": "string", "description": "Опционально — JSON история диалога"}
-                    },
-                    "required": ["message"]
-                }
-            }
-        ]
-    }
+        "victoria_reachable": victoria_ok,
+    })
 
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     """
-    OpenAI Chat Completions API: перенаправляем в Anthropic Messages API логику.
-    Это нужно для OpenCode, который использует OpenAI формат для кастомных провайдеров.
+    OpenAI Chat Completions → Victoria /run.
+    Конвертирует OpenAI формат в Anthropic и вызывает Victoria.
+    Поддерживает диалоги: история хранится в памяти и передаётся в Victoria.
     """
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-
-    # Превращаем OpenAI формат в Anthropic формат
-    openai_messages = body.get("messages") or []
-    if not openai_messages:
-        raise HTTPException(status_code=400, detail="messages is required")
-
-    # Вызываем основной метод сообщений
-    return await messages(request)
-
-
-@app.post("/v1/messages")
-async def messages(request: Request):
-    """
-    Anthropic Messages API: принимаем запрос, переводим в Victoria /run, возвращаем в формате Anthropic.
-    """
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
-
-    messages_list = body.get("messages") or []
-    if not messages_list:
-        raise HTTPException(status_code=400, detail="messages is required and must be non-empty")
-
-    # Список может быть из dict (JSON)
-    messages_as_dicts = [
-        m if isinstance(m, dict) else {"role": getattr(m, "role", "user"), "content": getattr(m, "content", "")}
-        for m in messages_list
-    ]
+    body = await request.json()
+    messages_as_dicts = body.get("messages", [])
+    model = body.get("model", "victoria-wisdom-v3.5")
+    request_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
     
-    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
-    request_id = f"msg_{uuid.uuid4().hex[:24]}"
-    model = body.get("model")
-
-    # --- Обработка tool_use (если есть) ---
-    tool_use_block = None
-    for m in reversed(messages_as_dicts):
-        if m.get("role") == "user":
-            content = m.get("content")
-            if isinstance(content, list):
-                for block in content:
-                    if isinstance(block, dict) and block.get("type") == "tool_use":
-                        tool_use_block = block
-                        break
-            if tool_use_block:
-                break
-
-    if tool_use_block:
-        tool_name = tool_use_block.get("name")
-        tool_input = tool_use_block.get("input") or {}
-        tool_use_id = tool_use_block.get("id")
-        
-        logger.info("[PROXY] tool_use name=%s id=%s", tool_name, tool_use_id)
-        
-        # Перенаправляем tool_use в Victoria
-        if tool_name == "victoria_run":
-            goal = tool_input.get("goal")
-            # Вызываем Victoria /run
-            vic_response = await call_victoria_run(goal, correlation_id)
-            output = vic_response.get("output") or vic_response.get("error") or "Done"
-            
-            # Возвращаем tool_result
-            return JSONResponse(content={
-                "id": request_id,
-                "type": "message",
-                "role": "assistant",
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": tool_use_id,
-                        "content": str(output)
-                    }
-                ],
-                "model": model or "victoria-via-proxy",
-                "stop_reason": "tool_use",
-                "usage": {
-                    "input_tokens": 0,
-                    "output_tokens": 0,
-                    "cache_creation_input_tokens": None,
-                    "cache_read_input_tokens": None,
-                }
-            })
-
-    # --- Обычный текстовый запрос ---
+    # Получаем или создаём session_id (OpenAI использует metadata для сессий)
+    session_id = body.get("metadata", {}).get("session_id") or \
+                 request.headers.get("X-Session-ID") or \
+                 f"session-{uuid.uuid4().hex[:8]}"
+    
+    # Строим историю диалога из предыдущих сообщений
+    chat_history = []
+    for m in messages_as_dicts[:-1]:  # все кроме последнего
+        role = m.get("role", "")
+        content = _extract_text_from_content(m.get("content"))
+        if role == "user":
+            chat_history.append({"user": content, "assistant": ""})
+        elif role == "assistant" and chat_history and not chat_history[-1]["assistant"]:
+            chat_history[-1]["assistant"] = content
+        elif role == "assistant":
+            chat_history.append({"user": "", "assistant": content})
+    
+    # Последнее сообщение пользователя
     goal = _extract_last_user_text(messages_as_dicts)
     if not goal:
         raise HTTPException(status_code=400, detail="No user message text found in messages")
 
-    logger.info("[PROXY] goal_preview=%s correlation_id=%s", goal[:80], correlation_id)
+    logger.info("[PROXY] goal_preview=%s session=%s", goal[:80], session_id)
 
     try:
-        vic_response = await call_victoria_run(goal, correlation_id)
+        # Передаём историю в Victoria
+        vic_response = await call_victoria_run(goal, request_id, chat_history=chat_history)
     except httpx.TimeoutException:
-        logger.warning("[PROXY] Victoria timeout")
         raise HTTPException(status_code=504, detail="Victoria request timed out")
     except httpx.ConnectError as e:
-        logger.warning("[PROXY] Victoria unreachable: %s", e)
         raise HTTPException(status_code=502, detail=f"Victoria unreachable: {VICTORIA_URL}")
 
     status = vic_response.get("status", "")
@@ -404,23 +309,26 @@ async def messages(request: Request):
         else:
             output = vic_response.get("error") or f"Victoria status: {status}"
     text = str(output) if output is not None else ""
-    if VICTORIA_RESPONSE_PREFIX and text and not text.strip().startswith("Виктория"):
-        text = VICTORIA_RESPONSE_PREFIX + text
-
-    # Стриминг для Claude Code: при stream=true возвращаем SSE в формате Anthropic
-    if body.get("stream") is True:
-        logger.info("[PROXY] streaming response (Anthropic SSE)")
-        return StreamingResponse(
-            stream_anthropic_sse(text, request_id, model),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
+    
+    # Сохраняем обмен в историю диалога
+    if session_id not in _dialogue_store:
+        _dialogue_store[session_id] = []
+    _dialogue_store[session_id].append({"user": goal, "assistant": text})
+    # Ограничиваем историю 50 обменами
+    if len(_dialogue_store[session_id]) > 50:
+        _dialogue_store[session_id] = _dialogue_store[session_id][-50:]
 
     return JSONResponse(
-        content=build_anthropic_response(text, request_id, model),
-        status_code=200,
+        content={
+            "id": request_id,
+            "object": "chat.completion",
+            "created": int(__import__("time").time()),
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": text},
+                "finish_reason": "stop",
+            }],
+            "usage": {"prompt_tokens": 0, "completion_tokens": len(text.split()), "total_tokens": len(text.split())},
+        }
     )

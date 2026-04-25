@@ -320,3 +320,18 @@ def search_knowledge_base(embedding):
     """,
         (str(embedding),),
     )
+
+
+def get_time_filter(range_str: str, col_name: str = "created_at") -> str:
+    """Возвращает фрагмент SQL WHERE для фильтрации по времени."""
+    if range_str == "За все время":
+        return "1=1"
+    
+    intervals = {
+        "Последние 24 часа": "1 day",
+        "Последние 3 дня": "3 days",
+        "Последние 7 дней": "7 days",
+        "Последние 30 дней": "30 days",
+    }
+    interval = intervals.get(range_str, "7 days")
+    return f"{col_name} > NOW() - INTERVAL '{interval}'"

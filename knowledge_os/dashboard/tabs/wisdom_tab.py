@@ -14,42 +14,52 @@ def render_metric_card(label, value, delta=None, delta_color="normal"):
 def render_wisdom_tab():
     st.markdown("## 🏛 Wisdom & Mentorship Command Center")
     st.markdown("### Эволюция интеллекта и корпоративная мудрость (Singularity 20.0)")
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    st.caption(f"📅 Фильтр времени: **{time_range}**")
+    
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "created_at")
+    t_filter_tasks = get_time_filter(time_range, "created_at")
 
     # 1. Ключевые метрики мудрости
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         # Средний балл аудита
-        avg_score = fetch_data("""
+        avg_score = fetch_data(f"""
             SELECT AVG((metadata->>'audit_score')::int) as avg_score
             FROM tasks
-            WHERE metadata->>'audit_score' IS NOT NULL
+            WHERE metadata->>'audit_score' IS NOT NULL AND {t_filter_tasks}
         """)
         score = avg_score[0]["avg_score"] if avg_score and avg_score[0]["avg_score"] else 0
         st.metric("Средний балл аудита", f"{score:.1f}/10")
 
     with col2:
         # Количество SOP
-        sop_count = fetch_data(
-            "SELECT COUNT(*) as count FROM knowledge_nodes WHERE metadata->>'type' = 'sop_document'"
-        )
+        sop_count = fetch_data(f"""
+            SELECT COUNT(*) as count FROM knowledge_nodes 
+            WHERE metadata->>'type' = 'sop_document' AND {t_filter}
+        """)
         count = sop_count[0]["count"] if sop_count else 0
         st.metric("Создано SOP", count)
 
     with col3:
         # Количество Mentorship Notes
-        mentorship_count = fetch_data(
-            "SELECT COUNT(*) as count FROM knowledge_nodes WHERE metadata->>'type' = 'mentorship_note'"
-        )
+        mentorship_count = fetch_data(f"""
+            SELECT COUNT(*) as count FROM knowledge_nodes 
+            WHERE metadata->>'type' = 'mentorship_note' AND {t_filter}
+        """)
         count = mentorship_count[0]["count"] if mentorship_count else 0
         st.metric("Советы ментора", count)
 
     with col4:
         # Wisdom Density (Meta-nodes vs Total nodes)
-        wisdom_nodes = fetch_data(
-            "SELECT COUNT(*) as count FROM knowledge_nodes WHERE metadata->>'type' IN ('meta_wisdom', 'mentorship_note', 'sop_document')"
-        )
-        total_nodes = fetch_data("SELECT COUNT(*) as count FROM knowledge_nodes")
+        wisdom_nodes = fetch_data(f"""
+            SELECT COUNT(*) as count FROM knowledge_nodes 
+            WHERE metadata->>'type' IN ('meta_wisdom', 'mentorship_note', 'sop_document') AND {t_filter}
+        """)
+        total_nodes = fetch_data(f"SELECT COUNT(*) as count FROM knowledge_nodes WHERE {t_filter}")
         w_count = wisdom_nodes[0]["count"] if wisdom_nodes else 0
         t_count = total_nodes[0]["count"] if total_nodes else 1
         density = (w_count / t_count) * 100
@@ -302,12 +312,12 @@ def render_wisdom_tab():
 
     # 4. График прогресса интеллекта
     st.markdown("### 📈 Прогресс накопления мудрости")
-    wisdom_over_time = fetch_data("""
+    wisdom_over_time = fetch_data(f"""
         SELECT
             date_trunc('day', created_at) as day,
             COUNT(*) as count
         FROM knowledge_nodes
-        WHERE metadata->>'type' IN ('meta_wisdom', 'mentorship_note', 'sop_document')
+        WHERE metadata->>'type' IN ('meta_wisdom', 'mentorship_note', 'sop_document') AND {t_filter}
         GROUP BY 1 ORDER BY 1
     """)
 

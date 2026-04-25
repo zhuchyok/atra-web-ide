@@ -34,8 +34,8 @@ async def wait_for_victoria(max_retries=30, delay=2):
     return False
 
 
-async def process_task(goal: str, task_id: str):
-    """Process task via Victoria Multi-Agent System (calls with async_mode to skip queue detection)"""
+async def process_task(conn, goal: str, task_id: str):
+    """Process task via Victoria Multi-Agent System"""
     print(f"Processing {task_id}...", flush=True)
 
     victoria_url = "http://localhost:8000"
@@ -50,16 +50,12 @@ async def process_task(goal: str, task_id: str):
                 if resp.status == 200:
                     data = await resp.json()
                     output = data.get("output", "")[:5000]
-                    r.set(
-                        f"task:{task_id}",
-                        json.dumps({
-                            "task_id": task_id,
-                            "status": "completed",
-                            "output": output,
-                            "knowledge": {"strategy": "worker"},
-                        }),
+                    await conn.execute(
+                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
+                        task_id,
+                        output
                     )
-                    print(f"Done {task_id}", flush=True)
+                    print(f"Done {task_id} (DB updated)", flush=True)
                     return
     except Exception as e:
         print(f"Victoria call failed: {e}", flush=True)
@@ -75,23 +71,20 @@ async def process_task(goal: str, task_id: str):
                 if resp.status == 200:
                     data = await resp.json()
                     output = data.get("response", "")[:5000]
-                    r.set(
-                        f"task:{task_id}",
-                        json.dumps({
-                            "task_id": task_id,
-                            "status": "completed",
-                            "output": output,
-                            "knowledge": {"strategy": "worker_fallback"},
-                        }),
+                    await conn.execute(
+                        "UPDATE tasks SET status = 'completed', result = $2, updated_at = NOW(), completed_at = NOW() WHERE id = $1",
+                        task_id,
+                        output
                     )
-                    print(f"Done {task_id} (fallback)", flush=True)
+                    print(f"Done {task_id} (fallback, DB updated)", flush=True)
                     return
     except Exception as e:
         print(f"Fallback error: {e}", flush=True)
 
-    r.set(
-        f"task:{task_id}",
-        json.dumps({"task_id": task_id, "status": "failed", "output": str(e), "knowledge": {}}),
+    await conn.execute(
+        "UPDATE tasks SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1",
+        task_id,
+        str(e)
     )
 
 
@@ -143,17 +136,10 @@ async def worker_loop():
                         print(f"Processing task {task_id}: {goal[:50]}...", flush=True)
                         
                         # Process the task
-                        await process_task(goal, task_id)
+                        await process_task(conn, goal, task_id)
                         
-                        # Mark as completed
-                        await conn.execute("""
-                            UPDATE tasks 
-                            SET status = 'completed', updated_at = NOW(), completed_at = NOW()
-                            WHERE id = $1
-                        """, task_id)
-                        
-                        print(f"Completed task {task_id}", flush=True)
-                        
+                        print(f"Finished processing attempt for task {task_id}", flush=True)
+
         except Exception as e:
             print(f"Error: {e}", flush=True)
             await asyncio.sleep(2)

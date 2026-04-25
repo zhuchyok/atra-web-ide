@@ -796,6 +796,18 @@ async def _run_cloud_agent_async(
                 )
 
     # ПРИОРИТЕТ 2: OpenRouter — реальный облачный fallback только при наличии ключа.
+    # [SINGULARITY 28.7] Pre-emptive Backpressure: Failover to OpenRouter if Ollama is overloaded.
+    try:
+        from redis_manager import RedisManager
+        rm = RedisManager()
+        client = await rm.get_client()
+        slots_val = await client.get("ollama:global_slots")
+        if slots_val and int(slots_val) >= int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "2")):
+            logger.info("⏩ [BACKPRESSURE] Ollama global slots full, pre-emptive failover to OpenRouter")
+            # If we are here, it means we skip Priority 1 (Local) or it failed/overloaded
+    except Exception as bp_err:
+        logger.debug(f"Backpressure check failed in ai_core: {bp_err}")
+
     # Пустые OPENAI/ANTHROPIC/DEEPSEEK ключи намеренно не считаются рабочим fallback.
     openrouter_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
     if openrouter_key and not is_strict_local():
@@ -1463,15 +1475,30 @@ async def run_smart_agent_async_impl(
     )
 
     if is_code_task:
-        # Queue to Redis worker - bypasses recursion
         import redis
         import json
         import uuid
+        import time as time_module
+        
         try:
             r = redis.Redis(host="redis", port=6379, decode_responses=False)
             task_id = f"task_{uuid.uuid4().hex[:8]}"
             r.rpush("victoria_queue", json.dumps({"goal": prompt, "task_id": task_id}))
             r.expire(task_id, 300)
+            
+            # Ждём результат от worker'а (до 30 сек)
+            for _ in range(60):
+                time_module.sleep(0.5)
+                result = r.get(task_id)
+                if result:
+                    try:
+                        result_text = result.decode() if isinstance(result, bytes) else result
+                        return {"status": "success", "output": result_text}
+                    except Exception:
+                        pass
+                if r.exists(task_id) == 0:
+                    break  # Задача завершена, результат взят
+                    
             return {"status": "processing", "job_id": task_id, "output": f"⏳ Task {task_id} queued to worker"}
         except Exception as e:
             pass  # Fall through to normal processing

@@ -125,22 +125,23 @@ services:
       retries: 3
 
   # Simple Worker: processes code tasks via Redis queue
-  simple-worker:
-    build:
-      context: ..
-      dockerfile: infrastructure/docker/agents/Dockerfile
-    container_name: simple-worker
-    restart: unless-stopped
-    volumes:
-      - ..:/app
-    environment:
-      - PYTHONPATH=/app:/app/knowledge_os/app
-      - REDIS_URL=redis://knowledge_os_redis:6379/0
-    command: python3 knowledge_os/app/simple_worker.py
-    networks:
-      - atra-network
-    depends_on:
-      - redis
+  # [RETIRED] Unified into smart_worker_autonomous.py
+  # simple-worker:
+  #   build:
+  #     context: ..
+  #     dockerfile: infrastructure/docker/agents/Dockerfile
+  #   container_name: simple-worker
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ..:/app
+  #   environment:
+  #     - PYTHONPATH=/app:/app/knowledge_os/app
+  #     - REDIS_URL=redis://knowledge_os_redis:6379/0
+  #   command: python3 knowledge_os/app/simple_worker.py
+  #   networks:
+  #     - atra-network
+  #   depends_on:
+  #     - redis
 
   victoria-agent:
     depends_on:
@@ -340,7 +341,6 @@ services:
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
     command: >
       sh -c "python -c 'import sys; sys.setrecursionlimit(1000)' & 
-      python /app/knowledge_os/app/victoria_worker.py & 
       python -m src.agents.bridge.victoria_server"
 
   # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
@@ -502,7 +502,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: python3 knowledge_os/app/expert_worker.py
+    # [RETIRED] Unified into smart_worker_autonomous.py
+    # command: python3 knowledge_os/app/expert_worker.py
+    command: ["python", "-c", "import time; print('Expert worker retired, unified into smart_worker'); time.sleep(3600)"]
 
   veronica-agent:
     depends_on:

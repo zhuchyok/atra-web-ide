@@ -596,6 +596,17 @@ def main():
         ]
         section = st.radio("📂 Раздел", _sections, key="nav_section", label_visibility="collapsed")
         st.session_state.dashboard_section = section
+        
+        st.markdown("---")
+        st.markdown("📅 **Период данных**")
+        time_range = st.selectbox(
+            "Показывать данные за:",
+            ["Последние 24 часа", "Последние 3 дня", "Последние 7 дней", "Последние 30 дней", "За все время"],
+            index=2,
+            key="global_time_range_widget"
+        )
+        st.session_state.global_time_range = time_range
+        
         st.markdown("---")
         # Одна строка: сервисы
         svc_line = "  ".join(f"{s} {n}" for n, s in services_status.items())
@@ -653,11 +664,15 @@ def main():
     # Раздел «Обзор»: dashboard home — только ключевые метрики, директива, поиск (без лишнего)
     if "Обзор" in st.session_state.get("dashboard_section", ""):
         # Карточки метрик в одну строку (как в ТЗ: real-time метрики)
+        time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+        from database_service import get_time_filter
+        t_filter = get_time_filter(time_range, "created_at")
+        
         with st.spinner(""):
             results = fetch_parallel(
                 {
                     "tasks": (
-                        "SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM tasks",
+                        f"SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress, COUNT(*) FILTER (WHERE status = 'pending') as pending FROM tasks WHERE {t_filter}",
                         (),
                     ),
                     "experts": ("SELECT COUNT(*) as count FROM experts", ()),
@@ -665,8 +680,11 @@ def main():
             )
             _to = results.get("tasks", [])
             _ex = results.get("experts", [])
-            _ic = fetch_intellectual_capital()
+            
+            # Intellectual capital also needs filtering
+            _ic = fetch_data(f"SELECT COUNT(*) as total_nodes FROM knowledge_nodes WHERE {t_filter}")
             _svc = check_services()
+        
         o_tasks = _to[0]["total"] if _to and _to[0] else 0
         o_in_progress = _to[0]["in_progress"] if _to and _to[0] else 0
         o_pending = _to[0]["pending"] if _to and _to[0] else 0
@@ -779,27 +797,23 @@ def main():
         st.markdown("### 💓 Пульс Корпорации")
         col_p1, col_p2, col_p3 = st.columns(3)
         with col_p1:
-        # Последние алерты безопасности
-        try:
-            threats = fetch_data(
-                "SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs ORDER BY detected_at DESC LIMIT 3"
-            )
-            if threats:
-                st.markdown("**🛡️ Безопасность**")
-                for t in threats:
-                    st.caption(
-                        f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}"
-                    )
-            else:
-                st.success("🛡️ Угроз не обнаружено")
-        except Exception as e:
-            st.caption(f"🛡️ Безопасность: данные недоступны ({str(e)[:30]}...)")
+            # Последние алерты безопасности
+            try:
+                threats = fetch_data(f"SELECT anomaly_type, severity, detected_at FROM anomaly_detection_logs WHERE detected_at > NOW() - INTERVAL '7 days' ORDER BY detected_at DESC LIMIT 3")
+                if threats:
+                    st.markdown("**🛡️ Безопасность**")
+                    for t in threats:
+                        st.caption(
+                            f"🚨 {t['anomaly_type']} ({t['severity']}) - {t['detected_at'].strftime('%H:%M')}"
+                        )
+                else:
+                    st.success("🛡️ Угроз не обнаружено (7д)")
+            except Exception as e:
+                st.caption(f"🛡️ Безопасность: данные недоступны ({str(e)[:30]}...)")
         with col_p2:
             # Последние решения совета
             try:
-                decisions = fetch_data(
-                    "SELECT content, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'board_decision' ORDER BY created_at DESC LIMIT 3"
-                )
+                decisions = fetch_data(f"SELECT content, created_at FROM knowledge_nodes WHERE metadata->>'type' = 'board_decision' AND {t_filter} ORDER BY created_at DESC LIMIT 3")
                 if decisions:
                     st.markdown("**🏛️ Решения Совета**")
                     for d in decisions:
@@ -807,15 +821,13 @@ def main():
                             f"📜 {d['content'][:50]}... ({d['created_at'].strftime('%d.%m')})"
                         )
                 else:
-                    st.info("🏛️ Решений совета пока нет")
+                    st.info("🏛️ Решений совета нет")
             except:
                 pass
         with col_p3:
             # Новое в AI Research
             try:
-                latest_ai = fetch_data(
-                    "SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') ORDER BY created_at DESC LIMIT 3"
-                )
+                latest_ai = fetch_data(f"SELECT metadata->>'file_path' as path FROM knowledge_nodes WHERE domain_id = (SELECT id FROM domains WHERE name = 'AI Research') AND {t_filter} ORDER BY created_at DESC LIMIT 3")
                 if latest_ai:
                     st.markdown("**📚 AI Research**")
                     for ai in latest_ai:

@@ -23,6 +23,10 @@ def format_msk(dt):
 
 def render_data_tab():
     """Вкладка Интеллект (RAG) и Качество Знаний."""
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    st.caption(f"📅 Фильтр времени: **{time_range}**")
+    
     tabs = st.tabs(
         [
             "📚 AI Research KB",
@@ -496,13 +500,18 @@ def render_ai_research_kb():
 def render_data_health():
     """📊 Целостность данных (Knowledge OS Health)."""
     st.subheader("📊 Здоровье Базы Знаний")
+    
+    time_range = st.session_state.get("global_time_range", "Последние 7 дней")
+    from database_service import get_time_filter
+    t_filter = get_time_filter(time_range, "created_at")
+
     try:
-        stats = fetch_data("""
+        stats = fetch_data(f"""
             SELECT
-                (SELECT COUNT(*) FROM knowledge_nodes) as total_nodes,
-                (SELECT COUNT(*) FROM knowledge_links) as total_links,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL) as missing_embeddings,
-                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3) as low_confidence
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE {t_filter}) as total_nodes,
+                (SELECT COUNT(*) FROM knowledge_links WHERE {t_filter}) as total_links,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE embedding IS NULL AND {t_filter}) as missing_embeddings,
+                (SELECT COUNT(*) FROM knowledge_nodes WHERE confidence_score < 0.3 AND {t_filter}) as low_confidence
         """)
         if stats and stats[0]:
             s = stats[0]
