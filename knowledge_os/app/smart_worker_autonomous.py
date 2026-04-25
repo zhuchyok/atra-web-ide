@@ -9,6 +9,8 @@ from functools import partial
 from typing import List, Optional, Union, Dict, Any
 
 from app.schemas import AgentResponse, TaskResult, parse_agent_response
+from app.memory.journal_manager import ExpertJournalManager
+from app.memory.memory_service import MemoryService
 
 try:
     from aiohttp import web
@@ -577,9 +579,23 @@ async def process_task(pool, task):
                         fast_result,
                         task_id,
                     )
-        except Exception as db_err:
-            logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
-        return
+                    except Exception as db_err:
+                        logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
+                    
+                    # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
+                    try:
+                        journal_mgr = ExpertJournalManager(pool)
+                        await journal_mgr.add_entry(
+                            expert_id=task.get("assignee_expert_id"),
+                            task_id=task_id,
+                            summary=f"Fast-path file check: {task_title}",
+                            learnings=f"Result: {fast_result}",
+                            importance=3,
+                            metadata={"execution_mode": "fast_path"}
+                        )
+                    except Exception as j_err:
+                        logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
+                    return
     # ─────────────────────────────────────────────────────────────────────────────
 
     # Generate trace_id для полного трейсинга
@@ -833,6 +849,15 @@ async def process_task(pool, task):
 
             # П.1 PRINCIPLE_EXPERTS_FIRST: веб-поиск при маркерах актуальности (sync DDGS в run_in_executor, таймаут 10 с)
             web_block = ""
+            
+            # [SINGULARITY 29.2] Unified Memory Recall (Episodic + Semantic)
+            memory_block = ""
+            try:
+                memory_svc = MemoryService(pool)
+                memory_block = await memory_svc.recall(expert_config["id"], f"{task_title} {task_description}")
+            except Exception as m_err:
+                logger.debug(f"Memory recall failed: {m_err}")
+
             if _task_needs_web_search(task["title"], task_description):
                 try:
                     loop = asyncio.get_event_loop()
@@ -897,6 +922,7 @@ async def process_task(pool, task):
 Role: {expert_config["role"]}
 Dept: {expert_config["department"]}
 {relevant_knowledge_block}
+{memory_block}
 {skills_block}
 {web_block}
 
@@ -1503,6 +1529,27 @@ DESC: {task_description}
                             )
                     except Exception as db_err:
                         logger.error(f"Failed to save final result for {task_id}: {db_err}")
+
+                    # [SINGULARITY 29.1] Episodic Journaling (Standard Path)
+                    try:
+                        # Используем легкую модель для суммаризации (phi3.5)
+                        summary_prompt = f"Summarize the outcome of this task in 1-2 sentences and extract key learnings:\n\nTASK: {task_title}\nRESULT: {report[:2000]}"
+                        summary_resp = await run_smart_agent_async(
+                            summary_prompt, expert_name="System", category="fast"
+                        )
+                        summary_text = str(summary_resp.get("result") if isinstance(summary_resp, dict) else summary_resp)
+                        
+                        memory_svc = MemoryService(pool)
+                        await memory_svc.record_outcome(
+                            expert_id=task.get("assignee_expert_id"),
+                            task_id=task_id,
+                            summary=summary_text[:500],
+                            learnings=summary_text[500:2000],
+                            importance=5
+                        )
+                        logger.info(f"✅ Journal entry saved for task {task_id}")
+                    except Exception as j_err:
+                        logger.debug(f"Journaling failed for task {task_id}: {j_err}")
                     
                     print(f"[{datetime.now()}] ✅ Task {task_id} COMPLETED.")
 
