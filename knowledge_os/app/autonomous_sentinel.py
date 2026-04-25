@@ -88,11 +88,26 @@ class AutonomousSentinel:
             asyncio.create_task(creator.create_tool_on_the_fly(error_msg, "System Maintenance"))
 
     async def handle_performance_degraded(self, event: Event):
-        """Optimization for performance issues."""
+        """[SINGULARITY 25.0] Optimization for performance and memory issues."""
         component = event.payload.get("component", "unknown")
         logger.warning(
             f"📉 [SENTINEL] Performance degraded in {component}. Triggering optimization..."
         )
+
+        # Если проблема в памяти или общем замедлении системы
+        if component in ["system_ram", "ollama_latency", "mlx_memory"]:
+            try:
+                from model_memory_manager import get_memory_manager
+                mmm = get_memory_manager()
+                # Принудительная очистка неиспользуемых моделей
+                unloaded = await mmm.cleanup_unused_models()
+                if unloaded > 0:
+                    logger.info(f"🛡️ [SENTINEL] Memory Guard: Unloaded {unloaded} unused models to reclaim RAM")
+                
+                # Если все еще критично, делаем экстренную очистку
+                await mmm.emergency_memory_cleanup()
+            except Exception as mem_err:
+                logger.error(f"Sentinel memory remediation failed: {mem_err}")
 
         if component == "knowledge_graph":
             from graph_optimizer import run_optimization_cycle

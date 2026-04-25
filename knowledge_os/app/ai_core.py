@@ -735,7 +735,10 @@ async def _run_cloud_agent_async(
     is_vip: bool = False,
     expert_name: str = "Виктория",
 ):
-    """Приоритет: локальные модели (Ollama/MLX) → cursor-agent. Локальные модели корпорации используются первыми."""
+    """
+    [SINGULARITY 28.6] Smart Cloud Fallback.
+    Priority: Local (MLX/Ollama) -> OpenRouter (Free/Paid) -> cursor-agent -> Local Lighter Models.
+    """
     # ПРИОРИТЕТ 1: локальные модели (Ollama/MLX) — политика корпорации
     # Health check перед запросом (2.3 плана): пропускаем заведомо недоступные узлы
     use_local = bool(LocalAIRouter)
@@ -792,7 +795,53 @@ async def _run_cloud_agent_async(
                     "Для восстановления выполните: curl -s -X POST http://localhost:9099/recover"
                 )
 
-    # ПРИОРИТЕТ 2: cursor-agent (облако) — только если локальные модели недоступны
+    # ПРИОРИТЕТ 2: OpenRouter — реальный облачный fallback только при наличии ключа.
+    # Пустые OPENAI/ANTHROPIC/DEEPSEEK ключи намеренно не считаются рабочим fallback.
+    openrouter_key = (os.getenv("OPENROUTER_API_KEY") or "").strip()
+    if openrouter_key and not is_strict_local():
+        try:
+            import httpx
+
+            openrouter_model = os.getenv(
+                "OPENROUTER_FALLBACK_MODEL",
+                "mistralai/mistral-7b-instruct:free",
+            )
+            if category == "coding":
+                openrouter_model = os.getenv(
+                    "OPENROUTER_CODING_MODEL",
+                    "qwen/qwen-2.5-coder-32b-instruct:free",
+                )
+
+            logger.info("☁️ [OPENROUTER] Пробуем облачный fallback: %s", openrouter_model)
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "HTTP-Referer": os.getenv(
+                            "OPENROUTER_HTTP_REFERER",
+                            "https://github.com/atra-web-ide",
+                        ),
+                        "X-Title": os.getenv("OPENROUTER_APP_TITLE", "ATRA Web IDE"),
+                    },
+                    json={
+                        "model": openrouter_model,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+            if resp.status_code == 200:
+                data = resp.json()
+                response = data.get("choices", [{}])[0].get("message", {}).get("content")
+                if response and len(response) > 10:
+                    logger.info("✅ [OPENROUTER] Ответ получен")
+                    return response
+            logger.warning("⚠️ [OPENROUTER] Ошибка API: %s %s", resp.status_code, resp.text[:200])
+        except Exception as e:
+            logger.warning("⚠️ [OPENROUTER] Недоступен: %s", e)
+    else:
+        logger.info("☁️ [OPENROUTER] Пропущен: OPENROUTER_API_KEY не задан")
+
+    # ПРИОРИТЕТ 3: cursor-agent (облако) — только если локальные модели недоступны
     # В STRICT_LOCAL режиме cursor-agent заблокирован
     if is_strict_local():
         logger.warning("[STRICT_LOCAL] cursor-agent заблокирован, возвращаем ошибку")
@@ -982,31 +1031,7 @@ async def _run_cloud_agent_async(
                             )
                             return response
                         else:
-                            _keep_alive = get_keep_alive(model_used, mlx_alive=False)
-                            async with session.post(
-                                f"{ollama_url}/api/generate",
-                                json={
-                                    "model": model_used,
-                                    "prompt": prompt,
-                                    "stream": False,
-                                    "keep_alive": _keep_alive,
-                                },
-                                timeout=aiohttp.ClientTimeout(total=_ollama_timeout),
-                            ) as resp:
-                                if resp.status == 200:
-                                    data = await resp.json()
-                                    response = data.get("response", "")
-                                    if response:
-                                        logger.info(
-                                            f"✅ [FALLBACK] Used Ollama at {ollama_url} with {model_used}"
-                                        )
-                                        return response
-                            if resp.status == 200:
-                                data = await resp.json()
-                                response = data.get("response", "")
-                                if response:
-                                    logger.info(f"✅ [FALLBACK] Used Ollama at {ollama_url}")
-                                    return response
+                            logger.debug("No Ollama fallback model succeeded at %s", ollama_url)
                     except Exception as e:
                         logger.debug(f"Ollama at {ollama_url} failed: {e}")
                         continue

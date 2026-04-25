@@ -17,9 +17,9 @@ import psutil
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-MIN_FREE_MEMORY_MB = 200  # Минимум свободной памяти в MB
+MIN_FREE_MEMORY_MB = 5120  # [SINGULARITY 25.0] Минимум 5ГБ свободной памяти для Mac Studio
 MODEL_UNLOAD_TIMEOUT = 300  # Время до выгрузки неиспользуемой модели (секунды)
-MEMORY_CHECK_INTERVAL = 30  # Интервал проверки памяти (секунды)
+MEMORY_CHECK_INTERVAL = 15  # [SINGULARITY 25.0] Более частая проверка (было 30)
 
 
 class ModelState(Enum):
@@ -81,33 +81,30 @@ class ModelMemoryManager:
         return []
 
     async def unload_model(self, model_name: str) -> bool:
-        """Выгрузить модель из памяти"""
+        """[SINGULARITY 25.0] Реальная выгрузка модели из Ollama через keep_alive: 0"""
         try:
-            logger.info(f"🔄 Выгрузка модели {model_name} из памяти...")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Используем Ollama API для выгрузки модели
-                # Ollama автоматически выгружает модели при нехватке памяти,
-                # но мы можем явно запросить через /api/generate с stream=false
-                # или просто подождать, пока Ollama сам выгрузит
+            logger.info(f"🔄 [MEMORY] Принудительная выгрузка модели {model_name} из Ollama...")
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # В Ollama выгрузка делается через /api/generate с keep_alive: 0
+                response = await client.post(
+                    f"{self.ollama_url}/api/generate",
+                    json={"model": model_name, "keep_alive": 0},
+                )
+                
+                if response.status_code == 200:
+                    self.model_states[model_name] = ModelState.UNLOADED
+                    if model_name in self.model_last_used:
+                        del self.model_last_used[model_name]
+                    if model_name in self.model_memory_usage:
+                        del self.model_memory_usage[model_name]
 
-                # Для явной выгрузки можно использовать:
-                # response = await client.post(
-                #     f"{self.ollama_url}/api/generate",
-                #     json={"model": model_name, "prompt": "", "stream": False},
-                #     timeout=1.0
-                # )
-                # Но лучше просто пометить модель как неиспользуемую
-
-                self.model_states[model_name] = ModelState.UNLOADED
-                if model_name in self.model_last_used:
-                    del self.model_last_used[model_name]
-                if model_name in self.model_memory_usage:
-                    del self.model_memory_usage[model_name]
-
-                logger.info(f"✅ Модель {model_name} выгружена")
-                return True
+                    logger.info(f"✅ [MEMORY] Модель {model_name} успешно выгружена из VRAM")
+                    return True
+                else:
+                    logger.warning(f"⚠️ [MEMORY] Ошибка при выгрузке {model_name}: HTTP {response.status_code}")
+                    return False
         except Exception as e:
-            logger.error(f"❌ Ошибка выгрузки модели {model_name}: {e}")
+            logger.error(f"❌ [MEMORY] Критическая ошибка выгрузки модели {model_name}: {e}")
             return False
 
     async def mark_model_used(self, model_name: str):

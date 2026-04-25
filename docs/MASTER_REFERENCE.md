@@ -1,3 +1,28 @@
+## § Последние изменения (2026-04-09 v67) — Singularity 28.2: Phase 8.2 Evolutionary Cleanup 🧹💎
+
+### Что изменилось сегодня (v67)
+
+#### 1. Эволюционная чистка (Digital Trash Removal)
+- Проведен полный sweep репозитория: удалены все файлы `.bak`, `.old` и временные `.tmp`.
+- Вычищены 11 диагностических скриптов (`analyze_recent_failures.py`, `check_backlog.py` и др.), которые мешали чистоте эволюции.
+- Удалены временные артефакты и скриншоты.
+
+#### 2. Knowledge Fabric (Единая шина памяти)
+- Создан модуль `knowledge_os/app/knowledge_fabric.py`.
+- Объединил **LTM (Long-term Memory)**, **Semantic Cache** и **GraphRAG** в единый интерфейс.
+- Эксперты теперь обращаются к «Ткани Знаний», которая сама маршрутизирует запросы между векторной БД и кэшем.
+
+#### 3. Expert Contract Standardization
+- Создан `knowledge_os/app/expert_contract.py` на базе **Pydantic**.
+- Внедрен жесткий протокол ответа для всех 86 экспертов (обязательные поля: `reasoning_trace`, `confidence_score`, `status`).
+- В `expert_worker.py` интегрирована автоматическая инъекция контракта в промпты.
+
+#### 4. Обновление Expert Worker
+- Интегрирована поддержка `KnowledgeFabric` для сохранения инсайтов.
+- Внедрена принудительная валидация контрактов в `process_async`.
+
+---
+
 ## § Последние изменения (2026-04-18 v66) — Batch API, Cost Analytics, TTS & Realtime 🎯
 
 ### Что изменилось сегодня (v66)
@@ -949,6 +974,12 @@ python3 scripts/victoria_task_generator.py --dry-run  # посмотреть б�
 ## STRICT_LOCAL (строго локальный режим)
 
 **Назначение:** Полная автономность от облачных API. При `STRICT_LOCAL=true` все запросы обслуживаются только локальными моделями (MLX + Ollama); при недоступности локальных моделей возвращается явная ошибка, без fallback на cursor-agent или облачные API.
+
+### Cloud fallback (OpenRouter)
+
+**Актуально с 2026-04-25:** платные ключи `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` не считаются рабочим fallback, если они пустые или отсутствуют. Реальный облачный резерв теперь включается через `OPENROUTER_API_KEY`; при пустом значении провайдер пропускается без ложных попыток.
+
+Рекомендуемая цепочка: локальные MLX/Ollama → OpenRouter Free/Paid при наличии ключа → `cursor-agent` → прямой легкий Ollama fallback.
 
 ### Веб-поиск — автономный стек (актуально с 2026-03-21)
 

@@ -242,6 +242,11 @@ services:
       VICTORIA_WARMUP_EXTRA_MODELS: ""
       VICTORIA_USE_LOCAL_ROUTER: "true"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_FALLBACK_MODEL: ${OPENROUTER_FALLBACK_MODEL:-mistralai/mistral-7b-instruct:free}
+      OPENROUTER_CODING_MODEL: ${OPENROUTER_CODING_MODEL:-qwen/qwen-2.5-coder-32b-instruct:free}
+      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-https://github.com/atra-web-ide}
+      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-ATRA Web IDE}
       USE_ELK: "false"
       # DB connection pool limits (best practice: маленький пул на сервис, мультиплексирование через PgBouncer)
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}

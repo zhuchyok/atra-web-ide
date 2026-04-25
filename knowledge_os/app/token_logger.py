@@ -63,6 +63,37 @@ async def estimate_cost(
     return round(cost, 6)
 
 
+def calculate_quality_score(prompt: str, response: str, metadata: Dict[str, Any]) -> float:
+    """
+    [SINGULARITY 28.X] Auto-calculate quality score for interaction.
+    Based on signal factors, not user feedback.
+    """
+    score = 0.5  # Base score
+
+    response_lower = response.lower()
+
+    # Positive signals (+0.1 each)
+    if len(response) > 100:
+        score += 0.1  # Substantial response
+    if metadata.get("knowledge_applied"):
+        score += 0.1  # Used knowledge base
+    if "не уверен" not in response_lower and "нужно уточнить" not in response_lower:
+        score += 0.1  # Confidence (not uncertain)
+    if any(kw in response_lower for kw in ["согласно", "данн", "факт", "основани"]):
+        score += 0.1  # Data-driven
+    if any(kw in response_lower for kw in ["провер", "безопасност", "уязвимост"]):
+        score += 0.1  # Security aware
+
+    # Negative signals (-0.1 each)
+    if any(kw in response_lower for kw in ["вероятно", "я думаю", "возможно"]):
+        if "не уверен" not in response_lower:
+            score -= 0.1  # Possible hallucination
+    if len(response) < 20:
+        score -= 0.1  # Too short
+
+    return round(max(0.0, min(1.0, score)), 2)
+
+
 async def log_ai_interaction(
     prompt: str,
     response: str,
@@ -91,6 +122,7 @@ async def log_ai_interaction(
         metadata: Дополнительные метаданные
         trace: Трассировка выполнения
         reasoning_trace: Трассировка рассуждений (CoT)
+        quality_score: [SINGULARITY 28.X] П качества ответа (0.0-1.0)
 
     Returns:
         ID созданной записи в interaction_logs или None при ошибке
@@ -127,9 +159,14 @@ async def log_ai_interaction(
                 "knowledge_node_ids": knowledge_ids or [],
                 "knowledge_applied": knowledge_applied,
                 "trace": trace or [],
-                "reasoning_trace": reasoning_trace or "",
+                "reasoning_trace": reasoning_trace or [],
                 **(metadata or {}),
             }
+
+            # [SINGULARITY 28.X] Auto-calculate quality score
+            computed_quality = calculate_quality_score(prompt, response, log_metadata)
+            log_metadata["quality_score"] = computed_quality
+            log_metadata["analyzed"] = True
 
             # Вставляем запись
             log_id = await conn.fetchval(

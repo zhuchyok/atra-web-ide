@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package agent_protocol;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service AgentService {
+  // Основной метод для выполнения задачи агентом
+  rpc ProcessTask (TaskRequest) returns (TaskResponse) {}
+  
+  // Метод для проверки здоровья агента (Heartbeat)
+  rpc GetHealth (HealthRequest) returns (HealthResponse) {}
+  
+  // Метод для передачи задачи между агентами (Handoff)
+  rpc InitiateHandoff (HandoffRequest) returns (HandoffResponse) {}
+}
+
+message TaskRequest {
+  string task_id = 1;
+  string expert_name = 2;
+  string description = 3;
+  string category = 4;
+  google.protobuf.Struct metadata = 5;
+}
+
+message TaskResponse {
+  string task_id = 1;
+  string expert_name = 2;
+  string status = 3; // success, failed, pending
+  string content = 4;
+  string reasoning_trace = 5;
+  float confidence_score = 6;
+  google.protobuf.Struct metadata = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message HealthRequest {
+  string agent_id = 1;
+}
+
+message HealthResponse {
+  string status = 1; // healthy, degraded, unhealthy
+  float cpu_usage = 2;
+  float memory_usage = 3;
+  int32 active_tasks = 4;
+}
+
+message HandoffRequest {
+  string from_agent = 1;
+  string to_agent = 2;
+  string task_description = 3;
+  google.protobuf.Struct context = 4;
+  google.protobuf.Struct contract = 5;
+}
+
+message HandoffResponse {
+  string handoff_id = 1;
+  bool accepted = 2;
+  string message = 3;
+}

@@ -32,7 +32,8 @@ async def main():
     import redis
     import time
 
-    r = redis.Redis(host="redis", port=6379, decode_responses=True)
+    REDIS_URL = os.getenv("REDIS_URL", "redis://knowledge_os_redis:6379/0")
+    r = redis.from_url(REDIS_URL, decode_responses=True)
     print("Worker started, waiting for tasks...")
 
     while True:

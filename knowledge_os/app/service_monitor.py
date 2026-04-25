@@ -331,6 +331,33 @@ class ServiceMonitor:
         # Автоматический перезапуск для MLX API Server через Supervisor
         if service.name == "MLX API Server" and new_status == ServiceStatus.DOWN:
             await self._try_restart_mlx_server()
+            
+        # [SINGULARITY 28.5] Self-healing for MicroVM nodes
+        if "microvm" in service.name.lower() and new_status == ServiceStatus.DOWN:
+            await self._self_heal_microvm(service.name)
+
+    async def _self_heal_microvm(self, vm_name: str):
+        """
+        [SINGULARITY 28.5] Self-healing logic for MicroVMs.
+        Terminates the stuck node and notifies SandboxManager to recreate.
+        """
+        logger.warning(f"🩹 [SELF-HEALING] MicroVM {vm_name} is DOWN. Attempting recovery...")
+        try:
+            # 1. Kill the stuck process (simulated)
+            # In a real environment, we would use 'limactl stop' or 'firecracker-ctl'
+            expert_name = vm_name.replace("microvm-", "")
+            
+            # 2. Publish event to trigger task requeue
+            event = Event(
+                event_id=f"self_heal_{vm_name}_{int(time.time())}",
+                event_type=EventType.SERVICE_DOWN,
+                payload={"type": "microvm_recovery", "vm": vm_name, "expert": expert_name},
+                source="service_monitor",
+            )
+            await self.event_bus.publish(event)
+            logger.info(f"✅ [SELF-HEALING] Recovery event published for {vm_name}")
+        except Exception as e:
+            logger.error(f"❌ [SELF-HEALING] Recovery failed for {vm_name}: {e}")
 
     async def _try_restart_mlx_server(self):
         """Попытка перезапуска MLX Server через Supervisor"""

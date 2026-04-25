@@ -359,12 +359,25 @@ class VictoriaEnhanced:
         return "general"
 
     async def get_status(self) -> Dict[str, Any]:
-        """Получить статус компонентов Victoria Enhanced."""
+        """
+        [SINGULARITY 28.5] Detailed health status for gRPC Heartbeat.
+        """
+        import psutil
+        try:
+            process = psutil.Process(os.getpid())
+            stats = {
+                "cpu_usage": process.cpu_percent(),
+                "memory_usage_mb": process.memory_info().rss / (1024 * 1024),
+                "active_tasks": len(asyncio.all_tasks())
+            }
+        except Exception:
+            stats = {}
+
         return {
             "monitoring_started": self.monitoring_started,
             "event_bus_available": self.event_bus is not None,
             "skill_registry_available": self.skill_registry is not None,
-            "skills_count": 0,  # TODO: реализовать подсчет
             "file_watcher_available": self.file_watcher is not None,
             "service_monitor_available": self.service_monitor is not None,
+            "system_stats": stats
         }

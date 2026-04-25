@@ -216,6 +216,22 @@ class FeedbackCollector:
                 logger.info(
                     f"✅ [FEEDBACK] Collected explicit feedback: {feedback_type} (user: {user_id}, expert: {expert_name})"
                 )
+
+                # [SINGULARITY 27.2] Success Reinforcement: Learning from positive feedback
+                if feedback_type == "positive" and expert_name:
+                    try:
+                        from codebase_mutation_engine import get_mutation_engine
+
+                        mutation = get_mutation_engine()
+                        # We use a specialized method for success reinforcement
+                        if hasattr(mutation, "_reinforce_expert_dna_on_success"):
+                            await mutation._reinforce_expert_dna_on_success(
+                                expert_name, query, response
+                            )
+                            logger.info(f"🧬 [DNA] Success reinforcement triggered for {expert_name}")
+                    except Exception as re_err:
+                        logger.debug(f"Failed to trigger success reinforcement: {re_err}")
+
                 return True
         except Exception as e:
             logger.error(f"❌ [FEEDBACK] Error collecting explicit feedback: {e}")

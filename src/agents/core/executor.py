@@ -514,7 +514,7 @@ A: {"thought": "Выполню ls для текущей директории", "
             "model": model,
             "messages": messages,
             "stream": False,
-            "options": {"temperature": 0.1},
+            "options": {"temperature": 0.1, "enable_thinking": True},
         }
 
         # Адаптивный keep_alive на основе веса модели (Singularity 10.0)

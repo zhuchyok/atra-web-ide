@@ -41,11 +41,17 @@ try:
     from ai_core import run_smart_agent_async
     from redis_manager import redis_manager
     from services.knowledge_service import knowledge_service
+    from react_agent import ReActAgent
+    from knowledge_fabric import get_knowledge_fabric
+    from expert_contract import ExpertContract
 except ImportError:
     try:
         from app.ai_core import run_smart_agent_async
         from app.redis_manager import redis_manager
         from app.services.knowledge_service import knowledge_service
+        from app.react_agent import ReActAgent
+        from app.knowledge_fabric import get_knowledge_fabric
+        from app.expert_contract import ExpertContract
     except ImportError:
         # Fallback для тестов или специфических окружений
         import sys
@@ -54,6 +60,10 @@ except ImportError:
         from ai_core import run_smart_agent_async
         from redis_manager import redis_manager
         from services.knowledge_service import knowledge_service
+        try:
+            from react_agent import ReActAgent
+        except ImportError:
+            ReActAgent = None
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -187,8 +197,13 @@ class VictoriaExpertActor(AgentBase):
     async def process_async(self, task_description: str, category: str = "general") -> str:
         """Real async task processing via ai_core (the live replacement for stub reply())."""
         await self.record_event("task_started", {"description": task_description[:200]})
+        
+        # [SINGULARITY 28.2] Add contract enforcement to prompt
+        contract_instruction = ExpertContract.format_prompt_instruction()
+        full_prompt = f"{task_description}\n\n{contract_instruction}"
+        
         result = await run_smart_agent_async(
-            task_description,
+            full_prompt,
             expert_name=self.name,
             category=category,
         )
@@ -470,11 +485,21 @@ async def process_task(task_data: dict):
                         _mlx_base = "http://host.docker.internal:11435"
                         _dialogue_model = os.getenv("DIALOGUE_MODEL", "victoria-wisdom-v3.5")
 
-                        # ... (personas) ...
-                        _persona = _expert_personas.get(
-                            expert_name, f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
-                        )
-                        _system = f"{_persona} Отвечай от первого лица кратко (2-3 предложения), в своём стиле."
+                        # [SINGULARITY 27.2] DNA-Aware Dialogue: Use ExpertDNAManager for personas
+                        try:
+                            from expert_dna_manager import get_expert_dna_manager
+
+                            dna_mgr = get_expert_dna_manager()
+                            _expert_dna = await dna_mgr.get_expert_dna(expert_name)
+                            if _expert_dna:
+                                _persona = _expert_dna
+                            else:
+                                _persona = f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
+                        except Exception as dna_err:
+                            logger.debug(f"Failed to load DNA for dialogue: {dna_err}")
+                            _persona = f"Ты — {expert_name}, эксперт корпорации Singularity 21.5."
+
+                        _system = f"{_persona}\n\nОтвечай от первого лица кратко (2-3 предложения), в своём стиле."
 
                         # Очищаем description от служебного префикса "УЧАСТИЕ В ДИАЛОГЕ [id]: ..."
                         import re as _re
@@ -620,6 +645,11 @@ async def process_task(task_data: dict):
                         )
                         print(f"DEBUG_PRINT: Calling agent.run() for task {task_id}")
                         await _mark_llm_call(conn, task_id)
+                        
+                        # [SINGULARITY 27.2] Event Sourcing: Record task start if actor exists
+                        if actor:
+                            await actor.record_event("react_agent_started", {"model": model_hint or "victoria-wisdom-v3.5:latest"})
+                            
                         report = await agent.run(goal=description)
                         print(f"DEBUG_PRINT: agent.run() finished for task {task_id}")
                         # [SINGULARITY 21.26] Fix: ReActAgent returns 'response', not 'result'
@@ -629,9 +659,17 @@ async def process_task(task_data: dict):
                             report_text = str(
                                 report.get("result") if isinstance(report, dict) else report
                             )
+                            
+                        # [SINGULARITY 27.2] Event Sourcing: Record task completion
+                        if actor:
+                            await actor.record_event("react_agent_completed", {"result_len": len(report_text or "")})
                     except Exception as e:
                         logger.error(f"⚠️ Ошибка ReAct Agent, fallback на AI Core: {e}")
                         await _mark_llm_call(conn, task_id)
+                        
+                        if actor:
+                            await actor.record_event("react_agent_failed", {"error": str(e)})
+                            
                         report = await run_smart_agent_async(
                             description,
                             expert_name=expert_name,
@@ -643,6 +681,11 @@ async def process_task(task_data: dict):
                         )
                 else:
                     await _mark_llm_call(conn, task_id)
+                    
+                    # [SINGULARITY 27.2] Event Sourcing: Record AI Core start
+                    if actor:
+                        await actor.record_event("ai_core_started", {"category": task_data.get("category", "general")})
+                        
                     report = await run_smart_agent_async(
                         description,
                         expert_name=expert_name,
@@ -650,6 +693,10 @@ async def process_task(task_data: dict):
                         is_vip=is_dialogue_task,
                     )
                     report_text = str(report.get("result") if isinstance(report, dict) else report)
+                    
+                    # [SINGULARITY 27.2] Event Sourcing: Record AI Core completion
+                    if actor:
+                        await actor.record_event("ai_core_completed", {"result_len": len(report_text or "")})
 
                 # 3. Сохраняем результат
                 if isinstance(report_text, dict):
@@ -851,11 +898,12 @@ async def process_task(task_data: dict):
                 # Сингулярность 10.0: Снимаем блокировку идемпотентности
                 await redis_manager.release_task_lock(task_id)
 
-                # 4. Сохраняем инсайт в базу знаний
-                await knowledge_service.save_insight(
+                # 4. Сохраняем инсайт в базу знаний (через Knowledge Fabric)
+                fabric = get_knowledge_fabric()
+                await fabric.store(
                     report_text,
                     expert_name,
-                    metadata={"task_id": task_id, "source": "worker_service"},
+                    metadata={"task_id": task_id, "source": "worker_service", "fabric_unified": True},
                 )
 
                 # [SINGULARITY 24.3] Живой Чат: Публикация ответа эксперта в EventBus
@@ -946,7 +994,7 @@ async def process_task(task_data: dict):
         if _PROMETHEUS_AVAILABLE:
             _worker_tasks_total.labels(queue=queue_name, status="timeout").inc()
             _worker_active.labels(queue=queue_name).dec()
-        await _handle_task_error(task_id, error_msg, is_valid_uuid)
+        await _handle_task_error(task_id, error_msg, is_valid_uuid, expert_name=expert_name)
 
     except Exception as e:
         logger.error(f"❌ [WORKER] Ошибка задачи {task_id}: {e}", exc_info=True)
@@ -959,14 +1007,14 @@ async def process_task(task_data: dict):
         if _PROMETHEUS_AVAILABLE:
             _worker_tasks_total.labels(queue=queue_name, status="failed").inc()
             _worker_active.labels(queue=queue_name).dec()
-        await _handle_task_error(task_id, error_msg, is_valid_uuid)
+        await _handle_task_error(task_id, error_msg, is_valid_uuid, expert_name=expert_name)
 
 
-async def _handle_task_error(task_id, error_msg, is_valid_uuid):
+async def _handle_task_error(task_id, error_msg, is_valid_uuid, expert_name: str = None):
     """
     Обработка ошибок задачи с retry-логикой.
     [SWISS-CLOCK] Унифицировано со smart_worker: transient errors → re-queue с exp backoff + jitter.
-    Постоянные ошибки (attempt_count >= 3) → failed.
+    Постоянные ошибки (attempt_count >= 3) → failed + [SINGULARITY 27.2] DNA Mutation.
     """
     import random as _random
     from datetime import datetime, timezone
@@ -1054,6 +1102,18 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid):
                     error_msg,
                     error_msg[:200],
                 )
+
+                # [SINGULARITY 27.2] DNA Mutation Loop: Learning from 5% errors
+                if expert_name:
+                    try:
+                        from codebase_mutation_engine import get_mutation_engine
+
+                        mutation = get_mutation_engine()
+                        await mutation._update_expert_dna_on_failure(expert_name, error_msg)
+                        logger.info(f"🧬 [DNA] Mutation triggered for {expert_name} after permanent failure.")
+                    except Exception as mut_err:
+                        logger.debug(f"Failed to trigger DNA mutation: {mut_err}")
+
         await redis_manager.release_task_lock(task_id)
     except Exception as e:
         logger.error(f"⚠️ Не удалось сохранить ошибку в БД/Redis: {e}")

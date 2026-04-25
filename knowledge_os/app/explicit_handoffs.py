@@ -66,47 +66,48 @@ class Handoff:
     def validate(self) -> bool:
         """
         Валидация handoff по контракту (Singularity 26.2)
+        [SINGULARITY 28.0] Hard-Contract Enforcement: Raises ValueError on failure.
         """
         if not self.from_agent or not self.to_agent:
             self.error = "from_agent и to_agent обязательны"
-            return False
+            raise ValueError(self.error)
 
         if not self.task:
             self.error = "task обязателен"
-            return False
+            raise ValueError(self.error)
 
         if self.deadline < datetime.now(timezone.utc):
             self.error = "deadline в прошлом"
-            return False
+            raise ValueError(self.error)
 
-        # [SINGULARITY 26.2] Contract-based validation
+        # [SINGULARITY 28.0] Hard-Contract Enforcement
         if self.validation_schema:
             try:
-                # [SINGULARITY 26.2] Simple validation if jsonschema is missing
+                import jsonschema
+                jsonschema.validate(instance=self.context, schema=self.validation_schema)
+                logger.info(f"✅ Handoff {self.handoff_id} validated against full contract.")
+            except ImportError:
+                # Simple validation if jsonschema is missing
                 required = self.validation_schema.get("required", [])
                 for field in required:
                     if field not in self.context:
                         self.error = f"Contract violation: missing required field '{field}'"
                         logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {self.error}")
-                        return False
-                
-                # Try full validation if possible
-                import jsonschema
-                jsonschema.validate(instance=self.context, schema=self.validation_schema)
-                logger.info(f"✅ Handoff {self.handoff_id} validated against full contract.")
-            except ImportError:
-                logger.debug("jsonschema not installed, using simple field validation")
+                        raise ValueError(self.error)
             except Exception as e:
                 self.error = f"Contract validation failed: {e}"
-                logger.warning(f"❌ Handoff {self.handoff_id} contract violation: {e}")
-                return False
+                logger.error(f"❌ Handoff {self.handoff_id} contract violation: {e}")
+                raise ValueError(self.error)
         elif "contract" in self.context:
             # Fallback: если схема передана внутри контекста
             try:
                 import jsonschema
                 jsonschema.validate(instance=self.context, schema=self.context["contract"])
                 logger.info(f"✅ Handoff {self.handoff_id} validated against inline contract.")
-            except: pass
+            except Exception as e:
+                self.error = f"Inline contract validation failed: {e}"
+                logger.error(f"❌ Handoff {self.handoff_id} inline contract violation: {e}")
+                raise ValueError(self.error)
 
         return True
 

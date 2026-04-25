@@ -191,6 +191,20 @@ class CodebaseMutationEngine:
                 )
 
                 if expert_id:
+                    # [SINGULARITY 28.0] Constitutional Guard for Antibody Injection
+                    try:
+                        from constitutional_court import get_constitutional_court
+                        court = get_constitutional_court()
+                        is_constitutional = await court.verify_decision(
+                            decision_description=f"Inject antibody into {expert_name} DNA due to failure: {error_msg[:100]}",
+                            context={"expert": expert_name, "error": error_msg}
+                        )
+                        if not is_constitutional:
+                            logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] Antibody injection for {expert_name} rejected.")
+                            return
+                    except Exception as court_err:
+                        logger.debug(f"Constitutional Antibody verification skipped: {court_err}")
+
                     antibody = f"\n### 🛡️ ANTI-ERROR RULE (Auto-Learned):\nAvoid this pattern which caused error: {error_msg[:100]}. Ensure proper validation/imports."
 
                     # [SINGULARITY 21.21] Antifragile Feedback Loop: Update whole department
@@ -238,6 +252,80 @@ class CodebaseMutationEngine:
         except Exception as e:
             logger.error(f"Failed to update DNA on failure: {e}")
 
+    async def _reinforce_expert_dna_on_success(self, expert_name: str, query: str, response: str):
+        """[SINGULARITY 27.2] Success Reinforcement: Extract 'wisdom' from successful interaction."""
+        try:
+            import asyncpg
+
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os"
+            )
+            conn = await asyncpg.connect(db_url)
+            try:
+                expert_id = await conn.fetchval(
+                    "SELECT id FROM experts WHERE name = $1", expert_name
+                )
+                if not expert_id:
+                    return
+
+                # 1. Extract wisdom using Victoria
+                victoria = await self._get_victoria()
+                if not victoria:
+                    return
+
+                prompt = f"""Ты — Интеллект Сингулярности. Эксперт {expert_name} получил ПОЛОЖИТЕЛЬНЫЙ отзыв за этот ответ.
+Запрос: {query[:500]}
+Ответ: {response[:1000]}
+
+Выдели ОДНО ключевое правило или принцип, который сделал этот ответ успешным.
+Верни только текст правила (1 предложение), которое нужно добавить в DNA эксперта как 'SUCCESS RULE'."""
+
+                wisdom_res = await victoria.solve(prompt, method="quick_answer")
+                wisdom_rule = wisdom_res.get("result", "").strip()
+
+                if wisdom_rule and len(wisdom_rule) > 10:
+                    # [SINGULARITY 28.0] Constitutional Guard for DNA Mutation
+                    try:
+                        from constitutional_court import get_constitutional_court
+                        court = get_constitutional_court()
+                        is_constitutional = await court.verify_decision(
+                            decision_description=f"Reinforce DNA for {expert_name} with success rule: {wisdom_rule}",
+                            context={"expert": expert_name, "wisdom_rule": wisdom_rule}
+                        )
+                        if not is_constitutional:
+                            logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] DNA reinforcement for {expert_name} rejected.")
+                            return
+                    except Exception as court_err:
+                        logger.debug(f"Constitutional DNA verification skipped: {court_err}")
+
+                    success_rule = f"\n### 🏆 SUCCESS RULE (Auto-Learned):\n{wisdom_rule}"
+
+                    # 2. Update DNA
+                    current = await conn.fetchval(
+                        "SELECT custom_instructions FROM expert_dna_overrides WHERE expert_id = $1 AND is_active = TRUE",
+                        expert_id,
+                    )
+                    new_dna = (current or "") + success_rule
+
+                    await conn.execute(
+                        "UPDATE expert_dna_overrides SET is_active = FALSE WHERE expert_id = $1",
+                        expert_id,
+                    )
+                    await conn.execute(
+                        """
+                        INSERT INTO expert_dna_overrides (expert_id, custom_instructions, updated_by)
+                        VALUES ($1, $2, $3)
+                    """,
+                        expert_id,
+                        new_dna,
+                        "Success_Reinforcement_Loop",
+                    )
+                    logger.info(f"🧬 [DNA] Reinforced success for {expert_name}.")
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.error(f"Failed to reinforce DNA on success: {e}")
+
     async def _verify_patch_safety(self, file_path: str, patch_data: Dict) -> bool:
         """
         [SINGULARITY 23.1] Real Docker Sandbox Patch Verification:
@@ -269,6 +357,20 @@ class CodebaseMutationEngine:
             if not await self._architectural_guard(new_content, file_path):
                 logger.warning("🛡️ [ARCH GUARD] Патч отклонен: нарушение архитектурных стандартов.")
                 return False
+
+            # [SINGULARITY 28.0] Constitutional Guard: Final verification against COGNITIVE_CODE.md
+            try:
+                from constitutional_court import get_constitutional_court
+                court = get_constitutional_court()
+                is_constitutional = await court.verify_decision(
+                    decision_description=f"Mutation of {file_path}: {patch_data.get('fix_description')}",
+                    context={"file": file_path, "patch": patch_data, "new_content_preview": new_content[:2000]}
+                )
+                if not is_constitutional:
+                    logger.warning(f"⚖️ [CONSTITUTIONAL GUARD] Mutation of {file_path} rejected by Constitutional Court.")
+                    return False
+            except Exception as court_err:
+                logger.debug(f"Constitutional Court verification skipped: {court_err}")
 
             sandbox = get_sandbox_manager()
             if not sandbox or not sandbox.client:

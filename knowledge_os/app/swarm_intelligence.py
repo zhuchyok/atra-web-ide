@@ -130,9 +130,9 @@ class SwarmIntelligence:
             # 2.4. Обновление глобального лучшего
             await self._update_global_best()
 
-            # 2.5. Проверка конвергенции
-            if self._check_convergence():
-                logger.info(f"✅ Convergence reached on iteration {iteration + 1}")
+            # 2.5. Проверка конвергенции (Consensus)
+            if self._check_consensus():
+                logger.info(f"✅ Consensus reached on iteration {iteration + 1}")
                 break
 
         return self._build_result(iteration)
@@ -261,13 +261,37 @@ class SwarmIntelligence:
     def _evaluate_solution(self, solution: str, role: str) -> float:
         if not solution: return 0.0
         score = 0.5
-        if role == "skeptic" and any(m in solution.lower() for m in ["ошибка", "риск", "проблема"]):
-            score += 0.3
-        if len(solution) > 300: score += 0.2
+        
+        # [SINGULARITY 28.5] Socratic Voting & Weighted Consensus
+        # Skeptics have higher weight in detecting risks
+        if role == "skeptic":
+            if any(m in solution.lower() for m in ["ошибка", "риск", "проблема", "уязвимость", "баг"]):
+                score += 0.4 # Skeptic found a problem
+            else:
+                score -= 0.2 # Skeptic was too soft
+        
+        # [SINGULARITY 28.5] Contract-based validation
+        if "expert_name" in solution and "confidence_score" in solution:
+            score += 0.1 # Solution follows the contract
+            
+        if len(solution) > 300: score += 0.1
         return min(score, 1.0)
 
-    def _check_convergence(self) -> bool:
+    def _check_consensus(self) -> bool:
+        """
+        [SINGULARITY 28.5] Weighted Consensus Logic.
+        Requires 80% agreement AND no critical veto from skeptics.
+        """
         if not self.agents: return False
+        
+        # 1. Check for Skeptic Veto
+        skeptics = [a for a in self.agents if a.role == "skeptic"]
+        for s in skeptics:
+            if s.current_score > 0.8 and "критическая" in str(s.current_solution).lower():
+                logger.warning(f"🚫 [CONSENSUS] Critical Veto from Skeptic: {s.agent_name}")
+                return False # Veto blocks consensus
+        
+        # 2. Check for General Agreement
         high_score_count = sum(1 for a in self.agents if a.local_best_score >= self.global_best_score * 0.95)
         return (high_score_count / len(self.agents)) >= 0.8
 

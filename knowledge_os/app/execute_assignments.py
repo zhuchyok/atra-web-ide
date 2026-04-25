@@ -90,7 +90,7 @@ async def execute_assignments_async(
     results = []
 
     try:
-        conn = await asyncpg.connect(db_url, timeout=5.0)
+        conn = await asyncpg.connect(db_url, timeout=5)
         try:
             # Получаем ID Виктории
             victoria_id = await conn.fetchval(
@@ -163,15 +163,14 @@ async def execute_assignments_async(
                         },
                     )
                     logger.info(f"📥 [MONSTER] Задача {task_id} отправлена в очередь Redis")
-                    # Временно продолжаем выполнять здесь же для обратной совместимости,
-                    # пока не поднимем отдельный Worker Service
+                    continue  # Workers handle processing, skip local execution
 
                 task_info.append((key, expert_name, task_id, subtask_desc))
 
             # Теперь выполняем их ПАРАЛЛЕЛЬНО
             async def run_single_expert(key, expert_name, task_id, subtask_desc):
                 # Каждому эксперту — своё соединение, чтобы не было InterfaceError
-                expert_conn = await asyncpg.connect(db_url, timeout=5.0)
+                expert_conn = await asyncpg.connect(db_url, timeout=5)
                 try:
                     # Устанавливаем статус in_progress
                     await expert_conn.execute(

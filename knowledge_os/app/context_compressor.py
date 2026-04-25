@@ -80,12 +80,12 @@ class ContextCompressor:
         squeezed = re.sub(r" {2,}", " ", squeezed)
         squeezed = re.sub(r"\n{3,}", "\n\n", squeezed)
         
-        # 3. Удаление дублирующихся предложений (простой поиск)
+        # 3. Удаление дублирующихся строк (SINGULARITY 25.0 FIX)
         lines = squeezed.splitlines()
         unique_lines = []
         seen = set()
         for line in lines:
-            clean_line = line.strip().lower()
+            clean_line = line.strip()
             if clean_line and clean_line not in seen:
                 unique_lines.append(line)
                 seen.add(clean_line)

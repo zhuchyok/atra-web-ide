@@ -70,7 +70,13 @@ class ConsensusAgent:
         """
         Достичь консенсуса между агентами
         [SINGULARITY 22.5] Pre-mortem: добавление скептика для поиска уязвимостей.
+        [SINGULARITY 28.0] Blackboard Integration: Use shared blackboard for evidence.
         """
+        # [SINGULARITY 28.0] Blackboard Integration
+        from services.blackboard_service import get_blackboard_service
+        blackboard = get_blackboard_service()
+        task_id = initial_context.get("task_id") if initial_context else str(uuid.uuid4())
+        
         # Добавляем Скептика в список агентов, если его там нет
         if "Скептик" not in agents:
             agents = agents + ["Скептик"]
@@ -130,6 +136,14 @@ class ConsensusAgent:
                 agents, question, initial_context, previous_responses
             )
 
+            # [SINGULARITY 28.0] Post evidence to blackboard
+            for resp in current_responses:
+                await blackboard.post_evidence(
+                    task_id=task_id,
+                    agent_name=resp.agent_name,
+                    evidence={"response": resp.response, "confidence": resp.confidence}
+                )
+
             agent_responses = current_responses
             previous_responses.append(current_responses)
 
@@ -172,6 +186,11 @@ class ConsensusAgent:
         previous_responses: List[List[AgentResponse]],
     ) -> List[AgentResponse]:
         """Собрать ответы от агентов"""
+        # [SINGULARITY 28.0] Socratic Debate: Standardize Skeptic role
+        if "Скептик" not in agents:
+            agents.append("Скептик")
+            logger.info("🕵️ [SOCRATIC] Skeptic role standardized for this debate")
+
         # [CONSENSUS v2] Загружаем KPI экспертов из БД
         expert_kpis = {}
         try:
