@@ -227,6 +227,14 @@ async def list_models():
                 "owned_by": "atra-corporation",
                 "permission": [],
                 "root": "victoria-wisdom-v3.5",
+            },
+            {
+                "id": "discuss",
+                "object": "model",
+                "created": 1700000000,
+                "owned_by": "atra-corporation",
+                "permission": [],
+                "root": "discuss",
             }
         ]
     })
@@ -284,7 +292,75 @@ async def chat_completions(request: Request):
     if not goal:
         raise HTTPException(status_code=400, detail="No user message text found in messages")
 
-    logger.info("[PROXY] goal_preview=%s session=%s", goal[:80], session_id)
+    logger.info("[PROXY] goal_preview=%s session=%s model=%s", goal[:80], session_id, model)
+
+    # [SINGULARITY 10.0] Support for 'discuss' model - Team Discussion Engine
+    if model in ("discuss", "victoria-discuss"):
+        try:
+            # Импортируем TeamDiscussionEngine из ai_core
+            import sys
+            ko_path = os.path.join(os.getcwd(), "knowledge_os/app")
+            if ko_path not in sys.path:
+                sys.path.insert(0, ko_path)
+            from ai_core import TeamDiscussionEngine
+            
+            engine = TeamDiscussionEngine()
+            # Для простоты выбираем 3 ключевых экспертов: Виктория, Игорь, Анна
+            # В будущем можно выбирать динамически через query_orchestrator
+            experts = ["Виктория", "Игорь", "Анна"]
+            
+            # Генерируем диалог
+            discussion_prompt = f"""
+            [SYSTEM: TEAM_DISCUSSION_MODE]
+            Вы - команда экспертов ATRA: {', '.join(experts)}.
+            Ваша задача: провести живое обсуждение запроса пользователя, используя ваши уникальные стили и характеры из TEAM_PERSONALITIES.MD.
+            
+            ПРАВИЛА ОБСУЖДЕНИЯ:
+            1. Каждый эксперт должен высказать свое мнение.
+            2. Игорь (Backend Developer) - технический перфекционист, любит детали, немного саркастичен.
+            3. Анна (QA Engineer) - внимательная проверяющая, ищет подвохи, задает вопросы "А что если...".
+            4. Виктория (Team Lead) - спокойный координатор, видит общую картину, подводит итог.
+            5. Используйте Markdown для форматирования.
+            6. НЕ ИСПОЛЬЗУЙТЕ теги <think>. Сразу выводите диалог.
+            
+            ФОРМАТ ОТВЕТА:
+            **Виктория**: [реплика]
+            **Игорь**: [реплика]
+            **Анна**: [реплика]
+            **Виктория**: [итог]
+            
+            ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {goal}
+            """
+            
+            # Вызываем Victoria /run с этим специальным промптом
+            # Используем category="reasoning" для лучшего качества
+            vic_response = await call_victoria_run(discussion_prompt, request_id, chat_history=chat_history)
+            status = vic_response.get("status", "")
+            output = vic_response.get("output") or vic_response.get("error") or f"Status: {status}"
+            text = str(output)
+            
+            # [SINGULARITY 10.0] Очистка от <think> если прокрался
+            if "<think>" in text:
+                import re
+                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+            
+            return JSONResponse(
+                content={
+                    "id": request_id,
+                    "object": "chat.completion",
+                    "created": int(__import__("time").time()),
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {"role": "assistant", "content": text},
+                        "finish_reason": "stop",
+                    }],
+                    "usage": {"prompt_tokens": 0, "completion_tokens": len(text.split()), "total_tokens": len(text.split())},
+                }
+            )
+        except Exception as e:
+            logger.error(f"❌ [DISCUSS] Failed to generate team discussion: {e}")
+            raise HTTPException(status_code=500, detail=f"Discussion engine error: {str(e)}")
 
     try:
         # Передаём историю в Victoria
