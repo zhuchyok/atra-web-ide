@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool")
 
 # Читаем из env, чтобы можно было тюнить без rebuild (например, при включённом PgBouncer ставим 20)
-_MAX_POOL_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "5"))
-_MIN_POOL_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "1"))
+_MAX_POOL_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "20"))
+_MIN_POOL_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "2"))
 
 _pool = None
 

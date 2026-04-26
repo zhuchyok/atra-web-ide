@@ -3583,9 +3583,36 @@ Use HANDOFF only if delegation genuinely improves the result.
         else:
             compressed_prompt = ContextCompressor.compress_all(full_prompt)
 
-    cloud_start_time = time.time()
-    response = await _run_cloud_agent_async(compressed_prompt, category=category, is_vip=is_vip)
-    cloud_latency_ms = (time.time() - cloud_start_time) * 1000
+            # [SINGULARITY 10.0] Budget Gate Check
+            try:
+                from redis_manager import redis_manager
+                rm = redis_manager
+                client = await rm.get_client()
+                daily_cost = await client.get(f"budget:daily:{expert_name or 'global'}")
+                max_budget = float(os.getenv("DAILY_BUDGET_LIMIT", "10.0"))
+                if daily_cost and float(daily_cost) >= max_budget:
+                    logger.warning(f"💰 [BUDGET GATE] Daily budget exceeded for {expert_name}. Forcing local model.")
+                    # Force local mode by returning local response directly if possible
+                    if router:
+                        return await router.run_local_llm(prompt, category=category, expert_name=expert_name)
+            except Exception as budget_err:
+                logger.debug(f"Budget check failed: {budget_err}")
+
+            cloud_start_time = time.time()
+            response = await _run_cloud_agent_async(compressed_prompt, category=category, is_vip=is_vip)
+            cloud_latency_ms = (time.time() - cloud_start_time) * 1000
+
+            # [SINGULARITY 10.0] Record Cost in Redis
+            try:
+                from token_logger import estimate_tokens
+                in_tokens = await estimate_tokens(compressed_prompt)
+                out_tokens = await estimate_tokens(response or "")
+                # Simple cost estimation for cloud
+                estimated_cost = (in_tokens + out_tokens) * 0.00001 # $10 per 1M tokens avg
+                await client.incrbyfloat(f"budget:daily:{expert_name or 'global'}", estimated_cost)
+                await client.expire(f"budget:daily:{expert_name or 'global'}", 86400)
+            except Exception as cost_err:
+                logger.debug(f"Cost recording failed: {cost_err}")
 
     # Сохраняем данные о роутинге в облако для ML-обучения
     if get_collector and response:

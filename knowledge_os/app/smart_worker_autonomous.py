@@ -42,184 +42,16 @@ if _PROMETHEUS_AVAILABLE:
     )
 
 
-def _structured_cancel_reason(reason_code: str, component: str, details: str = "") -> dict:
-    """Структурированная причина системного сброса/отмены задачи."""
-    payload = {
-        "reason_code": reason_code,
-        "component": component,
-        "policy": "auto_requeue_delegation_v1",
-        "at": datetime.utcnow().isoformat() + "Z",
-    }
-    if details:
-        payload["details"] = details[:500]
-    return payload
-
-
-async def _emit_delegation_metrics(conn, alert_threshold: int) -> None:
-    """Печатает метрики и алерт по stuck delegation задачам."""
-    try:
-        row = await conn.fetchrow(
-            """
-            SELECT
-                COUNT(*) FILTER (WHERE status = 'pending') AS pending_cnt,
-                COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_cnt,
-                COUNT(*) FILTER (WHERE status = 'failed') AS failed_cnt,
-                COUNT(*) FILTER (WHERE status = 'cancelled') AS cancelled_cnt
-            FROM tasks
-            WHERE metadata->>'source' = 'victoria_monster_delegation'
-            """
-        )
-        if not row:
-            return
-        pending_cnt = int(row["pending_cnt"] or 0)
-        in_progress_cnt = int(row["in_progress_cnt"] or 0)
-        failed_cnt = int(row["failed_cnt"] or 0)
-        cancelled_cnt = int(row["cancelled_cnt"] or 0)
-        print(
-            f"[{datetime.now()}] 📊 [DELEGATION_METRICS] pending={pending_cnt} in_progress={in_progress_cnt} failed={failed_cnt} cancelled={cancelled_cnt}"
-        )
-        stuck_total = failed_cnt + cancelled_cnt
-        if stuck_total >= alert_threshold:
-            print(
-                f"[{datetime.now()}] 🚨 [DELEGATION_ALERT] stuck_delegation={stuck_total} (failed={failed_cnt}, cancelled={cancelled_cnt}) threshold={alert_threshold}"
-            )
-    except Exception as _metrics_err:
-        logger.debug("Delegation metrics failed: %s", _metrics_err)
-
-
-async def _auto_requeue_delegation(
-    conn,
-    max_rows: int,
-    max_requeues_per_task: int,
-) -> int:
-    """Policy-driven восстановление delegation задач без активных дублей."""
-    try:
-        result = await conn.execute(
-            """
-            WITH candidate AS (
-                SELECT t.id, t.title, COALESCE(t.project_context, 'default') AS pc
-                FROM tasks t
-                WHERE t.status IN ('cancelled', 'failed')
-                  AND t.metadata->>'source' = 'victoria_monster_delegation'
-                  AND COALESCE((t.metadata->>'auto_requeue_count')::int, 0) < $2::int
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM tasks t2
-                      WHERE t2.status IN ('pending', 'in_progress')
-                        AND t2.title = t.title
-                        AND COALESCE(t2.project_context, 'default') = COALESCE(t.project_context, 'default')
-                  )
-                ORDER BY t.updated_at ASC
-                LIMIT $1::int
-            )
-            UPDATE tasks t
-            SET status = 'pending',
-                updated_at = NOW(),
-                metadata = COALESCE(t.metadata, '{}'::jsonb)
-                    || jsonb_build_object(
-                        'restored_from', t.status,
-                        'restored_by', 'auto_requeue_delegation_policy',
-                        'auto_requeue_count', COALESCE((t.metadata->>'auto_requeue_count')::int, 0) + 1,
-                        'cancel_reason', $3::jsonb
-                    )
-            FROM candidate c
-            WHERE t.id = c.id
-            """,
-            max_rows,
-            max_requeues_per_task,
-            json.dumps(
-                _structured_cancel_reason(
-                    "delegation_auto_requeued",
-                    "smart_worker_autonomous",
-                    "restored from failed/cancelled by policy",
-                )
-            ),
-        )
-        if result and result.startswith("UPDATE"):
-            return int(result.split()[-1])
-    except Exception as _requeue_err:
-        logger.debug("Auto requeue delegation failed: %s", _requeue_err)
-    return 0
-
-
-# Маппинг role/department → папки скиллов (П.2 PRINCIPLE_EXPERTS_FIRST). Ключи — подстроки для role/department (lower).
-ROLE_DEPARTMENT_TO_SKILLS = {
-    "backend": ["backend-development", "code-review"],
-    "qa": ["qa-regression", "webapp-testing"],
-    "frontend": ["frontend-design", "webapp-testing"],
-    "python": ["python-development", "code-documentation"],
-    "devops": ["observability", "disaster-recovery"],
-    "ml": ["llm-application-dev", "model-ensemble"],
-    "documentation": ["code-documentation", "doc-coauthoring"],
-    "general": ["ask-questions-if-underspecified", "code-review"],
-}
-
-
-def _read_skill_snippets_sync(skill_folders: List[str], max_chars_per_skill: int = 2000) -> str:
-    """Читает первые max_chars_per_skill символов из SKILL.md для каждой папки. Sync — вызывать через run_in_executor."""
-    skills_dir = os.path.join(os.path.dirname(__file__), "skills")
-    parts = []
-    for folder in skill_folders[:3]:  # П.2 пушка: до 3 скиллов
-        path = os.path.join(skills_dir, folder, "SKILL.md")
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, encoding="utf-8") as f:
-                raw = f.read()
-            # Пропускаем YAML frontmatter, берём инструкции
-            if "---" in raw:
-                parts_fm = raw.split("---", 2)
-                text = parts_fm[2].strip() if len(parts_fm) >= 3 else raw
-            else:
-                text = raw
-            snippet = text[:max_chars_per_skill]
-            if len(text) > max_chars_per_skill:
-                snippet += "\n..."
-            parts.append(f"[{folder}]\n{snippet}")
-        except Exception as e:
-            logger.debug("Skill read failed %s: %s", path, e)
-    if not parts:
-        return ""
-    return "\n\n📋 ИНСТРУКЦИИ ИЗ СКИЛЛОВ (используй при решении):\n" + "\n\n---\n\n".join(parts)
-
-
-def _get_skill_description_sync(skills_dir: str, folder: str) -> str:
-    """Читает из SKILL.md description из frontmatter или имя папки. Sync."""
-    path = os.path.join(skills_dir, folder, "SKILL.md")
-    if not os.path.isfile(path):
-        return folder.replace("-", " ")
-    try:
-        with open(path, encoding="utf-8") as f:
-            raw = f.read(1500)
-        if "---" in raw and "description:" in raw.lower():
-            for line in raw.split("\n"):
-                if line.strip().lower().startswith("description:"):
-                    return line.split(":", 1)[1].strip().strip('"') + " " + folder.replace("-", " ")
-        return folder.replace("-", " ")
-    except Exception:
-        return folder.replace("-", " ")
-
-
-def _select_skills_by_relevance_sync(
-    task_title: str, task_description: str, max_skills: int = 3
-) -> List[str]:
-    """П.2 пушка: по ключевым словам задачи выбирает до max_skills скиллов (по совпадению с именем/description). Sync."""
-    skills_dir = os.path.join(os.path.dirname(__file__), "skills")
-    if not os.path.isdir(skills_dir):
-        return []
-    task_text = f"{task_title} {task_description}".lower()
-    task_words = set(_ for _ in task_text.replace("-", " ").split() if len(_) > 1)
-    scored = []
-    for folder in os.listdir(skills_dir):
-        if not os.path.isdir(os.path.join(skills_dir, folder)) or folder.startswith("."):
-            continue
-        desc = _get_skill_description_sync(skills_dir, folder).lower()
-        desc_words = set(_ for _ in desc.replace("-", " ").split() if len(_) > 1)
-        overlap = len(task_words & desc_words)
-        if overlap > 0 or folder.replace("-", " ") in task_text:
-            scored.append((overlap + (2 if folder.replace("-", " ") in task_text else 0), folder))
-    scored.sort(key=lambda x: -x[0])
-    return [f for _, f in scored[:max_skills]]
+from app.worker.worker_memory import (
+    ROLE_DEPARTMENT_TO_SKILLS,
+    _read_skill_snippets_sync,
+    _select_skills_by_relevance_sync,
+)
+from app.worker.worker_logic import (
+    _structured_cancel_reason,
+    _emit_delegation_metrics,
+    _auto_requeue_delegation,
+)
 
 
 # Маркеры запроса актуальных данных — при наличии вызываем веб-поиск (П.1 PRINCIPLE_EXPERTS_FIRST)
@@ -285,21 +117,14 @@ _scanner_cache_mlx = None
 _scanner_cache_ollama = None
 
 
+try:
+    from app.db_pool import get_pool as _get_shared_pool
+except ImportError:
+    from db_pool import get_pool as _get_shared_pool
+
 async def get_pool():
-    global _pool
-    if _pool is None:
-        # Пул должен покрывать: до MAX_CONCURRENT_TASKS обработок + столько же heartbeats (каждые 15 сек acquire)
-        # Раньше max_size=5 при 10 конкурентных задачах → heartbeats не получали соединение → updated_at не обновлялся → задачи считались зависшими
-        max_concurrent = int(os.getenv("SMART_WORKER_MAX_CONCURRENT", "10"))
-        pool_size = max(15, max_concurrent + 8)
-        _pool = await asyncpg.create_pool(
-            DB_URL,
-            min_size=1,
-            max_size=pool_size,
-            max_inactive_connection_lifetime=300,
-            command_timeout=60,
-        )
-    return _pool
+    """[SINGULARITY 10.0] Unified DB Pool: use shared pool from db_pool.py"""
+    return await _get_shared_pool()
 
 
 try:
@@ -579,23 +404,23 @@ async def process_task(pool, task):
                         fast_result,
                         task_id,
                     )
-                    except Exception as db_err:
-                        logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
+            except Exception as db_err:
+                logger.error(f"Failed to save fast-path result for {task_id}: {db_err}")
                     
-                    # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
-                    try:
-                        journal_mgr = ExpertJournalManager(pool)
-                        await journal_mgr.add_entry(
-                            expert_id=task.get("assignee_expert_id"),
-                            task_id=task_id,
-                            summary=f"Fast-path file check: {task_title}",
-                            learnings=f"Result: {fast_result}",
-                            importance=3,
-                            metadata={"execution_mode": "fast_path"}
-                        )
-                    except Exception as j_err:
-                        logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
-                    return
+            # [SINGULARITY 29.1] Episodic Journaling (Fast Path)
+            try:
+                journal_mgr = ExpertJournalManager(pool)
+                await journal_mgr.add_entry(
+                    expert_id=task.get("assignee_expert_id"),
+                    task_id=task_id,
+                    summary=f"Fast-path file check: {task_title}",
+                    learnings=f"Result: {fast_result}",
+                    importance=3,
+                    metadata={"execution_mode": "fast_path"}
+                )
+            except Exception as j_err:
+                logger.debug(f"Journaling failed for fast-path {task_id}: {j_err}")
+            return
     # ─────────────────────────────────────────────────────────────────────────────
 
     # Generate trace_id для полного трейсинга
@@ -1312,26 +1137,26 @@ DESC: {task_description}
                         )
                         # Обновляем задачу с рекомендованной моделью
                         async with pool.acquire() as conn:
-                    await conn.execute(
-                        """
-                        UPDATE tasks
-                        SET status = 'pending',
-                            updated_at = NOW(),
-                            last_real_progress_at = NOW(),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
-                                'last_attempt_failed', true,
-                                'attempt_count', $2::int,
-                                'last_error', $3::text,
-                                'model_upgrade_needed', true,
-                                'recommended_model', $4::text
+                            await conn.execute(
+                                """
+                                UPDATE tasks
+                                SET status = 'pending',
+                                    updated_at = NOW(),
+                                    last_real_progress_at = NOW(),
+                                    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                                        'last_attempt_failed', true,
+                                        'attempt_count', $2::int,
+                                        'last_error', $3::text,
+                                        'model_upgrade_needed', true,
+                                        'recommended_model', $4::text
+                                    )
+                                WHERE id = $1
+                            """,
+                                task_id,
+                                attempt_count,
+                                str(report[:500]) if report and isinstance(report, str) else "",
+                                str(next_model),
                             )
-                        WHERE id = $1
-                    """,
-                        task_id,
-                        attempt_count,
-                        str(report[:500]) if report and isinstance(report, str) else "",
-                        str(next_model),
-                    )
                         print(
                             f"[{datetime.now()}] 🔄 Task {task_id} upgraded to model {next_model} for retry"
                         )

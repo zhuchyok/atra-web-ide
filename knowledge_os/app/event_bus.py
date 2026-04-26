@@ -53,6 +53,12 @@ class EventType(Enum):
     EXPERT_RESPONSE = "expert_response"
     DIALOGUE_CONSENSUS = "dialogue_consensus"
 
+    # [SINGULARITY 10.0] Proactive events
+    OPPORTUNITY_DETECTED = "opportunity_detected"
+    ACTION_REQUIRED = "action_required"
+    RESOURCE_EXHAUSTED = "resource_exhausted"
+    SECURITY_ANOMALY = "security_anomaly"
+    
     # [SINGULARITY 24.3] Системные события для Redis Bridge
     REDIS_BRIDGE_SYNC = "redis_bridge_sync"
 

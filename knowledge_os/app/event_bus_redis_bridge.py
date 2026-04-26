@@ -64,7 +64,7 @@ class EventBusRedisBridge:
         logger.info(f"🌉 EventBus Redis Bridge started on stream {self.stream_name} (Group: {self.group_name})")
 
     async def stop(self):
-        """Stop the bridge"""
+        """Stop the bridge and cleanup groups"""
         self.running = False
         if self._consumer_task:
             self._consumer_task.cancel()
@@ -72,6 +72,17 @@ class EventBusRedisBridge:
                 await self._consumer_task
             except asyncio.CancelledError:
                 pass
+        
+        # [SINGULARITY 10.0] Cleanup stale consumer group
+        if hasattr(self, "group_name") and self.group_name.startswith("group_"):
+            try:
+                client = await self.redis_manager.get_client()
+                stream_key = f"stream:{self.stream_name}"
+                await client.xgroup_destroy(stream_key, self.group_name)
+                logger.info(f"🗑️ [BRIDGE] Destroyed stale consumer group: {self.group_name}")
+            except Exception as e:
+                logger.debug(f"Group destruction error: {e}")
+                
         logger.info("🌉 EventBus Redis Bridge stopped")
 
     async def _local_to_redis(self, event: Event):
