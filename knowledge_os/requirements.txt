@@ -39,7 +39,7 @@ python-telegram-bot>=22.5
 
 # Научные вычисления
 scipy>=1.7.0
-scikit-learn>=1.0.0
+scikit-learn>=1.8.0
 
 # База данных
 asyncpg>=0.29.0
