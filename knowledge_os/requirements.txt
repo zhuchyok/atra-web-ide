@@ -61,7 +61,7 @@ prometheus-client>=0.19.0
 # asyncio встроен в Python 3.7+, не требует установки
 
 # Hot-reload skills (Skill Loader, File Watcher)
-watchdog>=3.0.0
+watchdog>=6.0.0
 
 # Vision: moondream — Python-клиент для Moondream Station; moondream-station — сервер (порт 2020); Pillow
 moondream>=0.1.0
