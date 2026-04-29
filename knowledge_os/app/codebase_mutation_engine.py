@@ -524,7 +524,7 @@ class CodebaseMutationEngine:
         return None
 
     async def _apply_patch(self, file_path: str, patch_data: Dict) -> bool:
-        """Применить патч к файлу."""
+        """Применить патч к файлу и зафиксировать в Git."""
         try:
             with open(file_path, encoding="utf-8") as f:
                 content = f.read()
@@ -536,7 +536,18 @@ class CodebaseMutationEngine:
                 new_content = content.replace(old_code, new_code)
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(new_content)
+                
                 logger.info(f"✅ [MUTATION] Патч применен к {file_path}")
+                
+                # [SINGULARITY 28.9] Autonomous Git Cycle
+                try:
+                    fix_desc = patch_data.get("fix_description", "Autonomous self-repair")
+                    subprocess.run(["git", "add", file_path], cwd=self.project_root, check=True)
+                    subprocess.run(["git", "commit", "-m", f"🧬 [EVOLUTION] {fix_desc}"], cwd=self.project_root, check=True)
+                    logger.info(f"📦 [GIT] Mutation committed: {fix_desc}")
+                except Exception as git_err:
+                    logger.warning(f"⚠️ [GIT] Failed to commit mutation: {git_err}")
+                
                 return True
             else:
                 logger.warning(f"⚠️ [MUTATION] Старый код не найден в {file_path} для замены")
@@ -557,7 +568,12 @@ class CodebaseMutationEngine:
     async def run_nightly_optimization(self):
         """Фоновая оптимизация кодовой базы (запускается по расписанию)."""
         logger.info("🌙 [MUTATION] Запуск ночной оптимизации...")
-        pass
+        try:
+            from expert_researcher import get_expert_researcher
+            researcher = get_expert_researcher()
+            await researcher.run_nightly_inventory()
+        except Exception as e:
+            logger.error(f"❌ [MUTATION] Nightly R&D failed: {e}")
 
 
 _mutation_engine = None

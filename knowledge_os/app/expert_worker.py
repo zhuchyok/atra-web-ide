@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
@@ -144,11 +145,21 @@ class VictoriaExpertActor(AgentBase):
     async def record_event(self, event_type: str, payload: dict):
         """Записать событие в лог (Event Sourcing)"""
         pool = await self._get_conn()
+        
+        # [FIX 28.9] Handle non-UUID task IDs (e.g. from R&D or manual triggers)
+        task_uuid = None
+        if self.task_id:
+            try:
+                task_uuid = uuid.UUID(self.task_id)
+            except ValueError:
+                print(f"DEBUG: Non-UUID task_id detected: {self.task_id}")
+                payload["original_task_id"] = self.task_id
+
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO actor_events (actor_name, task_id, event_type, payload) VALUES ($1, $2, $3, $4)",
                 self.name,
-                uuid.UUID(self.task_id) if self.task_id else None,
+                task_uuid,
                 event_type,
                 json.dumps(payload),
             )
@@ -157,11 +168,19 @@ class VictoriaExpertActor(AgentBase):
         """Сохранить полный снимок состояния"""
         state = self.state_dict()
         pool = await self._get_conn()
+        
+        task_uuid = None
+        if self.task_id:
+            try:
+                task_uuid = uuid.UUID(self.task_id)
+            except ValueError:
+                pass
+
         async with pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO actor_states (actor_name, task_id, state_data) VALUES ($1, $2, $3)",
                 self.name,
-                uuid.UUID(self.task_id) if self.task_id else None,
+                task_uuid,
                 json.dumps(state),
             )
 
@@ -169,12 +188,19 @@ class VictoriaExpertActor(AgentBase):
         """Восстановить состояние из последнего снимка и лога событий"""
         if not self.task_id:
             return
+            
+        task_uuid = None
+        try:
+            task_uuid = uuid.UUID(self.task_id)
+        except ValueError:
+            return # Cannot recover if not a valid UUID in DB
+
         pool = await self._get_conn()
         async with pool.acquire() as conn:
             snapshot = await conn.fetchrow(
                 "SELECT state_data FROM actor_states WHERE actor_name = $1 AND task_id = $2 ORDER BY created_at DESC LIMIT 1",
                 self.name,
-                uuid.UUID(self.task_id),
+                task_uuid,
             )
             if snapshot:
                 self.load_state_dict(json.loads(snapshot["state_data"]))
@@ -261,6 +287,49 @@ async def process_task(task_data: dict):
 
     logger.info(f"🛠️ [WORKER] Начало выполнения задачи {task_id} для {expert_name}")
     print(f"DEBUG_PRINT: task_data metadata: {task_data.get('metadata')}")
+
+    # [SINGULARITY 29.2] Background Heartbeat Task
+    async def heartbeat_loop():
+        start_time = time.time()
+        last_progress_notify = start_time
+        try:
+            from services.blackboard_service import get_blackboard_service
+            bb = get_blackboard_service()
+            while True:
+                await bb.heartbeat_task(str(task_id), expert_name)
+                
+                # [SINGULARITY 29.4] Notify progress for long tasks (every 30 min)
+                now = time.time()
+                if task_data.get("metadata", {}).get("is_rd") and (now - last_progress_notify) > 1800:
+                    try:
+                        from services.notification_service import get_notification_service
+                        notifier = get_notification_service()
+                        duration_h = (now - start_time) / 3600
+                        await notifier.notify(
+                            "🧠 R&D In Progress",
+                            f"Expert {expert_name} is still synthesizing solution for: {description[:50]}...\nDuration: {duration_h:.1f} hours.",
+                            priority="low",
+                            tags=["brain", "hourglass"]
+                        )
+                        last_progress_notify = now
+                    except: pass
+                
+                await asyncio.sleep(20) # Heartbeat every 20s (TTL is 60s)
+        except asyncio.CancelledError:
+            pass
+        except Exception as hb_err:
+            logger.error(f"❌ [HEARTBEAT] Loop failed for {task_id}: {hb_err}")
+
+    hb_task = asyncio.create_task(heartbeat_loop())
+
+    # [SINGULARITY 29.4] Inference Isolation using ThreadPoolExecutor
+    # This prevents heavy LLM generation from blocking the asyncio event loop (and heartbeats)
+    from concurrent.futures import ThreadPoolExecutor
+    executor = ThreadPoolExecutor(max_workers=1)
+
+    async def run_in_executor(func, *args):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, func, *args)
 
     task_start_time = time.perf_counter()
     if _PROMETHEUS_AVAILABLE:
@@ -855,6 +924,65 @@ async def process_task(task_data: dict):
                         )
                         return
 
+                # [SINGULARITY 28.7] Mandatory Adversarial Trust Gate
+                priority = task_data.get("metadata", {}).get("priority", 5)
+                if isinstance(priority, str):
+                    priority = 8 if priority.lower() == "high" else 5
+                
+                if priority >= 8:
+                    try:
+                        from adversarial_critic import verify_high_priority_task
+                        verification = await verify_high_priority_task(str(task_id), report_text)
+                        if not verification.get("survived", True):
+                            logger.error(f"💀 [TRUST GATE] Task {task_id} REJECTED by Critic: {verification.get('attack_report')}")
+                            raise ValueError(f"Adversarial Rejection: {verification.get('attack_report')}")
+                        logger.info(f"🛡️ [TRUST GATE] Task {task_id} SURVIVED adversarial attack.")
+                    except Exception as gate_err:
+                        if "Adversarial Rejection" in str(gate_err): raise
+                        logger.warning(f"⚠️ [TRUST GATE] Verification skipped due to error: {gate_err}")
+
+                # [SINGULARITY 29.7] Auto-Verification Loop for R&D
+                is_rd = task_data.get("metadata", {}).get("is_rd")
+                is_verification = task_data.get("metadata", {}).get("is_verification")
+                
+                if is_rd and not is_verification:
+                    logger.info(f"🔍 [SINGULARITY 29.7] Triggering Cross-Verification for R&D task {task_id}")
+                    try:
+                        from services.blackboard_service import get_blackboard_service
+                        bb = get_blackboard_service()
+                        
+                        verification_task_id = f"VERIFY_{task_id}_{uuid.uuid4().hex[:8]}"
+                        verification_goal = f"### CROSS-VERIFICATION REQUIRED\n\nExpert {expert_name} has proposed an R&D solution for: {description[:100]}...\n\n**PROPOSED SOLUTION:**\n{report_text[:1000]}\n\n**TASK:** Audit this solution for technical feasibility, security risks, and architectural alignment. Provide a 'GO' or 'REJECT' decision with reasoning."
+                        
+                        # Target a different expert (e.g. QA or Security)
+                        target_expert = "Анна" if expert_name != "Анна" else "Алексей"
+                        
+                        await bb.post_goal(
+                            verification_task_id,
+                            verification_goal,
+                            {
+                                "original_task_id": str(task_id),
+                                "source_expert": expert_name,
+                                "target_expert": target_expert,
+                                "is_verification": True,
+                                "priority": "high",
+                                "category": "r&d_optimization"
+                            }
+                        )
+                        logger.info(f"✅ [SINGULARITY 29.7] Verification task {verification_task_id} posted to Blackboard.")
+                        
+                        # We mark the original as 'completed' but with a note that it's pending verification
+                        # In a more complex system, we'd have a 'pending_verification' status.
+                        # For now, we use metadata to track this.
+                        if is_valid_uuid:
+                            await conn.execute(
+                                "UPDATE tasks SET metadata = COALESCE(metadata, '{}'::jsonb) || $2::jsonb WHERE id = $1",
+                                task_id,
+                                json.dumps({"verification_status": "pending", "verification_task_id": verification_task_id})
+                            )
+                    except Exception as v_err:
+                        logger.error(f"❌ [SINGULARITY 29.7] Failed to trigger verification: {v_err}")
+
                 if is_valid_uuid:
                     print(f"DEBUG_PRINT: Updating task {task_id} to completed in DB")
                     await conn.execute(
@@ -905,6 +1033,29 @@ async def process_task(task_data: dict):
                     expert_name,
                     metadata={"task_id": task_id, "source": "worker_service", "fabric_unified": True},
                 )
+
+                # [SINGULARITY 29.2] Stop Heartbeat on success
+                hb_task.cancel()
+                try:
+                    from services.blackboard_service import get_blackboard_service
+                    bb = get_blackboard_service()
+                    client = await bb.redis.get_client()
+                    await client.delete(f"blackboard:heartbeat:{task_id}")
+                    
+                    # [SINGULARITY 29.3] Notify R&D completion
+                    if task_data.get("metadata", {}).get("is_rd"):
+                        try:
+                            from services.notification_service import get_notification_service
+                            notifier = get_notification_service()
+                            await notifier.notify(
+                                "🚀 R&D Task Completed",
+                                f"Expert {expert_name} finished R&D: {description[:100]}...",
+                                priority="high",
+                                tags=["rocket", "brain"]
+                            )
+                        except: pass
+                except:
+                    pass
 
                 # [SINGULARITY 24.3] Живой Чат: Публикация ответа эксперта в EventBus
                 if task_data.get("metadata", {}).get("is_dialogue"):
@@ -968,6 +1119,24 @@ async def process_task(task_data: dict):
                             f"🔀 [AUTO-HANDOFF] {expert_name} → {auto_handoff.to_agent} "
                             f"| ID: {auto_handoff.handoff_id}"
                         )
+                        
+                        # [SINGULARITY 28.6] Peer-to-Peer Market: Post handoff to Blackboard
+                        try:
+                            from services.blackboard_service import get_blackboard_service
+                            blackboard = get_blackboard_service()
+                            await blackboard.post_goal(
+                                auto_handoff.handoff_id,
+                                f"HANDOFF from {expert_name}: {auto_handoff.task}",
+                                {
+                                    "original_task_id": str(task_id),
+                                    "target_expert": auto_handoff.to_agent,
+                                    "priority": "high",
+                                    "is_handoff": True
+                                }
+                            )
+                        except Exception as h_err:
+                            logger.warning(f"⚠️ [MARKET] Failed to post handoff: {h_err}")
+
                         if actor:
                             await actor.record_event(
                                 "handoff_created",
@@ -984,6 +1153,11 @@ async def process_task(task_data: dict):
             f"⌛ [CIRCUIT BREAKER] Задача {task_id} прервана по таймауту ({TASK_TOTAL_TIMEOUT}с)"
         )
         error_msg = f"Task timed out after {TASK_TOTAL_TIMEOUT}s (Circuit Breaker)"
+        
+        # [SINGULARITY 29.2] Stop Heartbeat on timeout
+        if 'hb_task' in locals() and hb_task:
+            hb_task.cancel()
+
         if actor:
             try:
                 await actor.record_event(
@@ -999,6 +1173,35 @@ async def process_task(task_data: dict):
     except Exception as e:
         logger.error(f"❌ [WORKER] Ошибка задачи {task_id}: {e}", exc_info=True)
         error_msg = str(e)
+        error_type = type(e).__name__
+
+        # [SINGULARITY 28.8] Self-Repair: Attempt autonomous fix for code errors
+        if "Exception" in error_msg or "Error" in error_type:
+            try:
+                import traceback
+                tb = traceback.extract_tb(sys.exc_info()[2])
+                if tb:
+                    last_call = tb[-1]
+                    error_event = {
+                        "error_info": {
+                            "type": error_type,
+                            "message": error_msg,
+                            "file": last_call.filename,
+                            "line": last_call.lineno
+                        }
+                    }
+                    from codebase_mutation_engine import get_mutation_engine
+                    mutation = get_mutation_engine()
+                    # Attempt mutation (fix)
+                    repair_res = await mutation.analyze_and_mutate(error_event, propose_only=False)
+                    if repair_res.get("success") and repair_res.get("decision") == "applied":
+                        logger.info(f"🔧 [SELF-REPAIR] Successfully applied fix for {last_call.filename}:{last_call.lineno}")
+                        # Re-queue task for immediate retry after fix
+                        await _handle_task_error(task_id, f"Self-Repaired: {error_msg}", is_valid_uuid, expert_name=expert_name)
+                        return
+            except Exception as repair_err:
+                logger.error(f"❌ [SELF-REPAIR] Repair attempt failed: {repair_err}")
+
         if actor:
             try:
                 await actor.record_event("task_failed", {"reason": error_msg[:300]})
@@ -1007,6 +1210,11 @@ async def process_task(task_data: dict):
         if _PROMETHEUS_AVAILABLE:
             _worker_tasks_total.labels(queue=queue_name, status="failed").inc()
             _worker_active.labels(queue=queue_name).dec()
+        
+        # [SINGULARITY 29.2] Stop Heartbeat on failure
+        if 'hb_task' in locals() and hb_task:
+            hb_task.cancel()
+            
         await _handle_task_error(task_id, error_msg, is_valid_uuid, expert_name=expert_name)
 
 
@@ -1122,6 +1330,94 @@ async def _handle_task_error(task_id, error_msg, is_valid_uuid, expert_name: str
 async def worker_loop():
     """Основной цикл воркера: слушает Redis Stream."""
     client = await redis_manager.get_client()
+    
+    # [SINGULARITY 28.7] Identify this worker
+    expert_name = os.getenv("EXPERT_NAME", f"Worker_{os.uname().nodename}")
+    logger.error(f"🆔 [WORKER] I am identified as: {expert_name}")
+
+    # [SINGULARITY 28.8] Autonomous Infrastructure: Self-Provisioning
+    # If queue is too long, try to spawn a sibling worker
+    async def monitor_queue_and_provision():
+        """Monitor Redis stream and spawn new workers if needed."""
+        try:
+            while True:
+                client = await redis_manager.get_client()
+                # [FIX 28.9] Use pending count instead of total stream length
+                groups_info = await client.xinfo_groups(f"stream:{STREAM_NAME}")
+                pending_count = 0
+                for group in groups_info:
+                    if group['name'] == GROUP_NAME:
+                        pending_count = group['pending']
+                
+                if pending_count > 10: # Threshold for spawning
+                    logger.warning(f"🚀 [PROVISIONING] High load detected ({pending_count} pending tasks). Spawning sibling...")
+                    try:
+                        # Simple docker-compose scale command (requires access to docker socket)
+                        subprocess.Popen(["docker-compose", "up", "-d", "--scale", f"expert-worker-heavy={pending_count // 5 + 1}"])
+                    except Exception as e:
+                        logger.error(f"❌ [PROVISIONING] Failed to scale: {e}")
+                
+                await asyncio.sleep(60)
+        except Exception as e:
+            logger.error(f"❌ [PROVISIONING] Monitor failed: {e}")
+
+    asyncio.create_task(monitor_queue_and_provision())
+
+    # [SINGULARITY 28.7] Decentralized Task Pickup & Bidding
+    async def monitor_blackboard_tasks():
+        """Фоновый демон для поиска и захвата задач с Blackboard."""
+        logger.error(f"👀 [AUTONOMY] Blackboard monitor started for {expert_name}")
+        try:
+            from services.blackboard_service import get_blackboard_service
+            from resource_guard import get_resource_guard
+            blackboard = get_blackboard_service()
+            guard = get_resource_guard()
+            
+            while True:
+                unclaimed = await blackboard.get_unclaimed_tasks()
+                for task_goal in unclaimed:
+                    task_id = task_goal["task_id"]
+                    status = task_goal.get("status")
+
+                    # Phase 1: Bidding
+                    if status == "bidding_open":
+                        health_score = await guard.get_health_score()
+                        expertise_score = 0.5
+                        if any(kw in task_goal["goal"].lower() for kw in ["security", "audit", "fix"]):
+                            if expert_name in ("Роман", "Игорь"): expertise_score = 0.9
+                        
+                        bid_score = (expertise_score * 0.6) + (health_score * 0.4)
+                        await blackboard.post_bid(task_id, expert_name, bid_score)
+                        await asyncio.sleep(3)
+                        winner = await blackboard.resolve_auction(task_id)
+                        if winner == expert_name:
+                            logger.error(f"🏆 [AUCTION] {expert_name} WON task {task_id}")
+                            payload = {
+                                "task_id": task_id,
+                                "expert_name": expert_name,
+                                "description": task_goal["goal"],
+                                "metadata": {**task_goal["metadata"], "source": "blackboard_auction"}
+                            }
+                            asyncio.create_task(process_task(payload))
+
+                    # Phase 2: Legacy Claim
+                    elif status == "unclaimed":
+                        if await blackboard.claim_task(task_id, expert_name):
+                            logger.error(f"🤝 [AUTONOMY] {expert_name} self-assigned task {task_id} from Blackboard")
+                            payload = {
+                                "task_id": task_goal["task_id"],
+                                "expert_name": expert_name,
+                                "description": task_goal["goal"],
+                                "metadata": {**task_goal["metadata"], "source": "blackboard_autonomy"}
+                            }
+                            asyncio.create_task(process_task(payload))
+                
+                await asyncio.sleep(10)
+        except Exception as e:
+            logger.error(f"❌ [AUTONOMY] Blackboard monitor failed: {e}")
+
+    # Start the monitor
+    asyncio.create_task(monitor_blackboard_tasks())
 
     # Создаем группу потребителей, если её нет
     try:

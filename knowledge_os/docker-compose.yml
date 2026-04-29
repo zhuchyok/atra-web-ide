@@ -157,8 +157,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 8g
+          cpus: '4'
+          memory: 12g
+        reservations:
+          memory: 2g
     oom_kill_disable: false
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -413,7 +415,7 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
-    container_name: expert-worker-heavy
+    # container_name: expert-worker-heavy
     restart: always
     deploy:
       resources:
@@ -425,6 +427,7 @@ services:
       - atra-network
     environment:
       TZ: Europe/Moscow
+      EXPERT_NAME: "Роман"
       PYTHONPATH: /app:/app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
@@ -812,8 +815,8 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_orchestrator
     restart: unless-stopped
-    mem_limit: 6g
-    mem_reservation: 2g
+    mem_limit: 8g
+    mem_reservation: 4g
     networks:
       - atra-network
     environment:

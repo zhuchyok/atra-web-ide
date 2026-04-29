@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "atra": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ATRA Swarm",
+      "options": {
+        "baseURL": "http://127.0.0.1:8040/v1",
+        "apiKey": "sk-atra-swarm"
+      },
+      "models": {
+        "discuss": {
+          "name": "ATRA Expert Discussion"
+        },
+        "victoria-wisdom-v3.5": {
+          "name": "Victoria Wisdom"
+        }
+      }
+    }
+  }
+}

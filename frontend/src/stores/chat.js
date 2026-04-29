@@ -76,7 +76,7 @@ export function clearMessages() {
 export async function loadExperts() {
   try {
     // Используем порт 8080 для FastAPI Backend
-    const response = await fetch(`http://${window.location.hostname}:8080/api/experts`)
+    const response = await fetch(`/api/experts`)
     if (response.ok) {
       const data = await response.json()
       experts.set(data)
@@ -129,7 +129,7 @@ export async function sendMessage(content, mode = null) {
     // Проверяем запрос на диалог экспертов
     if (isExpertDialogueRequest(content)) {
       const dialogueMode = detectDialogueMode(content)
-      await fetchSSE(`http://${window.location.hostname}:8080/api/expert-dialogue/stream`, {
+      await fetchSSE(`/api/expert-dialogue/stream`, {
         topic: content,
         mode: dialogueMode,
         beautiful_mode: true
@@ -154,7 +154,7 @@ export async function sendMessage(content, mode = null) {
       })
     } else {
       // Обычный чат с Victoria
-      await fetchSSE(`http://${window.location.hostname}:8080/api/chat/stream`, {
+      await fetchSSE(`/api/chat/stream`, {
         content: content,
         expert_name: expertValue?.name,
         mode: modeValue

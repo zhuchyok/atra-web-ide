@@ -9,12 +9,13 @@ export default defineConfig({
     globals: true,
   },
   server: {
-    host: "0.0.0.0", // Доступен из сети
+    host: "0.0.0.0",
     port: 3000,
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8010",
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },

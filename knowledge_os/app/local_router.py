@@ -897,10 +897,13 @@ class LocalAIRouter:
             tuple: (response, routing_source)
         """
         # [OMNI-RAG v3] Автоматическое обогащение визуальным контекстом
+        # [SINGULARITY 29.5] Skip visual enrichment for reasoning/discovery sub-tasks to prevent loops
         prompt_lower = prompt.lower()
-        if "#multimodal" in prompt_lower or any(
+        is_subtask = category in ["reasoning", "discovery", "internal"] or "#internal" in prompt_lower
+        
+        if not is_subtask and ("#multimodal" in prompt_lower or any(
             kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]
-        ):
+        )):
             visual_results = await self.search_visual_context(prompt)
             if visual_results:
                 visual_block = "\n\n🖼️ [VISUAL CONTEXT]:\n"
@@ -944,14 +947,33 @@ class LocalAIRouter:
         # Модель: параметр вызова, или _preferred_model от воркера (батчи по модели — меньше load/unload)
         initial_model = model or getattr(self, "_preferred_model", None)
 
-        # [SINGULARITY 28.0] Dynamic Model Tiering: Downgrades model if RAM is low.
+        # [SINGULARITY 29.6] Dynamic Model Tiering: Downgrades model if RAM is low.
         # [SINGULARITY 28.1] Quality Guard: Only downgrade for dialogue/fast tasks.
         # For expert/heavy tasks, we wait for memory instead of sacrificing quality.
         try:
             res = await self._get_system_resources()
             avail_gb = res.get("ram", {}).get("available_gb", 100)
             is_dialogue = category == "chat" or (isinstance(prompt, str) and "#chat" in prompt.lower())
+            is_rd = category == "r&d_optimization" or (isinstance(prompt, str) and "#rd" in prompt.lower())
             
+            # [SINGULARITY 29.6] Aggressive Memory Guard for R&D
+            if is_rd and avail_gb < 12:
+                logger.info(f"🧠 [R&D MEMORY GUARD] RAM low ({avail_gb:.1f}GB). Performing aggressive model cleanup...")
+                if self._memory_manager:
+                    await self._memory_manager.cleanup_unused_models()
+                    # Force Ollama to unload all models to free up VRAM/RAM
+                    try:
+                        async with httpx.AsyncClient(timeout=10.0) as client:
+                            # Ollama /api/tags doesn't unload, but loading a non-existent model or 
+                            # sending a request with keep_alive=0 might help.
+                            # Best way is to use the internal memory manager if it supports it.
+                            pass 
+                    except: pass
+                    await asyncio.sleep(5)
+                    res = await self._get_system_resources()
+                    avail_gb = res.get("ram", {}).get("available_gb", 100)
+                    logger.info(f"🛡️ [R&D MEMORY GUARD] RAM after cleanup: {avail_gb:.1f}GB")
+
             if avail_gb < 8:
                 if is_dialogue:
                     # For chat, speed is priority, so we downgrade

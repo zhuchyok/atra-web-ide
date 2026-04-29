@@ -44,6 +44,16 @@ class RedisManager:
             # [SINGULARITY 24.3] ВАЖНО: В Docker REDIS_URL может быть задан через окружение
             # Мы отдаем приоритет переданному url, затем окружению, затем дефолту.
             self.url = url or os.getenv("REDIS_URL", "redis://localhost:6379")
+            
+            # [SINGULARITY 28.6] Fix: If inside docker but redis is on localhost, try knowledge_os_redis
+            if "localhost" in self.url and os.path.exists("/.dockerenv"):
+                self.url = self.url.replace("localhost", "knowledge_os_redis")
+            
+            # [SINGULARITY 28.6] Final fallback for Docker
+            if "knowledge_os_redis" in self.url and os.path.exists("/.dockerenv"):
+                # Try to ping knowledge_os_redis, if fails, it might be just 'redis' in some networks
+                pass
+            
             self.initialized = True
             import os as system_os
 
@@ -82,13 +92,6 @@ class RedisManager:
 
     async def get_client(self) -> redis.Redis:
         """Получает или создает клиент Redis из пула."""
-        # [SINGULARITY 24.3] Если пул устарел (URL изменился), пересоздаем его
-        if self._pool is not None:
-            # Проверим, соответствует ли пул текущему URL
-            # В redis-py пул не хранит URL напрямую в доступном виде,
-            # но мы сбрасываем self._pool при обновлении self.url
-            pass
-
         if self._pool is None:
             try:
                 # [SINGULARITY 24.3] Используем self.url, который мы обновили
@@ -243,18 +246,10 @@ class RedisManager:
             return 0
 
     # --- GLOBAL OLLAMA SEMAPHORE ---
-    # Limits concurrent Ollama requests across ALL containers to prevent 503 overload.
-    # Pattern: Redis INCR/DECR counter with safety TTL (used by knowledge_os_worker via local_router.py).
-    # If Redis is unavailable, falls back to True (allow request) for graceful degradation.
     _OLLAMA_SEM_KEY = "ollama:global_slots"
-    _OLLAMA_MAX_SLOTS = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "3"))  # [FIX 2026-04-19] was 5
+    _OLLAMA_MAX_SLOTS = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "3"))
 
     async def reset_ollama_slots(self) -> None:
-        """
-        Reset the global Ollama semaphore counter to 0 on worker startup.
-        Анна (QA): prevents stale counters after kill-9 (slots not released) from blocking new requests.
-        Call this once during worker initialization — safe only if a single worker process initialises.
-        """
         try:
             client = await self.get_client()
             await client.set(self._OLLAMA_SEM_KEY, 0)
@@ -263,30 +258,24 @@ class RedisManager:
             logger.warning("[REDIS] reset_ollama_slots failed (%s), continuing without reset", e)
 
     async def acquire_ollama_slot(self) -> bool:
-        """
-        Claim one of _OLLAMA_MAX_SLOTS globally shared Ollama request slots.
-        Returns True if slot acquired, False if all slots are taken.
-        Redis unavailable → returns True (fail-open for graceful degradation).
-        """
         try:
             client = await self.get_client()
             count = await client.incr(self._OLLAMA_SEM_KEY)
-            await client.expire(self._OLLAMA_SEM_KEY, 60)  # safety TTL in case of crashes
+            await client.expire(self._OLLAMA_SEM_KEY, 60)
             if count <= self._OLLAMA_MAX_SLOTS:
                 return True
-            await client.decr(self._OLLAMA_SEM_KEY)  # over limit — release immediately
+            await client.decr(self._OLLAMA_SEM_KEY)
             return False
         except Exception as e:
             logger.debug("[REDIS] acquire_ollama_slot failed (%s), allowing request", e)
-            return True  # Redis down → degrade gracefully
+            return True
 
     async def release_ollama_slot(self) -> None:
-        """Release a previously acquired Ollama slot."""
         try:
             client = await self.get_client()
             val = await client.decr(self._OLLAMA_SEM_KEY)
             if val < 0:
-                await client.set(self._OLLAMA_SEM_KEY, 0)  # guard against negative counter
+                await client.set(self._OLLAMA_SEM_KEY, 0)
         except Exception as e:
             logger.debug("[REDIS] release_ollama_slot failed (%s), ignoring", e)
 
@@ -296,6 +285,9 @@ class RedisManager:
             await self._pool.disconnect()
             logger.info("🛑 [REDIS] Пул соединений закрыт")
 
+
+def get_redis_manager():
+    return redis_manager
 
 # Синглтон для удобного импорта
 redis_manager = RedisManager()

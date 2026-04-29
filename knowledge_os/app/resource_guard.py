@@ -24,29 +24,43 @@ class ResourceGuard:
         Check if an autonomous/background task can be started.
         Returns: (can_start, reason)
         """
-        # 1. Check RAM
+        score = await self.get_health_score()
+        if score < 0.2:
+            return False, f"System health too low: {score:.2f}"
+        return True, "System healthy"
+
+    async def get_health_score(self) -> float:
+        """
+        Returns a normalized health score (0.0 to 1.0).
+        1.0 = Perfect health (idle)
+        0.0 = Critical load (throttling required)
+        """
+        # 1. RAM Score
         ram = psutil.virtual_memory()
-        if ram.percent > self.ram_threshold:
-            return False, f"RAM usage too high: {ram.percent}% > {self.ram_threshold}%"
+        ram_headroom = max(0.0, self.ram_threshold - ram.percent)
+        ram_score = ram_headroom / self.ram_threshold
 
-        # 2. Check CPU (short interval check)
-        cpu_pct = psutil.cpu_percent(interval=0.5)
-        if cpu_pct > self.cpu_threshold:
-            return False, f"CPU usage too high: {cpu_pct}% > {self.cpu_threshold}%"
+        # 2. CPU Score
+        cpu_pct = psutil.cpu_percent(interval=0.1)
+        cpu_headroom = max(0.0, self.cpu_threshold - cpu_pct)
+        cpu_score = cpu_headroom / self.cpu_threshold
 
-        # 3. Check Thermal Level (macOS only)
+        # 3. Thermal Score (macOS only)
+        thermal_score = 1.0
         if os.uname().sysname == "Darwin":
             try:
                 from app.mac_studio_monitor import get_mac_studio_monitor
                 monitor = get_mac_studio_monitor()
                 stats = await monitor.get_full_stats()
                 thermal_level = int(stats.get("hardware", {}).get("temperature", {}).get("thermal_level", "0"))
-                if thermal_level >= self.thermal_threshold:
-                    return False, f"Thermal level critical: {thermal_level} >= {self.thermal_threshold}"
-            except Exception as e:
-                logger.debug(f"Thermal check failed: {e}")
+                # thermal_level: 0=nominal, 1=fair, 2=serious, 3=critical
+                thermal_score = max(0.0, 1.0 - (thermal_level / 3.0))
+            except Exception:
+                pass
 
-        return True, "System healthy"
+        # Weighted average: RAM (40%), CPU (40%), Thermal (20%)
+        final_score = (ram_score * 0.4) + (cpu_score * 0.4) + (thermal_score * 0.2)
+        return round(max(0.0, min(1.0, final_score)), 2)
 
 _guard = None
 

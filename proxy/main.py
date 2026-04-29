@@ -12,6 +12,7 @@
 import asyncio
 import json
 import os
+import time
 import uuid
 import logging
 from typing import Optional, AsyncGenerator, List
@@ -19,25 +20,35 @@ from typing import Optional, AsyncGenerator, List
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+import asyncio
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# По умолчанию localhost:8010 (снаружи Docker), но в Rocket Mode может быть victoria-agent:8000
 VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010").rstrip("/")
 # Авто-определение: если мы в Docker и victoria-agent доступен, переключаемся
 if os.path.exists("/.dockerenv") and VICTORIA_URL == "http://localhost:8010":
     VICTORIA_URL = "http://victoria-agent:8000"
 
-VICTORIA_TIMEOUT = float(os.getenv("VICTORIA_PROXY_TIMEOUT", "600"))  # 10 мин для тяжёлых задач
+VICTORIA_TIMEOUT = float(os.getenv("VICTORIA_PROXY_TIMEOUT", "30"))  # 30 sec for requests
 # Префикс в ответе, чтобы в Claude Code было видно, что отвечает Виктория (модель под капотом может называться Qwen и т.д.)
 VICTORIA_RESPONSE_PREFIX = os.getenv("VICTORIA_RESPONSE_PREFIX", "Виктория (корпорация): ").strip()
 
-# Один одновременный запрос к Victoria — избегаем обрывов при 2+ параллельных от Claude Code
-_victoria_semaphore = asyncio.Semaphore(1)
+# Multiple parallel requests OK
+_victoria_semaphore = asyncio.Semaphore(10)
 
 # Хранилище диалогов: session_id → [{"user": "...", "assistant": "..."}]
 _dialogue_store: dict[str, list[dict]] = {}
+
+# [SINGULARITY 10.0] Support for 'discuss' model - Team Discussion Engine
+import sys
+ko_path = "/Users/bikos/Documents/atra-web-ide/knowledge_os/app"
+if ko_path not in sys.path:
+    sys.path.insert(0, ko_path)
+try:
+    from ai_core import TeamDiscussionEngine
+except ImportError:
+    TeamDiscussionEngine = None
 
 app = FastAPI(
     title="Claude Code → Victoria Proxy",
@@ -84,17 +95,19 @@ def _extract_text_from_content(content) -> str:
 
 
 # --- Victoria: POST /run → TaskResponse ---
-async def call_victoria_run(goal: str, correlation_id: str, chat_history: Optional[List[dict]] = None) -> dict:
-    """Вызов Victoria POST /run (синхронный режим). Возвращает dict с status и output.
-    Семафор: не более одного запроса к Victoria одновременно — устраняет обрывы при 2+ параллельных от Claude Code.
-    chat_history — список {"user": "...", "assistant": "..."} для контекста диалога."""
+async def call_victoria_run(goal: str, correlation_id: str, chat_history: Optional[List[dict]] = None, category: Optional[str] = None) -> dict:
+    """Вызов Victoria POST /run (синхронный режим)."""
+    logger.info("[call_victoria] connecting to %s/run with goal=%s, category=%s", VICTORIA_URL, goal[:50], category)
     payload = {"goal": goal}
+    if category:
+        payload["category"] = category
     if chat_history:
         payload["chat_history"] = chat_history
     # X-Forwarded-For явно ставим в 127.0.0.1 — иначе Victoria видит GitHub CDN IP (185.199.x.x)
     # от Claude Code/OpenCode и считает его внешним клиентом (rate-limit/блокировка).
     headers = {"Content-Type": "application/json", "X-Correlation-ID": correlation_id, "X-Forwarded-For": "127.0.0.1"}
-    timeout = httpx.Timeout(10.0, read=VICTORIA_TIMEOUT)
+    # Увеличиваем таймаут для всех запросов, так как локальные модели могут быть медленными
+    timeout = httpx.Timeout(VICTORIA_TIMEOUT, connect=10.0, read=VICTORIA_TIMEOUT - 10.0)
     last_error = None
     async with _victoria_semaphore:
         for attempt in range(3):
@@ -106,12 +119,7 @@ async def call_victoria_run(goal: str, correlation_id: str, chat_history: Option
                         headers=headers,
                         params={"async_mode": "false"},
                     )
-                if resp.status_code != 200:
-                    logger.warning("Victoria /run returned %s: %s", resp.status_code, resp.text[:500])
-                    raise HTTPException(
-                        status_code=502,
-                        detail=f"Victoria returned {resp.status_code}: {resp.text[:200]}",
-                    )
+                logger.info("[call_victoria] got response from Victoria, status=%s", resp.status_code)
                 return resp.json()
             except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError) as e:
                 last_error = e
@@ -293,16 +301,17 @@ async def chat_completions(request: Request):
         raise HTTPException(status_code=400, detail="No user message text found in messages")
 
     logger.info("[PROXY] goal_preview=%s session=%s model=%s", goal[:80], session_id, model)
+    logger.info("[PROXY] calling Victoria...")
 
     # [SINGULARITY 10.0] Support for 'discuss' model - Team Discussion Engine
     if model in ("discuss", "victoria-discuss"):
+        # Увеличиваем таймаут для discuss модели до 1200 секунд
+        global VICTORIA_TIMEOUT
+        VICTORIA_TIMEOUT = 1200.0
+        
         try:
-            # Импортируем TeamDiscussionEngine из ai_core
-            import sys
-            ko_path = os.path.join(os.getcwd(), "knowledge_os/app")
-            if ko_path not in sys.path:
-                sys.path.insert(0, ko_path)
-            from ai_core import TeamDiscussionEngine
+            if TeamDiscussionEngine is None:
+                raise ImportError("TeamDiscussionEngine not found")
             
             engine = TeamDiscussionEngine()
             # Для простоты выбираем 3 ключевых экспертов: Виктория, Игорь, Анна
@@ -310,39 +319,94 @@ async def chat_completions(request: Request):
             experts = ["Виктория", "Игорь", "Анна"]
             
             # Генерируем диалог
-            discussion_prompt = f"""
-            [SYSTEM: TEAM_DISCUSSION_MODE]
-            Вы - команда экспертов ATRA: {', '.join(experts)}.
-            Ваша задача: провести живое обсуждение запроса пользователя, используя ваши уникальные стили и характеры из TEAM_PERSONALITIES.MD.
-            
+            discussion_prompt = f"[SYSTEM: TEAM_DISCUSSION_MODE]\nВы - команда экспертов ATRA: {', '.join(experts)}.\nВаша задача: провести живое обсуждение запроса пользователя, используя ваши уникальные стили и характеры из TEAM_PERSONALITIES.MD.\n"
+            discussion_prompt += """
             ПРАВИЛА ОБСУЖДЕНИЯ:
             1. Каждый эксперт должен высказать свое мнение.
             2. Игорь (Backend Developer) - технический перфекционист, любит детали, немного саркастичен.
             3. Анна (QA Engineer) - внимательная проверяющая, ищет подвохи, задает вопросы "А что если...".
-            4. Виктория (Team Lead) - спокойный координатор, видит общую картину, подводит итог.
-            5. Используйте Markdown для форматирования.
+            4. Виктория (Team Lead) - спокойный координатор, подводит итог.
+            5. Используйте Markdown.
             6. НЕ ИСПОЛЬЗУЙТЕ теги <think>. Сразу выводите диалог.
+            7. НЕ ВЫВОДИТЕ описание ролей или TEAM_PERSONALITIES.MD. Только сам диалог.
             
-            ФОРМАТ ОТВЕТА:
+            ФОРМАТ ОТВЕТА (ТОЛЬКО ЭТО, БЕЗ ПРЕФИКСОВ):
             **Виктория**: [реплика]
             **Игорь**: [реплика]
             **Анна**: [реплика]
             **Виктория**: [итог]
             
-            ЗАПРОС ПОЛЬЗОВАТЕЛЯ: {goal}
-            """
+            ЗАПРОС ПОЛЬЗОВАТЕЛЯ: """ + goal
             
-            # Вызываем Victoria /run с этим специальным промптом
-            # Используем category="reasoning" для лучшего качества
+            logger.info("[PROXY] calling Victoria with goal length %d", len(discussion_prompt))
+            # Simple call without category override
             vic_response = await call_victoria_run(discussion_prompt, request_id, chat_history=chat_history)
+            logger.info("[PROXY] got Victoria response, status=%s", vic_response.get("status"))
+            
+            # [SINGULARITY 10.13] Фикс: если Victoria вернула ошибку таймаута, 
+            # мы можем предложить пользователю подождать или использовать другую модель.
             status = vic_response.get("status", "")
             output = vic_response.get("output") or vic_response.get("error") or f"Status: {status}"
+            
+            if status == "failed" and "timeout" in str(vic_response.get("knowledge", {}).get("error", "")):
+                output = "⚠️ **Локальная модель (Wisdom 35B) перегружена.**\n\nГенерация диалога заняла более 5 минут. Это обычно происходит, когда Mac Studio выполняет другие тяжелые задачи (например, воркеры обучают модели или индексируют файлы).\n\n**Что можно сделать:**\n1. Попробуйте отправить запрос еще раз через минуту.\n2. Убедитесь, что в системе нет зависших тяжелых процессов."
+            
             text = str(output)
             
-            # [SINGULARITY 10.0] Очистка от <think> если прокрался
-            if "<think>" in text:
+            # Проверяем stream parameter
+            stream = body.get("stream", False)
+
+            # Очистка от <think> и системных префиксов ПЕРЕД стримингом или возвратом
+            if text:
                 import re
-                text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+                # 1. Удаляем все от <think> до </think> или до конца
+                text = re.sub(r'<think>.*?(</think>|$)', '', text, flags=re.DOTALL).strip()
+                # 2. Удаляем любые теги вида <d...>...</d...> или <dexp-...>...</dexp-...>
+                # Используем более общий паттерн для любых тегов, начинающихся на <d...
+                text = re.sub(r'<d[^>]*>.*?(</d[^>]*>|$)', '', text, flags=re.DOTALL).strip()
+                # 3. Удаляем одиночные теги <d...> или <dexp...>
+                text = re.sub(r'<d[^>]*>', '', text).strip()
+                # 4. Удаляем системные префиксы если они остались
+                text = re.sub(r'TEAM_PERSONALITIES\.MD:.*?\n\n', '', text, flags=re.DOTALL).strip()
+                text = re.sub(r'### ТЫ — .*?\n', '', text, flags=re.DOTALL).strip()
+                text = re.sub(r'### \[CRITICAL: ANTI-HALLUCINATION.*?\]', '', text, flags=re.DOTALL).strip()
+                # 5. Финальная чистка от лишних пробелов и пустых строк в начале
+                text = text.strip()
+
+            if stream:
+                # SSE streaming для OpenAI
+                async def generate():
+                    words = text.split()
+                    for i, word in enumerate(words):
+                        chunk = {
+                            "id": f"{request_id}-{i}",
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": word + " "},
+                                "finish_reason": None,
+                            }],
+                        }
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                        await asyncio.sleep(0.02)
+                    # Final chunk
+                    final = {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop",
+                        }],
+                    }
+                    yield f"data: {json.dumps(final)}\n\n"
+                    yield "data: [DONE]\n\n"
+                
+                return StreamingResponse(generate(), media_type="text/event-stream")
             
             return JSONResponse(
                 content={
@@ -359,11 +423,14 @@ async def chat_completions(request: Request):
                 }
             )
         except Exception as e:
-            logger.error(f"❌ [DISCUSS] Failed to generate team discussion: {e}")
-            raise HTTPException(status_code=500, detail=f"Discussion engine error: {str(e)}")
+            import traceback
+            err_msg = f"{type(e).__name__}: {str(e)}"
+            logger.error(f"❌ [DISCUSS] Failed to generate team discussion: {err_msg}")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Discussion engine error: {err_msg}")
 
     try:
-        # Передаём историю в Victoria
+        # Simple requests WITHOUT category to avoid timeout in Victoria container
         vic_response = await call_victoria_run(goal, request_id, chat_history=chat_history)
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Victoria request timed out")

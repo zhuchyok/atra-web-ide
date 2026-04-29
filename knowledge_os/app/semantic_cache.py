@@ -151,14 +151,28 @@ STRATEGIC_KEYWORDS = [
 async def get_embedding(text: str) -> Optional[list]:
     """
     Get embedding from Ollama. Uses shared HTTP client (connection reuse).
-    [SINGULARITY 24.3] Внедрен Request Collapsing (DataLoader pattern):
-    идентичные конкурентные запросы группируются, чтобы не перегружать GPU.
+    [SINGULARITY 24.3] Внедрен Request Collapsing (DataLoader pattern).
+    [SINGULARITY 29.7] Redis Embedding Cache: Latency Shield.
     """
     if not text:
         return None
 
     # Генерируем ключ для группировки (хэш текста)
     text_hash = hashlib.md5(text.encode()).hexdigest()
+
+    # [SINGULARITY 29.7] Redis Cache Check
+    from app.redis_manager import get_redis_manager
+    redis = get_redis_manager()
+    cache_key = f"embedding_cache:{OLLAMA_MODEL}:{text_hash}"
+    
+    try:
+        client = await redis.get_client()
+        cached_val = await client.get(cache_key)
+        if cached_val:
+            logger.debug(f"⚡ [CACHE HIT] Embedding found in Redis: {text_hash}")
+            return json.loads(cached_val)
+    except Exception as re:
+        logger.debug(f"⚠️ [CACHE MISS] Redis error: {re}")
 
     async with _embedding_lock:
         if text_hash in _inflight_embeddings:
@@ -180,6 +194,14 @@ async def get_embedding(text: str) -> Optional[list]:
                 res = await _ollama_breaker.call(_execute_embedding_request, text)
             else:
                 res = await _execute_embedding_request(text)
+            
+            # [SINGULARITY 29.7] Save to Redis Cache
+            if res:
+                try:
+                    await client.set(cache_key, json.dumps(res), ex=86400) # 24h TTL
+                    logger.debug(f"💾 [CACHE SAVE] Embedding stored in Redis: {text_hash}")
+                except: pass
+                
             future.set_result(res)
             return res
     except CircuitBreakerOpenError:

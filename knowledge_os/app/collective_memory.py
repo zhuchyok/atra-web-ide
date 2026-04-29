@@ -83,6 +83,47 @@ class CollectiveMemorySystem:
         self.traces: Dict[str, List[EnvironmentalTrace]] = {}  # location -> traces
         self.agent_memories: Dict[str, CollectiveMemory] = {}
         self.decay_rate = 0.1  # Скорость убывания силы следов
+        
+        # [SINGULARITY 28.7] Start background cleanup
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.cleanup_decayed_traces_loop())
+        except RuntimeError:
+            pass
+
+    async def cleanup_decayed_traces_loop(self):
+        """Фоновый цикл очистки устаревших следов (каждый час)."""
+        while True:
+            await asyncio.sleep(3600)
+            await self.cleanup_decayed_traces()
+
+    async def cleanup_decayed_traces(self):
+        """Применить decay ко всем следам в БД и удалить 'испарившиеся'."""
+        logger.info("🧹 [STIGMERGY] Starting temporal decay cleanup...")
+        try:
+            try:
+                from db_pool import get_pool
+            except ImportError:
+                from app.db_pool import get_pool
+
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                # 1. Применяем экспоненциальный распад: strength = strength * exp(-decay_rate * hours)
+                # Для простоты в SQL: strength = strength * (1 - decay_rate) ^ (hours_passed)
+                await conn.execute("""
+                    UPDATE environmental_traces
+                    SET strength = strength * power(1.0 - $1, EXTRACT(EPOCH FROM (NOW() - timestamp)) / 3600)
+                    WHERE strength > 0;
+                """, self.decay_rate)
+
+                # 2. Удаляем следы, которые стали слишком слабыми (< 0.1)
+                deleted = await conn.execute("""
+                    DELETE FROM environmental_traces
+                    WHERE strength < 0.1;
+                """)
+                logger.info(f"✅ [STIGMERGY] Cleanup finished. {deleted} traces evaporated.")
+        except Exception as e:
+            logger.warning(f"⚠️ [STIGMERGY] Cleanup failed: {e}")
 
     async def record_action(
         self, agent_name: str, action: str, result: Any, location: str, metadata: Dict = None

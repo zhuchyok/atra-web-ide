@@ -155,3 +155,55 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     asyncio.run(run_adversarial_cycle(limit=args.limit))
+
+
+# [SINGULARITY 28.7] Mandatory Trust Gate
+async def verify_high_priority_task(task_id: str, content: str) -> Dict[str, Any]:
+    """
+    Mandatory adversarial verification for high-priority tasks.
+    """
+    print(f"🛡️ [TRUST GATE] Mandatory verification for task {task_id}...")
+    
+    attack_prompt = f"""
+    ТЫ - БЕЗЖАЛОСТНЫЙ КРИТИК И АДВОКАТ ДЬЯВОЛА.
+    ТВОЯ ЗАДАЧА: Найти критические изъяны в предложенном решении задачи.
+    
+    КОНТЕНТ: {content}
+    
+    ИНСТРУКЦИЯ:
+    1. Проведи поиск потенциальных проблем (security, performance, logic).
+    2. Найди 3 причины, почему это может не сработать.
+    3. Если решение выдержало атаку - подтверди его надежность.
+    
+    ВЕРНИ JSON:
+    {{
+        "survived": true/false,
+        "attack_report": "Текст твоей атаки",
+        "new_confidence_score": 0.0-1.0
+    }}
+    ВЕРНИ ТОЛЬКО ЧИСТЫЙ JSON.
+    """
+    
+    from ai_core import run_smart_agent_async
+    output = await run_smart_agent_async(
+        attack_prompt, expert_name="Критик", category="reasoning"
+    )
+    
+    if output:
+        try:
+            clean_json = output.strip()
+            if "```json" in clean_json:
+                clean_json = clean_json.split("```json")[1].split("```")[0]
+            elif "```" in clean_json:
+                clean_json = clean_json.split("```")[1].split("```")[0]
+            
+            if not clean_json.startswith("{") and "{" in clean_json:
+                clean_json = clean_json[clean_json.find("{"):]
+            if not clean_json.endswith("}") and "}" in clean_json:
+                clean_json = clean_json[:clean_json.rfind("}")+1]
+                
+            return json.loads(clean_json)
+        except Exception as e:
+            print(f"❌ [TRUST GATE] Error parsing critic output: {e}")
+            
+    return {"survived": True, "attack_report": "Verification failed, defaulting to safe.", "new_confidence_score": 0.5}

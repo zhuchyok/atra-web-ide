@@ -1214,6 +1214,28 @@ async def run_enhanced_orchestration_cycle():
                         continue
 
                     goal = f"{task['title']}\n\n{task['description'] or ''}"
+                    
+                    # [SINGULARITY 28.6] Decentralized Market: Post to Blackboard first
+                    try:
+                        from services.blackboard_service import get_blackboard_service
+                        blackboard = get_blackboard_service()
+                        await blackboard.post_goal(
+                            str(task['id']), 
+                            goal, 
+                            {
+                                "priority": task['priority'],
+                                "domain_id": str(task['domain_id']) if task['domain_id'] else None,
+                                "project_context": task.get('project_context'),
+                                "is_market_task": True
+                            }
+                        )
+                        logger.info(f"🏛️ [MARKET] Goal {task['id']} posted to Blackboard for self-organization.")
+                        # Мы НЕ вызываем _decompose_via_victoria сразу. 
+                        # Даем экспертам 60 секунд на самоорганизацию.
+                        continue 
+                    except Exception as market_err:
+                        logger.warning(f"⚠️ [MARKET] Failed to post to Blackboard: {market_err}")
+
                     struct = await _decompose_via_victoria(goal)
                     if struct and struct.get("subtasks"):
                         subtasks = struct["subtasks"]

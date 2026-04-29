@@ -263,13 +263,13 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
         word in content_lower
         for word in ["стратег", "корпорац", "совет", "директор", "иван", "ceo"]
     ):
-        return "victoria-wisdom-v3.5"
+        return "victoria-wisdom-v3.5:latest"
 
     if any(
         word in content_lower
         for word in ["подумай", "логика", "планир", "reasoning", "анализ", "объясни", "почему"]
     ):
-        return "victoria-wisdom-v3.5"
+        return "victoria-wisdom-v3.5:latest"
 
     if any(
         word in content_lower
@@ -285,15 +285,15 @@ def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> s
             "алгоритм",
         ]
     ):
-        return "victoria-wisdom-v3.5"
+        return "victoria-wisdom-v3.5:latest"
 
     if len(content) > 500:
-        return "victoria-wisdom-v3.5"
+        return "victoria-wisdom-v3.5:latest"
 
     if len(content) < 200:
         return "tinyllama:1.1b-chat"  # Быстрая модель для коротких вопросов
 
-    return "victoria-wisdom-v3.5"
+    return "victoria-wisdom-v3.5:latest"
 
 
 # Загружаем .env при старте
@@ -1302,31 +1302,41 @@ class VictoriaAgent(BaseAgent):
             )
 
     async def _get_db_pool(self):
-        """Получить или создать pool соединений с Knowledge OS"""
+        """Получить или создать pool соединений с Knowledge OS с retry"""
         if not USE_KNOWLEDGE_OS or not KNOWLEDGE_OS_AVAILABLE:
             return None
 
         if self.db_pool is None:
-            try:
-                db_url = os.getenv(
-                    "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
-                )
-                _pool_cmd_timeout = int(os.getenv("VICTORIA_DB_POOL_COMMAND_TIMEOUT", "25"))
-                if asyncpg:
-                    self.db_pool = await asyncpg.create_pool(
-                        db_url,
-                        min_size=1,
-                        max_size=5,
-                        command_timeout=_pool_cmd_timeout,
-                        ssl=False,
-                    )
-                else:
-                    logger.error("❌ asyncpg не загружен, невозможно создать pool")
-                    return None
-                logger.info("✅ Knowledge OS Database pool создан")
-            except Exception as e:
-                logger.error(f"❌ Ошибка создания pool Knowledge OS: {e}")
-                self.db_pool = None
+            db_url = os.getenv(
+                "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+            )
+            _pool_cmd_timeout = int(os.getenv("VICTORIA_DB_POOL_COMMAND_TIMEOUT", "25"))
+            
+            for attempt in range(3):
+                try:
+                    if asyncpg:
+                        self.db_pool = await asyncio.wait_for(
+                            asyncpg.create_pool(
+                                db_url,
+                                min_size=1,
+                                max_size=5,
+                                command_timeout=_pool_cmd_timeout,
+                                ssl=False,
+                            ),
+                            timeout=10.0
+                        )
+                    else:
+                        logger.error("❌ asyncpg не загружен, невозможно создать pool")
+                        return None
+                    logger.info("✅ Knowledge OS Database pool создан")
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        logger.warning(f"⚠️ Попытка {attempt+1}/3 создания pool: {e}")
+                        await asyncio.sleep(2)
+                    else:
+                        logger.error(f"❌ Ошибка создания pool Knowledge OS: {e}")
+                        self.db_pool = None
 
         return self.db_pool
 
@@ -3888,6 +3898,10 @@ class TaskRequest(BaseModel):
     workspace_path: Optional[str] = (
         None  # Путь к workspace (для относительных путей): "/Users/bikos/Documents/atra-web-ide"
     )
+    category: Optional[str] = None  # [SINGULARITY 10.0] Категория задачи (reasoning, coding, etc.)
+    stream: Optional[bool] = (
+        False  # True = возвращать SSE stream (Server-Sent Events)
+    )
 
 
 class TaskResponse(BaseModel):
@@ -5082,6 +5096,8 @@ async def _generate_via_mlx_or_ollama(
     ideal_model: str,
     system: str = "Ты - полезный ИИ-ассистент корпорации ATRA. Отвечай кратко на русском.",
     max_retries: int = 1,
+    raw_response: bool = False,
+    stop: Optional[List[str]] = None,
 ) -> tuple:
     """Цепочка выбора: MLX → Ollama. Возвращает (content, source) или (None, None).
 
@@ -5090,47 +5106,102 @@ async def _generate_via_mlx_or_ollama(
     import asyncio
 
     # 1) MLX с retry
-    for attempt in range(max_retries):
-        try:
-            mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(
-                agent.executor, "mlx_url", None
-            )
-            if mlx_url:
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    r = await client.post(
-                        f"{mlx_url}/api/chat",
-                        json={
+    # [SINGULARITY 10.7] Фикс: если модель содержит 'latest' или '35b', пропускаем MLX (он для легких моделей)
+    # [SINGULARITY 10.18] ДИАГНОСТИКА: Логируем попытку вызова MLX
+    # [SINGULARITY 10.25] ФИКС: Разрешаем MLX для тяжелых моделей, если они там есть (MLX на Mac Studio стабильнее)
+    is_heavy_model = any(kw in ideal_model.lower() for kw in ["32b", "30b"]) # Оставляем только реально тяжелые для MLX
+    # victoria-wisdom-v3.5 (35b MoE) в MLX работает отлично на 128GB RAM
+    logger.info("[MLX_DEBUG] Model: %s, is_heavy: %s", ideal_model, is_heavy_model)
+    
+    if True: # Всегда пробуем MLX первым, если он доступен
+        for attempt in range(max_retries):
+            try:
+                mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(
+                    agent.executor, "mlx_url", None
+                )
+                logger.info("[MLX_DEBUG] Attempt %d, URL: %s", attempt, mlx_url)
+                if mlx_url:
+                    async with httpx.AsyncClient(timeout=300.0) as client:
+                        payload = {
                             "model": ideal_model,
                             "messages": [
                                 {"role": "system", "content": system},
                                 {"role": "user", "content": full_prompt},
                             ],
                             "stream": False,
-                        },
-                    )
-                    if r.status_code == 200:
-                        data = r.json()
-                        return (data.get("message", {}).get("content", "").strip(), "mlx")
-                    elif r.status_code == 503 and attempt < max_retries - 1:
-                        wait = 2**attempt
-                        logger.info(
-                            f"[MLX] 503 server busy, retry {attempt + 1}/{max_retries} in {wait}s"
-                        )
-                        await asyncio.sleep(wait)
-                        continue
-        except Exception as e:
-            logger.debug(f"MLX generate failed: {e}")
-            if attempt < max_retries - 1:
-                await asyncio.sleep(1)
-                continue
+                        }
+                        if stop:
+                            payload["stop"] = stop
+                            
+                        r = await client.post(f"{mlx_url}/api/chat", json=payload)
+                        logger.info("[MLX_DEBUG] Response status: %d", r.status_code)
+                        if r.status_code == 200:
+                            data = r.json()
+                            return (data.get("message", {}).get("content", "").strip(), "mlx")
+                        elif r.status_code == 503 and attempt < max_retries - 1:
+                            wait = 2**attempt
+                            logger.info(
+                                f"[MLX] 503 server busy, retry {attempt + 1}/{max_retries} in {wait}s"
+                            )
+                            await asyncio.sleep(wait)
+                            continue
+            except Exception as e:
+                logger.debug(f"MLX generate failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
 
     # 2) Ollama с retry
+    # [SINGULARITY 10.19] ДИАГНОСТИКА: Логируем попытку вызова Ollama
+    logger.info("[OLLAMA_DEBUG] Starting Ollama path for model: %s", ideal_model)
     for attempt in range(max_retries):
         try:
-            res = await agent.executor.ask(full_prompt, system=system, model=ideal_model)
+            # [SINGULARITY 10.12] Фикс: увеличиваем таймаут для Ollama до 300с
+            # [SINGULARITY 10.14] Фикс: используем прямой вызов Ollama API, если executor.ask не возвращает результат
+            # [SINGULARITY 10.20] ФИКС: Убираем неподдерживаемый аргумент timeout из ask()
+            logger.info("[OLLAMA_DEBUG] Attempt %d via agent.executor.ask (raw=%s)", attempt, raw_response)
+            # [SINGULARITY 10.24] ФИКС: executor.ask не поддерживает stop, передаем только в прямой API
+            res = await agent.executor.ask(full_prompt, system=system, model=ideal_model, raw_response=raw_response)
             if res:
+                # [SINGULARITY 10.22] ФИКС: Если вернулся не текст (например, AgentFinish), извлекаем output
+                if not isinstance(res, str):
+                    logger.info("[OLLAMA_DEBUG] Success via executor.ask, but returned %s instead of str", type(res))
+                    if hasattr(res, "output"):
+                        res = res.output
+                    else:
+                        res = str(res)
+                
+                logger.info("[OLLAMA_DEBUG] Success via executor.ask, length: %d", len(res))
                 return (res.strip(), "ollama")
+            
+            # Если executor.ask вернул None/пусто, пробуем напрямую через httpx (последний шанс)
+            ollama_url = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+            # В Docker это часто host.docker.internal
+            if "host.docker.internal" not in ollama_url and os.path.exists("/.dockerenv"):
+                 ollama_url = "http://host.docker.internal:11434"
+            
+            logger.info("[OLLAMA_DEBUG] executor.ask returned nothing, trying direct API: %s", ollama_url)
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                payload = {
+                    "model": ideal_model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": full_prompt},
+                    ],
+                    "stream": False,
+                }
+                if stop:
+                    payload["stop"] = stop
+                    
+                r = await client.post(f"{ollama_url}/api/chat", json=payload)
+                logger.info("[OLLAMA_DEBUG] Direct API status: %d", r.status_code)
+                if r.status_code == 200:
+                    data = r.json()
+                    content = data.get("message", {}).get("content", "").strip()
+                    logger.info("[OLLAMA_DEBUG] Direct API success, length: %d", len(content))
+                    return (content, "ollama_direct")
         except Exception as e:
+            logger.error("[OLLAMA_DEBUG] Attempt %d failed: %s", attempt, e)
             err_str = str(e)
             if "503" in err_str or "server busy" in err_str.lower():
                 if attempt < max_retries - 1:
@@ -5243,9 +5314,14 @@ async def run_task_stream(body: TaskRequest, request: Request):
             for word in ["обучен", "умеешь", "навык", "способн", "help", "помощь"]
         )
 
+        # [SINGULARITY 10.0] TEAM_DISCUSSION_MODE / reasoning category bypass
+        is_discussion = "[SYSTEM: TEAM_DISCUSSION_MODE]" in body.goal or body.category in ("reasoning", "team_discussion")
+
         # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
-        if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query:
-            if is_vip:
+        if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query or is_discussion:
+            if is_discussion:
+                yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Team Discussion', 'content': 'Генерирую обсуждение экспертов...'})}\n\n"
+            elif is_vip:
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'VIP-коридор', 'content': 'Обнаружен VIP-запрос. Использую лучшие модели DeepSeek-R1.'})}\n\n"
             elif is_info_query:
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Инфо-запрос', 'content': 'Отвечаю на вопрос о системе...'})}\n\n"
@@ -5369,7 +5445,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
-@app.post("/run", response_model=TaskResponse)
+@app.post("/run")
 async def run_task(
     body: TaskRequest,
     request: Request,
@@ -5379,9 +5455,16 @@ async def run_task(
 ):
     """
     Выполнить задачу через Victoria.
+    body.stream=true: возвращать SSE stream (Server-Sent Events).
     async_mode=true: возвращает 202 + task_id, задача выполняется в фоне; результат — через GET /run/status/{task_id}.
     Заголовок X-Correlation-ID опционален; при отсутствии генерируется UUID для трассировки.
     """
+    # [SINGULARITY 29.0] SSE Streaming mode - reuse /stream endpoint
+    _stream_mode = getattr(body, 'stream', False)
+    logger.info("[REQUEST] Stream mode: %s", _stream_mode)
+    if _stream_mode:
+        return await run_task_stream(body, request)
+    
     global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
 
@@ -5412,6 +5495,105 @@ async def run_task(
     logger.info("[REQUEST] Current planner model: %s", getattr(agent.planner, "model", "unknown"))
 
     goal = body.goal or ""
+
+    # [SINGULARITY 10.0] TEAM_DISCUSSION_MODE / reasoning category bypass
+    # Если запрос пришел от модели 'discuss' (через прокси), мы НЕ делегируем его,
+    # а выполняем напрямую через Victoria, чтобы получить живой диалог.
+    # [SINGULARITY 10.2] Добавлена проверка на 'team_discussion' для обратной совместимости
+    # [SINGULARITY 10.4] Фикс: обрезаем пробелы для надежности поиска тега
+    goal_stripped = goal.strip()
+    # [SINGULARITY 10.17] КРИТИЧЕСКИЙ ФИКС: Логируем goal_stripped для отладки
+    logger.info("[VICTORIA_CYCLE] Goal stripped: %s...", goal_stripped[:100])
+    
+    is_discussion = "[SYSTEM: TEAM_DISCUSSION_MODE]" in goal_stripped or body.category in ("reasoning", "team_discussion")
+    logger.info("[VICTORIA_CYCLE] is_discussion check: %s (tag in goal: %s, category: %s)", 
+                is_discussion, "[SYSTEM: TEAM_DISCUSSION_MODE]" in goal_stripped, body.category)
+    
+    # [SINGULARITY 10.1] Фикс: если это режим обсуждения, 
+    # мы ОБЯЗАТЕЛЬНО идем по пути прямой генерации, чтобы не сработал Swarm.
+    if is_discussion:
+        logger.info("[VICTORIA_CYCLE] 🗣️ TEAM_DISCUSSION_MODE detected (goal length: %d). Using Wisdom model.", len(goal))
+        # [SINGULARITY 29.1] Всегда используем Wisdom для discussion - НЕ tinyllama!
+        ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+        
+        # [SINGULARITY 29.2] Улучшенный system prompt для диалога команды
+        system_msg = """Ты — голосовой ассистент ATRA. Отвечай ТОЛЬКО коротким диалогом.
+ПРАВИЛА:
+1. Отвечай ТОЛЬКО репликами персонажей в формате: **Имя:** Текст
+2. НЕ пиши статьи, код или объяснения
+3. НЕ используй теги _ocrat_ или мета-текст
+4. Диалог — это 2-4 короткие реплики разных экспертов
+5. Сразу переходи к делу, без предисловий
+
+Пример формата:
+**Алексей:** Привет! Обсуждаем вопрос.
+**Мария:** Согласна, но нужно учесть...
+**Дмитрий:** Технически это реализуемо.
+**Елена:** Тесты подтвердят."""
+        
+# [SINGULARITY 10.16] ДИАГНОСТИКА: Логируем каждый шаг генерации
+        logger.info("[VICTORIA_CYCLE] Starting generation with model: %s", ideal_model)
+        
+        # [SINGULARITY 29.2] Improved prompt for dialogue
+        full_prompt = f"Вопрос: {goal}\n\n{system_msg}"
+        logger.info("[VICTORIA_CYCLE] Full prompt preview: %s", full_prompt[:100])
+        
+        try:
+            # [SINGULARITY 10.21] используем raw_response=True
+            content, source = await asyncio.wait_for(
+                _generate_via_mlx_or_ollama(
+                    full_prompt,  # [FIX] Already includes goal and system
+                    ideal_model, 
+                    max_retries=2, 
+                    raw_response=True,
+                    stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"]
+                ),
+                timeout=300.0
+            )
+            logger.info("[VICTORIA_CYCLE] Generation completed. Source: %s, Content length: %d", source, len(content) if content else 0)
+        except asyncio.TimeoutError:
+            logger.error("[VICTORIA_CYCLE] Discussion generation TIMEOUT for model %s", ideal_model)
+            return TaskResponse(
+                status="failed",
+                output="Превышено время ожидания генерации диалога (300с). Локальная модель перегружена или очень медленно генерирует ответ. Попробуйте еще раз позже.",
+                knowledge={"error": "timeout", "model": ideal_model},
+                correlation_id=correlation_id,
+            )
+        except Exception as e:
+            logger.warning("[VICTORIA_CYCLE] Wisdom 35B failed, trying phi3.5 fallback: %s", e)
+            content, source = await _generate_via_mlx_or_ollama(
+                full_prompt,  # Already includes goal and system
+                "phi3.5:3.8b", 
+                max_retries=1, 
+                raw_response=True,
+                stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"]
+            )
+            logger.info("[VICTORIA_CYCLE] Fallback generation completed. Source: %s, Content length: %d", source, len(content) if content else 0)
+        
+        # [SINGULARITY 10.6] Фикс: если контент не получен, возвращаем ошибку, а не падаем в Swarm
+        if not content:
+            return TaskResponse(
+                status="failed",
+                output="Не удалось сгенерировать диалог. Попробуйте еще раз.",
+                knowledge={"error": "LLM returned empty content in discussion mode"},
+                correlation_id=correlation_id,
+            )
+            
+        # Очистка от <think> тегов (на всякий случай)
+        if "<think>" in content:
+            import re
+            content = re.sub(r"<think>.*?(</think>|$)", "", content, flags=re.DOTALL).strip()
+            
+        return TaskResponse(
+            status="success",
+            output=content,
+            knowledge={
+                "strategy": "team_discussion",
+                "source": source,
+                "model": ideal_model
+            },
+            correlation_id=correlation_id,
+        )
 
     # [SINGULARITY 28.X] Queue CODE tasks to PostgreSQL (NOT Redis) - parallel processing
     goal_lower = (goal or "").lower()

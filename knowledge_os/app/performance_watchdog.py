@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import time
+import subprocess
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -163,6 +164,29 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
 
     async def run_once(self):
         logger.info("--- Watchdog Cycle Start ---")
+        
+        # [SINGULARITY 29.1] Infrastructure Self-Healing
+        await self.check_and_heal_containers()
+
+        # [SINGULARITY 29.2] Blackboard GC
+        try:
+            from services.blackboard_service import get_blackboard_service
+            bb = get_blackboard_service()
+            reclaimed = await bb.run_gc_cycle()
+            if reclaimed > 0:
+                try:
+                    from services.notification_service import get_notification_service
+                    notifier = get_notification_service()
+                    await notifier.notify(
+                        "🧹 Blackboard GC Reclaim",
+                        f"Reclaimed {reclaimed} abandoned tasks from Blackboard.",
+                        priority="high",
+                        tags=["recycle", "robot"]
+                    )
+                except: pass
+        except Exception as gc_err:
+            logger.error(f"❌ [WATCHDOG] Blackboard GC failed: {gc_err}")
+
         slow_queries = await self.collect_slow_queries()
         
         if not slow_queries:
@@ -177,6 +201,66 @@ CREATE INDEX CONCURRENTLY idx_watchdog_[unique_id] ON table_name (column_name);
                 await self.execute_optimization(analysis)
         
         logger.info("--- Watchdog Cycle End ---")
+
+    async def check_and_heal_containers(self):
+        """[SINGULARITY 29.1] Check critical containers and restart if exited."""
+        critical_containers = [
+            "atra-web-ide-gateway",
+            "knowledge_os_redis",
+            "knowledge_postgres",
+            "expert-worker-heavy"
+        ]
+        
+        for container in critical_containers:
+            try:
+                # Check status
+                result = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.State.Status}}", container],
+                    capture_output=True, text=True
+                )
+                status = result.stdout.strip()
+                
+                if status in ("exited", "dead", "paused"):
+                    logger.warning(f"🚨 [SELF-HEALING] Container {container} is {status}! Attempting to restart...")
+                    subprocess.run(["docker", "start", container], check=True)
+                    logger.info(f"✅ [SELF-HEALING] Container {container} restarted successfully.")
+                    
+                    # [SINGULARITY 29.3] Notify via ntfy
+                    try:
+                        from services.notification_service import get_notification_service
+                        notifier = get_notification_service()
+                        await notifier.notify(
+                            f"🚨 Container {status.upper()}",
+                            f"Container {container} was {status}. Successfully restarted.",
+                            priority="urgent",
+                            tags=["emergency", "muscle"]
+                        )
+                    except: pass
+
+                elif status == "running":
+                    # Optional: check health if available
+                    health_res = subprocess.run(
+                        ["docker", "inspect", "-f", "{{.State.Health.Status}}", container],
+                        capture_output=True, text=True
+                    )
+                    health = health_res.stdout.strip()
+                    if health == "unhealthy":
+                        logger.warning(f"🚑 [SELF-HEALING] Container {container} is UNHEALTHY! Forcing restart...")
+                        subprocess.run(["docker", "restart", container], check=True)
+                        
+                        # [SINGULARITY 29.3] Notify via ntfy
+                        try:
+                            from services.notification_service import get_notification_service
+                            notifier = get_notification_service()
+                            await notifier.notify(
+                                f"🚑 Container UNHEALTHY",
+                                f"Container {container} was unhealthy. Forced restart applied.",
+                                priority="high",
+                                tags=["ambulance", "wrench"]
+                            )
+                        except: pass
+            except Exception as e:
+                logger.error(f"❌ [SELF-HEALING] Failed to check/heal {container}: {e}")
 
     async def start(self):
         logger.info(f"Performance Watchdog started. Interval: {self.interval}s, Autonomous: {self.autonomous_enabled}")

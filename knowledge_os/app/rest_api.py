@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
@@ -1312,6 +1313,45 @@ async def reset_deferred_to_pending(limit: int = 100):
                 "message": f"Вернуто в очередь: {count} задач. Worker подхватит их при следующем цикле.",
             }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class VictoriaSolveRequest(BaseModel):
+    goal: str
+    context: Optional[str] = None
+    category: Optional[str] = None
+    session_id: Optional[str] = None
+
+
+VICTORIA_URL = os.getenv("VICTORIA_URL", "http://localhost:8010")
+
+
+@app.post("/api/victoria/solve")
+async def victoria_solve(body: VictoriaSolveRequest):
+    """
+    Прокси-эндпоинт к Victoria (/run).
+    Перенаправляет запрос на Victoria MCP сервер (:8010).
+    """
+    import logging
+
+    _log = logging.getLogger(__name__)
+    _log.info("[VICTORIA_SOLVE] goal='%s...'", body.goal[:100])
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{VICTORIA_URL}/run",
+                json={"goal": body.goal, "context": body.context, "category": body.category},
+            )
+            response.raise_for_status()
+            result = response.json()
+            _log.info("[VICTORIA_SOLVE] success")
+            return result
+    except httpx.ConnectError:
+        _log.error("[VICTORIA_SOLVE] Cannot connect to Victoria at %s", VICTORIA_URL)
+        raise HTTPException(status_code=503, detail="Victoria service unavailable")
+    except Exception as e:
+        _log.exception("[VICTORIA_SOLVE] error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

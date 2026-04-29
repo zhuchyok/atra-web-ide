@@ -103,7 +103,7 @@ except ImportError:
     sys.exit(1)
 
 # Используем тот же формат, что и другие модули
-DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:6432/knowledge_os")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os?application_name=knowledge_pool")
 
 # Максимум попыток выполнения задачи; после исчерпания — эскалация в Совет Директоров
 MAX_ATTEMPTS = int(os.getenv("SMART_WORKER_MAX_ATTEMPTS", "3"))

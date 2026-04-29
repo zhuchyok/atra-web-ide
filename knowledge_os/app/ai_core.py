@@ -18,6 +18,11 @@ import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
+import contextvars
+
+# [SINGULARITY 29.5] Recursion Guard for Multi-Agent Loops
+# Prevents IterativeDiscovery -> run_smart_agent -> IterativeDiscovery loops
+_RECURSION_CONTEXT = contextvars.ContextVar("recursion_context", default={"depth": 0, "discovery": False, "debate": False})
 
 # Third-party imports with fallbacks
 try:
@@ -1189,11 +1194,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
                         "RUST_GATEWAY_URL",
                         "https://atra-web-ide-gateway:8081/api/knowledge/search_v2",
                     )
+                    # [SINGULARITY 29.6] Context Limit Adaptation for R&D
+                    # R&D tasks often have huge context, we limit nodes to prevent memory overflow
+                    is_rd_query = "#rd" in query.lower() or (project_context and "#rd" in project_context.lower())
+                    limit_nodes = 5 if is_rd_query else 10
+                    
                     payload = {
                         "embedding": embedding,
                         "project_context": project_context,
-                        "limit": 10,  # Increased for quantum sampling
-                        "use_quantum": True,
+                        "limit": limit_nodes,  # Adaptive limit
+                        "use_quantum": not is_rd_query, # Disable quantum for R&D to save RAM
                     }
 
                     # mTLS сертификаты для клиента (Singularity 21.24)
@@ -1298,12 +1308,16 @@ async def _get_knowledge_context_impl(query: str, project_context: Optional[str]
 
                     # [SINGULARITY 23.3] Cross-Encoder Reranking for Python RAG
                     try:
-                        from app.rag_reranker import get_rag_reranker
+                        # [SINGULARITY 29.6] Skip reranking for R&D to save memory
+                        if is_rd_query:
+                            reranked_nodes = rows[:5]
+                        else:
+                            from app.rag_reranker import get_rag_reranker
 
-                        reranker = get_rag_reranker()
-                        # Преобразуем Record в dict для reranker
-                        nodes_to_rerank = [dict(row) for row in rows]
-                        reranked_nodes = reranker.rerank(query, nodes_to_rerank, top_k=5)
+                            reranker = get_rag_reranker()
+                            # Преобразуем Record в dict для reranker
+                            nodes_to_rerank = [dict(row) for row in rows]
+                            reranked_nodes = reranker.rerank(query, nodes_to_rerank, top_k=5)
                         rows = reranked_nodes  # Используем переранжированные узлы
                     except Exception as e:
                         logger.debug(f"Reranking failed: {e}")
@@ -1467,102 +1481,42 @@ async def run_smart_agent_async_impl(
     project_context: Optional[str] = None,
 ):
     start_time = time.time()
+    
+    # [SINGULARITY 23.0] U-Shape Context Assembly
+    memory_crystals = ""
 
     # [SINGULARITY 26.9] Queue complex tasks to Redis worker
     goal_lower = (prompt or "").lower()
-    is_code_task = len(prompt) > 50 and any(
-        kw in goal_lower for kw in ["код", "code", "анализ", "напиши", "создай", "write"]
-    )
-
-    if is_code_task:
-        import redis
-        import json
-        import uuid
-        import time as time_module
-        
+    # [SINGULARITY 10.3] Bypass queue for discussion mode
+    # [SINGULARITY 10.5] Фикс: более надежный поиск тега (игнорируем регистр и пробелы)
+    is_discussion_mode = "[system: team_discussion_mode]" in goal_lower
+    
+    # [SINGULARITY 10.8] Фикс: если это режим обсуждения, мы НЕ добавляем системные инструкции,
+    # которые могут спровоцировать Swarm/Handoff или галлюцинации о ролях.
+    if is_discussion_mode:
+        # В режиме обсуждения мы доверяем промпту из прокси
+        pass
+    else:
+        # [SINGULARITY 27.1] Load expert's system_prompt from DB
+        expert_system_prompt = ""
         try:
-            r = redis.Redis(host="redis", port=6379, decode_responses=False)
-            task_id = f"task_{uuid.uuid4().hex[:8]}"
-            r.rpush("victoria_queue", json.dumps({"goal": prompt, "task_id": task_id}))
-            r.expire(task_id, 300)
-            
-            # Ждём результат от worker'а (до 30 сек)
-            for _ in range(60):
-                time_module.sleep(0.5)
-                result = r.get(task_id)
-                if result:
-                    try:
-                        result_text = result.decode() if isinstance(result, bytes) else result
-                        return {"status": "success", "output": result_text}
-                    except Exception:
-                        pass
-                if r.exists(task_id) == 0:
-                    break  # Задача завершена, результат взят
-                    
-            return {"status": "processing", "job_id": task_id, "output": f"⏳ Task {task_id} queued to worker"}
+            from expert_services import get_expert_system_prompt
+
+            expert_system_prompt = get_expert_system_prompt(expert_name) or ""
+            if expert_system_prompt:
+                logger.info(f"🎭 [SYSTEM_PROMPT] Loaded for {expert_name}")
         except Exception as e:
-            pass  # Fall through to normal processing
-
-    # [SINGULARITY 23.0] Memory Crystals & U-Shape Context
-    async def _get_memory_crystals(project_context: str, pool) -> str:
-        """Fetch project-specific memory crystals for attention anchoring."""
-        if not pool or not project_context:
-            return ""
-        try:
-            async with pool.acquire() as conn:
-                rows = await conn.fetch(
-                    "SELECT crystal_type, content FROM memory_crystals WHERE project_context = $1 ORDER BY created_at ASC",
-                    project_context,
-                )
-                if not rows:
-                    return ""
-                crystals = "\n<memory_crystals>\n"
-                for row in rows:
-                    crystals += f"  [{row['crystal_type'].upper()}] {row['content']}\n"
-                crystals += "</memory_crystals>\n"
-                return crystals
-        except Exception as e:
-            logger.debug(f"Failed to fetch memory crystals: {e}")
-            return ""
-
-    # 1. Initialization
-    pool = await _get_db_pool()
-
-    # [SINGULARITY 25.0] Expert Priority Detection
-    if not is_vip and expert_name and pool:
-        try:
-            async with pool.acquire() as conn:
-                expert_priority = await conn.fetchval(
-                    "SELECT priority FROM experts WHERE name = $1", expert_name
-                )
-                if expert_priority == "VIP":
-                    is_vip = True
-                    logger.info(f"🌟 [VIP DETECTED] Expert {expert_name} has VIP priority")
-        except Exception as e:
-            logger.debug(f"Failed to fetch expert priority: {e}")
-
-    memory_crystals = await _get_memory_crystals(project_context, pool)
-
-    # [SINGULARITY 27.1] Load expert's system_prompt from DB
-    expert_system_prompt = ""
-    try:
-        from expert_services import get_expert_system_prompt
-
-        expert_system_prompt = get_expert_system_prompt(expert_name) or ""
-        if expert_system_prompt:
-            logger.info(f"🎭 [SYSTEM_PROMPT] Loaded for {expert_name}")
-    except Exception as e:
-        logger.debug(f"Failed to load system_prompt: {e}")
+            logger.debug(f"Failed to load system_prompt: {e}")
 
     # [SINGULARITY 21.32] Token Efficiency Audit
     prompt = audit_efficiency(prompt)
 
     # [SINGULARITY 27.1] Inject expert's system_prompt FIRST
-    if expert_system_prompt:
+    if not is_discussion_mode and expert_system_prompt:
         prompt = f"### ТЫ — {expert_name.upper()}\n{expert_system_prompt}\n\n{prompt}"
 
     # [SINGULARITY 27.0] Anti-Hallucination Instruction
-    if expert_name in ("Виктория", "Victoria", "victoria"):
+    if not is_discussion_mode and expert_name in ("Виктория", "Victoria", "victoria"):
         anti_hallucination = """
 ### [CRITICAL: ANTI-HALLUCINATION - ОБЯЗАТЕЛЬНО]
 Ты маленький помощник. Большая модель (Brain) планирует, ты только выполняешь.
@@ -1590,7 +1544,7 @@ async def run_smart_agent_async_impl(
         prompt = sot_instruction + prompt
 
     # [SINGULARITY 21.0] Enforce CoT for critical tasks
-    if is_critical or category in ("reasoning", "vip"):
+    if not is_discussion_mode and (is_critical or category in ("reasoning", "vip")):
         require_cot = True
         if "ПОШАГОВО" not in prompt:
             prompt = f"### [SYSTEM: ENFORCED REASONING MODE]\nРЕШИ ЗАДАЧУ ПОШАГОВО (Chain-of-Thought).\n\n{prompt}"
@@ -1610,7 +1564,7 @@ Your answer MUST contain a hidden block <reasoning_trace> with:
 3. Your confidence score (0-100%).
 This block will be analyzed by other agents for collective verification.
 """
-    if _is_large_model:
+    if not is_discussion_mode and _is_large_model:
         prompt = reflection_instruction + "\n" + prompt
 
     # [SINGULARITY 26.2] SWARM & HANDOFF INSTRUCTIONS
@@ -1627,7 +1581,7 @@ Available experts: @Igor (backend/code), @Dmitry (ML/models), @Sergey (DevOps/de
 @Olga (performance), @Maxim (analytics), @Pavel (trading strategy).
 Use HANDOFF only if delegation genuinely improves the result.
 """
-    if expert_name in ("Виктория", "Victoria", "виктория"):
+    if not is_discussion_mode and expert_name in ("Виктория", "Victoria", "виктория"):
         prompt = swarm_instruction + "\n" + prompt
 
     request_id = f"{expert_name}_{int(time.time())}"
@@ -2268,45 +2222,64 @@ Use HANDOFF only if delegation genuinely improves the result.
 
     # [SINGULARITY 22.8] Iterative Discovery
     # Если задача сложная и требует глубокого анализа, запускаем итеративную разведку
-    if IterativeDiscovery and (
+    # [SINGULARITY 22.8] Iterative Discovery Engine (RAG 3.0)
+    # [SINGULARITY 29.5] Recursion Guard: Don't start discovery if already in a discovery/debate loop
+    ctx = _RECURSION_CONTEXT.get()
+    if IterativeDiscovery and not ctx["discovery"] and not ctx["debate"] and (
         is_critical or category == "reasoning" or "#complex" in user_part.lower()
     ):
         logger.info(f"🕵️ [SINGULARITY 22.8] Starting Iterative Discovery for: {expert_name}")
         import sys
 
-        ai_processor = sys.modules[__name__]
-        discovery = IterativeDiscovery(ai_processor=ai_processor, max_iterations=3)
-        return await discovery.run(
-            user_part,
-            expert_name,
-            category or "general",
-            context=knowledge_context,
-            project_context=project_context,
-        )
+        # Update context for recursion guard
+        new_ctx = ctx.copy()
+        new_ctx["discovery"] = True
+        token = _RECURSION_CONTEXT.set(new_ctx)
+
+        try:
+            ai_processor = sys.modules[__name__]
+            discovery = IterativeDiscovery(ai_processor=ai_processor, max_iterations=3)
+            return await discovery.run(
+                user_part,
+                expert_name,
+                category or "general",
+                context=knowledge_context,
+                project_context=project_context,
+            )
+        finally:
+            _RECURSION_CONTEXT.reset(token)
 
     # [SINGULARITY 22.1] Real-time Multi-Agent Debate
-    # Если задача сложная и требует консенсуса, запускаем дебаты
-    if ConsensusAgent and (is_critical or category == "reasoning" or "обсуди" in user_part.lower()):
+    # [SINGULARITY 29.5] Recursion Guard: Don't start debate if already in a discovery/debate loop
+    if ConsensusAgent and not ctx["debate"] and not ctx["discovery"] and (is_critical or category == "reasoning" or "обсуди" in user_part.lower()):
         logger.info(
             f"🤝 [SINGULARITY 22.1] Starting Real-time Multi-Agent Debate for: {expert_name}"
         )
-        consensus = ConsensusAgent(model_name=strategist_model)
-        # Выбираем экспертов для дебатов на основе задачи
-        debate_experts = ["Виктория", "Игорь", "Анна"]  # Базовая тройка
-        if is_coding_task:
-            debate_experts = ["Игорь", "Максим", "Виктория"]
+        # Update context for recursion guard
+        new_ctx = ctx.copy()
+        new_ctx["debate"] = True
+        token = _RECURSION_CONTEXT.set(new_ctx)
 
-        debate_res = await consensus.reach_consensus(
-            debate_experts, user_part, {"kb_context": kb_context_rag}
-        )
-        if debate_res and debate_res.consensus_score > 0.7:
-            logger.info(
-                f"✅ [SINGULARITY 22.1] Consensus reached with score {debate_res.consensus_score:.2f}"
+        try:
+            consensus = ConsensusAgent(model_name=strategist_model)
+            # Выбираем экспертов для дебатов на основе задачи
+            debate_experts = ["Виктория", "Игорь", "Анна"]  # Базовая тройка
+            if is_coding_task:
+                debate_experts = ["Игорь", "Максим", "Виктория"]
+
+            debate_res = await consensus.reach_consensus(
+                debate_experts, user_part, {"kb_context": kb_context_rag}
             )
-            # Сохраняем результат в кэш и возвращаем
-            if cache:
-                await cache.save_to_cache(user_part, debate_res.final_answer, expert_name)
-            return debate_res.final_answer
+            if debate_res and debate_res.consensus_score > 0.7:
+                logger.info(
+                    f"✅ [SINGULARITY 22.1] Consensus reached with score {debate_res.consensus_score:.2f}"
+                )
+                # Сохраняем результат в кэш и возвращаем
+                if cache:
+                    await cache.save_to_cache(user_part, debate_res.final_answer, expert_name)
+                return debate_res.final_answer
+        finally:
+            _RECURSION_CONTEXT.reset(token)
 
     # 3. Hybrid Strategy: Manager-Worker Pattern (Strategist vs Executor)
     # If the task is coding or audit, we use Strategist (Wisdom) to plan and Executor (Qwen3) to execute
