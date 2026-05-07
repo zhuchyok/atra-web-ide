@@ -1,0 +1,12 @@
+---
+description: AutoFlow discipline for when-to-do-what automation
+alwaysApply: true
+---
+
+# AutoFlow Execution Discipline
+
+- For creative/new behavior requests, do design-first: discovery questions, 2-3 approaches, sectioned design, explicit approval, then implementation planning.
+- For bug/regression/failure requests, do systematic debugging first and avoid patching before root cause evidence.
+- Before claiming completion, provide verification evidence (tests, runtime checks, or command output summary).
+- Prefer small, reversible steps with rollback-safe defaults for runtime/config changes.
+- If a request is ambiguous, ask one focused clarifying question before implementation.

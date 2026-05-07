@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "type": "command",
+        "timeout": 12,
+        "command": ".cursor/hooks/autoflow_prompt_gate.py",
+        "failClosed": false
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/shell_safety_gate.py",
+        "timeout": 8,
+        "failClosed": false
+      }
+    ]
+  }
+}
