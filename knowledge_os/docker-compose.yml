@@ -8,13 +8,21 @@ networks:
   atra-network:
     external: true
 
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # PostgreSQL: самовосстановление после перезагрузки Mac Studio (restart: always)
   db:
+    logging: *default-logging
+    mem_limit: 8g
+    cpus: 2
     image: pgvector/pgvector:pg16
     container_name: knowledge_postgres
     restart: always
-    mem_limit: 4g
     shm_size: 512mb
     command:
       [
@@ -25,6 +33,14 @@ services:
         "max_connections=500",
         "-c",
         "shared_memory_type=sysv",
+        "-c",
+        "shared_buffers=4GB",
+        "-c",
+        "work_mem=64MB",
+        "-c",
+        "maintenance_work_mem=512MB",
+        "-c",
+        "effective_cache_size=12GB",
         "-c",
         "idle_in_transaction_session_timeout=300000",
         "-c",
@@ -94,6 +110,18 @@ services:
     image: redis:7-alpine
     container_name: knowledge_os_redis
     restart: always
+    command:
+      [
+        "redis-server",
+        "--maxmemory",
+        "2gb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+        "--unixsocket",
+        "/data/redis.sock",
+        "--unixsocketperm",
+        "777",
+      ]
     environment:
       TZ: Europe/Moscow
     ports:
@@ -103,7 +131,7 @@ services:
     networks:
       - atra-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-s", "/data/redis.sock", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -144,6 +172,7 @@ services:
   #     - redis
 
   victoria-agent:
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -154,14 +183,13 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: victoria-agent
     restart: unless-stopped
+    oom_kill_disable: false
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 12g
+          memory: 32G
         reservations:
-          memory: 2g
-    oom_kill_disable: false
+          memory: 24G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 60s
@@ -179,89 +207,23 @@ services:
       PYTHONPATH: /app
       VICTORIA_PORT: "8000" # внутри контейнера 8000, снаружи 8010
       ATRA_ENV: prod
+      # Ingestion Quality Gate (canary)
+      INGESTION_GATE_SHADOW_MODE: ${INGESTION_GATE_SHADOW_MODE:-false}
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-10}
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_API_URL: http://host.docker.internal:11434
       SERVER_LLM_URL: http://host.docker.internal:11434
-      # [SINGULARITY 26.5] Оптимизация Ollama для Mac Studio
-      # OLLAMA_NUM_PARALLEL: 2 — позволяет выполнять 2 запроса одновременно
-      # OLLAMA_MAX_VRAM: 48GB — запас для 35B моделей на 64GB Mac Studio
-      OLLAMA_NUM_PARALLEL: "2"
-      OLLAMA_MAX_VRAM: "48000000000"
-      # [SINGULARITY 26.6] Синхронизация слотов с параллелизмом Ollama
-      # OLLAMA_GLOBAL_MAX_SLOTS: 2 — предотвращает переполнение очереди Ollama (NUM_PARALLEL=2)
-      OLLAMA_GLOBAL_MAX_SLOTS: "2"
-      # MLX API Server: используем нашу новую обученную модель
-      MLX_API_URL: ${MLX_API_URL:-http://host.docker.internal:11435}
-      MLX_HEALTH_URL: http://host.docker.internal:11435/health
-      # [SINGULARITY 21.5] ResourceGuard: повышен порог CPU до 90% — 75% слишком агрессивно,
-      # блокирует пользовательский чат когда оркестратор занят фоновой работой
-      GUARD_CPU_THRESHOLD: "90.0"
-      GUARD_RAM_THRESHOLD: "92.0"
-      # [SINGULARITY 21.5] SearXNG self-hosted веб-поиск (http://searxng:8080 внутри Docker)
-      SEARXNG_URL: "http://searxng:8080"
-      WEB_SEARCH_PROVIDERS: "searxng,duckduckgo,ollama"
-      VICTORIA_MODEL: "victoria-wisdom-v3.5:latest"
-      VICTORIA_PLANNER_MODEL: "victoria-wisdom-v3.5"
-      # Мозг (MLX, порт 11435): planner → MLX (victoria-wisdom-v3.5 без тега)
-      # Руки (Ollama, порт 11434): executor → victoria-wisdom-v3.5:latest
-      USE_MLX_FOR_PLANNER: "true"
-      # Strategy: tinyllama (уже загружена, бессмертна, ответ <2с, не блокирует 35B очередь)
-      # phi3.5:3.8b не подходит: при рестарте Victoria холодная загрузка блокируется занятым Ollama
-      VICTORIA_STRATEGY_MODEL: "tinyllama:1.1b-chat"
-      VICTORIA_STRATEGY_BASE_URL: "http://host.docker.internal:11434"
-      # [SINGULARITY 21.5] Disable model selector for God Mode consistency
-      VICTORIA_USE_MODEL_SELECTOR: "false"
-      # [SINGULARITY 21.6] Force Wisdom 3.5 for all steps
-      VICTORIA_FORCE_STEP_MODEL: "victoria-wisdom-v3.5:latest"
-      # 🐛 Debug mode: set to "true" to enable verbose logging
-      VICTORIA_DEBUG: ${VICTORIA_DEBUG:-"false"}
-      # Таймаут одного вызова LLM (Ollama): 300 с — чтобы не обрывать ответ на тяжёлых моделях
-      OLLAMA_EXECUTOR_TIMEOUT: ${OLLAMA_EXECUTOR_TIMEOUT:-300}
-      # Руки Виктории: держать victoria-wisdom-v3.5 в Ollama (300 = 5 мин; -1 = бессрочно в Ollama API)
-      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
-      # Uvicorn: keep-alive для долгих sync-запросов (стратегия + LLM), иначе соединение может обрываться
-      # Увеличено до 1800 (30 минут) для сложных задач типа SEO-анализа
-      UVICORN_TIMEOUT_KEEP_ALIVE: ${UVICORN_TIMEOUT_KEEP_ALIVE:-1800}
-      # Таймаут понимания цели — 90 сек для нормальных задач (LLM вызов = 60 сек)
-      UNDERSTAND_GOAL_TIMEOUT_SEC: ${UNDERSTAND_GOAL_TIMEOUT_SEC:-90}
-      # Таймаут LLM вызова внутри understand_goal
-      UNDERSTAND_GOAL_LLM_TIMEOUT_SEC: ${UNDERSTAND_GOAL_LLM_TIMEOUT_SEC:-60}
-      # Таймаут выбора стратегии (phi3.5 — быстро, 30 сек достаточно)
-      STRATEGY_CALL_TIMEOUT_SEC: ${STRATEGY_CALL_TIMEOUT_SEC:-30}
-      # IP Rate Limiting: заблокированные IP (через запятую) и лимиты POST запросов
-      VICTORIA_BLOCKED_IPS: ${VICTORIA_BLOCKED_IPS:-}
-      IP_RATE_WINDOW_SEC: ${IP_RATE_WINDOW_SEC:-60}
-      IP_RATE_MAX_POST: ${IP_RATE_MAX_POST:-10}
-      # Heartbeat для SSE streaming (15 сек → 10 сек для предотвращения обрывов)
-      VICTORIA_STREAM_HEARTBEAT_SEC: ${VICTORIA_STREAM_HEARTBEAT_SEC:-10}
-      # Прогрев при старте: греем VICTORIA_PLANNER_MODEL + VICTORIA_MODEL (+ VICTORIA_WARMUP_EXTRA_MODELS через запятую)
-      # VICTORIA_WARMUP_BLOCK_STARTUP=true = ждать прогрева до приёма запросов (стабильный первый sync)
-      # VICTORIA_WARMUP_BLOCK_STARTUP: ${VICTORIA_WARMUP_BLOCK_STARTUP:-false}
-      # VICTORIA_WARMUP_EXTRA_MODELS: ${VICTORIA_WARMUP_EXTRA_MODELS:-qwen2.5-coder:32b,nomic-embed-text}
-      # VICTORIA_WARMUP_TIMEOUT_PER_MODEL: ${VICTORIA_WARMUP_TIMEOUT_PER_MODEL:-90}
-      VICTORIA_WARMUP_BLOCK_STARTUP: "false"
-      VICTORIA_WARMUP_EXTRA_MODELS: ""
-      VICTORIA_USE_LOCAL_ROUTER: "true"
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_FALLBACK_MODEL: ${OPENROUTER_FALLBACK_MODEL:-mistralai/mistral-7b-instruct:free}
-      OPENROUTER_CODING_MODEL: ${OPENROUTER_CODING_MODEL:-qwen/qwen-2.5-coder-32b-instruct:free}
-      OPENROUTER_HTTP_REFERER: ${OPENROUTER_HTTP_REFERER:-https://github.com/atra-web-ide}
-      OPENROUTER_APP_TITLE: ${OPENROUTER_APP_TITLE:-ATRA Web IDE}
-      USE_ELK: "false"
-      # DB connection pool limits (best practice: маленький пул на сервис, мультиплексирование через PgBouncer)
-      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
-      DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
-      ELASTICSEARCH_URL: http://atra-elasticsearch:9200
-      USE_KNOWLEDGE_OS: "true"
-      VICTORIA_USE_CACHE: "false"
-      # Redis: для RAG_CACHE_BACKEND=redis (масштабирование). По умолчанию кэш memory.
-      REDIS_URL: redis://knowledge_os_redis:6379/0
+      # [SINGULARITY 30.5] Redis UDS
+      REDIS_URL: unix:///data/redis/redis.sock
       RAG_CACHE_BACKEND: redis
+
       # 🚀 Victoria Enhanced - включает все компоненты супер-корпорации
       USE_VICTORIA_ENHANCED: "true"
+      # Возврат "Великой Виктории": 70B профиль для стратега/исполнителя
+      VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       # Эксперты первыми: execution-задачи идут в Victoria Enhanced (86 экспертов в БД), в Veronica — только простые шаги (docs/VERONICA_REAL_ROLE.md)
       PREFER_EXPERTS_FIRST: ${PREFER_EXPERTS_FIRST:-true}
 
@@ -321,7 +283,7 @@ services:
       ORCHESTRATION_V2_ENABLED: ${ORCHESTRATION_V2_ENABLED:-true}
       ORCHESTRATION_V2_PERCENTAGE: ${ORCHESTRATION_V2_PERCENTAGE:-50}
       # Stability & Performance Watchdog: Backpressure
-      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
+      SMART_WORKER_MAX_PENDING: "40"
       # Circuit Breaker: таймаут задачи (3600s = 60 мин для сложных LLM-задач)
       WORKER_TASK_TOTAL_TIMEOUT: ${WORKER_TASK_TOTAL_TIMEOUT:-3600}
     ports:
@@ -337,12 +299,14 @@ services:
       - ../../dev:/workspace/dev
       - ..:/workspace/atra-web-ide
       - /var/run/docker.sock:/var/run/docker.sock
+      # [SINGULARITY 30.5] Redis UDS volume
+      - redis_data:/data/redis
       # Глобальные правила и Библия: доступны через /workspace/atra-web-ide/.cursorrules
       # и /workspace/atra-web-ide/docs/MASTER_REFERENCE.md (файловые маунты убраны —
       # Docker Desktop на macOS путает file-bind-mount с директорией после рестарта)
       - ../.cursor/rules:/workspace/global/.cursor/rules:ro
     command: >
-      sh -c "python -c 'import sys; sys.setrecursionlimit(1000)' & 
+      sh -c "python -c 'import sys; sys.setrecursionlimit(1000)' &
       python -m src.agents.bridge.victoria_server"
 
   # SearXNG: self-hosted поисковик для автономного веб-поиска (порт 8084)
@@ -373,7 +337,6 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
     restart: always
-    mem_limit: 2g
     ports:
       - "3005:8080"
     extra_hosts:
@@ -420,9 +383,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6g
+          memory: 4G
+          cpus: "1.0"
         reservations:
-          memory: 512m
+          memory: 2G
     networks:
       - atra-network
     environment:
@@ -431,7 +395,8 @@ services:
       PYTHONPATH: /app:/app/knowledge_os/app
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
-      REDIS_URL: redis://knowledge_os_redis:6379/0
+      # [SINGULARITY 30.5] Redis UDS
+      REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
@@ -440,11 +405,28 @@ services:
       VICTORIA_MODEL: ${VICTORIA_HEAVY_MODEL:-victoria-wisdom-v3.5}
       ENABLE_COLLECTIVE_LEARNING: "true"
       LEARNING_SYNC_INTERVAL: "300"
-      SMART_WORKER_MAX_CONCURRENT: "1"
+      SMART_WORKER_MAX_CONCURRENT: "2"
+      MAX_EXPERT_HEAVY_TASKS: "2"
+      BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
+      BLACKBOARD_VERIFICATION_EXPERTS: "Анна,Алексей"
+      BLACKBOARD_RD_EXCLUDED_EXPERTS: ""
+      BLACKBOARD_EXPERT_CAPABILITIES: "Роман:research,rd,backend,heavy,analysis;Анна:verification,qa,audit,analysis"
+      RUNTIME_WORKER_HEARTBEAT_KEY: ${RUNTIME_WORKER_HEARTBEAT_KEY:-runtime:expert_heartbeats}
+      RUNTIME_WORKER_HEARTBEAT_TTL_SEC: ${RUNTIME_WORKER_HEARTBEAT_TTL_SEC:-90}
+      # Ingestion Quality Gate (canary)
+      INGESTION_GATE_SHADOW_MODE: ${INGESTION_GATE_SHADOW_MODE:-false}
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-10}
       WORKER_TYPE: "heavy"
-      SMART_WORKER_LLM_TIMEOUT: "1800"
+      SMART_WORKER_LLM_TIMEOUT: "300"
       SMART_WORKER_LLM_STUCK_MINUTES: "30"
+      SMART_WORKER_STUCK_MINUTES: "30"
+      SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: "30"
       WORKER_TASK_TOTAL_TIMEOUT: "7200"
+      WORKER_TASK_TIMEOUT_MAX_SEC: "7200"
+      WORKER_STALE_INPROGRESS_RECLAIM_SEC: "300"
+      HITL_ENFORCE_HIGH_RISK_TASKS: ${HITL_ENFORCE_HIGH_RISK_TASKS:-false}
+      HITL_APPROVAL_TIMEOUT_SEC: ${HITL_APPROVAL_TIMEOUT_SEC:-900}
+      HITL_HIGH_RISK_LEVELS: ${HITL_HIGH_RISK_LEVELS:-high,critical}
       DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-5}
       DB_POOL_MIN_SIZE: ${DB_POOL_MIN_SIZE:-1}
     volumes:
@@ -454,6 +436,73 @@ services:
       - ../knowledge_os:/app/knowledge_os
       - /Users/bikos/Downloads:/data/downloads:ro
       - /var/run/docker.sock:/var/run/docker.sock
+      # [SINGULARITY 30.5] Redis UDS volume
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+
+  expert-worker-anna:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    # container_name: expert-worker-anna
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "1.0"
+        reservations:
+          memory: 2G
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: "Анна"
+      PYTHONPATH: /app:/app/knowledge_os/app
+      DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
+      POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
+      # [SINGULARITY 30.5] Redis UDS
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
+      ML_API_URL: http://host.docker.internal:11435
+      VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
+      VICTORIA_MODEL: ${VICTORIA_LIGHT_MODEL:-lfm2.5-thinking:1.2b}
+      ENABLE_COLLECTIVE_LEARNING: "true"
+      LEARNING_SYNC_INTERVAL: "300"
+      SMART_WORKER_MAX_CONCURRENT: "4"
+      MAX_EXPERT_HEAVY_TASKS: "4"
+      BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
+      BLACKBOARD_VERIFICATION_EXPERTS: "Анна,Алексей"
+      BLACKBOARD_RD_EXCLUDED_EXPERTS: ""
+      BLACKBOARD_EXPERT_CAPABILITIES: "Роман:research,rd,backend,heavy,analysis;Анна:verification,qa,audit,analysis"
+      RUNTIME_WORKER_HEARTBEAT_KEY: ${RUNTIME_WORKER_HEARTBEAT_KEY:-runtime:expert_heartbeats}
+      RUNTIME_WORKER_HEARTBEAT_TTL_SEC: ${RUNTIME_WORKER_HEARTBEAT_TTL_SEC:-90}
+      WORKER_TYPE: "light"
+      SMART_WORKER_LLM_TIMEOUT: "300"
+      SMART_WORKER_LLM_STUCK_MINUTES: "30"
+      SMART_WORKER_STUCK_MINUTES: "30"
+      SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: "30"
+      WORKER_TASK_TOTAL_TIMEOUT: "7200"
+      WORKER_TASK_TIMEOUT_MAX_SEC: "7200"
+      WORKER_STALE_INPROGRESS_RECLAIM_SEC: "300"
+      HITL_ENFORCE_HIGH_RISK_TASKS: ${HITL_ENFORCE_HIGH_RISK_TASKS:-false}
+      HITL_APPROVAL_TIMEOUT_SEC: ${HITL_APPROVAL_TIMEOUT_SEC:-900}
+      HITL_HIGH_RISK_LEVELS: ${HITL_HIGH_RISK_LEVELS:-high,critical}
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../knowledge_os:/app/knowledge_os
+      - /var/run/docker.sock:/var/run/docker.sock
+      - redis_data:/data/redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: python3 knowledge_os/app/expert_worker.py
@@ -469,13 +518,6 @@ services:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     restart: always
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          memory: 2g
-        reservations:
-          memory: 256m
     networks:
       - atra-network
     environment:
@@ -507,7 +549,12 @@ services:
       - "host.docker.internal:host-gateway"
     # [RETIRED] Unified into smart_worker_autonomous.py
     # command: python3 knowledge_os/app/expert_worker.py
-    command: ["python", "-c", "import time; print('Expert worker retired, unified into smart_worker'); time.sleep(3600)"]
+    command:
+      [
+        "python",
+        "-c",
+        "import time; print('Expert worker retired, unified into smart_worker'); time.sleep(3600)",
+      ]
 
   veronica-agent:
     depends_on:
@@ -527,9 +574,13 @@ services:
       DATABASE_URL: postgresql://admin:secret@knowledge_pgbouncer:6432/knowledge_os # pragma: allowlist secret
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      REDIS_URL: redis://knowledge_os_redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       USE_ELK: "true"
       ELASTICSEARCH_URL: http://atra-elasticsearch:9200
+      ELK_MIN_LEVEL: "WARNING"
+      ELK_DROP_NONCRITICAL: "false"
+      ELK_DROP_FLAG_KEY: "system:elk_drop_noncritical"
       # 🚀 Veronica Enhanced - включает все компоненты супер-корпорации
       USE_VERONICA_ENHANCED: "true"
       # 📊 OpenTelemetry для трассировки
@@ -613,16 +664,17 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
     container_name: atra-elasticsearch
     restart: unless-stopped
+    mem_limit: 2g
     # mem_limit: 6g — было 4g: OOM kills 04:16 и 05:15 UTC 2026-04-12.
     # Правило ES: JVM heap = 50% от лимита контейнера; остаток — Lucene page cache.
     # При 4g/2g_heap не хватало буфера → OOM. Теперь 6g/2g_heap — стабильно.
-    mem_limit: 6g
     environment:
       - TZ=Europe/Moscow
       - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
+      - xpack.ml.enabled=false
     ports:
       - "9200:9200"
     volumes:
@@ -660,14 +712,19 @@ services:
   # Воркер (дневной): обрабатывает PENDING задачи (симуляции, разведка, обычные задачи). LLM на хосте.
   # mem_limit увеличен 3g → 6g: потребление 1.4 GB (2026-04-17).
   knowledge_os_worker:
+    logging: *default-logging
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_worker
     restart: unless-stopped
-    mem_limit: 6g
     networks:
       - atra-network
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       TZ: Europe/Moscow
       PYTHONPATH: /app/knowledge_os
@@ -682,29 +739,52 @@ services:
       SERVER_LLM_URL: http://host.docker.internal:11434
       VICTORIA_MLX_BRAIN: ${VICTORIA_MLX_BRAIN:-true}
       # Потолок: макс. задач «в работе»; выровнен с LLM-ёмкостью (MLX: 2 слота + Ollama: 1 = 3 total)
-      SMART_WORKER_MAX_CONCURRENT: "1"
+      SMART_WORKER_MAX_CONCURRENT: "2"
       SMART_WORKER_ADAPTIVE_CONCURRENCY: "true"
+      # Ingestion Quality Gate (canary)
+      INGESTION_GATE_SHADOW_MODE: ${INGESTION_GATE_SHADOW_MODE:-false}
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-10}
       # MLX нестабилен при высоком параллелизме (вылеты) — не более N одновременных запросов к MLX
       ADAPTIVE_MLX_SAFE_MAX: "3"
       # [TTL FIX] Увеличено для delegation задач (SRE best practice: 3x ожидаемое время)
-      SMART_WORKER_LLM_TIMEOUT: "1800"
+      SMART_WORKER_LLM_TIMEOUT: "300"
       # [TTL FIX] RAG-Loop Guard — сброс если нет LLM вызова > 30 мин (было 10)
       SMART_WORKER_LLM_STUCK_MINUTES: "30"
       # [TTL FIX] Таймаут для delegation задач — 120 мин (было 60)
       WORKER_TASK_TOTAL_TIMEOUT: "7200"
+      WORKER_TASK_TIMEOUT_MAX_SEC: "7200"
+      WORKER_STALE_INPROGRESS_RECLAIM_SEC: "300"
+      HITL_ENFORCE_HIGH_RISK_TASKS: ${HITL_ENFORCE_HIGH_RISK_TASKS:-false}
+      HITL_APPROVAL_TIMEOUT_SEC: ${HITL_APPROVAL_TIMEOUT_SEC:-900}
+      HITL_HIGH_RISK_LEVELS: ${HITL_HIGH_RISK_LEVELS:-high,critical}
       # Worker уступает Ollama victoria-agent (low priority → пропускает перегруженный Ollama, уходит на MLX)
       OLLAMA_REQUEST_PRIORITY: "low"
       # Больше попыток и задержка перед повтором — меньше накопления в ручной очереди
-      SMART_WORKER_MAX_ATTEMPTS: "5"
-      SMART_WORKER_RETRY_DELAY_SEC: "180"
+      SMART_WORKER_MAX_ATTEMPTS: "2"
+      SMART_WORKER_RETRY_DELAY_SEC: "30"
       # Батч по batch_group: один вызов LLM на 2–3 задачи (ARCHITECTURE_IMPROVEMENTS §2.5)
       SMART_WORKER_BATCH_GROUP_LLM: "true"
-      # Стратег использует лёгкую модель — тяжёлая 35B не нужна для планирования задач воркера.
-      # phi3.5:3.8b уже загружена, освобождает 26 GB Ollama VRAM (убирает дубль victoria-wisdom).
-      VICTORIA_STRATEGIST_MODEL: "phi3.5:3.8b"
-      VICTORIA_EXECUTOR_MODEL: "victoria-wisdom-v3.5"
+      # Для воркера по умолчанию используем быстрый профиль:
+      # высокая throughput-стабильность важнее максимального reasoning depth на единичной задаче.
+      VICTORIA_STRATEGIST_MODEL: ${VICTORIA_STRATEGIST_MODEL:-victoria-wisdom-v3.5:latest}
+      VICTORIA_EXECUTOR_MODEL: ${VICTORIA_EXECUTOR_MODEL:-victoria-wisdom-v3.5:latest}
       # Stability & Performance Watchdog: Backpressure
-      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
+      SMART_WORKER_MAX_PENDING: "40"
+      SMART_WORKER_BURST_PENDING_THRESHOLD: ${SMART_WORKER_BURST_PENDING_THRESHOLD:-5}
+      SMART_WORKER_BURST_MAX_CONCURRENT: ${SMART_WORKER_BURST_MAX_CONCURRENT:-3}
+      SMART_WORKER_BACKLOG_DEGRADE_PENDING: ${SMART_WORKER_BACKLOG_DEGRADE_PENDING:-5}
+      SMART_WORKER_BACKLOG_TIMEOUT_SEC: ${SMART_WORKER_BACKLOG_TIMEOUT_SEC:-180}
+      SMART_WORKER_BACKLOG_STUCK_PENDING_THRESHOLD: ${SMART_WORKER_BACKLOG_STUCK_PENDING_THRESHOLD:-5}
+      SMART_WORKER_BACKLOG_STUCK_MINUTES: "30"
+      SMART_WORKER_STUCK_MINUTES: "30"
+      SMART_WORKER_BACKLOG_LLM_STUCK_MINUTES: "30"
+      SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: "30"
+      SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES: "25"
+      SMART_WORKER_HARD_CAP_MAX_RESETS: 3
+      SMART_WORKER_OVERLOAD_ALLOW_PROBE: ${SMART_WORKER_OVERLOAD_ALLOW_PROBE:-true}
+      SMART_WORKER_WORK_ITEM_TIMEOUT_SEC: ${SMART_WORKER_WORK_ITEM_TIMEOUT_SEC:-420}
+      DB_POOL_CONNECT_RETRIES: ${DB_POOL_CONNECT_RETRIES:-5}
+      DB_POOL_RETRY_BASE_DELAY_SEC: ${DB_POOL_RETRY_BASE_DELAY_SEC:-1.0}
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - /var/run/docker.sock:/var/run/docker.sock
@@ -720,18 +800,19 @@ services:
   # docker inspect knowledge_nightly --format '{{.State.OOMKilled}}'
   # OLLAMA_KEEP_ALIVE: 60 (1 мин) — выгрузка моделей после цикла (docs/MODEL_UNLOADING_AND_MEMORY.md)
   knowledge_nightly:
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_nightly
     restart: unless-stopped
-    mem_limit: 8g
-    deploy:
-      resources:
-        limits:
-          memory: 8g
     healthcheck:
-      test: ["CMD", "sh", "-c", "pgrep -f nightly_learner.py > /dev/null || exit 0"]
+      test:
+        ["CMD", "sh", "-c", "pgrep -f nightly_learner.py > /dev/null || exit 0"]
       interval: 30m
       timeout: 10s
       retries: 2
@@ -748,6 +829,9 @@ services:
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       MLX_API_URL: http://host.docker.internal:11435
       MAC_LLM_URL: http://host.docker.internal:11434
+      DISTILL_TEACHER_MODEL: qwen2.5-coder:14b
+      DISTILL_TEACHER_TIMEOUT_SEC: 300
+      DISTILL_LLM_CONCURRENCY: 2
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       TG_TOKEN: ${TG_TOKEN:-8461566302:AAFdSGcVzyEQG1UMu2s954DMJk-wzN7R3Hs}
       CHAT_ID: ${TELEGRAM_USER_ID:-556251171}
@@ -765,11 +849,11 @@ services:
         "-c",
         "while true; do \
         HOUR=$$(date +%H); \
-        if [ $$HOUR -ge 0 ] && [ $$HOUR -lt 6 ]; then \
-        echo \"🌙 [NIGHTLY] Время глубокого обучения (00:00 - 06:00). Запуск одного цикла...\"; \
+        if [ $$HOUR -ge 0 ] && [ $$HOUR -lt 24 ]; then \
+        echo \"🌙 [NIGHTLY] Время глубокого обучения (ANYTIME MODE). Запуск цикла...\"; \
         python -u nightly_learner.py; \
-        echo \"✅ Цикл завершён. Ожидание следующей ночи (до 00:00)...\"; \
-        sleep 21600; \
+        echo \"✅ Батч завершён. Короткая пауза (60с) перед следующим...\"; \
+        sleep 60; \
         else \
         echo \"☀️ [NIGHTLY] Сейчас $$HOUR:00. Ожидание окна 00:00 - 06:00...\"; \
         sleep 1800; \
@@ -810,13 +894,17 @@ services:
 
   # Оркестратор: всё время слушает задачи (вариант A — один процесс с --continuous)
   knowledge_os_orchestrator:
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_os_orchestrator
     restart: unless-stopped
-    mem_limit: 8g
-    mem_reservation: 4g
     networks:
       - atra-network
     environment:
@@ -840,8 +928,38 @@ services:
       RECOVERY_WEBHOOK_URL: ${RECOVERY_WEBHOOK_URL:-http://host.docker.internal:9099/recover}
       ORCHESTRATOR_HEALTH_MONITOR_INTERVAL: ${ORCHESTRATOR_HEALTH_MONITOR_INTERVAL:-300}
       ENABLE_EVENT_MONITORING: "true"
+      ORCHESTRATOR_ACTIVE_EXPERTS: ${ORCHESTRATOR_ACTIVE_EXPERTS:-Анна,Роман}
+      ORCHESTRATOR_REQUIRE_RUNTIME_HEARTBEAT: ${ORCHESTRATOR_REQUIRE_RUNTIME_HEARTBEAT:-true}
+      ORCHESTRATOR_RUNTIME_CACHE_TTL_SEC: ${ORCHESTRATOR_RUNTIME_CACHE_TTL_SEC:-10}
+      RUNTIME_WORKER_HEARTBEAT_KEY: ${RUNTIME_WORKER_HEARTBEAT_KEY:-runtime:expert_heartbeats}
+      RUNTIME_WORKER_HEARTBEAT_TTL_SEC: ${RUNTIME_WORKER_HEARTBEAT_TTL_SEC:-90}
+      ORCHESTRATOR_STALE_INPROGRESS_MINUTES: ${ORCHESTRATOR_STALE_INPROGRESS_MINUTES:-45}
+      ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES: ${ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES:-3}
+      ORCHESTRATOR_RULE_FALLBACK_FOR_RD_VERIFY: ${ORCHESTRATOR_RULE_FALLBACK_FOR_RD_VERIFY:-true}
+      ORCHESTRATOR_FOCUS_EXECUTION_WHEN_BACKLOG: ${ORCHESTRATOR_FOCUS_EXECUTION_WHEN_BACKLOG:-true}
+      ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: ${ORCHESTRATOR_CONTRACT_ROLLOUT_MODE:-enforce}
+      ORCHESTRATOR_CONTRACT_CANARY_PERCENT: ${ORCHESTRATOR_CONTRACT_CANARY_PERCENT:-20}
+      ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN: ${ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN:-10}
+      ORCHESTRATOR_ROLLOUT_KPI_MIN_COMPLETED: ${ORCHESTRATOR_ROLLOUT_KPI_MIN_COMPLETED:-2}
+      ORCHESTRATOR_ROLLOUT_KPI_MAX_FAILURE_RATE: ${ORCHESTRATOR_ROLLOUT_KPI_MAX_FAILURE_RATE:-0.20}
+      ORCHESTRATOR_ROLLOUT_KPI_MAX_PENDING: ${ORCHESTRATOR_ROLLOUT_KPI_MAX_PENDING:-20}
+      ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN: ${ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN:-30}
+      ORCHESTRATOR_MAX_ACTIVE_CURIOSITY_TASKS: ${ORCHESTRATOR_MAX_ACTIVE_CURIOSITY_TASKS:-1}
+      ORCHESTRATOR_CURIOSITY_GHOST_NO_LLM_MINUTES: ${ORCHESTRATOR_CURIOSITY_GHOST_NO_LLM_MINUTES:-15}
+      ORCHESTRATOR_CURIOSITY_PENDING_TIMEOUT_MIN: ${ORCHESTRATOR_CURIOSITY_PENDING_TIMEOUT_MIN:-120}
+      ORCHESTRATOR_CURIOSITY_MIN_COMPLETED_10M: "1"
+      ORCHESTRATOR_PENDING_DISPATCH_TIMEOUT_MIN: ${ORCHESTRATOR_PENDING_DISPATCH_TIMEOUT_MIN:-60}
+      ORCHESTRATOR_PENDING_DISPATCH_MAX_STRIKES: ${ORCHESTRATOR_PENDING_DISPATCH_MAX_STRIKES:-3}
+      ORCHESTRATOR_PENDING_DISPATCH_PROGRESS_GRACE_MIN: ${ORCHESTRATOR_PENDING_DISPATCH_PROGRESS_GRACE_MIN:-20}
+      ORCHESTRATOR_AUTONOMOUS_RUNTIME_CAP_MIN: ${ORCHESTRATOR_AUTONOMOUS_RUNTIME_CAP_MIN:-120}
+      ORCHESTRATOR_DISPATCH_RETRY_INTERVAL_MIN: ${ORCHESTRATOR_DISPATCH_RETRY_INTERVAL_MIN:-2}
+      ORCHESTRATOR_HEAVY_PHASE_STEP_TIMEOUT_SEC: ${ORCHESTRATOR_HEAVY_PHASE_STEP_TIMEOUT_SEC:-120}
+      ORCHESTRATOR_GHOST_INPROGRESS_GRACE_SEC: ${ORCHESTRATOR_GHOST_INPROGRESS_GRACE_SEC:-60}
+      # Ingestion Quality Gate (canary)
+      INGESTION_GATE_SHADOW_MODE: ${INGESTION_GATE_SHADOW_MODE:-false}
+      INGESTION_GATE_ENFORCE_PERCENT: ${INGESTION_GATE_ENFORCE_PERCENT:-10}
       # Stability & Performance Watchdog: Backpressure
-      SMART_WORKER_MAX_PENDING: ${SMART_WORKER_MAX_PENDING:-10}
+      SMART_WORKER_MAX_PENDING: "40"
       # Phase 1.6: batch_group для задач одного domain (low/medium)
       BATCH_SMALL_TASKS_ENABLED: "true"
       # mTLS — межкластерная безопасность для MultiClusterBridge (Singularity 21.24)
@@ -901,6 +1019,7 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: board-scheduler
     restart: unless-stopped
+    mem_limit: 4g
     networks:
       - atra-network
     environment:
@@ -964,7 +1083,6 @@ services:
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: performance-watchdog
     restart: unless-stopped
-    mem_limit: 1g
     networks:
       - atra-network
     environment:
@@ -974,7 +1092,7 @@ services:
       POSTGRES_DIRECT_URL: postgresql://admin:secret@knowledge_postgres:5432/knowledge_os # pragma: allowlist secret
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MLX_API_URL: http://host.docker.internal:11435
-      WATCHDOG_INTERVAL_SEC: "1800"
+      WATCHDOG_INTERVAL_SEC: "300"
       WATCHDOG_SLOW_THRESHOLD_MS: "500"
       WATCHDOG_AUTONOMOUS: "true"
     volumes:
@@ -990,12 +1108,15 @@ services:
 
   # Perpetual Evolution Engine: автономный цикл эволюции (каждые 2 ч)
   knowledge_evolution:
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
     container_name: knowledge_evolution
     restart: unless-stopped
-    mem_limit: 4g
     networks:
       - atra-network
     environment:
@@ -1008,6 +1129,8 @@ services:
       MLX_API_URL: http://host.docker.internal:11435
       OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-300}
       EVOLUTION_INTERVAL_SEC: "3600"
+      USE_CUBE_SANDBOX: "false"
+      HOST_SANDBOX_SHARED_DIR: "/Users/bikos/Documents/atra-web-ide/knowledge_os/sandbox_shared"
     volumes:
       - ../knowledge_os:/app/knowledge_os
       - /var/run/docker.sock:/var/run/docker.sock
@@ -1026,7 +1149,6 @@ services:
       dockerfile: Dockerfile
     container_name: victoria-visual-search
     restart: unless-stopped
-    mem_limit: 4g
     networks:
       - atra-network
     environment:

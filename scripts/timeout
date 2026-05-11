@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 2 ]; then
+  echo "Usage: timeout <seconds> <command> [args...]" >&2
+  exit 2
+fi
+
+TIMEOUT_SECONDS="$1"
+shift
+
+python3 - "$TIMEOUT_SECONDS" "$@" <<'PY'
+import subprocess
+import sys
+
+timeout = float(sys.argv[1])
+cmd = sys.argv[2:]
+
+proc = subprocess.Popen(cmd)
+try:
+    proc.wait(timeout=timeout)
+    raise SystemExit(proc.returncode)
+except subprocess.TimeoutExpired:
+    proc.terminate()
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+    raise SystemExit(124)
+PY
