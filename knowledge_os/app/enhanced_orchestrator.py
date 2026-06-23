@@ -5,7 +5,9 @@ Part of the ATRA Singularity framework.
 """
 
 import asyncio
+import fcntl  # [SINGULARITY 21.30] Для блокировки файлов на Unix-системах
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -13,12 +15,11 @@ import subprocess
 import sys
 import time
 import traceback
-import fcntl  # [SINGULARITY 21.30] Для блокировки файлов на Unix-системах
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CollectorRegistry
+    from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
@@ -28,6 +29,21 @@ except ImportError:
 _orch_active_cycles = _orch_tasks_assigned = _orch_task_duration = _orch_errors = (
     _orch_tasks_per_phase
 ) = None
+_orch_cycles_total = None
+_orch_dynamic_spawn_attempts = _orch_dynamic_spawn_success = _orch_dynamic_fallbacks = None
+_orch_dynamic_stuck = None
+CONTRACT_ROLLOUT_MODE = os.getenv("ORCHESTRATOR_CONTRACT_ROLLOUT_MODE", "shadow").strip().lower()
+CONTRACT_CANARY_ENFORCE_PERCENT = int(os.getenv("ORCHESTRATOR_CONTRACT_CANARY_PERCENT", "20"))
+ROLLOUT_KPI_WINDOW_MIN = int(os.getenv("ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN", "10"))
+ROLLOUT_KPI_MIN_COMPLETED = int(os.getenv("ORCHESTRATOR_ROLLOUT_KPI_MIN_COMPLETED", "2"))
+ROLLOUT_KPI_MAX_FAILURE_RATE = float(os.getenv("ORCHESTRATOR_ROLLOUT_KPI_MAX_FAILURE_RATE", "0.20"))
+ROLLOUT_KPI_MAX_PENDING = int(os.getenv("ORCHESTRATOR_ROLLOUT_KPI_MAX_PENDING", "20"))
+_corp_refresh_task: Optional[asyncio.Task] = None
+_corp_refresh_last_start_ts: float = 0.0
+_corp_refresh_lock = asyncio.Lock()
+_corp_refresh_min_interval_sec = int(
+    os.getenv("CORPORATION_KNOWLEDGE_MIN_REFRESH_INTERVAL_SEC", "900")
+)
 
 if _PROMETHEUS_AVAILABLE and Gauge is not None:
     _orch_tasks_assigned = Counter(
@@ -54,12 +70,42 @@ if _PROMETHEUS_AVAILABLE and Gauge is not None:
         "Tasks processed per orchestration phase",
         ["phase"],
     )
+    _orch_cycles_total = Counter(
+        "orchestrator_cycles_total",
+        "Total orchestrator cycle outcomes",
+        ["status"],
+    )
+    _orch_dynamic_spawn_attempts = Counter(
+        "orchestrator_dynamic_spawn_attempts_total",
+        "Dynamic worker spawn attempts",
+        ["result"],
+    )
+    _orch_dynamic_spawn_success = Counter(
+        "orchestrator_dynamic_spawn_success_total",
+        "Dynamic worker spawn success",
+        ["slot"],
+    )
+    _orch_dynamic_fallbacks = Counter(
+        "orchestrator_dynamic_fallback_total",
+        "Fallbacks when dynamic worker unavailable",
+        ["reason"],
+    )
+    _orch_dynamic_stuck = Counter(
+        "orchestrator_stuck_agent_run_total",
+        "Tasks at risk of stuck execution due to non-live experts",
+        ["reason"],
+    )
     _orch_registry = CollectorRegistry()
     _orch_registry.register(_orch_tasks_assigned)
     _orch_registry.register(_orch_task_duration)
     _orch_registry.register(_orch_active_cycles)
     _orch_registry.register(_orch_errors)
     _orch_registry.register(_orch_tasks_per_phase)
+    _orch_registry.register(_orch_cycles_total)
+    _orch_registry.register(_orch_dynamic_spawn_attempts)
+    _orch_registry.register(_orch_dynamic_spawn_success)
+    _orch_registry.register(_orch_dynamic_fallbacks)
+    _orch_registry.register(_orch_dynamic_stuck)
 
 
 def _record_orch_metric(metric_type, name, *args, **kwargs):
@@ -77,6 +123,63 @@ def _record_orch_metric(metric_type, name, *args, **kwargs):
             name.dec(*args, **kwargs)
     except Exception:
         pass
+
+
+def _is_canary_enforce(task_id: str, percent: int) -> bool:
+    if percent <= 0:
+        return False
+    if percent >= 100:
+        return True
+    digest = hashlib.sha1(task_id.encode("utf-8", errors="ignore")).hexdigest()
+    bucket = int(digest[:8], 16) % 100
+    return bucket < percent
+
+
+async def _resolve_contract_mode(rd=None) -> str:
+    mode = CONTRACT_ROLLOUT_MODE
+    if rd is not None:
+        try:
+            redis_mode = await rd.get("system:contract_rollout_mode")
+            if redis_mode:
+                mode = str(redis_mode).strip().lower()
+        except Exception:
+            pass
+    if mode not in {"off", "shadow", "enforce", "auto"}:
+        mode = "shadow"
+    if mode == "auto" and rd is not None:
+        try:
+            enforce_flag = await rd.get("system:contract_enforce")
+            return (
+                "enforce" if str(enforce_flag).lower() in ("1", "true", "yes", "on") else "shadow"
+            )
+        except Exception:
+            return "shadow"
+    return mode
+
+
+async def _compute_rollout_kpis(conn) -> Dict[str, float]:
+    row = await conn.fetchrow(
+        """
+        SELECT
+            count(*) FILTER (WHERE status = 'completed' AND updated_at > NOW() - ($1 || ' minutes')::interval) AS completed_10m,
+            count(*) FILTER (WHERE status = 'failed' AND updated_at > NOW() - ($1 || ' minutes')::interval) AS failed_10m,
+            count(*) FILTER (WHERE status = 'in_progress') AS in_progress_now,
+            count(*) FILTER (WHERE status = 'pending') AS pending_now
+        FROM tasks
+    """,
+        str(ROLLOUT_KPI_WINDOW_MIN),
+    )
+    completed = int((row or {}).get("completed_10m") or 0)
+    failed = int((row or {}).get("failed_10m") or 0)
+    denom = completed + failed
+    failure_rate = (failed / denom) if denom > 0 else 0.0
+    return {
+        "completed_10m": completed,
+        "failed_10m": failed,
+        "in_progress_now": int((row or {}).get("in_progress_now") or 0),
+        "pending_now": int((row or {}).get("pending_now") or 0),
+        "failure_rate": failure_rate,
+    }
 
 
 # ... (остальные импорты)
@@ -97,7 +200,7 @@ class PIDLock:
             self.fd.write(str(os.getpid()))
             self.fd.flush()
             return True
-        except (IOError, OSError):
+        except OSError:
             return False
 
     def release(self):
@@ -415,8 +518,8 @@ async def _decompose_via_victoria(goal: str) -> Optional[Dict]:
 
 
 try:
-    from swarm_orchestrator import SwarmOrchestrator
     from explicit_handoffs import get_handoff_manager
+    from swarm_orchestrator import SwarmOrchestrator
 except ImportError:
 
     class SwarmOrchestrator:
@@ -507,6 +610,105 @@ except ImportError:
     ServerKnowledgeSync = None
 
 logger = logging.getLogger(__name__)
+_DISTILLER_SINGLETON = None
+_SYNTHETIC_GENERATOR_SINGLETON = None
+_TRAINING_PIPELINE_SINGLETON = None
+_SWARM_ORCHESTRATOR_SINGLETON = None
+_META_ARCHITECT_SINGLETON = None
+_EVOLUTION_MONITOR_SINGLETON = None
+_CURIOSITY_ENGINE_SINGLETON = None
+_MEMORY_CONSOLIDATOR_SINGLETON = None
+_MULTI_CLUSTER_BRIDGE_SINGLETON = None
+_SERVER_KNOWLEDGE_SYNC_SINGLETON = None
+_STRATEGY_SESSION_MANAGER_SINGLETON = None
+_KNOWLEDGE_ARCHIVER_SINGLETON = None
+
+
+def _get_distiller():
+    global _DISTILLER_SINGLETON
+    if _DISTILLER_SINGLETON is None:
+        _DISTILLER_SINGLETON = KnowledgeDistiller()
+    return _DISTILLER_SINGLETON
+
+
+def _get_synthetic_generator():
+    global _SYNTHETIC_GENERATOR_SINGLETON
+    if _SYNTHETIC_GENERATOR_SINGLETON is None:
+        _SYNTHETIC_GENERATOR_SINGLETON = SyntheticKnowledgeGenerator()
+    return _SYNTHETIC_GENERATOR_SINGLETON
+
+
+def _get_training_pipeline():
+    global _TRAINING_PIPELINE_SINGLETON
+    if _TRAINING_PIPELINE_SINGLETON is None:
+        _TRAINING_PIPELINE_SINGLETON = LocalTrainingPipeline()
+    return _TRAINING_PIPELINE_SINGLETON
+
+
+def _get_swarm_orchestrator():
+    global _SWARM_ORCHESTRATOR_SINGLETON
+    if _SWARM_ORCHESTRATOR_SINGLETON is None:
+        _SWARM_ORCHESTRATOR_SINGLETON = SwarmOrchestrator()
+    return _SWARM_ORCHESTRATOR_SINGLETON
+
+
+def _get_meta_architect():
+    global _META_ARCHITECT_SINGLETON
+    if _META_ARCHITECT_SINGLETON is None:
+        _META_ARCHITECT_SINGLETON = MetaArchitect()
+    return _META_ARCHITECT_SINGLETON
+
+
+def _get_evolution_monitor():
+    global _EVOLUTION_MONITOR_SINGLETON
+    if _EVOLUTION_MONITOR_SINGLETON is None:
+        _EVOLUTION_MONITOR_SINGLETON = SingularityEvolutionMonitor()
+    return _EVOLUTION_MONITOR_SINGLETON
+
+
+def _get_curiosity_engine():
+    global _CURIOSITY_ENGINE_SINGLETON
+    if _CURIOSITY_ENGINE_SINGLETON is None:
+        _CURIOSITY_ENGINE_SINGLETON = CuriosityEngine()
+    return _CURIOSITY_ENGINE_SINGLETON
+
+
+def _get_memory_consolidator():
+    global _MEMORY_CONSOLIDATOR_SINGLETON
+    if _MEMORY_CONSOLIDATOR_SINGLETON is None:
+        _MEMORY_CONSOLIDATOR_SINGLETON = MemoryConsolidator()
+    return _MEMORY_CONSOLIDATOR_SINGLETON
+
+
+def _get_multi_cluster_bridge():
+    global _MULTI_CLUSTER_BRIDGE_SINGLETON
+    if not MultiClusterBridge:
+        return None
+    if _MULTI_CLUSTER_BRIDGE_SINGLETON is None:
+        _MULTI_CLUSTER_BRIDGE_SINGLETON = MultiClusterBridge()
+    return _MULTI_CLUSTER_BRIDGE_SINGLETON
+
+
+def _get_server_knowledge_sync():
+    global _SERVER_KNOWLEDGE_SYNC_SINGLETON
+    if not ServerKnowledgeSync:
+        return None
+    if _SERVER_KNOWLEDGE_SYNC_SINGLETON is None:
+        _SERVER_KNOWLEDGE_SYNC_SINGLETON = ServerKnowledgeSync()
+    return _SERVER_KNOWLEDGE_SYNC_SINGLETON
+
+
+def _get_knowledge_archiver():
+    global _STRATEGY_SESSION_MANAGER_SINGLETON, _KNOWLEDGE_ARCHIVER_SINGLETON
+    if _KNOWLEDGE_ARCHIVER_SINGLETON is not None:
+        return _KNOWLEDGE_ARCHIVER_SINGLETON
+    from knowledge_archiver import KnowledgeArchiver
+    from strategy_session_manager import StrategySessionManager
+
+    if _STRATEGY_SESSION_MANAGER_SINGLETON is None:
+        _STRATEGY_SESSION_MANAGER_SINGLETON = StrategySessionManager()
+    _KNOWLEDGE_ARCHIVER_SINGLETON = KnowledgeArchiver(_STRATEGY_SESSION_MANAGER_SINGLETON)
+    return _KNOWLEDGE_ARCHIVER_SINGLETON
 
 
 def _mask_db_url(url: str) -> str:
@@ -530,6 +732,66 @@ DEFAULT_DB_URL = (
 )
 DB_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+ACTIVE_EXECUTOR_EXPERTS = {
+    item.strip()
+    for item in os.getenv(
+        "ORCHESTRATOR_ACTIVE_EXPERTS",
+        "Виктория,Анна,Роман",
+    ).split(",")
+    if item.strip()
+}
+PERMANENT_EXECUTOR_EXPERTS = {
+    item.strip()
+    for item in os.getenv(
+        "ORCHESTRATOR_PERMANENT_EXPERTS",
+        "Виктория,Анна,Роман",
+    ).split(",")
+    if item.strip()
+}
+DYNAMIC_WORKERS_ENABLED = os.getenv("ORCHESTRATOR_DYNAMIC_WORKERS_ENABLED", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+DYNAMIC_WORKER_SLOTS = [
+    item.strip()
+    for item in os.getenv(
+        "ORCHESTRATOR_DYNAMIC_WORKER_SLOTS",
+        "expert-worker-dynamic-1,expert-worker-dynamic-2",
+    ).split(",")
+    if item.strip()
+]
+DYNAMIC_WORKER_ALLOWED_EXPERTS = {
+    item.strip()
+    for item in os.getenv("ORCHESTRATOR_DYNAMIC_ALLOWED_EXPERTS", "").split(",")
+    if item.strip()
+}
+DYNAMIC_WORKER_WARMUP_SEC = max(15, int(os.getenv("ORCHESTRATOR_DYNAMIC_WARMUP_SEC", "45")))
+DYNAMIC_WORKER_IDLE_TTL_SEC = max(300, int(os.getenv("ORCHESTRATOR_DYNAMIC_IDLE_TTL_SEC", "1800")))
+DYNAMIC_WORKER_STATE_KEY = os.getenv(
+    "ORCHESTRATOR_DYNAMIC_WORKER_STATE_KEY", "runtime:dynamic_worker_slots"
+)
+DYNAMIC_COMPOSE_FILES = [
+    item.strip()
+    for item in os.getenv(
+        "ORCHESTRATOR_DYNAMIC_COMPOSE_FILES",
+        "/app/knowledge_os/docker-compose.yml,/app/knowledge_os/docker-compose.agents.yml",
+    ).split(",")
+    if item.strip()
+]
+DYNAMIC_COMPOSE_WORKDIR = os.getenv("ORCHESTRATOR_DYNAMIC_COMPOSE_WORKDIR", "/app/knowledge_os")
+RUNTIME_WORKER_HEARTBEAT_KEY = os.getenv(
+    "RUNTIME_WORKER_HEARTBEAT_KEY", "runtime:expert_heartbeats"
+)
+RUNTIME_WORKER_HEARTBEAT_TTL_SEC = int(os.getenv("RUNTIME_WORKER_HEARTBEAT_TTL_SEC", "90"))
+RUNTIME_WORKER_CACHE_TTL_SEC = int(os.getenv("ORCHESTRATOR_RUNTIME_CACHE_TTL_SEC", "10"))
+REQUIRE_RUNTIME_HEARTBEAT = os.getenv("ORCHESTRATOR_REQUIRE_RUNTIME_HEARTBEAT", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+_runtime_live_experts_cache = set()
+_runtime_live_experts_cache_at = 0.0
 
 # Приоритеты задач
 PRIORITY_WEIGHTS = {
@@ -538,6 +800,426 @@ PRIORITY_WEIGHTS = {
     "medium": 25,
     "low": 10,
 }
+
+
+async def _get_runtime_live_experts(force_refresh: bool = False):
+    """Get live experts from runtime worker heartbeat registry."""
+    global _runtime_live_experts_cache, _runtime_live_experts_cache_at
+
+    now = time.time()
+    if (
+        not force_refresh
+        and _runtime_live_experts_cache_at > 0
+        and (now - _runtime_live_experts_cache_at) < RUNTIME_WORKER_CACHE_TTL_SEC
+    ):
+        return _runtime_live_experts_cache
+
+    live = set()
+    stale = []
+    if REDIS_AVAILABLE:
+        rd = None
+        try:
+            rd = await redis.from_url(REDIS_URL, decode_responses=True)
+            entries = await rd.hgetall(RUNTIME_WORKER_HEARTBEAT_KEY)
+            for expert_name, raw in entries.items():
+                ts = 0
+                try:
+                    payload = json.loads(raw)
+                    ts = int(payload.get("ts", 0))
+                except Exception:
+                    try:
+                        ts = int(raw)
+                    except Exception:
+                        ts = 0
+                if ts > 0 and (now - ts) <= RUNTIME_WORKER_HEARTBEAT_TTL_SEC:
+                    live.add(expert_name)
+                else:
+                    stale.append(expert_name)
+            if stale:
+                await rd.hdel(RUNTIME_WORKER_HEARTBEAT_KEY, *stale)
+        except Exception as hb_err:
+            logger.warning("[RUNTIME-REGISTRY] heartbeat registry unavailable: %s", hb_err)
+        finally:
+            if rd is not None:
+                try:
+                    await rd.aclose()
+                except Exception:
+                    pass
+
+    _runtime_live_experts_cache = live
+    _runtime_live_experts_cache_at = now
+    return live
+
+
+def _dynamic_slot_env_var(slot_name: str) -> str:
+    suffix = slot_name.rsplit("-", 1)[-1]
+    return f"DYNAMIC_EXPERT_NAME_SLOT{suffix}"
+
+
+async def _dynamic_state_get(rd) -> Dict[str, Dict]:
+    try:
+        raw = await rd.get(DYNAMIC_WORKER_STATE_KEY)
+        if not raw:
+            return {}
+        payload = json.loads(raw)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+async def _dynamic_state_set(rd, state: Dict[str, Dict]) -> None:
+    try:
+        await rd.set(DYNAMIC_WORKER_STATE_KEY, json.dumps(state, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+async def _reserve_dynamic_slot(expert_name: str) -> Optional[str]:
+    if not DYNAMIC_WORKERS_ENABLED or not DYNAMIC_WORKER_SLOTS:
+        return None
+    if expert_name in PERMANENT_EXECUTOR_EXPERTS:
+        return None
+    if DYNAMIC_WORKER_ALLOWED_EXPERTS and expert_name not in DYNAMIC_WORKER_ALLOWED_EXPERTS:
+        return None
+    if not REDIS_AVAILABLE:
+        return None
+
+    rd = None
+    try:
+        rd = await redis.from_url(REDIS_URL, decode_responses=True)
+        state = await _dynamic_state_get(rd)
+        now_ts = int(time.time())
+        live_experts = await _get_runtime_live_experts(force_refresh=True)
+
+        for slot, info in state.items():
+            if str((info or {}).get("expert_name", "")).strip() == expert_name:
+                return slot
+
+        for slot in DYNAMIC_WORKER_SLOTS:
+            info = state.get(slot) or {}
+            slot_expert = str(info.get("expert_name", "")).strip()
+            if not slot_expert or slot_expert not in live_experts:
+                state[slot] = {
+                    "expert_name": expert_name,
+                    "reserved_at_ts": now_ts,
+                    "last_activity_ts": now_ts,
+                }
+                await _dynamic_state_set(rd, state)
+                return slot
+    except Exception as reserve_err:
+        logger.warning("[DYNAMIC-WORKERS] reserve failed for %s: %s", expert_name, reserve_err)
+    finally:
+        if rd is not None:
+            try:
+                await rd.aclose()
+            except Exception:
+                pass
+    return None
+
+
+async def _release_dynamic_slot(slot_name: str) -> None:
+    if not REDIS_AVAILABLE:
+        return
+    rd = None
+    try:
+        rd = await redis.from_url(REDIS_URL, decode_responses=True)
+        state = await _dynamic_state_get(rd)
+        if slot_name in state:
+            state.pop(slot_name, None)
+            await _dynamic_state_set(rd, state)
+    except Exception:
+        pass
+    finally:
+        if rd is not None:
+            try:
+                await rd.aclose()
+            except Exception:
+                pass
+
+
+def _compose_cmd_for_slot(slot_name: str) -> List[str]:
+    cmd = ["docker", "compose"]
+    for compose_file in DYNAMIC_COMPOSE_FILES:
+        cmd.extend(["-f", compose_file])
+    cmd.extend(["up", "-d", "--no-deps", "--force-recreate", slot_name])
+    return cmd
+
+
+def _compose_stop_cmd(slot_name: str) -> List[str]:
+    cmd = ["docker", "compose"]
+    for compose_file in DYNAMIC_COMPOSE_FILES:
+        cmd.extend(["-f", compose_file])
+    cmd.extend(["stop", slot_name])
+    return cmd
+
+
+async def _spawn_dynamic_worker(expert_name: str) -> bool:
+    if not DYNAMIC_WORKERS_ENABLED:
+        return False
+    live = await _get_runtime_live_experts(force_refresh=True)
+    if expert_name in live:
+        return True
+
+    slot = await _reserve_dynamic_slot(expert_name)
+    if not slot:
+        _record_orch_metric("counter", _orch_dynamic_stuck, reason="no_slot_available")
+        return False
+
+    _record_orch_metric("counter", _orch_dynamic_spawn_attempts, result="started")
+    env = os.environ.copy()
+    env[_dynamic_slot_env_var(slot)] = expert_name
+
+    try:
+
+        def _run_compose_up():
+            return subprocess.run(
+                _compose_cmd_for_slot(slot),
+                cwd=DYNAMIC_COMPOSE_WORKDIR,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        proc = await asyncio.to_thread(_run_compose_up)
+        compose_stdout = (proc.stdout or "").strip()
+        compose_stderr = (proc.stderr or "").strip()
+        nonzero_rc = proc.returncode != 0
+        if proc.returncode != 0:
+            logger.warning(
+                "[DYNAMIC-WORKERS] compose returned non-zero for %s slot=%s rc=%s stdout=%s stderr=%s",
+                expert_name,
+                slot,
+                proc.returncode,
+                compose_stdout[:300],
+                compose_stderr[:300],
+            )
+
+        deadline = time.time() + DYNAMIC_WORKER_WARMUP_SEC
+        while time.time() < deadline:
+            await asyncio.sleep(3)
+            live = await _get_runtime_live_experts(force_refresh=True)
+            if expert_name in live:
+                _record_orch_metric("counter", _orch_dynamic_spawn_success, slot=slot)
+                _record_orch_metric(
+                    "counter",
+                    _orch_dynamic_spawn_attempts,
+                    result=("success_after_nonzero_rc" if nonzero_rc else "success"),
+                )
+                return True
+
+        if nonzero_rc:
+            _record_orch_metric("counter", _orch_dynamic_spawn_attempts, result="failed_nonzero_rc")
+            await _release_dynamic_slot(slot)
+            return False
+
+        logger.warning(
+            "[DYNAMIC-WORKERS] warmup timeout for %s in slot %s (%ss)",
+            expert_name,
+            slot,
+            DYNAMIC_WORKER_WARMUP_SEC,
+        )
+        _record_orch_metric("counter", _orch_dynamic_spawn_attempts, result="timeout")
+        await _release_dynamic_slot(slot)
+        return False
+    except Exception as spawn_err:
+        logger.warning("[DYNAMIC-WORKERS] exception for %s: %s", expert_name, spawn_err)
+        _record_orch_metric("counter", _orch_dynamic_spawn_attempts, result="error")
+        await _release_dynamic_slot(slot)
+        return False
+
+
+async def _touch_dynamic_worker_activity(expert_name: str) -> None:
+    if not REDIS_AVAILABLE or not expert_name:
+        return
+    rd = None
+    try:
+        rd = await redis.from_url(REDIS_URL, decode_responses=True)
+        state = await _dynamic_state_get(rd)
+        now_ts = int(time.time())
+        changed = False
+        for slot, info in state.items():
+            if str((info or {}).get("expert_name", "")).strip() == expert_name:
+                state[slot]["last_activity_ts"] = now_ts
+                changed = True
+        if changed:
+            await _dynamic_state_set(rd, state)
+    except Exception:
+        pass
+    finally:
+        if rd is not None:
+            try:
+                await rd.aclose()
+            except Exception:
+                pass
+
+
+async def _scale_down_idle_dynamic_workers(conn) -> int:
+    if not DYNAMIC_WORKERS_ENABLED or not REDIS_AVAILABLE:
+        return 0
+
+    rd = None
+    stopped = 0
+    try:
+        rd = await redis.from_url(REDIS_URL, decode_responses=True)
+        state = await _dynamic_state_get(rd)
+        if not state:
+            return 0
+        now_ts = int(time.time())
+        live = await _get_runtime_live_experts(force_refresh=True)
+        dirty = False
+
+        for slot, info in list(state.items()):
+            expert_name = str((info or {}).get("expert_name", "")).strip()
+            if not expert_name:
+                state.pop(slot, None)
+                dirty = True
+                continue
+            if expert_name in PERMANENT_EXECUTOR_EXPERTS:
+                state.pop(slot, None)
+                dirty = True
+                continue
+
+            expert_id = await conn.fetchval("SELECT id FROM experts WHERE name = $1", expert_name)
+            active_tasks = 0
+            if expert_id:
+                active_tasks = (
+                    await conn.fetchval(
+                        """
+                        SELECT COUNT(*)
+                        FROM tasks
+                        WHERE assignee_expert_id = $1
+                          AND status IN ('pending', 'in_progress')
+                        """,
+                        expert_id,
+                    )
+                    or 0
+                )
+            if active_tasks > 0:
+                info["last_activity_ts"] = now_ts
+                state[slot] = info
+                dirty = True
+                continue
+
+            last_activity_ts = int(
+                info.get("last_activity_ts") or info.get("reserved_at_ts") or now_ts
+            )
+            idle_sec = now_ts - last_activity_ts
+            if idle_sec < DYNAMIC_WORKER_IDLE_TTL_SEC:
+                continue
+
+            if expert_name in live:
+
+                def _run_compose_stop():
+                    return subprocess.run(
+                        _compose_stop_cmd(slot),
+                        cwd=DYNAMIC_COMPOSE_WORKDIR,
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+
+                proc = await asyncio.to_thread(_run_compose_stop)
+                if proc.returncode != 0:
+                    logger.warning(
+                        "[DYNAMIC-WORKERS] failed stop slot=%s expert=%s rc=%s stderr=%s",
+                        slot,
+                        expert_name,
+                        proc.returncode,
+                        (proc.stderr or "").strip()[:300],
+                    )
+                    continue
+            state.pop(slot, None)
+            dirty = True
+            stopped += 1
+            logger.info(
+                "[DYNAMIC-WORKERS] scaled down slot=%s expert=%s idle=%ss",
+                slot,
+                expert_name,
+                idle_sec,
+            )
+
+        if dirty:
+            await _dynamic_state_set(rd, state)
+    except Exception as scale_err:
+        logger.warning("[DYNAMIC-WORKERS] scale-down check failed: %s", scale_err)
+    finally:
+        if rd is not None:
+            try:
+                await rd.aclose()
+            except Exception:
+                pass
+    return stopped
+
+
+async def _filter_active_executor_candidates(candidates):
+    """Keep only explicitly active runtime executors when configured."""
+    if not candidates:
+        return []
+
+    candidate_names = [str(c.get("name") or "").strip() for c in candidates if c.get("name")]
+    if not candidate_names:
+        return []
+
+    allowed_names = set(ACTIVE_EXECUTOR_EXPERTS or set(candidate_names))
+    if DYNAMIC_WORKERS_ENABLED:
+        allowed_names |= {
+            name
+            for name in candidate_names
+            if name not in PERMANENT_EXECUTOR_EXPERTS
+            and (not DYNAMIC_WORKER_ALLOWED_EXPERTS or name in DYNAMIC_WORKER_ALLOWED_EXPERTS)
+        }
+
+    configured = [c for c in candidates if c.get("name") in allowed_names]
+    if not configured:
+        return []
+
+    live_experts = await _get_runtime_live_experts()
+    live_configured = [c for c in configured if c.get("name") in live_experts]
+    if live_configured:
+        return live_configured
+
+    if DYNAMIC_WORKERS_ENABLED:
+        dynamic_candidates = [
+            c
+            for c in configured
+            if c.get("name") not in PERMANENT_EXECUTOR_EXPERTS and c.get("name") not in live_experts
+        ]
+        if dynamic_candidates:
+            spawned = False
+            for candidate in dynamic_candidates[:2]:
+                expert_name = str(candidate.get("name") or "").strip()
+                if not expert_name:
+                    continue
+                if await _spawn_dynamic_worker(expert_name):
+                    spawned = True
+                    break
+            live_experts = await _get_runtime_live_experts(force_refresh=True)
+            live_configured = [c for c in configured if c.get("name") in live_experts]
+            if live_configured:
+                return live_configured
+            if spawned:
+                _record_orch_metric(
+                    "counter", _orch_dynamic_fallbacks, reason="spawned_but_not_live"
+                )
+
+    permanent_live = [
+        c
+        for c in configured
+        if c.get("name") in live_experts and c.get("name") in PERMANENT_EXECUTOR_EXPERTS
+    ]
+    if permanent_live:
+        _record_orch_metric("counter", _orch_dynamic_fallbacks, reason="fallback_to_permanent")
+        return permanent_live
+
+    if REQUIRE_RUNTIME_HEARTBEAT:
+        logger.warning(
+            "[RUNTIME-REGISTRY] No live experts found in '%s'; skipping assignment until heartbeats appear.",
+            RUNTIME_WORKER_HEARTBEAT_KEY,
+        )
+        _record_orch_metric("counter", _orch_dynamic_stuck, reason="no_live_experts")
+        return []
+    return configured
 
 
 async def run_cursor_agent(prompt: str):
@@ -688,11 +1370,59 @@ async def assign_task_to_best_expert(
 
     # assignee_hint из metadata (например, "Frontend/Performance", "QA")
     assignee_hint = None
+    preferred_target_expert = None
     task_meta = task_dict.get("metadata") or {}
     if isinstance(task_meta, dict):
         assignee_hint = task_meta.get("assignee_hint")
+        preferred_target_expert = task_meta.get("target_expert")
     if not required_role and assignee_hint:
         required_role = str(assignee_hint)
+
+    # Hard preference: if task carries target_expert, honor it first (when active/live).
+    if preferred_target_expert:
+        preferred_name = str(preferred_target_expert).strip()
+        if preferred_name:
+            preferred_candidates = await conn.fetch(
+                """
+                SELECT id, name, role, department
+                FROM experts
+                WHERE is_active = true
+                  AND name = $1
+                LIMIT 1
+            """,
+                preferred_name,
+            )
+            preferred_candidates = await _filter_active_executor_candidates(preferred_candidates)
+            if preferred_candidates:
+                preferred = preferred_candidates[0]
+                preferred_source = "ollama"
+                if task_dict.get("metadata") and isinstance(task_dict.get("metadata"), dict):
+                    if task_dict["metadata"].get("preferred_source"):
+                        preferred_source = str(task_dict["metadata"]["preferred_source"]).lower()
+                        if preferred_source not in ("mlx", "ollama"):
+                            preferred_source = "ollama"
+                meta_extra = {"preferred_source": preferred_source}
+                await conn.execute(
+                    """
+                    UPDATE tasks
+                    SET assignee_expert_id = $1,
+                        status = 'pending',
+                        updated_at = NOW(),
+                        metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                    WHERE id = $2
+                """,
+                    preferred["id"],
+                    task_id,
+                    json.dumps(meta_extra),
+                )
+                logger.info(
+                    "✅ Task %s pinned to target_expert=%s (source=%s)",
+                    task_id,
+                    preferred_name,
+                    preferred_source,
+                )
+                await _touch_dynamic_worker_activity(preferred_name)
+                return preferred["id"]
 
     # Получаем кандидатов
     candidates = None
@@ -744,6 +1474,7 @@ async def assign_task_to_best_expert(
             ORDER BY RANDOM()
             LIMIT 50
         """)
+    candidates = await _filter_active_executor_candidates(candidates)
 
     if not candidates:
         logger.warning("No experts found for task %s (no active experts in system)", task_id)
@@ -802,9 +1533,159 @@ async def assign_task_to_best_expert(
             best_score,
             preferred_source,
         )
+        await _touch_dynamic_worker_activity(str(best_expert["name"]))
         return best_expert["id"]
 
     return None
+
+
+async def dispatch_pending_assignments(conn, limit: int = 50) -> int:
+    """
+    Publish pending assigned tasks into expert stream.
+    Guarded by metadata timestamp to avoid hot-loop duplicates.
+    """
+    if not REDIS_AVAILABLE:
+        return 0
+    max_redispatch_attempts = int(os.getenv("ORCHESTRATOR_MAX_REDISPATCH_ATTEMPTS", "6"))
+    dispatch_retry_interval_min = int(os.getenv("ORCHESTRATOR_DISPATCH_RETRY_INTERVAL_MIN", "2"))
+
+    rows = await conn.fetch(
+        """
+        SELECT t.id, t.title, t.description, t.metadata, e.name AS expert_name
+        FROM tasks t
+        JOIN experts e ON e.id = t.assignee_expert_id
+        WHERE t.status = 'pending'
+          AND t.assignee_expert_id IS NOT NULL
+          AND (t.retry_after IS NULL OR t.retry_after <= NOW())
+          AND COALESCE((t.metadata->>'dispatch_attempts')::int, 0) < $2
+          AND (
+            (t.metadata->>'dispatched_to_stream_at') IS NULL
+            OR (
+                (t.metadata->>'dispatched_to_stream_at')::timestamptz <
+                NOW() - make_interval(mins => $3::int)
+            )
+          )
+        ORDER BY t.updated_at ASC
+        LIMIT $1
+    """,
+        limit,
+        max_redispatch_attempts,
+        dispatch_retry_interval_min,
+    )
+    if not rows:
+        return 0
+
+    rd = None
+    dispatched = 0
+    try:
+        rd = await redis.from_url(REDIS_URL, decode_responses=True)
+        rollout_mode = await _resolve_contract_mode(rd)
+        for row in rows:
+            task_meta = row["metadata"] or {}
+            if isinstance(task_meta, str):
+                try:
+                    task_meta = json.loads(task_meta)
+                except Exception:
+                    task_meta = {}
+            assigned_expert_name = row.get("expert_name")
+            raw_target_expert = task_meta.get("target_expert")
+            if isinstance(raw_target_expert, str):
+                raw_target_expert = raw_target_expert.strip()
+            if assigned_expert_name:
+                if raw_target_expert and raw_target_expert != assigned_expert_name:
+                    task_meta["target_expert_original"] = raw_target_expert
+                    if not task_meta.get("subject_expert"):
+                        task_meta["subject_expert"] = raw_target_expert
+                    task_meta["target_expert"] = assigned_expert_name
+                    task_meta["target_expert_normalized"] = True
+                    logger.warning(
+                        "[TARGET-GUARD] task %s: normalized target_expert '%s' -> '%s'",
+                        row["id"],
+                        raw_target_expert,
+                        assigned_expert_name,
+                    )
+                elif not raw_target_expert:
+                    task_meta["target_expert"] = assigned_expert_name
+            task_id = str(row["id"])
+            enforce_for_task = rollout_mode == "enforce" or (
+                rollout_mode == "shadow"
+                and _is_canary_enforce(task_id, CONTRACT_CANARY_ENFORCE_PERCENT)
+            )
+            payload = {
+                "task_id": task_id,
+                "expert_name": row["expert_name"],
+                "description": row.get("description") or row.get("title") or "",
+                "category": "orchestrator_assignment",
+                "contract": {
+                    "version": "1",
+                    "intent": "execute_assigned_task",
+                    "output_schema": "expert_response_v1",
+                    "risk_level": (task_meta.get("risk_level") or "medium"),
+                    "freshness_sla_sec": int(os.getenv("TASK_FRESHNESS_SLA_SEC", "900")),
+                    "required_capabilities": task_meta.get("required_capabilities", []),
+                    "audit_required": bool(enforce_for_task),
+                },
+                "metadata": {
+                    **task_meta,
+                    "orchestrator_dispatch": True,
+                    "backend_profile": task_meta.get("backend_profile", "default"),
+                    "contract_rollout_mode": rollout_mode,
+                    "contract_enforce": bool(enforce_for_task),
+                },
+            }
+            try:
+                from app.expert_stream_routing import publish_expert_payload
+            except ImportError:
+                from expert_stream_routing import publish_expert_payload
+
+            await publish_expert_payload(rd, row["expert_name"], payload)
+            try:
+                from app.expert_stream_routing import dispatch_stream_for_expert
+            except ImportError:
+                from expert_stream_routing import dispatch_stream_for_expert
+
+            logger.debug(
+                "[DISPATCH] task=%s expert=%s stream=%s",
+                task_id,
+                assigned_expert_name,
+                dispatch_stream_for_expert(assigned_expert_name),
+            )
+            metadata_patch = {}
+            for key in (
+                "target_expert",
+                "target_expert_original",
+                "subject_expert",
+                "target_expert_normalized",
+            ):
+                if key in task_meta:
+                    metadata_patch[key] = task_meta.get(key)
+            await conn.execute(
+                """
+                UPDATE tasks
+                SET metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    $2::jsonb ||
+                    jsonb_build_object(
+                        'dispatched_to_stream_at', NOW()::text,
+                        'dispatch_attempts',
+                        COALESCE((metadata->>'dispatch_attempts')::int, 0) + 1
+                    )
+                WHERE id = $1
+            """,
+                row["id"],
+                json.dumps(metadata_patch, ensure_ascii=False),
+            )
+            dispatched += 1
+    except Exception as dispatch_err:
+        logger.warning(
+            "[ORCHESTRATOR-DISPATCH] failed to dispatch pending assignments: %s", dispatch_err
+        )
+    finally:
+        if rd is not None:
+            try:
+                await rd.aclose()
+            except Exception:
+                pass
+    return dispatched
 
 
 async def get_best_expert_for_domain(
@@ -865,6 +1746,7 @@ async def get_best_expert_for_domain(
             ORDER BY RANDOM()
             LIMIT 50
         """)
+    candidates = await _filter_active_executor_candidates(candidates)
     if not candidates:
         return None
 
@@ -883,9 +1765,391 @@ async def get_best_expert_for_domain(
     return best_expert
 
 
-async def rebalance_workload(conn):
+async def reconcile_nonlive_assignments(conn) -> Tuple[int, int]:
+    """Reopen tasks assigned to experts without fresh runtime heartbeat."""
+    pending_grace_sec = int(os.getenv("ORCHESTRATOR_NONLIVE_PENDING_GRACE_SEC", "120"))
+    live_experts = await _get_runtime_live_experts(force_refresh=True)
+    if REQUIRE_RUNTIME_HEARTBEAT and not live_experts:
+        return 0, 0
+
+    assigned_rows = await conn.fetch(
+        """
+        SELECT DISTINCT e.name
+        FROM tasks t
+        JOIN experts e ON e.id = t.assignee_expert_id
+        WHERE t.status IN ('pending', 'in_progress')
+    """
+    )
+    assigned_names = {row["name"] for row in assigned_rows if row.get("name")}
+    if ACTIVE_EXECUTOR_EXPERTS:
+        assigned_names |= ACTIVE_EXECUTOR_EXPERTS
+    nonlive_names = sorted(name for name in assigned_names if name not in live_experts)
+    if not nonlive_names:
+        return 0, 0
+
+    nonlive_ids = await conn.fetch(
+        "SELECT id FROM experts WHERE name = ANY($1::text[])", nonlive_names
+    )
+    nonlive_uuid_ids = [row["id"] for row in nonlive_ids]
+    if not nonlive_uuid_ids:
+        return 0, 0
+
+    pending_reopened = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET assignee_expert_id = NULL,
+                status = 'pending',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    '{"runtime_reassign_reason":"nonlive_worker_pending"}'::jsonb
+            WHERE status = 'pending'
+              AND assignee_expert_id = ANY($1::uuid[])
+              AND created_at < NOW() - ($2::text || ' seconds')::interval
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        nonlive_uuid_ids,
+        str(pending_grace_sec),
+    )
+    inprogress_reopened = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET assignee_expert_id = NULL,
+                status = 'pending',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    '{"runtime_reassign_reason":"nonlive_worker_stale_in_progress"}'::jsonb
+            WHERE status = 'in_progress'
+              AND assignee_expert_id = ANY($1::uuid[])
+              AND updated_at < NOW() - INTERVAL '5 minutes'
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        nonlive_uuid_ids,
+    )
+
+    if pending_reopened or inprogress_reopened:
+        logger.warning(
+            "[RUNTIME-REGISTRY] Reopened tasks from non-live experts=%s pending=%s in_progress=%s",
+            ",".join(nonlive_names),
+            pending_reopened,
+            inprogress_reopened,
+        )
+    return int(pending_reopened or 0), int(inprogress_reopened or 0)
+
+
+async def reconcile_stale_in_progress(conn) -> Tuple[int, int]:
+    """Requeue stale in_progress tasks with bounded retries and fallback staging."""
+    stale_minutes = int(os.getenv("ORCHESTRATOR_STALE_INPROGRESS_MINUTES", "45"))
+    max_retries = int(os.getenv("ORCHESTRATOR_STALE_INPROGRESS_MAX_RETRIES", "3"))
+    ghost_grace_sec = int(os.getenv("ORCHESTRATOR_GHOST_INPROGRESS_GRACE_SEC", "60"))
+    curiosity_ghost_minutes = int(os.getenv("ORCHESTRATOR_CURIOSITY_GHOST_NO_LLM_MINUTES", "15"))
+    curiosity_pending_timeout_min = int(
+        os.getenv("ORCHESTRATOR_CURIOSITY_PENDING_TIMEOUT_MIN", "120")
+    )
+    pending_dispatch_timeout_min = int(os.getenv("ORCHESTRATOR_PENDING_DISPATCH_TIMEOUT_MIN", "60"))
+    pending_dispatch_cap_reopen_min = int(os.getenv("ORCHESTRATOR_DISPATCH_CAP_REOPEN_MIN", "1"))
+    pending_dispatch_max_strikes = int(os.getenv("ORCHESTRATOR_PENDING_DISPATCH_MAX_STRIKES", "3"))
+    pending_dispatch_progress_grace_min = int(
+        os.getenv("ORCHESTRATOR_PENDING_DISPATCH_PROGRESS_GRACE_MIN", "20")
+    )
+    autonomous_runtime_cap_min = int(os.getenv("ORCHESTRATOR_AUTONOMOUS_RUNTIME_CAP_MIN", "120"))
+
+    ghost_requeued = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'pending',
+                assignee_expert_id = NULL,
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'stale_requeued_at', NOW()::text,
+                        'stale_requeue_reason', 'ghost_in_progress_no_owner'
+                    )
+            WHERE status = 'in_progress'
+              AND updated_at < NOW() - ($1::text || ' seconds')::interval
+              AND (
+                    assignee_expert_id IS NULL
+                    OR COALESCE(metadata->>'processing_worker', '') = ''
+                  )
+              AND COALESCE(metadata->>'last_llm_call_at', '') = ''
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(ghost_grace_sec),
+    )
+
+    curiosity_force_failed = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'failed',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'auto_fallback_at', NOW()::text,
+                        'auto_fallback_reason', 'curiosity_no_llm_progress_timeout',
+                        'stale_force_fallback', true
+                    )
+            WHERE status = 'in_progress'
+              AND COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+              AND COALESCE(
+                    NULLIF(metadata->>'processing_started_at', '')::timestamptz,
+                    updated_at,
+                    created_at
+                  ) < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE(metadata->>'last_llm_call_at', '') = ''
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(curiosity_ghost_minutes),
+    )
+
+    pending_curiosity_force_failed = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'failed',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'auto_fallback_at', NOW()::text,
+                        'auto_fallback_reason', 'pending_curiosity_starvation_timeout',
+                        'stale_force_fallback', true
+                    )
+            WHERE status = 'pending'
+              AND COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+              AND COALESCE(
+                    NULLIF(metadata->>'manual_requeue_at', '')::timestamptz,
+                    updated_at,
+                    created_at
+                  ) < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE(metadata->>'dispatched_to_stream_at', '') = ''
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(curiosity_pending_timeout_min),
+    )
+    pending_dispatch_requeued = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET updated_at = NOW(),
+                metadata = (
+                    COALESCE(metadata, '{}'::jsonb)
+                    - 'dispatched_to_stream_at'
+                    - 'next_retry_after'
+                ) || jsonb_build_object(
+                    'pending_dispatch_timeout_count',
+                    COALESCE((metadata->>'pending_dispatch_timeout_count')::int, 0) + 1,
+                    'pending_dispatch_requeued', true,
+                    'pending_dispatch_last_timeout_at', NOW()::text
+                )
+            WHERE status = 'pending'
+              AND COALESCE(metadata->>'dispatched_to_stream_at', '') <> ''
+              AND (
+                    COALESCE(metadata->>'next_retry_after', '') = ''
+                    OR NULLIF(metadata->>'next_retry_after', '')::timestamptz <= NOW()
+                  )
+              AND COALESCE(
+                    NULLIF(metadata->>'dispatched_to_stream_at', '')::timestamptz,
+                    updated_at,
+                    created_at
+                  ) < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE((metadata->>'pending_dispatch_timeout_count')::int, 0) + 1 < $2::int
+              AND (
+                    COALESCE(metadata->>'last_llm_call_at', '') = ''
+                    OR (metadata->>'last_llm_call_at')::timestamptz <
+                        NOW() - ($3::text || ' minutes')::interval
+                  )
+              AND (
+                    COALESCE(metadata->>'processing_started_at', '') = ''
+                    OR (metadata->>'processing_started_at')::timestamptz <
+                        NOW() - ($3::text || ' minutes')::interval
+                  )
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(pending_dispatch_timeout_min),
+        pending_dispatch_max_strikes,
+        str(pending_dispatch_progress_grace_min),
+    )
+    pending_dispatch_cap_reopened = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET updated_at = NOW(),
+                metadata = (
+                    COALESCE(metadata, '{}'::jsonb)
+                    - 'dispatched_to_stream_at'
+                    - 'next_retry_after'
+                ) || jsonb_build_object(
+                    'dispatch_attempts', 0,
+                    'pending_dispatch_timeout_count', 0,
+                    'dispatch_cap_reopened', true,
+                    'dispatch_cap_reopened_at', NOW()::text
+                )
+            WHERE status = 'pending'
+              AND COALESCE((metadata->>'dispatch_attempts')::int, 0) >= $2::int
+              AND (
+                    COALESCE(metadata->>'dispatched_to_stream_at', '') = ''
+                    OR NULLIF(metadata->>'dispatched_to_stream_at', '')::timestamptz <
+                        NOW() - ($1::text || ' minutes')::interval
+                  )
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(pending_dispatch_cap_reopen_min),
+        pending_dispatch_max_strikes,
+    )
+    pending_dispatch_force_failed = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'failed',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'auto_fallback_at', NOW()::text,
+                        'auto_fallback_reason', 'pending_dispatch_starvation_timeout',
+                        'stale_force_fallback', true
+                    )
+            WHERE status = 'pending'
+              AND COALESCE(metadata->>'dispatched_to_stream_at', '') <> ''
+              AND (
+                    COALESCE(metadata->>'next_retry_after', '') = ''
+                    OR NULLIF(metadata->>'next_retry_after', '')::timestamptz <= NOW()
+                  )
+              AND COALESCE(
+                    NULLIF(metadata->>'dispatched_to_stream_at', '')::timestamptz,
+                    updated_at,
+                    created_at
+                  ) < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE((metadata->>'pending_dispatch_timeout_count')::int, 0) + 1 >= $2::int
+              AND (
+                    COALESCE(metadata->>'last_llm_call_at', '') = ''
+                    OR (metadata->>'last_llm_call_at')::timestamptz <
+                        NOW() - ($3::text || ' minutes')::interval
+                  )
+              AND (
+                    COALESCE(metadata->>'processing_started_at', '') = ''
+                    OR (metadata->>'processing_started_at')::timestamptz <
+                        NOW() - ($3::text || ' minutes')::interval
+                  )
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(pending_dispatch_timeout_min),
+        pending_dispatch_max_strikes,
+        str(pending_dispatch_progress_grace_min),
+    )
+    autonomous_runtime_force_failed = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'failed',
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'auto_fallback_at', NOW()::text,
+                        'auto_fallback_reason', 'autonomous_runtime_cap_timeout',
+                        'stale_force_fallback', true
+                    )
+            WHERE status = 'in_progress'
+              AND COALESCE((metadata->>'is_autonomous')::boolean, false) = true
+              AND COALESCE(
+                    NULLIF(metadata->>'processing_started_at', '')::timestamptz,
+                    started_at,
+                    updated_at,
+                    created_at
+                  ) < NOW() - ($1::text || ' minutes')::interval
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(autonomous_runtime_cap_min),
+    )
+
+    requeued = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'pending',
+                assignee_expert_id = NULL,
+                updated_at = NOW(),
+                metadata = jsonb_set(
+                    COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'stale_requeued_at', NOW()::text,
+                        'stale_requeue_reason', 'in_progress_timeout'
+                    ),
+                    '{attempt_count}',
+                    to_jsonb(COALESCE((metadata->>'attempt_count')::int, 0) + 1),
+                    true
+                )
+            WHERE status = 'in_progress'
+              AND updated_at < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE((metadata->>'attempt_count')::int, 0) < $2
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(stale_minutes),
+        max_retries,
+    )
+
+    fallback_ready = await conn.fetchval(
+        """
+        WITH moved AS (
+            UPDATE tasks
+            SET status = 'pending',
+                assignee_expert_id = NULL,
+                updated_at = NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb) ||
+                    jsonb_build_object(
+                        'stale_requeued_at', NOW()::text,
+                        'stale_requeue_reason', 'in_progress_timeout_fallback',
+                        'stale_force_fallback', true
+                    )
+            WHERE status = 'in_progress'
+              AND updated_at < NOW() - ($1::text || ' minutes')::interval
+              AND COALESCE((metadata->>'attempt_count')::int, 0) >= $2
+            RETURNING id
+        )
+        SELECT count(*) FROM moved
+    """,
+        str(stale_minutes),
+        max_retries,
+    )
+    return int(
+        (ghost_requeued or 0)
+        + (requeued or 0)
+        + (curiosity_force_failed or 0)
+        + (pending_curiosity_force_failed or 0)
+        + (pending_dispatch_requeued or 0)
+        + (pending_dispatch_cap_reopened or 0)
+        + (pending_dispatch_force_failed or 0)
+        + (autonomous_runtime_force_failed or 0)
+    ), int(fallback_ready or 0)
+
+
+async def rebalance_workload(conn) -> int:
     """Перебалансировка нагрузки между экспертами"""
     logger.info("⚖️ Starting workload rebalancing...")
+    reassignments = 0
+    live_experts = await _get_runtime_live_experts(force_refresh=True)
+    live_names = sorted(live_experts) if live_experts else []
 
     # Находим перегруженных экспертов (> 5 активных задач)
     overloaded = await conn.fetch("""
@@ -925,29 +2189,57 @@ async def rebalance_workload(conn):
         for task in tasks_to_reassign:
             # Назначаем незагруженному эксперту из того же домена
             if task["domain_id"]:
-                new_expert = await conn.fetchrow(
-                    """
-                    SELECT e.id, e.department
-                    FROM experts e
-                    JOIN domains d ON e.department = d.name
-                    WHERE d.id = $1
-                    AND e.id != $2
-                    AND e.id IN (
-                        SELECT id FROM (
-                            SELECT e2.id, count(t2.id) as task_count
-                            FROM experts e2
-                            LEFT JOIN tasks t2 ON t2.assignee_expert_id = e2.id
-                                AND t2.status IN ('pending', 'in_progress')
-                            GROUP BY e2.id
-                            HAVING count(t2.id) < 2
-                        ) underloaded_inner
+                if REQUIRE_RUNTIME_HEARTBEAT and live_names:
+                    new_expert = await conn.fetchrow(
+                        """
+                        SELECT e.id, e.department
+                        FROM experts e
+                        JOIN domains d ON e.department = d.name
+                        WHERE d.id = $1
+                        AND e.id != $2
+                        AND e.name = ANY($3::text[])
+                        AND e.id IN (
+                            SELECT id FROM (
+                                SELECT e2.id, count(t2.id) as task_count
+                                FROM experts e2
+                                LEFT JOIN tasks t2 ON t2.assignee_expert_id = e2.id
+                                    AND t2.status IN ('pending', 'in_progress')
+                                WHERE e2.name = ANY($3::text[])
+                                GROUP BY e2.id
+                                HAVING count(t2.id) < 2
+                            ) underloaded_inner
+                        )
+                        ORDER BY RANDOM()
+                        LIMIT 1
+                    """,
+                        task["domain_id"],
+                        expert_id,
+                        live_names,
                     )
-                    ORDER BY RANDOM()
-                    LIMIT 1
-                """,
-                    task["domain_id"],
-                    expert_id,
-                )
+                else:
+                    new_expert = await conn.fetchrow(
+                        """
+                        SELECT e.id, e.department
+                        FROM experts e
+                        JOIN domains d ON e.department = d.name
+                        WHERE d.id = $1
+                        AND e.id != $2
+                        AND e.id IN (
+                            SELECT id FROM (
+                                SELECT e2.id, count(t2.id) as task_count
+                                FROM experts e2
+                                LEFT JOIN tasks t2 ON t2.assignee_expert_id = e2.id
+                                    AND t2.status IN ('pending', 'in_progress')
+                                GROUP BY e2.id
+                                HAVING count(t2.id) < 2
+                            ) underloaded_inner
+                        )
+                        ORDER BY RANDOM()
+                        LIMIT 1
+                    """,
+                        task["domain_id"],
+                        expert_id,
+                    )
 
                 if new_expert:
                     dept = (new_expert.get("department") or "").lower()
@@ -967,7 +2259,11 @@ async def rebalance_workload(conn):
                         UPDATE tasks
                         SET assignee_expert_id = $1,
                             updated_at = NOW(),
-                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+                            metadata = (
+                                COALESCE(metadata, '{}'::jsonb)
+                                - 'dispatched_to_stream_at'
+                                - 'dispatch_attempts'
+                            ) || $3::jsonb
                         WHERE id = $2
                     """,
                         new_expert["id"],
@@ -975,6 +2271,38 @@ async def rebalance_workload(conn):
                         json.dumps({"preferred_source": pref}),
                     )
                     logger.info("  ↻ Task %s reassigned (source=%s)", task["id"], pref)
+                    reassignments += 1
+                else:
+                    # [SINGULARITY 31.3] No underloaded live expert found → route to overflow pool
+                    _overflow_names_str = os.getenv("EXPERT_OVERFLOW_NAMES", "Инна,Юлия")
+                    for _ov_name in _overflow_names_str.split(","):
+                        _ov_name = _ov_name.strip()
+                        if not _ov_name:
+                            continue
+                        _ov_expert = await conn.fetchrow(
+                            "SELECT id, name FROM experts WHERE name = $1 LIMIT 1", _ov_name
+                        )
+                        if _ov_expert:
+                            await conn.execute(
+                                """
+                                UPDATE tasks
+                                SET assignee_expert_id = $1,
+                                    updated_at = NOW(),
+                                    metadata = (
+                                        COALESCE(metadata, '{}'::jsonb)
+                                        - 'dispatched_to_stream_at'
+                                        - 'dispatch_attempts'
+                                    ) || $3::jsonb
+                                WHERE id = $2
+                            """,
+                                _ov_expert["id"],
+                                task["id"],
+                                json.dumps({"routed_to_overflow": True, "original_expert_id": str(expert_id)}),
+                            )
+                            logger.info("  ↻ Task %s → overflow pool (%s)", task["id"], _ov_name)
+                            reassignments += 1
+                            break
+    return reassignments
 
 
 async def run_enhanced_orchestration_cycle():
@@ -997,8 +2325,28 @@ async def run_enhanced_orchestration_cycle():
             try:
                 from corporation_knowledge_system import update_all_agents_knowledge
 
-                asyncio.create_task(update_all_agents_knowledge())
-                logger.info("✅ Знания корпорации обновляются в фоне")
+                async with _corp_refresh_lock:
+                    global _corp_refresh_task, _corp_refresh_last_start_ts
+                    now_ts = time.monotonic()
+                    if _corp_refresh_task and not _corp_refresh_task.done():
+                        logger.info(
+                            "⏭️ [CORP-KNOWLEDGE] Skip refresh: previous update still running."
+                        )
+                    elif (now_ts - _corp_refresh_last_start_ts) < _corp_refresh_min_interval_sec:
+                        wait_left = int(
+                            _corp_refresh_min_interval_sec - (now_ts - _corp_refresh_last_start_ts)
+                        )
+                        logger.info(
+                            "⏭️ [CORP-KNOWLEDGE] Skip refresh: cooldown active (%ss left).",
+                            max(wait_left, 0),
+                        )
+                    else:
+                        _corp_refresh_last_start_ts = now_ts
+                        _corp_refresh_task = asyncio.create_task(update_all_agents_knowledge())
+                        logger.info(
+                            "✅ [CORP-KNOWLEDGE] Background refresh started (min interval=%ss)",
+                            _corp_refresh_min_interval_sec,
+                        )
             except Exception as e:
                 logger.debug("Не удалось обновить з��ания корпорации: %s", e)
     except Exception as e:
@@ -1009,9 +2357,22 @@ async def run_enhanced_orchestration_cycle():
         logger.error("❌ asyncpg is not installed. Orchestration aborted.")
         return
 
-    async with acquire_resource_lock("orchestrator"):
+    async with acquire_resource_lock("orchestrator") as orch_lock:
         logger.info("[ENHANCED_ORCHESTRATOR] cycle start DATABASE_URL=%s", _mask_db_url(DB_URL))
         conn = await asyncpg.connect(DB_URL)
+        heavy_phase_step_timeout_sec = int(
+            os.getenv("ORCHESTRATOR_HEAVY_PHASE_STEP_TIMEOUT_SEC", "120")
+        )
+
+        async def _has_execution_backlog(_conn) -> bool:
+            pending_now = await _conn.fetchval(
+                "SELECT count(*) FROM tasks WHERE status = 'pending'"
+            )
+            in_progress_now = await _conn.fetchval(
+                "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
+            )
+            return bool((pending_now or 0) > 0 or (in_progress_now or 0) > 0)
+
         try:
             unassigned_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM tasks WHERE assignee_expert_id IS NULL"
@@ -1148,8 +2509,8 @@ async def run_enhanced_orchestration_cycle():
 
             # [AGENT SCOPE] Orchestration Pipeline
             try:
-                from agentscope.pipelines import SequentialPipeline
                 from agentscope.agents import DialogAgent
+                from agentscope.pipelines import SequentialPipeline
 
                 # 1. Decomposition Agent (First Principles)
                 decomposer = DialogAgent(
@@ -1214,25 +2575,28 @@ async def run_enhanced_orchestration_cycle():
                         continue
 
                     goal = f"{task['title']}\n\n{task['description'] or ''}"
-                    
+
                     # [SINGULARITY 28.6] Decentralized Market: Post to Blackboard first
                     try:
                         from services.blackboard_service import get_blackboard_service
+
                         blackboard = get_blackboard_service()
                         await blackboard.post_goal(
-                            str(task['id']), 
-                            goal, 
+                            str(task["id"]),
+                            goal,
                             {
-                                "priority": task['priority'],
-                                "domain_id": str(task['domain_id']) if task['domain_id'] else None,
-                                "project_context": task.get('project_context'),
-                                "is_market_task": True
-                            }
+                                "priority": task["priority"],
+                                "domain_id": str(task["domain_id"]) if task["domain_id"] else None,
+                                "project_context": task.get("project_context"),
+                                "is_market_task": True,
+                            },
                         )
-                        logger.info(f"🏛️ [MARKET] Goal {task['id']} posted to Blackboard for self-organization.")
-                        # Мы НЕ вызываем _decompose_via_victoria сразу. 
+                        logger.info(
+                            f"🏛️ [MARKET] Goal {task['id']} posted to Blackboard for self-organization."
+                        )
+                        # Мы НЕ вызываем _decompose_via_victoria сразу.
                         # Даем экспертам 60 секунд на самоорганизацию.
-                        continue 
+                        continue
                     except Exception as market_err:
                         logger.warning(f"⚠️ [MARKET] Failed to post to Blackboard: {market_err}")
 
@@ -1349,8 +2713,8 @@ async def run_enhanced_orchestration_cycle():
                                 """
                                 INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id, project_context)
                                 VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7, $8)
-                                ON CONFLICT (title, COALESCE(project_context, 'default')) 
-                                WHERE status IN ('pending', 'in_progress') 
+                                ON CONFLICT (title, COALESCE(project_context, 'default'))
+                                WHERE status IN ('pending', 'in_progress')
                                 DO NOTHING
                                 RETURNING id
                             """,
@@ -1372,8 +2736,8 @@ async def run_enhanced_orchestration_cycle():
                                     """
                                     INSERT INTO tasks (title, description, status, priority, domain_id, creator_expert_id, metadata, parent_task_id)
                                     VALUES ($1, $2, 'pending', $3, $4, $5, $6::jsonb, $7)
-                                    ON CONFLICT (title) 
-                                    WHERE status IN ('pending', 'in_progress') 
+                                    ON CONFLICT (title)
+                                    WHERE status IN ('pending', 'in_progress')
                                     DO NOTHING
                                     RETURNING id
                                 """,
@@ -1595,6 +2959,28 @@ async def run_enhanced_orchestration_cycle():
                 optimized_count,
             )
 
+            # --- ФАЗА 1.95: RUNTIME REGISTRY RECONCILE ---
+            t195 = time.time()
+            reopened_pending, reopened_in_progress = await reconcile_nonlive_assignments(conn)
+            stale_reopened, stale_fallback_ready = await reconcile_stale_in_progress(conn)
+            logger.info(
+                "[ENHANCED_ORCHESTRATOR] phase=1.95 duration_ms=%.0f result=%s pending_reopened, %s in_progress_reopened, %s stale_reopened, %s stale_fallback_ready",
+                (time.time() - t195) * 1000,
+                reopened_pending,
+                reopened_in_progress,
+                stale_reopened,
+                stale_fallback_ready,
+            )
+
+            # --- ФАЗА 1.97: DYNAMIC WORKER SCALE-DOWN ---
+            t197 = time.time()
+            dynamic_scaled_down = await _scale_down_idle_dynamic_workers(conn)
+            logger.info(
+                "[ENHANCED_ORCHESTRATOR] phase=1.97 duration_ms=%.0f result=%s dynamic_workers_scaled_down",
+                (time.time() - t197) * 1000,
+                dynamic_scaled_down,
+            )
+
             # --- ФАЗА 2: НАЗНАЧЕНИЕ ЗАДАЧ БЕЗ ИСПОЛНИТЕЛЯ ---
             t2 = time.time()
             logger.info("👥 Phase 2: Assigning unassigned tasks...")
@@ -1664,19 +3050,93 @@ async def run_enhanced_orchestration_cycle():
                 assigned_count,
                 failed_assign_count,
             )
+            t22 = time.time()
+            dispatched = await dispatch_pending_assignments(conn, limit=100)
+            logger.info(
+                "[ENHANCED_ORCHESTRATOR] phase=2.2 duration_ms=%.0f result=%s dispatched_to_stream",
+                (time.time() - t22) * 1000,
+                dispatched,
+            )
+            try:
+                rollout_mode = await _resolve_contract_mode(rd)
+                rollout_kpi = await _compute_rollout_kpis(conn)
+                logger.info(
+                    "[ROLLOUT] window=%sm completed_10m=%s failed_10m=%s in_progress_now=%s pending_now=%s failure_rate=%.3f mode=%s canary=%s",
+                    ROLLOUT_KPI_WINDOW_MIN,
+                    rollout_kpi["completed_10m"],
+                    rollout_kpi["failed_10m"],
+                    rollout_kpi["in_progress_now"],
+                    rollout_kpi["pending_now"],
+                    rollout_kpi["failure_rate"],
+                    rollout_mode,
+                    CONTRACT_CANARY_ENFORCE_PERCENT,
+                )
+                if rd is not None:
+                    await rd.set("system:contract_rollout_kpi", json.dumps(rollout_kpi))
+                if rd is not None and rollout_mode == "auto":
+                    should_enforce = (
+                        rollout_kpi["completed_10m"] >= ROLLOUT_KPI_MIN_COMPLETED
+                        and rollout_kpi["failure_rate"] <= ROLLOUT_KPI_MAX_FAILURE_RATE
+                        and rollout_kpi["pending_now"] <= ROLLOUT_KPI_MAX_PENDING
+                    )
+                    await rd.set("system:contract_enforce", "1" if should_enforce else "0")
+                    logger.info(
+                        "[ROLLOUT] auto_switch contract_enforce=%s (min_completed=%s max_failure_rate=%.2f max_pending=%s)",
+                        should_enforce,
+                        ROLLOUT_KPI_MIN_COMPLETED,
+                        ROLLOUT_KPI_MAX_FAILURE_RATE,
+                        ROLLOUT_KPI_MAX_PENDING,
+                    )
+            except Exception as rollout_err:
+                logger.warning("[ROLLOUT] KPI evaluation failed: %s", rollout_err)
 
             # --- ФАЗА 2.5: ORCHESTRATOR FALLBACK (задачи с attempt_count >= 3, rule-based) ---
             t25 = time.time()
-            failed_tasks = await conn.fetch("""
+            fallback_for_rd_verify = os.getenv(
+                "ORCHESTRATOR_RULE_FALLBACK_FOR_RD_VERIFY", "true"
+            ).lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            fallback_for_file_audit = os.getenv(
+                "ORCHESTRATOR_RULE_FALLBACK_FOR_FILE_AUDIT", "true"
+            ).lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            fallback_min_attempts = int(
+                os.getenv("ORCHESTRATOR_RULE_FALLBACK_MIN_ATTEMPTS", "3")
+            )
+            failed_tasks = await conn.fetch(
+                """
                 SELECT id, title, description, metadata
                 FROM tasks
                 WHERE status = 'pending'
                 AND (
-                    COALESCE((metadata->>'attempt_count')::int, 0) >= 3
-                    OR COALESCE((metadata->>'agent_failed_count')::int, 0) >= 3
+                    COALESCE((metadata->>'attempt_count')::int, 0) >= $2
+                    OR COALESCE((metadata->>'agent_failed_count')::int, 0) >= $2
+                    OR (
+                        $1::boolean = true
+                        AND COALESCE((metadata->>'stale_force_fallback')::boolean, false) = true
+                    )
+                    OR (
+                        $3::boolean = true
+                        AND (
+                            title ILIKE '%проверь файл%'
+                            OR description ILIKE '%проверь файл%'
+                            OR title ILIKE '%check file%'
+                            OR description ILIKE '%check file%'
+                        )
+                    )
                 )
-                LIMIT 20
-            """)
+                LIMIT 50
+            """,
+                fallback_for_rd_verify,
+                fallback_min_attempts,
+                fallback_for_file_audit,
+            )
             rule_completed = 0
             for ft in failed_tasks:
                 task_dict = dict(ft)
@@ -1717,11 +3177,64 @@ async def run_enhanced_orchestration_cycle():
             # --- ФАЗА 3: ПЕРЕБАЛАНСИРОВКА НАГРУЗКИ ---
             t3 = time.time()
             logger.info("⚖️ Phase 3: Rebalancing workload...")
-            await rebalance_workload(conn)
+            reassignments = await rebalance_workload(conn)
             logger.info(
-                "[ENHANCED_ORCHESTRATOR] phase=3 duration_ms=%.0f result=rebalance",
+                "[ENHANCED_ORCHESTRATOR] phase=3 duration_ms=%.0f result=rebalance reassigned=%s",
                 (time.time() - t3) * 1000,
+                reassignments,
             )
+            if reassignments > 0:
+                t32 = time.time()
+                dispatched_after_rebalance = await dispatch_pending_assignments(conn, limit=100)
+                logger.info(
+                    "[ENHANCED_ORCHESTRATOR] phase=3.2 duration_ms=%.0f result=%s dispatched_after_rebalance",
+                    (time.time() - t32) * 1000,
+                    dispatched_after_rebalance,
+                )
+
+            # --- RELEASE GLOBAL LOCK BEFORE HEAVY/NON-CRITICAL PHASES ---
+            if os.getenv("ORCHESTRATOR_RELEASE_LOCK_BEFORE_HEAVY_PHASES", "true").lower() in (
+                "true",
+                "1",
+                "yes",
+            ):
+                try:
+                    await orch_lock.release()
+                    logger.info(
+                        "[ENHANCED_ORCHESTRATOR] released global lock before heavy phases (4+)"
+                    )
+                except Exception as lock_release_err:
+                    logger.warning(
+                        "[ENHANCED_ORCHESTRATOR] failed to release global lock early: %s",
+                        lock_release_err,
+                    )
+
+            # [QUALITY-FIRST] Keep cycle cadence high while execution backlog exists.
+            # This prevents heavy R&D phases from starving assignment/recovery loops.
+            execution_focus = os.getenv(
+                "ORCHESTRATOR_FOCUS_EXECUTION_WHEN_BACKLOG", "true"
+            ).lower() in ("true", "1", "yes")
+            backlog_threshold = int(os.getenv("ORCHESTRATOR_BACKLOG_THRESHOLD", "10"))
+
+            backlog_pending = await conn.fetchval(
+                "SELECT count(*) FROM tasks WHERE status = 'pending'"
+            )
+            backlog_in_progress = await conn.fetchval(
+                "SELECT count(*) FROM tasks WHERE status = 'in_progress'"
+            )
+
+            if execution_focus and (
+                backlog_pending > backlog_threshold
+                or backlog_in_progress > (backlog_threshold // 2)
+            ):
+                logger.info(
+                    "[ENHANCED_ORCHESTRATOR] quality-focus: skip heavy phases (4+) while backlog exceeds threshold (%s) pending=%s in_progress=%s",
+                    backlog_threshold,
+                    backlog_pending,
+                    backlog_in_progress,
+                )
+                _record_orch_metric("counter", _orch_cycles_total, status="success")
+                return
 
             # --- ФАЗА 4: АССОЦИАТИВНЫЙ МОЗГ (как в оригинале) ---
             logger.info("🧩 Phase 4: Cross-domain linking...")
@@ -1753,7 +3266,17 @@ async def run_enhanced_orchestration_cycle():
                     ЗАДАЧА: Сформулируйте одну инновационную гипотезу на стыке этих знаний.
                     Верните ТОЛЬКО текст гипотезы.
                     """
-                    hypothesis = await run_cursor_agent(link_prompt)
+                    try:
+                        hypothesis = await asyncio.wait_for(
+                            run_cursor_agent(link_prompt),
+                            timeout=heavy_phase_step_timeout_sec,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "[ENHANCED_ORCHESTRATOR] phase4 step timeout (%ss) for cross-domain hypothesis",
+                            heavy_phase_step_timeout_sec,
+                        )
+                        hypothesis = None
                     if hypothesis:
                         content_kn = f"🔬 КРОСС-ДОМЕННАЯ ГИПОТЕЗА: {hypothesis}"
                         meta_kn = json.dumps(
@@ -1815,6 +3338,12 @@ async def run_enhanced_orchestration_cycle():
                 """,
                     node["id"],
                 )
+                if execution_focus and await _has_execution_backlog(conn):
+                    logger.info(
+                        "[ENHANCED_ORCHESTRATOR] quality-focus: backlog appeared during phase4, interrupt heavy phases"
+                    )
+                    _record_orch_metric("counter", _orch_cycles_total, status="success")
+                    return
 
             # --- ФАЗА 5: ДВИГАТЕЛЬ ЛЮБОПЫТСТВА (с приоритизацией) ---
             logger.info("🔍 Phase 5: Curiosity Engine...")
@@ -1874,13 +3403,49 @@ async def run_enhanced_orchestration_cycle():
                         LIMIT 5
                     """)
 
+            curiosity_min_completed_10m = int(
+                os.getenv("ORCHESTRATOR_CURIOSITY_MIN_COMPLETED_10M", "1")
+            )
+            completed_10m_now = await conn.fetchval(
+                """
+                SELECT count(*)
+                FROM tasks
+                WHERE status = 'completed'
+                  AND updated_at > NOW() - INTERVAL '10 minutes'
+                """
+            )
+            if int(completed_10m_now or 0) < curiosity_min_completed_10m:
+                logger.info(
+                    "⏸️ CURIOSITY THROTTLE: completed_10m=%s < min=%s, skip curiosity creation this cycle",
+                    completed_10m_now,
+                    curiosity_min_completed_10m,
+                )
+                deserts = []
+
             # Лимит автономных экспертов (план: не более 25)
             autonomous_count = await conn.fetchval(
                 "SELECT count(*) FROM experts WHERE (metadata->>'is_autonomous')::text = 'true'"
             )
             autonomous_limit = int(os.getenv("AUTONOMOUS_EXPERT_LIMIT", "25"))
+            max_active_curiosity = int(os.getenv("ORCHESTRATOR_MAX_ACTIVE_CURIOSITY_TASKS", "1"))
 
+            curiosity_assigned = 0
             for desert in deserts:
+                active_curiosity = await conn.fetchval(
+                    """
+                    SELECT count(*)
+                    FROM tasks
+                    WHERE status IN ('pending', 'in_progress')
+                      AND COALESCE(metadata->>'reason', '') = 'curiosity_engine_starvation'
+                    """
+                )
+                if int(active_curiosity or 0) >= max_active_curiosity:
+                    logger.info(
+                        "  ⏭️ Curiosity budget reached: active=%s limit=%s",
+                        active_curiosity,
+                        max_active_curiosity,
+                    )
+                    continue
                 canonical = _canonical_domain(desert["name"])
                 expert_count = await conn.fetchval(
                     "SELECT count(*) FROM experts WHERE department = $1 OR department = $2",
@@ -1926,14 +3491,40 @@ async def run_enhanced_orchestration_cycle():
                             desert["name"],
                         )
                         continue
+                curiosity_cooldown_min = int(
+                    os.getenv("ORCHESTRATOR_CURIOSITY_RETRY_COOLDOWN_MIN", "30")
+                )
+                recent_curiosity_failure = await conn.fetchval(
+                    """
+                    SELECT 1
+                    FROM tasks
+                    WHERE title = $1
+                      AND status = 'failed'
+                      AND updated_at > NOW() - ($2::text || ' minutes')::interval
+                      AND COALESCE(metadata->>'auto_fallback_reason', '') IN (
+                          'curiosity_no_llm_progress_timeout',
+                          'pending_curiosity_starvation_timeout'
+                      )
+                    LIMIT 1
+                    """,
+                    title_curiosity,
+                    str(curiosity_cooldown_min),
+                )
+                if recent_curiosity_failure:
+                    logger.info(
+                        "  ⏭️ Curiosity cooldown active for %s (recent timeout fallback within %s min)",
+                        desert["name"],
+                        curiosity_cooldown_min,
+                    )
+                    continue
                 priority = "high" if desert["node_count"] < 20 else "medium"
                 try:
                     task_id = await conn.fetchval(
                         """
                         INSERT INTO tasks (title, description, status, priority, creator_expert_id, domain_id, metadata)
                         VALUES ($1, $2, 'pending', $3, $4, $5, $6)
-                        ON CONFLICT (title, COALESCE(project_context, 'default')) 
-                        WHERE status IN ('pending', 'in_progress') 
+                        ON CONFLICT (title, COALESCE(project_context, 'default'))
+                        WHERE status IN ('pending', 'in_progress')
                         DO UPDATE SET updated_at = NOW()
                         RETURNING id
                     """,
@@ -1953,33 +3544,66 @@ async def run_enhanced_orchestration_cycle():
                     )
                     if task_id:
                         await assign_task_to_best_expert(conn, task_id, desert["id"])
+                        curiosity_assigned += 1
                 except Exception as task_err:
                     if "duplicate" in str(task_err).lower() or "23505" in str(task_err):
                         logger.info(f"  ⏭️ Task already exists (dedup): {title_curiosity[:50]}")
                     else:
                         raise
+            if curiosity_assigned > 0:
+                t52 = time.time()
+                dispatched_curiosity = await dispatch_pending_assignments(conn, limit=100)
+                logger.info(
+                    "[ENHANCED_ORCHESTRATOR] phase=5.2 duration_ms=%.0f result=%s dispatched_curiosity",
+                    (time.time() - t52) * 1000,
+                    dispatched_curiosity,
+                )
+            if execution_focus and await _has_execution_backlog(conn):
+                logger.info(
+                    "[ENHANCED_ORCHESTRATOR] quality-focus: backlog appeared during phase5, interrupt heavy phases"
+                )
+                _record_orch_metric("counter", _orch_cycles_total, status="success")
+                return
+            if execution_focus:
+                logger.info(
+                    "[ENHANCED_ORCHESTRATOR] quality-focus: finish live cycle after phase5 (heavy phases delegated to nightly)"
+                )
+                _record_orch_metric("counter", _orch_cycles_total, status="success")
+                return
 
             logger.info("🌐 Phase 5: Running Global Scout validation...")
             try:
-                await run_global_scout_cycle()
+                await asyncio.wait_for(
+                    run_global_scout_cycle(),
+                    timeout=heavy_phase_step_timeout_sec,
+                )
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Global Scout error: %s", exc)
 
             logger.info("🔗 Phase 6: Running auto-link detection...")
             try:
-                await run_auto_link_detection()
+                await asyncio.wait_for(
+                    run_auto_link_detection(),
+                    timeout=heavy_phase_step_timeout_sec,
+                )
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Auto-link detection error: %s", exc)
 
             logger.info("🧬 Phase 7: Knowledge Distillation & Auto-Upgrade...")
             try:
-                distiller = KnowledgeDistiller()
-                distilled_count = await distiller.collect_high_quality_samples(days=1)
+                distiller = _get_distiller()
+                distilled_count = await asyncio.wait_for(
+                    distiller.collect_high_quality_samples(days=1),
+                    timeout=heavy_phase_step_timeout_sec,
+                )
                 if distilled_count > 0:
                     logger.info("  ✨ Distilled %d high-quality samples.", distilled_count)
-                generator = SyntheticKnowledgeGenerator()
-                await generator.generate_synthetic_samples(limit=5)
-                pipeline = LocalTrainingPipeline()
+                generator = _get_synthetic_generator()
+                await asyncio.wait_for(
+                    generator.generate_synthetic_samples(limit=5),
+                    timeout=heavy_phase_step_timeout_sec,
+                )
+                pipeline = _get_training_pipeline()
                 status = pipeline.trigger_auto_upgrade()
                 if "ЗАПУЩЕН" in status or "ГОТОВ" in status:
                     logger.info("  🔥 AUTONOMOUS UPGRADE STATUS: %s", status)
@@ -2028,21 +3652,21 @@ async def run_enhanced_orchestration_cycle():
 
             logger.info("🐝 Phase 10: Swarm War-Room...")
             try:
-                swarm = SwarmOrchestrator()
+                swarm = _get_swarm_orchestrator()
                 await swarm.handle_critical_failures()
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Swarm error: %s", exc)
 
             logger.info("🏗️ Phase 11: Meta-Architect Review...")
             try:
-                architect = MetaArchitect()
+                architect = _get_meta_architect()
                 await architect.self_repair_cycle()
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.error("Meta-Architect error: %s", exc)
 
             logger.info("🧬 Phase 12: Autonomous Evolution...")
             try:
-                evolution = SingularityEvolutionMonitor()
+                evolution = _get_evolution_monitor()
                 evolution_report = await evolution.run_daily_check()
                 logger.info("  %s", evolution_report)
             except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -2050,7 +3674,7 @@ async def run_enhanced_orchestration_cycle():
 
             logger.info("🔍 Phase 13: Curiosity Engine Gap Analysis...")
             try:
-                curiosity = CuriosityEngine()
+                curiosity = _get_curiosity_engine()
                 gap_result = await curiosity.scan_for_gaps()
                 logger.info("  %s", gap_result)
             except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -2058,7 +3682,7 @@ async def run_enhanced_orchestration_cycle():
 
             logger.info("🧠 Phase 14: Memory Consolidation (The Dreaming)...")
             try:
-                consolidator = MemoryConsolidator()
+                consolidator = _get_memory_consolidator()
                 consolidation_result = await consolidator.consolidate_memory()
                 logger.info("  %s", consolidation_result)
             except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -2067,7 +3691,9 @@ async def run_enhanced_orchestration_cycle():
             logger.info("🌐 Phase 14.5: Multi-Cluster Bridge Sync...")
             if MultiClusterBridge:
                 try:
-                    bridge = MultiClusterBridge()
+                    bridge = _get_multi_cluster_bridge()
+                    if bridge is None:
+                        raise RuntimeError("MultiClusterBridge unavailable")
                     await bridge.initialize(conn)
                     await bridge.send_heartbeat()
                     await bridge.gossip_sync()
@@ -2090,7 +3716,9 @@ async def run_enhanced_orchestration_cycle():
                         if datetime.now() - last_sync_dt < timedelta(hours=1):
                             should_sync = False
                     if should_sync:
-                        sync_manager = ServerKnowledgeSync()
+                        sync_manager = _get_server_knowledge_sync()
+                        if sync_manager is None:
+                            raise RuntimeError("ServerKnowledgeSync unavailable")
                         await sync_manager.sync_experts()
                         synced_count = await sync_manager.sync_reports(limit=50)
                         logger.info("  📥 Synced %d reports and full team hierarchy.", synced_count)
@@ -2105,11 +3733,7 @@ async def run_enhanced_orchestration_cycle():
 
             logger.info("📦 Phase 16: Knowledge Archivation...")
             try:
-                from knowledge_archiver import KnowledgeArchiver
-                from strategy_session_manager import StrategySessionManager
-
-                session_manager = StrategySessionManager()
-                archiver = KnowledgeArchiver(session_manager)
+                archiver = _get_knowledge_archiver()
                 archive_key = "last_knowledge_archive"
                 last_archive = None
                 if rd:
@@ -2176,6 +3800,11 @@ async def run_enhanced_orchestration_cycle():
                 except Exception as exc:  # pylint: disable=broad-exception-caught
                     logger.warning("Tasks cleanup error: %s", exc)
 
+            try:
+                if rd:
+                    await rd.aclose()
+            except Exception as rd_close_err:  # pylint: disable=broad-exception-caught
+                logger.debug("Redis close error: %s", rd_close_err)
             await conn.close()
             logger.info("[ENHANCED_ORCHESTRATOR] cycle finished successfully.")
         except Exception as cycle_exc:  # pylint: disable=broad-exception-caught
@@ -2188,6 +3817,11 @@ async def run_enhanced_orchestration_cycle():
                 _record_orch_metric(
                     "counter", _orch_errors, phase="orchestration", error_type="cycle_exception"
                 )
+            try:
+                if rd:
+                    await rd.aclose()
+            except Exception:
+                pass
             try:
                 await conn.close()
             except Exception:
@@ -2322,7 +3956,7 @@ if __name__ == "__main__":
     # [SINGULARITY 21.30] PID Lock Enforcement
     lock = PIDLock()
     if not lock.acquire():
-        print(f"⚠️ [ORCHESTRATOR] Process already running. Exiting to prevent duplication.")
+        print("⚠️ [ORCHESTRATOR] Process already running. Exiting to prevent duplication.")
         sys.exit(0)
 
     try:

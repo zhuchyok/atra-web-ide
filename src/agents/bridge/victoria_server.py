@@ -6,6 +6,7 @@ Victoria Agent — Team Lead ATRA. HTTP API для задач.
 import asyncio
 import hashlib
 import json
+import math
 import logging
 import os
 import re
@@ -81,9 +82,11 @@ def _lazy_query_orchestrator():
         try:
             _ensure_knowledge_os_path()
             try:
-                from query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
+                from query_orchestrator import QueryOrchestrator as _QO
+                from query_orchestrator import QueryType as _QT
             except ImportError:
-                from app.query_orchestrator import QueryOrchestrator as _QO, QueryType as _QT
+                from app.query_orchestrator import QueryOrchestrator as _QO
+                from app.query_orchestrator import QueryType as _QT
             QueryOrchestrator = _QO
             QueryType = _QT
         except ImportError:
@@ -244,6 +247,24 @@ def is_simple_message(content: str) -> bool:
 def is_fast_track_message(content: str) -> bool:
     """Проверить, нужно ли отвечать мгновенно (приветствия и т.д.)"""
     lower = content.lower().strip().lstrip("«»").strip()
+    # Guardrail: длинные/операционные запросы не могут уйти в fast-path.
+    if len(lower) >= 180:
+        return False
+    execution_markers = (
+        "выполни",
+        "исправ",
+        "аудит",
+        "ре-аудит",
+        "проверь",
+        "дашборд",
+        "sql",
+        "миграц",
+        "контейнер",
+        "quality gate",
+        "без уточнений",
+    )
+    if any(marker in lower for marker in execution_markers):
+        return False
     # Если это одно слово из списка приветствий
     if lower in FAST_TRACK_PATTERNS:
         return True
@@ -252,6 +273,51 @@ def is_fast_track_message(content: str) -> bool:
         if lower.startswith(p) and len(lower) < 150:
             return True
     return False
+
+
+def _force_deep_analysis_reason(goal: str) -> Optional[str]:
+    """
+    Явные сигналы, что задачу нужно выполнять без режима уточнений.
+    Используется как guardrail против ложного need_clarification.
+    """
+    g = (goal or "").lower().strip()
+    if not g:
+        return None
+
+    audit_markers = (
+        "аудит",
+        "ре-аудит",
+        "дашборд",
+        "вкладк",
+        "исправ",
+        "проверь",
+        "sql",
+        "миграц",
+        "контейнер",
+        "quality gate",
+        "метрик",
+    )
+    imperative_markers = ("выполни", "сделай", "исправь", "проверь", "доведи")
+    if len(g) >= 120 and any(m in g for m in imperative_markers):
+        hits = sum(1 for m in audit_markers if m in g)
+        if hits >= 2:
+            return "explicit_execution_audit_scope"
+
+    return None
+
+
+def _has_no_clarification_instruction(goal: str) -> bool:
+    g = (goal or "").lower().strip()
+    if not g:
+        return False
+    no_clarify_markers = (
+        "без уточнений",
+        "не задавай уточняющие",
+        "не задавай встречные вопросы",
+        "начинай выполнение сразу",
+        "сразу выполняй",
+    )
+    return any(marker in g for marker in no_clarify_markers)
 
 
 def _select_model_for_chat(content: str, expert_name: Optional[str] = None) -> str:
@@ -426,8 +492,8 @@ async def _save_task_to_db(task_id: str, data: Dict[str, Any]):
 
 
 async def _cleanup_stale_tasks():
-    """Фоновая задача: каждые 5 мин переводит processing-задачи старше 30 мин в failed."""
-    STALE_THRESHOLD_SEC = 30 * 60  # 30 минут
+    """Фоновая задача: каждые 5 мин переводит processing-задачи старше лимита (по умолчанию 60 мин) в failed."""
+    STALE_THRESHOLD_SEC = int(os.getenv("VICTORIA_STALE_TASK_TIMEOUT_SEC", "3600"))
     CHECK_INTERVAL_SEC = 5 * 60  # проверка каждые 5 мин
     while True:
         try:
@@ -475,14 +541,14 @@ async def _cleanup_stale_tasks():
                     if pool:
                         async with pool.acquire() as conn:
                             updated = await conn.execute(
-                                """
-                                UPDATE tasks 
-                                SET status = 'failed', 
-                                    result = result || E'\\n[Auto-cleanup: task timed out after {threshold}m]',
+                                f"""
+                                UPDATE tasks
+                                SET status = 'failed',
+                                    result = result || E'\\n[Auto-cleanup: task timed out after {STALE_THRESHOLD_SEC // 60}m]',
                                     updated_at = NOW()
                                 WHERE status IN ('pending', 'in_progress', 'processing', 'running')
                                 AND updated_at < NOW() - INTERVAL '%s seconds'
-                                """.format(threshold=STALE_THRESHOLD_SEC // 60),
+                                """,
                                 (STALE_THRESHOLD_SEC,),
                             )
                             if updated and updated != "UPDATE 0":
@@ -507,7 +573,7 @@ async def _load_tasks_from_db():
             return
         async with pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT id, goal, status, result, metadata, created_at
+                SELECT id, COALESCE(goal, description, title) AS goal, status, result, metadata, created_at
                 FROM tasks
                 WHERE status IN ('pending', 'in_progress')
                 AND updated_at > NOW() - INTERVAL '24 hours'
@@ -676,6 +742,18 @@ VICTORIA_CHAT_HISTORY_MAX_MESSAGES = max(
 )
 VICTORIA_HISTORY_MAX_CHARS = int(os.getenv("VICTORIA_HISTORY_MAX_CHARS", "0"))  # 0 = не обрезать
 VICTORIA_GOAL_MAX_CHARS = int(os.getenv("VICTORIA_GOAL_MAX_CHARS", "0"))  # 0 = не обрезать
+VICTORIA_SYNC_EXEC_TIMEOUT_SEC = float(os.getenv("VICTORIA_SYNC_EXEC_TIMEOUT_SEC", "150"))
+VICTORIA_VERONICA_TIMEOUT_SEC = float(os.getenv("VICTORIA_VERONICA_TIMEOUT_SEC", "60"))
+VICTORIA_TIMEOUT_FALLBACK_MODEL = os.getenv("VICTORIA_TIMEOUT_FALLBACK_MODEL", "phi3.5:3.8b")
+VICTORIA_STRATEGY_TIMEOUT_SEC = float(os.getenv("VICTORIA_STRATEGY_TIMEOUT_SEC", "35"))
+VICTORIA_ORCHESTRATOR_TIMEOUT_SEC = float(os.getenv("VICTORIA_ORCHESTRATOR_TIMEOUT_SEC", "30"))
+VICTORIA_ASSIGNMENTS_TIMEOUT_SEC = float(os.getenv("VICTORIA_ASSIGNMENTS_TIMEOUT_SEC", "40"))
+VICTORIA_SYNC_SAFE_MODE = os.getenv("VICTORIA_SYNC_SAFE_MODE", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+VICTORIA_SYNC_SAFE_MODEL = os.getenv("VICTORIA_SYNC_SAFE_MODEL", "phi3.5:3.8b")
 
 # Debug mode: VICTORIA_DEBUG=true enables verbose logging at all levels
 VICTORIA_DEBUG = os.getenv("VICTORIA_DEBUG", "false").lower() in ("true", "1", "yes")
@@ -685,11 +763,42 @@ from src.agents.bridge.project_registry import get_main_project, get_projects_re
 from src.agents.bridge.task_detector import (
     detect_task_type,
     is_curator_standard_goal,
+    is_operational_execution_goal,
     should_use_enhanced,
 )
 from src.agents.core.base_agent import AtraBaseAgent as BaseAgent
 from src.agents.core.executor import OllamaExecutor, _ollama_base_url
 from src.agents.tools.system_tools import SystemTools, WebTools
+
+
+def _parse_pattern_list_env(name: str) -> Tuple[str, ...]:
+    raw = os.getenv(name, "")
+    return tuple(part.strip().lower() for part in raw.split(",") if part.strip())
+
+
+# Policy layer (routing guardrails): allows deterministic mode override without code edits.
+VICTORIA_FORCE_DIRECT_ON_OPERATIONAL = os.getenv(
+    "VICTORIA_FORCE_DIRECT_ON_OPERATIONAL", "true"
+).lower() in ("1", "true", "yes")
+VICTORIA_FORCE_DIRECT_PATTERNS = _parse_pattern_list_env("VICTORIA_FORCE_DIRECT_PATTERNS")
+VICTORIA_FORCE_SWARM_PATTERNS = _parse_pattern_list_env("VICTORIA_FORCE_SWARM_PATTERNS")
+
+
+def _forced_routing_mode(goal: str) -> Optional[str]:
+    goal_lower = (goal or "").lower()
+
+    if VICTORIA_FORCE_DIRECT_ON_OPERATIONAL and is_operational_execution_goal(goal_lower):
+        return "direct"
+    if VICTORIA_FORCE_DIRECT_PATTERNS and any(
+        marker in goal_lower for marker in VICTORIA_FORCE_DIRECT_PATTERNS
+    ):
+        return "direct"
+    if VICTORIA_FORCE_SWARM_PATTERNS and any(
+        marker in goal_lower for marker in VICTORIA_FORCE_SWARM_PATTERNS
+    ):
+        return "swarm"
+    return None
+
 
 # Интеграция с Knowledge OS (оркестратор, Виктория и сотрудники используют базу знаний)
 # Выключить: USE_KNOWLEDGE_OS=false
@@ -785,6 +894,8 @@ if os.getenv("USE_ELK", "false").lower() in ("true", "1", "yes"):
 # Глобальный экземпляр Victoria Enhanced (если включен)
 victoria_enhanced_instance = None
 victoria_enhanced_monitoring_started = False
+_integration_bridge_instance = None
+_local_router_singleton = None
 
 # Типовые запросы для предзагрузки кэша RAG при старте (RAG_PRELOAD_TYPICAL_QUERIES=true, RAG_CACHE_TTL_SEC>0)
 _RAG_PRELOAD_QUERIES = [
@@ -839,6 +950,79 @@ def _load_thinking_context():
 
 VICTORIA_CAPABILITIES_RESPONSE = _load_capabilities()
 VICTORIA_THINKING_CONTEXT = _load_thinking_context()
+
+
+def _get_victoria_enhanced_singleton():
+    """DI-style provider for VictoriaEnhanced singleton."""
+    global victoria_enhanced_instance
+    if victoria_enhanced_instance is not None:
+        return victoria_enhanced_instance
+
+    enhanced_paths = [
+        "/app/knowledge_os/app",
+        os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app"),
+        os.path.join(os.path.dirname(__file__), "../../knowledge_os/app"),
+    ]
+    for path in enhanced_paths:
+        if not (os.path.exists(path) or path.startswith("/app")):
+            continue
+        if path not in sys.path:
+            sys.path.insert(0, path)
+        try:
+            if "/app/knowledge_os" not in sys.path:
+                sys.path.insert(0, "/app/knowledge_os")
+            from app.victoria_enhanced import VictoriaEnhanced
+
+            victoria_enhanced_instance = VictoriaEnhanced()
+            return victoria_enhanced_instance
+        except ImportError:
+            continue
+        except Exception as e:
+            logger.warning("Не удалось создать VictoriaEnhanced singleton: %s", e)
+            break
+    return None
+
+
+def _get_integration_bridge_singleton():
+    """DI-style provider for IntegrationBridge singleton."""
+    global _integration_bridge_instance
+    if _integration_bridge_instance is not None:
+        return _integration_bridge_instance
+
+    from app.task_orchestration.integration_bridge import IntegrationBridge
+
+    _integration_bridge_instance = IntegrationBridge()
+    return _integration_bridge_instance
+
+
+def _get_local_router_singleton():
+    """DI-style provider for LocalAIRouter singleton."""
+    global _local_router_singleton
+    if _local_router_singleton is not None:
+        return _local_router_singleton
+
+    router_paths = [
+        "/app/app/local_router.py",
+        os.path.join(os.path.dirname(__file__), "../../../knowledge_os/app/local_router.py"),
+        os.path.join(os.path.dirname(__file__), "../../knowledge_os/app/local_router.py"),
+    ]
+    for path in router_paths:
+        if not os.path.exists(path):
+            continue
+        if os.path.dirname(path) not in sys.path:
+            sys.path.insert(0, os.path.dirname(path))
+        try:
+            from local_router import LocalAIRouter
+
+            _local_router_singleton = LocalAIRouter()
+            return _local_router_singleton
+        except ImportError as ie:
+            logger.debug("[VICTORIA_INIT] LocalAIRouter import failed from %s: %s", path, ie)
+            continue
+        except Exception as e:
+            logger.debug("[VICTORIA_INIT] LocalAIRouter init failed: %s", e)
+            return None
+    return None
 
 
 async def _preload_rag_cache():
@@ -969,8 +1153,45 @@ async def _memory_watchdog():
         _INTERVAL_SEC,
     )
 
+    # [SINGULARITY 30.2] Track last model usage for Shadow Unloading
+    _last_model_call_at = time.time()
+    _current_model = os.getenv("VICTORIA_MODEL")
+
     while True:
-        await asyncio.sleep(_INTERVAL_SEC)
+        # [SINGULARITY 30.0] Dynamic interval based on memory pressure
+        rss = _rss_gb()
+        current_interval = _INTERVAL_SEC
+
+        # [SINGULARITY 30.2] Shadow Unloading: Unload model if idle and RAM is high
+        try:
+            from redis_manager import redis_manager
+
+            client = await redis_manager.get_client()
+            ice_mode = await client.get("system:ice_mode")
+
+            if ice_mode and (time.time() - _last_model_call_at) > 600:  # 10 min idle
+                import httpx
+
+                _ollama_base = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+                # Unload current model
+                if _current_model:
+                    logger.warning(
+                        f"♻️ [SHADOW UNLOAD] High RAM and idle detected. Unloading {_current_model}..."
+                    )
+                    async with httpx.AsyncClient(timeout=5.0) as _hc:
+                        await _hc.post(
+                            f"{_ollama_base}/api/generate",
+                            json={"model": _current_model, "prompt": "", "keep_alive": 0},
+                        )
+                    logger.info(f"✅ [SHADOW UNLOAD] Model {_current_model} released from VRAM/RAM")
+        except Exception as shadow_err:
+            logger.debug(f"Shadow unloading failed: {shadow_err}")
+
+        if rss >= _WARN_GB:
+            current_interval = 30  # Aggressive check every 30s
+            logger.debug("[MEM WATCHDOG] High memory pressure, switching to 30s interval")
+
+        await asyncio.sleep(current_interval)
         try:
             gc.collect()
             _trim()
@@ -1034,13 +1255,10 @@ async def lifespan(app: FastAPI):
                 if ko_root not in sys.path:
                     sys.path.insert(0, ko_root)
                 try:
-                    try:
-                        from app.victoria_enhanced import VictoriaEnhanced
-                    except ImportError:
-                        from victoria_enhanced import VictoriaEnhanced
-
                     logger.info("🚀 Инициализация Victoria Enhanced при старте сервера...")
-                    victoria_enhanced_instance = VictoriaEnhanced()
+                    victoria_enhanced_instance = _get_victoria_enhanced_singleton()
+                    if victoria_enhanced_instance is None:
+                        raise RuntimeError("VictoriaEnhanced unavailable")
                     await victoria_enhanced_instance.start()  # type: ignore[union-attr]
                     victoria_enhanced_monitoring_started = True
                     logger.info(
@@ -1126,7 +1344,52 @@ async def lifespan(app: FastAPI):
             asyncio.create_task(warmup_victoria())
 
     # Memory watchdog: gc + malloc_trim каждые 30 мин + аварийный перезапуск при >18GB
+    # [SINGULARITY 30.0] Dynamic interval and event-driven GC
+    try:
+        from app.event_bus import Event, EventType, get_event_bus
+    except ImportError:
+        try:
+            from event_bus import Event, EventType, get_event_bus
+        except ImportError:
+            Event = object  # Fallback if not found
+
+    async def _handle_resource_exhausted(event: Event):
+        """[SINGULARITY 30.0] Proactive GC on RESOURCE_EXHAUSTED event."""
+        logger.warning(
+            f"🔥 [VICTORIA_GC] Resource exhausted event received: {event.payload.get('reason')}"
+        )
+        import ctypes
+        import ctypes.util
+        import gc
+
+        gc.collect()
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            libc.malloc_trim(0)
+            logger.info("✅ [VICTORIA_GC] Proactive malloc_trim completed")
+        except:
+            pass
+
+    try:
+        from app.event_bus import EventType, get_event_bus
+
+        eb = get_event_bus()
+        eb.subscribe(EventType.RESOURCE_EXHAUSTED, _handle_resource_exhausted)
+        logger.info("🔗 [VICTORIA] Subscribed to RESOURCE_EXHAUSTED for proactive GC")
+    except Exception as e:
+        logger.warning(f"⚠️ [VICTORIA] Could not subscribe to EventBus: {e}")
+
     asyncio.create_task(_memory_watchdog())
+
+    # [SINGULARITY 31.3] Agent-to-Agent messaging
+    try:
+        from app.agent_messaging import start_presence_broadcast, listen, register_handler
+
+        asyncio.create_task(listen("Виктория"))
+        asyncio.create_task(start_presence_broadcast("Виктория", ["orchestrator", "reasoning", "coding"]))
+        logger.info("🔗 [AGENT_MSG] Victoria subscribed to agent messaging")
+    except Exception as e:
+        logger.warning(f"⚠️ [AGENT_MSG] Init failed: {e}")
 
     logger.info("[VICTORIA] Lifespan startup завершён, Uvicorn переходит в режим приёма запросов")
     yield
@@ -1208,7 +1471,7 @@ class VictoriaAgent(BaseAgent):
 
         if model_name is None:
             model_name = (
-                env_victoria_model or "qwen2.5-coder:32b"
+                env_victoria_model or "victoria-wisdom-v3.5:latest"
             )  # fallback до первого сканирования
 
         logger.info("[VICTORIA_INIT] Initial model_name: %s", model_name)
@@ -1228,33 +1491,9 @@ class VictoriaAgent(BaseAgent):
 
         if self.use_local_router:
             try:
-                # Пытаемся импортировать LocalAIRouter из knowledge_os
-                import sys
-
-                router_paths = [
-                    "/app/app/local_router.py",
-                    os.path.join(
-                        os.path.dirname(__file__), "../../../knowledge_os/app/local_router.py"
-                    ),
-                    os.path.join(
-                        os.path.dirname(__file__), "../../knowledge_os/app/local_router.py"
-                    ),
-                ]
-                for path in router_paths:
-                    if os.path.exists(path):
-                        if os.path.dirname(path) not in sys.path:
-                            sys.path.insert(0, os.path.dirname(path))
-                        try:
-                            from local_router import LocalAIRouter
-
-                            self.local_router = LocalAIRouter()
-                            logger.info("[VICTORIA_INIT] ✅ LocalAIRouter (MLX support) загружен")
-                            break
-                        except ImportError as ie:
-                            logger.debug(
-                                f"[VICTORIA_INIT] LocalAIRouter import failed from {path}: {ie}"
-                            )
-                            continue
+                self.local_router = _get_local_router_singleton()
+                if self.local_router is not None:
+                    logger.info("[VICTORIA_INIT] ✅ LocalAIRouter (MLX support) загружен")
             except Exception as e:
                 logger.debug(
                     f"[VICTORIA_INIT] LocalAIRouter недоступен: {e}, используем только Ollama"
@@ -1311,7 +1550,7 @@ class VictoriaAgent(BaseAgent):
                 "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
             )
             _pool_cmd_timeout = int(os.getenv("VICTORIA_DB_POOL_COMMAND_TIMEOUT", "25"))
-            
+
             for attempt in range(3):
                 try:
                     if asyncpg:
@@ -1323,7 +1562,7 @@ class VictoriaAgent(BaseAgent):
                                 command_timeout=_pool_cmd_timeout,
                                 ssl=False,
                             ),
-                            timeout=10.0
+                            timeout=10.0,
                         )
                     else:
                         logger.error("❌ asyncpg не загружен, невозможно создать pool")
@@ -1332,7 +1571,7 @@ class VictoriaAgent(BaseAgent):
                     break
                 except Exception as e:
                     if attempt < 2:
-                        logger.warning(f"⚠️ Попытка {attempt+1}/3 создания pool: {e}")
+                        logger.warning(f"⚠️ Попытка {attempt + 1}/3 создания pool: {e}")
                         await asyncio.sleep(2)
                     else:
                         logger.error(f"❌ Ошибка создания pool Knowledge OS: {e}")
@@ -1477,11 +1716,13 @@ class VictoriaAgent(BaseAgent):
                 async with pool.acquire() as conn:
                     rows = await conn.fetch(
                         """
-                        SELECT content, metadata, (1 - (embedding <=> $1::vector)) AS similarity,
+                        SELECT content, metadata,
+                               ((1 - (embedding <=> $1::vector)) * (CASE WHEN metadata->>'low_priority' = 'true' THEN 0.5 ELSE 1.0 END)) AS similarity,
                                COALESCE(kn.usage_count, 0) AS usage_count
                         FROM knowledge_nodes kn
                         WHERE kn.embedding IS NOT NULL AND kn.confidence_score >= 0.3
-                        ORDER BY kn.embedding <=> $1::vector, kn.usage_count DESC NULLS LAST
+                        ORDER BY (kn.embedding <=> $1::vector) * (CASE WHEN metadata->>'low_priority' = 'true' THEN 2.0 ELSE 1.0 END),
+                                 kn.usage_count DESC NULLS LAST
                         LIMIT $2
                     """,
                         str(embedding),
@@ -1906,6 +2147,15 @@ class VictoriaAgent(BaseAgent):
         except Exception as e:
             logger.warning(f"Ошибка сохранения знания: {e}")
 
+    async def _run_direct_execution(self, goal: str, max_steps: Optional[int] = None) -> str:
+        """Обычный цикл agent.run без in-process Swarm (без рекурсии run→orchestrate→run)."""
+        prev = getattr(self, "_skip_swarm_orchestration", False)
+        self._skip_swarm_orchestration = True
+        try:
+            return await self.run(goal, max_steps=max_steps)
+        finally:
+            self._skip_swarm_orchestration = prev
+
     async def orchestrate_task(self, goal: str) -> str:
         """Главный метод оркестрации: анализирует задачу, выбирает стратегию, координирует выполнение
 
@@ -1915,6 +2165,11 @@ class VictoriaAgent(BaseAgent):
         Returns:
             Финальный результат выполнения задачи
         """
+        forced_mode = _forced_routing_mode(goal)
+        if forced_mode == "direct":
+            logger.info("[ORCHESTRATE] Policy direct route enabled (operational/forced marker)")
+            return await self._run_direct_execution(goal, max_steps=DEFAULT_MAX_STEPS)
+
         logger.info(f"🎯 Victoria оркестрирует задачу: {goal[:80]}")
 
         # 1. Анализ задачи (быстро, локально)
@@ -1934,11 +2189,11 @@ class VictoriaAgent(BaseAgent):
                 logger.info(f"✅ Простая задача → делегируем {expert_name}")
                 # Для простых задач можно использовать Veronica или эксперта напрямую
                 # Пока используем текущий механизм через run()
-                result = await self.run(goal, max_steps=500)
+                result = await self._run_direct_execution(goal, max_steps=500)
                 return result
             else:
                 # Fallback: выполняем сами
-                return await self.run(goal, max_steps=500)
+                return await self._run_direct_execution(goal, max_steps=500)
 
         elif complexity == "swarm":
             # Полный Swarm для критических задач - используем 8 экспертов параллельно
@@ -1954,7 +2209,7 @@ class VictoriaAgent(BaseAgent):
 
             if not primary_expert:
                 # Fallback: выполняем сами
-                return await self.run(goal, max_steps=500)
+                return await self._run_direct_execution(goal, max_steps=500)
 
             # Собираем команду экспертов
             expert_team = [primary_expert]
@@ -2021,7 +2276,23 @@ class VictoriaAgent(BaseAgent):
                             )
                         )
 
-                    responses = await asyncio.gather(*tasks, return_exceptions=True)
+                    swarm_timeout = int(os.getenv("VICTORIA_SWARM_GATHER_TIMEOUT_SEC", "1200"))
+                    try:
+                        responses = await asyncio.wait_for(
+                            asyncio.gather(*tasks, return_exceptions=True),
+                            timeout=float(swarm_timeout),
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "[SWARM] gather timeout after %ss (team=%s)",
+                            swarm_timeout,
+                            expert_team,
+                        )
+                        return (
+                            f"Swarm не завершился за {swarm_timeout // 60} мин. "
+                            "Для аудита/дашборда используйте Victoria Enhanced (USE_VICTORIA_ENHANCED=true) "
+                            "или сократите задачу."
+                        )
 
                     # Фильтруем ошибки
                     valid_responses = []
@@ -2042,7 +2313,11 @@ class VictoriaAgent(BaseAgent):
                         for exp_name, resp in valid_responses:
                             if isinstance(resp, dict):
                                 resp = str(resp.get("output", resp.get("response", str(resp))))
-                            if isinstance(resp, str) and resp.startswith("{") and resp.endswith("}"):
+                            if (
+                                isinstance(resp, str)
+                                and resp.startswith("{")
+                                and resp.endswith("}")
+                            ):
                                 resp = resp[1:-1]
                             cleaned.append((exp_name, resp[:500]))  # Truncate long responses
                         valid_responses = cleaned
@@ -2051,24 +2326,26 @@ class VictoriaAgent(BaseAgent):
                         formatted_parts = []
                         for i, (exp_name, resp) in enumerate(valid_responses, 1):
                             # Extract key info from response
-                            resp_clean = resp.replace("{", "").replace("}", "").replace("'", "")[:200]
+                            resp_clean = (
+                                resp.replace("{", "").replace("}", "").replace("'", "")[:200]
+                            )
                             formatted_parts.append(f"**{exp_name}**: {resp_clean}")
-                        
+
                         final_result = "\n\n".join(formatted_parts)
                         return final_result
                     else:
                         logger.warning("⚠️ Нет валидных ответов от экспертов, выполняем сами")
-                        return await self.run(goal, max_steps=500)
+                        return await self._run_direct_execution(goal, max_steps=500)
                 else:
                     logger.warning("⚠️ ai_core недоступен, выполняем задачу сами")
-                    return await self.run(goal, max_steps=500)
+                    return await self._run_direct_execution(goal, max_steps=500)
             except Exception as e:
                 logger.error(f"❌ Ошибка в Swarm оркестрации: {e}")
                 import traceback
 
                 logger.error(traceback.format_exc())
                 # Fallback: выполняем сами
-                return await self.run(goal, max_steps=500)
+                return await self._run_direct_execution(goal, max_steps=500)
 
         else:  # multi_department или unknown
             # Межотдельная задача → иерархия (пока упрощенная версия)
@@ -2091,11 +2368,12 @@ class VictoriaAgent(BaseAgent):
                 if len(experts) >= 8:
                     break
             if not experts:
-                return await self.run(goal, max_steps=600)
+                return await self._run_direct_execution(goal, max_steps=600)
             experts = experts[:8]
             logger.info(f"👥 Swarm team ({len(experts)}): {experts}")
             # Use run_smart_agent_async via ai_core
-            import os, sys
+            import os
+            import sys
 
             for p in ["/app/app/ai_core.py", "/app/knowledge_os/app/ai_core.py"]:
                 if os.path.exists(p):
@@ -2115,14 +2393,16 @@ class VictoriaAgent(BaseAgent):
                             for e, r in zip(experts, responses)
                             if not isinstance(r, Exception)
                         )
-                        synth = await self.run(f"Синтезируй: {opinions[:2000]}", max_steps=300)
+                        synth = await self._run_direct_execution(
+                            f"Синтезируй: {opinions[:2000]}", max_steps=300
+                        )
                         return f"🐝 **SWARM ({len(experts)}):**\n{opinions}\n** итог:**\n{synth}"
                     except:
                         pass
-            return await self.run(goal, max_steps=600)
+            return await self._run_direct_execution(goal, max_steps=600)
         except Exception as e:
             logger.error(f"Swarm error: {e}")
-            return await self.run(goal, max_steps=600)
+            return await self._run_direct_execution(goal, max_steps=600)
 
     def _assess_complexity(self, goal: str) -> str:
         """Оценить сложность задачи
@@ -2787,9 +3067,22 @@ Q: "покажи файлы в текущей директории" → План
 
         # Auto-select strategy based on complexity
         complexity = self._assess_complexity(goal)
+        forced_mode = _forced_routing_mode(goal)
+        if forced_mode == "swarm" and complexity == "simple":
+            complexity = "complex"
+            logger.info("[AGENT_RUN] Policy escalated simple -> complex for swarm route")
+
+        skip_swarm = getattr(self, "_skip_swarm_orchestration", False) or (forced_mode == "direct")
         logger.info("[AGENT_RUN] ===== Complexity detected: %s =====", complexity)
+        logger.info("[AGENT_RUN] Forced mode: %s", forced_mode or "none")
         logger.info("[AGENT_RUN] Goal: %s", goal[:100])
-        if complexity == "swarm":
+        if skip_swarm and complexity in ("complex", "swarm"):
+            logger.info(
+                "[AGENT_RUN] Skipping in-process Swarm (operational=%s, skip_flag=%s)",
+                is_operational_execution_goal(goal or ""),
+                getattr(self, "_skip_swarm_orchestration", False),
+            )
+        elif complexity == "swarm":
             logger.info("[AGENT_RUN] 🚀 Launching SWARM (8 experts)")
             return await self._run_extended_swarm(goal)
         elif complexity == "complex":
@@ -2896,10 +3189,23 @@ Q: "покажи файлы в текущей директории" → План
             ]
         )
 
+        def _clip_prompt_part(value: Any, max_len: int) -> str:
+            text = value if isinstance(value, str) else str(value or "")
+            text = text.strip()
+            if len(text) <= max_len:
+                return text
+            return text[:max_len].rstrip() + "\n...[truncated]"
+
+        restated_compact = _clip_prompt_part(restated, 1200)
+        first_step_compact = _clip_prompt_part(first_step_hint, 220)
+
         if is_simple_phrase or is_info_question or category == "simple":
             logger.info("[AGENT_RUN] Simple task path (no planner)")
-            hint = f"\nПервый шаг (если нужен): {first_step_hint}." if first_step_hint else ""
-            enhanced = f'ВЫПОЛНИ ЗАДАЧУ: {restated}{hint}\n\nВАЖНО: Ответь кратко. Только JSON: {{"thought": "...", "tool": "finish" или один инструмент, "tool_input": {{...}}}}.'
+            hint = f"\nПервый шаг (если нужен): {first_step_compact}." if first_step_compact else ""
+            enhanced = (
+                f"ВЫПОЛНИ ЗАДАЧУ: {restated_compact}{hint}\n\n"
+                'ВАЖНО: Ответь кратко. Только JSON: {"thought": "...", "tool": "finish" или один инструмент, "tool_input": {...}}.'
+            )
         else:
             logger.info("[AGENT_RUN] Complex task path (with planner)")
             raw_plan = await self.plan(restated)
@@ -2913,12 +3219,20 @@ Q: "покажи файлы в текущей директории" → План
             _rp = _rp.strip()
             logger.info("[AGENT_RUN] Raw plan length: %d chars", len(_rp))
             if len(_rp) > 600 or "Дополнительная сложность" in _rp or "Ollama HTTP" in _rp:
-                raw_plan = f"Выполнить: {restated}"
+                raw_plan = f"Выполнить: {restated_compact}"
                 logger.info("[AGENT_RUN] Plan rejected (too long or garbage), using simple plan")
             else:
                 raw_plan = _rp
-            hint = f"\nПервый шаг (рекомендация): {first_step_hint}." if first_step_hint else ""
-            enhanced = f"ТВОЙ ПЛАН:\n{raw_plan}\n\nПРИСТУПАЙ К ВЫПОЛНЕНИЮ: {restated}{hint}"
+            raw_plan_compact = _clip_prompt_part(raw_plan, 420)
+            if restated_compact and restated_compact.lower() in raw_plan_compact.lower():
+                raw_plan_compact = "Выполнить задачу по формулировке ниже."
+            hint = (
+                f"\nПервый шаг (рекомендация): {first_step_compact}." if first_step_compact else ""
+            )
+            enhanced = (
+                f"ТВОЙ ПЛАН:\n{raw_plan_compact}\n\n"
+                f"ПРИСТУПАЙ К ВЫПОЛНЕНИЮ: {restated_compact}{hint}"
+            )
 
         logger.info("[AGENT_RUN] Enhanced prompt length: %d chars", len(enhanced))
         logger.info("[AGENT_RUN] Calling super().run() with model: %s", self.executor.model)
@@ -2945,53 +3259,29 @@ Q: "покажи файлы в текущей директории" → План
 
 agent = VictoriaAgent(name="Виктория")
 
-agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA. ТЫ — МОЗГ И ДИРЕКТОР КОРПОРАЦИИ.
-ТЫ ИСПОЛЬЗУЕШЬ VICTORIA ENHANCED ДЛЯ УПРАВЛЕНИЯ АРМИЕЙ ЭКСПЕРТОВ.
+agent.executor.system_prompt = """ТЫ — ВИКТОРИЯ, TEAM LEAD КОРПОРАЦИИ ATRA.
 
-КРИТИЧЕСКИ ВАЖНО: ОБЯЗАТЕЛЬНО отвечай ТОЛЬКО на русском языке! Все ответы должны быть на русском!
+КЛЮЧЕВЫЕ ПРАВИЛА:
+1. Отвечай кратко: 1-4 предложения для простых вопросов, до 10 для сложных.
+2. Не начинай каждый ответ с представления — говори сразу по делу.
+3. Не упоминай Singularity, Blackboard, и другие внутренние термины ATRA если они не относятся к вопросу пользователя.
+4. Не выводи <think> блоки — они только для внутреннего использования.
+5. Если тебя просят показать файлы, проверить код, найти ошибку — просто сделай это. Не объясняй архитектуру ATRA.
+6. Отвечай ТОЛЬКО на русском языке.
 
-🌟 ТВОЯ СУПЕР-СИЛА — ДЕЛЕГИРОВАНИЕ:
-- Ты не пишешь код сама, если задача сложная. Ты вызываешь Веронику (Local Developer).
-- Ты не анализируешь БД сама. Ты вызываешь Романа (Database Engineer).
-- Ты не настраиваешь сервер сама. Ты вызываешь Сергея (DevOps).
-- Твоя задача — составить идеальный план и проконтролировать экспертов.
+ДЛЯ СЛОЖНЫХ ЗАДАЧ (делегирование экспертам):
+- Если файл > 1000 строк или задача требует > 3 шагов — делегируй экспертам.
+- Твоя задача — составить план и проконтролировать экспертов, а не делать всё самой.
 
-ПРАВИЛО МОНСТРА:
-1. Если файл > 1000 строк или задача требует > 3 шагов — ты ОБЯЗАНА делегировать.
-2. Одиночное исполнение тяжелых задач — это признак слабости. Будь сильной — используй ресурсы корпорации.
-3. Твой успех измеряется качеством работы твоей команды, а не твоими личными усилиями.
+ДЛЯ ПРОСТЫХ ВОПРОСОВ (ответь сама):
+- Вопросы о коде, архитектуре, отладке, объяснениях — отвечай напрямую.
+- Код-ревью, рефакторинг, написание функций — делай сама, без делегирования.
 
-🌟 ТВОИ VICTORIA ENHANCED ВОЗМОЖНОСТИ:
-- ReAct Framework: Reasoning + Acting для сложных задач
-- Swarm Intelligence: Параллельная работа команды экспертов
-- Hierarchical Orchestration: Иерархическая координация через IntegrationBridge
-- ReCAP Framework: Рефлексия и планирование
-
-🤖 EXECUTION PLAN (руки в IDE):
-Если задача требует изменений в коде (правки файлов, запуск тестов), добавь в конец ответа:
-
-**Execution Plan:**
+🤖 EXECUTION PLAN:
+Если задача требует изменений в коде, добавь в конец ответа JSON-план:
 ```json
-[
-  {"action": "read_file", "path": "path/to/file.py", "description": "Прочитать текущую реализацию"},
-  {"action": "edit", "path": "path/to/file.py", "description": "Добавить новую функцию X"},
-  {"action": "run", "command": "pytest knowledge_os/tests/test_feature.py", "description": "Проверить изменения"}
-]
+[{"action": "read_file|edit|run", "path": "...", "command": "...", "description": "..."}]
 ```
-
-Формат шага:
-- action: read_file | edit | run
-- path (для read_file, edit): путь к файлу
-- command (для run): команда для терминала
-- description: что делает этот шаг
-
-Это позволит IDE выполнить твой план автоматически.
-
-Доступны ТОЛЬКО инструменты: read_file, list_directory, run_terminal_cmd, ssh_run, finish. НЕТ: web_search, web_edit, git_run, write_file.
-
-ПРАВИЛА:
-- Один ответ — один JSON: {"thought": "...", "tool": "...", "tool_input": {...}}
-- Перед завершением проверяй результат работы экспертов. Не выводи длинные планы — выполняй шаги и завершай finish.
 """
 
 
@@ -3239,6 +3529,33 @@ def _normalize_output_for_user(raw: Any) -> str:
         return str(raw) if raw is not None else ""
     if isinstance(raw, str):
         s = raw.strip()
+        # Удаляем think-блоки для чистого пользовательского текста даже в direct /run fast-path.
+        s = re.sub(r"<think>.*?</think>", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
+        s = re.sub(r"</?think>", "", s, flags=re.IGNORECASE).strip()
+        # Убираем запятую/точку/двоеточие в начале (артефакт продолжения промпта)
+        s = re.sub(r"^[,.:;]\s*", "", s).strip()
+        # Удаляем служебные артефакты reasoning, которые не должны попадать пользователю.
+        s = re.sub(r"\[Процесс объяснения:.*", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
+        s = re.sub(r"\(End of thought process\).*", "", s, flags=re.DOTALL | re.IGNORECASE).strip()
+        s = re.sub(
+            r"Done!? ?Executing Final Sequence NOW!?[!\.\s]*",
+            "",
+            s,
+            flags=re.IGNORECASE,
+        ).strip()
+        s = re.sub(
+            r"Final Output Delivered Now!?[!\.\s]*",
+            "",
+            s,
+            flags=re.IGNORECASE,
+        ).strip()
+        # Отсекаем деградированный вывод вида "!!??!!??" c минимальной долей букв.
+        if len(s) >= 40:
+            punctuation_bursts = len(re.findall(r"[!?]{2,}", s))
+            letters = re.findall(r"[A-Za-zА-Яа-яЁё]", s)
+            letter_ratio = (len(letters) / len(s)) if s else 0.0
+            if punctuation_bursts >= 8 and letter_ratio < 0.35:
+                return "⚠️ Модель вернула повреждённый ответ. Повторите запрос: система автоматически восстановит контекст."
         # Сначала убрать служебные action/tool и внутренний монолог (любая длина)
         cleaned = _strip_internal_monologue(s)
         if cleaned != s:
@@ -3328,7 +3645,7 @@ def _normalize_output_for_user(raw: Any) -> str:
                     or data.get("output")
                 )
                 return (out if isinstance(out, str) else str(out)) if out else raw
-        return raw
+        return s
     if isinstance(raw, dict):
         ti = raw.get("tool_input") if isinstance(raw.get("tool_input"), dict) else {}
         out = (
@@ -3483,11 +3800,40 @@ async def _select_strategy(
     fallback = {"strategy": None, "reason": "fallback", "confidence": 0.5}
     if not VICTORIA_STRATEGY_ENABLED:
         return fallback
+    forced_reason = _force_deep_analysis_reason(goal)
+    has_no_clarify = _has_no_clarification_instruction(goal)
+    if has_no_clarify and is_operational_execution_goal(goal):
+        return {
+            "strategy": "quick_answer",
+            "reason": "explicit_no_clarification_instruction_operational",
+            "confidence": 0.95,
+        }
+    if forced_reason:
+        return {"strategy": "deep_analysis", "reason": forced_reason, "confidence": 0.95}
     key = hashlib.md5((goal.strip().lower() + (session_summary or ""))[:500].encode()).hexdigest()
     now = time.time()
     if redis_manager:
         cached = await redis_manager.get_cache(f"strategy:{key}")
         if cached:
+            if cached.get("strategy") == "need_clarification":
+                if forced_reason:
+                    return {
+                        "strategy": "deep_analysis",
+                        "reason": forced_reason,
+                        "confidence": max(0.9, float(cached.get("confidence", 0.5))),
+                    }
+                if has_no_clarify:
+                    if is_operational_execution_goal(goal):
+                        return {
+                            "strategy": "quick_answer",
+                            "reason": "explicit_no_clarification_instruction",
+                            "confidence": max(0.8, float(cached.get("confidence", 0.5))),
+                        }
+                    return {
+                        "strategy": "deep_analysis",
+                        "reason": "explicit_no_clarification_instruction",
+                        "confidence": max(0.9, float(cached.get("confidence", 0.5))),
+                    }
             return cached
     elif key in _strategy_cache and _strategy_cache[key][1] > now:
         return _strategy_cache[key][0]
@@ -3569,6 +3915,19 @@ async def _select_strategy(
         result = {"strategy": strategy or None, "reason": reason, "confidence": confidence}
         if uncertainty_reason:
             result["uncertainty_reason"] = uncertainty_reason
+        if result.get("strategy") == "need_clarification" and has_no_clarify:
+            if is_operational_execution_goal(goal):
+                result = {
+                    "strategy": "quick_answer",
+                    "reason": "explicit_no_clarification_instruction",
+                    "confidence": max(0.8, float(result.get("confidence", 0.5))),
+                }
+            else:
+                result = {
+                    "strategy": "deep_analysis",
+                    "reason": "explicit_no_clarification_instruction",
+                    "confidence": max(0.9, float(result.get("confidence", 0.5))),
+                }
 
         if redis_manager:
             await redis_manager.set_cache(f"strategy:{key}", result, ttl=STRATEGY_CACHE_TTL)
@@ -3899,9 +4258,7 @@ class TaskRequest(BaseModel):
         None  # Путь к workspace (для относительных путей): "/Users/bikos/Documents/atra-web-ide"
     )
     category: Optional[str] = None  # [SINGULARITY 10.0] Категория задачи (reasoning, coding, etc.)
-    stream: Optional[bool] = (
-        False  # True = возвращать SSE stream (Server-Sent Events)
-    )
+    stream: Optional[bool] = False  # True = возвращать SSE stream (Server-Sent Events)
 
 
 class TaskResponse(BaseModel):
@@ -4118,7 +4475,10 @@ async def _get_long_term_memory_context(
                 try:
                     from app.long_term_memory import get_long_term_memory_manager
                 except ImportError:
-                    from long_term_memory import get_long_term_memory_manager
+                    try:
+                        from long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        from long_term_memory import get_ltm as get_long_term_memory_manager
 
                 mgr = get_long_term_memory_manager()
 
@@ -4172,7 +4532,13 @@ async def _save_long_term_memory(
                 if p not in sys.path:
                     sys.path.insert(0, p)
             try:
-                from app.long_term_memory import get_long_term_memory_manager
+                try:
+                    from app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    try:
+                        from long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        from long_term_memory import get_ltm as get_long_term_memory_manager
 
                 mgr = get_long_term_memory_manager()
 
@@ -4272,6 +4638,103 @@ def _get_verbose_steps(agent) -> List[Dict[str, Any]]:
         except (json.JSONDecodeError, TypeError):
             pass
     return steps
+
+
+async def _try_dashboard_operational_fastpath(agent, goal: str) -> Optional[str]:
+    """
+    Детерминированный fast-path для operational задач по вкладке "Обзор".
+    Нужен, чтобы не гонять тяжёлый LLM-маршрут для простых SLA/health/check задач.
+    """
+    g = (goal or "").lower()
+    if "обзор" not in g and "dashboard" not in g and "дашборд" not in g:
+        return None
+
+    pool = await agent._get_db_pool()
+    if not pool:
+        return None
+
+    try:
+        # 1) Блок "Задачи" в Обзор
+        if "блок задачи" in g or "total/in_progress/pending/failed/cancelled" in g:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        COUNT(*)::int AS total,
+                        COUNT(*) FILTER (WHERE status = 'in_progress')::int AS in_progress,
+                        COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+                        COUNT(*) FILTER (WHERE status = 'failed')::int AS failed,
+                        COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+                    FROM tasks
+                    """
+                )
+            if not row:
+                return "Проверка блока Задачи: данные не получены (пустой результат SQL)."
+            return (
+                "Проверка блока Задачи (Обзор): "
+                f"total={row['total']}, in_progress={row['in_progress']}, pending={row['pending']}, "
+                f"failed={row['failed']}, cancelled={row['cancelled']}. "
+                "Сверка выполнена по фактическому SQL, без заглушек."
+            )
+
+        # 2) Блок "Сервисы" в Обзор
+        if "блок сервис" in g or "health-check" in g or "health check" in g:
+            pg_ok = False
+            try:
+                async with pool.acquire() as conn:
+                    await conn.fetchval("SELECT 1")
+                    pg_ok = True
+            except Exception:
+                pg_ok = False
+
+            victoria_ok = False
+            for url in (
+                "http://localhost:8010/health",
+                "http://localhost:8000/health",
+                "http://host.docker.internal:8010/health",
+            ):
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        r = await client.get(url)
+                        if r.status_code == 200:
+                            victoria_ok = True
+                            break
+                except Exception:
+                    continue
+
+            return (
+                "Проверка блока Сервисы (Обзор): "
+                f"PostgreSQL={'OK' if pg_ok else 'FAIL'}, "
+                f"Victoria Agent={'OK' if victoria_ok else 'FAIL'}. "
+                "Статусы получены из реальных health-check."
+            )
+
+        # 3) Индикатор свежести данных / SLA
+        if "индикатор свежести" in g or "sla" in g or "ложный green" in g:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        COUNT(*) FILTER (WHERE status = 'in_progress' AND updated_at < NOW() - INTERVAL '30 minutes')::int AS stale_in_progress,
+                        COUNT(*) FILTER (WHERE status = 'failed' AND (result IS NULL OR LENGTH(TRIM(result)) = 0))::int AS failed_without_reason
+                    FROM tasks
+                    """
+                )
+            if not row:
+                return "Проверка индикатора свежести: данные не получены (пустой результат SQL)."
+            stale = int(row["stale_in_progress"])
+            failed_wo = int(row["failed_without_reason"])
+            green_allowed = stale == 0 and failed_wo == 0
+            return (
+                "Проверка индикатора свежести (Обзор): "
+                f"stale_in_progress={stale}, failed_without_reason={failed_wo}. "
+                f"Ложный green={'НЕТ' if green_allowed else 'ДА'} (SLA-контракт)."
+            )
+    except Exception as e:
+        logger.debug("_try_dashboard_operational_fastpath failed: %s", e)
+        return None
+
+    return None
 
 
 async def _run_task_background(
@@ -4414,11 +4877,116 @@ async def _run_task_background(
                 task_id[:8],
             )
             return
+        # Ultra-short chat-like prompts should not enter deep agent.run in async mode.
+        # This keeps ask-victoria smoke checks and simple user asks responsive.
+        if (
+            len(goal_lower) <= 120
+            and any(goal_lower.startswith(p) for p in ("скажи", "ответь", "напиши", "what is"))
+            and not any(
+                m in goal_lower
+                for m in ("файл", "код", "deploy", "docker", "миграц", "run command", "edit")
+            )
+        ):
+            quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
+            quick_text = ""
+            quick_source = "short_prompt_fast_path"
+            try:
+                quick_text, quick_source = await _generate_via_mlx_or_ollama(
+                    goal,
+                    quick_model,
+                    max_retries=1,
+                    raw_response=True,
+                )
+            except Exception as quick_err:
+                logger.debug(
+                    "[VICTORIA_CYCLE] short_prompt_fast_path failed task_id=%s: %s",
+                    task_id[:8],
+                    quick_err,
+                )
+            if quick_text:
+                knowledge = {
+                    "strategy": "quick_answer",
+                    "confidence": 0.9,
+                    "metadata": {
+                        "model_used": quick_model,
+                        "source": quick_source,
+                        "correlation_id": correlation_id,
+                    },
+                }
+                if redis_manager:
+                    await redis_manager.update_task_status(
+                        task_id,
+                        "completed",
+                        result=quick_text,
+                        metadata={"knowledge": knowledge, "stage": "completed"},
+                    )
+                else:
+                    store["status"] = "completed"
+                    store["output"] = _normalize_output_for_user(quick_text)
+                    store["knowledge"] = knowledge
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    "[VICTORIA_CYCLE] background completed task_id=%s route=short_prompt_fast_path",
+                    task_id[:8],
+                )
+                return
 
         session_summary = ""
         if session_id:
             session_summary = await _get_task_memory_from_db(session_id) or ""
         strategy_result = await _select_strategy(agent, goal, session_summary or None)
+        forced_reason = _force_deep_analysis_reason(goal)
+        if forced_reason and strategy_result.get("strategy") == "need_clarification":
+            strategy_result = {
+                "strategy": "deep_analysis",
+                "reason": forced_reason,
+                "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
+            }
+        if strategy_result.get("strategy") == "quick_answer":
+            quick_model = os.getenv("VICTORIA_STRATEGY_MODEL", "phi3.5:3.8b")
+            quick_text = ""
+            quick_source = "strategy_quick_answer"
+            try:
+                quick_text, quick_source = await _generate_via_mlx_or_ollama(
+                    goal,
+                    quick_model,
+                    max_retries=1,
+                    raw_response=True,
+                )
+            except Exception as quick_err:
+                logger.debug(
+                    "[VICTORIA_CYCLE] quick_answer generation failed task_id=%s: %s",
+                    task_id[:8],
+                    quick_err,
+                )
+            if quick_text:
+                knowledge = {
+                    "strategy": "quick_answer",
+                    "confidence": strategy_result.get("confidence", 0.8),
+                    "metadata": {
+                        "model_used": quick_model,
+                        "source": quick_source,
+                        "correlation_id": correlation_id,
+                    },
+                }
+                _inject_strategy_into_knowledge(knowledge, strategy_result)
+                if redis_manager:
+                    await redis_manager.update_task_status(
+                        task_id,
+                        "completed",
+                        result=quick_text,
+                        metadata={"knowledge": knowledge, "stage": "completed"},
+                    )
+                else:
+                    store["status"] = "completed"
+                    store["output"] = _normalize_output_for_user(quick_text)
+                    store["knowledge"] = knowledge
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                logger.info(
+                    "[VICTORIA_CYCLE] background completed task_id=%s route=strategy_quick_answer",
+                    task_id[:8],
+                )
+                return
         if strategy_result.get("strategy") == "need_clarification":
             questions = await _generate_clarification_questions(agent, goal, goal)
             clarification_text = "Victoria уточняет: " + (
@@ -4557,6 +5125,26 @@ async def _run_task_background(
         )
         return
     goal_for_exec = (restated_goal or goal).strip() or goal
+    if is_operational_execution_goal(goal_for_exec):
+        fast_output = await _try_dashboard_operational_fastpath(agent, goal_for_exec)
+        if fast_output:
+            store["status"] = "completed"
+            store["output"] = fast_output
+            store["knowledge"] = {
+                "strategy": "quick_answer",
+                "method": "dashboard_operational_fastpath",
+                "metadata": {"model_used": "deterministic", "source": "local"},
+                "project_context": project_context,
+            }
+            _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
+            store["updated_at"] = datetime.now(timezone.utc).isoformat()
+            if session_id:
+                await _save_session_exchange(session_id, goal_for_exec, fast_output)
+            logger.info(
+                "[VICTORIA_CYCLE] background completed task_id=%s route=dashboard_operational_fastpath",
+                task_id,
+            )
+            return
     knowledge_os_task_id = None
     orchestration_plan_bg = None
     orchestration_context_bg = None
@@ -4583,10 +5171,8 @@ async def _run_task_background(
                     logger.info(
                         f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={sys.path}"
                     )
-                    from app.task_orchestration.integration_bridge import IntegrationBridge
-
                     logger.info(f"[ORCHESTRATOR_DEBUG] POST-IMPORT from {ko_root}")
-                    bridge = IntegrationBridge()
+                    bridge = _get_integration_bridge_singleton()
                     logger.info(
                         f"[ORCHESTRATOR] Calling bridge.process_task for goal: {goal_for_exec[:50]}..."
                     )
@@ -4717,6 +5303,13 @@ async def _run_task_background(
             (goal or "")[:60],
         )
         use_enhanced_actual = should_use_enhanced(goal, project_context, use_enhanced)
+        # Синхронизируем поведение с sync-веткой: strategy quick_answer не должен
+        # принудительно уходить в Enhanced, иначе даже короткие operational-check
+        # задачи зависают в heavy-route и дают still_running/timeouts.
+        if strategy_result.get("strategy") == "quick_answer":
+            use_enhanced_actual = False
+        elif strategy_result.get("strategy") == "deep_analysis":
+            use_enhanced_actual = True
         veronica_tried_and_failed = False
         # Кураторские эталоны (статус проекта, что умеешь, дашборд) — только Enhanced + RAG, не Veronica
         prefer_veronica_bg = (
@@ -4794,13 +5387,9 @@ async def _run_task_background(
                         sys.path.insert(0, path)
                     if "/app/knowledge_os" not in sys.path:
                         sys.path.insert(0, "/app/knowledge_os")
-                    try:
-                        from app.victoria_enhanced import VictoriaEnhanced
-
-                        enhanced = VictoriaEnhanced()
+                    enhanced = _get_victoria_enhanced_singleton()
+                    if enhanced is not None:
                         break
-                    except ImportError:
-                        continue
             except Exception as e:
                 logger.warning("Фоновая задача: не удалось создать VictoriaEnhanced: %s", e)
         if use_enhanced_actual and not veronica_tried_and_failed and enhanced is not None:
@@ -4847,11 +5436,42 @@ async def _run_task_background(
                 goal_for_enhanced_bg = (
                     orchestration_context_bg + "\n\nЗАДАЧА: " + goal_for_enhanced_bg
                 )
-            enhanced_result = await enhanced.solve(
-                goal_for_enhanced_bg,
-                use_enhancements=True,
-                context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
+            _default_enhanced_timeout = float(
+                os.getenv("VICTORIA_ENHANCED_SOLVE_TIMEOUT_SEC", "1800")
             )
+            _operational_enhanced_timeout = float(
+                os.getenv("VICTORIA_ENHANCED_SOLVE_TIMEOUT_OPERATIONAL_SEC", "300")
+            )
+            _enhanced_timeout = (
+                _operational_enhanced_timeout
+                if is_operational_execution_goal(goal_for_exec)
+                else _default_enhanced_timeout
+            )
+            solve_task = asyncio.create_task(
+                enhanced.solve(
+                    goal_for_enhanced_bg,
+                    use_enhancements=True,
+                    context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
+                )
+            )
+            done, _ = await asyncio.wait({solve_task}, timeout=_enhanced_timeout)
+            if not done:
+                logger.error(
+                    "[VICTORIA_CYCLE] enhanced.solve soft-timeout task_id=%s after %ss",
+                    task_id[:8],
+                    int(_enhanced_timeout),
+                )
+                # Не отменяем solve_task: в текущем стеке cancel может уходить в RecursionError.
+                enhanced_result = {
+                    "result": (
+                        f"Victoria Enhanced не уложилась в {int(_enhanced_timeout)}s. "
+                        "Проверьте RAG_RERANKER_ENABLED и MLX/Ollama."
+                    ),
+                    "method": "enhanced_solve_timeout",
+                    "status": "failed",
+                }
+            else:
+                enhanced_result = solve_task.result()
             if enhanced_result is None or not isinstance(enhanced_result, dict):
                 store["status"] = "completed"
                 store["output"] = (
@@ -4864,6 +5484,22 @@ async def _run_task_background(
                 }
                 _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
             else:
+                if enhanced_result.get("status") == "failed":
+                    store["status"] = "failed"
+                    store["error"] = str(
+                        enhanced_result.get("result") or "Victoria Enhanced failed"
+                    )
+                    store["knowledge"] = {
+                        "method": enhanced_result.get("method") or "Victoria Enhanced",
+                        "metadata": {"model_used": "Victoria Enhanced", "source": "local"},
+                        "project_context": project_context,
+                    }
+                    _inject_strategy_into_knowledge(store["knowledge"], strategy_result)
+                    store["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    logger.info(
+                        "[VICTORIA_CYCLE] background failed task_id=%s route=enhanced", task_id
+                    )
+                    return
                 _enhanced_meta = enhanced_result.get("metadata")
                 _enhanced_meta_typed: dict = (
                     dict(_enhanced_meta) if isinstance(_enhanced_meta, dict) else {}
@@ -4934,7 +5570,31 @@ async def _run_task_background(
                 goal_sanitized = _sanitize_goal_for_prompt(goal_for_exec)
                 if orchestration_context_bg:
                     goal_sanitized = orchestration_context_bg + "\n\nЗАДАЧА: " + goal_sanitized
-                result = await agent.run(goal_sanitized, max_steps=max_steps)
+                if (
+                    is_operational_execution_goal(goal_for_exec)
+                    and strategy_result.get("strategy") == "quick_answer"
+                ):
+                    goal_sanitized = (
+                        "ОТВЕЧАЙ ТОЛЬКО ИТОГОВЫМ РЕЗУЛЬТАТОМ ПРОВЕРКИ ПО СУТИ.\n"
+                        "ЗАПРЕЩЕНО: JSON-планы, action/tool, инструкции про доступные инструменты, псевдо-пайплайны.\n"
+                        "ФОРМАТ: 1) что проверено, 2) что найдено, 3) конкретные несоответствия/риски.\n\n"
+                        f"ЗАДАЧА: {goal_sanitized}"
+                    )
+                _bg_agent_timeout = float(
+                    os.getenv(
+                        "VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_SEC",
+                        str(VICTORIA_SYNC_EXEC_TIMEOUT_SEC),
+                    )
+                )
+                _bg_operational_timeout = float(
+                    os.getenv("VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_OPERATIONAL_SEC", "240")
+                )
+                if is_operational_execution_goal(goal_for_exec):
+                    _bg_agent_timeout = max(_bg_agent_timeout, _bg_operational_timeout)
+                result = await asyncio.wait_for(
+                    agent.run(goal_sanitized, max_steps=max_steps),
+                    timeout=_bg_agent_timeout,
+                )
                 store["status"] = "completed"
                 try:
                     store["output"] = _normalize_output_for_user(result)
@@ -4975,6 +5635,32 @@ async def _run_task_background(
             store["updated_at"] = datetime.now(timezone.utc).isoformat()
             logger.info("[VICTORIA_CYCLE] background completed task_id=%s route=agent_run", task_id)
             logger.info("[TRACE] _run_task_background: after agent.run task_id=%s", task_id)
+    except asyncio.TimeoutError:
+        timeout_msg = (
+            "Victoria agent.run превысил лимит времени. "
+            "Проверьте доступность MLX/Ollama и нагрузку очередей."
+        )
+        store["status"] = "failed"
+        store["error"] = timeout_msg
+        store["updated_at"] = datetime.now(timezone.utc).isoformat()
+        logger.error(
+            "[VICTORIA_CYCLE] background agent.run soft-timeout task_id=%s after %ss",
+            task_id[:8],
+            int(
+                float(
+                    os.getenv(
+                        "VICTORIA_BACKGROUND_AGENT_RUN_TIMEOUT_SEC",
+                        str(VICTORIA_SYNC_EXEC_TIMEOUT_SEC),
+                    )
+                )
+            ),
+        )
+        if redis_manager:
+            await redis_manager.update_task_status(
+                task_id,
+                "failed",
+                result=timeout_msg,
+            )
     except asyncio.CancelledError:
         logger.warning("[VICTORIA_CYCLE] background cancelled task_id=%s", task_id)
         if redis_manager:
@@ -5109,11 +5795,13 @@ async def _generate_via_mlx_or_ollama(
     # [SINGULARITY 10.7] Фикс: если модель содержит 'latest' или '35b', пропускаем MLX (он для легких моделей)
     # [SINGULARITY 10.18] ДИАГНОСТИКА: Логируем попытку вызова MLX
     # [SINGULARITY 10.25] ФИКС: Разрешаем MLX для тяжелых моделей, если они там есть (MLX на Mac Studio стабильнее)
-    is_heavy_model = any(kw in ideal_model.lower() for kw in ["32b", "30b"]) # Оставляем только реально тяжелые для MLX
+    is_heavy_model = any(
+        kw in ideal_model.lower() for kw in ["32b", "30b"]
+    )  # Оставляем только реально тяжелые для MLX
     # victoria-wisdom-v3.5 (35b MoE) в MLX работает отлично на 128GB RAM
     logger.info("[MLX_DEBUG] Model: %s, is_heavy: %s", ideal_model, is_heavy_model)
-    
-    if True: # Всегда пробуем MLX первым, если он доступен
+
+    if True:  # Всегда пробуем MLX первым, если он доступен
         for attempt in range(max_retries):
             try:
                 mlx_url = getattr(agent.executor, "_mlx_url", None) or getattr(
@@ -5132,7 +5820,7 @@ async def _generate_via_mlx_or_ollama(
                         }
                         if stop:
                             payload["stop"] = stop
-                            
+
                         r = await client.post(f"{mlx_url}/api/chat", json=payload)
                         logger.info("[MLX_DEBUG] Response status: %d", r.status_code)
                         if r.status_code == 200:
@@ -5159,28 +5847,37 @@ async def _generate_via_mlx_or_ollama(
             # [SINGULARITY 10.12] Фикс: увеличиваем таймаут для Ollama до 300с
             # [SINGULARITY 10.14] Фикс: используем прямой вызов Ollama API, если executor.ask не возвращает результат
             # [SINGULARITY 10.20] ФИКС: Убираем неподдерживаемый аргумент timeout из ask()
-            logger.info("[OLLAMA_DEBUG] Attempt %d via agent.executor.ask (raw=%s)", attempt, raw_response)
+            logger.info(
+                "[OLLAMA_DEBUG] Attempt %d via agent.executor.ask (raw=%s)", attempt, raw_response
+            )
             # [SINGULARITY 10.24] ФИКС: executor.ask не поддерживает stop, передаем только в прямой API
-            res = await agent.executor.ask(full_prompt, system=system, model=ideal_model, raw_response=raw_response)
+            res = await agent.executor.ask(
+                full_prompt, system=system, model=ideal_model, raw_response=raw_response
+            )
             if res:
                 # [SINGULARITY 10.22] ФИКС: Если вернулся не текст (например, AgentFinish), извлекаем output
                 if not isinstance(res, str):
-                    logger.info("[OLLAMA_DEBUG] Success via executor.ask, but returned %s instead of str", type(res))
+                    logger.info(
+                        "[OLLAMA_DEBUG] Success via executor.ask, but returned %s instead of str",
+                        type(res),
+                    )
                     if hasattr(res, "output"):
                         res = res.output
                     else:
                         res = str(res)
-                
+
                 logger.info("[OLLAMA_DEBUG] Success via executor.ask, length: %d", len(res))
                 return (res.strip(), "ollama")
-            
+
             # Если executor.ask вернул None/пусто, пробуем напрямую через httpx (последний шанс)
             ollama_url = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
             # В Docker это часто host.docker.internal
             if "host.docker.internal" not in ollama_url and os.path.exists("/.dockerenv"):
-                 ollama_url = "http://host.docker.internal:11434"
-            
-            logger.info("[OLLAMA_DEBUG] executor.ask returned nothing, trying direct API: %s", ollama_url)
+                ollama_url = "http://host.docker.internal:11434"
+
+            logger.info(
+                "[OLLAMA_DEBUG] executor.ask returned nothing, trying direct API: %s", ollama_url
+            )
             async with httpx.AsyncClient(timeout=300.0) as client:
                 payload = {
                     "model": ideal_model,
@@ -5192,7 +5889,7 @@ async def _generate_via_mlx_or_ollama(
                 }
                 if stop:
                     payload["stop"] = stop
-                    
+
                 r = await client.post(f"{ollama_url}/api/chat", json=payload)
                 logger.info("[OLLAMA_DEBUG] Direct API status: %d", r.status_code)
                 if r.status_code == 200:
@@ -5305,7 +6002,7 @@ async def run_task_stream(body: TaskRequest, request: Request):
 
         # [VIP ROUTE] Проверка на VIP-запрос (Иван/Совет)
         is_vip = any(
-            word in (body.goal or "").lower() for word in ["иван", "ceo", "стратег", "совет"]
+            word in (body.goal or "").lower() for word in ["иван", "ceo", "совет директоров"]
         )
 
         # [FAST TRACK] Проверка на вопросы об обучении и способностях
@@ -5315,10 +6012,18 @@ async def run_task_stream(body: TaskRequest, request: Request):
         )
 
         # [SINGULARITY 10.0] TEAM_DISCUSSION_MODE / reasoning category bypass
-        is_discussion = "[SYSTEM: TEAM_DISCUSSION_MODE]" in body.goal or body.category in ("reasoning", "team_discussion")
+        is_discussion = "[SYSTEM: TEAM_DISCUSSION_MODE]".lower() in (
+            body.goal or ""
+        ).lower() or body.category in ("reasoning", "team_discussion")
 
         # Fast Track: Приветствия и прочее — всегда быстро, даже если Enhanced включен
-        if is_fast_track or (is_simple and not use_enhanced) or is_vip or is_info_query or is_discussion:
+        if (
+            is_fast_track
+            or (is_simple and not use_enhanced)
+            or is_vip
+            or is_info_query
+            or is_discussion
+        ):
             if is_discussion:
                 yield f"data: {json.dumps({'type': 'step', 'stepType': 'thought', 'title': 'Team Discussion', 'content': 'Генерирую обсуждение экспертов...'})}\n\n"
             elif is_vip:
@@ -5338,9 +6043,9 @@ async def run_task_stream(body: TaskRequest, request: Request):
             # Сингулярность 10.0: Подтягиваем знания AI Research даже для простых запросов
             ai_research_context = ""
             try:
-                from app.victoria_enhanced import VictoriaEnhanced
-
-                temp_enhanced = VictoriaEnhanced()
+                temp_enhanced = _get_victoria_enhanced_singleton()
+                if temp_enhanced is None:
+                    raise RuntimeError("VictoriaEnhanced unavailable")
                 ai_research_context = await asyncio.wait_for(
                     getattr(temp_enhanced, "_get_ai_research_context", lambda *a, **k: "")(
                         body.goal
@@ -5368,8 +6073,38 @@ async def run_task_stream(body: TaskRequest, request: Request):
             except Exception as de:
                 logger.debug("Expert DNA fetch failed for stream: %s", de)
 
-            content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
+            if is_discussion:
+                # [SINGULARITY 29.1] Всегда используем Wisdom для discussion
+                ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
+                system_msg = """Ты — команда экспертов ATRA. Твоя задача: провести ЖИВОЕ обсуждение на РУССКОМ языке.
+ПРАВИЛА:
+1. Пиши ТОЛЬКО реплики экспертов.
+2. Формат: **Имя:** Текст реплики.
+3. Эксперты: Виктория (лид), Игорь (бэкенд), Анна (QA).
+4. Обсуждение должно быть коротким (3-5 реплик).
+5. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать теги <think>. Сразу пиши диалог.
+6. НЕ пиши ничего кроме диалога. НЕ пиши 'Status: success'.
+7. Сразу начинай с первой реплики."""
+                content, source = await _generate_via_mlx_or_ollama(
+                    prompt_for_gen,
+                    ideal_model,
+                    system=system_msg,
+                    raw_response=True,
+                    stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
+                )
+            else:
+                content, source = await _generate_via_mlx_or_ollama(prompt_for_gen, ideal_model)
+
             if content:
+                # [SINGULARITY 29.4] ФИКС: Если контент слишком длинный (галлюцинации или повторы),
+                # обрезаем его до разумных пределов для диалога.
+                if len(content) > 8000:
+                    logger.warning(
+                        "[VICTORIA_CYCLE] Content too long (%d), possible loop. Truncating.",
+                        len(content),
+                    )
+                    content = content[:8000].strip() + "\n\n[... обсуждение обрезано ...]"
+
                 words = content.split()
                 for i in range(0, len(words), 5):
                     chunk = " ".join(words[i : i + 5]) + " "
@@ -5460,11 +6195,11 @@ async def run_task(
     Заголовок X-Correlation-ID опционален; при отсутствии генерируется UUID для трассировки.
     """
     # [SINGULARITY 29.0] SSE Streaming mode - reuse /stream endpoint
-    _stream_mode = getattr(body, 'stream', False)
+    _stream_mode = getattr(body, "stream", False)
     logger.info("[REQUEST] Stream mode: %s", _stream_mode)
     if _stream_mode:
         return await run_task_stream(body, request)
-    
+
     global sys
     correlation_id = (request.headers.get("X-Correlation-ID") or "").strip() or str(uuid.uuid4())
 
@@ -5504,53 +6239,69 @@ async def run_task(
     goal_stripped = goal.strip()
     # [SINGULARITY 10.17] КРИТИЧЕСКИЙ ФИКС: Логируем goal_stripped для отладки
     logger.info("[VICTORIA_CYCLE] Goal stripped: %s...", goal_stripped[:100])
-    
-    is_discussion = "[SYSTEM: TEAM_DISCUSSION_MODE]" in goal_stripped or body.category in ("reasoning", "team_discussion")
-    logger.info("[VICTORIA_CYCLE] is_discussion check: %s (tag in goal: %s, category: %s)", 
-                is_discussion, "[SYSTEM: TEAM_DISCUSSION_MODE]" in goal_stripped, body.category)
-    
-    # [SINGULARITY 10.1] Фикс: если это режим обсуждения, 
+
+    # [SINGULARITY 29.9] ФИКС: Делаем проверку регистронезависимой
+    is_discussion = (
+        "[SYSTEM: TEAM_DISCUSSION_MODE]".lower() in goal_stripped.lower()
+        or body.category in ("reasoning", "team_discussion")
+    )
+    logger.info(
+        "[VICTORIA_CYCLE] is_discussion check: %s (tag in goal: %s, category: %s)",
+        is_discussion,
+        "[SYSTEM: TEAM_DISCUSSION_MODE]".lower() in goal_stripped.lower(),
+        body.category,
+    )
+
+    # [SINGULARITY 10.1] Фикс: если это режим обсуждения,
     # мы ОБЯЗАТЕЛЬНО идем по пути прямой генерации, чтобы не сработал Swarm.
     if is_discussion:
-        logger.info("[VICTORIA_CYCLE] 🗣️ TEAM_DISCUSSION_MODE detected (goal length: %d). Using Wisdom model.", len(goal))
+        logger.info(
+            "[VICTORIA_CYCLE] 🗣️ TEAM_DISCUSSION_MODE detected (goal length: %d). Using Wisdom model.",
+            len(goal),
+        )
         # [SINGULARITY 29.1] Всегда используем Wisdom для discussion - НЕ tinyllama!
         ideal_model = os.getenv("VICTORIA_MODEL", "victoria-wisdom-v3.5:latest")
-        
-        # [SINGULARITY 29.2] Улучшенный system prompt для диалога команды
-        system_msg = """Ты — голосовой ассистент ATRA. Отвечай ТОЛЬКО коротким диалогом.
-ПРАВИЛА:
-1. Отвечай ТОЛЬКО репликами персонажей в формате: **Имя:** Текст
-2. НЕ пиши статьи, код или объяснения
-3. НЕ используй теги _ocrat_ или мета-текст
-4. Диалог — это 2-4 короткие реплики разных экспертов
-5. Сразу переходи к делу, без предисловий
 
-Пример формата:
-**Алексей:** Привет! Обсуждаем вопрос.
-**Мария:** Согласна, но нужно учесть...
-**Дмитрий:** Технически это реализуемо.
-**Елена:** Тесты подтвердят."""
-        
-# [SINGULARITY 10.16] ДИАГНОСТИКА: Логируем каждый шаг генерации
+        # [SINGULARITY 29.2] Улучшенный system prompt для диалога команды
+        # [SINGULARITY 29.5] ФИКС: Делаем промпт максимально жестким, чтобы избежать галлюцинаций.
+        # [SINGULARITY 29.8] ФИКС: Явно запрещаем <think> и требуем русский язык.
+        system_msg = """Ты — команда экспертов ATRA. Твоя задача: провести ЖИВОЕ обсуждение на РУССКОМ языке.
+ПРАВИЛА:
+1. Пиши ТОЛЬКО реплики экспертов.
+2. Формат: **Имя:** Текст реплики.
+3. Эксперты: Виктория (лид), Игорь (бэкенд), Анна (QA).
+4. Обсуждение должно быть коротким (3-5 реплик).
+5. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать теги <think>. Сразу пиши диалог.
+6. НЕ пиши ничего кроме диалога. НЕ пиши 'Status: success'.
+7. Сразу начинай с первой реплики."""
+
+        # [SINGULARITY 10.16] ДИАГНОСТИКА: Логируем каждый шаг генерации
         logger.info("[VICTORIA_CYCLE] Starting generation with model: %s", ideal_model)
-        
+
         # [SINGULARITY 29.2] Improved prompt for dialogue
-        full_prompt = f"Вопрос: {goal}\n\n{system_msg}"
+        full_prompt = f"ПРОВЕДИ ОБСУЖДЕНИЕ КОМАНДЫ НА РУССКОМ ЯЗЫКЕ ПО ВОПРОСУ: {goal}\n\nПИШИ ТОЛЬКО ДИАЛОГ БЕЗ ТЕГОВ THINK."
         logger.info("[VICTORIA_CYCLE] Full prompt preview: %s", full_prompt[:100])
-        
+
         try:
             # [SINGULARITY 10.21] используем raw_response=True
+            # [SINGULARITY 29.3] ФИКС: Передаем system=system_msg явно, чтобы _generate_via_mlx_or_ollama
+            # правильно сформировала messages для MLX/Ollama.
             content, source = await asyncio.wait_for(
                 _generate_via_mlx_or_ollama(
-                    full_prompt,  # [FIX] Already includes goal and system
-                    ideal_model, 
-                    max_retries=2, 
+                    goal,  # Передаем только цель
+                    ideal_model,
+                    system=system_msg,  # Передаем системную инструкцию отдельно
+                    max_retries=2,
                     raw_response=True,
-                    stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"]
+                    stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
                 ),
-                timeout=300.0
+                timeout=300.0,
             )
-            logger.info("[VICTORIA_CYCLE] Generation completed. Source: %s, Content length: %d", source, len(content) if content else 0)
+            logger.info(
+                "[VICTORIA_CYCLE] Generation completed. Source: %s, Content length: %d",
+                source,
+                len(content) if content else 0,
+            )
         except asyncio.TimeoutError:
             logger.error("[VICTORIA_CYCLE] Discussion generation TIMEOUT for model %s", ideal_model)
             return TaskResponse(
@@ -5563,34 +6314,85 @@ async def run_task(
             logger.warning("[VICTORIA_CYCLE] Wisdom 35B failed, trying phi3.5 fallback: %s", e)
             content, source = await _generate_via_mlx_or_ollama(
                 full_prompt,  # Already includes goal and system
-                "phi3.5:3.8b", 
-                max_retries=1, 
+                "phi3.5:3.8b",
+                max_retries=1,
                 raw_response=True,
-                stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"]
+                stop=["**User**:", "**Technical Support**:", "User:", "Technical Support:"],
             )
-            logger.info("[VICTORIA_CYCLE] Fallback generation completed. Source: %s, Content length: %d", source, len(content) if content else 0)
-        
+            logger.info(
+                "[VICTORIA_CYCLE] Fallback generation completed. Source: %s, Content length: %d",
+                source,
+                len(content) if content else 0,
+            )
+
         # [SINGULARITY 10.6] Фикс: если контент не получен, возвращаем ошибку, а не падаем в Swarm
-        if not content:
+        if not content or content.strip() == "Status: success":
+            logger.warning(
+                "[VICTORIA_CYCLE] LLM returned empty or placeholder content: %s", content
+            )
             return TaskResponse(
                 status="failed",
-                output="Не удалось сгенерировать диалог. Попробуйте еще раз.",
-                knowledge={"error": "LLM returned empty content in discussion mode"},
+                output="Не удалось сгенерировать диалог (пустой ответ от модели). Попробуйте еще раз.",
+                knowledge={
+                    "error": "LLM returned empty content or placeholder in discussion mode",
+                    "raw_content": content,
+                },
                 correlation_id=correlation_id,
             )
-            
+
+        original_content = content  # Сохраняем оригинал для fallback очистки
+
+        # [SINGULARITY 29.4] ФИКС: Если контент слишком длинный (галлюцинации или повторы),
+        # обрезаем его до разумных пределов для диалога.
+        if len(content) > 8000:
+            logger.warning(
+                "[VICTORIA_CYCLE] Content too long (%d), possible loop. Truncating.", len(content)
+            )
+            content = content[:8000].strip() + "\n\n[... обсуждение обрезано ...]"
+
         # Очистка от <think> тегов (на всякий случай)
-        if "<think>" in content:
+        if content and "<think>" in content:
             import re
-            content = re.sub(r"<think>.*?(</think>|$)", "", content, flags=re.DOTALL).strip()
-            
+
+            # Удаляем все внутри <think>...</think>
+            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+            # Если остался незакрытый <think>, удаляем до конца
+            content = re.sub(r"<think>.*$", "", content, flags=re.DOTALL).strip()
+
+        # [SINGULARITY 29.7] ФИКС: Явное логирование финального контента перед возвратом
+        final_len = len(content) if content else 0
+        logger.info("[VICTORIA_CYCLE] Final content length: %d", final_len)
+
+        if not content or len(content) < 10:
+            logger.warning("[VICTORIA_CYCLE] Content too short or empty after cleanup: %s", content)
+            # Если после очистки пусто, но оригинал был длинным — значит там был только <think>
+            # В этом случае возвращаем оригинал без очистки (лучше с <think>, чем ничего)
+            if len(content or "") < 10 and source == "mlx":
+                logger.info(
+                    "[VICTORIA_CYCLE] Cleanup killed everything, returning original content"
+                )
+                # Но все же попробуем убрать только теги, оставив текст внутри если он там есть
+                import re
+
+                content = re.sub(r"</?think>", "", original_content or "")
+
+            if not content or len(content) < 10:
+                return TaskResponse(
+                    status="failed",
+                    output="Не удалось сгенерировать диалог (пустой ответ после очистки). Попробуйте еще раз.",
+                    knowledge={"error": "Content empty after cleanup"},
+                    correlation_id=correlation_id,
+                )
+
+        # [SINGULARITY 29.10] ФИКС: ОБЯЗАТЕЛЬНО возвращаем результат здесь,
+        # чтобы не идти дальше в Swarm/Strategy/Queue.
         return TaskResponse(
             status="success",
-            output=content,
+            output=_normalize_output_for_user(content),
             knowledge={
                 "strategy": "team_discussion",
+                "confidence": 1.0,
                 "source": source,
-                "model": ideal_model
             },
             correlation_id=correlation_id,
         )
@@ -5604,39 +6406,81 @@ async def run_task(
         try:
             import asyncpg
 
-            db_url = os.getenv("POSTGRES_DIRECT_URL", "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os")
+            db_url = os.getenv(
+                "POSTGRES_DIRECT_URL",
+                "postgresql://admin:secret@knowledge_postgres:5432/knowledge_os",
+            )
             task_id = str(uuid.uuid4())
             logger.info(f"[QUEUE] Creating task in PostgreSQL: {task_id}")
-            
+
             conn = await asyncpg.connect(db_url, timeout=10)
+
+            # [QUEUE] Look up the code expert (Роман) for assignee_expert_id
+            expert_id = await conn.fetchval(
+                "SELECT id FROM experts WHERE name = $1", "Роман"
+            )
+            if not expert_id:
+                expert_id = await conn.fetchval(
+                    "SELECT id FROM experts ORDER BY created_at ASC LIMIT 1"
+                )
+
             await conn.execute(
-                """INSERT INTO tasks (id, title, description, status, priority, metadata, created_at)
-                   VALUES ($1, $2, $3, 'pending', 'medium', $4, NOW())""",
+                """INSERT INTO tasks (id, title, description, goal, status, priority, assignee_expert_id, metadata, project_context, created_at)
+                   VALUES ($1, $2, $3, $4, 'pending', 'medium', $5, $6::jsonb, $7, NOW())""",
                 task_id,
                 goal[:100],  # title
                 goal,  # description
-                {"source": "victoria_queue", "correlation_id": correlation_id},
+                goal,  # goal (для корректного resume и аналитики)
+                expert_id,
+                json.dumps({
+                    "source": "victoria_queue",
+                    "target_expert": "Роман",
+                    "correlation_id": correlation_id,
+                }),
+                body.project_context,
             )
             await conn.close()
-            logger.info(f"[QUEUE] Task inserted to PostgreSQL: {task_id}")
-            
+            logger.info(f"[QUEUE] Task inserted to PostgreSQL: {task_id} (expert_id={expert_id})")
+
             # Also set in Redis for /run/status compatibility
             try:
-                import redis as redis_lib
                 import json as json_lib
+
+                import redis as redis_lib
+
                 r = redis_lib.Redis(host="redis", port=6379, decode_responses=False)
                 r.set(
                     f"task:{task_id}",
-                    json_lib.dumps({
-                        "task_id": task_id,
-                        "status": "queued",
-                        "output": "Processing...",
-                        "knowledge": {"strategy": "queued"},
-                    }),
+                    json_lib.dumps(
+                        {
+                            "task_id": task_id,
+                            "status": "queued",
+                            "output": "Processing...",
+                            "knowledge": {"strategy": "queued"},
+                        }
+                    ),
                 )
             except:
                 pass
-            
+
+            # Push to Redis Stream so expert workers can pick up the task
+            try:
+                stream_task_data = {
+                    "task_id": task_id,
+                    "expert_name": "Роман",
+                    "description": goal,
+                    "category": "code",
+                    "project_context": body.project_context or "atra-web-ide",
+                    "metadata": {
+                        "source": "victoria_queue",
+                        "correlation_id": correlation_id,
+                    },
+                }
+                await redis_manager.push_to_stream("expert_tasks", stream_task_data)
+                logger.info(f"[QUEUE] Task {task_id} pushed to Redis Stream expert_tasks")
+            except Exception as e:
+                logger.warning(f"[QUEUE] Could not push to Redis Stream: {e}")
+
             return TaskResponse(
                 status="processing",
                 output=f"⏳ Task {task_id} queued to PostgreSQL",
@@ -5776,7 +6620,7 @@ async def run_task(
     # === FAST PATH ДЛЯ ПРИВЕТСТВИЙ И ПРОСТЫХ ФРАЗ (SINGULARITY 10.0 UNIFIED) ===
     is_simple = is_simple_message(goal)
     is_fast_track = is_fast_track_message(goal)
-    is_vip = any(word in goal.lower() for word in ["иван", "ceo", "стратег", "совет"])
+    is_vip = any(word in goal.lower() for word in ["иван", "ceo", "совет директоров"])
 
     if is_fast_track or (is_simple and not use_enhanced) or is_vip:
         logger.info(
@@ -5815,23 +6659,35 @@ async def run_task(
             # [SINGULARITY 28.X] Log FAST PATH to agent_ab_results
             try:
                 if asyncpg:
-                    db_url = os.getenv("DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os")
+                    db_url = os.getenv(
+                        "DATABASE_URL", "postgresql://admin:secret@localhost:5432/knowledge_os"
+                    )
                     conn = await asyncpg.connect(db_url, timeout=5)
                     _fp_id = f"fast_{abs(hash(content[:100])) % 1000000}"
                     await conn.execute(
                         """INSERT INTO agent_ab_results (expert_name, strategy, task_id, score, created_at) VALUES ('Виктория', 'fast_path', $1, 1.0, NOW())""",
-                        _fp_id
+                        _fp_id,
                     )
                     logger.info(f"⚖️ [AB_FAST] logged: {_fp_id}")
                     await conn.close()
             except Exception as _aberr:
                 logger.debug(f"AB fast log failed: {_aberr}")
 
+            normalized_content = _normalize_output_for_user(content)
+            if normalized_content.startswith("⚠️"):
+                goal_lower = goal.lower().strip()
+                if any(p in goal_lower for p in ["привет", "здравствуй", "hello", "hi"]):
+                    normalized_content = (
+                        "Привет! Я Виктория, Team Lead корпорации ATRA. Чем могу помочь?"
+                    )
+                elif "что ты умеешь" in goal_lower:
+                    normalized_content = "Я — Виктория, Team Lead корпорации ATRA. Я умею управлять агентами, работать с файлами на серверах, анализировать код, отвечать на вопросы по базе знаний корпорации и мониторить состояние Mac Studio. Чем могу быть полезна?"
+
             # Для Fast Track ВСЕГДА возвращаем 200, даже если async_mode=true
             # Это убирает сообщение "Задача принята" в Telegram
             return TaskResponse(
                 status="success",
-                output=content,
+                output=normalized_content,
                 knowledge={
                     "strategy": "quick_answer",
                     "confidence": 1.0,
@@ -5845,11 +6701,114 @@ async def run_task(
     # Ранний ответ для вопросов о данных (метрики Mac Studio, корпорация) — без лимита 500 шагов
     quick_data = await _try_corporation_data_quick_response(goal, correlation_id)
 
+    async def _build_timeout_fallback_response(stage: str) -> TaskResponse:
+        """Fail-fast fallback for sync /run when deep execution exceeds SLA."""
+        fallback_prompt = (
+            "Дай краткий практичный ответ в 3-5 пунктах без прелюдий. Запрос пользователя:\n"
+            f"{(restated_goal or goal)[:1000]}"
+        )
+        fallback_text = ""
+        fallback_source = "timeout_static_fallback"
+        try:
+            fallback_text, fallback_source = await _generate_via_mlx_or_ollama(
+                fallback_prompt,
+                VICTORIA_TIMEOUT_FALLBACK_MODEL,
+                max_retries=1,
+                raw_response=True,
+            )
+        except Exception as fb_err:
+            logger.warning(
+                "[VICTORIA_CYCLE] Timeout fallback LLM failed at stage=%s: %s", stage, fb_err
+            )
+        if not fallback_text:
+            fallback_text = (
+                "Задача выполняется дольше обычного. Я верну быстрый ориентир: "
+                "уточните контекст (файл/сервис/цель), и я дам точный план сразу."
+            )
+        knowledge = {
+            "strategy": "timeout_fallback",
+            "metadata": {
+                "model_used": VICTORIA_TIMEOUT_FALLBACK_MODEL,
+                "source": fallback_source,
+                "correlation_id": correlation_id,
+                "timeout_stage": stage,
+                "timeout_seconds": VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+            },
+            "execution_trace": {
+                "routed_to": "timeout_fallback",
+                "stage": stage,
+                "correlation_id": correlation_id,
+            },
+        }
+        return TaskResponse(
+            status="success",
+            output=_normalize_output_for_user(fallback_text),
+            knowledge=knowledge,
+            correlation_id=correlation_id,
+        )
+
+    def _is_sync_safe_candidate(text: str) -> bool:
+        low = (text or "").lower()
+        heavy_markers = (
+            "создай файл",
+            "измени файл",
+            "write file",
+            "edit file",
+            "выполни команду",
+            "run command",
+            "deploy",
+            "деплой",
+            "миграц",
+            "docker compose",
+            "pull request",
+        )
+        return len(low) <= 700 and not any(m in low for m in heavy_markers)
+
+    if (
+        VICTORIA_SYNC_SAFE_MODE
+        and not async_mode
+        and not _stream_mode
+        and _is_sync_safe_candidate(goal)
+        and not is_discussion
+    ):
+        try:
+            safe_text, safe_source = await asyncio.wait_for(
+                _generate_via_mlx_or_ollama(
+                    goal,
+                    VICTORIA_SYNC_SAFE_MODEL,
+                    max_retries=1,
+                    raw_response=True,
+                ),
+                timeout=45.0,
+            )
+            if safe_text:
+                return TaskResponse(
+                    status="success",
+                    output=_normalize_output_for_user(safe_text),
+                    knowledge={
+                        "strategy": "sync_safe_mode",
+                        "metadata": {
+                            "model_used": VICTORIA_SYNC_SAFE_MODEL,
+                            "source": safe_source,
+                            "correlation_id": correlation_id,
+                        },
+                    },
+                    correlation_id=correlation_id,
+                )
+        except Exception as safe_err:
+            logger.debug("[VICTORIA_CYCLE] sync safe mode bypass failed: %s", safe_err)
+
     # Асинхронный режим (202 до стратегии): сразу 202, стратегия и understand_goal — в фоне
     if async_mode:
-        task_id = str(uuid.uuid4())
-        _task_type_async = detect_task_type(goal, body.project_context or project_context)
+        try:
+            task_id = str(uuid.uuid4())
+            _task_type_async = detect_task_type(goal, body.project_context or project_context)
+        except Exception as _async_err:
+            logger.error(f"[ASYNC] Failed to initialize async mode: {_async_err}")
+            # Fall back to sync
+            async_mode = False
 
+    if async_mode:
         task_data = {
             "status": "queued",
             "stage": "queued",
@@ -5922,8 +6881,29 @@ async def run_task(
     session_summary = ""
     if body.session_id:
         session_summary = await _get_task_memory_from_db(body.session_id) or ""
-    strategy_result = await _select_strategy(agent, goal, session_summary or None)
+    try:
+        strategy_result = await asyncio.wait_for(
+            _select_strategy(agent, goal, session_summary or None),
+            timeout=VICTORIA_STRATEGY_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "🕒 [SYNC] _select_strategy timeout (%.0fs), fallback to quick_answer",
+            VICTORIA_STRATEGY_TIMEOUT_SEC,
+        )
+        strategy_result = {
+            "strategy": "quick_answer",
+            "confidence": 0.6,
+            "reason": "timeout_fallback",
+        }
     logger.info("🕒 [SYNC] _select_strategy took %.2fs", time.monotonic() - _t_sync_0)
+    forced_reason = _force_deep_analysis_reason(goal)
+    if forced_reason and strategy_result.get("strategy") == "need_clarification":
+        strategy_result = {
+            "strategy": "deep_analysis",
+            "reason": forced_reason,
+            "confidence": max(0.9, float(strategy_result.get("confidence", 0.5))),
+        }
     if strategy_result.get("strategy") == "need_clarification":
         questions = await _generate_clarification_questions(agent, goal, goal)
         content = {
@@ -6052,15 +7032,14 @@ async def run_task(
                     logger.info(
                         f"[ORCHESTRATOR_DEBUG] PRE-IMPORT from {ko_root}, sys.path={_sys.path}"
                     )
-                    from app.task_orchestration.integration_bridge import IntegrationBridge
-
                     logger.info(f"[ORCHESTRATOR_DEBUG] POST-IMPORT from {ko_root}")
-                    bridge = IntegrationBridge()
+                    bridge = _get_integration_bridge_singleton()
                     logger.info(
                         f"[ORCHESTRATOR] Calling bridge.process_task (sync path) for goal: {restated_goal[:50]}..."
                     )
-                    bridge_result = await bridge.process_task(
-                        restated_goal, project_context=project_context
+                    bridge_result = await asyncio.wait_for(
+                        bridge.process_task(restated_goal, project_context=project_context),
+                        timeout=VICTORIA_ORCHESTRATOR_TIMEOUT_SEC,
                     )
                     logger.info(f"[ORCHESTRATOR] Bridge result (sync path): {bridge_result}")
                     orchestration_plan = bridge_result  # Сохраняем план и назначения для использования при выполнении (контекст в промпт; исполнение — Victoria Enhanced/Veronica/agent_run, см. docs/VICTORIA_TASK_CHAIN_FULL.md)
@@ -6075,6 +7054,12 @@ async def run_task(
                         logger.info(
                             "[ORCHESTRATOR] План и назначения получены, передаём Victoria для выполнения"
                         )
+                    break
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "[ORCHESTRATOR] process_task timeout (%.0fs), skip orchestration for this sync request",
+                        VICTORIA_ORCHESTRATOR_TIMEOUT_SEC,
+                    )
                     break
                 except ImportError as imp_e:
                     logger.warning(f"[ORCHESTRATOR] ImportError in bridge (sync path): {imp_e}")
@@ -6109,19 +7094,27 @@ async def run_task(
                 except ImportError:
                     from execute_assignments import execute_assignments_async
 
-                _exec_results = await execute_assignments_async(
-                    _assignments,
-                    restated_goal or "",
-                    strategy=(orchestration_plan or {}).get("strategy")
-                    if isinstance(orchestration_plan, dict)
-                    else None,
-                    project_context=project_context,
+                _exec_results = await asyncio.wait_for(
+                    execute_assignments_async(
+                        _assignments,
+                        restated_goal or "",
+                        strategy=(orchestration_plan or {}).get("strategy")
+                        if isinstance(orchestration_plan, dict)
+                        else None,
+                        project_context=project_context,
+                    ),
+                    timeout=VICTORIA_ASSIGNMENTS_TIMEOUT_SEC,
                 )
                 if _exec_results:
                     orchestration_context_str = _exec_results
                     logger.info(
                         "[ORCHESTRATOR] Исполнение по assignments выполнено, контекст подставлен"
                     )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[ORCHESTRATOR] execute_assignments_async timeout (%.0fs), continuing without assignments context",
+                    VICTORIA_ASSIGNMENTS_TIMEOUT_SEC,
+                )
             except Exception as _e:
                 logger.warning("[ORCHESTRATOR] execute_assignments_async failed: %s", _e)
     # Маршрутизация: простой чат (привет и т.п.) — без Enhanced для скорости. Логика мысли: стратегия перебивает.
@@ -6152,11 +7145,14 @@ async def run_task(
                 "[TRACE] run_task: before delegate_to_veronica correlation_id=%s",
                 correlation_id[:8],
             )
-            veronica_result = await delegate_to_veronica(
-                _sanitize_goal_for_prompt(restated_goal),
-                body.project_context or project_context,
-                correlation_id,
-                max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+            veronica_result = await asyncio.wait_for(
+                delegate_to_veronica(
+                    _sanitize_goal_for_prompt(restated_goal),
+                    body.project_context or project_context,
+                    correlation_id,
+                    max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+                ),
+                timeout=VICTORIA_VERONICA_TIMEOUT_SEC,
             )
             if veronica_result and veronica_result.get("status") == "success":
                 raw_knowledge = veronica_result.get("knowledge")
@@ -6210,6 +7206,12 @@ async def run_task(
                 "[%s] Veronica недоступна или ошибка — выполняю задачу через Victoria (инструменты)",
                 correlation_id[:8],
             )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[run_task] Timeout при делегировании Veronica (%ss), fallback на Victoria",
+            VICTORIA_VERONICA_TIMEOUT_SEC,
+        )
+        veronica_tried_and_failed = True
     except Exception as e:
         logger.warning("[run_task] Ошибка при делегировании Veronica, fallback на Victoria: %s", e)
         veronica_tried_and_failed = True
@@ -6238,10 +7240,10 @@ async def run_task(
                             enhanced = victoria_enhanced_instance
                             logger.debug("♻️ Используем существующий экземпляр Victoria Enhanced")
                         else:
-                            from app.victoria_enhanced import VictoriaEnhanced
-
                             logger.info("🚀 Victoria Enhanced активирован!")
-                            enhanced = VictoriaEnhanced()
+                            enhanced = _get_victoria_enhanced_singleton()
+                            if enhanced is None:
+                                raise RuntimeError("VictoriaEnhanced unavailable")
 
                         # Формируем контекст с историей чата
                         context_with_history = {}
@@ -6314,11 +7316,21 @@ async def run_task(
                             "[TRACE] run_task: before enhanced.solve correlation_id=%s",
                             correlation_id[:8],
                         )
-                        enhanced_result = await enhanced.solve(
-                            goal_for_enhanced,
-                            use_enhancements=True,
-                            context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
-                        )
+                        try:
+                            enhanced_result = await asyncio.wait_for(
+                                enhanced.solve(
+                                    goal_for_enhanced,
+                                    use_enhancements=True,
+                                    context=context_with_history if context_with_history else None,  # type: ignore[call-arg]
+                                ),
+                                timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                            )
+                        except asyncio.TimeoutError:
+                            logger.warning(
+                                "[VICTORIA_CYCLE] Enhanced solve timeout (%ss), using timeout fallback",
+                                VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                            )
+                            return await _build_timeout_fallback_response("enhanced.solve")
                         logger.info(
                             f"✅ Enhanced метод: {enhanced_result.get('method')} [проект: {project_context}]"
                         )
@@ -6414,10 +7426,21 @@ async def run_task(
 
         _exec_start = _time.time()
 
-        result = await agent.run(
-            goal_for_run,
-            max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
-        )
+        try:
+            result = await asyncio.wait_for(
+                agent.run(
+                    goal_for_run,
+                    max_steps=body.max_steps if body.max_steps is not None else DEFAULT_MAX_STEPS,
+                ),
+                timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "[VICTORIA_CYCLE] agent.run timeout (%ss), using timeout fallback",
+                VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+            )
+            agent.executor.system_prompt = original_prompt
+            return await _build_timeout_fallback_response("agent.run")
 
         _exec_elapsed = _time.time() - _exec_start
 
@@ -6728,43 +7751,71 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         use_enhanced=True,  # Всегда используем Enhanced для OpenAI API (Open WebUI)
     )
 
-    # [SINGULARITY 15.0] Интеграция LongTermMemory
-    memory_context = ""
-    try:
-        from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+    # [SINGULARITY 31.3] Fast path: для простых сообщений (приветствия, короткие вопросы)
+    # пропускаем RAG и LTM — они не нужны, только замедляют ответ
+    _user_msg_text = user_messages[-1].content if user_messages else ""
+    _is_simple = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
 
-        ltm = get_long_term_memory_manager()
-        # Ищем последние 5 обменов для этого пользователя/проекта
-        memory_context = await ltm.get_recent_threads(
-            user_key=f"openai-{correlation_id[:8]}",
-            project_context=task_req.project_context or "unknown",
-            limit=5,
-        )
-        if memory_context:
-            logger.info(f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars")
-            # Подмешиваем память в goal, чтобы Victoria её увидела
-            goal = f"РАНЕЕ ОБСУЖДАЛОСЬ:\n{memory_context}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
-            task_req.goal = goal
-    except Exception as e:
-        logger.error(f"❌ [OPENAI-API] Memory error: {e}")
+    if not _is_simple:
+        # [SINGULARITY 15.0] Интеграция LongTermMemory
+        memory_context = ""
+        if "victoria" in str(request.model).lower():
+            try:
+                try:
+                    from knowledge_os.app.long_term_memory import get_long_term_memory_manager
+                except ImportError:
+                    try:
+                        from app.long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        try:
+                            from long_term_memory import get_long_term_memory_manager
+                        except ImportError:
+                            from long_term_memory import get_ltm as get_long_term_memory_manager
 
-    # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
-    # Подтягиваем релевантные знания через Hybrid Search v2 перед отправкой в Victoria
-    try:
-        from app.enhanced_search import SearchMode, enhanced_search_knowledge
-
-        logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
-        rag_res = await enhanced_search_knowledge(query=goal, mode=SearchMode.HYBRID, limit=3)
-        if rag_res and rag_res.get("results"):
-            knowledge_text = rag_res.get("result_text", "")
-            if knowledge_text:
-                logger.info(
-                    f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
+                ltm = get_long_term_memory_manager()
+                # Ищем последние 5 обменов для этого пользователя/проекта
+                memory_context = await ltm.get_recent_threads(
+                    user_key=f"openai-{correlation_id[:8]}",
+                    project_context=task_req.project_context or "unknown",
+                    limit=5,
                 )
-                # Внедряем знания в начало запроса
-                task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
-    except Exception as e:
-        logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
+                if memory_context:
+                    logger.info(f"🧠 [OPENAI-API] LongTermMemory found: {len(memory_context)} chars")
+                    # Подмешиваем память в goal, чтобы Victoria её увидела
+                    goal = f"РАНЕЕ ОБСУЖДАЛОСЬ:\n{memory_context}\n\nТЕКУЩИЙ ЗАПРОС: {goal}"
+                    task_req.goal = goal
+            except Exception as e:
+                logger.error(f"❌ [OPENAI-API] Memory error: {e}")
+
+        # [SINGULARITY 16.0] Omni-RAG Integration for Open WebUI
+        # Подтягиваем релевантные знания через Hybrid Search v2 перед отправкой в Victoria
+        if "victoria" in str(request.model).lower():
+            try:
+                from app.enhanced_search import SearchMode, enhanced_search_knowledge
+
+                logger.info("🔍 [OPENAI-API] Omni-RAG: Searching knowledge for goal...")
+                rag_res = await enhanced_search_knowledge(query=goal, mode=SearchMode.HYBRID, limit=3)
+                if rag_res and rag_res.get("results"):
+                    knowledge_text = rag_res.get("result_text", "")
+                    if knowledge_text:
+                        # Очищаем RAG от внутренних монологов (<think>/<thought> блоков)
+                        knowledge_text = re.sub(
+                            r'<think>.*?</think>|<thought>.*?</thought>',
+                            '',
+                            knowledge_text,
+                            flags=re.DOTALL,
+                        )
+                        knowledge_text = knowledge_text.strip()
+                        if knowledge_text:
+                            logger.info(
+                                f"📚 [OPENAI-API] Omni-RAG: Found {len(rag_res['results'])} relevant nodes"
+                            )
+                            # Внедряем знания в начало запроса
+                            task_req.goal = f"КОНТЕКСТ ИЗ БАЗЫ ЗНАНИЙ (Omni-RAG):\n{knowledge_text}\n\nЗАПРОС ПОЛЬЗОВАТЕЛЯ: {task_req.goal}"
+            except Exception as e:
+                logger.warning(f"⚠️ [OPENAI-API] Omni-RAG search failed: {e}")
+    else:
+        logger.info(f"⚡ [OPENAI-API] Simple message detected, skipping RAG and LTM")
 
     # [SINGULARITY 16.1] Omni-RAG: Telegram Notification Hook
     # Если запрос пришел от Telegram (по session_id или метаданным), можно добавить логику уведомлений
@@ -6878,7 +7929,10 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
                 try:
                     from app.long_term_memory import get_long_term_memory_manager
                 except ImportError:
-                    from long_term_memory import get_long_term_memory_manager
+                    try:
+                        from long_term_memory import get_long_term_memory_manager
+                    except ImportError:
+                        from long_term_memory import get_ltm as get_long_term_memory_manager
 
                     ltm = get_long_term_memory_manager()
                     await ltm.save_thread(
@@ -6916,11 +7970,79 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         )
 
     # --- ОБЫЧНЫЙ СИНХРОННЫЙ ОТВЕТ ---
-    try:
-        # Вызываем нашу основную логику (принудительно async_mode=False)
-        result = await run_task(task_req, req, async_mode=False)
+    result = None
+    output_text = ""
 
-        # Если вернулся JSONResponse (например, 202), извлекаем реальный результат
+    # [SINGULARITY 31.3] Fast path: для вопросов знаний без action-глаголов
+    # используем прямой MLX + RAG, без полного пайплайна run_task
+    _execution_markers = (
+        "выполни", "создай", "напиши код", "исправь", "аудит", "проверь",
+        "разработай", "сделай", "установи", "настрой", "задеплой",
+    )
+    _is_execution_task = any(marker in task_req.goal.lower() for marker in _execution_markers)
+    _is_simple_q = is_simple_message(_user_msg_text) or is_fast_track_message(_user_msg_text)
+
+    if _is_simple_q or (not _is_execution_task and len(task_req.goal) < 2000 and "victoria" in str(request.model).lower()):
+        # Для простых/быстрых сообщений — статический fallback без LLM
+        if _is_simple_q:
+            goal_lower = _user_msg_text.lower().strip()
+            if any(p in goal_lower for p in ["привет", "здравствуй", "hello", "hi"]):
+                output_text = "Привет! Чем могу помочь?"
+            elif "что ты умеешь" in goal_lower:
+                output_text = "Я — Виктория, Assistant ATRA. Могу отвечать на вопросы по проекту, анализировать код, управлять задачами."
+            elif len(goal_lower.split()) <= 2:
+                output_text = "Чем могу помочь?"
+        if not output_text:
+            # [SINGULARITY 31.3] RAG for fast-path knowledge questions
+            _rag_context = ""
+            try:
+                from app.enhanced_search import SearchMode, enhanced_search_knowledge
+                _rag_res = await enhanced_search_knowledge(query=_user_msg_text, mode=SearchMode.HYBRID, limit=2)
+                if _rag_res and _rag_res.get("result_text"):
+                    _rag_context = _rag_res["result_text"][:1500]
+            except Exception:
+                pass
+
+            logger.info(f"⚡ [OPENAI-API] Knowledge fast-path for goal: {_user_msg_text[:60]}")
+            try:
+                _model = _select_model_for_chat(task_req.goal)
+                _prompt = task_req.goal
+                if _rag_context:
+                    _prompt = f"Контекст из базы знаний:\n{_rag_context}\n\nВопрос: {task_req.goal}"
+                _content, _source = await _generate_via_mlx_or_ollama(
+                    _prompt,
+                    _model,
+                    system=(
+                        "Ты — Виктория, Lead-разработчик ATRA. "
+                        "У тебя есть контекст из базы знаний. "
+                        "Отвечай кратко, по существу, без лишних предисловий."
+                    ),
+                )
+                if _content:
+                    output_text = _normalize_output_for_user(_content)
+            except Exception:
+                pass
+        if not output_text:
+            # fallback to run_task
+            try:
+                result = await asyncio.wait_for(
+                    run_task(task_req, req, async_mode=False),
+                    timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[OPENAI-API] run_task timed out for goal: {_user_msg_text[:50]}")
+                output_text = "⏳ Задача требует больше времени для анализа. Пожалуйста, отправьте запрос через /run с async_mode=true для фонового выполнения."
+    else:
+        try:
+            result = await asyncio.wait_for(
+                run_task(task_req, req, async_mode=False),
+                timeout=VICTORIA_SYNC_EXEC_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"[OPENAI-API] run_task timed out for goal: {goal[:50]}")
+            output_text = "⏳ Задача требует больше времени для анализа. Пожалуйста, отправьте запрос через /run с async_mode=true для фонового выполнения."
+
+    if result is not None:
         if isinstance(result, JSONResponse):
             body_bytes = result.body
             if isinstance(body_bytes, (bytes, memoryview)):
@@ -6945,43 +8067,41 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         else:
             output_text = str(result)
 
-        # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
+    # [SINGULARITY 15.0] Сохранение в LongTermMemory после успешного ответа
+    try:
         try:
+            from app.long_term_memory import get_long_term_memory_manager
+        except ImportError:
             try:
-                from app.long_term_memory import get_long_term_memory_manager
-            except ImportError:
                 from long_term_memory import get_long_term_memory_manager
+            except ImportError:
+                from long_term_memory import get_ltm as get_long_term_memory_manager
 
-            ltm = get_long_term_memory_manager()
-            # Сохраняем краткую версию (первые 200 символов)
-            await ltm.save_thread(
-                user_key=f"openai-{correlation_id[:8]}",
-                project_context=task_req.project_context or "unknown",
-                goal_summary=user_messages[-1].content[:200],
-                outcome_summary=output_text[:200],
-            )
-        except Exception as e:
-            logger.debug(f"Memory save failed: {e}")
-
-        # Формируем ответ в формате OpenAI
-        response_data = {
-            "id": f"chatcmpl-{correlation_id}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": request.model,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": output_text},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        }
-        return JSONResponse(content=response_data)
+        ltm = get_long_term_memory_manager()
+        await ltm.save_thread(
+            user_key=f"openai-{correlation_id[:8]}",
+            project_context=task_req.project_context or "unknown",
+            goal_summary=user_messages[-1].content[:200],
+            outcome_summary=output_text[:200],
+        )
     except Exception as e:
-        logger.error(f"❌ [OPENAI-API] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.debug(f"Memory save failed: {e}")
+
+    response_data = {
+        "id": f"chatcmpl-{correlation_id}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": request.model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": output_text},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
+    return JSONResponse(content=response_data)
 
 
 @app.get("/v1/models")
@@ -7294,7 +8414,20 @@ async def omni_rag_search(request: OmniSearchRequest):
             mode=SearchMode.HYBRID,
             limit=request.limit or 3,
         )
-        return results
+
+        # Sanitize NaN/Inf values in results (JSON-safe)
+        def _sanitize(obj):
+            if isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return 0.0
+                return obj
+            elif isinstance(obj, dict):
+                return {k: _sanitize(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [_sanitize(v) for v in obj]
+            return obj
+
+        return _sanitize(results)
     except Exception as e:
         logger.error(f"❌ [OMNI-RAG] Search failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -7310,8 +8443,10 @@ if __name__ == "__main__":
     timeout_keep_alive = int(
         os.getenv("UVICORN_TIMEOUT_KEEP_ALIVE", "600")
     )  # долгие sync-запросы (стратегия + LLM)
+    # Uvicorn требует import-string target при workers>1.
+    target = app if workers <= 1 else "src.agents.bridge.victoria_server:app"
     uvicorn.run(
-        app,
+        target,
         host="0.0.0.0",
         port=port,
         workers=workers,
