@@ -1,0 +1,1 @@
+"""Ingestion quality gate package."""

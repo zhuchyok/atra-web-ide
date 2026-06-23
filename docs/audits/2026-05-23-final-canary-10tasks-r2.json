@@ -1,0 +1,80 @@
+{
+  "timestamp_utc": "2026-05-22T21:14:18.251117+00:00",
+  "victoria_url": "http://localhost:8010",
+  "total": 10,
+  "ok": 0,
+  "failed": 10,
+  "avg_duration_sec": 70.0,
+  "results": [
+    {
+      "idx": 1,
+      "goal": "Назови 3 приоритета команды разработки на неделю списком.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.01
+    },
+    {
+      "idx": 2,
+      "goal": "Дай 4 шага для снижения latency в локальном роутинге LLM.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.01
+    },
+    {
+      "idx": 3,
+      "goal": "Сделай SQL-checklist по pending/in_progress/stale.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 4,
+      "goal": "Опиши rollback-план деплоя в Docker в 5 шагах.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.01
+    },
+    {
+      "idx": 5,
+      "goal": "Дай 3 причины stuck pending и проверки для каждой.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 6,
+      "goal": "Сформулируй тест-кейс проверки contract enforce.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 7,
+      "goal": "Как проверить единую knowledge базу Victoria/Veronica?",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 8,
+      "goal": "План canary 10 задач с PASS/FAIL.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 9,
+      "goal": "Рекомендации thermal-safe для MLX/Ollama.",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    },
+    {
+      "idx": 10,
+      "goal": "Что улучшить в DI guardrails и CI?",
+      "ok": false,
+      "error": "HTTPConnectionPool(host='localhost', port=8010): Read timed out. (read timeout=70)",
+      "duration_sec": 70.0
+    }
+  ]
+}

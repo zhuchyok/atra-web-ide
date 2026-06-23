@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "generated_utc": "2026-06-06T16:40:13.760248+00:00",
+  "boot": {
+    "ok": true,
+    "boot_sec": 1780556440,
+    "boot_utc": "2026-06-04T07:00:40+00:00",
+    "uptime_sec": 207495,
+    "uptime_h": 57.64,
+    "raw": "{ sec = 1780556440, usec = 676743 } Thu Jun  4 10:00:40 2026"
+  },
+  "classification": "panic_or_hard_restart",
+  "panic_evidence": {
+    "ok": true,
+    "has_previous_shutdown_cause": false,
+    "has_dump_panic_events": true,
+    "no_paniclog_data": false,
+    "tail_lines": [
+      "Timestamp               Ty Process[PID:TID]",
+      "Timestamp               Ty Process[PID:TID]",
+      "2026-06-06 03:29:32.170 Df biomed[795:238c84] [com.apple.Biome:BiomeCompute] Pruning library stream: Diagnostics.Panic",
+      "2026-06-06 14:43:56.967 Df log[19029:318dc9] [com.apple.log:] log run noninteractively, parent: 19023 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 15:00:22.312 Df log[21168:31e879] [com.apple.log:] log run noninteractively, parent: 21165 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 15:16:58.754 Df log[23392:324607] [com.apple.log:] log run noninteractively, parent: 23383 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 15:33:30.343 Df log[25229:32a23f] [com.apple.log:] log run noninteractively, parent: 25226 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 15:50:05.364 Df log[27089:330005] [com.apple.log:] log run noninteractively, parent: 27083 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 16:06:27.450 Df log[28850:335dc1] [com.apple.log:] log run noninteractively, parent: 28846 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 16:22:56.124 Df log[30445:33b332] [com.apple.log:] log run noninteractively, parent: 30442 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 16:39:17.400 Df log[31991:340654] [com.apple.log:] log run noninteractively, parent: 31988 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 16:55:36.953 Df log[33548:345bac] [com.apple.log:] log run noninteractively, parent: 33544 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 17:11:57.797 Df log[34937:34ba81] [com.apple.log:] log run noninteractively, parent: 34934 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 17:28:17.739 Df log[36465:351047] [com.apple.log:] log run noninteractively, parent: 36462 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 17:44:37.368 Df log[37807:356241] [com.apple.log:] log run noninteractively, parent: 37804 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 18:00:56.585 Df log[39386:35b873] [com.apple.log:] log run noninteractively, parent: 39383 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 18:17:15.269 Df log[40715:3608b6] [com.apple.log:] log run noninteractively, parent: 40710 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 18:33:34.396 Df log[42111:365844] [com.apple.log:] log run noninteractively, parent: 42095 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 18:49:54.414 Df log[43538:36ac49] [com.apple.log:] log run noninteractively, parent: 43533 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 19:06:12.414 Df log[44889:36feac] [com.apple.log:] log run noninteractively, parent: 44886 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 19:22:39.041 Df log[46195:37515b] [com.apple.log:] log run noninteractively, parent: 46192 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-06 19:38:57.068 Df log[47696:37a519] [com.apple.log:] log run noninteractively, parent: 47690 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'"
+    ]
+  },
+  "container_health": {
+    "ok": false,
+    "error": "[Errno 2] No such file or directory: 'docker'"
+  },
+  "queue_kpi": {
+    "ok": false,
+    "error": {
+      "queue": "[Errno 2] No such file or directory: 'docker'",
+      "stale": "[Errno 2] No such file or directory: 'docker'",
+      "throughput": "[Errno 2] No such file or directory: 'docker'"
+    }
+  }
+}

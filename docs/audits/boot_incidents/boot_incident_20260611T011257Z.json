@@ -1,0 +1,81 @@
+{
+  "ok": true,
+  "generated_utc": "2026-06-11T01:12:57.778120+00:00",
+  "boot": {
+    "ok": true,
+    "boot_sec": 1780787896,
+    "boot_utc": "2026-06-06T23:18:16+00:00",
+    "uptime_sec": 352408,
+    "uptime_h": 97.89,
+    "raw": "{ sec = 1780787896, usec = 809454 } Sun Jun  7 02:18:16 2026"
+  },
+  "classification": "panic_or_hard_restart",
+  "panic_evidence": {
+    "ok": true,
+    "has_previous_shutdown_cause": false,
+    "has_dump_panic_events": true,
+    "no_paniclog_data": false,
+    "tail_lines": [
+      "Timestamp               Ty Process[PID:TID]",
+      "Timestamp               Ty Process[PID:TID]",
+      "2026-06-10 16:21:21.495 Df log[41374:8295fd] [com.apple.log:] log run noninteractively, parent: 41353 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 16:37:34.978 Df log[54342:831824] [com.apple.log:] log run noninteractively, parent: 54321 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 16:53:48.341 Df log[67313:839cb7] [com.apple.log:] log run noninteractively, parent: 67289 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 17:10:02.557 Df log[80023:841d0f] [com.apple.log:] log run noninteractively, parent: 80001 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 17:26:18.898 Df log[93042:849fd1] [com.apple.log:] log run noninteractively, parent: 93012 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 17:42:34.929 Df log[6469:8523c5] [com.apple.log:] log run noninteractively, parent: 6435 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 17:58:49.983 Df log[19186:85ac90] [com.apple.log:] log run noninteractively, parent: 19156 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 18:15:03.477 Df log[32137:862f26] [com.apple.log:] log run noninteractively, parent: 32112 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 18:31:17.883 Df log[44824:86b101] [com.apple.log:] log run noninteractively, parent: 44794 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 18:47:31.641 Df log[57771:87337e] [com.apple.log:] log run noninteractively, parent: 57750 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 19:03:45.752 Df log[70505:87bbc8] [com.apple.log:] log run noninteractively, parent: 70460 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 19:20:00.135 Df log[83465:883e41] [com.apple.log:] log run noninteractively, parent: 83444 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 19:36:12.295 Df log[96192:88c090] [com.apple.log:] log run noninteractively, parent: 96171 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 19:52:24.154 Df log[9310:8949af] [com.apple.log:] log run noninteractively, parent: 9288 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 20:08:37.203 Df log[22259:89d1f2] [com.apple.log:] log run noninteractively, parent: 22235 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 20:24:50.647 Df log[34922:8a520f] [com.apple.log:] log run noninteractively, parent: 34891 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 20:41:02.642 Df log[47750:8ad4e5] [com.apple.log:] log run noninteractively, parent: 47729 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 20:57:16.964 Df log[60475:8b61d5] [com.apple.log:] log run noninteractively, parent: 60430 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 21:13:31.016 Df log[73283:8be2f1] [com.apple.log:] log run noninteractively, parent: 73237 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 21:29:43.164 Df log[86080:8c5a33] [com.apple.log:] log run noninteractively, parent: 86056 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 21:45:59.426 Df log[98636:8cd4d4] [com.apple.log:] log run noninteractively, parent: 98614 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 22:02:12.775 Df log[11590:8d5834] [com.apple.log:] log run noninteractively, parent: 11566 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 22:18:23.582 Df log[24226:8dd97b] [com.apple.log:] log run noninteractively, parent: 24176 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 22:34:34.769 Df log[36890:8e5955] [com.apple.log:] log run noninteractively, parent: 36868 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 22:50:37.339 Df log[49396:8edb62] [com.apple.log:] log run noninteractively, parent: 49378 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 23:06:38.953 Df log[61753:8f57e3] [com.apple.log:] log run noninteractively, parent: 61731 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 23:22:40.528 Df log[74264:8fd946] [com.apple.log:] log run noninteractively, parent: 74242 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 23:38:41.889 Df log[86771:9069fd] [com.apple.log:] log run noninteractively, parent: 86749 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-10 23:54:43.501 Df log[99107:90e8e4] [com.apple.log:] log run noninteractively, parent: 99081 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 00:10:44.893 Df log[11953:916918] [com.apple.log:] log run noninteractively, parent: 11940 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 00:26:46.928 Df log[24237:91e8cc] [com.apple.log:] log run noninteractively, parent: 24216 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 00:42:49.373 Df log[36485:92669c] [com.apple.log:] log run noninteractively, parent: 36464 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 00:58:50.702 Df log[48682:92e4c6] [com.apple.log:] log run noninteractively, parent: 48660 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 01:14:52.274 Df log[60912:93620f] [com.apple.log:] log run noninteractively, parent: 60885 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 01:30:52.728 Df log[72971:93dd3c] [com.apple.log:] log run noninteractively, parent: 72897 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 01:46:53.101 Df log[85112:9457f7] [com.apple.log:] log run noninteractively, parent: 85087 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 02:02:53.302 Df log[97202:94d3dc] [com.apple.log:] log run noninteractively, parent: 97181 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 02:18:55.124 Df log[9804:9550e7] [com.apple.log:] log run noninteractively, parent: 9792 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 02:34:57.390 Df log[21917:95cd87] [com.apple.log:] log run noninteractively, parent: 21886 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 02:51:00.540 Df log[34054:9647bd] [com.apple.log:] log run noninteractively, parent: 34041 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 03:07:03.559 Df log[46100:96ba4d] [com.apple.log:] log run noninteractively, parent: 46079 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 03:23:11.118 Df log[58277:973103] [com.apple.log:] log run noninteractively, parent: 58239 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 03:29:45.809 Df biomed[650:9763ef] [com.apple.Biome:BiomeCompute] Pruning library stream: Diagnostics.Panic",
+      "2026-06-11 03:39:22.435 Df log[70544:97ab4b] [com.apple.log:] log run noninteractively, parent: 70522 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 03:55:34.241 Df log[82738:982631] [com.apple.log:] log run noninteractively, parent: 82717 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'",
+      "2026-06-11 04:11:46.742 Df log[94887:98a218] [com.apple.log:] log run noninteractively, parent: 94851 (Python), args: '/usr/bin/log' 'show' '--style' 'compact' '--last' '24h' '--predicate' 'eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"'"
+    ]
+  },
+  "container_health": {
+    "ok": false,
+    "error": "[Errno 2] No such file or directory: 'docker'"
+  },
+  "queue_kpi": {
+    "ok": false,
+    "error": {
+      "queue": "[Errno 2] No such file or directory: 'docker'",
+      "stale": "[Errno 2] No such file or directory: 'docker'",
+      "throughput": "[Errno 2] No such file or directory: 'docker'"
+    }
+  }
+}

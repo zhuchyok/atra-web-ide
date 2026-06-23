@@ -1,0 +1,21 @@
+{
+  "total_nodes": 109384,
+  "distilled_nodes": 72689,
+  "distilled_pct": 66.453,
+  "required_distilled_pct": 50.0,
+  "is_distillation_gate_passed": true,
+  "min_content_len": 180,
+  "max_content_chars": 2800,
+  "chunk_overlap_chars": 120,
+  "input_rows_used": 200,
+  "extra_chunked_samples": 20,
+  "train_samples": 197,
+  "eval_samples": 23,
+  "paths": {
+    "train_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/lora_train.jsonl",
+    "eval_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/lora_eval.jsonl",
+    "train_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/train.jsonl",
+    "eval_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/valid.jsonl",
+    "test_alias_jsonl": "/Users/bikos/Documents/atra-web-ide/knowledge_os/training_data_smoke/test.jsonl"
+  }
+}

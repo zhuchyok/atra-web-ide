@@ -1,0 +1,83 @@
+{
+  "ok": true,
+  "generated_utc": "2026-06-04T21:39:48.643086+00:00",
+  "boot": {
+    "ok": true,
+    "boot_sec": 1780556440,
+    "boot_utc": "2026-06-04T07:00:40+00:00",
+    "uptime_sec": 52656,
+    "uptime_h": 14.63,
+    "raw": "{ sec = 1780556440, usec = 854437 } Thu Jun  4 10:00:40 2026"
+  },
+  "classification": "unknown",
+  "panic_evidence": {
+    "ok": false,
+    "error": "Command '['/usr/bin/log', 'show', '--style', 'compact', '--last', '24h', '--predicate', 'eventMessage CONTAINS[c] \"Previous shutdown cause\" OR eventMessage CONTAINS[c] \"panic\" OR process == \"DumpPanic\"']' timed out after 90 seconds"
+  },
+  "container_health": {
+    "ok": true,
+    "rows": [
+      {
+        "container": "victoria-agent",
+        "status": "Up 12 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_os_orchestrator",
+        "status": "Up 20 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_os_worker",
+        "status": "Up 20 minutes",
+        "ok": true
+      },
+      {
+        "container": "knowledge_evolution",
+        "status": "Up 20 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_nightly",
+        "status": "Up 20 minutes",
+        "ok": true
+      },
+      {
+        "container": "knowledge_rest",
+        "status": "Up 20 minutes",
+        "ok": true
+      },
+      {
+        "container": "knowledge_postgres",
+        "status": "Up 20 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_pgbouncer",
+        "status": "Up 20 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_os_redis",
+        "status": "Up 20 minutes (healthy)",
+        "ok": true
+      },
+      {
+        "container": "performance-watchdog",
+        "status": "Up 20 minutes",
+        "ok": true
+      }
+    ]
+  },
+  "queue_kpi": {
+    "ok": true,
+    "pending": 0,
+    "in_progress": 0,
+    "completed_total": 2569,
+    "failed_total": 1,
+    "stale_in_progress_45m": 0,
+    "completed_10m": 0,
+    "failed_10m": 0,
+    "error_rate_10m": 0.0
+  }
+}

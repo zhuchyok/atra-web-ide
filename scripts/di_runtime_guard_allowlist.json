@@ -1,0 +1,17 @@
+[
+  {
+    "file": "knowledge_os/app/expert_worker.py",
+    "function": "process_task",
+    "call": "VictoriaExpertActor"
+  },
+  {
+    "file": "knowledge_os/app/expert_worker.py",
+    "function": "process_task",
+    "call": "ReActAgent"
+  },
+  {
+    "file": "knowledge_os/app/expert_worker.py",
+    "function": "start_sidecar_heartbeat",
+    "call": "Thread"
+  }
+]

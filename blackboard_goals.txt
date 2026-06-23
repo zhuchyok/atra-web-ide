@@ -1,0 +1,8 @@
+RD_20260429_183048_rd_002
+{"task_id": "RD_20260429_183048_rd_002", "status": "bidding_open", "assignee": null}
+RD_20260429_183113_rd_002
+{"task_id": "RD_20260429_183113_rd_002", "goal": "Neural Pruning: Dynamic Model Distillation (LoRA)", "status": "bidding_open", "assignee": null, "metadata": {"priority": "high", "is_rd": true, "timeout": 43200}}
+RD_20260429_183048_rd_001
+{"task_id": "RD_20260429_183048_rd_001", "goal": "Quantum Blackboard: Adaptive Knowledge Routing", "status": "bidding_open", "assignee": null, "metadata": {"priority": "high", "is_rd": true, "timeout": 43200}}
+RD_20260429_183113_rd_001
+{"task_id": "RD_20260429_183113_rd_001", "status": "bidding_open", "assignee": null}

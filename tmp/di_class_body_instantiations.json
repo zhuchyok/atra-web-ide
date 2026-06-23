@@ -1,0 +1,722 @@
+[
+  {
+    "file": "backend/app/config.py",
+    "class": "Settings",
+    "line": 22,
+    "call": "SettingsConfigDict"
+  },
+  {
+    "file": "backend/app/routers/ab_testing.py",
+    "class": "ExperimentRequest",
+    "line": 25,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/ab_testing.py",
+    "class": "ExperimentRequest",
+    "line": 26,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/ab_testing.py",
+    "class": "ExperimentRequest",
+    "line": 27,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/ab_testing.py",
+    "class": "ExperimentRequest",
+    "line": 28,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/files.py",
+    "class": "WriteFileRequest",
+    "line": 43,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/files.py",
+    "class": "WriteFileRequest",
+    "line": 44,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/files.py",
+    "class": "CreateRequest",
+    "line": 58,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/files.py",
+    "class": "CreateRequest",
+    "line": 59,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/multimodal.py",
+    "class": "ProcessImageRequest",
+    "line": 27,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/multimodal.py",
+    "class": "ProcessImageRequest",
+    "line": 28,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 36,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 37,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 38,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 40,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 41,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 42,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "ChatMessage",
+    "line": 43,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "AskVictoriaRequest",
+    "line": 146,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "AskVictoriaRequest",
+    "line": 147,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "AskVictoriaRequest",
+    "line": 148,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/chat.py",
+    "class": "AskVictoriaRequest",
+    "line": 151,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 39,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 40,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 43,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 44,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 45,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 46,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/expert_dialogue.py",
+    "class": "DialogueRequest",
+    "line": 47,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteRequest",
+    "line": 23,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteRequest",
+    "line": 24,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteRequest",
+    "line": 25,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteRequest",
+    "line": 26,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteRequest",
+    "line": 27,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "AutocompleteResponse",
+    "line": 33,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "LintRequest",
+    "line": 40,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "LintRequest",
+    "line": 41,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "LintRequest",
+    "line": 42,
+    "call": "Field"
+  },
+  {
+    "file": "backend/app/routers/editor.py",
+    "class": "LintResponse",
+    "line": 48,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/department_heads_system.py",
+    "class": "DepartmentHeadsSystem",
+    "line": 142,
+    "call": "Lock"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 39,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 52,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 65,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 78,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 91,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 104,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 117,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/model_optimizer.py",
+    "class": "ModelOptimizer",
+    "line": 130,
+    "call": "ModelOptimizationConfig"
+  },
+  {
+    "file": "knowledge_os/app/domain_cache.py",
+    "class": "DomainCache",
+    "line": 17,
+    "call": "Lock"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 7,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 8,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 9,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 10,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 11,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "AgentResponse",
+    "line": 12,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "TaskResult",
+    "line": 19,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/schemas.py",
+    "class": "TaskResult",
+    "line": 20,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/function_caller.py",
+    "class": "Tool",
+    "line": 31,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/function_caller.py",
+    "class": "FunctionCall",
+    "line": 36,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 13,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 14,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 15,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 16,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 17,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 18,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 19,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 23,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 27,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/expert_contract.py",
+    "class": "ExpertResponse",
+    "line": 28,
+    "call": "Field"
+  },
+  {
+    "file": "knowledge_os/app/skill_registry.py",
+    "class": "Skill",
+    "line": 64,
+    "call": "SkillMetadata"
+  },
+  {
+    "file": "src/database/db.py",
+    "class": "Database",
+    "line": 157,
+    "call": "Lock"
+  },
+  {
+    "file": "src/database/acceptance.py",
+    "class": "AcceptanceDatabase",
+    "line": 24,
+    "call": "Lock"
+  },
+  {
+    "file": "src/database/connection_pool.py",
+    "class": "SQLiteConnectionPool",
+    "line": 27,
+    "call": "Lock"
+  },
+  {
+    "file": "src/signals/db.py",
+    "class": "Database",
+    "line": 119,
+    "call": "Lock"
+  },
+  {
+    "file": "src/utils/session_manager.py",
+    "class": "SessionManager",
+    "line": 13,
+    "call": "Lock"
+  },
+  {
+    "file": "src/execution/position_manager.py",
+    "class": "PositionData",
+    "line": 29,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/position_manager.py",
+    "class": "PositionData",
+    "line": 30,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/position_manager.py",
+    "class": "PositionData",
+    "line": 31,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/order_manager.py",
+    "class": "Order",
+    "line": 46,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/order_manager.py",
+    "class": "Order",
+    "line": 47,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/order_manager.py",
+    "class": "Order",
+    "line": 52,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/order_manager.py",
+    "class": "Order",
+    "line": 53,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/execution/order_manager.py",
+    "class": "Order",
+    "line": 54,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/ai/symbol_params_manager.py",
+    "class": "SymbolParamsManager",
+    "line": 46,
+    "call": "Semaphore"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "Position",
+    "line": 39,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "Position",
+    "line": 40,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "Position",
+    "line": 41,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "Position",
+    "line": 42,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "RiskLimits",
+    "line": 51,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "RiskLimits",
+    "line": 54,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "RiskLimits",
+    "line": 57,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "RiskLimits",
+    "line": 63,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/risk/risk_manager.py",
+    "class": "RiskLimits",
+    "line": 66,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/domain/entities/order.py",
+    "class": "Order",
+    "line": 70,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "DatabaseSettings",
+    "line": 16,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "DatabaseSettings",
+    "line": 17,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "DatabaseSettings",
+    "line": 18,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "ExchangeSettings",
+    "line": 24,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "ExchangeSettings",
+    "line": 25,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "ExchangeSettings",
+    "line": 26,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "ExchangeSettings",
+    "line": 27,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "RiskSettings",
+    "line": 33,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "RiskSettings",
+    "line": 33,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "RiskSettings",
+    "line": 34,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "RiskSettings",
+    "line": 34,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "RiskSettings",
+    "line": 35,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "SignalSettings",
+    "line": 41,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "SignalSettings",
+    "line": 42,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "SignalSettings",
+    "line": 42,
+    "call": "Decimal"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "SignalSettings",
+    "line": 43,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "TelegramSettings",
+    "line": 49,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "TelegramSettings",
+    "line": 50,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "TelegramSettings",
+    "line": 51,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 57,
+    "call": "DatabaseSettings"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 58,
+    "call": "ExchangeSettings"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 59,
+    "call": "RiskSettings"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 60,
+    "call": "SignalSettings"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 61,
+    "call": "TelegramSettings"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 63,
+    "call": "Field"
+  },
+  {
+    "file": "src/shared/config/settings.py",
+    "class": "Settings",
+    "line": 64,
+    "call": "Field"
+  }
+]

@@ -1,0 +1,13 @@
+Проведи production-аудит вкладки Обзор в Knowledge OS dashboard и исправь все проблемы (ложные статусы, неактуальные данные, ошибки SQL/метрик/null/json/timezone, тихие except). Сверь с БД и контейнерами. Верни: диагноз, конкретные файлы/правки, оставшиеся риски, и чек ручной проверки.
+
+Проведи production-аудит вкладки Wisdom & Mentorship в Knowledge OS dashboard и исправь все проблемы (расчеты, источники данных, SQL/joins, null/json/timezone, ошибки UI/Streamlit key). Сверь с БД. Верни: диагноз, файлы/правки, риски, чек ручной проверки.
+
+Проведи production-аудит вкладки Задачи и SLA в Knowledge OS dashboard и исправь все проблемы (очереди pending/in_progress/retry/failed, SLA, throughput 24h, stale-task, контрактные метрики). Сверь с БД и runtime. Верни: диагноз, файлы/правки, риски, чек ручной проверки.
+
+Проведи production-аудит вкладки Стратегия и ROI в Knowledge OS dashboard и исправь все проблемы (метрики, агрегаты, SQL/joins, null/json, timezone, достоверность расчетов). Сверь с БД. Верни: диагноз, файлы/правки, риски, чек ручной проверки.
+
+Проведи production-аудит вкладки Интеллект (RAG) в Knowledge OS dashboard и исправь все проблемы (свежесть AI Research, latest findings, stale sources, индексация, корректность выборок и fallback сообщений). Сверь с БД. Верни: диагноз, файлы/правки, риски, чек ручной проверки.
+
+Проведи production-аудит вкладки Инструменты экспертов в Knowledge OS dashboard и исправь все проблемы (доступность инструментов, метрики использования, ошибки интеграций, обработка null/json/exceptions). Сверь с БД/сервисами. Верни: диагноз, файлы/правки, риски, чек ручной проверки.
+
+Проведи production-аудит вкладки Система и Безопасность в Knowledge OS dashboard и исправь все проблемы (health контейнеров, autonomous services, contract enforce, dashboard error rate logs, runtime-метрики). Сверь с Docker/БД/логами. Верни: диагноз, файлы/правки, риски, чек ручной проверки.

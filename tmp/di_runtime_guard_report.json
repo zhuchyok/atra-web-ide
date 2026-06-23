@@ -1,0 +1,726 @@
+{
+  "scanned_files": 498,
+  "findings_count": 1279,
+  "findings": [
+    {
+      "file": "backend/app/config.py",
+      "function": "get_settings",
+      "line": 260,
+      "call": "Settings"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 202,
+      "call": "FileContent"
+    },
+    {
+      "file": "backend/app/routers/terminal.py",
+      "function": "terminal_pty",
+      "line": 149,
+      "call": "TerminalSession"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "get_quality_summary",
+      "line": 80,
+      "call": "RAGEvaluator"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "get_quality_summary",
+      "line": 82,
+      "call": "ValidationPipeline"
+    },
+    {
+      "file": "backend/app/routers/domains.py",
+      "function": "list_domains",
+      "line": 48,
+      "call": "Domain"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_expert_council",
+      "line": 91,
+      "call": "ExpertCouncil"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_multi_agent_debate",
+      "line": 104,
+      "call": "MultiAgentDebate"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_collective_brainstorming",
+      "line": 131,
+      "call": "CollectiveBrainstorming"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 50,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 69,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 70,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 71,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 72,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 73,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 74,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 75,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 76,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 77,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 78,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "get_expert",
+      "line": 109,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/data_retention.py",
+      "function": "run_cleanup",
+      "line": 33,
+      "call": "DataRetentionManager"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 56,
+      "call": "KnowledgeItem"
+    },
+    {
+      "file": "backend/app/metrics/prometheus_metrics.py",
+      "function": "get_metric",
+      "line": 43,
+      "call": "Dummy"
+    },
+    {
+      "file": "backend/app/middleware/rate_limiter.py",
+      "function": "__init__",
+      "line": 106,
+      "call": "RateLimiter"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_retry",
+      "line": 40,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_fallback",
+      "line": 87,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_fallback",
+      "line": 130,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/evaluation/rag_evaluator.py",
+      "function": "_calculate_rouge",
+      "line": 149,
+      "call": "RougeScorer"
+    },
+    {
+      "file": "backend/app/services/query_rewriter.py",
+      "function": "_rewrite_with_llm",
+      "line": 84,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "get_ab_testing_service",
+      "line": 238,
+      "call": "ABTestingService"
+    },
+    {
+      "file": "backend/app/services/knowledge_os.py",
+      "function": "get_knowledge_os_client_for_pool",
+      "line": 246,
+      "call": "KnowledgeOSClient"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 559,
+      "call": "RAGLightService"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 544,
+      "call": "RerankingService"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 555,
+      "call": "QueryRewriter"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 97,
+      "call": "EmbeddingBatchProcessor"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 112,
+      "call": "RAGLightPrefetch"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 122,
+      "call": "EmbeddingFallback"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_embedding",
+      "line": 190,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/latency_tracer.py",
+      "function": "measure",
+      "line": 40,
+      "call": "LatencySpan"
+    },
+    {
+      "file": "backend/app/services/rag_context_cache.py",
+      "function": "get_cache_monitor",
+      "line": 103,
+      "call": "CacheMonitor"
+    },
+    {
+      "file": "backend/app/services/rag_context_cache.py",
+      "function": "get_rag_context_cache",
+      "line": 111,
+      "call": "RAGContextCache"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "get_cache",
+      "line": 104,
+      "call": "LRUCache"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "__init__",
+      "line": 38,
+      "call": "OrderedDict"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "set",
+      "line": 71,
+      "call": "CacheEntry"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "get_multimodal_processor",
+      "line": 392,
+      "call": "MultimodalProcessor"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "process_image",
+      "line": 133,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "process_image",
+      "line": 150,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 206,
+      "call": "ZipFile"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 206,
+      "call": "BytesIO"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_docx",
+      "line": 265,
+      "call": "Document"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_docx",
+      "line": 267,
+      "call": "Document"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_docx",
+      "line": 265,
+      "call": "BytesIO"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_html",
+      "line": 308,
+      "call": "TextExtractor"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_odt",
+      "line": 324,
+      "call": "ZipFile"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_odt",
+      "line": 326,
+      "call": "ZipFile"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_odt",
+      "line": 324,
+      "call": "BytesIO"
+    },
+    {
+      "file": "backend/app/services/plan_cache.py",
+      "function": "get_plan_cache_service",
+      "line": 175,
+      "call": "PlanCacheService"
+    },
+    {
+      "file": "backend/app/services/plan_cache.py",
+      "function": "get_plan_cache_service",
+      "line": 179,
+      "call": "PlanCacheService"
+    },
+    {
+      "file": "backend/app/services/plan_cache.py",
+      "function": "__init__",
+      "line": 60,
+      "call": "TTLCache"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "__init__",
+      "line": 26,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "plan",
+      "line": 62,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "run",
+      "line": 134,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "run",
+      "line": 151,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "run",
+      "line": 135,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "run",
+      "line": 155,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "run_stream",
+      "line": 231,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "status",
+      "line": 263,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "health",
+      "line": 277,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "health",
+      "line": 277,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "get_hidden_thoughts",
+      "line": 293,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 62,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 134,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 151,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 135,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 155,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 263,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 277,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 277,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "function": "_make_request",
+      "line": 293,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/telegram_alerts.py",
+      "function": "send_task_execution_alert",
+      "line": 82,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/reranking.py",
+      "function": "__init__",
+      "line": 41,
+      "call": "CrossEncoder"
+    },
+    {
+      "file": "backend/app/services/conversation_context.py",
+      "function": "get_conversation_context_manager",
+      "line": 210,
+      "call": "ConversationContextManager"
+    },
+    {
+      "file": "backend/app/services/conversation_context.py",
+      "function": "__init__",
+      "line": 62,
+      "call": "Lock"
+    },
+    {
+      "file": "backend/app/services/concurrency_limiter.py",
+      "function": "_ensure_semaphore",
+      "line": 25,
+      "call": "Semaphore"
+    },
+    {
+      "file": "backend/app/services/embedding_fallback.py",
+      "function": "_ensure_model",
+      "line": 39,
+      "call": "SentenceTransformer"
+    },
+    {
+      "file": "backend/app/services/streaming.py",
+      "function": "stream_with_processing",
+      "line": 129,
+      "call": "StreamingProcessor"
+    },
+    {
+      "file": "backend/app/services/data_retention.py",
+      "function": "run_cleanup",
+      "line": 87,
+      "call": "RetentionReport"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "__init__",
+      "line": 77,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "list_models",
+      "line": 111,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "pull_model",
+      "line": 139,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "pull_model",
+      "line": 139,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "generate",
+      "line": 200,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "generate_stream",
+      "line": 237,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "health",
+      "line": 258,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "health",
+      "line": 258,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 111,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 139,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 139,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 200,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 258,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ollama.py",
+      "function": "_make_request",
+      "line": 258,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/mlx.py",
+      "function": "__init__",
+      "line": 27,
+      "call": "Timeout"
+    },
+    {
+      "file": "backend/app/services/mlx.py",
+      "function": "_check_availability",
+      "line": 34,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/mlx.py",
+      "function": "generate",
+      "line": 82,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/mlx.py",
+      "function": "health",
+      "line": 117,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/embedding_batch.py",
+      "function": "__init__",
+      "line": 29,
+      "call": "Queue"
+    },
+    {
+      "file": "backend/app/services/embedding_batch.py",
+      "function": "get_embedding",
+      "line": 40,
+      "call": "Future"
+    },
+    {
+      "file": "backend/app/services/embedding_batch.py",
+      "function": "_call_ollama_single",
+      "line": 104,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/optimization/auto_optimizer.py",
+      "function": "get_auto_optimizer_service",
+      "line": 284,
+      "call": "AutoOptimizer"
+    },
+    {
+      "file": "backend/app/services/optimization/auto_optimizer.py",
+      "function": "_collect_metrics",
+      "line": 121,
+      "call": "PerformanceMetrics"
+    },
+    {
+      "file": "knowledge_os/app/structured_output.py",
+      "function": "generate_structured",
+      "line": 160,
+      "call": "StructuredOutput"
+    },
+    {
+      "file": "knowledge_os/app/structured_output.py",
+      "function": "_call_llm",
+      "line": 96,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "knowledge_os/app/code_review_checker.py",
+      "function": "__init__",
+      "line": 57,
+      "call": "CodebaseUnderstanding"
+    },
+    {
+      "file": "knowledge_os/app/expert_services.py",
+      "function": "_load_experts_from_db",
+      "line": 75,
+      "call": "ThreadPoolExecutor"
+    },
+    {
+      "file": "knowledge_os/app/expert_services.py",
+      "function": "get_expert_system_prompt",
+      "line": 249,
+      "call": "ThreadPoolExecutor"
+    },
+    {
+      "file": "knowledge_os/app/adversarial_implementation_generator.py",
+      "function": "run_adversarial_implementation_generation",
+      "line": 405,
+      "call": "AdversarialImplementationGenerator"
+    },
+    {
+      "file": "knowledge_os/app/department_heads_system.py",
+      "function": "get_department_heads_system",
+      "line": 521,
+      "call": "DepartmentHeadsSystem"
+    },
+    {
+      "file": "knowledge_os/app/agent_kpi_tracker.py",
+      "function": "get_agent_kpi_tracker",
+      "line": 400,
+      "call": "AgentKPITracker"
+    },
+    {
+      "file": "knowledge_os/app/agent_kpi_tracker.py",
+      "function": "calculate_agent_kpis",
+      "line": 200,
+      "call": "AgentKPI"
+    }
+  ]
+}

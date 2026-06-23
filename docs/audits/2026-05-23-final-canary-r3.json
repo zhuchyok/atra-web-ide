@@ -1,0 +1,63 @@
+{
+  "total": 6,
+  "ok": 6,
+  "failed": 0,
+  "avg_dur": 17.63,
+  "rows": [
+    {
+      "idx": 1,
+      "goal": "Назови 3 приоритета команды разработки на неделю.",
+      "http": 200,
+      "status": "success",
+      "out_len": 398,
+      "ok": true,
+      "dur": 22.6
+    },
+    {
+      "idx": 2,
+      "goal": "Сформулируй тест-кейс проверки contract enforce.",
+      "http": 200,
+      "status": "success",
+      "out_len": 145,
+      "ok": true,
+      "dur": 7.27
+    },
+    {
+      "idx": 3,
+      "goal": "План canary из 10 задач с PASS/FAIL.",
+      "http": 200,
+      "status": "success",
+      "out_len": 164,
+      "ok": true,
+      "dur": 16.35
+    },
+    {
+      "idx": 4,
+      "goal": "Дай 4 шага снижения latency локального LLM роутинга.",
+      "http": 200,
+      "status": "success",
+      "out_len": 516,
+      "ok": true,
+      "dur": 19.57
+    },
+    {
+      "idx": 5,
+      "goal": "Опиши rollback-план Docker деплоя в 5 шагах.",
+      "http": 200,
+      "status": "success",
+      "out_len": 1225,
+      "ok": true,
+      "dur": 20.0
+    },
+    {
+      "idx": 6,
+      "goal": "Дай 3 причины stuck pending и как проверить каждую.",
+      "http": 200,
+      "status": "success",
+      "out_len": 1225,
+      "ok": true,
+      "dur": 20.01
+    }
+  ],
+  "ts": "2026-05-22T21:55:08.389107+00:00"
+}

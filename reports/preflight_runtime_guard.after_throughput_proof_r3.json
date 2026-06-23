@@ -1,0 +1,132 @@
+{
+  "ok": true,
+  "secret_drift": {
+    "ok": true,
+    "knowledge_os_env_postgres_password_present": true,
+    "pgbouncer_admin_password_present": true,
+    "match": true
+  },
+  "syntax_gate": {
+    "ok": true,
+    "files": [
+      {
+        "file": "knowledge_os/app/smart_worker_autonomous.py",
+        "ok": true,
+        "stderr": ""
+      },
+      {
+        "file": "knowledge_os/app/enhanced_orchestrator.py",
+        "ok": true,
+        "stderr": ""
+      },
+      {
+        "file": "knowledge_os/app/telegram_notifications_worker.py",
+        "ok": true,
+        "stderr": ""
+      },
+      {
+        "file": "src/agents/bridge/victoria_server.py",
+        "ok": true,
+        "stderr": ""
+      },
+      {
+        "file": "knowledge_os/app/ai_core.py",
+        "ok": true,
+        "stderr": ""
+      }
+    ]
+  },
+  "container_health": {
+    "ok": true,
+    "critical": [
+      {
+        "container": "victoria-agent",
+        "status": "Up 15 hours (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_os_orchestrator",
+        "status": "Up 15 hours (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_os_worker",
+        "status": "Up 56 minutes",
+        "ok": true
+      },
+      {
+        "container": "knowledge_evolution",
+        "status": "Up 15 hours (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_postgres",
+        "status": "Up 15 hours (healthy)",
+        "ok": true
+      },
+      {
+        "container": "knowledge_pgbouncer",
+        "status": "Up 15 hours (healthy)",
+        "ok": true
+      },
+      {
+        "container": "telegram-notifications",
+        "status": "Up 15 hours",
+        "ok": true
+      }
+    ]
+  },
+  "db_metrics": {
+    "queue": {
+      "pending": 1,
+      "in_progress": 0,
+      "completed_total": 2560,
+      "failed_total": 2
+    },
+    "stale_in_progress_45m": 0,
+    "throughput_10m": {
+      "completed_10m": 0,
+      "failed_10m": 0,
+      "error_rate_10m": 0.0
+    }
+  },
+  "contract_enforce": {
+    "ok": true,
+    "mode": "enforce",
+    "line": "INFO:__main__:[ROLLOUT] window=10m completed_10m=0 failed_10m=0 in_progress_now=0 pending_now=1 failure_rate=0.000 mode=enforce canary=20"
+  },
+  "synthetic_alerts": {
+    "ok": true,
+    "telegram_ok": false,
+    "ntfy_ok": true
+  },
+  "evolution_health": {
+    "ok": true,
+    "degraded_mode": false,
+    "has_cycle": false,
+    "recent_cycle_present": false,
+    "reason": "ok",
+    "limactl_error_seen": false,
+    "fallback_active_seen": false,
+    "improvement_seen": false
+  },
+  "distillation_snapshot": {
+    "ok": true,
+    "campaign_done": 1587,
+    "campaign_in_progress": 5,
+    "campaign_retry": 0,
+    "eligible_now": 120
+  },
+  "gate_summary": {
+    "secret_drift_ok": true,
+    "syntax_ok": true,
+    "containers_ok": true,
+    "contract_enforce_ok": true,
+    "synthetic_alerts_ok": true,
+    "evolution_health_ok": true,
+    "evolution_degraded_mode": false,
+    "distillation_snapshot_ok": true,
+    "distill_eligible_now": 120,
+    "stale_in_progress_45m": 0
+  }
+}

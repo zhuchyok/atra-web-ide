@@ -1,0 +1,38 @@
+name: DI Runtime Guard
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - "backend/app/**"
+      - "knowledge_os/app/**"
+      - "src/agents/**"
+      - "scripts/di_runtime_guard.py"
+      - "scripts/di_runtime_guard_allowlist.json"
+  push:
+    branches: [main, master, develop]
+    paths:
+      - "backend/app/**"
+      - "knowledge_os/app/**"
+      - "src/agents/**"
+      - "scripts/di_runtime_guard.py"
+      - "scripts/di_runtime_guard_allowlist.json"
+
+jobs:
+  di-runtime-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run DI runtime guard (heavy mode)
+        run: |
+          python scripts/di_runtime_guard.py \
+            --targets backend/app knowledge_os/app src/agents \
+            --mode heavy \
+            --enforce \
+            --limit 400

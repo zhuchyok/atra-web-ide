@@ -1,0 +1,8 @@
+{
+  "timestamp": "2026-05-09T14:48:16.421707",
+  "auditor_model": "gemma3n:e4b",
+  "sample_size": 50,
+  "average_score": 4.14,
+  "hallucination_count": 0,
+  "failed_audits": 0
+}

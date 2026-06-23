@@ -1,0 +1,584 @@
+# Agents and Workers Stack for Singularity 31.2
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.agents.yml up -d
+
+services:
+  quality-service:
+    build:
+      context: app
+      dockerfile: Dockerfile.quality
+    container_name: quality-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  victoria-agent:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: victoria-agent
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+        reservations:
+          memory: 6G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 60s
+      timeout: 60s
+      retries: 10
+      start_period: 180s
+    user: root
+    networks:
+      - atra-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: Europe/Moscow
+      CORPORATION_TZ: Europe/Moscow
+      PYTHONPATH: /app
+      VICTORIA_PORT: "8000"
+      ATRA_HOST_WORKSPACE: /Users/bikos/Documents/atra-web-ide
+      ATRA_CONTAINER_WORKSPACE: /workspace/atra-web-ide
+      ATRA_ENV: prod
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      REDIS_URL: unix:///data/redis/redis.sock
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      CHAT_ID: ${TELEGRAM_USER_ID}
+      VERONICA_URL: http://veronica-agent:8000
+      USE_VICTORIA_ENHANCED: "true"
+      VICTORIA_STALE_TASK_TIMEOUT_SEC: "4200"
+      VICTORIA_SWARM_GATHER_TIMEOUT_SEC: "1200"
+      VICTORIA_FORCE_ENHANCED_OPERATIONAL: "true"
+      VICTORIA_ENHANCED_SOLVE_TIMEOUT_SEC: "1800"
+      VICTORIA_ENHANCED_SOLVE_TIMEOUT_OPERATIONAL_SEC: "1200"
+      VICTORIA_ENHANCED_LLM_TIMEOUT_SEC: "1200"
+      VICTORIA_ENHANCED_LLM_TIMEOUT_OPERATIONAL_SEC: "1200"
+      ORCHESTRATION_V2_ENABLED: "true"
+      ORCHESTRATION_V2_PERCENTAGE: "10"
+      EXECUTE_ASSIGNMENTS_IN_RUN: "true"
+      PREFER_EXPERTS_FIRST: "true"
+      RAG_RERANKER_ENABLED: "false"
+      OLLAMA_EMBED_TIMEOUT_SEC: "8"
+      OLLAMA_EMBED_MAX_RETRIES: "2"
+      MLX_BASE_URL: http://host.docker.internal:11435
+      UVICORN_WORKERS: "2"
+      UVICORN_TIMEOUT_KEEP_ALIVE: "75"
+    ports:
+      - "8010:8000"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../knowledge_os:/app/knowledge_os
+      - ..:/workspace/atra-web-ide
+      - /var/run/docker.sock:/var/run/docker.sock
+      - redis_data:/data/redis
+    command: python -m src.agents.bridge.victoria_server
+
+  veronica-agent:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: veronica-agent
+    restart: always
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    ports:
+      - "8011:8000"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../src:/app/src
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    command: python -m src.agents.bridge.server
+
+  knowledge_os_orchestrator:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_os_orchestrator
+    restart: unless-stopped
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      ORCHESTRATOR_BACKLOG_THRESHOLD: ${ORCHESTRATOR_BACKLOG_THRESHOLD:-20}
+      ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
+      ORCHESTRATOR_CONTRACT_CANARY_PERCENT: "20"
+      ORCHESTRATOR_ROLLOUT_KPI_WINDOW_MIN: "10"
+      # Per-expert Redis streams (rollback: set to "false" for legacy shared expert_tasks)
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      KNOWLEDGE_INGEST_BACKPRESSURE_ENABLED: ${KNOWLEDGE_INGEST_BACKPRESSURE_ENABLED:-true}
+      KNOWLEDGE_INGEST_HIGH_WATERMARK: ${KNOWLEDGE_INGEST_HIGH_WATERMARK:-24}
+      KNOWLEDGE_INGEST_FORCE_ALLOW: ${KNOWLEDGE_INGEST_FORCE_ALLOW:-false}
+      BRIDGE_CERT_PATH: /certs/mac-studio.crt
+      BRIDGE_KEY_PATH: /certs/mac-studio.key
+      BRIDGE_CA_PATH: /certs/ca.crt
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - ../certs:/certs:ro
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      ["python", "enhanced_orchestrator.py", "--continuous", "--interval", "60"]
+
+  expert-worker-heavy:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: always
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: "Роман"
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      METRICS_PORT: "8001"
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+      SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: ${SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES:-10}
+      SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES: ${SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES:-10}
+      SMART_WORKER_HARD_CAP_MAX_RESETS: ${SMART_WORKER_HARD_CAP_MAX_RESETS:-2}
+      BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
+      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+      HITL_HIGH_RISK_LEVELS: "critical"
+      HITL_APPROVAL_TIMEOUT_SEC: "180"
+    volumes:
+      - ../data:/app/data
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+
+  expert-worker-anna:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: always
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: "Анна"
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      METRICS_PORT: "8001"
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+      BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
+      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+      HITL_HIGH_RISK_LEVELS: "critical"
+      HITL_APPROVAL_TIMEOUT_SEC: "180"
+    volumes:
+      - ../data:/app/data
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+
+  expert-worker-victoria:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: always
+    mem_limit: 5g
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: "Виктория"
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      METRICS_PORT: "8001"
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+      BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
+      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+      HITL_HIGH_RISK_LEVELS: "critical"
+      HITL_APPROVAL_TIMEOUT_SEC: "180"
+    volumes:
+      - ../data:/app/data
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+
+  expert-worker-dynamic-1:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: "no"
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT1:-Инна}
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      METRICS_PORT: "8001"
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+      HITL_HIGH_RISK_LEVELS: "critical"
+      HITL_APPROVAL_TIMEOUT_SEC: "180"
+    volumes:
+      - ../data:/app/data
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+    profiles: ["dynamic"]
+
+  expert-worker-dynamic-2:
+    depends_on:
+      victoria-agent:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    restart: "no"
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      EXPERT_NAME: ${DYNAMIC_EXPERT_NAME_SLOT2:-Юлия}
+      EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
+      METRICS_PORT: "8001"
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+      HITL_ENFORCE_HIGH_RISK_TASKS: "true"
+      HITL_HIGH_RISK_LEVELS: "critical"
+      HITL_APPROVAL_TIMEOUT_SEC: "180"
+    volumes:
+      - ../data:/app/data
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: python3 knowledge_os/app/expert_worker.py
+    profiles: ["dynamic"]
+
+  knowledge_os_worker:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_os_worker
+    restart: unless-stopped
+    networks:
+      - atra-network
+    depends_on:
+      pgbouncer:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "smart_worker_autonomous.py"]
+
+  knowledge_evolution:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_evolution
+    restart: unless-stopped
+    mem_limit: 4g
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      EVOLUTION_ROLLOUT_MODE: ${EVOLUTION_ROLLOUT_MODE:-hybrid}
+      EVOLUTION_HYBRID_SHADOW_RATIO: ${EVOLUTION_HYBRID_SHADOW_RATIO:-0.70}
+      EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT: ${EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT:-25}
+      EVOLUTION_HYBRID_MIN_SUCCESS_FOR_DIRECT: ${EVOLUTION_HYBRID_MIN_SUCCESS_FOR_DIRECT:-0.60}
+      EVOLUTION_HYBRID_MIN_COMPLETION_FOR_DIRECT: ${EVOLUTION_HYBRID_MIN_COMPLETION_FOR_DIRECT:-0.60}
+      EVOLUTION_USE_LLM: "true"
+      PROMOTION_MIN_TESTS: ${PROMOTION_MIN_TESTS:-10}
+      PROMOTION_MIN_WIN_COUNT: ${PROMOTION_MIN_WIN_COUNT:-6}
+      PROMOTION_WIN_RATE_THRESHOLD: ${PROMOTION_WIN_RATE_THRESHOLD:-0.65}
+      PROMOTION_MIN_LOWER_BOUND: ${PROMOTION_MIN_LOWER_BOUND:-0.50}
+      USE_CUBE_SANDBOX: "false"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  knowledge_self_check:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_self_check
+    restart: unless-stopped
+    mem_limit: 2g
+    networks:
+      - atra-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "-c", "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())"]
+
+  knowledge_nightly:
+
+  knowledge_rest:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_rest
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      USE_CUBE_SANDBOX: "false"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "rest_api.py"]
+
+  telegram-notifications:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: telegram-notifications
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      CHAT_ID: ${TELEGRAM_USER_ID}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh/atra_victoria_curator}
+      TG_PROXY: ${TG_PROXY_CONTAINER:-socks5h://host.docker.internal:1080}
+      TG_FORCE_NTFY_PRIMARY: ${TG_FORCE_NTFY_PRIMARY:-true}
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "telegram_notifications_worker.py"]
+
+  performance-watchdog:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: performance-watchdog
+    restart: unless-stopped
+    mem_limit: 3g
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "performance_watchdog.py"]
+
+  board-scheduler:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: board-scheduler
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+    volumes:
+      - ..:/app:ro
+    working_dir: /app/knowledge_os/app
+    command: ["python", "-u", "board_scheduler.py"]
+
+  victoria-visual-search:
+    build:
+      context: ./app/visual_search
+      dockerfile: Dockerfile
+    container_name: victoria-visual-search
+    restart: unless-stopped
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+    ports:
+      - "8005:8005"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../knowledge_os/models:/app/models
+      - ../docs:/app/corpus/docs:ro
+      - ../knowledge_os/app:/app/corpus/knowledge_os:ro
+
+networks:
+  atra-network:
+    external: true
+
+volumes:
+  redis_data:

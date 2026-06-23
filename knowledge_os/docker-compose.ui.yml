@@ -1,0 +1,69 @@
+# UI Stack for Singularity 31.2
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.ui.yml up -d
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: always
+    ports:
+      - "3005:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Europe/Moscow
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OPENAI_API_BASE_URL=http://victoria-agent:8000/v1
+      - AIOHTTP_CLIENT_TIMEOUT=1200
+      - AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA=1200
+      - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-}
+      - ENABLE_SIGNUP=false
+      - DEFAULT_MODELS=Victoria
+      - ENV=dev
+      - WEBUI_ADMIN_EMAIL=${OPENWEBUI_ADMIN_EMAIL:-admin@atra.local}
+      - WEBUI_ADMIN_PASSWORD=${OPENWEBUI_ADMIN_PASSWORD:-atra-admin-2026}
+      - OPENWEBUI_NAME=ATRA Singularity 31.2
+    volumes:
+      - open-webui-data:/app/backend/data
+      - /Users/bikos/Documents/atra-web-ide/docs:/workspace/global_docs:ro
+    networks:
+      - atra-network
+
+  corporation-dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile.deps
+    container_name: corporation-dashboard
+    restart: unless-stopped
+    networks:
+      - atra-network
+    ports:
+      - "8501:8501"
+    environment:
+      TZ: Europe/Moscow
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      PYTHONPATH: /app/project/knowledge_os/app
+      BACKEND_URL: http://atra-web-ide-backend:8000
+    volumes:
+      - ..:/app/project:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    working_dir: /app/project/knowledge_os/dashboard
+    command:
+      [
+        "python",
+        "-m",
+        "streamlit",
+        "run",
+        "app.py",
+        "--server.port=8501",
+        "--server.address=0.0.0.0",
+        "--server.headless=true",
+      ]
+
+networks:
+  atra-network:
+    external: true
+
+volumes:
+  open-webui-data:

@@ -1,0 +1,1589 @@
+{
+  "scanned_files": 937,
+  "parse_errors": [
+    {
+      "file": "knowledge_os/app/browser_operator.py",
+      "error": "unindent does not match any outer indentation level (<unknown>, line 130)"
+    },
+    {
+      "file": "knowledge_os/app/model_performance_probe.py",
+      "error": "invalid syntax (<unknown>, line 193)"
+    },
+    {
+      "file": "knowledge_os/app/strategy_session_manager.py",
+      "error": "unexpected indent (<unknown>, line 47)"
+    },
+    {
+      "file": "src/database/auto_execution.py",
+      "error": "expected 'except' or 'finally' block (<unknown>, line 84)"
+    }
+  ],
+  "files_with_di_signal": 511,
+  "files_without_di_signal": 426,
+  "top_files_with_possible_instantiation_inside_functions": [
+    {
+      "file": "src/risk/risk_manager.py",
+      "count": 102
+    },
+    {
+      "file": "src/signals/risk.py",
+      "count": 88
+    },
+    {
+      "file": "src/telegram/bot_core.py",
+      "count": 79
+    },
+    {
+      "file": "src/bot_telegram/bot_core.py",
+      "count": 79
+    },
+    {
+      "file": "knowledge_os/app/rest_api.py",
+      "count": 78
+    },
+    {
+      "file": "src/core/contracts.py",
+      "count": 72
+    },
+    {
+      "file": "src/signals/leverage.py",
+      "count": 68
+    },
+    {
+      "file": "src/agents/bridge/victoria_server.py",
+      "count": 65
+    },
+    {
+      "file": "knowledge_os/app/ai_core.py",
+      "count": 61
+    },
+    {
+      "file": "src/database/signal_live.py",
+      "count": 60
+    },
+    {
+      "file": "src/signals/dca.py",
+      "count": 59
+    },
+    {
+      "file": "src/signals/signal_live.py",
+      "count": 57
+    },
+    {
+      "file": "src/telegram/handlers.py",
+      "count": 57
+    },
+    {
+      "file": "src/bot_telegram/handlers.py",
+      "count": 57
+    },
+    {
+      "file": "src/signals/core.py",
+      "count": 51
+    },
+    {
+      "file": "src/execution/order_manager.py",
+      "count": 49
+    },
+    {
+      "file": "src/utils/ohlc_utils.py",
+      "count": 46
+    },
+    {
+      "file": "knowledge_os/app/expert_worker.py",
+      "count": 44
+    },
+    {
+      "file": "src/signals/filters_volume_vwap.py",
+      "count": 42
+    },
+    {
+      "file": "src/config/source.py",
+      "count": 39
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "count": 37
+    },
+    {
+      "file": "knowledge_os/app/mlx_api_server.py",
+      "count": 28
+    },
+    {
+      "file": "knowledge_os/app/self_check_system.py",
+      "count": 27
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "count": 26
+    },
+    {
+      "file": "src/execution/position_manager.py",
+      "count": 26
+    },
+    {
+      "file": "backend/app/services/victoria.py",
+      "count": 24
+    },
+    {
+      "file": "knowledge_os/app/enhanced_orchestrator.py",
+      "count": 24
+    },
+    {
+      "file": "src/database/db.py",
+      "count": 24
+    },
+    {
+      "file": "src/indicators/talib_wrapper.py",
+      "count": 22
+    },
+    {
+      "file": "src/data/smart_strategy.py",
+      "count": 22
+    },
+    {
+      "file": "src/data/sources_hub.py",
+      "count": 22
+    },
+    {
+      "file": "src/signals/validation.py",
+      "count": 21
+    },
+    {
+      "file": "knowledge_os/app/smart_worker_autonomous.py",
+      "count": 20
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "count": 19
+    },
+    {
+      "file": "src/agents/core/executor.py",
+      "count": 19
+    },
+    {
+      "file": "src/agents/bridge/victoria_telegram_bot.py",
+      "count": 19
+    },
+    {
+      "file": "src/filters/news.py",
+      "count": 18
+    },
+    {
+      "file": "knowledge_os/app/security.py",
+      "count": 17
+    },
+    {
+      "file": "knowledge_os/app/intelligent_model_router.py",
+      "count": 17
+    },
+    {
+      "file": "src/financial/validator.py",
+      "count": 17
+    }
+  ],
+  "sample_instantiations": [
+    {
+      "file": "backend/app/config.py",
+      "function": "get_settings",
+      "line": 260,
+      "call": "Settings"
+    },
+    {
+      "file": "backend/app/config.py",
+      "function": "validate",
+      "line": 252,
+      "call": "ValueError"
+    },
+    {
+      "file": "backend/app/main.py",
+      "function": "lifespan",
+      "line": 194,
+      "call": "AutoOptimizer"
+    },
+    {
+      "file": "backend/app/main.py",
+      "function": "lifespan",
+      "line": 172,
+      "call": "KnowledgeOSClient"
+    },
+    {
+      "file": "backend/app/main.py",
+      "function": "lifespan",
+      "line": 174,
+      "call": "RAGLightService"
+    },
+    {
+      "file": "backend/app/main.py",
+      "function": "_embedding_warmup",
+      "line": 172,
+      "call": "KnowledgeOSClient"
+    },
+    {
+      "file": "backend/app/main.py",
+      "function": "_embedding_warmup",
+      "line": 174,
+      "call": "RAGLightService"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "list_experiments",
+      "line": 34,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "create_experiment",
+      "line": 56,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "create_experiment",
+      "line": 59,
+      "call": "ExperimentConfig"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "get_experiment_stats",
+      "line": 73,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "get_experiment_stats",
+      "line": 78,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "toggle_experiment",
+      "line": 86,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "toggle_experiment",
+      "line": 90,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/ab_testing.py",
+      "function": "get_user_variants",
+      "line": 98,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "get_safe_path",
+      "line": 22,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "get_safe_path",
+      "line": 30,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_index",
+      "line": 83,
+      "call": "HTMLResponse"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_index",
+      "line": 45,
+      "call": "HTMLResponse"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_index",
+      "line": 89,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 93,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 101,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 104,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 118,
+      "call": "Response"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 121,
+      "call": "Response"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "preview_file",
+      "line": 127,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "render_html",
+      "line": 132,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "render_html",
+      "line": 162,
+      "call": "HTMLResponse"
+    },
+    {
+      "file": "backend/app/routers/preview.py",
+      "function": "render_html",
+      "line": 142,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/metrics.py",
+      "function": "metrics_endpoint",
+      "line": 20,
+      "call": "Response"
+    },
+    {
+      "file": "backend/app/routers/metrics.py",
+      "function": "metrics_endpoint",
+      "line": 26,
+      "call": "Response"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "get_safe_path",
+      "line": 83,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "get_safe_path",
+      "line": 97,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "get_safe_path",
+      "line": 105,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "validate_file_extension",
+      "line": 115,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "list_files",
+      "line": 123,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "list_files",
+      "line": 138,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "list_files",
+      "line": 163,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "list_files",
+      "line": 145,
+      "call": "FileInfo"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "list_files",
+      "line": 147,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 168,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 202,
+      "call": "FileContent"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 180,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 183,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 188,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 208,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 197,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "read_file",
+      "line": 200,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "write_file",
+      "line": 213,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "write_file",
+      "line": 223,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "write_file",
+      "line": 251,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "write_file",
+      "line": 239,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "create_item",
+      "line": 256,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "create_item",
+      "line": 265,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "create_item",
+      "line": 271,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "create_item",
+      "line": 287,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 291,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 302,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 307,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 324,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 305,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "delete_item",
+      "line": 316,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "rename_item",
+      "line": 329,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "rename_item",
+      "line": 330,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "rename_item",
+      "line": 343,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "rename_item",
+      "line": 346,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "rename_item",
+      "line": 361,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/files.py",
+      "function": "validate_content_size",
+      "line": 51,
+      "call": "ValueError"
+    },
+    {
+      "file": "backend/app/routers/terminal.py",
+      "function": "terminal_pty",
+      "line": 149,
+      "call": "TerminalSession"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "_validation_results_dir",
+      "line": 21,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "get_quality_summary",
+      "line": 65,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "get_quality_summary",
+      "line": 80,
+      "call": "RAGEvaluator"
+    },
+    {
+      "file": "backend/app/routers/quality_metrics.py",
+      "function": "get_quality_summary",
+      "line": 82,
+      "call": "ValidationPipeline"
+    },
+    {
+      "file": "backend/app/routers/auto_optimizer.py",
+      "function": "get_auto_optimizer",
+      "line": 16,
+      "call": "AutoOptimizer"
+    },
+    {
+      "file": "backend/app/routers/domains.py",
+      "function": "list_domains",
+      "line": 29,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/domains.py",
+      "function": "list_domains",
+      "line": 48,
+      "call": "Domain"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_image",
+      "line": 55,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_image",
+      "line": 52,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_image",
+      "line": 58,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_document",
+      "line": 62,
+      "call": "File"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_document",
+      "line": 69,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_document",
+      "line": 84,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_document",
+      "line": 79,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/multimodal.py",
+      "function": "process_document",
+      "line": 87,
+      "call": "ProcessResponse"
+    },
+    {
+      "file": "backend/app/routers/plan_cache.py",
+      "function": "get_cache_stats",
+      "line": 16,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/plan_cache.py",
+      "function": "clear_cache",
+      "line": 26,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/sandbox.py",
+      "function": "reset_sandbox",
+      "line": 43,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_public_message",
+      "line": 56,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_public_message",
+      "line": 57,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_message",
+      "line": 158,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_message",
+      "line": 201,
+      "call": "ChatResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_message",
+      "line": 164,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_message",
+      "line": 189,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "send_message",
+      "line": 208,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "stream_message",
+      "line": 216,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "stream_message",
+      "line": 286,
+      "call": "StreamingResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "stream_message",
+      "line": 221,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 300,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 301,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 316,
+      "call": "PlainTextResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 327,
+      "call": "PlainTextResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 383,
+      "call": "PlainTextResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 312,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 322,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 366,
+      "call": "PlainTextResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 382,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 390,
+      "call": "PlainTextResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 365,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "ask_victoria",
+      "line": 389,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "chat_status",
+      "line": 396,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "list_models",
+      "line": 402,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "get_hidden_thoughts",
+      "line": 409,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/chat.py",
+      "function": "get_hidden_thoughts",
+      "line": 419,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_expert_council",
+      "line": 91,
+      "call": "ExpertCouncil"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_multi_agent_debate",
+      "line": 104,
+      "call": "MultiAgentDebate"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "_run_collective_brainstorming",
+      "line": 131,
+      "call": "CollectiveBrainstorming"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "stream_dialogue",
+      "line": 279,
+      "call": "StreamingResponse"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "start_dialogue",
+      "line": 293,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "start_dialogue",
+      "line": 357,
+      "call": "DialogueResponse"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "start_dialogue",
+      "line": 370,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "start_dialogue",
+      "line": 328,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "get_status",
+      "line": 380,
+      "call": "DialogueStatus"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "get_status",
+      "line": 377,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "get_history",
+      "line": 392,
+      "call": "DialogueResponse"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "get_history",
+      "line": 389,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "synthesize_with_victoria",
+      "line": 433,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "synthesize_with_victoria",
+      "line": 463,
+      "call": "SynthesisResponse"
+    },
+    {
+      "file": "backend/app/routers/expert_dialogue.py",
+      "function": "synthesize_with_victoria",
+      "line": 439,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/editor.py",
+      "function": "get_autocomplete",
+      "line": 54,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/editor.py",
+      "function": "get_autocomplete",
+      "line": 147,
+      "call": "AutocompleteResponse"
+    },
+    {
+      "file": "backend/app/routers/editor.py",
+      "function": "get_autocomplete",
+      "line": 152,
+      "call": "AutocompleteResponse"
+    },
+    {
+      "file": "backend/app/routers/editor.py",
+      "function": "lint_code",
+      "line": 222,
+      "call": "LintResponse"
+    },
+    {
+      "file": "backend/app/routers/editor.py",
+      "function": "lint_code",
+      "line": 226,
+      "call": "LintResponse"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 30,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 50,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 69,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 70,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 71,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 72,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 73,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 74,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 75,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 76,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 77,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "list_experts",
+      "line": 78,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "get_expert",
+      "line": 86,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "get_expert",
+      "line": 109,
+      "call": "Expert"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "get_expert",
+      "line": 107,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/experts.py",
+      "function": "get_expert",
+      "line": 125,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/routers/data_retention.py",
+      "function": "run_cleanup",
+      "line": 33,
+      "call": "DataRetentionManager"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 31,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 32,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 33,
+      "call": "Query"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 34,
+      "call": "Depends"
+    },
+    {
+      "file": "backend/app/routers/knowledge.py",
+      "function": "search_knowledge",
+      "line": 56,
+      "call": "KnowledgeItem"
+    },
+    {
+      "file": "backend/app/metrics/prometheus_metrics.py",
+      "function": "get_metric",
+      "line": 43,
+      "call": "Dummy"
+    },
+    {
+      "file": "backend/app/middleware/rate_limiter.py",
+      "function": "__init__",
+      "line": 106,
+      "call": "RateLimiter"
+    },
+    {
+      "file": "backend/app/middleware/rate_limiter.py",
+      "function": "dispatch",
+      "line": 124,
+      "call": "HTTPException"
+    },
+    {
+      "file": "backend/app/middleware/error_handler.py",
+      "function": "http_exception_handler",
+      "line": 29,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/middleware/error_handler.py",
+      "function": "validation_exception_handler",
+      "line": 44,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/middleware/error_handler.py",
+      "function": "general_exception_handler",
+      "line": 75,
+      "call": "JSONResponse"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_retry",
+      "line": 40,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_fallback",
+      "line": 87,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/utils/victoria_fallback.py",
+      "function": "call_victoria_with_fallback",
+      "line": 130,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/evaluation/rag_evaluator.py",
+      "function": "_calculate_rouge",
+      "line": 149,
+      "call": "RougeScorer"
+    },
+    {
+      "file": "backend/app/services/query_rewriter.py",
+      "function": "_rewrite_with_llm",
+      "line": 84,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "get_ab_testing_service",
+      "line": 238,
+      "call": "ABTestingService"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "_init_default_experiments",
+      "line": 53,
+      "call": "ExperimentConfig"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "_init_default_experiments",
+      "line": 63,
+      "call": "ExperimentConfig"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "_init_default_experiments",
+      "line": 72,
+      "call": "ExperimentConfig"
+    },
+    {
+      "file": "backend/app/services/ab_testing.py",
+      "function": "load_experiments",
+      "line": 199,
+      "call": "ExperimentConfig"
+    },
+    {
+      "file": "backend/app/services/knowledge_os.py",
+      "function": "get_knowledge_os_client",
+      "line": 244,
+      "call": "KnowledgeOSClient"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 559,
+      "call": "RAGLightService"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 544,
+      "call": "RerankingService"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_rag_light_service",
+      "line": 555,
+      "call": "QueryRewriter"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 97,
+      "call": "EmbeddingBatchProcessor"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 112,
+      "call": "RAGLightPrefetch"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "_init_optimizations",
+      "line": 122,
+      "call": "EmbeddingFallback"
+    },
+    {
+      "file": "backend/app/services/rag_light.py",
+      "function": "get_embedding",
+      "line": 190,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/validation_pipeline.py",
+      "function": "_resolve_validation_path",
+      "line": 19,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/validation_pipeline.py",
+      "function": "_resolve_validation_path",
+      "line": 30,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/validation_pipeline.py",
+      "function": "_resolve_validation_path",
+      "line": 25,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/validation_pipeline.py",
+      "function": "save_results",
+      "line": 154,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/latency_tracer.py",
+      "function": "measure",
+      "line": 40,
+      "call": "LatencySpan"
+    },
+    {
+      "file": "backend/app/services/rag_context_cache.py",
+      "function": "get_cache_monitor",
+      "line": 103,
+      "call": "CacheMonitor"
+    },
+    {
+      "file": "backend/app/services/rag_context_cache.py",
+      "function": "get_rag_context_cache",
+      "line": 111,
+      "call": "RAGContextCache"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "get_cache",
+      "line": 104,
+      "call": "LRUCache"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "__init__",
+      "line": 38,
+      "call": "OrderedDict"
+    },
+    {
+      "file": "backend/app/services/cache.py",
+      "function": "set",
+      "line": 71,
+      "call": "CacheEntry"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "detect_content_type",
+      "line": 76,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "get_multimodal_processor",
+      "line": 392,
+      "call": "MultimodalProcessor"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "process_image",
+      "line": 133,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "process_image",
+      "line": 150,
+      "call": "AsyncClient"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "process_image",
+      "line": 120,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 183,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 206,
+      "call": "ZipFile"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 184,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 206,
+      "call": "BytesIO"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "extract_document_text",
+      "line": 198,
+      "call": "Path"
+    },
+    {
+      "file": "backend/app/services/multimodal_processor.py",
+      "function": "_extract_docx",
+      "line": 265,
+      "call": "Document"
+    }
+  ],
+  "sample_files_without_di_signal": [
+    "backend/app/config.py",
+    "backend/app/__init__.py",
+    "backend/app/routers/auto_optimizer.py",
+    "backend/app/routers/__init__.py",
+    "backend/app/routers/cache_stats.py",
+    "backend/app/metrics/prometheus_metrics.py",
+    "backend/app/metrics/__init__.py",
+    "backend/app/metrics/agent_suggestions.py",
+    "backend/app/middleware/rate_limiter.py",
+    "backend/app/middleware/__init__.py",
+    "backend/app/middleware/error_handler.py",
+    "backend/app/evaluation/__init__.py",
+    "backend/app/services/latency_tracer.py",
+    "backend/app/services/cache.py",
+    "backend/app/services/__init__.py",
+    "backend/app/services/reranking.py",
+    "backend/app/services/concurrency_limiter.py",
+    "backend/app/services/strategic_classifier.py",
+    "backend/app/services/rag_light_prefetch.py",
+    "backend/app/services/data_retention.py",
+    "backend/app/services/optimization/__init__.py",
+    "knowledge_os/app/expert_validator.py",
+    "knowledge_os/app/task_trace_hooks.py",
+    "knowledge_os/app/worker.py",
+    "knowledge_os/app/expert_dna_manager.py",
+    "knowledge_os/app/intelligence_consensus.py",
+    "knowledge_os/app/enhanced_cache.py",
+    "knowledge_os/app/task_result_validator.py",
+    "knowledge_os/app/agent_ab_testing.py",
+    "knowledge_os/app/batch_processor.py",
+    "knowledge_os/app/scout_researcher.py",
+    "knowledge_os/app/sla_monitor.py",
+    "knowledge_os/app/shadow_execution_manager.py",
+    "knowledge_os/app/browser_operator.py",
+    "knowledge_os/app/ml_router_data_collector.py",
+    "knowledge_os/app/knowledge_fabric.py",
+    "knowledge_os/app/cube_sandbox_manager_check.py",
+    "knowledge_os/app/agent_chaos_injector.py",
+    "knowledge_os/app/mcts_planner.py",
+    "knowledge_os/app/config.py",
+    "knowledge_os/app/experience_retriever.py",
+    "knowledge_os/app/version_manager.py",
+    "knowledge_os/app/predictive_monitor.py",
+    "knowledge_os/app/sop_generator.py",
+    "knowledge_os/app/context_analyzer.py",
+    "knowledge_os/app/aoi_system.py",
+    "knowledge_os/app/singularity_autonomous.py",
+    "knowledge_os/app/http_client.py",
+    "knowledge_os/app/shadow_execution_manager_v2.py",
+    "knowledge_os/app/search_ml_trading.py",
+    "knowledge_os/app/success_retriever.py",
+    "knowledge_os/app/safety_checker.py",
+    "knowledge_os/app/victoria_morning_report.py",
+    "knowledge_os/app/run_evolution_loop.py",
+    "knowledge_os/app/self_healing_tunnels.py",
+    "knowledge_os/app/telegram_gateway_v2.py",
+    "knowledge_os/app/autonomous_overseer.py",
+    "knowledge_os/app/knowledge_graph.py",
+    "knowledge_os/app/prompt_cache.py",
+    "knowledge_os/app/tunnel_manager.py",
+    "knowledge_os/app/meta_synthesizer.py",
+    "knowledge_os/app/board_scheduler.py",
+    "knowledge_os/app/training_pipeline.py",
+    "knowledge_os/app/mlx_monitor.py",
+    "knowledge_os/app/vector_cache.py",
+    "knowledge_os/app/tacit_knowledge_miner.py",
+    "knowledge_os/app/digital_constitution.py",
+    "knowledge_os/app/radar.py",
+    "knowledge_os/app/resource_manager.py",
+    "knowledge_os/app/swarm_orchestrator.py",
+    "knowledge_os/app/adaptive_prompter.py",
+    "knowledge_os/app/liquidity_task_generator.py",
+    "knowledge_os/app/federated_learner.py",
+    "knowledge_os/app/autonomous_policy_enforcer.py",
+    "knowledge_os/app/observability.py",
+    "knowledge_os/app/token_auditor.py",
+    "knowledge_os/app/early_warning_system.py",
+    "knowledge_os/app/code_validator.py",
+    "knowledge_os/app/ml_router_v2.py",
+    "knowledge_os/app/telegram_gateway_new.py",
+    "knowledge_os/app/parallel_request_processor.py",
+    "knowledge_os/app/anti_hallucination.py",
+    "knowledge_os/app/human_approval.py",
+    "knowledge_os/app/curiosity_engine.py",
+    "knowledge_os/app/knowledge_archiver.py",
+    "knowledge_os/app/memory_cycle.py",
+    "knowledge_os/app/file_processor.py",
+    "knowledge_os/app/metrics_exporter.py",
+    "knowledge_os/app/approval_manager.py",
+    "knowledge_os/app/perpetual_evolution.py",
+    "knowledge_os/app/auto_backup_manager.py",
+    "knowledge_os/app/context_compressor.py",
+    "knowledge_os/app/celeryconfig.py",
+    "knowledge_os/app/iterative_discovery.py",
+    "knowledge_os/app/auto_fixer.py",
+    "knowledge_os/app/domain_cache.py",
+    "knowledge_os/app/mlx_router.py",
+    "knowledge_os/app/ml_router_ab_test.py",
+    "knowledge_os/app/metrics_collector.py",
+    "knowledge_os/app/guardian.py",
+    "knowledge_os/app/dashboard_daily_improver.py",
+    "knowledge_os/app/promotion_engine.py",
+    "knowledge_os/app/secret_manager.py",
+    "knowledge_os/app/circuit_breaker.py",
+    "knowledge_os/app/telegram_notifications_worker.py",
+    "knowledge_os/app/container_anomaly_detector.py",
+    "knowledge_os/app/update_corporation_knowledge.py",
+    "knowledge_os/app/orchestrator.py",
+    "knowledge_os/app/synthetic_generator.py",
+    "knowledge_os/app/cache_cleanup_task.py",
+    "knowledge_os/app/env_flags.py",
+    "knowledge_os/app/json_fast.py",
+    "knowledge_os/app/adaptive_agent.py",
+    "knowledge_os/app/parallel_executor.py",
+    "knowledge_os/app/model_performance_probe.py",
+    "knowledge_os/app/streaming_worker.py",
+    "knowledge_os/app/mentor_system.py",
+    "knowledge_os/app/explainable_router.py",
+    "knowledge_os/app/task_dedup.py",
+    "knowledge_os/app/file_utils.py",
+    "knowledge_os/app/recursive_learning_manager.py",
+    "knowledge_os/app/multi_agent_debate.py",
+    "knowledge_os/app/voice_of_experience.py",
+    "knowledge_os/app/ad_generator.py",
+    "knowledge_os/app/architecture_profiler.py",
+    "knowledge_os/app/strategy_session_manager.py",
+    "knowledge_os/app/model_specialization.py",
+    "knowledge_os/app/feedback_collector.py",
+    "knowledge_os/app/expert_contract.py",
+    "knowledge_os/app/recent_tasks_context.py",
+    "knowledge_os/app/error_auto_fixer.py",
+    "knowledge_os/app/nightly_learner.py",
+    "knowledge_os/app/critic.py",
+    "knowledge_os/app/memory_guard.py",
+    "knowledge_os/app/mind_dashboard.py",
+    "knowledge_os/app/graph_optimizer.py",
+    "knowledge_os/app/auto_fix_db_connections.py",
+    "knowledge_os/app/memory_consolidator.py",
+    "knowledge_os/app/trace_id.py",
+    "knowledge_os/app/usage_analytics.py",
+    "knowledge_os/app/knowledge_cleaner.py",
+    "knowledge_os/app/session_context_manager.py",
+    "knowledge_os/app/collective_brainstorming.py",
+    "knowledge_os/app/evaluator.py",
+    "knowledge_os/app/episodic_memory.py",
+    "knowledge_os/app/evolution_monitor.py",
+    "knowledge_os/app/checkpoint_manager.py",
+    "knowledge_os/app/war_room.py",
+    "knowledge_os/app/long_term_memory.py",
+    "knowledge_os/app/embedding_optimizer.py",
+    "knowledge_os/app/force_worker.py",
+    "knowledge_os/app/ingestion/__init__.py",
+    "knowledge_os/app/ingestion/judge.py",
+    "knowledge_os/app/ingestion/quality_gate.py",
+    "knowledge_os/app/core/__init__.py",
+    "knowledge_os/app/core/ensemble_verifier.py",
+    "knowledge_os/app/memory/journal_manager.py",
+    "knowledge_os/app/memory/memory_service.py",
+    "knowledge_os/app/task_orchestration/__init__.py",
+    "knowledge_os/app/task_orchestration/task_complexity_analyzer.py",
+    "knowledge_os/app/task_orchestration/model_registry.py",
+    "knowledge_os/app/task_orchestration/model_availability_checker.py",
+    "knowledge_os/app/worker/__init__.py",
+    "knowledge_os/app/worker/worker_memory.py",
+    "knowledge_os/app/worker/worker_logic.py",
+    "knowledge_os/app/services/notification_service.py",
+    "src/__init__.py",
+    "src/filters/smart_trend_filter.py",
+    "src/filters/volume_spike.py",
+    "src/filters/trend_filters_sync.py",
+    "src/filters/__init__.py",
+    "src/filters/order_flow_filter.py",
+    "src/filters/multi_timeframe.py",
+    "src/filters/momentum_filter.py",
+    "src/filters/adaptive_rsi.py",
+    "src/metrics/__init__.py",
+    "src/metrics/decorators.py",
+    "src/database/query_cache.py",
+    "src/database/optimized_queries.py",
+    "src/database/batch_queries.py",
+    "src/database/optimization_manager.py",
+    "src/database/parallel_queries.py",
+    "src/database/query_optimizer.py",
+    "src/database/__init__.py",
+    "src/database/fetch_optimizer.py",
+    "src/database/initialization.py",
+    "src/database/temp_tables_optimizer.py",
+    "src/database/async_loaders.py",
+    "src/database/auto_execution.py",
+    "src/database/materialized_views.py",
+    "src/database/query_profiler.py",
+    "src/database/index_auditor.py",
+    "src/database/connection_pool.py",
+    "src/core/research_lab.py",
+    "src/core/compat.py",
+    "src/core/system_initialization.py",
+    "src/core/state_machine_rules.py",
+    "src/core/idempotency.py",
+    "src/core/reproducibility.py",
+    "src/core/evolution.py"
+  ]
+}
