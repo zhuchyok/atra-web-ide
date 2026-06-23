@@ -62,6 +62,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       POSTGRES_DIRECT_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_postgres:5432/knowledge_os
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       REDIS_URL: unix:///data/redis/redis.sock
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       CHAT_ID: ${TELEGRAM_USER_ID}
@@ -120,6 +123,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
     ports:
       - "8011:8000"
     volumes:
@@ -154,6 +160,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       ORCHESTRATOR_BACKLOG_THRESHOLD: ${ORCHESTRATOR_BACKLOG_THRESHOLD:-20}
       ORCHESTRATOR_CONTRACT_ROLLOUT_MODE: "auto"
       ORCHESTRATOR_CONTRACT_CANARY_PERCENT: "20"
@@ -197,11 +206,15 @@ services:
     environment:
       TZ: Europe/Moscow
       EXPERT_NAME: "Роман"
+      ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES: ${SMART_WORKER_HARD_INPROGRESS_TIMEOUT_MINUTES:-10}
       SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES: ${SMART_WORKER_BACKLOG_HARD_INPROGRESS_TIMEOUT_MINUTES:-10}
@@ -238,11 +251,15 @@ services:
     environment:
       TZ: Europe/Moscow
       EXPERT_NAME: "Анна"
+      ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
@@ -277,11 +294,15 @@ services:
     environment:
       TZ: Europe/Moscow
       EXPERT_NAME: "Виктория"
+      ENABLE_METRICS: "true"
       EXPERT_STREAM_DEDICATED: ${EXPERT_STREAM_DEDICATED:-true}
       METRICS_PORT: "8001"
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       BLACKBOARD_ENFORCE_TARGET_EXPERT: "true"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
@@ -304,7 +325,7 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
-    restart: "no"
+    restart: unless-stopped
     networks:
       - atra-network
     healthcheck:
@@ -320,6 +341,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
       HITL_HIGH_RISK_LEVELS: "critical"
@@ -331,7 +355,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: python3 knowledge_os/app/expert_worker.py
-    profiles: ["dynamic"]
 
   expert-worker-dynamic-2:
     depends_on:
@@ -342,7 +365,7 @@ services:
     build:
       context: ..
       dockerfile: infrastructure/docker/agents/Dockerfile
-    restart: "no"
+    restart: unless-stopped
     networks:
       - atra-network
     healthcheck:
@@ -358,6 +381,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
       HITL_ENFORCE_HIGH_RISK_TASKS: "true"
       HITL_HIGH_RISK_LEVELS: "critical"
@@ -369,7 +395,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: python3 knowledge_os/app/expert_worker.py
-    profiles: ["dynamic"]
 
   knowledge_os_worker:
     build:
@@ -390,6 +415,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
     volumes:
       - ../knowledge_os:/app/knowledge_os
@@ -420,6 +448,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       EVOLUTION_ROLLOUT_MODE: ${EVOLUTION_ROLLOUT_MODE:-hybrid}
       EVOLUTION_HYBRID_SHADOW_RATIO: ${EVOLUTION_HYBRID_SHADOW_RATIO:-0.70}
       EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT: ${EVOLUTION_HYBRID_MIN_USAGE_FOR_DIRECT:-25}
@@ -459,6 +490,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       SELF_CHECK_INTERVAL_SEC: ${SELF_CHECK_INTERVAL_SEC:-300}
     volumes:
       - ../knowledge_os:/app/knowledge_os
@@ -470,6 +504,34 @@ services:
     command: ["python", "-u", "-c", "from self_check_system import start_autonomous_self_check; import asyncio; asyncio.run(start_autonomous_self_check())"]
 
   knowledge_nightly:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: knowledge_nightly
+    restart: unless-stopped
+    mem_limit: 8g
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      REDIS_URL: unix:///data/redis/redis.sock
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
+      NIGHTLY_INTERVAL_SEC: ${NIGHTLY_INTERVAL_SEC:-86400}
+      NIGHTLY_DISTILL_TARGET_ELIGIBLE: ${NIGHTLY_DISTILL_TARGET_ELIGIBLE:-5}
+      USE_CUBE_SANDBOX: "false"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+      - redis_data:/data/redis
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "nightly_learner.py"]
 
   knowledge_rest:
     build:
@@ -487,6 +549,9 @@ services:
       DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
       REDIS_URL: unix:///data/redis/redis.sock
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_GLOBAL_MAX_SLOTS: "2"
+      OLLAMA_MAX_QUEUE: "100"
       USE_CUBE_SANDBOX: "false"
     volumes:
       - ../knowledge_os:/app/knowledge_os
@@ -575,6 +640,28 @@ services:
       - ../knowledge_os/models:/app/models
       - ../docs:/app/corpus/docs:ro
       - ../knowledge_os/app:/app/corpus/knowledge_os:ro
+
+  swarm-studio:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/agents/Dockerfile
+    container_name: swarm-studio
+    restart: unless-stopped
+    ports:
+      - "8006:8006"
+    networks:
+      - atra-network
+    environment:
+      TZ: Europe/Moscow
+      PYTHONPATH: /app/knowledge_os
+      DATABASE_URL: postgresql://admin:${POSTGRES_PASSWORD:-changeme}@knowledge_pgbouncer:6432/knowledge_os
+      SWARM_STUDIO_PORT: "8006"
+    volumes:
+      - ../knowledge_os:/app/knowledge_os
+    working_dir: /app/knowledge_os/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-u", "-c", "import uvicorn; from swarm_studio import app; uvicorn.run(app, host='0.0.0.0', port=8006)"]
 
 networks:
   atra-network:

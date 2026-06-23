@@ -57,7 +57,8 @@ try:
     from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
 except ImportError:
     try:
-        import sys as _sys, os as _os
+        import os as _os
+        import sys as _sys
 
         _sys.path.append(_os.path.join(_os.path.dirname(__file__), "../../backend/app/metrics"))
         from prometheus_metrics import OLLAMA_BACKPRESSURE_SKIPS as _OLLAMA_BP_SKIPS
@@ -289,14 +290,15 @@ class LocalAIRouter:
 
         # [SINGULARITY 21.10] Per-node Circuit Breakers
         self._node_breakers = {}
-        
+
         # [SINGULARITY 25.0] Context Compressor integration
         try:
             from context_compressor import ContextCompressor
+
             self.compressor = ContextCompressor()
         except ImportError:
             self.compressor = None
-            
+
         for node in self.nodes:
             # Создаем уникальный CB для каждого URL
             node_url = node["url"]
@@ -312,8 +314,8 @@ class LocalAIRouter:
 
         # [SINGULARITY 25.0] Startup sanity-check: warn if Ollama semaphore and NUM_PARALLEL are out of sync.
         # Ольга (Performance Engineer): меняя OLLAMA_NUM_PARALLEL без OLLAMA_GLOBAL_MAX_SLOTS → рассинхронизация.
-        _num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "5"))  # [FIX 2026-04-19] was 6
-        _max_slots = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "3"))  # [FIX 2026-04-19] was 5
+        _num_parallel = int(os.getenv("OLLAMA_NUM_PARALLEL", "2"))  # [FIX 2026-06-23] was 5
+        _max_slots = int(os.getenv("OLLAMA_GLOBAL_MAX_SLOTS", "2"))  # [FIX 2026-06-23] was 3
         if _max_slots >= _num_parallel:
             logger.warning(
                 "⚠️ [CONFIG SYNC] OLLAMA_GLOBAL_MAX_SLOTS=%d >= OLLAMA_NUM_PARALLEL=%d — "
@@ -868,10 +870,24 @@ class LocalAIRouter:
         """[SINGULARITY 28.0] Get current system resources (RAM/VRAM)."""
         try:
             from resource_monitor import get_resource_monitor
+
             rm = get_resource_monitor()
             return await rm.get_system_resources()
         except Exception:
             return {}
+
+    async def _get_ice_mode(self) -> bool:
+        """[SINGULARITY 29.7] Check if system:ice_mode is active in Redis."""
+        try:
+            from app.redis_manager import redis_manager
+
+            client = await redis_manager.get_client()
+            # We use a simple key check. If it exists and is "true" or "1", ice_mode is active.
+            val = await client.get("system:ice_mode")
+            return str(val).lower() in ("true", "1", "yes")
+        except Exception as e:
+            logger.debug(f"Failed to check ice_mode: {e}")
+            return False
 
     async def run_local_llm(
         self,
@@ -899,11 +915,14 @@ class LocalAIRouter:
         # [OMNI-RAG v3] Автоматическое обогащение визуальным контекстом
         # [SINGULARITY 29.5] Skip visual enrichment for reasoning/discovery sub-tasks to prevent loops
         prompt_lower = prompt.lower()
-        is_subtask = category in ["reasoning", "discovery", "internal"] or "#internal" in prompt_lower
-        
-        if not is_subtask and ("#multimodal" in prompt_lower or any(
-            kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"]
-        )):
+        is_subtask = (
+            category in ["reasoning", "discovery", "internal"] or "#internal" in prompt_lower
+        )
+
+        if not is_subtask and (
+            "#multimodal" in prompt_lower
+            or any(kw in prompt_lower for kw in ["скриншот", "интерфейс", "схема", "ui", "дизайн"])
+        ):
             visual_results = await self.search_visual_context(prompt)
             if visual_results:
                 visual_block = "\n\n🖼️ [VISUAL CONTEXT]:\n"
@@ -935,6 +954,17 @@ class LocalAIRouter:
             system_prompt = f"ТЫ - {expert_name}. Действуй и отвечай в соответствии со своей ролью и характером."
             logger.info(f"🎭 [PERSONA] Injected persona for {expert_name}")
 
+        # [SINGULARITY 30.1] Rate Limiter: LLM inference requires a token
+        try:
+            from app.services.blackboard_service import get_blackboard_service
+
+            blackboard = get_blackboard_service()
+            if not await blackboard.acquire_token(timeout=10.0):
+                logger.warning("🛑 [LIMITER] LLM inference rejected (no tokens available)")
+                return ("System is overloaded. Please try again later.", "limiter")
+        except Exception as e:
+            logger.debug(f"Rate limiter check failed: {e}")
+
         # 🔄 ДИНАМИЧЕСКОЕ ОБНОВЛЕНИЕ СПИСКА МОДЕЛЕЙ (если истёк TTL)
         # Это позволяет подхватывать новые модели и замечать удалённые
         await self._refresh_available_models()
@@ -948,27 +978,60 @@ class LocalAIRouter:
         initial_model = model or getattr(self, "_preferred_model", None)
 
         # [SINGULARITY 29.6] Dynamic Model Tiering: Downgrades model if RAM is low.
+        # [SINGULARITY 29.7] Load-aware Tiering: Downgrades if system:ice_mode is active.
         # [SINGULARITY 28.1] Quality Guard: Only downgrade for dialogue/fast tasks.
         # For expert/heavy tasks, we wait for memory instead of sacrificing quality.
         try:
+            # Check ice_mode first (system-wide pressure flag)
+            ice_mode = await self._get_ice_mode()
+
             res = await self._get_system_resources()
             avail_gb = res.get("ram", {}).get("available_gb", 100)
-            is_dialogue = category == "chat" or (isinstance(prompt, str) and "#chat" in prompt.lower())
-            is_rd = category == "r&d_optimization" or (isinstance(prompt, str) and "#rd" in prompt.lower())
-            
+            is_dialogue = category == "chat" or (
+                isinstance(prompt, str) and "#chat" in prompt.lower()
+            )
+            is_rd = category == "r&d_optimization" or (
+                isinstance(prompt, str) and "#rd" in prompt.lower()
+            )
+
+            # [SINGULARITY 29.7] Load-aware Downgrade
+            if ice_mode:
+                is_expert = category in ("reasoning", "coding", "research", "expert") or (
+                    initial_model
+                    and (
+                        "70b" in initial_model.lower()
+                        or "32b" in initial_model.lower()
+                        or "35b" in initial_model.lower()
+                    )
+                )
+                if is_expert:
+                    target_model = (
+                        "phi3.5:3.8b-stable"
+                        if "mlx" in str(getattr(self, "_active_node", {}).get("url", ""))
+                        else "tinyllama:1.1b-chat"
+                    )
+                    logger.warning(
+                        f"❄️ [ICE MODE] System pressure detected! Downgrading expert request: {initial_model} -> {target_model}"
+                    )
+                    initial_model = target_model
+                    model = initial_model
+
             # [SINGULARITY 29.6] Aggressive Memory Guard for R&D
             if is_rd and avail_gb < 12:
-                logger.info(f"🧠 [R&D MEMORY GUARD] RAM low ({avail_gb:.1f}GB). Performing aggressive model cleanup...")
+                logger.info(
+                    f"🧠 [R&D MEMORY GUARD] RAM low ({avail_gb:.1f}GB). Performing aggressive model cleanup..."
+                )
                 if self._memory_manager:
                     await self._memory_manager.cleanup_unused_models()
                     # Force Ollama to unload all models to free up VRAM/RAM
                     try:
                         async with httpx.AsyncClient(timeout=10.0) as client:
-                            # Ollama /api/tags doesn't unload, but loading a non-existent model or 
+                            # Ollama /api/tags doesn't unload, but loading a non-existent model or
                             # sending a request with keep_alive=0 might help.
                             # Best way is to use the internal memory manager if it supports it.
-                            pass 
-                    except: pass
+                            pass
+                    except:
+                        pass
                     await asyncio.sleep(5)
                     res = await self._get_system_resources()
                     avail_gb = res.get("ram", {}).get("available_gb", 100)
@@ -978,16 +1041,26 @@ class LocalAIRouter:
                 if is_dialogue:
                     # For chat, speed is priority, so we downgrade
                     if avail_gb < 4 and initial_model and "tinyllama" not in initial_model.lower():
-                        logger.warning(f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> tinyllama:1.1b-chat (Chat Priority)")
+                        logger.warning(
+                            f"📉 [TIERING] RAM critical ({avail_gb:.1f}GB). Downgrading {initial_model} -> tinyllama:1.1b-chat (Chat Priority)"
+                        )
                         initial_model = "tinyllama:1.1b-chat"
                         model = initial_model
-                    elif avail_gb < 8 and initial_model and ("35b" in initial_model.lower() or "32b" in initial_model.lower()):
-                        logger.warning(f"📉 [TIERING] RAM low ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)")
+                    elif (
+                        avail_gb < 8
+                        and initial_model
+                        and ("35b" in initial_model.lower() or "32b" in initial_model.lower())
+                    ):
+                        logger.warning(
+                            f"📉 [TIERING] RAM low ({avail_gb:.1f}GB). Downgrading {initial_model} -> phi3.5:3.8b-stable (Chat Priority)"
+                        )
                         initial_model = "phi3.5:3.8b-stable"
                         model = initial_model
                 else:
                     # For expert tasks, quality is priority. We wait for ModelMemoryManager to free up space.
-                    logger.info(f"⏳ [QUALITY GUARD] RAM low ({avail_gb:.1f}GB) for expert task. Waiting for memory instead of downgrading...")
+                    logger.info(
+                        f"⏳ [QUALITY GUARD] RAM low ({avail_gb:.1f}GB) for expert task. Waiting for memory instead of downgrading..."
+                    )
                     if self._memory_manager:
                         await self._memory_manager.cleanup_unused_models()
                         # Give it a few seconds to settle
@@ -1007,7 +1080,7 @@ class LocalAIRouter:
         # Кэш: только для коротких промптов без изображений
         prompt_cache_key = None
         if len(prompt) <= 1000 and not images:
-            raw_key = f"{prompt}|{category or ''}|{model or ''}"
+            raw_key = f"{prompt}|{category or ''}|{model or ''}|{session_id or ''}"
             prompt_cache_key = hashlib.sha256(raw_key.encode()).hexdigest()[:32]
             now = time.time()
             if prompt_cache_key in self._prompt_cache:
@@ -1063,18 +1136,27 @@ class LocalAIRouter:
         healthy_nodes = await self.check_health()
         if not healthy_nodes:
             logger.error("❌ No healthy local nodes found!")
-            # Сохраняем решение о fallback в облако
-            if get_collector:
-                collector = await get_collector()
-                await collector.collect_routing_decision(
-                    task_type=task_type,
-                    prompt_length=len(prompt),
-                    category=category,
-                    selected_route="cloud",  # Fallback в облако
-                    success=False,
-                    features={"reason": "no_healthy_nodes", "ml_predicted": ml_predicted_route},
-                )
-            return None
+            return ("No healthy local nodes found.", "error")
+
+        # [SINGULARITY 30.6] Heavyweight Semaphore Logic
+        is_heavy = model and any(x in model.lower() for x in ("70b", "32b", "35b", "qwq"))
+        if is_heavy and self._memory_manager:
+            try:
+                from app.services.blackboard_service import get_blackboard_service
+
+                blackboard = get_blackboard_service()
+
+                logger.info(f"🐘 [HEAVY-MODEL] {model} is a heavyweight. Requesting global lock...")
+                if not await blackboard.acquire_heavy_model_lock(model):
+                    return (
+                        "Heavyweight queue timeout. System is busy with another large model.",
+                        "queue_timeout",
+                    )
+
+                # После захвата замка — проактивная выгрузка других моделей
+                await self._memory_manager.predictive_unload("extreme")
+            except Exception as e:
+                logger.warning(f"⚠️ [HEAVY-LOCK] Error in semaphore logic: {e}")
 
         # УМНЫЙ ВЫБОР УЗЛА: система сама выбирает лучший источник на основе задачи
         # 1. Load Balancing: выбираем лучший узел на основе загрузки (приоритет)
@@ -1523,6 +1605,8 @@ class LocalAIRouter:
                     messages.append({"role": "user", "content": prompt})
 
                 payload = {"model": model, "messages": messages, "stream": False}
+                if self._should_disable_thinking(model):
+                    payload["think"] = False
                 # [SINGULARITY 24.8] Adaptive Context Window
                 payload["options"] = self._get_adaptive_options(model)
 
@@ -1558,20 +1642,27 @@ class LocalAIRouter:
                 if self.compressor:
                     try:
                         from resource_monitor import get_resource_monitor
+
                         rm = get_resource_monitor()
                         sys_res = await rm.get_system_resources()
                         avail_gb = sys_res.get("ram", {}).get("available_gb", 100)
-                        
+
                         # Если RAM < 8GB или контекст слишком большой (грубая оценка по символам)
                         if avail_gb < 8 or len(full_prompt) > 40000:
-                            logger.info(f"✂️ [CONTEXT GUARD] RAM low ({avail_gb:.1f}GB) or prompt long ({len(full_prompt)}). Compressing...")
+                            logger.info(
+                                f"✂️ [CONTEXT GUARD] RAM low ({avail_gb:.1f}GB) or prompt long ({len(full_prompt)}). Compressing..."
+                            )
                             # Для отладки: принудительно сжимаем повторяющиеся строки
                             full_prompt = self.compressor.squeeze_prompt(full_prompt)
-                            logger.info(f"✅ [CONTEXT GUARD] Squeezed prompt to {len(full_prompt)} chars")
+                            logger.info(
+                                f"✅ [CONTEXT GUARD] Squeezed prompt to {len(full_prompt)} chars"
+                            )
                     except Exception as cg_err:
                         logger.debug(f"Context guard failed: {cg_err}")
 
                 payload = {"model": model, "prompt": full_prompt, "stream": False}
+                if self._should_disable_thinking(model):
+                    payload["think"] = False
                 # [SINGULARITY 24.8] Adaptive Context Window
                 payload["options"] = self._get_adaptive_options(model)
 
@@ -1633,9 +1724,7 @@ class LocalAIRouter:
                             )
                         elif category == "reasoning":
                             headers["X-Request-Priority"] = "medium"
-                            logger.info(
-                                f"⚙️ [WORKER HEADER] Worker reasoning task → medium priority"
-                            )
+                            logger.info("⚙️ [WORKER HEADER] Worker reasoning task → medium priority")
                         else:
                             headers["X-Request-Priority"] = "normal"
                         # Таймаут по метрикам этой модели (load/processing с запасом); у каждой модели свои значения
@@ -1822,9 +1911,23 @@ class LocalAIRouter:
                                             if error_text
                                             else ""
                                         )
-                                        logger.error(
-                                            f"Streaming error: {response.status_code}: {_streaming_error_text[:200]}"
+                                        is_queue_full_503_stream = (
+                                            is_ollama
+                                            and response.status_code == 503
+                                            and "maximum pending requests exceeded"
+                                            in _streaming_error_text.lower()
                                         )
+                                        if is_queue_full_503_stream:
+                                            logger.warning(
+                                                "Streaming backpressure from %s (%s): %s",
+                                                node.get("name"),
+                                                response.status_code,
+                                                _streaming_error_text[:200],
+                                            )
+                                        else:
+                                            logger.error(
+                                                f"Streaming error: {response.status_code}: {_streaming_error_text[:200]}"
+                                            )
                             else:
                                 # [SINGULARITY 21.5] Predictive Warmup logic moved up
 
@@ -1986,6 +2089,18 @@ class LocalAIRouter:
                                 except Exception as metrics_err:
                                     logger.debug(f"Failed to record local metrics: {metrics_err}")
 
+                                # [SINGULARITY 30.6] Heavyweight Semaphore Release
+                                if is_heavy:
+                                    try:
+                                        from app.services.blackboard_service import (
+                                            get_blackboard_service,
+                                        )
+
+                                        blackboard = get_blackboard_service()
+                                        await blackboard.release_heavy_model_lock(model)
+                                    except Exception as e:
+                                        logger.warning(f"⚠️ [HEAVY-LOCK] Error releasing lock: {e}")
+
                                 return result, routing_source
                             else:
                                 logger.warning(
@@ -2043,6 +2158,7 @@ class LocalAIRouter:
                     if attempt < max_retries:
                         # [SINGULARITY 25.0] Jittered exponential backoff
                         import random
+
                         delay = (2**attempt) + random.uniform(0, 1)
                         await asyncio.sleep(delay)
                     continue
@@ -2057,6 +2173,7 @@ class LocalAIRouter:
                     if attempt < max_retries:
                         # [SINGULARITY 25.0] Jittered exponential backoff
                         import random
+
                         delay = (2**attempt) + random.uniform(0, 1)
                         await asyncio.sleep(delay)
                     continue
@@ -2074,6 +2191,7 @@ class LocalAIRouter:
                     if attempt < max_retries:
                         # [SINGULARITY 25.0] Jittered exponential backoff
                         import random
+
                         delay = (2**attempt) + random.uniform(0, 1)
                         await asyncio.sleep(delay)
                     continue
@@ -2185,6 +2303,8 @@ class LocalAIRouter:
 
         full_prompt = f"{system_prompt}\n\nUser: {prompt}\nAssistant:"
         payload = {"model": model, "prompt": full_prompt, "stream": True}
+        if self._should_disable_thinking(model):
+            payload["think"] = False
         # [SINGULARITY 24.8] Adaptive Context Window
         payload["options"] = self._get_adaptive_options(model)
 
@@ -2286,6 +2406,14 @@ class LocalAIRouter:
 
         return options
 
+    @staticmethod
+    def _should_disable_thinking(model_name: Optional[str]) -> bool:
+        if not model_name:
+            return False
+        lowered = model_name.lower()
+        # Victoria aliases are now backed by Qwen 3.6 and should also suppress thinking traces.
+        return "qwen3" in lowered or "victoria-wisdom-v3.5" in lowered
+
     def _determine_task_type(self, prompt: str, category: Optional[str] = None) -> str:
         """Определяет тип задачи для сбора данных"""
         prompt_lower = prompt.lower()
@@ -2312,16 +2440,17 @@ class LocalAIRouter:
                 )
                 prompt += "\nassistant: "
 
+            warmup_payload = {
+                "model": model_name,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"num_predict": 1},  # Минимальная генерация только для прогрева
+            }
+            if self._should_disable_thinking(model_name):
+                warmup_payload["think"] = False
+
             async with httpx.AsyncClient(timeout=10.0) as client:
-                await client.post(
-                    f"{node_url}/api/generate",
-                    json={
-                        "model": model_name,
-                        "prompt": prompt,
-                        "stream": False,
-                        "options": {"num_predict": 1},  # Минимальная генерация только для прогрева
-                    },
-                )
+                await client.post(f"{node_url}/api/generate", json=warmup_payload)
             logger.info(
                 "🔥 [WARMUP] Triggered KV-Cache warmup for %s in Ollama (context len: %d)",
                 model_name,
