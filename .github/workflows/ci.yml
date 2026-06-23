@@ -31,4 +31,7 @@ jobs:
             --ignore=knowledge_os/tests/test_live_chain.py \
             --ignore=knowledge_os/tests/test_integration_bridge.py \
             -k "not benchmark and not live and not integration" \
-            -v --tb=short
+            -v --tb=short --junitxml=test-results/junit.xml
+
+      - name: Enforce minimum test count
+        run: python scripts/ci_check_test_count.py
