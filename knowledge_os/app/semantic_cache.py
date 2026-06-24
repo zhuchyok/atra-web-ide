@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import random
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
 # [SINGULARITY 24.3] Circuit Breaker для Ollama Embeddings
@@ -39,6 +40,22 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Throttle repetitive warning logs to avoid warning floods under temporary Ollama backpressure.
+_WARN_THROTTLE_SEC = float(os.getenv("SEMANTIC_CACHE_WARN_THROTTLE_SEC", "60"))
+_last_warn_at: Dict[str, float] = {}
+
+
+def _warn_throttled(key: str, message: str) -> None:
+    """Emit warning at most once per throttle window per key (debug otherwise)."""
+    now_ts = datetime.now(timezone.utc).timestamp()
+    last_ts = _last_warn_at.get(key, 0.0)
+    if (now_ts - last_ts) >= _WARN_THROTTLE_SEC:
+        logger.warning(message)
+        _last_warn_at[key] = now_ts
+    else:
+        logger.debug(message)
+
+
 # Единая локальная БД (в Docker задаётся DATABASE_URL через compose)
 _DEFAULT_DB = "postgresql://admin:secret@localhost:6432/knowledge_os"
 DATABASE_URL = os.getenv("DATABASE_URL") or _DEFAULT_DB
@@ -61,9 +78,9 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "nomic-embed-text:latest")  # Dedicated
 # [SINGULARITY 24.3] Metrics Integration
 try:
     from backend.app.metrics.prometheus_metrics import (
-        record_semantic_cache_hit,
         record_embedding_collapsed,
         record_embedding_throttle,
+        record_semantic_cache_hit,
     )
 
     _METRICS_AVAILABLE = True
@@ -71,9 +88,9 @@ except ImportError:
     # Try alternate path if called from different context
     try:
         from app.metrics.prometheus_metrics import (
-            record_semantic_cache_hit,
             record_embedding_collapsed,
             record_embedding_throttle,
+            record_semantic_cache_hit,
         )
 
         _METRICS_AVAILABLE = True
@@ -162,9 +179,10 @@ async def get_embedding(text: str) -> Optional[list]:
 
     # [SINGULARITY 29.7] Redis Cache Check
     from app.redis_manager import get_redis_manager
+
     redis = get_redis_manager()
     cache_key = f"embedding_cache:{OLLAMA_MODEL}:{text_hash}"
-    
+
     try:
         client = await redis.get_client()
         cached_val = await client.get(cache_key)
@@ -194,14 +212,15 @@ async def get_embedding(text: str) -> Optional[list]:
                 res = await _ollama_breaker.call(_execute_embedding_request, text)
             else:
                 res = await _execute_embedding_request(text)
-            
+
             # [SINGULARITY 29.7] Save to Redis Cache
             if res:
                 try:
-                    await client.set(cache_key, json.dumps(res), ex=86400) # 24h TTL
+                    await client.set(cache_key, json.dumps(res), ex=86400)  # 24h TTL
                     logger.debug(f"💾 [CACHE SAVE] Embedding stored in Redis: {text_hash}")
-                except: pass
-                
+                except:
+                    pass
+
             future.set_result(res)
             return res
     except CircuitBreakerOpenError:
@@ -224,8 +243,11 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
     Внутренняя логика выполнения запроса с ретраями.
     [SINGULARITY 24.3] Увеличено количество попыток и добавлен экспоненциальный бэкофф для 503.
     """
-    max_retries = 3  # [ATRA v1] Увеличено 1→3: Ollama embeddings busy часто временный
+    max_retries = int(os.getenv("OLLAMA_EMBED_MAX_RETRIES", "5"))
     for attempt in range(max_retries):
+        if attempt > 0:
+            # Exponential backoff: 1s, 2s, 4s, 8s
+            await asyncio.sleep(2 ** (attempt - 1))
         client = None
         if get_http_client:
             try:
@@ -247,7 +269,7 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
 
             # [SINGULARITY 24.3] Graceful Degradation: Search by Hash if Ollama fails
             if attempt == max_retries - 1:
-                logger.warning(
+                logger.debug(
                     "🔍 [GRACEFUL DEGRADATION] Ollama failed, trying exact hash match in DB..."
                 )
                 # Поиск по хэшу в БД будет реализован в методах класса SemanticAICache
@@ -276,17 +298,21 @@ async def _execute_embedding_request(text: str) -> Optional[list]:
 async def _do_embed_request(client: httpx.AsyncClient, text: str) -> Optional[list]:
     """Single embedding request (shared or ad-hoc client)."""
     try:
+        # [FIX v31.1] Truncate text to avoid context length overflow in Ollama (nomic-embed-text limit is ~2048 tokens)
+        # We use a very safe limit of 2000 characters to prevent HTTP 500
+        safe_text = text[:2000] if text else ""
+
         response = await client.post(
             OLLAMA_EMBED_URL,
             json={
                 "model": OLLAMA_MODEL,
-                "prompt": text,
+                "prompt": safe_text,
             },  # [FIX] Removed keep_alive: 0 to avoid constant unloading
-            timeout=30.0,  # [FIX v66] Increased: embedding critical for Swarm, 5s too short under load
+            timeout=float(os.getenv("OLLAMA_EMBED_TIMEOUT_SEC", "8")),
         )
         if response.status_code == 503:
             # [SINGULARITY 24.3] Не бросаем сразу, даем get_embedding шанс на ретрай
-            logger.warning("Ollama embeddings service busy (503).")
+            logger.debug("Ollama embeddings service busy (503).")
             return None
         if response.status_code != 200:
             logger.error("Ollama error %d: %s", response.status_code, response.text)
@@ -321,6 +347,12 @@ class SemanticAICache:
         self.db_url_local = db_url or DATABASE_URL or DB_URL_FALLBACK
         self._embedding_cache = {}  # In-memory кэш эмбеддингов (legacy, для обратной совместимости)
         self._cache_size = 500  # Максимум эмбеддингов в кэше
+        self._freshness_sla_sec = int(os.getenv("SEMANTIC_CACHE_FRESHNESS_SLA_SEC", "900"))
+        self._enforce_freshness = os.getenv("SEMANTIC_CACHE_ENFORCE_FRESHNESS", "true").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
 
         # Используем EmbeddingOptimizer, если доступен
         try:
@@ -359,6 +391,38 @@ class SemanticAICache:
             logger.error("❌ DB connection failed: %s", exc)
             return None, None
 
+    async def _get_knowledge_snapshot_ts(self, conn) -> Optional[datetime]:
+        """Current knowledge snapshot based on max(updated_at) in knowledge_nodes."""
+        try:
+            ts = await conn.fetchval("SELECT MAX(updated_at) FROM knowledge_nodes")
+            if isinstance(ts, datetime):
+                return ts.astimezone(timezone.utc)
+        except Exception as e:
+            logger.debug("Snapshot read failed: %s", e)
+        return None
+
+    @staticmethod
+    def _extract_snapshot_from_metadata(meta: Any) -> Optional[datetime]:
+        """Parse cache metadata snapshot timestamp safely."""
+        if not meta:
+            return None
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except Exception:
+                return None
+        if not isinstance(meta, dict):
+            return None
+        raw_ts = meta.get("knowledge_snapshot_at")
+        if not raw_ts:
+            return None
+        try:
+            return datetime.fromisoformat(str(raw_ts).replace("Z", "+00:00")).astimezone(
+                timezone.utc
+            )
+        except Exception:
+            return None
+
     async def _get_cached_embedding(self, text: str) -> Optional[list]:
         """Получает эмбеддинг из кэша или вычисляет (с оптимизацией)"""
         # Используем EmbeddingOptimizer, если доступен
@@ -375,8 +439,9 @@ class SemanticAICache:
                 return embedding
 
             # [SINGULARITY 24.3] Graceful Degradation: Search by exact text if Ollama failed
-            logger.warning(
-                f"🔍 [GRACEFUL DEGRADATION] Ollama failed, attempting exact match for: {text[:50]}..."
+            logger.debug(
+                "🔍 [GRACEFUL DEGRADATION] Ollama failed, attempting exact match for: %s...",
+                text[:50],
             )
             conn, _ = await self._get_conn()
             if conn:
@@ -556,6 +621,32 @@ class SemanticAICache:
         except Exception:
             pass
 
+    # ------------------------------------------------------------------
+    # Compatibility helpers for older callers (e.g. KnowledgeFabric)
+    # ------------------------------------------------------------------
+    async def get_cache(self, key: str) -> Optional[str]:
+        """Backward-compatible alias for simple cache reads."""
+        try:
+            return await self.get_cached_response(key, "KnowledgeFabric")
+        except Exception as e:
+            logger.debug("get_cache compatibility failed: %s", e)
+            return None
+
+    async def set_cache(self, key: str, value: str, ttl: int = 3600) -> bool:
+        """Backward-compatible alias for simple cache writes."""
+        try:
+            await self.save_to_cache(
+                query=key,
+                response=value,
+                expert_name="KnowledgeFabric",
+                priority="low",
+                ttl_seconds=ttl,
+            )
+            return True
+        except Exception as e:
+            logger.debug("set_cache compatibility failed: %s", e)
+            return False
+
     async def get_cached_response(self, query: str, expert_name: str) -> Optional[str]:
         """Try to find a similar query in the semantic cache."""
         # Определяем, является ли это стратегическим вопросом
@@ -594,7 +685,7 @@ class SemanticAICache:
             if has_ttl:
                 row = await conn.fetchrow(
                     """
-                    SELECT response_text, (1 - (embedding <=> $1::vector)) as similarity
+                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity
                     FROM semantic_ai_cache
                     WHERE expert_name = $2
                     AND (1 - (embedding <=> $1::vector)) >= $3
@@ -609,7 +700,7 @@ class SemanticAICache:
             else:
                 row = await conn.fetchrow(
                     """
-                    SELECT response_text, (1 - (embedding <=> $1::vector)) as similarity
+                    SELECT response_text, metadata, (1 - (embedding <=> $1::vector)) as similarity
                     FROM semantic_ai_cache
                     WHERE expert_name = $2
                     AND (1 - (embedding <=> $1::vector)) >= $3
@@ -622,6 +713,23 @@ class SemanticAICache:
                 )
 
             if row and row["similarity"] >= aggressive_threshold:
+                if self._enforce_freshness:
+                    current_snapshot = await self._get_knowledge_snapshot_ts(conn)
+                    cached_snapshot = self._extract_snapshot_from_metadata(row.get("metadata"))
+                    if (
+                        current_snapshot
+                        and cached_snapshot
+                        and (current_snapshot - cached_snapshot).total_seconds()
+                        > self._freshness_sla_sec
+                    ):
+                        logger.info(
+                            "⌛ [CACHE FRESHNESS] stale semantic cache skipped (lag=%ss > sla=%ss)",
+                            int((current_snapshot - cached_snapshot).total_seconds()),
+                            self._freshness_sla_sec,
+                        )
+                        await conn.close()
+                        return None
+
                 # Update usage count
                 await conn.execute(
                     """
@@ -697,35 +805,77 @@ class SemanticAICache:
                     AND column_name = 'ttl_seconds'
                 )
             """)
+            has_metadata = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'semantic_ai_cache'
+                    AND column_name = 'metadata'
+                )
+            """)
+            snapshot_ts = await self._get_knowledge_snapshot_ts(conn)
+            cache_metadata = {
+                "knowledge_snapshot_at": snapshot_ts.isoformat() if snapshot_ts else None,
+                "freshness_sla_sec": self._freshness_sla_sec,
+            }
 
             if has_routing and has_ttl:
                 # Полная версия с TTL и приоритетами
-                await conn.execute(
-                    """
-                    INSERT INTO semantic_ai_cache
-                    (query_text, response_text, embedding, expert_name, routing_source, performance_score, tokens_saved, priority, ttl_seconds)
-                    VALUES ($1, $2, $3::vector, $4, $5, $6, $7, $8, $9)
-                    ON CONFLICT (query_text, expert_name) DO UPDATE
-                    SET response_text = EXCLUDED.response_text,
-                        embedding = EXCLUDED.embedding,
-                        routing_source = EXCLUDED.routing_source,
-                        performance_score = EXCLUDED.performance_score,
-                        tokens_saved = EXCLUDED.tokens_saved,
-                        priority = EXCLUDED.priority,
-                        ttl_seconds = EXCLUDED.ttl_seconds,
-                        expires_at = CURRENT_TIMESTAMP + INTERVAL '1 second' * EXCLUDED.ttl_seconds,
-                        last_used_at = NOW()
-                """,
-                    query,
-                    response,
-                    str(embedding),
-                    expert_name,
-                    routing_source,
-                    performance_score,
-                    tokens_saved,
-                    priority,
-                    ttl_seconds,
-                )
+                if has_metadata:
+                    await conn.execute(
+                        """
+                        INSERT INTO semantic_ai_cache
+                        (query_text, response_text, embedding, expert_name, routing_source, performance_score, tokens_saved, priority, ttl_seconds, metadata)
+                        VALUES ($1, $2, $3::vector, $4, $5, $6, $7, $8, $9, $10::jsonb)
+                        ON CONFLICT (query_text, expert_name) DO UPDATE
+                        SET response_text = EXCLUDED.response_text,
+                            embedding = EXCLUDED.embedding,
+                            routing_source = EXCLUDED.routing_source,
+                            performance_score = EXCLUDED.performance_score,
+                            tokens_saved = EXCLUDED.tokens_saved,
+                            priority = EXCLUDED.priority,
+                            ttl_seconds = EXCLUDED.ttl_seconds,
+                            metadata = COALESCE(semantic_ai_cache.metadata, '{}'::jsonb) || EXCLUDED.metadata,
+                            expires_at = CURRENT_TIMESTAMP + INTERVAL '1 second' * EXCLUDED.ttl_seconds,
+                            last_used_at = NOW()
+                    """,
+                        query,
+                        response,
+                        str(embedding),
+                        expert_name,
+                        routing_source,
+                        performance_score,
+                        tokens_saved,
+                        priority,
+                        ttl_seconds,
+                        json.dumps(cache_metadata),
+                    )
+                else:
+                    await conn.execute(
+                        """
+                        INSERT INTO semantic_ai_cache
+                        (query_text, response_text, embedding, expert_name, routing_source, performance_score, tokens_saved, priority, ttl_seconds)
+                        VALUES ($1, $2, $3::vector, $4, $5, $6, $7, $8, $9)
+                        ON CONFLICT (query_text, expert_name) DO UPDATE
+                        SET response_text = EXCLUDED.response_text,
+                            embedding = EXCLUDED.embedding,
+                            routing_source = EXCLUDED.routing_source,
+                            performance_score = EXCLUDED.performance_score,
+                            tokens_saved = EXCLUDED.tokens_saved,
+                            priority = EXCLUDED.priority,
+                            ttl_seconds = EXCLUDED.ttl_seconds,
+                            expires_at = CURRENT_TIMESTAMP + INTERVAL '1 second' * EXCLUDED.ttl_seconds,
+                            last_used_at = NOW()
+                    """,
+                        query,
+                        response,
+                        str(embedding),
+                        expert_name,
+                        routing_source,
+                        performance_score,
+                        tokens_saved,
+                        priority,
+                        ttl_seconds,
+                    )
             elif has_routing:
                 # Версия без TTL (старая схема)
                 await conn.execute(
